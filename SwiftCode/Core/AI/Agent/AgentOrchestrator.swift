@@ -170,9 +170,41 @@ public actor AgentOrchestrator {
 
     private func decodeArguments(_ arguments: String) -> [String: any Sendable] {
         guard let data = arguments.data(using: .utf8),
-              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: any Sendable] else {
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let dict = object as? [String: Any] else {
             return [:]
         }
-        return dict
+
+        var result: [String: any Sendable] = [:]
+
+        for (key, value) in dict {
+            switch value {
+            case let v as String: result[key] = v
+            case let v as Int: result[key] = v
+            case let v as Double: result[key] = v
+            case let v as Float: result[key] = v
+            case let v as Bool: result[key] = v
+            case let v as [String]: result[key] = v
+            case let v as [Int]: result[key] = v
+            case let v as [Double]: result[key] = v
+            case let v as [Bool]: result[key] = v
+            case let v as [[String: Any]]:
+                result[key] = v.map { item in
+                    var converted: [String: any Sendable] = [:]
+                    for (k, val) in item {
+                        if let s = val as? String { converted[k] = s }
+                        else if let i = val as? Int { converted[k] = i }
+                        else if let d = val as? Double { converted[k] = d }
+                        else if let b = val as? Bool { converted[k] = b }
+                        else if let a = val as? [String] { converted[k] = a }
+                    }
+                    return converted
+                }
+            default:
+                break
+            }
+        }
+
+        return result
     }
 }

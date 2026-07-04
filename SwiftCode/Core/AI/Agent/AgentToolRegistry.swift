@@ -4,14 +4,16 @@ public struct AgentToolRegistry: Sendable {
     public static let shared = AgentToolRegistry()
 
     public func schema() -> [[String: any Sendable]] {
-        return ListTools.shared.tools.compactMap { (name, agentTool) in
+        return ListTools.shared.tools.map { (_, agentTool) in
+            let function: [String: any Sendable] = [
+                "name": agentTool.name,
+                "description": agentTool.description,
+                "parameters": agentTool.schema
+            ]
+
             return [
                 "type": "function",
-                "function": [
-                    "name": agentTool.name,
-                    "description": agentTool.description,
-                    "parameters": agentTool.schema
-                ]
+                "function": function
             ]
         }
     }
