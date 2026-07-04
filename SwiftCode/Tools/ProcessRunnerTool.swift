@@ -39,7 +39,7 @@ public actor ProcessRunnerTool {
         )
     }
 
-    public func runStreaming(executableURL: URL, arguments: [String], environment: [String: String]? = nil, workingDirectory: URL? = nil, onStdout: @escaping @Sendable (String) -> Void, onStderr: @escaping @Sendable (String) -> Void) throws -> Process {
+    public nonisolated func runStreaming(executableURL: URL, arguments: [String], environment: [String: String]? = nil, workingDirectory: URL? = nil, onStdout: @escaping @Sendable (String) -> Void, onStderr: @escaping @Sendable (String) -> Void) throws -> Process {
         let process = Process()
         process.executableURL = executableURL
         process.arguments = arguments

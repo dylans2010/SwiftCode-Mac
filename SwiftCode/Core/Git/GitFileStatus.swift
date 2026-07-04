@@ -1,7 +1,7 @@
 import Foundation
 
 public struct GitFileStatus: Identifiable, Sendable, Codable {
-    public var id: String { path.path }
+    public var id: String { path.path(percentEncoded: false) }
     public let path: URL
     public let status: Status
     public let isStaged: Bool

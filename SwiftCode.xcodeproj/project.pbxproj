@@ -56,6 +56,7 @@
 		25045F00C24E4D2DB87695A5 /* BookmarksSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78EA614EFC4E4D608C78416B /* BookmarksSidebarView.swift */; };
 		250A23486ECB4CAF862A9FE8 /* GitShow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5439F8DDEA0C49D697F0F05F /* GitShow.swift */; };
 		25450FF5D44743F897FD5DFD /* GitFileStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDCF79B3AB0C394332CFA219 /* GitFileStatus.swift */; };
+		265E9A532B28B39C005F9A10 /* NewFileComment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A522B28B39C005F9A10 /* NewFileComment.swift */; };
 		265E9A342B28B39C005F9A10 /* DebugModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A332B28B39C005F9A10 /* DebugModels.swift */; };
 		265E9A442B28B39C005F9A10 /* CommandLineToolTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A352B28B39C005F9A10 /* CommandLineToolTemplate.swift */; };
 		265E9A452B28B39C005F9A10 /* DocumentAppTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A362B28B39C005F9A10 /* DocumentAppTemplate.swift */; };
@@ -1441,6 +1442,7 @@
 				9CBD35FE23994B1B9FC2D124 /* GitPorcelainParser.swift in Sources */,
 				2E260D21EC954BE0B34CD4C5 /* GitService.swift in Sources */,
 				214CE8E582E743579D2D47CC /* PreferencesStore.swift in Sources */,
+				265E9A532B28B39C005F9A10 /* NewFileComment.swift in Sources */,
 				8D25225EB28542AC82A975ED /* ProjectRegistryStore.swift in Sources */,
 				DED268B9F6AF452B8F7DBDB9 /* ThemeStore.swift in Sources */,
 				619FA7086C4F4B2BBB712B1E /* KeychainService.swift in Sources */,
