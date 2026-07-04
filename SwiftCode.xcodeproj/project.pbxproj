@@ -30,6 +30,7 @@
 		8F6F47ADA92C43EB9644E61C /* AgentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 350D8932274045778152B9B9 /* AgentViewModel.swift */; };
 		CDDC45D9884B4BA1BE143A31 /* ChecklistPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4010B741810480399A66ABE /* ChecklistPlan.swift */; };
 		FEC3B44DC8224E81AD104B28 /* QuestionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3095C7FC268B4822B1D7F891 /* QuestionHandler.swift */; };
+		265E9A532B28B39C005F9A10 /* NewFileComment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A522B28B39C005F9A10 /* NewFileComment.swift */; };
 		309FC2AD3A864674A7984AA8 /* AskUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91F57C3EA6E74626A356DC99 /* AskUser.swift */; };
 		3D39286E47FC4A938275A4E1 /* SkillsValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59EC48033CCA4A84AD0A1952 /* SkillsValidator.swift */; };
 		9F76AE7D9A3C40F8B2D1150F /* SkillsParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5989C53325EF45E3AFEB83F8 /* SkillsParser.swift */; };
@@ -210,6 +211,7 @@
 		9A0A64C7535F423D9ACD5590 /* ProjectTreeRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6E31F24089DAC97BEE9EBFA /* ProjectTreeRowView.swift */; };
 		F0C5190204B54377956F7B3D /* ProjectNavigatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89F158925057E585F0850BD5 /* ProjectNavigatorView.swift */; };
 		C6E3EFD1D41743C2B06C4021 /* NewProjectSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E9FC304C91E22436FD72EF1 /* NewProjectSheetView.swift */; };
+		265E9A582B28B39C005F9A10 /* SectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A592B28B39C005F9A10 /* SectionView.swift */; };
 		BB96E2D43CBC4BBE94035D65 /* IssueNavigatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D392D5F47EE76B75952DBE05 /* IssueNavigatorView.swift */; };
 		AD685C8E34644B6A8A8A54C1 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF48A1CD567E4CDC4FB27905 /* HomeView.swift */; };
 		9FDBDD69C587426BB24C52EE /* HomeProjectGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2988576D530A06061B96EC5 /* HomeProjectGridView.swift */; };
@@ -290,6 +292,8 @@
 		265E9A4F2B28B39C005F9A10 /* SwiftPackageTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A402B28B39C005F9A10 /* SwiftPackageTemplate.swift */; };
 		265E9A502B28B39C005F9A10 /* SwiftUIViewLibraryTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A412B28B39C005F9A10 /* SwiftUIViewLibraryTemplate.swift */; };
 		265E9A512B28B39C005F9A10 /* SystemExtensionTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A422B28B39C005F9A10 /* SystemExtensionTemplate.swift */; };
+		265E9A562B28B39C005F9A10 /* iOSAppTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A542B28B39C005F9A10 /* iOSAppTemplate.swift */; };
+		265E9A572B28B39C005F9A10 /* SwiftDataAppTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A552B28B39C005F9A10 /* SwiftDataAppTemplate.swift */; };
 		2CF09B9D90564C8B83A3BF1A /* ConsoleLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BFA536A5E5336066C8294FC /* ConsoleLine.swift */; };
 		88D3F495E2A14ACA9FBF120D /* Result+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E2E48FF8366AD78838798DB /* Result+Extensions.swift */; };
 		89B373A8B2BF441FA6D18A8E /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D237EEDAB5BCCF1A735ACF4 /* AppError.swift */; };
@@ -396,6 +400,7 @@
 		93E220430C6ABA49BCBDCD5E /* GitPorcelainParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GitPorcelainParser.swift"; sourceTree = "<group>"; };
 		9227B7E4C6D695B8600E3170 /* GitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GitService.swift"; sourceTree = "<group>"; };
 		DF7A9B99B4125B85728B94A7 /* PreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PreferencesStore.swift"; sourceTree = "<group>"; };
+		265E9A522B28B39C005F9A10 /* NewFileComment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewFileComment.swift; sourceTree = "<group>"; };
 		DF56221690E8923F67F33878 /* ProjectRegistryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProjectRegistryStore.swift"; sourceTree = "<group>"; };
 		672513D68EBA48D9312D3761 /* ThemeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ThemeStore.swift"; sourceTree = "<group>"; };
 		2AB7D0C987159A0B2D6D567D /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KeychainService.swift"; sourceTree = "<group>"; };
@@ -425,6 +430,8 @@
 		265E9A402B28B39C005F9A10 /* SwiftPackageTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftPackageTemplate.swift; sourceTree = "<group>"; };
 		265E9A412B28B39C005F9A10 /* SwiftUIViewLibraryTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIViewLibraryTemplate.swift; sourceTree = "<group>"; };
 		265E9A422B28B39C005F9A10 /* SystemExtensionTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemExtensionTemplate.swift; sourceTree = "<group>"; };
+		265E9A542B28B39C005F9A10 /* iOSAppTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSAppTemplate.swift; sourceTree = "<group>"; };
+		265E9A552B28B39C005F9A10 /* SwiftDataAppTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataAppTemplate.swift; sourceTree = "<group>"; };
 		CE94D35D1397D6B283EBBC31 /* EditorTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EditorTab.swift"; sourceTree = "<group>"; };
 		F3C36B98601DBB397AA1017B /* SourceFileDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SourceFileDocument.swift"; sourceTree = "<group>"; };
 		844AB75BF6A47BBC5BE346FF /* SourceLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SourceLanguage.swift"; sourceTree = "<group>"; };
@@ -501,6 +508,7 @@
 		DF48A1CD567E4CDC4FB27905 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HomeView.swift"; sourceTree = "<group>"; };
 		D392D5F47EE76B75952DBE05 /* IssueNavigatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "IssueNavigatorView.swift"; sourceTree = "<group>"; };
 		3E9FC304C91E22436FD72EF1 /* NewProjectSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NewProjectSheetView.swift"; sourceTree = "<group>"; };
+		265E9A592B28B39C005F9A10 /* SectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionView.swift; sourceTree = "<group>"; };
 		89F158925057E585F0850BD5 /* ProjectNavigatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProjectNavigatorView.swift"; sourceTree = "<group>"; };
 		C6E31F24089DAC97BEE9EBFA /* ProjectTreeRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProjectTreeRowView.swift"; sourceTree = "<group>"; };
 		9367028FD858019CC493CD87 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsView.swift"; sourceTree = "<group>"; };
@@ -852,6 +860,7 @@
 				AF1234567890ABCDEF000001 /* BookmarkStore.swift */,
 				AF1234567890ABCDEF000003 /* BreakpointStore.swift */,
 				672513D68EBA48D9312D3761,
+				265E9A522B28B39C005F9A10 /* NewFileComment.swift */,
 				DF56221690E8923F67F33878,
 				DF7A9B99B4125B85728B94A7,
 				265E9A432B28B39C005F9A10 /* Templates */,
@@ -862,6 +871,7 @@
 		265E9A432B28B39C005F9A10 /* Templates */ = {
 			isa = PBXGroup;
 			children = (
+				B61712C0BD46B1E17BD74F94 /* ProjectTemplateEngine.swift */,
 				265E9A352B28B39C005F9A10 /* CommandLineToolTemplate.swift */,
 				265E9A362B28B39C005F9A10 /* DocumentAppTemplate.swift */,
 				265E9A372B28B39C005F9A10 /* FrameworkTemplate.swift */,
@@ -876,6 +886,8 @@
 				265E9A402B28B39C005F9A10 /* SwiftPackageTemplate.swift */,
 				265E9A412B28B39C005F9A10 /* SwiftUIViewLibraryTemplate.swift */,
 				265E9A422B28B39C005F9A10 /* SystemExtensionTemplate.swift */,
+				265E9A542B28B39C005F9A10 /* iOSAppTemplate.swift */,
+				265E9A552B28B39C005F9A10 /* SwiftDataAppTemplate.swift */,
 			);
 			path = Templates;
 			sourceTree = "<group>";
@@ -1017,7 +1029,6 @@
 				21ED0487F63148248C3E5D74,
 				550406F186F4791910811394,
 				ACDB99DB88F546F6D6F4637B,
-				BFA18CA37EF8EC206E34B93D,
 				E62980EE6DD4661475F9BBF9,
 			);
 			path = "Frameworks";
@@ -1038,14 +1049,6 @@
 				CFE93F6E9F8960DBC11BA8A2,
 			);
 			path = "Markdown";
-			sourceTree = "<group>";
-		};
-		BFA18CA37EF8EC206E34B93D /* ProjectTemplates */ = {
-			isa = PBXGroup;
-			children = (
-				B61712C0BD46B1E17BD74F94,
-			);
-			path = "ProjectTemplates";
 			sourceTree = "<group>";
 		};
 		E62980EE6DD4661475F9BBF9 /* SyntaxHighlighting */ = {
@@ -1150,6 +1153,7 @@
 				C2988576D530A06061B96EC5,
 				C6E31F24089DAC97BEE9EBFA,
 				CD4100FC6872866E61CBC096,
+				265E9A592B28B39C005F9A10 /* SectionView.swift */,
 				D1A1EBA88E7FCC25B26C8FA4,
 				D392D5F47EE76B75952DBE05,
 				DF48A1CD567E4CDC4FB27905,
@@ -1575,6 +1579,8 @@
 				265E9A4F2B28B39C005F9A10 /* SwiftPackageTemplate.swift in Sources */,
 				265E9A502B28B39C005F9A10 /* SwiftUIViewLibraryTemplate.swift in Sources */,
 				265E9A512B28B39C005F9A10 /* SystemExtensionTemplate.swift in Sources */,
+				265E9A562B28B39C005F9A10 /* iOSAppTemplate.swift in Sources */,
+				265E9A572B28B39C005F9A10 /* SwiftDataAppTemplate.swift in Sources */,
 				0422BF3C9E4A47549E5DB637 /* SwiftTokenizer.swift in Sources */,
 				D568DB784A134F3CA53F7A6C /* SyntaxHighlightingEngine.swift in Sources */,
 				BBAE30C55740484D944B7966 /* TokenizedLine.swift in Sources */,
@@ -1621,6 +1627,7 @@
 				AD685C8E34644B6A8A8A54C1 /* HomeView.swift in Sources */,
 				BB96E2D43CBC4BBE94035D65 /* IssueNavigatorView.swift in Sources */,
 				C6E3EFD1D41743C2B06C4021 /* NewProjectSheetView.swift in Sources */,
+				265E9A582B28B39C005F9A10 /* SectionView.swift in Sources */,
 				F0C5190204B54377956F7B3D /* ProjectNavigatorView.swift in Sources */,
 				9A0A64C7535F423D9ACD5590 /* ProjectTreeRowView.swift in Sources */,
 				C5E188100FA94CCFA65E351D /* SettingsView.swift in Sources */,

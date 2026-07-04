@@ -4,8 +4,6 @@ struct NewProjectSheetView: View {
     @Bindable var viewModel: HomeViewModel
     @Environment(\.dismiss) var dismiss
 
-    @State private var projectName = "MyProject"
-    @State private var selectedTemplate: ProjectTemplate = MacOSAppTemplate()
     @State private var mode: SelectionMode = .create
     @State private var gitURL: String = ""
 
@@ -14,82 +12,98 @@ struct NewProjectSheetView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text(title)
-                    .font(.title2)
-                    .bold()
-                Spacer()
-                Picker("", selection: $mode) {
-                    Text("New").tag(SelectionMode.create)
-                    Text("Import").tag(SelectionMode.importFolder)
-                    Text("Clone").tag(SelectionMode.clone)
-                    Text("Xcode").tag(SelectionMode.xcodeproj)
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Text(title)
+                        .font(.title2)
+                        .bold()
+                    Spacer()
+                    Picker("", selection: $mode) {
+                        Text("New").tag(SelectionMode.create)
+                        Text("Import").tag(SelectionMode.importFolder)
+                        Text("Clone").tag(SelectionMode.clone)
+                        Text("Xcode").tag(SelectionMode.xcodeproj)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 250)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 250)
-            }
-            .padding()
-            .background(Color(NSColor.windowBackgroundColor))
+                .padding()
+                .background(Color(NSColor.windowBackgroundColor))
 
-            Divider()
+                Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    if mode == .create {
-                        SectionView(title: "Project Name") {
-                            TextField("MyProject", text: $projectName)
-                                .textFieldStyle(.roundedBorder)
-                        }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        if mode == .create {
+                            VStack(alignment: .center, spacing: 20) {
+                                Image(systemName: "plus.square.fill")
+                                    .font(.system(size: 60))
+                                    .foregroundColor(.accentColor)
 
-                        SectionView(title: "Template") {
-                            TemplatePickerView(selected: $selectedTemplate)
+                                Text("Create a new project from a template.")
+                                    .font(.headline)
+
+                                NavigationLink(destination: TemplatePickerView(viewModel: viewModel)) {
+                                    Text("Choose Template...")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 40)
+
+                        } else if mode == .clone {
+                            SectionView(title: "Git Repository URL") {
+                                TextField("https://github.com/user/repo.git", text: $gitURL)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                        } else if mode == .importFolder {
+                            VStack(alignment: .center) {
+                                Image(systemName: "folder.badge.plus")
+                                    .font(.system(size: 50))
+                                    .foregroundColor(.accentColor)
+                                    .padding()
+                                Text("Select a folder to import it as a SwiftCode project.")
+                                    .foregroundColor(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                        } else if mode == .xcodeproj {
+                            VStack(alignment: .center) {
+                                Image(systemName: "app.badge")
+                                    .font(.system(size: 50))
+                                    .foregroundColor(.accentColor)
+                                    .padding()
+                                Text("Import an existing .xcodeproj file.")
+                                    .foregroundColor(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
                         }
-                    } else if mode == .clone {
-                        SectionView(title: "Git Repository URL") {
-                            TextField("https://github.com/user/repo.git", text: $gitURL)
-                                .textFieldStyle(.roundedBorder)
+                    }
+                    .padding()
+                }
+
+                Divider()
+
+                // Footer
+                HStack {
+                    Button("Cancel") { dismiss() }
+                    Spacer()
+                    if mode != .create {
+                        Button(actionButtonTitle) {
+                            handleAction()
                         }
-                    } else if mode == .importFolder {
-                        VStack(alignment: .center) {
-                            Image(systemName: "folder.badge.plus")
-                                .font(.system(size: 50))
-                                .foregroundColor(.accentColor)
-                                .padding()
-                            Text("Select a folder to import it as a SwiftCode project.")
-                                .foregroundColor(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                    } else if mode == .xcodeproj {
-                        VStack(alignment: .center) {
-                            Image(systemName: "app.badge")
-                                .font(.system(size: 50))
-                                .foregroundColor(.accentColor)
-                                .padding()
-                            Text("Import an existing .xcodeproj file.")
-                                .foregroundColor(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
+                        .buttonStyle(.borderedProminent)
                     }
                 }
                 .padding()
             }
-
-            Divider()
-
-            // Footer
-            HStack {
-                Button("Cancel") { dismiss() }
-                Spacer()
-                Button(actionButtonTitle) {
-                    handleAction()
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .padding()
+            .navigationTitle(title)
+            .navigationBarHidden(true)
         }
         .frame(width: 500, height: 400)
     }
@@ -115,34 +129,13 @@ struct NewProjectSheetView: View {
     private func handleAction() {
         switch mode {
         case .create:
-            createProject()
+            break // Handled in TemplatePickerView
         case .importFolder:
             importFolder()
         case .clone:
             cloneRepo()
         case .xcodeproj:
             importXcodeProject()
-        }
-    }
-
-    private func createProject() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        panel.message = "Select where to save your project"
-
-        if panel.runModal() == .OK, let url = panel.url {
-            let projectURL = url.appendingPathComponent(projectName)
-            Task {
-                do {
-                    try await ProjectTemplateEngine.shared.createProject(at: projectURL, template: selectedTemplate)
-                    await viewModel.importProject(url: projectURL)
-                    dismiss()
-                } catch {
-                    LoggingTool.error("Failed to create project: \(error)")
-                }
-            }
         }
     }
 
@@ -190,24 +183,6 @@ struct NewProjectSheetView: View {
                 await viewModel.importProject(url: url.deletingLastPathComponent())
                 dismiss()
             }
-        }
-    }
-}
-
-struct SectionView<Content: View>: View {
-    let title: String
-    let content: Content
-
-    init(title: String, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.headline)
-            content
         }
     }
 }

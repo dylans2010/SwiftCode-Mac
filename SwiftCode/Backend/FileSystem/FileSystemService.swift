@@ -16,8 +16,15 @@ public actor FileSystemService {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     }
 
-    public func createFile(at url: URL, content: String = "") throws {
-        try content.write(to: url, atomically: true, encoding: .utf8)
+    public func createFile(at url: URL, content: String = "") async throws {
+        var finalContent = content
+        if url.pathExtension == "swift" {
+            let filename = url.lastPathComponent
+            let projectName = "SwiftCode"
+            let header = await NewFileComment.generateHeader(filename: filename, projectName: projectName)
+            finalContent = header + content
+        }
+        try finalContent.write(to: url, atomically: true, encoding: .utf8)
     }
 
     public func delete(at url: URL) throws {
