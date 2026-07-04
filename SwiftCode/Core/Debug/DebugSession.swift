@@ -6,6 +6,8 @@ public struct DebugSession: Identifiable, Sendable {
     public let startedAt: Date
     public var state: State
     public let executableURL: URL
+    public var callStack: [StackFrame] = []
+    public var variables: [DebugVariable] = []
 
     public enum State: Sendable {
         case launching

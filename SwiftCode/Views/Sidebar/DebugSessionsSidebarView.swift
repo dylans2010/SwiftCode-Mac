@@ -32,7 +32,14 @@ struct DebugSessionsSidebarView: View {
 
             HStack {
                 Button(action: {
-                    // In a real app, this would show a target picker
+                    let panel = NSOpenPanel()
+                    panel.canChooseFiles = true
+                    panel.canChooseDirectories = false
+                    panel.allowsMultipleSelection = false
+                    panel.message = "Select an executable to debug"
+                    if panel.runModal() == .OK, let url = panel.url {
+                        viewModel.startDebugging(executableURL: url)
+                    }
                 }) {
                     Label("New Session", systemImage: "plus")
                 }
