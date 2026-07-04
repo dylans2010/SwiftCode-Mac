@@ -2,26 +2,21 @@ import SwiftUI
 
 struct GitSidebarView: View {
     @Bindable var viewModel: GitViewModel
+    @State private var commitMessage = ""
 
     var body: some View {
         VStack {
             if viewModel.isGitInstalled {
                 List {
                     Section("Quick Links") {
-                        NavigationLink(destination: GitBranchesView(viewModel: viewModel)) {
-                            Label("Branches", systemImage: "arrow.triangle.pull")
-                        }
-                        NavigationLink(destination: GitHistoryView(viewModel: viewModel)) {
-                            Label("History", systemImage: "clock")
-                        }
                         NavigationLink(destination: GitChangesView(viewModel: viewModel)) {
                             Label("Changes", systemImage: "doc.on.doc")
                         }
-                        NavigationLink(destination: GitCommitComposerView(viewModel: viewModel)) {
-                            Label("Commit Composer", systemImage: "plus.square.on.square")
+                        NavigationLink(destination: GitHistoryView(commits: viewModel.history)) {
+                            Label("History", systemImage: "clock")
                         }
-                        NavigationLink(destination: GitDiffView(viewModel: viewModel)) {
-                            Label("Diff View", systemImage: "plus.forwardslash.minus")
+                        NavigationLink(destination: GitBranchesView(branches: viewModel.branches)) {
+                            Label("Branches", systemImage: "arrow.triangle.pull")
                         }
                         NavigationLink(destination: GitPanelView(viewModel: viewModel)) {
                             Label("Git Panel", systemImage: "macwindow.on.rectangle")
@@ -29,27 +24,31 @@ struct GitSidebarView: View {
                     }
 
                     Section("Changes") {
-                        if viewModel.status.changedFiles.isEmpty {
+                        if let status = viewModel.status {
+                            if status.files.isEmpty {
+                                Text("No changes")
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ForEach(status.files) { file in
+                                    GitFileRowView(file: file)
+                                }
+                            }
+                        } else {
                             Text("No changes")
                                 .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(viewModel.status.changedFiles, id: \.url) { file in
-                                GitFileRowView(file: file)
-                            }
                         }
                     }
                 }
 
                 VStack {
-                    TextField("Commit message", text: $viewModel.commitMessage)
-                        .textFieldStyle(.roundedBorder)
-
-                    Button("Commit") {
-                        Task { await viewModel.commit() }
+                    GitCommitComposerView(message: $commitMessage) {
+                        Task {
+                            guard let url = viewModel.repositoryURL else { return }
+                            try? await GitService.shared.commit(message: commitMessage, repositoryURL: url)
+                            commitMessage = ""
+                            await viewModel.refreshStatus()
+                        }
                     }
-                    .disabled(viewModel.commitMessage.isEmpty)
-                    .buttonStyle(.borderedProminent)
-                    .frame(maxWidth: .infinity)
                 }
                 .padding()
             } else {

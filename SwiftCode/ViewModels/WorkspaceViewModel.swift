@@ -16,6 +16,7 @@ public class WorkspaceViewModel: Sendable {
         self.projectURL = projectURL
         self.git.repositoryURL = projectURL
         Task {
+            await git.refreshInstallationStatus()
             await projectTree.loadProject(url: projectURL)
             await git.refreshStatus()
         }

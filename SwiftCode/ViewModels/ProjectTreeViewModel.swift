@@ -7,6 +7,10 @@ public class ProjectTreeViewModel {
     public var rootNode: ProjectNode?
     public var isLoading = false
 
+    public var projectURL: URL? {
+        rootNode?.url
+    }
+
     public init() {}
 
     public func loadProject(url: URL) async {

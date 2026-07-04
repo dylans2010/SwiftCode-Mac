@@ -8,9 +8,14 @@ public class GitViewModel {
     public var history: [GitCommit] = []
     public var branches: [GitBranch] = []
     public var isScanning = false
+    public var isGitInstalled = false
     public var repositoryURL: URL?
 
     public init() {}
+
+    public func refreshInstallationStatus() async {
+        isGitInstalled = await GitService.shared.isGitInstalled()
+    }
 
     public func refreshStatus() async {
         guard let url = repositoryURL else { return }

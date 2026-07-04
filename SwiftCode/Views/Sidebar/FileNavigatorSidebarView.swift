@@ -10,7 +10,8 @@ struct FileNavigatorSidebarView: View {
             HStack {
                 Button(action: {
                     Task {
-                        let newFileURL = viewModel.projectURL.appendingPathComponent("Untitled.swift")
+                        guard let projectURL = viewModel.projectURL else { return }
+                        let newFileURL = projectURL.appendingPathComponent("Untitled.swift")
                         try? await FileSystemService.shared.createFile(at: newFileURL)
                         await viewModel.refresh()
                     }
@@ -18,10 +19,12 @@ struct FileNavigatorSidebarView: View {
                     Image(systemName: "plus")
                 }
                 .help("New File")
+                .disabled(viewModel.projectURL == nil)
 
                 Button(action: {
                     Task {
-                        let newFolderURL = viewModel.projectURL.appendingPathComponent("New Folder")
+                        guard let projectURL = viewModel.projectURL else { return }
+                        let newFolderURL = projectURL.appendingPathComponent("New Folder")
                         try? await FileSystemService.shared.createDirectory(at: newFolderURL)
                         await viewModel.refresh()
                     }
@@ -29,6 +32,7 @@ struct FileNavigatorSidebarView: View {
                     Image(systemName: "folder.badge.plus")
                 }
                 .help("New Folder")
+                .disabled(viewModel.projectURL == nil)
 
                 Spacer()
 
@@ -40,19 +44,27 @@ struct FileNavigatorSidebarView: View {
             .padding(.horizontal)
             .padding(.top, 4)
 
-            List(viewModel.rootNodes, children: \.children) { node in
-                ProjectTreeRowView(node: node)
-                    .contextMenu {
-                        Button("Rename...") {
-                            selectedNodeForRename = node
-                            showingRenameSheet = true
-                        }
-                        Button("Delete", role: .destructive) {
-                            Task {
-                                try? await FileSystemService.shared.delete(at: node.url)
-                                await viewModel.refresh()
+            List {
+                if let rootNode = viewModel.rootNode {
+                    OutlineGroup(rootNode, children: \.children) { node in
+                        ProjectTreeRowView(node: node)
+                            .contextMenu {
+                                Button("Rename...") {
+                                    selectedNodeForRename = node
+                                    showingRenameSheet = true
+                                }
+                                Button("Delete", role: .destructive) {
+                                    Task {
+                                        try? await FileSystemService.shared.delete(at: node.url)
+                                        await viewModel.refresh()
+                                    }
+                                }
                             }
-                        }
+                    }
+                } else {
+                    Text("No project open")
+                        .foregroundStyle(.secondary)
+                }
                     }
             }
         }
