@@ -1,6 +1,6 @@
 import Foundation
 
-public struct GitPorcelainParser: Sendable {
+public actor GitPorcelainParser {
     public static let shared = GitPorcelainParser()
 
     public func parseStatus(_ output: String, repositoryURL: URL) -> GitStatusSnapshot {
@@ -25,6 +25,7 @@ public struct GitPorcelainParser: Sendable {
                 if parts.count >= 9 {
                     let statusStr = String(parts[1])
                     let path = repositoryURL.appendingPathComponent(parts[8])
+                    // SAFETY: statusStr is guaranteed to be non-empty in porcelain v2 output.
                     files.append(GitFileStatus(path: path, status: parseStatusChar(statusStr.first!), isStaged: statusStr.first != "."))
                 }
             } else if line.hasPrefix("? ") {

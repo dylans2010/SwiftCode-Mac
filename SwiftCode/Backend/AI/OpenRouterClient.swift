@@ -5,6 +5,7 @@ public actor OpenRouterClient {
 
     public func streamChatCompletion(request: AIAssistantRequest) async throws -> AsyncThrowingStream<String, Error> {
         let apiKey = try await KeychainService.shared.get(account: "openrouter-api-key") ?? ""
+        // SAFETY: The URL is a valid constant string.
         var urlRequest = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
         urlRequest.httpMethod = "POST"
         urlRequest.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
