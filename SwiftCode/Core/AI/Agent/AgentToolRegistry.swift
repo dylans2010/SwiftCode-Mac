@@ -3,9 +3,8 @@ import Foundation
 public struct AgentToolRegistry: Sendable {
     public static let shared = AgentToolRegistry()
 
-    public func schema() -> [[String: Any]] {
-        return ListTools.shared.tools.compactMap { (name, tool) in
-            guard let agentTool = tool as? AgentTool else { return nil }
+    public func schema() -> [[String: any Sendable]] {
+        return ListTools.shared.tools.compactMap { (name, agentTool) in
             return [
                 "type": "function",
                 "function": [
@@ -17,9 +16,9 @@ public struct AgentToolRegistry: Sendable {
         }
     }
 
-    public func execute(name: String, arguments: [String: Any]) async throws -> String {
-        guard let tool = ListTools.shared.tools[name] as? AgentTool else {
-            throw AgentError.toolError("Tool \(name) not found or doesn't conform to AgentTool")
+    public func execute(name: String, arguments: [String: any Sendable]) async throws -> String {
+        guard let tool = ListTools.shared.tools[name] else {
+            throw AgentError.toolError("Tool \(name) not found")
         }
         return try await tool.execute(arguments: arguments)
     }

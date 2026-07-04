@@ -4,7 +4,7 @@ public struct GitAddTool: AgentTool {
     public static let identifier = "git_add"
     public let name = "git_add"
     public let description = "Adds files to the git staging area."
-    public let schema: [String: Any] = [
+    public let schema: [String: any Sendable] = [
         "type": "object",
         "properties": [
             "repositoryPath": ["type": "string"],
@@ -23,7 +23,7 @@ public struct GitAddTool: AgentTool {
         if result.exitCode != 0 { throw AgentError.toolError(result.stderr) }
     }
 
-    public func execute(arguments: [String: Any]) async throws -> String {
+    public func execute(arguments: [String: any Sendable]) async throws -> String {
         guard let path = arguments["repositoryPath"] as? String,
               let files = arguments["files"] as? [String] else {
             throw AgentError.toolError("Missing repositoryPath or files")

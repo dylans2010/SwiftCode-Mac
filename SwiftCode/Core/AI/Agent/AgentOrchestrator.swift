@@ -67,13 +67,8 @@ public actor AgentOrchestrator {
                 case .text(let delta):
                     currentText += delta
                 case .toolCall(let toolCalls):
-                    for callDict in toolCalls {
-                        if let id = callDict["id"] as? String,
-                           let function = callDict["function"] as? [String: Any],
-                           let name = function["name"] as? String,
-                           let arguments = function["arguments"] as? String {
-                            assistantContent.append(.toolCall(AgentToolCall(id: id, name: name, arguments: arguments)))
-                        }
+                    for call in toolCalls {
+                        assistantContent.append(.toolCall(call))
                     }
                 }
             }
@@ -130,7 +125,7 @@ public actor AgentOrchestrator {
         }
     }
 
-    private func handleAskUser(_ call: AgentToolCall, _ args: [String: Any], _ session: inout AgentSession) {
+    private func handleAskUser(_ call: AgentToolCall, _ args: [String: any Sendable], _ session: inout AgentSession) {
         if let questionText = args["question"] as? String {
             let inputTypeStr = args["input_type"] as? String
             let inputType: AgentPendingQuestion.InputType = inputTypeStr == "selection" ? .selection(options: args["options"] as? [String] ?? []) : .text
@@ -143,8 +138,8 @@ public actor AgentOrchestrator {
         }
     }
 
-    private func handleQuestionsHandle(_ call: AgentToolCall, _ args: [String: Any], _ session: inout AgentSession) {
-        if let questionsData = args["questions"] as? [[String: Any]] {
+    private func handleQuestionsHandle(_ call: AgentToolCall, _ args: [String: any Sendable], _ session: inout AgentSession) {
+        if let questionsData = args["questions"] as? [[String: any Sendable]] {
             let questions = questionsData.compactMap { qDict -> AgentPendingQuestion? in
                 guard let prompt = qDict["prompt"] as? String,
                       let inputTypeStr = qDict["input_type"] as? String else { return nil }
@@ -160,8 +155,8 @@ public actor AgentOrchestrator {
         }
     }
 
-    private func handleChecklistPlan(_ args: [String: Any], _ session: inout AgentSession) {
-        if let tasksData = args["tasks"] as? [[String: Any]] {
+    private func handleChecklistPlan(_ args: [String: any Sendable], _ session: inout AgentSession) {
+        if let tasksData = args["tasks"] as? [[String: any Sendable]] {
             let tasks = tasksData.compactMap { tDict -> AgentChecklistTask? in
                 guard let id = tDict["id"] as? String,
                       let title = tDict["title"] as? String,
@@ -173,9 +168,9 @@ public actor AgentOrchestrator {
         }
     }
 
-    private func decodeArguments(_ arguments: String) -> [String: Any] {
+    private func decodeArguments(_ arguments: String) -> [String: any Sendable] {
         guard let data = arguments.data(using: .utf8),
-              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: any Sendable] else {
             return [:]
         }
         return dict

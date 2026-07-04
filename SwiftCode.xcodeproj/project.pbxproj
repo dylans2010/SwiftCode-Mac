@@ -8,6 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		03448B6DC75947AD9756B9B6 /* SemanticCodeSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70BE6383C2C4473391AFAA66 /* SemanticCodeSearch.swift */; };
+		AF1234567890ABCDEF000013 /* CodeAnalysisTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000007 /* CodeAnalysisTool.swift */; };
+		AF1234567890ABCDEF000015 /* ProjectIndexingTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000009 /* ProjectIndexingTool.swift */; };
+		AF1234567890ABCDEF000017 /* BreakpointStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000003 /* BreakpointStore.swift */; };
+		AF1234567890ABCDEF000019 /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000001 /* BookmarkStore.swift */; };
 		0361118097EC4AA897DDE993 /* SQLQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2540207259644B992A62D72 /* SQLQuery.swift */; };
 		038BF87A092A4CD784BB65F0 /* AgentContextBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A004D38130A948B3A668694E /* AgentContextBuilder.swift */; };
 		0422BF3C9E4A47549E5DB637 /* SwiftTokenizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43B6AE19277BC87E87856F0E /* SwiftTokenizer.swift */; };
@@ -1376,6 +1380,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AF1234567890ABCDEF000013 /* CodeAnalysisTool.swift in Sources */,
+				AF1234567890ABCDEF000015 /* ProjectIndexingTool.swift in Sources */,
+				AF1234567890ABCDEF000017 /* BreakpointStore.swift in Sources */,
+				AF1234567890ABCDEF000019 /* BookmarkStore.swift in Sources */,
 				3FEB03CE5239400A93B276F3 /* SkillsEditorView.swift in Sources */,
 				341A9F182E704F7F9B738B34 /* OpenRouterAIProvider.swift in Sources */,
 				1A55628ECF57418D801FF996 /* SkillsManagerView.swift in Sources */,

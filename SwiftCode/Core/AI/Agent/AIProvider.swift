@@ -1,7 +1,7 @@
 import Foundation
 
 public protocol AIProvider: Sendable {
-    func streamAgentTurn(model: String, messages: [AgentMessage], tools: [[String: Any]]?) async throws -> AsyncThrowingStream<AgentStreamEvent, Error>
+    func streamAgentTurn(model: String, messages: [AgentMessage], tools: [[String: any Sendable]]?) async throws -> AsyncThrowingStream<AgentStreamEvent, Error>
 }
 
 public enum AIProviderCapability: String, Codable, Sendable {

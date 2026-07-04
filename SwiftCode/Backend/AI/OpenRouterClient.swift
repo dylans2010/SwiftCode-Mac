@@ -67,7 +67,7 @@ public actor OpenRouterClient {
         }
     }
 
-    public func streamAgentTurn(model: String, messages: [AgentMessage], tools: [[String: Any]]?) async throws -> AsyncThrowingStream<AgentStreamEvent, Error> {
+    public func streamAgentTurn(model: String, messages: [AgentMessage], tools: [[String: any Sendable]]?) async throws -> AsyncThrowingStream<AgentStreamEvent, Error> {
         let apiKey = try await KeychainService.shared.get(account: "openrouter-api-key") ?? ""
         // SAFETY: The URL is a valid constant string.
         var urlRequest = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
@@ -119,8 +119,19 @@ public actor OpenRouterClient {
             return .text(content)
         }
 
-        if let toolCalls = delta["tool_calls"] as? [[String: Any]] {
-            return .toolCall(toolCalls)
+        if let toolCallsData = delta["tool_calls"] as? [[String: Any]] {
+            let toolCalls = toolCallsData.compactMap { dict -> AgentToolCall? in
+                guard let id = dict["id"] as? String,
+                      let function = dict["function"] as? [String: Any],
+                      let name = function["name"] as? String,
+                      let arguments = function["arguments"] as? String else {
+                    return nil
+                }
+                return AgentToolCall(id: id, name: name, arguments: arguments)
+            }
+            if !toolCalls.isEmpty {
+                return .toolCall(toolCalls)
+            }
         }
 
         return nil
@@ -129,7 +140,7 @@ public actor OpenRouterClient {
 
 public enum AgentStreamEvent: Sendable {
     case text(String)
-    case toolCall([[String: Any]])
+    case toolCall([AgentToolCall])
 }
 
 public struct AIAssistantRequest: Sendable {

@@ -4,7 +4,7 @@ public struct WriteFileTool: AgentTool {
     public static let identifier = "write_file"
     public let name = "write_file"
     public let description = "Writes content to a file."
-    public let schema: [String: Any] = [
+    public let schema: [String: any Sendable] = [
         "type": "object",
         "properties": [
             "path": ["type": "string"],
@@ -18,7 +18,7 @@ public struct WriteFileTool: AgentTool {
         try content.write(to: url, atomically: true, encoding: .utf8)
     }
 
-    public func execute(arguments: [String: Any]) async throws -> String {
+    public func execute(arguments: [String: any Sendable]) async throws -> String {
         guard let path = arguments["path"] as? String, let content = arguments["content"] as? String else {
             throw AgentError.toolError("Missing path or content")
         }

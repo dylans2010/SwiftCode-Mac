@@ -4,7 +4,7 @@ public struct QuestionHandlerTool: AgentTool {
     public static let identifier = "questions_handle"
     public let name = "questions_handle"
     public let description = "Asks multiple clarifying questions before starting work."
-    public let schema: [String: Any] = [
+    public let schema: [String: any Sendable] = [
         "type": "object",
         "properties": [
             "questions": [
@@ -24,7 +24,7 @@ public struct QuestionHandlerTool: AgentTool {
         "required": ["questions"]
     ]
 
-    public func execute(arguments: [String: Any]) async throws -> String {
+    public func execute(arguments: [String: any Sendable]) async throws -> String {
         return "Awaiting user response to question set..."
     }
 }
