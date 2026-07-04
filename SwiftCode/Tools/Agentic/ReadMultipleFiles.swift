@@ -6,7 +6,7 @@ public struct ReadMultipleFilesTool: AgentTool {
     public let description = "Reads the content of multiple files."
     public let schema: [String: any Sendable] = [
         "type": "object",
-        "properties": ["paths": ["type": "array", "items": ["type": "string"]]],
+        "properties": (["paths": (["type": "array", "items": (["type": "string"] as [String: any Sendable])] as [String: any Sendable])] as [String: any Sendable]),
         "required": ["paths"]
     ]
 

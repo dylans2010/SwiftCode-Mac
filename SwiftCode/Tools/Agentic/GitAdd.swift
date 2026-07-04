@@ -7,8 +7,8 @@ public struct GitAddTool: AgentTool {
     public let schema: [String: any Sendable] = [
         "type": "object",
         "properties": [
-            "repositoryPath": ["type": "string"],
-            "files": ["type": "array", "items": ["type": "string"]]
+            "repositoryPath": (["type": "string"] as [String: any Sendable]),
+            "files": (["type": "array", "items": (["type": "string"] as [String: any Sendable])] as [String: any Sendable])
         ],
         "required": ["repositoryPath", "files"]
     ]

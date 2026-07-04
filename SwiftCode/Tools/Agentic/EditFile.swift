@@ -7,18 +7,18 @@ public struct EditFileTool: AgentTool {
     public let schema: [String: any Sendable] = [
         "type": "object",
         "properties": [
-            "path": ["type": "string"],
-            "edits": [
+            "path": (["type": "string"] as [String: any Sendable]),
+            "edits": ([
                 "type": "array",
-                "items": [
+                "items": ([
                     "type": "object",
-                    "properties": [
-                        "search": ["type": "string"],
-                        "replace": ["type": "string"]
-                    ],
+                    "properties": ([
+                        "search": (["type": "string"] as [String: any Sendable]),
+                        "replace": (["type": "string"] as [String: any Sendable])
+                    ] as [String: any Sendable]),
                     "required": ["search", "replace"]
-                ]
-            ]
+                ] as [String: any Sendable])
+            ] as [String: any Sendable])
         ],
         "required": ["path", "edits"]
     ]
