@@ -103,7 +103,6 @@ struct NewProjectSheetView: View {
                 .padding()
             }
             .navigationTitle(title)
-            .navigationBarHidden(true)
         }
         .frame(width: 500, height: 400)
     }

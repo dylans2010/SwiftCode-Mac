@@ -43,7 +43,7 @@ struct SettingsView: View {
 
             Form {
                 Section("Appearance") {
-                    ThemeGalleryView()
+                    ThemeGalleryView(viewModel: themeVM)
                         .frame(height: 200)
                 }
 

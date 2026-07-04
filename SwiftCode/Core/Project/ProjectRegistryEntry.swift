@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ProjectRegistryEntry: Identifiable, Codable, Sendable {
+public struct ProjectRegistryEntry: Identifiable, Codable, Sendable, Hashable {
     public let id: UUID
     public let name: String
     public let rootURL: URL
