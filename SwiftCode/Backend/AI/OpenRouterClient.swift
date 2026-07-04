@@ -119,7 +119,16 @@ public actor OpenRouterClient {
             return .text(content)
         }
 
-        if let toolCalls = delta["tool_calls"] as? [[String: Any]] {
+        if let toolCallsDicts = delta["tool_calls"] as? [[String: Any]] {
+            let toolCalls = toolCallsDicts.compactMap { dict -> AgentToolCall? in
+                guard let id = dict["id"] as? String,
+                      let function = dict["function"] as? [String: Any],
+                      let name = function["name"] as? String,
+                      let arguments = function["arguments"] as? String else {
+                    return nil
+                }
+                return AgentToolCall(id: id, name: name, arguments: arguments)
+            }
             return .toolCall(toolCalls)
         }
 
@@ -129,7 +138,7 @@ public actor OpenRouterClient {
 
 public enum AgentStreamEvent: Sendable {
     case text(String)
-    case toolCall([[String: Any]])
+    case toolCall([AgentToolCall])
 }
 
 public struct AIAssistantRequest: Sendable {

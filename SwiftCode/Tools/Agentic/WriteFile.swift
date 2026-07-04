@@ -4,7 +4,7 @@ public struct WriteFileTool: AgentTool {
     public static let identifier = "write_file"
     public let name = "write_file"
     public let description = "Writes content to a file."
-    public let schema: [String: Any] = [
+    public let schema: [String: JSON] = [
         "type": "object",
         "properties": [
             "path": ["type": "string"],
@@ -18,8 +18,8 @@ public struct WriteFileTool: AgentTool {
         try content.write(to: url, atomically: true, encoding: .utf8)
     }
 
-    public func execute(arguments: [String: Any]) async throws -> String {
-        guard let path = arguments["path"] as? String, let content = arguments["content"] as? String else {
+    public func execute(arguments: [String: JSON]) async throws -> String {
+        guard case .string(let path) = arguments["path"], case .string(let content) = arguments["content"] else {
             throw AgentError.toolError("Missing path or content")
         }
         try await run(path: path, content: content)

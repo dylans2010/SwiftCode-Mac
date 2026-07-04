@@ -4,7 +4,7 @@ public struct GitAddTool: AgentTool {
     public static let identifier = "git_add"
     public let name = "git_add"
     public let description = "Adds files to the git staging area."
-    public let schema: [String: Any] = [
+    public let schema: [String: JSON] = [
         "type": "object",
         "properties": [
             "repositoryPath": ["type": "string"],
@@ -23,11 +23,17 @@ public struct GitAddTool: AgentTool {
         if result.exitCode != 0 { throw AgentError.toolError(result.stderr) }
     }
 
-    public func execute(arguments: [String: Any]) async throws -> String {
-        guard let path = arguments["repositoryPath"] as? String,
-              let files = arguments["files"] as? [String] else {
+    public func execute(arguments: [String: JSON]) async throws -> String {
+        guard case .string(let path) = arguments["repositoryPath"],
+              case .array(let filesJSON) = arguments["files"] else {
             throw AgentError.toolError("Missing repositoryPath or files")
         }
+
+        let files = filesJSON.compactMap { (item: JSON) -> String? in
+            if case .string(let s) = item { return s }
+            return nil
+        }
+
         try await run(repositoryPath: path, files: files)
         return "Files added successfully"
     }

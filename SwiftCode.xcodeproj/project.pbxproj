@@ -324,9 +324,15 @@
 		FCE346B6A8594C599371747B /* ThemeGalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62238748230CA02A3DED159C /* ThemeGalleryView.swift */; };
 		FEC3B44DC8224E81AD104B28 /* QuestionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3095C7FC268B4822B1D7F891 /* QuestionHandler.swift */; };
 		FEFC87DC8083410D9A030894 /* ManageSecrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AE11BAA8BF4AA791C4B03B /* ManageSecrets.swift */; };
+		AF1234567890ABCDEF000014 /* JSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000013 /* JSON.swift */; };
+		AF1234567890ABCDEF000002 /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000001 /* BookmarkStore.swift */; };
+		AF1234567890ABCDEF000004 /* BreakpointStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000003 /* BreakpointStore.swift */; };
+		AF1234567890ABCDEF000008 /* CodeAnalysisTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000007 /* CodeAnalysisTool.swift */; };
+		AF1234567890ABCDEF000010 /* ProjectIndexingTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000009 /* ProjectIndexingTool.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		AF1234567890ABCDEF000013 /* JSON.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSON.swift; sourceTree = "<group>"; };
 		0076F070FA7E4422B0FBAAB8 /* ParseMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseMarkdown.swift; sourceTree = "<group>"; };
 		00A96C0BE03E4321AB3DEAFB /* KubernetesApply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KubernetesApply.swift; sourceTree = "<group>"; };
 		02D0FDCF43197B775CCB4595 /* DebounceTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebounceTool.swift; sourceTree = "<group>"; };
@@ -799,6 +805,7 @@
 		47FDEDFAE2DF04B51452AA17 /* Common */ = {
 			isa = PBXGroup;
 			children = (
+				AF1234567890ABCDEF000013 /* JSON.swift */,
 				1E2E48FF8366AD78838798DB /* Result+Extensions.swift */,
 				8D237EEDAB5BCCF1A735ACF4 /* AppError.swift */,
 			);
@@ -1376,6 +1383,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AF1234567890ABCDEF000014 /* JSON.swift in Sources */,
+				AF1234567890ABCDEF000002 /* BookmarkStore.swift in Sources */,
+				AF1234567890ABCDEF000004 /* BreakpointStore.swift in Sources */,
+				AF1234567890ABCDEF000008 /* CodeAnalysisTool.swift in Sources */,
+				AF1234567890ABCDEF000010 /* ProjectIndexingTool.swift in Sources */,
 				3FEB03CE5239400A93B276F3 /* SkillsEditorView.swift in Sources */,
 				341A9F182E704F7F9B738B34 /* OpenRouterAIProvider.swift in Sources */,
 				1A55628ECF57418D801FF996 /* SkillsManagerView.swift in Sources */,

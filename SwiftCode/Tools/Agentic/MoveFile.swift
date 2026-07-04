@@ -4,7 +4,7 @@ public struct MoveFileTool: AgentTool {
     public static let identifier = "move_file"
     public let name = "move_file"
     public let description = "Moves a file or directory."
-    public let schema: [String: Any] = [
+    public let schema: [String: JSON] = [
         "type": "object",
         "properties": [
             "sourcePath": ["type": "string"],
@@ -17,9 +17,9 @@ public struct MoveFileTool: AgentTool {
         try FileManager.default.moveItem(atPath: sourcePath, toPath: destinationPath)
     }
 
-    public func execute(arguments: [String: Any]) async throws -> String {
-        guard let source = arguments["sourcePath"] as? String,
-              let dest = arguments["destinationPath"] as? String else {
+    public func execute(arguments: [String: JSON]) async throws -> String {
+        guard case .string(let source) = arguments["sourcePath"],
+              case .string(let dest) = arguments["destinationPath"] else {
             throw AgentError.toolError("Missing sourcePath or destinationPath")
         }
         try await run(sourcePath: source, destinationPath: dest)

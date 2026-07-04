@@ -4,7 +4,7 @@ public struct GitCommitTool: AgentTool {
     public static let identifier = "git_commit"
     public let name = "git_commit"
     public let description = "Commits staged changes to the git repository."
-    public let schema: [String: Any] = [
+    public let schema: [String: JSON] = [
         "type": "object",
         "properties": [
             "repositoryPath": ["type": "string"],
@@ -23,9 +23,9 @@ public struct GitCommitTool: AgentTool {
         if result.exitCode != 0 { throw AgentError.toolError(result.stderr) }
     }
 
-    public func execute(arguments: [String: Any]) async throws -> String {
-        guard let path = arguments["repositoryPath"] as? String,
-              let message = arguments["message"] as? String else {
+    public func execute(arguments: [String: JSON]) async throws -> String {
+        guard case .string(let path) = arguments["repositoryPath"],
+              case .string(let message) = arguments["message"] else {
             throw AgentError.toolError("Missing repositoryPath or message")
         }
         try await run(repositoryPath: path, message: message)

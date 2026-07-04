@@ -4,7 +4,7 @@ public struct SearchFilesTool: AgentTool {
     public static let identifier = "search_files"
     public let name = "search_files"
     public let description = "Searches for files matching a pattern in a directory."
-    public let schema: [String: Any] = [
+    public let schema: [String: JSON] = [
         "type": "object",
         "properties": [
             "directory": ["type": "string"],
@@ -26,9 +26,9 @@ public struct SearchFilesTool: AgentTool {
         return results
     }
 
-    public func execute(arguments: [String: Any]) async throws -> String {
-        guard let directory = arguments["directory"] as? String,
-              let pattern = arguments["pattern"] as? String else {
+    public func execute(arguments: [String: JSON]) async throws -> String {
+        guard case .string(let directory) = arguments["directory"],
+              case .string(let pattern) = arguments["pattern"] else {
             throw AgentError.toolError("Missing directory or pattern")
         }
         let results = try await run(directory: directory, pattern: pattern)

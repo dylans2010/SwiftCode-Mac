@@ -4,7 +4,7 @@ public struct ProjectIndexingTool: AgentTool {
     public static let identifier = "project_indexing"
     public let name = "project_indexing"
     public let description = "Indexes the project to allow for fast semantic searches and relationship mapping."
-    public let schema: [String: Any] = [
+    public let schema: [String: JSON] = [
         "type": "object",
         "properties": [
             "root_path": [
@@ -15,8 +15,8 @@ public struct ProjectIndexingTool: AgentTool {
         "required": ["root_path"]
     ]
 
-    public func execute(arguments: [String: Any]) async throws -> String {
-        guard let rootPath = arguments["root_path"] as? String else {
+    public func execute(arguments: [String: JSON]) async throws -> String {
+        guard case .string(let rootPath) = arguments["root_path"] else {
             throw AgentError.toolError("Missing root_path argument")
         }
 

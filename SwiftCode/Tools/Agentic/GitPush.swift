@@ -4,7 +4,7 @@ public struct GitPushTool: AgentTool {
     public static let identifier = "git_push"
     public let name = "git_push"
     public let description = "Pushes committed changes to the remote repository."
-    public let schema: [String: Any] = [
+    public let schema: [String: JSON] = [
         "type": "object",
         "properties": ["repositoryPath": ["type": "string"]],
         "required": ["repositoryPath"]
@@ -20,8 +20,8 @@ public struct GitPushTool: AgentTool {
         if result.exitCode != 0 { throw AgentError.toolError(result.stderr) }
     }
 
-    public func execute(arguments: [String: Any]) async throws -> String {
-        guard let path = arguments["repositoryPath"] as? String else { throw AgentError.toolError("Missing repositoryPath") }
+    public func execute(arguments: [String: JSON]) async throws -> String {
+        guard case .string(let path) = arguments["repositoryPath"] else { throw AgentError.toolError("Missing repositoryPath") }
         try await run(repositoryPath: path)
         return "Push successful"
     }

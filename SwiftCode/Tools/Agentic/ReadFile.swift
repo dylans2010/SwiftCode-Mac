@@ -4,7 +4,7 @@ public struct ReadFileTool: AgentTool {
     public static let identifier = "read_file"
     public let name = "read_file"
     public let description = "Reads the content of a file."
-    public let schema: [String: Any] = [
+    public let schema: [String: JSON] = [
         "type": "object",
         "properties": ["path": ["type": "string"]],
         "required": ["path"]
@@ -15,8 +15,8 @@ public struct ReadFileTool: AgentTool {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    public func execute(arguments: [String: Any]) async throws -> String {
-        guard let path = arguments["path"] as? String else { throw AgentError.toolError("Missing path") }
+    public func execute(arguments: [String: JSON]) async throws -> String {
+        guard case .string(let path) = arguments["path"] else { throw AgentError.toolError("Missing path") }
         return try await run(path: path)
     }
 }

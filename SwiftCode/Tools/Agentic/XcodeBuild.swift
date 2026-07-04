@@ -4,7 +4,7 @@ public struct XcodeBuildTool: AgentTool {
     public static let identifier = "xcode_build"
     public let name = "xcode_build"
     public let description = "Executes xcodebuild to build a project."
-    public let schema: [String: Any] = [
+    public let schema: [String: JSON] = [
         "type": "object",
         "properties": [
             "projectPath": ["type": "string"],
@@ -21,9 +21,9 @@ public struct XcodeBuildTool: AgentTool {
         return result.stdout + result.stderr
     }
 
-    public func execute(arguments: [String: Any]) async throws -> String {
-        guard let path = arguments["projectPath"] as? String,
-              let scheme = arguments["scheme"] as? String else {
+    public func execute(arguments: [String: JSON]) async throws -> String {
+        guard case .string(let path) = arguments["projectPath"],
+              case .string(let scheme) = arguments["scheme"] else {
             throw AgentError.toolError("Missing projectPath or scheme")
         }
         return try await run(projectPath: path, scheme: scheme)

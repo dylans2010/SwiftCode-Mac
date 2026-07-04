@@ -4,7 +4,7 @@ public struct ChecklistPlanTool: AgentTool {
     public static let identifier = "checklist_plan"
     public let name = "checklist_plan"
     public let description = "Updates the execution plan checklist."
-    public let schema: [String: Any] = [
+    public let schema: [String: JSON] = [
         "type": "object",
         "properties": [
             "tasks": [
@@ -24,7 +24,7 @@ public struct ChecklistPlanTool: AgentTool {
         "required": ["tasks"]
     ]
 
-    public func execute(arguments: [String: Any]) async throws -> String {
+    public func execute(arguments: [String: JSON]) async throws -> String {
         return "Checklist updated"
     }
 }
