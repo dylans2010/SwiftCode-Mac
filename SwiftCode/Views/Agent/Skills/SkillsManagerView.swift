@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 public struct SkillsManagerView: View {
     @State private var skills: [Skill] = []
@@ -23,7 +24,7 @@ public struct SkillsManagerView: View {
                 }
                 .padding()
                 .background(Color.red.opacity(0.1))
-                .foregroundColor(.red)
+                .foregroundStyle(.red)
             }
 
             HStack {
@@ -47,9 +48,9 @@ public struct SkillsManagerView: View {
                     HStack {
                         VStack(alignment: .leading) {
                             Text(skill.name).font(.headline)
-                            Text(skill.description).font(.subheadline).foregroundColor(.secondary)
+                            Text(skill.description).font(.subheadline).foregroundStyle(.secondary)
                             if let url = skill.url {
-                                Text(url.lastPathComponent).font(.caption2).foregroundColor(.tertiary)
+                                Text(url.lastPathComponent).font(.caption2).foregroundStyle(.tertiary)
                             }
                         }
                         Spacer()
@@ -150,7 +151,7 @@ public struct SkillsImportView: View {
             Text("Select a markdown file to import as a skill.").font(.subheadline).foregroundStyle(.secondary)
 
             if let error = errorMessage {
-                Text(error).foregroundColor(.red).font(.caption).padding()
+                Text(error).foregroundStyle(.red).font(.caption).padding()
             }
 
             Spacer()
@@ -169,7 +170,7 @@ public struct SkillsImportView: View {
 
     private func importFile() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.markdown]
+        panel.allowedContentTypes = [UTType.markdown]
         if panel.runModal() == .OK, let url = panel.url {
             Task {
                 do {
@@ -204,7 +205,7 @@ public struct SkillsCreateView: View {
                 .border(Color.secondary.opacity(0.2))
 
             if let error = errorMessage {
-                Text(error).foregroundColor(.red).font(.caption).padding(.top)
+                Text(error).foregroundStyle(.red).font(.caption).padding(.top)
             }
 
             HStack {
