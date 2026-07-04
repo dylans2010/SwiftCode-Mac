@@ -5,7 +5,7 @@ public actor SwiftPackageBuildService {
 
     private var swiftURL: URL {
         get async {
-            if let customPath = await PreferencesStore.shared.get(forKey: "swift_executable_path") as? String {
+            if let customPath: String = await PreferencesStore.shared.get(forKey: "swift_executable_path") {
                 return URL(fileURLWithPath: customPath)
             }
             return URL(fileURLWithPath: "/usr/bin/swift")
