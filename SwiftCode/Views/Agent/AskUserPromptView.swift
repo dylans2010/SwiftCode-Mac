@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AskUserPromptView: View {
     let question: AgentPendingQuestion
-    @ObservedObject var viewModel: AgentViewModel
+    @Bindable var viewModel: AgentViewModel
     @State private var text = ""
     @State private var selectedOption: String?
 

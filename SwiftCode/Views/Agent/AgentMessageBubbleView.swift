@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AgentMessageBubbleView: View {
     let message: AgentMessage
-    @Bindable var viewModel: AIAssistantViewModel
+    @Bindable var viewModel: AgentViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -40,7 +40,7 @@ struct AgentMessageBubbleView: View {
     private func contentView(_ content: AgentMessageContent) -> some View {
         switch content {
         case .text(let text):
-            MarkdownRenderer(markdown: text)
+            Text(MarkdownRenderer.shared.render(text))
                 .textSelection(.enabled)
         case .image(let data, _):
             if let nsImage = NSImage(data: data) {

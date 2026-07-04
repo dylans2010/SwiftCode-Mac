@@ -1,7 +1,7 @@
 import SwiftUI
 
 public struct AgentChatView: View {
-    @Environment(AIAssistantViewModel.self) var viewModel
+    @Environment(AgentViewModel.self) var viewModel
     @State private var showChecklist = true
 
     public init() {}

@@ -1,13 +1,39 @@
 import SwiftUI
 import Combine
+import Observation
 
+@Observable
 @MainActor
-public class AgentViewModel: ObservableObject {
-    @Published public var session: AgentSession
+public class AgentViewModel {
+    public var session: AgentSession
+    public var attachments: [AgentAttachment] = []
+    
+    public var isProcessing: Bool {
+        switch session.turnState {
+        case .awaitingModel, .executingTools:
+            return true
+        default:
+            return false
+        }
+    }
+
     private let orchestrator = AgentOrchestrator()
 
     public init(session: AgentSession = .init()) {
         self.session = session
+    }
+
+    public func sendUserMessage(_ text: String) async {
+        let currentAttachments = attachments
+        attachments.removeAll()
+        
+        do {
+            var localSession = session
+            try await orchestrator.runTurn(session: &localSession, userMessage: text, attachments: currentAttachments)
+            session = localSession
+        } catch {
+            session.turnState = .failed(.unknown(error.localizedDescription))
+        }
     }
 
     public func sendMessage(_ text: String, attachments: [AgentAttachment] = []) {
@@ -24,6 +50,10 @@ public class AgentViewModel: ObservableObject {
 
     public func cancelTurn() {
         session.turnState = .cancelled
+    }
+
+    public func cancelTask() {
+        cancelTurn()
     }
 
     public func submitAnswer(_ answer: String) {

@@ -2,7 +2,7 @@ import SwiftUI
 
 struct QuestionsHandleView: View {
     let questionSet: AgentPendingQuestionSet
-    @ObservedObject var viewModel: AgentViewModel
+    @Bindable var viewModel: AgentViewModel
     @State private var answers: [UUID: String] = [:]
 
     var body: some View {

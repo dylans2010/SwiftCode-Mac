@@ -10,7 +10,7 @@ public class WorkspaceViewModel: Sendable {
     public let git = GitViewModel()
     public let build = BuildViewModel()
     public let debug = DebugSessionViewModel()
-    public let ai = AIAssistantViewModel()
+    public let ai = AgentViewModel()
 
     public init(projectURL: URL) {
         self.projectURL = projectURL

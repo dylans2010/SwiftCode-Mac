@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AgentMessageListView: View {
     let messages: [AgentMessage]
-    @Bindable var viewModel: AIAssistantViewModel
+    @Bindable var viewModel: AgentViewModel
 
     var body: some View {
         ScrollViewReader { proxy in

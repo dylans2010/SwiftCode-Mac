@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct AgentInputBarView: View {
-    @Bindable var viewModel: AIAssistantViewModel
+    @Bindable var viewModel: AgentViewModel
     @State private var text = ""
     @State private var showingAttachments = false
 
@@ -52,7 +52,7 @@ struct AgentInputBarView: View {
         }
         .background(Color(NSColor.windowBackgroundColor))
         .popover(isPresented: $showingAttachments) {
-            AgentAttachmentPickerView(viewModel: viewModel)
+            AgentAttachmentPickerView(attachments: $viewModel.attachments)
                 .frame(width: 300, height: 400)
         }
     }
