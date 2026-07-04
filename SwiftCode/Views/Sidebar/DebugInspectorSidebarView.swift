@@ -8,17 +8,21 @@ struct DebugInspectorSidebarView: View {
             List {
                 if let session = viewModel.activeSession {
                     Section("Variables") {
-                        // In a real app, we would fetch variables from the debug adapter
-                        // For now, we show a placeholder list that mimics real data
-                        VariableRow(name: "self", value: "MyApp.ViewController", type: "ViewController")
-                        VariableRow(name: "count", value: "42", type: "Int")
-                        VariableRow(name: "items", value: "3 elements", type: "[String]")
+                        ForEach(session.variables) { variable in
+                            VariableRow(name: variable.name, value: variable.value, type: variable.type)
+                        }
+                        if session.variables.isEmpty {
+                            Text("No variables").foregroundColor(.secondary).font(.caption)
+                        }
                     }
 
                     Section("Call Stack") {
-                        CallStackRow(function: "main()", location: "AppDelegate.swift:10")
-                        CallStackRow(function: "application(_:didFinishLaunchingWithOptions:)", location: "AppDelegate.swift:25")
-                        CallStackRow(function: "viewDidLoad()", location: "ViewController.swift:15", isActive: true)
+                        ForEach(session.callStack) { frame in
+                            CallStackRow(function: frame.function, location: frame.location, isActive: frame.isActive)
+                        }
+                        if session.callStack.isEmpty {
+                            Text("No call stack").foregroundColor(.secondary).font(.caption)
+                        }
                     }
                 } else {
                     ContentUnavailableView("No Active Session", systemImage: "ant", description: Text("Start debugging to see variables and call stack."))

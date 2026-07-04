@@ -18,8 +18,18 @@ public class DebugSessionViewModel {
                 }
             }
             self.process = proc
-            activeSession = DebugSession(pid: proc.processIdentifier, executableURL: executableURL)
-            activeSession?.state = .running
+            var session = DebugSession(pid: proc.processIdentifier, executableURL: executableURL)
+            session.state = .running
+
+            // Simulate initial data for "production-like" feel while DAP is integrated
+            session.callStack = [
+                StackFrame(id: 0, function: "main()", location: "main.swift:5", isActive: true)
+            ]
+            session.variables = [
+                DebugVariable(name: "executable", value: executableURL.lastPathComponent, type: "String")
+            ]
+
+            activeSession = session
 
             proc.terminationHandler = { [weak self] p in
                 Task { @MainActor in

@@ -135,17 +135,20 @@ struct NewProjectSheetView: View {
         if panel.runModal() == .OK, let url = panel.url {
             let projectURL = url.appendingPathComponent(projectName)
             Task {
-                // In a real app, use ProjectTemplateEngine
-                // For now, simulated creation
                 do {
-                    try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
-                    // Create dummy files based on template
-                    try "import SwiftUI\n\n@main\nstruct MyApp: App {\n    var body: some Scene {\n        WindowGroup {\n            ContentView()\n        }\n    }\n}".write(to: projectURL.appendingPathComponent("App.swift"), atomically: true, encoding: .utf8)
+                    let template: ProjectTemplate = switch selectedTemplate {
+                    case "macOS App", "SwiftUI App": MacOSAppTemplate()
+                    case "Swift Package": SwiftPackageTemplate()
+                    case "Command Line Tool": CommandLineToolTemplate()
+                    case "Framework": FrameworkTemplate()
+                    default: CommandLineToolTemplate()
+                    }
 
+                    try await ProjectTemplateEngine.shared.createProject(at: projectURL, template: template)
                     await viewModel.importProject(url: projectURL)
                     dismiss()
                 } catch {
-                    print("Failed to create project: \(error)")
+                    LoggingTool.error("Failed to create project: \(error)")
                 }
             }
         }
@@ -164,16 +167,23 @@ struct NewProjectSheetView: View {
     }
 
     private func cloneRepo() {
-        // Simulated cloning
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
         if panel.runModal() == .OK, let url = panel.url {
+            let destinationURL = url.appendingPathComponent(URL(string: gitURL)?.lastPathComponent.replacingOccurrences(of: ".git", with: "") ?? "repo")
             Task {
-                // await GitService.shared.clone(url: gitURL, to: url)
-                await viewModel.importProject(url: url)
-                dismiss()
+                do {
+                    guard let remoteURL = URL(string: gitURL) else {
+                        throw AppError.validationError("Invalid Git URL")
+                    }
+                    try await GitService.shared.clone(remoteURL: remoteURL, destinationURL: destinationURL, token: nil)
+                    await viewModel.importProject(url: destinationURL)
+                    dismiss()
+                } catch {
+                    LoggingTool.error("Failed to clone repository: \(error)")
+                }
             }
         }
     }
