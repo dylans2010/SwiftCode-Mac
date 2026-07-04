@@ -12,15 +12,15 @@ public struct ChecklistPlanTool: AgentTool {
                 "items": [
                     "type": "object",
                     "properties": [
-                        "id": ["type": "string"],
-                        "title": ["type": "string"],
-                        "status": ["type": "string", "enum": ["queued", "in_progress", "completed", "failed"]],
-                        "detail": ["type": "string"]
-                    ],
+                        "id": ["type": "string"] as [String: any Sendable],
+                        "title": ["type": "string"] as [String: any Sendable],
+                        "status": ["type": "string", "enum": ["queued", "in_progress", "completed", "failed"]] as [String: any Sendable],
+                        "detail": ["type": "string"] as [String: any Sendable]
+                    ] as [String: any Sendable],
                     "required": ["id", "title", "status"]
-                ]
-            ]
-        ],
+                ] as [String: any Sendable]
+            ] as [String: any Sendable]
+        ] as [String: any Sendable],
         "required": ["tasks"]
     ]
 

@@ -1,7 +1,16 @@
 import Foundation
 
-public struct GitLogTool {
+public struct GitLogTool: AgentTool {
     public static let identifier = "git_log"
+    public let name = "git_log"
+    public let description = "Shows Git log for a repository."
+    public let schema: [String: any Sendable] = [
+        "type": "object",
+        "properties": [
+            "repositoryPath": ["type": "string"] as [String: any Sendable]
+        ] as [String: any Sendable],
+        "required": ["repositoryPath"]
+    ]
 
     public func run(repositoryPath: String) async throws -> String {
         let url = URL(fileURLWithPath: repositoryPath)
@@ -11,5 +20,12 @@ public struct GitLogTool {
             workingDirectory: url
         )
         return result.stdout
+    }
+
+    public func execute(arguments: [String: any Sendable]) async throws -> String {
+        guard let repositoryPath = arguments["repositoryPath"] as? String else {
+            throw AgentError.toolError("Missing repositoryPath")
+        }
+        return try await run(repositoryPath: repositoryPath)
     }
 }
