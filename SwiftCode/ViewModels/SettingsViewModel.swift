@@ -19,8 +19,12 @@ public class SettingsViewModel {
 
     public init() {
         Task {
-            openRouterKey = try? await KeychainService.shared.get(account: "openrouter-api-key") ?? ""
-            githubPAT = try? await KeychainService.shared.get(account: "github-pat") ?? ""
+            if let key = try? await KeychainService.shared.get(account: "openrouter-api-key") {
+                openRouterKey = key ?? ""
+            }
+            if let pat = try? await KeychainService.shared.get(account: "github-pat") {
+                githubPAT = pat ?? ""
+            }
             selectedModel = await PreferencesStore.shared.get(forKey: "selected_ai_model") as? String ?? "openai/gpt-4o"
             customAIEndpoint = await PreferencesStore.shared.get(forKey: "custom_ai_endpoint") as? String ?? ""
             customAIHeaders = await PreferencesStore.shared.get(forKey: "custom_ai_headers") as? String ?? ""
