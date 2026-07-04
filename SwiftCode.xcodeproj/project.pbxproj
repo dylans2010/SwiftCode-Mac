@@ -687,7 +687,7 @@
 				Base,
 			);
 			mainGroup = 6CFC827E67DCAE34C72B9CED;
-			productRefGroup = {products_group_id} /* Products */;
+			productRefGroup = 021F2B7F3E0C61452C987484 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
