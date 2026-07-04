@@ -101,6 +101,7 @@ public actor AgentOrchestrator {
 
                     let args = decodeArguments(call.arguments)
 
+                    // Special Tool Handling
                     if call.name == "ask_user" {
                         handleAskUser(call, args, &session)
                         shouldContinue = false
@@ -118,6 +119,7 @@ public actor AgentOrchestrator {
                         session.messages.append(AgentMessage(role: .assistant, content: [.toolResult(AgentToolResult(toolCallId: call.id, content: result))]))
                     } catch {
                         session.messages.append(AgentMessage(role: .assistant, content: [.toolResult(AgentToolResult(toolCallId: call.id, content: error.localizedDescription, isError: true))]))
+                        // If a tool fails, we still want the model to see the error and decide next steps
                     }
                 }
             }
@@ -129,8 +131,8 @@ public actor AgentOrchestrator {
     }
 
     private func handleAskUser(_ call: AgentToolCall, _ args: [String: Any], _ session: inout AgentSession) {
-        if let questionText = args["question"] as? String,
-           let inputTypeStr = args["input_type"] as? String {
+        if let questionText = args["question"] as? String {
+            let inputTypeStr = args["input_type"] as? String
             let inputType: AgentPendingQuestion.InputType = inputTypeStr == "selection" ? .selection(options: args["options"] as? [String] ?? []) : .text
             let question = AgentPendingQuestion(question: questionText, inputType: inputType)
 
