@@ -144,7 +144,7 @@
 		671738273C16466B88CBEC19 /* BreakpointsSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A6DD68F5ECF494489B514C2 /* BreakpointsSidebarView.swift */; };
 		67B339470D9B4CBCA7C6960D /* AIModelPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFB7651072DED0D5EAE7FE92 /* AIModelPickerView.swift */; };
 		68375027519C42B4B7E33CBA /* BuildTargetInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE57462B0B5E506FA9CC059 /* BuildTargetInfo.swift */; };
-		693651C82F1D4B1D83A510E0 /* GitCommit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64643358E6ED46F49F3A5550 /* GitCommit.swift */; };
+		693651C82F1D4B1D83A510E0 /* GitCommitTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64643358E6ED46F49F3A5550 /* GitCommitTool.swift */; };
 		69C7557F29F0472F82A9C81E /* DockerBuild.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23D1A98ADFF247ABBEEC7E8A /* DockerBuild.swift */; };
 		6A58A297C9914EB0AC781444 /* DotNetCLI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB9741CBD03F43B1A17BC3C6 /* DotNetCLI.swift */; };
 		6D89DA4BE0CE4FE5853E6062 /* AgentChecklistState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164C3B2390CB4CD5B68B5DC1 /* AgentChecklistState.swift */; };
@@ -172,7 +172,7 @@
 		7F85A63F8B1348579EFF1443 /* Skill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 812C589F1ED241F3A447D76F /* Skill.swift */; };
 		7F9C73617D4640A9AF123697 /* Flutter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F0DB7955E5145F4BC97F095 /* Flutter.swift */; };
 		8087CB836AF9457A9BCC36CA /* GenerateUnitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E128D0A623594699BA9D10AD /* GenerateUnitTests.swift */; };
-		8155F60912224AC7915F9FC8 /* GitBranch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 770CF196F59D43FEAD5B27E3 /* GitBranch.swift */; };
+		8155F60912224AC7915F9FC8 /* GitBranchTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 770CF196F59D43FEAD5B27E3 /* GitBranchTool.swift */; };
 		838D0064B44A4888B244BF56 /* Npm.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4033BA54C4C42A7A86A9C2A /* Npm.swift */; };
 		84B6F62ABD034F8AA955E89D /* Yarn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D47439576594E10B7684662 /* Yarn.swift */; };
 		84C5C5E33E54444291456098 /* AIChatMessageListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 241955EBD8DC62F897293D99 /* AIChatMessageListView.swift */; };
@@ -473,7 +473,7 @@
 		63152C961326313A6F362DAE /* ThemeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeViewModel.swift; sourceTree = "<group>"; };
 		642EAA409CFF431EBEDED6FF /* OpenBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenBrowser.swift; sourceTree = "<group>"; };
 		6446920A9778A4A738E8FD60 /* SyntaxTokenKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntaxTokenKind.swift; sourceTree = "<group>"; };
-		64643358E6ED46F49F3A5550 /* GitCommit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitCommit.swift; sourceTree = "<group>"; };
+		64643358E6ED46F49F3A5550 /* GitCommitTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitCommitTool.swift; sourceTree = "<group>"; };
 		661B64903BA541D38AD787E5 /* PackageSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageSearch.swift; sourceTree = "<group>"; };
 		66CE84A7006C4990B58BF36D /* RunTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunTests.swift; sourceTree = "<group>"; };
 		672513D68EBA48D9312D3761 /* ThemeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeStore.swift; sourceTree = "<group>"; };
@@ -497,7 +497,7 @@
 		759A984F462348FDA71BEC86 /* ExplainCode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExplainCode.swift; sourceTree = "<group>"; };
 		761AF3286AB2472281EA030E /* LicenseScan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseScan.swift; sourceTree = "<group>"; };
 		76CEFEC0A31F4FA686563542 /* WriteFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WriteFile.swift; sourceTree = "<group>"; };
-		770CF196F59D43FEAD5B27E3 /* GitBranch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitBranch.swift; sourceTree = "<group>"; };
+		770CF196F59D43FEAD5B27E3 /* GitBranchTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitBranchTool.swift; sourceTree = "<group>"; };
 		77899CB4994EC5DDC149C892 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 		78911BDC4FC6510C3FD95C02 /* RegexTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegexTool.swift; sourceTree = "<group>"; };
 		78BC6D7D1BCB4CABA2495D9D /* GitTag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitTag.swift; sourceTree = "<group>"; };
@@ -1095,7 +1095,7 @@
 				048288BE666C486D8280B119 /* GitReset.swift */,
 				7A6A7D93E7A74C9CB434289A /* JavaMaven.swift */,
 				FE266D10FFA543278D1B02A3 /* ReviewCode.swift */,
-				64643358E6ED46F49F3A5550 /* GitCommit.swift */,
+				64643358E6ED46F49F3A5550 /* GitCommitTool.swift */,
 				6EE5DEE7C72044C3B83788C6 /* GoBuild.swift */,
 				3D47439576594E10B7684662 /* Yarn.swift */,
 				E128D0A623594699BA9D10AD /* GenerateUnitTests.swift */,
@@ -1126,7 +1126,7 @@
 				41C9496BAFDD4F94937011F2 /* FixBugs.swift */,
 				D4CA963B6A804224A391A0E7 /* GitDiff.swift */,
 				DB9741CBD03F43B1A17BC3C6 /* DotNetCLI.swift */,
-				770CF196F59D43FEAD5B27E3 /* GitBranch.swift */,
+				770CF196F59D43FEAD5B27E3 /* GitBranchTool.swift */,
 				5F0DB7955E5145F4BC97F095 /* Flutter.swift */,
 				2BBD505DDB534D1996088E96 /* UploadFile.swift */,
 				54104BCCE32C415A9698D4DE /* MemoryProfiler.swift */,
@@ -1605,7 +1605,7 @@
 				D6FF974536A14520BF4BABA4 /* GitReset.swift in Sources */,
 				0C437FA4D07343E78775C3AA /* JavaMaven.swift in Sources */,
 				9861323D014D48C9A11D4989 /* ReviewCode.swift in Sources */,
-				693651C82F1D4B1D83A510E0 /* GitCommit.swift in Sources */,
+				693651C82F1D4B1D83A510E0 /* GitCommitTool.swift in Sources */,
 				4980794BC34C41D99A2B99F0 /* GoBuild.swift in Sources */,
 				84B6F62ABD034F8AA955E89D /* Yarn.swift in Sources */,
 				8087CB836AF9457A9BCC36CA /* GenerateUnitTests.swift in Sources */,
@@ -1636,7 +1636,7 @@
 				9CDFBF71EC5244E7B693B8EE /* FixBugs.swift in Sources */,
 				44C566E7EA3F43738F707D8F /* GitDiff.swift in Sources */,
 				6A58A297C9914EB0AC781444 /* DotNetCLI.swift in Sources */,
-				8155F60912224AC7915F9FC8 /* GitBranch.swift in Sources */,
+				8155F60912224AC7915F9FC8 /* GitBranchTool.swift in Sources */,
 				7F9C73617D4640A9AF123697 /* Flutter.swift in Sources */,
 				BA0736A8F5AB4D9B837C6DA5 /* UploadFile.swift in Sources */,
 				08D7B5DD709A4B95AC3D763E /* MemoryProfiler.swift in Sources */,
