@@ -4,6 +4,7 @@ struct SearchSidebarView: View {
     @State private var searchText = ""
     @State private var searchResults: [SearchResult] = []
     @State private var isSearching = false
+    @Environment(WorkspaceViewModel.self) var workspaceVM
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,22 +35,38 @@ struct SearchSidebarView: View {
             }
 
             List(searchResults) { result in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Image(systemName: "doc.text")
-                        Text(result.fileName)
-                            .font(.headline)
-                        Spacer()
-                        Text("Line \(result.lineNumber)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                Button(action: {
+                    Task {
+                        await workspaceVM.editor.openFile(url: URL(fileURLWithPath: result.filePath))
                     }
-                    Text(result.lineContent)
-                        .font(.system(.caption, design: .monospaced))
-                        .lineLimit(2)
-                        .foregroundStyle(.secondary)
+                }) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Image(systemName: "doc.text")
+                            Text(result.fileName)
+                                .font(.headline)
+                            Spacer()
+                            Text("Line \(result.lineNumber)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Text(result.filePath)
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+
+                        Text(result.lineContent)
+                            .font(.system(.caption, design: .monospaced))
+                            .lineLimit(2)
+                            .foregroundStyle(.primary)
+                            .padding(4)
+                            .background(Color.accentColor.opacity(0.05))
+                            .cornerRadius(4)
+                    }
+                    .padding(.vertical, 4)
                 }
-                .padding(.vertical, 4)
+                .buttonStyle(.plain)
             }
 
             if searchResults.isEmpty && !searchText.isEmpty && !isSearching {
@@ -65,8 +82,7 @@ struct SearchSidebarView: View {
         isSearching = true
         Task {
             let tool = GrepTool()
-            // In a production app, the project root should be dynamically determined
-            let projectRoot = FileManager.default.currentDirectoryPath
+            let projectRoot = workspaceVM.projectURL.path
             do {
                 let rawOutput = try await tool.run(pattern: searchText, directory: projectRoot)
                 let lines = rawOutput.components(separatedBy: .newlines).filter { !$0.isEmpty }
@@ -80,19 +96,27 @@ struct SearchSidebarView: View {
                 }
             } catch {
                 print("Search failed: \(error)")
+                searchResults = []
             }
             isSearching = false
         }
     }
 }
 
-struct SearchResult: Identifiable {
-    let id = UUID()
-    let filePath: String
-    let lineNumber: Int
-    let lineContent: String
+public struct SearchResult: Identifiable, Codable {
+    public let id: UUID
+    public let filePath: String
+    public let lineNumber: Int
+    public let lineContent: String
 
-    var fileName: String {
+    public var fileName: String {
         URL(fileURLWithPath: filePath).lastPathComponent
+    }
+
+    public init(id: UUID = UUID(), filePath: String, lineNumber: Int, lineContent: String) {
+        self.id = id
+        self.filePath = filePath
+        self.lineNumber = lineNumber
+        self.lineContent = lineContent
     }
 }

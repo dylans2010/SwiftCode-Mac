@@ -23,7 +23,18 @@ public class HomeViewModel {
             rootURL: url,
             kind: url.pathExtension == "xcodeproj" ? .xcodeProject : .folder
         )
-        recentProjects.append(entry)
-        try? await ProjectRegistryStore.shared.save(recentProjects)
+        if !recentProjects.contains(where: { $0.rootURL == url }) {
+            recentProjects.insert(entry, at: 0)
+            try? await ProjectRegistryStore.shared.save(recentProjects)
+        }
+    }
+
+    public func removeProject(_ project: ProjectRegistryEntry) async {
+        recentProjects.removeAll { $0.id == project.id }
+        do {
+            try await ProjectRegistryStore.shared.save(recentProjects)
+        } catch {
+            LoggingTool.error("Failed to save project registry after deletion: \(error)")
+        }
     }
 }

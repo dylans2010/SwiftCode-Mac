@@ -7,6 +7,27 @@ struct GitSidebarView: View {
         VStack {
             if viewModel.isGitInstalled {
                 List {
+                    Section("Quick Links") {
+                        NavigationLink(destination: GitBranchesView(viewModel: viewModel)) {
+                            Label("Branches", systemImage: "arrow.triangle.pull")
+                        }
+                        NavigationLink(destination: GitHistoryView(viewModel: viewModel)) {
+                            Label("History", systemImage: "clock")
+                        }
+                        NavigationLink(destination: GitChangesView(viewModel: viewModel)) {
+                            Label("Changes", systemImage: "doc.on.doc")
+                        }
+                        NavigationLink(destination: GitCommitComposerView(viewModel: viewModel)) {
+                            Label("Commit Composer", systemImage: "plus.square.on.square")
+                        }
+                        NavigationLink(destination: GitDiffView(viewModel: viewModel)) {
+                            Label("Diff View", systemImage: "plus.forwardslash.minus")
+                        }
+                        NavigationLink(destination: GitPanelView(viewModel: viewModel)) {
+                            Label("Git Panel", systemImage: "macwindow.on.rectangle")
+                        }
+                    }
+
                     Section("Changes") {
                         if viewModel.status.changedFiles.isEmpty {
                             Text("No changes")
@@ -14,19 +35,6 @@ struct GitSidebarView: View {
                         } else {
                             ForEach(viewModel.status.changedFiles, id: \.url) { file in
                                 GitFileRowView(file: file)
-                            }
-                        }
-                    }
-
-                    Section("Branches") {
-                        ForEach(viewModel.branches) { branch in
-                            HStack {
-                                Image(systemName: "arrow.triangle.pull")
-                                Text(branch.name)
-                                if branch.isCurrent {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(.accent)
-                                }
                             }
                         }
                     }

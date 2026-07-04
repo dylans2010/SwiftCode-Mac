@@ -1,18 +1,16 @@
 import SwiftUI
 
 struct BreakpointsSidebarView: View {
-    @State private var breakpoints: [Breakpoint] = []
+    @State private var store = BreakpointStore.shared
     @State private var allExceptions = false
 
     var body: some View {
         VStack(spacing: 0) {
             List {
-                if breakpoints.isEmpty {
-                    Text("No breakpoints set")
-                        .foregroundStyle(.secondary)
-                        .padding()
+                if store.breakpoints.isEmpty {
+                    ContentUnavailableView("No Breakpoints", systemImage: "breakpoint", description: Text("Set breakpoints to pause execution during debugging."))
                 } else {
-                    ForEach(breakpoints) { bp in
+                    ForEach(store.breakpoints) { bp in
                         HStack {
                             Image(systemName: bp.isEnabled ? "breakpoint.fill" : "breakpoint")
                                 .foregroundColor(.blue)
@@ -21,9 +19,17 @@ struct BreakpointsSidebarView: View {
                                 Text("Line \(bp.lineNumber)").font(.caption).foregroundColor(.secondary)
                             }
                             Spacer()
-                            Toggle("", isOn: .constant(bp.isEnabled))
-                                .toggleStyle(.switch)
-                                .controlSize(.small)
+                            Toggle("", isOn: Binding(
+                                get: { bp.isEnabled },
+                                set: { _ in store.toggle(id: bp.id) }
+                            ))
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                        }
+                        .contextMenu {
+                            Button("Delete", role: .destructive) {
+                                store.remove(id: bp.id)
+                            }
                         }
                     }
                 }
@@ -38,20 +44,5 @@ struct BreakpointsSidebarView: View {
             }
             .padding()
         }
-        .onAppear {
-            loadBreakpoints()
-        }
     }
-
-    private func loadBreakpoints() {
-        // Logic to load real breakpoints from DebuggerService
-        breakpoints = []
-    }
-}
-
-struct Breakpoint: Identifiable {
-    let id = UUID()
-    let fileName: String
-    let lineNumber: Int
-    let isEnabled: Bool
 }

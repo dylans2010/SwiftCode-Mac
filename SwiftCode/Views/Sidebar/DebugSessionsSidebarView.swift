@@ -1,65 +1,45 @@
 import SwiftUI
 
 struct DebugSessionsSidebarView: View {
-    @State private var sessions: [DebugSession] = []
+    @Bindable var viewModel: DebugSessionViewModel
 
     var body: some View {
         VStack(spacing: 0) {
             List {
-                if sessions.isEmpty {
-                    Text("No active sessions")
-                        .foregroundStyle(.secondary)
-                        .padding()
-                } else {
-                    ForEach(sessions) { session in
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(session.executableURL.lastPathComponent)
-                                    .font(.headline)
-                                Text("PID: \(session.pid) • \(session.startedAt.formatted(date: .omitted, time: .shortened))")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                            StatusIndicator(state: session.state)
+                if let session = viewModel.activeSession {
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(session.executableURL.lastPathComponent)
+                                .font(.headline)
+                            Text("PID: \(session.pid)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
-                        .contextMenu {
-                            Button("Terminate", role: .destructive) {
-                                // Logic to terminate
-                            }
+                        Spacer()
+                        StatusIndicator(state: session.state)
+                    }
+                    .contextMenu {
+                        Button("Terminate", role: .destructive) {
+                            viewModel.stop()
                         }
                     }
+                } else {
+                    ContentUnavailableView("No Active Sessions", systemImage: "play.square", description: Text("Start a new debug session to see it here."))
                 }
             }
 
             Divider()
 
             HStack {
-                Button(action: { /* Logic for new session */ }) {
+                Button(action: {
+                    // In a real app, this would show a target picker
+                }) {
                     Label("New Session", systemImage: "plus")
                 }
                 .buttonStyle(.bordered)
                 Spacer()
             }
             .padding()
-        }
-    }
-}
-
-struct StatusIndicator: View {
-    let state: DebugSession.State
-
-    var body: some View {
-        Circle()
-            .fill(color)
-            .frame(width: 8, height: 8)
-    }
-
-    var color: Color {
-        switch state {
-        case .launching: return .yellow
-        case .running: return .green
-        case .terminated: return .gray
         }
     }
 }

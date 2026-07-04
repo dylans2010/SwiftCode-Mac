@@ -7,6 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AF1234567890ABCDEF000002 /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000001 /* BookmarkStore.swift */; };
+		AF1234567890ABCDEF000004 /* BreakpointStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000003 /* BreakpointStore.swift */; };
+		AF1234567890ABCDEF000006 /* WorkflowEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000005 /* WorkflowEditorView.swift */; };
+		AF1234567890ABCDEF000008 /* CodeAnalysisTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000007 /* CodeAnalysisTool.swift */; };
+		AF1234567890ABCDEF000010 /* ProjectIndexingTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000009 /* ProjectIndexingTool.swift */; };
+		AF1234567890ABCDEF000012 /* NativeTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000011 /* NativeTextView.swift */; };
+
 		341A9F182E704F7F9B738B34 /* OpenRouterAIProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 393E65DB7FC04586A7090F73 /* OpenRouterAIProvider.swift */; };
 		1A55628ECF57418D801FF996 /* SkillsManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8333A91FC04C4D9BA347D7EF /* SkillsManagerView.swift */; };
 		70A2ECEA49B0485AB083ADAF /* SkillsLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 239F1E9D2E1945E1868B6780 /* SkillsLibraryView.swift */; };
@@ -204,7 +211,6 @@
 		F0C5190204B54377956F7B3D /* ProjectNavigatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89F158925057E585F0850BD5 /* ProjectNavigatorView.swift */; };
 		C6E3EFD1D41743C2B06C4021 /* NewProjectSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E9FC304C91E22436FD72EF1 /* NewProjectSheetView.swift */; };
 		BB96E2D43CBC4BBE94035D65 /* IssueNavigatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D392D5F47EE76B75952DBE05 /* IssueNavigatorView.swift */; };
-		C691611D75944AF1BC8E6F49 /* ImportProjectSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D148BC1F3D5390618E067D34 /* ImportProjectSheetView.swift */; };
 		AD685C8E34644B6A8A8A54C1 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF48A1CD567E4CDC4FB27905 /* HomeView.swift */; };
 		9FDBDD69C587426BB24C52EE /* HomeProjectGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2988576D530A06061B96EC5 /* HomeProjectGridView.swift */; };
 		9E8F53A484AA4A9F835DFCDC /* GitPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6936AD38C3A245BE69068C5 /* GitPanelView.swift */; };
@@ -314,6 +320,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		AF1234567890ABCDEF000001 /* BookmarkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkStore.swift; sourceTree = "<group>"; };
+		AF1234567890ABCDEF000003 /* BreakpointStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakpointStore.swift; sourceTree = "<group>"; };
+		AF1234567890ABCDEF000005 /* WorkflowEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowEditorView.swift; sourceTree = "<group>"; };
+		AF1234567890ABCDEF000007 /* CodeAnalysisTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeAnalysisTool.swift; sourceTree = "<group>"; };
+		AF1234567890ABCDEF000009 /* ProjectIndexingTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectIndexingTool.swift; sourceTree = "<group>"; };
+		AF1234567890ABCDEF000011 /* NativeTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTextView.swift; sourceTree = "<group>"; };
+
 		393E65DB7FC04586A7090F73 /* OpenRouterAIProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterAIProvider.swift; sourceTree = "<group>"; };
 		8333A91FC04C4D9BA347D7EF /* SkillsManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsManagerView.swift; sourceTree = "<group>"; };
 		239F1E9D2E1945E1868B6780 /* SkillsLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsLibraryView.swift; sourceTree = "<group>"; };
@@ -460,7 +473,6 @@
 		B6936AD38C3A245BE69068C5 /* GitPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GitPanelView.swift"; sourceTree = "<group>"; };
 		C2988576D530A06061B96EC5 /* HomeProjectGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HomeProjectGridView.swift"; sourceTree = "<group>"; };
 		DF48A1CD567E4CDC4FB27905 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HomeView.swift"; sourceTree = "<group>"; };
-		D148BC1F3D5390618E067D34 /* ImportProjectSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ImportProjectSheetView.swift"; sourceTree = "<group>"; };
 		D392D5F47EE76B75952DBE05 /* IssueNavigatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "IssueNavigatorView.swift"; sourceTree = "<group>"; };
 		3E9FC304C91E22436FD72EF1 /* NewProjectSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NewProjectSheetView.swift"; sourceTree = "<group>"; };
 		89F158925057E585F0850BD5 /* ProjectNavigatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProjectNavigatorView.swift"; sourceTree = "<group>"; };
@@ -811,6 +823,8 @@
 		FD1B005835C75052E48A0BA2 /* Persistence */ = {
 			isa = PBXGroup;
 			children = (
+				AF1234567890ABCDEF000001 /* BookmarkStore.swift */,
+				AF1234567890ABCDEF000003 /* BreakpointStore.swift */,
 				672513D68EBA48D9312D3761,
 				DF56221690E8923F67F33878,
 				DF7A9B99B4125B85728B94A7,
@@ -1075,6 +1089,7 @@
 		FE18E54E76741F54A82CD586 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				AF1234567890ABCDEF000011 /* NativeTextView.swift */,
 				ECCD90753CE1435CAF83EAA2 /* Agent */,
 				0CD5CC286B08493985F778B6 /* Sidebar */,
 				127F78BDF2258DE13EE0B4F6,
@@ -1098,7 +1113,6 @@
 				C2988576D530A06061B96EC5,
 				C6E31F24089DAC97BEE9EBFA,
 				CD4100FC6872866E61CBC096,
-				D148BC1F3D5390618E067D34,
 				D1A1EBA88E7FCC25B26C8FA4,
 				D392D5F47EE76B75952DBE05,
 				DF48A1CD567E4CDC4FB27905,
@@ -1138,6 +1152,7 @@
 		0CD5CC286B08493985F778B6 /* Sidebar */ = {
 			isa = PBXGroup;
 			children = (
+				AF1234567890ABCDEF000005 /* WorkflowEditorView.swift */,
 				8333A91FC04C4D9BA347D7EF /* SkillsManagerView.swift */,
 				239F1E9D2E1945E1868B6780 /* SkillsLibraryView.swift */,
 				A320B54C3619417094B21029 /* SidebarMainView.swift */,
@@ -1157,6 +1172,8 @@
 		D3C76C44A71C4A3EB65045B1 /* Agentic */ = {
 			isa = PBXGroup;
 			children = (
+				AF1234567890ABCDEF000007 /* CodeAnalysisTool.swift */,
+				AF1234567890ABCDEF000009 /* ProjectIndexingTool.swift */,
 				E4010B741810480399A66ABE /* ChecklistPlan.swift */,
 				3095C7FC268B4822B1D7F891 /* QuestionHandler.swift */,
 				91F57C3EA6E74626A356DC99 /* AskUser.swift */,
@@ -1554,7 +1571,6 @@
 				9E8F53A484AA4A9F835DFCDC /* GitPanelView.swift in Sources */,
 				9FDBDD69C587426BB24C52EE /* HomeProjectGridView.swift in Sources */,
 				AD685C8E34644B6A8A8A54C1 /* HomeView.swift in Sources */,
-				C691611D75944AF1BC8E6F49 /* ImportProjectSheetView.swift in Sources */,
 				BB96E2D43CBC4BBE94035D65 /* IssueNavigatorView.swift in Sources */,
 				C6E3EFD1D41743C2B06C4021 /* NewProjectSheetView.swift in Sources */,
 				F0C5190204B54377956F7B3D /* ProjectNavigatorView.swift in Sources */,

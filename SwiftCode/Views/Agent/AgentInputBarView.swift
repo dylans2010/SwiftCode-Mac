@@ -1,61 +1,72 @@
 import SwiftUI
 
 struct AgentInputBarView: View {
-    @ObservedObject var viewModel: AgentViewModel
+    @Bindable var viewModel: AIAssistantViewModel
     @State private var text = ""
-    @State private var attachments: [AgentAttachment] = []
+    @State private var showingAttachments = false
 
     var body: some View {
         VStack(spacing: 0) {
-            if !attachments.isEmpty {
-                ScrollView(.horizontal) {
+            if !viewModel.attachments.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
                     HStack {
-                        ForEach(attachments) { attachment in
+                        ForEach(viewModel.attachments) { attachment in
                             AgentAttachmentChipView(attachment: attachment) {
-                                attachments.removeAll { $0.id == attachment.id }
+                                viewModel.attachments.removeAll { $0.id == attachment.id }
                             }
                         }
                     }
-                    .padding(8)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
                 }
                 Divider()
             }
 
-            HStack(alignment: .bottom, spacing: 8) {
-                AgentAttachmentPickerView(attachments: $attachments)
-                    .padding(.bottom, 8)
+            HStack(alignment: .bottom, spacing: 12) {
+                Button(action: { showingAttachments = true }) {
+                    Image(systemName: "plus.circle")
+                        .font(.title2)
+                }
+                .buttonStyle(.plain)
+                .help("Add Attachment")
 
-                TextEditor(text: $text)
-                    .frame(minHeight: 36, maxHeight: 200)
-                    .padding(4)
+                TextField("Ask the agent anything...", text: $text, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .lineLimit(1...10)
+                    .padding(8)
                     .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(8)
+                    .onSubmit {
+                        sendMessage()
+                    }
 
-                if viewModel.session.turnState == .awaitingModel || viewModel.session.turnState == .executingTools {
-                    Button(action: { viewModel.cancelTurn() }) {
-                        Image(systemName: "stop.circle.fill")
-                            .font(.title)
-                            .foregroundColor(.red)
-                    }
-                    .buttonStyle(.plain)
-                } else {
-                    Button(action: send) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.title)
-                            .foregroundColor(.accentColor)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(text.isEmpty && attachments.isEmpty)
+                Button(action: sendMessage) {
+                    Image(systemName: viewModel.isProcessing ? "stop.circle.fill" : "arrow.up.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(text.isEmpty && !viewModel.isProcessing ? .secondary : .accentColor)
                 }
+                .buttonStyle(.plain)
+                .disabled(text.isEmpty && !viewModel.isProcessing)
             }
-            .padding(8)
+            .padding()
+        }
+        .background(Color(NSColor.windowBackgroundColor))
+        .popover(isPresented: $showingAttachments) {
+            AgentAttachmentPickerView(viewModel: viewModel)
+                .frame(width: 300, height: 400)
         }
     }
 
-    private func send() {
-        viewModel.sendMessage(text, attachments: attachments)
-        text = ""
-        attachments = []
+    private func sendMessage() {
+        if viewModel.isProcessing {
+            viewModel.cancelTask()
+        } else {
+            guard !text.isEmpty else { return }
+            let currentText = text
+            text = ""
+            Task {
+                await viewModel.sendUserMessage(currentText)
+            }
+        }
     }
-
 }

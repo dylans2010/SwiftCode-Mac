@@ -142,6 +142,8 @@ public struct ListTools {
         RollbackChangesTool.identifier: RollbackChangesTool(),
         AskUserTool.identifier: AskUserTool(),
         QuestionHandlerTool.identifier: QuestionHandlerTool(),
-        ChecklistPlanTool.identifier: ChecklistPlanTool()
+        ChecklistPlanTool.identifier: ChecklistPlanTool(),
+        CodeAnalysisTool.identifier: CodeAnalysisTool(),
+        ProjectIndexingTool.identifier: ProjectIndexingTool()
     ]
 }
