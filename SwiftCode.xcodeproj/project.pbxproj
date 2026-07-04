@@ -329,6 +329,8 @@
 		FCE346B6A8594C599371747B /* ThemeGalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62238748230CA02A3DED159C /* ThemeGalleryView.swift */; };
 		FEC3B44DC8224E81AD104B28 /* QuestionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3095C7FC268B4822B1D7F891 /* QuestionHandler.swift */; };
 		FEFC87DC8083410D9A030894 /* ManageSecrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AE11BAA8BF4AA791C4B03B /* ManageSecrets.swift */; };
+		AB1234567890ABCDEF100001 /* StatusIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1234567890ABCDEF200001 /* StatusIndicator.swift */; };
+		AB1234567890ABCDEF100002 /* WorkflowEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000005 /* WorkflowEditorView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -579,6 +581,7 @@
 		AF1234567890ABCDEF000001 /* BookmarkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkStore.swift; sourceTree = "<group>"; };
 		AF1234567890ABCDEF000003 /* BreakpointStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakpointStore.swift; sourceTree = "<group>"; };
 		AF1234567890ABCDEF000005 /* WorkflowEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowEditorView.swift; sourceTree = "<group>"; };
+		AB1234567890ABCDEF200001 /* StatusIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusIndicator.swift; sourceTree = "<group>"; };
 		AF1234567890ABCDEF000007 /* CodeAnalysisTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeAnalysisTool.swift; sourceTree = "<group>"; };
 		AF1234567890ABCDEF000009 /* ProjectIndexingTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectIndexingTool.swift; sourceTree = "<group>"; };
 		AF1234567890ABCDEF000011 /* NativeTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTextView.swift; sourceTree = "<group>"; };
@@ -712,6 +715,7 @@
 				78EA614EFC4E4D608C78416B /* BookmarksSidebarView.swift */,
 				D6A0E872738A49CE95EFD426 /* TestsSidebarView.swift */,
 				22AD5B3696D44606AC985028 /* GitHubWorkflowsSidebarView.swift */,
+				AB1234567890ABCDEF200001 /* StatusIndicator.swift */,
 			);
 			path = Sidebar;
 			sourceTree = "<group>";
@@ -1695,6 +1699,8 @@
 				7B4E7EBE8AA84A6F81D9E823 /* CrossReferenceSearch.swift in Sources */,
 				DCF78B2531E54F71A1C40AA3 /* GlobSearch.swift in Sources */,
 				64B4F79210164A398B335322 /* ReviewPullRequest.swift in Sources */,
+				AB1234567890ABCDEF100001 /* StatusIndicator.swift in Sources */,
+				AB1234567890ABCDEF100002 /* WorkflowEditorView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
