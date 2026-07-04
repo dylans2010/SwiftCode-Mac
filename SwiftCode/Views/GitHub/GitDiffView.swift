@@ -8,14 +8,14 @@ struct GitDiffView: View {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(hunks) { hunk in
                     Text(hunk.header)
-                        .font(.monospacedSystemFont(ofSize: 11, weight: .bold))
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .padding(.vertical, 4)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.secondary.opacity(0.1))
 
                     ForEach(hunk.lines, id: \.self) { line in
                         Text(line)
-                            .font(.monospacedSystemFont(ofSize: 11, weight: .regular))
+                            .font(.system(size: 11, weight: .regular, design: .monospaced))
                             .foregroundStyle(lineColor(line))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(lineBackgroundColor(line))

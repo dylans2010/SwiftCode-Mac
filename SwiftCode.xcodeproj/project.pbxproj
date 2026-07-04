@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AF1234567890ABCDEF000021 /* NativeTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000011 /* NativeTextView.swift */; };
 		03448B6DC75947AD9756B9B6 /* SemanticCodeSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70BE6383C2C4473391AFAA66 /* SemanticCodeSearch.swift */; };
 		AF1234567890ABCDEF000013 /* CodeAnalysisTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000007 /* CodeAnalysisTool.swift */; };
 		AF1234567890ABCDEF000015 /* ProjectIndexingTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000009 /* ProjectIndexingTool.swift */; };
@@ -1385,6 +1386,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AF1234567890ABCDEF000021 /* NativeTextView.swift in Sources */,
 				AF1234567890ABCDEF000013 /* CodeAnalysisTool.swift in Sources */,
 				AF1234567890ABCDEF000015 /* ProjectIndexingTool.swift in Sources */,
 				AF1234567890ABCDEF000017 /* BreakpointStore.swift in Sources */,

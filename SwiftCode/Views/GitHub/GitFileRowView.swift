@@ -6,7 +6,7 @@ struct GitFileRowView: View {
     var body: some View {
         HStack {
             Text(file.status.rawValue)
-                .font(.monospacedSystemFont(ofSize: 11, weight: .bold))
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .foregroundStyle(statusColor)
                 .frame(width: 20)
             Text(file.path.lastPathComponent)

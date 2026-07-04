@@ -1,10 +1,10 @@
 import SwiftUI
 
-struct BuildToolbarView: View {
+struct BuildToolbarView: ToolbarContent {
     @State var viewModel: BuildViewModel
     let projectURL: URL
 
-    var body: some View {
+    var body: some ToolbarContent {
         ToolbarItemGroup {
             Button(action: {
                 Task {

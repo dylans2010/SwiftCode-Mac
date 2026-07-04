@@ -7,7 +7,7 @@ struct EditorGutterView: View {
         VStack(alignment: .trailing, spacing: 0) {
             ForEach(1...lineCount, id: \.self) { line in
                 Text("\(line)")
-                    .font(.monospacedSystemFont(ofSize: 12, weight: .regular))
+                    .font(.system(size: 12, weight: .regular, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .frame(height: 18)
             }

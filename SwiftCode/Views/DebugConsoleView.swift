@@ -7,7 +7,7 @@ struct DebugConsoleView: View {
         VStack(spacing: 0) {
             ScrollView {
                 Text(viewModel.consoleOutput)
-                    .font(.monospacedSystemFont(ofSize: 11, weight: .regular))
+                    .font(.system(size: 11, weight: .regular, design: .monospaced))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
             }

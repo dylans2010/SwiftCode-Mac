@@ -6,7 +6,7 @@ struct BuildConsoleView: View {
     var body: some View {
         ScrollView {
             Text(viewModel.buildLog)
-                .font(.monospacedSystemFont(ofSize: 11, weight: .regular))
+                .font(.system(size: 11, weight: .regular, design: .monospaced))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
         }
