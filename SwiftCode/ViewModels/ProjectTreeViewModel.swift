@@ -24,6 +24,11 @@ public class ProjectTreeViewModel {
         isLoading = false
     }
 
+    public func refresh() async {
+        guard let projectURL else { return }
+        await loadProject(url: projectURL)
+    }
+
     public func toggleExpanded(_ node: ProjectNode) async {
         guard node.kind == .folder else { return }
 
