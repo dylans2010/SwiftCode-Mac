@@ -2,6 +2,7 @@ import Foundation
 import Observation
 
 @Observable
+@MainActor
 public class BreakpointStore {
     public static let shared = BreakpointStore()
 

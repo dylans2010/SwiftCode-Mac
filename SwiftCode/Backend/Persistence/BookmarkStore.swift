@@ -2,6 +2,7 @@ import Foundation
 import Observation
 
 @Observable
+@MainActor
 public class BookmarkStore {
     public static let shared = BookmarkStore()
 
