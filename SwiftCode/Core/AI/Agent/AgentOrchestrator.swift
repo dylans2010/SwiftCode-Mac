@@ -49,7 +49,7 @@ public actor AgentOrchestrator {
 
     private func runLoop(session: inout AgentSession) async throws {
         var shouldContinue = true
-        let model = OpenRouterModel(id: "openai/gpt-4.1", name: "GPT-4.1", contextLength: 1048576)
+        let model = OpenRouterModel(id: "openai/gpt-4.1", name: "GPT-4.1", contextLength: 1048576, pricing: .init(prompt: "0", completion: "0"))
 
         while shouldContinue && !isCancelled {
             session.turnState = .awaitingModel
