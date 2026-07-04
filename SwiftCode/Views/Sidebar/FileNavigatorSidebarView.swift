@@ -36,7 +36,11 @@ struct FileNavigatorSidebarView: View {
 
                 Spacer()
 
-                Button(action: { Task { await viewModel.refresh() } }) {
+                Button(action: {
+                    Task {
+                        await viewModel.refresh()
+                    }
+                }) {
                     Image(systemName: "arrow.clockwise")
                 }
                 .help("Refresh")
@@ -53,6 +57,7 @@ struct FileNavigatorSidebarView: View {
                                     selectedNodeForRename = node
                                     showingRenameSheet = true
                                 }
+
                                 Button("Delete", role: .destructive) {
                                     Task {
                                         try? await FileSystemService.shared.delete(at: node.url)
@@ -65,6 +70,7 @@ struct FileNavigatorSidebarView: View {
                     Text("No project open")
                         .foregroundStyle(.secondary)
                 }
+            }
         }
     }
 }
