@@ -3,7 +3,7 @@ import Foundation
 public actor ProcessRunnerTool {
     public static let shared = ProcessRunnerTool()
 
-    public struct ProcessResult {
+    public struct ProcessResult: Sendable {
         public let exitCode: Int32
         public let stdout: String
         public let stderr: String
