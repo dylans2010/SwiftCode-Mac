@@ -4,7 +4,7 @@ public struct EditFileTool: AgentTool {
     public static let identifier = "edit_file"
     public let name = "edit_file"
     public let description = "Performs search-and-replace edits on a file."
-    public let schema: [String: Any] = [
+    public let schema: [String: any Sendable] = [
         "type": "object",
         "properties": [
             "path": ["type": "string"],
@@ -33,7 +33,7 @@ public struct EditFileTool: AgentTool {
         try content.write(toFile: path, atomically: true, encoding: .utf8)
     }
 
-    public func execute(arguments: [String: Any]) async throws -> String {
+    public func execute(arguments: [String: any Sendable]) async throws -> String {
         guard let path = arguments["path"] as? String,
               let edits = arguments["edits"] as? [[String: String]] else {
             throw AgentError.toolError("Missing path or edits")

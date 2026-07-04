@@ -7,8 +7,8 @@ public struct OpenRouterRequestBuilder: Sendable {
         return AIAssistantRequest(model: model, messages: messages)
     }
 
-    public func buildAgentRequest(model: String, messages: [AgentMessage], tools: [[String: Any]]?) -> [String: Any] {
-        var body: [String: Any] = [
+    public func buildAgentRequest(model: String, messages: [AgentMessage], tools: [[String: any Sendable]]?) -> [String: any Sendable] {
+        var body: [String: any Sendable] = [
             "model": model,
             "messages": messages.map { encodeMessage($0) },
             "stream": true
@@ -19,10 +19,10 @@ public struct OpenRouterRequestBuilder: Sendable {
         return body
     }
 
-    private func encodeMessage(_ message: AgentMessage) -> [String: Any] {
-        var dict: [String: Any] = ["role": message.role.rawValue]
+    private func encodeMessage(_ message: AgentMessage) -> [String: any Sendable] {
+        var dict: [String: any Sendable] = ["role": message.role.rawValue]
 
-        let contents: [[String: Any]] = message.content.compactMap { content in
+        let contents: [[String: any Sendable]] = message.content.compactMap { content in
             switch content {
             case .text(let text):
                 return ["type": "text", "text": text]
@@ -32,12 +32,12 @@ public struct OpenRouterRequestBuilder: Sendable {
                     "type": "image_url",
                     "image_url": ["url": "data:\(mimeType);base64,\(base64)"]
                 ]
-            case .toolCall(let call):
+            case .toolCall(let _):
                 // Tool calls are usually part of the assistant message, but not in 'content' array for OpenRouter usually.
                 // However, some models might support them in content.
                 // For OpenRouter/OpenAI, they are at the top level of the message.
                 return nil
-            case .toolResult(let result):
+            case .toolResult(let _):
                 // Tool results are separate messages with role 'tool'.
                 return nil
             case .pendingQuestion, .pendingQuestionSet, .checklistUpdate:
@@ -52,7 +52,7 @@ public struct OpenRouterRequestBuilder: Sendable {
         // Handle tool calls and tool results specifically if they exist in the message
         for content in message.content {
             if case .toolCall(let call) = content {
-                var toolCalls = dict["tool_calls"] as? [[String: Any]] ?? []
+                var toolCalls = dict["tool_calls"] as? [[String: any Sendable]] ?? []
                 toolCalls.append([
                     "id": call.id,
                     "type": "function",

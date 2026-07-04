@@ -4,7 +4,7 @@ public struct CopyFileTool: AgentTool {
     public static let identifier = "copy_file"
     public let name = "copy_file"
     public let description = "Copies a file or directory."
-    public let schema: [String: Any] = [
+    public let schema: [String: any Sendable] = [
         "type": "object",
         "properties": [
             "sourcePath": ["type": "string"],
@@ -17,7 +17,7 @@ public struct CopyFileTool: AgentTool {
         try FileManager.default.copyItem(atPath: sourcePath, toPath: destinationPath)
     }
 
-    public func execute(arguments: [String: Any]) async throws -> String {
+    public func execute(arguments: [String: any Sendable]) async throws -> String {
         guard let source = arguments["sourcePath"] as? String,
               let dest = arguments["destinationPath"] as? String else {
             throw AgentError.toolError("Missing sourcePath or destinationPath")

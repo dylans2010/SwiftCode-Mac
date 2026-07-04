@@ -1,9 +1,9 @@
 import Foundation
 
-public struct ListTools {
+public struct ListTools: Sendable {
     public static let shared = ListTools()
 
-    public let tools: [String: Any] = [
+    public let tools: [String: any AgentTool] = [
         ReadFileTool.identifier: ReadFileTool(),
         ReadMultipleFilesTool.identifier: ReadMultipleFilesTool(),
         WriteFileTool.identifier: WriteFileTool(),

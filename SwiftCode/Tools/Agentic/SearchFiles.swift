@@ -4,7 +4,7 @@ public struct SearchFilesTool: AgentTool {
     public static let identifier = "search_files"
     public let name = "search_files"
     public let description = "Searches for files matching a pattern in a directory."
-    public let schema: [String: Any] = [
+    public let schema: [String: any Sendable] = [
         "type": "object",
         "properties": [
             "directory": ["type": "string"],
@@ -26,7 +26,7 @@ public struct SearchFilesTool: AgentTool {
         return results
     }
 
-    public func execute(arguments: [String: Any]) async throws -> String {
+    public func execute(arguments: [String: any Sendable]) async throws -> String {
         guard let directory = arguments["directory"] as? String,
               let pattern = arguments["pattern"] as? String else {
             throw AgentError.toolError("Missing directory or pattern")

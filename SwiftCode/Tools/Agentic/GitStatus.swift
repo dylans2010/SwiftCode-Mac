@@ -4,7 +4,7 @@ public struct GitStatusTool: AgentTool {
     public static let identifier = "git_status"
     public let name = "git_status"
     public let description = "Returns the status of the git repository."
-    public let schema: [String: Any] = [
+    public let schema: [String: any Sendable] = [
         "type": "object",
         "properties": ["repositoryPath": ["type": "string"]],
         "required": ["repositoryPath"]
@@ -20,7 +20,7 @@ public struct GitStatusTool: AgentTool {
         return result.stdout
     }
 
-    public func execute(arguments: [String: Any]) async throws -> String {
+    public func execute(arguments: [String: any Sendable]) async throws -> String {
         guard let path = arguments["repositoryPath"] as? String else { throw AgentError.toolError("Missing repositoryPath") }
         return try await run(repositoryPath: path)
     }

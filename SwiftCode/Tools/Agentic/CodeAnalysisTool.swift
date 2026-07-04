@@ -4,7 +4,7 @@ public struct CodeAnalysisTool: AgentTool {
     public static let identifier = "code_analysis"
     public let name = "code_analysis"
     public let description = "Analyzes Swift code for potential issues, complexity, and architectural patterns."
-    public let schema: [String: Any] = [
+    public let schema: [String: any Sendable] = [
         "type": "object",
         "properties": [
             "path": [
@@ -15,7 +15,7 @@ public struct CodeAnalysisTool: AgentTool {
         "required": ["path"]
     ]
 
-    public func execute(arguments: [String: Any]) async throws -> String {
+    public func execute(arguments: [String: any Sendable]) async throws -> String {
         guard let path = arguments["path"] as? String else {
             throw AgentError.toolError("Missing path argument")
         }
