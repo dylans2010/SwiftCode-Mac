@@ -13,7 +13,9 @@ public class AgentViewModel: ObservableObject {
     public func sendMessage(_ text: String, attachments: [AgentAttachment] = []) {
         Task {
             do {
-                try await orchestrator.runTurn(session: &session, userMessage: text, attachments: attachments)
+                var localSession = session
+                try await orchestrator.runTurn(session: &localSession, userMessage: text, attachments: attachments)
+                session = localSession
             } catch {
                 session.turnState = .failed(.unknown(error.localizedDescription))
             }
@@ -28,7 +30,9 @@ public class AgentViewModel: ObservableObject {
         guard let lastToolCall = findLastUnansweredToolCall() else { return }
         Task {
             do {
-                try await orchestrator.resumeTurn(session: &session, result: answer, toolCallId: lastToolCall.id)
+                var localSession = session
+                try await orchestrator.resumeTurn(session: &localSession, result: answer, toolCallId: lastToolCall.id)
+                session = localSession
             } catch {
                 session.turnState = .failed(.unknown(error.localizedDescription))
             }
@@ -42,7 +46,9 @@ public class AgentViewModel: ObservableObject {
 
         Task {
             do {
-                try await orchestrator.resumeTurn(session: &session, result: result, toolCallId: lastToolCall.id)
+                var localSession = session
+                try await orchestrator.resumeTurn(session: &localSession, result: result, toolCallId: lastToolCall.id)
+                session = localSession
             } catch {
                 session.turnState = .failed(.unknown(error.localizedDescription))
             }
