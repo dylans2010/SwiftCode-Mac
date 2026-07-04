@@ -139,6 +139,9 @@ public struct ListTools {
         TodoManagerTool.identifier: TodoManagerTool(),
         ProgressTrackerTool.identifier: ProgressTrackerTool(),
         CheckpointCreatorTool.identifier: CheckpointCreatorTool(),
-        RollbackChangesTool.identifier: RollbackChangesTool()
+        RollbackChangesTool.identifier: RollbackChangesTool(),
+        AskUserTool.identifier: AskUserTool(),
+        QuestionHandlerTool.identifier: QuestionHandlerTool(),
+        ChecklistPlanTool.identifier: ChecklistPlanTool()
     ]
 }
