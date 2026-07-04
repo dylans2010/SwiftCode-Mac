@@ -10,6 +10,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     case bookmarks = "bookmark"
     case tests = "checklist"
     case githubWorkflows = "square.stack.3d.down.right"
+    case agent = "bubble.left.and.exclamationmark.bubble.right.fill"
 
     var id: String { rawValue }
 
@@ -24,6 +25,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .bookmarks: return "Bookmarks"
         case .tests: return "Tests"
         case .githubWorkflows: return "GitHub Workflows"
+        case .agent: return "Agent Chat"
         }
     }
 }
@@ -39,7 +41,7 @@ struct SidebarMainView: View {
                 ForEach(SidebarItem.allCases) { item in
                     Button(action: { selectedItem = item }) {
                         Image(systemName: item.rawValue)
-                            .font(.system(size: 20))
+                            .font(.system(size: 18))
                             .foregroundStyle(selectedItem == item ? .primary : .secondary)
                             .frame(width: 40, height: 40)
                             .contentShape(Rectangle())
@@ -47,6 +49,7 @@ struct SidebarMainView: View {
                     .buttonStyle(.plain)
                     .background(selectedItem == item ? Color.accentColor.opacity(0.1) : Color.clear)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .help(item.title)
                 }
                 Spacer()
             }
@@ -74,9 +77,9 @@ struct SidebarMainView: View {
                 case .search:
                     SearchSidebarView()
                 case .debug:
-                    DebugInspectorSidebarView()
+                    DebugInspectorSidebarView(viewModel: workspaceViewModel.debug)
                 case .debugSessions:
-                    DebugSessionsSidebarView()
+                    DebugSessionsSidebarView(viewModel: workspaceViewModel.debug)
                 case .breakpoints:
                     BreakpointsSidebarView()
                 case .bookmarks:
@@ -85,6 +88,9 @@ struct SidebarMainView: View {
                     TestsSidebarView()
                 case .githubWorkflows:
                     GitHubWorkflowsSidebarView()
+                case .agent:
+                    AgentChatView()
+                        .environment(workspaceViewModel.ai)
                 }
             }
             .frame(maxWidth: .infinity)

@@ -1,17 +1,15 @@
 import SwiftUI
 
 struct BookmarksSidebarView: View {
-    @State private var bookmarks: [Bookmark] = []
+    @State private var store = BookmarkStore.shared
 
     var body: some View {
         VStack {
             List {
-                if bookmarks.isEmpty {
-                    Text("No bookmarks")
-                        .foregroundStyle(.secondary)
-                        .padding()
+                if store.bookmarks.isEmpty {
+                    ContentUnavailableView("No Bookmarks", systemImage: "bookmark", description: Text("Add bookmarks to quickly jump to important lines of code."))
                 } else {
-                    ForEach(bookmarks) { bookmark in
+                    ForEach(store.bookmarks) { bookmark in
                         HStack {
                             Image(systemName: "bookmark.fill")
                                 .foregroundColor(.accentColor)
@@ -19,26 +17,16 @@ struct BookmarksSidebarView: View {
                                 Text(bookmark.fileName).font(.headline)
                                 Text("Line \(bookmark.lineNumber)").font(.caption).foregroundColor(.secondary)
                             }
+                            Spacer()
+                        }
+                        .contextMenu {
+                            Button("Delete", role: .destructive) {
+                                store.remove(id: bookmark.id)
+                            }
                         }
                     }
                 }
             }
         }
-        .onAppear {
-            loadBookmarks()
-        }
     }
-
-    private func loadBookmarks() {
-        // In a real production app, this would load from a persistence store
-        // For now we simulate an empty but functional state
-        bookmarks = []
-    }
-}
-
-struct Bookmark: Identifiable {
-    let id = UUID()
-    let fileName: String
-    let lineNumber: Int
-    let filePath: String
 }

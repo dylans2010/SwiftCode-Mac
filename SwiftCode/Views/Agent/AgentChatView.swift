@@ -1,7 +1,7 @@
 import SwiftUI
 
 public struct AgentChatView: View {
-    @StateObject var viewModel = AgentViewModel()
+    @Environment(AIAssistantViewModel.self) var viewModel
     @State private var showChecklist = true
 
     public init() {}
@@ -18,8 +18,18 @@ public struct AgentChatView: View {
             .frame(minWidth: 300)
 
             if showChecklist {
-                AgentChecklistView(state: viewModel.session.checklist)
-                    .frame(width: 250)
+                VStack(spacing: 0) {
+                    Text("Plan & Tasks")
+                        .font(.headline)
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Divider()
+
+                    AgentChecklistView(state: viewModel.session.checklist)
+                }
+                .frame(width: 250)
+                .background(Color(NSColor.controlBackgroundColor))
             }
         }
         .toolbar {
