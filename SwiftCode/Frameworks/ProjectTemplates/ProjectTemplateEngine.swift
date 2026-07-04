@@ -14,6 +14,8 @@ public actor ProjectTemplateEngine {
 
 public protocol ProjectTemplate: Sendable {
     var name: String { get }
+    var description: String { get }
+    var icon: String { get }
     var files: [TemplateFile] { get }
 }
 

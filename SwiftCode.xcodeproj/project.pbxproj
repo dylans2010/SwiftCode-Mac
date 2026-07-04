@@ -255,10 +255,6 @@
 		BBAE30C55740484D944B7966 /* TokenizedLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CFB02C257E0B52A5E0DBC65 /* TokenizedLine.swift */; };
 		D568DB784A134F3CA53F7A6C /* SyntaxHighlightingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22531099FF3196CB23DE9D20 /* SyntaxHighlightingEngine.swift */; };
 		0422BF3C9E4A47549E5DB637 /* SwiftTokenizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43B6AE19277BC87E87856F0E /* SwiftTokenizer.swift */; };
-		903D1941A76E44D1B806A19D /* SwiftPackageTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFEC1CF26F4F5C2B73267FF4 /* SwiftPackageTemplate.swift */; };
-		F516473F0A4B4633B1170272 /* MacOSAppTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65389134290A7A2FAF6075A2 /* MacOSAppTemplate.swift */; };
-		E2EFF6FD322F42C086E881C7 /* FrameworkTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 513CAA4F5E3E36F0B2775E4E /* FrameworkTemplate.swift */; };
-		1EA6024F3B884F2683A1BD8A /* CommandLineToolTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15D2133D270758ED3C93E419 /* CommandLineToolTemplate.swift */; };
 		787B8E3F1A9C4E198E9534B6 /* ProjectTemplateEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B61712C0BD46B1E17BD74F94 /* ProjectTemplateEngine.swift */; };
 		FAAD4BDD073C483EB4F67211 /* MarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE93F6E9F8960DBC11BA8A2 /* MarkdownRenderer.swift */; };
 		F6C779721EEC4090A0D7A477 /* MyersDiffAlgorithm.swift in Sources */ = {isa = PBXBuildFile; fileRef = F360FE6ECC28ACBA6B4D5196 /* MyersDiffAlgorithm.swift */; };
@@ -279,6 +275,21 @@
 		4715083EA3F740A49B0BAD02 /* SourceFileDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3C36B98601DBB397AA1017B /* SourceFileDocument.swift */; };
 		1E49EC56E3524F57BA2AA96B /* EditorTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE94D35D1397D6B283EBBC31 /* EditorTab.swift */; };
 		36F49382F6AA47C78E48E5AC /* DebugSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC1B6777989D66FCA9C6BE99 /* DebugSession.swift */; };
+		265E9A342B28B39C005F9A10 /* DebugModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A332B28B39C005F9A10 /* DebugModels.swift */; };
+		265E9A442B28B39C005F9A10 /* CommandLineToolTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A352B28B39C005F9A10 /* CommandLineToolTemplate.swift */; };
+		265E9A452B28B39C005F9A10 /* DocumentAppTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A362B28B39C005F9A10 /* DocumentAppTemplate.swift */; };
+		265E9A462B28B39C005F9A10 /* FrameworkTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A372B28B39C005F9A10 /* FrameworkTemplate.swift */; };
+		265E9A472B28B39C005F9A10 /* GameMetalTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A382B28B39C005F9A10 /* GameMetalTemplate.swift */; };
+		265E9A482B28B39C005F9A10 /* GameSpriteKitTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A392B28B39C005F9A10 /* GameSpriteKitTemplate.swift */; };
+		265E9A492B28B39C005F9A10 /* MacOSAppTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A3A2B28B39C005F9A10 /* MacOSAppTemplate.swift */; };
+		265E9A4A2B28B39C005F9A10 /* MenuBarAppTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A3B2B28B39C005F9A10 /* MenuBarAppTemplate.swift */; };
+		265E9A4B2B28B39C005F9A10 /* MultiplatformAppTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A3C2B28B39C005F9A10 /* MultiplatformAppTemplate.swift */; };
+		265E9A4C2B28B39C005F9A10 /* SafariExtensionTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A3D2B28B39C005F9A10 /* SafariExtensionTemplate.swift */; };
+		265E9A4D2B28B39C005F9A10 /* StaticLibraryTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A3E2B28B39C005F9A10 /* StaticLibraryTemplate.swift */; };
+		265E9A4E2B28B39C005F9A10 /* SwiftMacroTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A3F2B28B39C005F9A10 /* SwiftMacroTemplate.swift */; };
+		265E9A4F2B28B39C005F9A10 /* SwiftPackageTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A402B28B39C005F9A10 /* SwiftPackageTemplate.swift */; };
+		265E9A502B28B39C005F9A10 /* SwiftUIViewLibraryTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A412B28B39C005F9A10 /* SwiftUIViewLibraryTemplate.swift */; };
+		265E9A512B28B39C005F9A10 /* SystemExtensionTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A422B28B39C005F9A10 /* SystemExtensionTemplate.swift */; };
 		2CF09B9D90564C8B83A3BF1A /* ConsoleLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BFA536A5E5336066C8294FC /* ConsoleLine.swift */; };
 		88D3F495E2A14ACA9FBF120D /* Result+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E2E48FF8366AD78838798DB /* Result+Extensions.swift */; };
 		89B373A8B2BF441FA6D18A8E /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D237EEDAB5BCCF1A735ACF4 /* AppError.swift */; };
@@ -399,6 +410,21 @@
 		1E2E48FF8366AD78838798DB /* Result+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Result+Extensions.swift"; sourceTree = "<group>"; };
 		4BFA536A5E5336066C8294FC /* ConsoleLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ConsoleLine.swift"; sourceTree = "<group>"; };
 		EC1B6777989D66FCA9C6BE99 /* DebugSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DebugSession.swift"; sourceTree = "<group>"; };
+		265E9A332B28B39C005F9A10 /* DebugModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DebugModels.swift"; sourceTree = "<group>"; };
+		265E9A352B28B39C005F9A10 /* CommandLineToolTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineToolTemplate.swift; sourceTree = "<group>"; };
+		265E9A362B28B39C005F9A10 /* DocumentAppTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentAppTemplate.swift; sourceTree = "<group>"; };
+		265E9A372B28B39C005F9A10 /* FrameworkTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameworkTemplate.swift; sourceTree = "<group>"; };
+		265E9A382B28B39C005F9A10 /* GameMetalTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameMetalTemplate.swift; sourceTree = "<group>"; };
+		265E9A392B28B39C005F9A10 /* GameSpriteKitTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSpriteKitTemplate.swift; sourceTree = "<group>"; };
+		265E9A3A2B28B39C005F9A10 /* MacOSAppTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacOSAppTemplate.swift; sourceTree = "<group>"; };
+		265E9A3B2B28B39C005F9A10 /* MenuBarAppTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarAppTemplate.swift; sourceTree = "<group>"; };
+		265E9A3C2B28B39C005F9A10 /* MultiplatformAppTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiplatformAppTemplate.swift; sourceTree = "<group>"; };
+		265E9A3D2B28B39C005F9A10 /* SafariExtensionTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariExtensionTemplate.swift; sourceTree = "<group>"; };
+		265E9A3E2B28B39C005F9A10 /* StaticLibraryTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaticLibraryTemplate.swift; sourceTree = "<group>"; };
+		265E9A3F2B28B39C005F9A10 /* SwiftMacroTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftMacroTemplate.swift; sourceTree = "<group>"; };
+		265E9A402B28B39C005F9A10 /* SwiftPackageTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftPackageTemplate.swift; sourceTree = "<group>"; };
+		265E9A412B28B39C005F9A10 /* SwiftUIViewLibraryTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIViewLibraryTemplate.swift; sourceTree = "<group>"; };
+		265E9A422B28B39C005F9A10 /* SystemExtensionTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemExtensionTemplate.swift; sourceTree = "<group>"; };
 		CE94D35D1397D6B283EBBC31 /* EditorTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EditorTab.swift"; sourceTree = "<group>"; };
 		F3C36B98601DBB397AA1017B /* SourceFileDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SourceFileDocument.swift"; sourceTree = "<group>"; };
 		844AB75BF6A47BBC5BE346FF /* SourceLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SourceLanguage.swift"; sourceTree = "<group>"; };
@@ -828,8 +854,30 @@
 				672513D68EBA48D9312D3761,
 				DF56221690E8923F67F33878,
 				DF7A9B99B4125B85728B94A7,
+				265E9A432B28B39C005F9A10 /* Templates */,
 			);
 			path = "Persistence";
+			sourceTree = "<group>";
+		};
+		265E9A432B28B39C005F9A10 /* Templates */ = {
+			isa = PBXGroup;
+			children = (
+				265E9A352B28B39C005F9A10 /* CommandLineToolTemplate.swift */,
+				265E9A362B28B39C005F9A10 /* DocumentAppTemplate.swift */,
+				265E9A372B28B39C005F9A10 /* FrameworkTemplate.swift */,
+				265E9A382B28B39C005F9A10 /* GameMetalTemplate.swift */,
+				265E9A392B28B39C005F9A10 /* GameSpriteKitTemplate.swift */,
+				265E9A3A2B28B39C005F9A10 /* MacOSAppTemplate.swift */,
+				265E9A3B2B28B39C005F9A10 /* MenuBarAppTemplate.swift */,
+				265E9A3C2B28B39C005F9A10 /* MultiplatformAppTemplate.swift */,
+				265E9A3D2B28B39C005F9A10 /* SafariExtensionTemplate.swift */,
+				265E9A3E2B28B39C005F9A10 /* StaticLibraryTemplate.swift */,
+				265E9A3F2B28B39C005F9A10 /* SwiftMacroTemplate.swift */,
+				265E9A402B28B39C005F9A10 /* SwiftPackageTemplate.swift */,
+				265E9A412B28B39C005F9A10 /* SwiftUIViewLibraryTemplate.swift */,
+				265E9A422B28B39C005F9A10 /* SystemExtensionTemplate.swift */,
+			);
+			path = Templates;
 			sourceTree = "<group>";
 		};
 		B6DF997A03D43413348E4976 /* Security */ = {
@@ -914,7 +962,8 @@
 			isa = PBXGroup;
 			children = (
 				4BFA536A5E5336066C8294FC,
-				EC1B6777989D66FCA9C6BE99,
+				265E9A332B28B39C005F9A10 /* DebugModels.swift */,
+				EC1B6777989D66FCA9C6BE99 /* DebugSession.swift */,
 			);
 			path = "Debug";
 			sourceTree = "<group>";
@@ -995,20 +1044,8 @@
 			isa = PBXGroup;
 			children = (
 				B61712C0BD46B1E17BD74F94,
-				F10D65BCA2415036320F9F6C,
 			);
 			path = "ProjectTemplates";
-			sourceTree = "<group>";
-		};
-		F10D65BCA2415036320F9F6C /* Templates */ = {
-			isa = PBXGroup;
-			children = (
-				15D2133D270758ED3C93E419,
-				513CAA4F5E3E36F0B2775E4E,
-				65389134290A7A2FAF6075A2,
-				BFEC1CF26F4F5C2B73267FF4,
-			);
-			path = "Templates";
 			sourceTree = "<group>";
 		};
 		E62980EE6DD4661475F9BBF9 /* SyntaxHighlighting */ = {
@@ -1504,6 +1541,7 @@
 				88D3F495E2A14ACA9FBF120D /* Result+Extensions.swift in Sources */,
 				2CF09B9D90564C8B83A3BF1A /* ConsoleLine.swift in Sources */,
 				36F49382F6AA47C78E48E5AC /* DebugSession.swift in Sources */,
+				265E9A342B28B39C005F9A10 /* DebugModels.swift in Sources */,
 				1E49EC56E3524F57BA2AA96B /* EditorTab.swift in Sources */,
 				4715083EA3F740A49B0BAD02 /* SourceFileDocument.swift in Sources */,
 				96BAE9813D674D5B908788FD /* SourceLanguage.swift in Sources */,
@@ -1523,10 +1561,20 @@
 				F6C779721EEC4090A0D7A477 /* MyersDiffAlgorithm.swift in Sources */,
 				FAAD4BDD073C483EB4F67211 /* MarkdownRenderer.swift in Sources */,
 				787B8E3F1A9C4E198E9534B6 /* ProjectTemplateEngine.swift in Sources */,
-				1EA6024F3B884F2683A1BD8A /* CommandLineToolTemplate.swift in Sources */,
-				E2EFF6FD322F42C086E881C7 /* FrameworkTemplate.swift in Sources */,
-				F516473F0A4B4633B1170272 /* MacOSAppTemplate.swift in Sources */,
-				903D1941A76E44D1B806A19D /* SwiftPackageTemplate.swift in Sources */,
+				265E9A442B28B39C005F9A10 /* CommandLineToolTemplate.swift in Sources */,
+				265E9A452B28B39C005F9A10 /* DocumentAppTemplate.swift in Sources */,
+				265E9A462B28B39C005F9A10 /* FrameworkTemplate.swift in Sources */,
+				265E9A472B28B39C005F9A10 /* GameMetalTemplate.swift in Sources */,
+				265E9A482B28B39C005F9A10 /* GameSpriteKitTemplate.swift in Sources */,
+				265E9A492B28B39C005F9A10 /* MacOSAppTemplate.swift in Sources */,
+				265E9A4A2B28B39C005F9A10 /* MenuBarAppTemplate.swift in Sources */,
+				265E9A4B2B28B39C005F9A10 /* MultiplatformAppTemplate.swift in Sources */,
+				265E9A4C2B28B39C005F9A10 /* SafariExtensionTemplate.swift in Sources */,
+				265E9A4D2B28B39C005F9A10 /* StaticLibraryTemplate.swift in Sources */,
+				265E9A4E2B28B39C005F9A10 /* SwiftMacroTemplate.swift in Sources */,
+				265E9A4F2B28B39C005F9A10 /* SwiftPackageTemplate.swift in Sources */,
+				265E9A502B28B39C005F9A10 /* SwiftUIViewLibraryTemplate.swift in Sources */,
+				265E9A512B28B39C005F9A10 /* SystemExtensionTemplate.swift in Sources */,
 				0422BF3C9E4A47549E5DB637 /* SwiftTokenizer.swift in Sources */,
 				D568DB784A134F3CA53F7A6C /* SyntaxHighlightingEngine.swift in Sources */,
 				BBAE30C55740484D944B7966 /* TokenizedLine.swift in Sources */,

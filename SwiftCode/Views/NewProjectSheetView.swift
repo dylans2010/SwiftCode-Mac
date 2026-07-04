@@ -5,7 +5,7 @@ struct NewProjectSheetView: View {
     @Environment(\.dismiss) var dismiss
 
     @State private var projectName = "MyProject"
-    @State private var selectedTemplate: String = "SwiftUI App"
+    @State private var selectedTemplate: ProjectTemplate = MacOSAppTemplate()
     @State private var mode: SelectionMode = .create
     @State private var gitURL: String = ""
 
@@ -136,15 +136,7 @@ struct NewProjectSheetView: View {
             let projectURL = url.appendingPathComponent(projectName)
             Task {
                 do {
-                    let template: ProjectTemplate = switch selectedTemplate {
-                    case "macOS App", "SwiftUI App": MacOSAppTemplate()
-                    case "Swift Package": SwiftPackageTemplate()
-                    case "Command Line Tool": CommandLineToolTemplate()
-                    case "Framework": FrameworkTemplate()
-                    default: CommandLineToolTemplate()
-                    }
-
-                    try await ProjectTemplateEngine.shared.createProject(at: projectURL, template: template)
+                    try await ProjectTemplateEngine.shared.createProject(at: projectURL, template: selectedTemplate)
                     await viewModel.importProject(url: projectURL)
                     dismiss()
                 } catch {
