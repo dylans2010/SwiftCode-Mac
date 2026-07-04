@@ -12,6 +12,11 @@ public actor GitService {
         }
     }
 
+    public func isGitInstalled() async -> Bool {
+        let url = await gitURL
+        return FileManager.default.isExecutableFile(atPath: url.path)
+    }
+
     public func getStatus(for repositoryURL: URL) async throws -> GitStatusSnapshot {
         let result = try await ProcessRunnerTool.shared.run(
             executableURL: await gitURL,

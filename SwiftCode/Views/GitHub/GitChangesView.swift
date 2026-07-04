@@ -6,6 +6,21 @@ struct GitChangesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            HStack {
+                Button(action: { Task { await viewModel.refreshStatus() } }) {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                Spacer()
+                Button("Stage All") {
+                     // Stage all logic
+                }
+                Button("Unstage All") {
+                    // Unstage all logic
+                }
+            }
+            .padding(8)
+            .buttonStyle(.plain)
+
             List {
                 if let status = viewModel.status {
                     Section("Staged Changes") {
@@ -13,6 +28,7 @@ struct GitChangesView: View {
                             GitFileRowView(file: file)
                                 .contextMenu {
                                     Button("Unstage") { Task { await viewModel.unstage(file) } }
+                                    Button("Discard Changes") { /* Discard */ }
                                 }
                         }
                     }
@@ -21,6 +37,8 @@ struct GitChangesView: View {
                             GitFileRowView(file: file)
                                 .contextMenu {
                                     Button("Stage") { Task { await viewModel.stage(file) } }
+                                    Button("Stage Individual Hunks") { /* Hunk staging */ }
+                                    Button("Discard Changes") { /* Discard */ }
                                 }
                         }
                     }

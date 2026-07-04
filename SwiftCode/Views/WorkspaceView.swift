@@ -7,8 +7,8 @@ struct WorkspaceView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            ProjectNavigatorView(viewModel: viewModel.projectTree)
-                .navigationSplitViewColumnWidth(min: 200, ideal: 250)
+            SidebarMainView(workspaceViewModel: viewModel)
+                .navigationSplitViewColumnWidth(min: 300, ideal: 350)
         } content: {
             EditorView(viewModel: viewModel.editor)
         } detail: {
