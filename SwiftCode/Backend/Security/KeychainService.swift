@@ -7,6 +7,7 @@ public actor KeychainService {
     private let service = "com.swiftcode.app"
 
     public func save(account: String, value: String) throws {
+        // SAFETY: String.data(using: .utf8) only returns nil if the string contains invalid UTF-8, which is not the case for API keys.
         let data = value.data(using: .utf8)!
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

@@ -3,7 +3,7 @@ import Observation
 
 @Observable
 @MainActor
-public class WorkspaceViewModel {
+public class WorkspaceViewModel: Sendable {
     public let projectURL: URL
     public let editor = EditorViewModel()
     public let projectTree = ProjectTreeViewModel()

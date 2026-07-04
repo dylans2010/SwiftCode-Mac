@@ -57,19 +57,48 @@ public actor ProcessRunnerTool {
 
         stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
-            if let str = String(data: data, encoding: .utf8), !str.isEmpty {
+            if !data.isEmpty, let str = String(data: data, encoding: .utf8) {
                 onStdout(str)
             }
         }
 
         stderrPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
-            if let str = String(data: data, encoding: .utf8), !str.isEmpty {
+            if !data.isEmpty, let str = String(data: data, encoding: .utf8) {
                 onStderr(str)
             }
         }
 
+        process.terminationHandler = { _ in
+            stdoutPipe.fileHandleForReading.readabilityHandler = nil
+            stderrPipe.fileHandleForReading.readabilityHandler = nil
+        }
+
         try process.run()
         return process
+    }
+
+    public func runStreamingAsync(executableURL: URL, arguments: [String], environment: [String: String]? = nil, workingDirectory: URL? = nil, onStdout: @escaping @Sendable (String) -> Void, onStderr: @escaping @Sendable (String) -> Void) async throws -> Bool {
+        let process = try runStreaming(
+            executableURL: executableURL,
+            arguments: arguments,
+            environment: environment,
+            workingDirectory: workingDirectory,
+            onStdout: onStdout,
+            onStderr: onStderr
+        )
+
+        let existingHandler = process.terminationHandler
+        return await withCheckedContinuation { continuation in
+            process.terminationHandler = { proc in
+                existingHandler?(proc)
+                continuation.resume(returning: proc.terminationStatus == 0)
+            }
+            if !process.isRunning {
+                process.terminationHandler = nil
+                existingHandler?(process)
+                continuation.resume(returning: process.terminationStatus == 0)
+            }
+        }
     }
 }
