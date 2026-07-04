@@ -12,15 +12,15 @@ public struct QuestionHandlerTool: AgentTool {
                 "items": [
                     "type": "object",
                     "properties": [
-                        "id": ["type": "string"],
-                        "prompt": ["type": "string"],
-                        "input_type": ["type": "string", "enum": ["text", "selection"]],
-                        "options": ["type": "array", "items": ["type": "string"]]
-                    ],
+                        "id": ["type": "string"] as [String: any Sendable],
+                        "prompt": ["type": "string"] as [String: any Sendable],
+                        "input_type": ["type": "string", "enum": ["text", "selection"]] as [String: any Sendable],
+                        "options": ["type": "array", "items": ["type": "string"] as [String: any Sendable]] as [String: any Sendable]
+                    ] as [String: any Sendable],
                     "required": ["id", "prompt", "input_type"]
-                ]
-            ]
-        ],
+                ] as [String: any Sendable]
+            ] as [String: any Sendable]
+        ] as [String: any Sendable],
         "required": ["questions"]
     ]
 

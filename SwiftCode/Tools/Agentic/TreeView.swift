@@ -1,7 +1,17 @@
 import Foundation
 
-public struct TreeViewTool {
+public struct TreeViewTool: AgentTool {
     public static let identifier = "tree_view"
+    public let name = "tree_view"
+    public let description = "Displays a tree view of a directory."
+    public let schema: [String: any Sendable] = [
+        "type": "object",
+        "properties": [
+            "directory": ["type": "string"] as [String: any Sendable],
+            "depth": ["type": "integer"] as [String: any Sendable]
+        ] as [String: any Sendable],
+        "required": ["directory"]
+    ]
 
     public func run(directory: String, depth: Int = 2) async throws -> String {
         let result = try await ProcessRunnerTool.shared.run(
@@ -30,5 +40,13 @@ public struct TreeViewTool {
             }
         }
         return output
+    }
+
+    public func execute(arguments: [String: any Sendable]) async throws -> String {
+        guard let directory = arguments["directory"] as? String else {
+            throw AgentError.toolError("Missing directory")
+        }
+        let depth = arguments["depth"] as? Int ?? 2
+        return try await run(directory: directory, depth: depth)
     }
 }

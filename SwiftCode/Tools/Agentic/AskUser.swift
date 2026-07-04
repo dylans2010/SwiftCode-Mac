@@ -7,10 +7,10 @@ public struct AskUserTool: AgentTool {
     public let schema: [String: any Sendable] = [
         "type": "object",
         "properties": [
-            "question": ["type": "string"],
-            "input_type": ["type": "string", "enum": ["text", "selection"]],
-            "options": ["type": "array", "items": ["type": "string"]]
-        ],
+            "question": ["type": "string"] as [String: any Sendable],
+            "input_type": ["type": "string", "enum": ["text", "selection"]] as [String: any Sendable],
+            "options": ["type": "array", "items": ["type": "string"] as [String: any Sendable]] as [String: any Sendable]
+        ] as [String: any Sendable],
         "required": ["question", "input_type"]
     ]
 
