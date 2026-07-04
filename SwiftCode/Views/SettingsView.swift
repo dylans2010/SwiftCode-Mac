@@ -51,6 +51,19 @@ struct SettingsView: View {
                     Button("Customize Theme") {
                         // Open theme editor
                     }
+
+                    TextField("User Name", text: $viewModel.userName)
+
+                    VStack(alignment: .leading) {
+                        Text("File Header Template")
+                        TextEditor(text: $viewModel.headerTemplate)
+                            .frame(height: 100)
+                            .font(.system(.body, design: .monospaced))
+                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.secondary.opacity(0.2)))
+                        Text("Tokens: {filename}, {projectname}, {username}, {date}")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             .tabItem { Label("Personalization", systemImage: "paintbrush") }

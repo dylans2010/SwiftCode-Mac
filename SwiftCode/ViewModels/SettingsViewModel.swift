@@ -14,6 +14,9 @@ public class SettingsViewModel {
     public var customAIKey: String = ""
     public var useCustomAI: Bool = false
 
+    public var userName: String = ""
+    public var headerTemplate: String = ""
+
     public init() {
         Task {
             openRouterKey = try? await KeychainService.shared.get(account: "openrouter-api-key") ?? ""
@@ -22,6 +25,9 @@ public class SettingsViewModel {
             customAIEndpoint = await PreferencesStore.shared.get(forKey: "custom_ai_endpoint") as? String ?? ""
             customAIHeaders = await PreferencesStore.shared.get(forKey: "custom_ai_headers") as? String ?? ""
             useCustomAI = await PreferencesStore.shared.get(forKey: "use_custom_ai") as? Bool ?? false
+
+            userName = await PreferencesStore.shared.get(forKey: "user_name") as? String ?? NSFullUserName()
+            headerTemplate = await PreferencesStore.shared.get(forKey: "file_header_template") as? String ?? ""
 
             if !openRouterKey.isEmpty {
                 await fetchAvailableModels()
@@ -44,6 +50,8 @@ public class SettingsViewModel {
         await PreferencesStore.shared.set(customAIEndpoint, forKey: "custom_ai_endpoint")
         await PreferencesStore.shared.set(customAIHeaders, forKey: "custom_ai_headers")
         await PreferencesStore.shared.set(useCustomAI, forKey: "use_custom_ai")
+        await PreferencesStore.shared.set(userName, forKey: "user_name")
+        await PreferencesStore.shared.set(headerTemplate, forKey: "file_header_template")
 
         if !customAIKey.isEmpty {
              try? await KeychainService.shared.save(account: "custom-ai-key", value: customAIKey)
