@@ -6,6 +6,8 @@ public enum AppError: Error, LocalizedError {
     case buildError(String)
     case aiError(String)
     case securityError(String)
+    case validationError(String)
+    case commonError(String)
     case unknown(String)
 
     public var errorDescription: String? {
@@ -15,6 +17,8 @@ public enum AppError: Error, LocalizedError {
         case .buildError(let msg): return "Build Error: \(msg)"
         case .aiError(let msg): return "AI Error: \(msg)"
         case .securityError(let msg): return "Security Error: \(msg)"
+        case .validationError(let msg): return "Validation Error: \(msg)"
+        case .commonError(let msg): return msg
         case .unknown(let msg): return "Unknown Error: \(msg)"
         }
     }
