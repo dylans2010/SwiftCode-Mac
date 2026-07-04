@@ -14,7 +14,8 @@ struct EditorTextView: View {
                 EditorView(viewModel: workspaceViewModel.editor)
             }
         } detail: {
-            AIAssistantPanelView(viewModel: workspaceViewModel.ai, editorViewModel: workspaceViewModel.editor)
+            AgentChatView()
+                .environment(workspaceViewModel.ai)
                 .navigationSplitViewColumnWidth(min: 300, ideal: 350)
         }
     }
