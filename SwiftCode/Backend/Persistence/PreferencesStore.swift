@@ -8,6 +8,6 @@ public actor PreferencesStore {
     }
 
     public func get(forKey key: String) -> Any? {
-        return UserDefaults.standard.value(forKey: key)
+        return UserDefaults.standard.object(forKey: key)
     }
 }
