@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct GitSidebarView: View {
-    @Bindable var viewModel: GitViewModel
+    @State var viewModel: GitViewModel
     @State private var commitMessage = ""
 
     var body: some View {

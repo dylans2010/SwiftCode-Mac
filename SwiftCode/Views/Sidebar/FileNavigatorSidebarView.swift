@@ -65,8 +65,6 @@ struct FileNavigatorSidebarView: View {
                     Text("No project open")
                         .foregroundStyle(.secondary)
                 }
-                    }
-            }
         }
     }
 }
