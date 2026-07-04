@@ -310,6 +310,7 @@
 		449AFF4CF941F4E94DB1CAC6 /* SolarFlare.json in Sources/Resources */ = {isa = PBXBuildFile; fileRef = 32B9E6EFC293E56861100024; };
 		CEED5C0115EFF5D187697ACE /* SwiftCodeDark.json in Sources/Resources */ = {isa = PBXBuildFile; fileRef = 29C97CB9FE3689BCD39C4D8D; };
 		8A9A38B247B44ED964D7B5E9 /* SwiftCodeLight.json in Sources/Resources */ = {isa = PBXBuildFile; fileRef = AFBB6F28B244B9A224412A44; };
+		3FEB03CE5239400A93B276F3 /* SkillsEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A069A2ECAE4EF3AB9A737F /* SkillsEditorView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -617,6 +618,7 @@
 		5C08C453F1CE486A972D7959 /* CrossReferenceSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CrossReferenceSearch.swift"; sourceTree = "<group>"; };
 		045F4A25D6B54CFEB77E19A8 /* GlobSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GlobSearch.swift"; sourceTree = "<group>"; };
 		43A680708BA645F8A4B799E0 /* ReviewPullRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ReviewPullRequest.swift"; sourceTree = "<group>"; };
+		94A069A2ECAE4EF3AB9A737F /* SkillsEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsEditorView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -633,6 +635,7 @@
 		8999D37C49164210B184268A /* Skills */ = {
 			isa = PBXGroup;
 			children = (
+				94A069A2ECAE4EF3AB9A737F /* SkillsEditorView.swift */,
 				8333A91FC04C4D9BA347D7EF /* SkillsManagerView.swift */,
 				239F1E9D2E1945E1868B6780 /* SkillsLibraryView.swift */,
 			);
@@ -1413,6 +1416,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3FEB03CE5239400A93B276F3 /* SkillsEditorView.swift in Sources */,
 				341A9F182E704F7F9B738B34 /* OpenRouterAIProvider.swift in Sources */,
 				1A55628ECF57418D801FF996 /* SkillsManagerView.swift in Sources */,
 				70A2ECEA49B0485AB083ADAF /* SkillsLibraryView.swift in Sources */,

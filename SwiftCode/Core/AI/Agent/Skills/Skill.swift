@@ -7,13 +7,15 @@ public struct Skill: Identifiable, Codable, Sendable {
     public var isEnabled: Bool
     public let content: String
     public let metadata: [String: String]
+    public let url: URL?
 
-    public init(id: UUID = UUID(), name: String, description: String, isEnabled: Bool = true, content: String, metadata: [String: String] = [:]) {
+    public init(id: UUID = UUID(), name: String, description: String, isEnabled: Bool = true, content: String, metadata: [String: String] = [:], url: URL? = nil) {
         self.id = id
         self.name = name
         self.description = description
         self.isEnabled = isEnabled
         self.content = content
         self.metadata = metadata
+        self.url = url
     }
 }
