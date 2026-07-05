@@ -36,7 +36,7 @@ struct ColorPickerExtensionView: View {
                 Text("Preview")
             }
             Section {
-                Text("Displays inline color swatches next to UIColor and SwiftUI Color literals. Tap a swatch to open the system color picker and update the value in code.")
+                Text("Displays inline color swatches next to NSColor and SwiftUI Color literals. Tap a swatch to open the system color picker and update the value in code.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } header: {

@@ -16,7 +16,7 @@ struct FilePreviewView: View {
 
     enum PreviewContent {
         case loading
-        case image(UIImage)
+        case image(NSImage)
         case markdown(String)
         case json(String)
         case plist(String)
@@ -71,7 +71,7 @@ struct FilePreviewView: View {
 
         case .image(let image):
             ScrollView([.horizontal, .vertical]) {
-                Image(uiImage: image)
+                Image(nsImage: image)
                     .resizable()
                     .scaledToFit()
                     .padding()
@@ -211,7 +211,7 @@ struct FilePreviewView: View {
         case "png", "jpg", "jpeg", "gif", "webp", "heic":
             if let project = projectManager.activeProject,
                let data = try? Data(contentsOf: project.directoryURL.appendingPathComponent(node.path)),
-               let image = UIImage(data: data) {
+               let image = NSImage(data: data) {
                 previewContent = .image(image)
             } else {
                 previewContent = .error("Could not load image data.")

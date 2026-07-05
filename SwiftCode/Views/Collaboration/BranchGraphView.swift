@@ -61,7 +61,7 @@ struct BranchGraphView: View {
                                     Spacer()
                                     if branch.id != manager.branches.currentBranch.id {
                                         Button("Switch") {
-                                            manager.branches.switchBranch(to: branch.id, actorID: UIDevice.current.name)
+                                            manager.branches.switchBranch(to: branch.id, actorID: Host.current().localizedName ?? "macOS Device")
                                         }
                                         .font(.caption.bold())
                                         .padding(.horizontal, 12)

@@ -1,10 +1,6 @@
 import SwiftUI
 import WebKit
-#if canImport(UIKit)
-import UIKit
-#elseif canImport(AppKit)
 import AppKit
-#endif
 
 struct DocumentationBrowserView: View {
     @State private var query = ""
@@ -144,15 +140,15 @@ struct DocumentationBrowserView: View {
         }
     }
 
-    private func openInSafari() {
+            private func openInSafari() {
         if let currentURL {
-            #if canImport(UIKit)
-            UIApplication.shared.open(currentURL)
-            #elseif canImport(AppKit)
+            #if canImport(AppKit)
             NSWorkspace.shared.open(currentURL)
             #endif
         }
     }
+
+        }
 
     private func loadFramework(_ name: String) {
         query = name
@@ -275,19 +271,6 @@ private struct DocsWebView: PlatformViewRepresentable {
     }
 }
 
-#if canImport(UIKit)
-private typealias PlatformViewRepresentable = UIViewRepresentable
-
-private extension DocsWebView {
-    func makeUIView(context: Context) -> WKWebView {
-        makePlatformView(context: context)
-    }
-
-    func updateUIView(_ webView: WKWebView, context: Context) {
-        updatePlatformView(webView, context: context)
-    }
-}
-#elseif canImport(AppKit)
 private typealias PlatformViewRepresentable = NSViewRepresentable
 
 private extension DocsWebView {
@@ -298,5 +281,3 @@ private extension DocsWebView {
     func updateNSView(_ webView: WKWebView, context: Context) {
         updatePlatformView(webView, context: context)
     }
-}
-#endif

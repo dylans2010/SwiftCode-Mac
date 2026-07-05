@@ -326,7 +326,8 @@ struct SymbolCustomizationView: View {
                     // Action Buttons
                     VStack(spacing: 10) {
                         Button {
-                            UIPasteboard.general.string = generatedCode
+                            NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(generatedCode, forType: .string)
                             showCopiedFeedback("Code Copied!")
                         } label: {
                             Label("Copy Code", systemImage: "doc.on.doc")
@@ -338,7 +339,8 @@ struct SymbolCustomizationView: View {
                         }
 
                         Button {
-                            UIPasteboard.general.string = "Image(systemName: \"\(symbol.name)\")"
+                            NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString("Image(systemName: \"\(symbol.name)\")", forType: .string)
                             showCopiedFeedback("Insert Snippet Copied!")
                         } label: {
                             Label("Insert Into Editor", systemImage: "square.and.pencil")
@@ -350,7 +352,8 @@ struct SymbolCustomizationView: View {
                         }
 
                         Button {
-                            UIPasteboard.general.string = symbol.name
+                            NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(symbol.name, forType: .string)
                             showCopiedFeedback("Name Copied!")
                         } label: {
                             Label("Copy Symbol Name", systemImage: "character.textbox")

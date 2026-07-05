@@ -178,7 +178,7 @@ final class ExtensionManager: ObservableObject {
                 assetPaths: [], isInstalled: true, isEnabled: true, isUserCreated: false),
 
             ExtensionManifest(id: "colorpicker", name: "Color Picker", version: "1.0.0",
-                description: "Inline color swatches and a picker for UIColor/SwiftUI Color literals.",
+                description: "Inline color swatches and a picker for NSColor/SwiftUI Color literals.",
                 author: "SwiftCode", category: .editor,
                 capabilities: [.command], entryPoint: "ColorPickerExtensionView.swift",
                 assetPaths: [], isInstalled: true, isEnabled: true, isUserCreated: false),

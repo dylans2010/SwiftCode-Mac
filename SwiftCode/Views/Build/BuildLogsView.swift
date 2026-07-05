@@ -1,5 +1,5 @@
 import SwiftUI
-import UIKit
+import AppKit
 
 // MARK: - Structured Log Entry
 
@@ -574,7 +574,8 @@ struct BuildLogsView: View {
     }
 
     private func copyAssistantMessage(_ message: AssistantMessage) {
-        UIPasteboard.general.string = message.content
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(message.content, forType: .string)
         copiedMessageID = message.id
         Task {
             try? await Task.sleep(nanoseconds: 1_200_000_000)

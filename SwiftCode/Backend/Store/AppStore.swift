@@ -1,6 +1,8 @@
 import Foundation
 import StoreKit
-#if canImport(UIKit)
+#if canImport(AppKit)
+import AppKit
+#elseif canImport(UIKit)
 import UIKit
 #endif
 
@@ -14,11 +16,11 @@ public enum AppStore {
     /// Shows the manage subscriptions sheet.
     @MainActor
     public static func showManageSubscriptions() {
-        #if canImport(UIKit)
+        #if canImport(AppKit)
         Task {
             do {
-                guard let windowScene = await UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
-                try await StoreKit.AppStore.showManageSubscriptions(in: windowScene)
+                guard let window = NSApplication.shared.mainWindow else { return }
+                try await StoreKit.AppStore.showManageSubscriptions(in: window)
             } catch {
                 print("Failed to show manage subscriptions: \(error)")
             }

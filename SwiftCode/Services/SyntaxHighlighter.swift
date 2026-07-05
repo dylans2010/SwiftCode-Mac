@@ -1,4 +1,10 @@
+#if canImport(AppKit)
+import AppKit
+typealias ColorType = NSColor
+#elseif canImport(UIKit)
 import UIKit
+typealias ColorType = UIColor
+#endif
 
 final class SyntaxHighlighter {
     static let shared = SyntaxHighlighter()
@@ -7,71 +13,71 @@ final class SyntaxHighlighter {
     // MARK: - Theme
 
     struct Theme {
-        let background: UIColor
-        let defaultText: UIColor
-        let keyword: UIColor
-        let string: UIColor
-        let comment: UIColor
-        let number: UIColor
-        let type: UIColor
-        let function: UIColor
-        let attribute: UIColor
-        let propertyWrapper: UIColor
-        let swiftUIView: UIColor
-        let modifier: UIColor
-        let importModule: UIColor
-        let controlFlow: UIColor
-        let accessControl: UIColor
-        let variableDecl: UIColor
-        let preprocessor: UIColor
-        let operatorColor: UIColor
-        let interpolation: UIColor
-        let placeholder: UIColor
+        let background: ColorType
+        let defaultText: ColorType
+        let keyword: ColorType
+        let string: ColorType
+        let comment: ColorType
+        let number: ColorType
+        let type: ColorType
+        let function: ColorType
+        let attribute: ColorType
+        let propertyWrapper: ColorType
+        let swiftUIView: ColorType
+        let modifier: ColorType
+        let importModule: ColorType
+        let controlFlow: ColorType
+        let accessControl: ColorType
+        let variableDecl: ColorType
+        let preprocessor: ColorType
+        let operatorColor: ColorType
+        let interpolation: ColorType
+        let placeholder: ColorType
 
         static let dark = Theme(
-            background: UIColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 1),
-            defaultText: UIColor(red: 0.85, green: 0.85, blue: 0.87, alpha: 1),
-            keyword: UIColor(red: 0.99, green: 0.37, blue: 0.53, alpha: 1),
-            string: UIColor(red: 0.99, green: 0.41, blue: 0.36, alpha: 1),
-            comment: UIColor(red: 0.42, green: 0.68, blue: 0.42, alpha: 1),
-            number: UIColor(red: 0.82, green: 0.68, blue: 1.0, alpha: 1),
-            type: UIColor(red: 0.35, green: 0.82, blue: 0.98, alpha: 1),
-            function: UIColor(red: 0.67, green: 0.85, blue: 0.33, alpha: 1),
-            attribute: UIColor(red: 0.99, green: 0.58, blue: 0.23, alpha: 1),
-            propertyWrapper: UIColor(red: 0.80, green: 0.58, blue: 1.0, alpha: 1),
-            swiftUIView: UIColor(red: 0.30, green: 0.78, blue: 0.95, alpha: 1),
-            modifier: UIColor(red: 0.55, green: 0.80, blue: 0.95, alpha: 1),
-            importModule: UIColor(red: 0.90, green: 0.55, blue: 0.95, alpha: 1),
-            controlFlow: UIColor(red: 0.99, green: 0.37, blue: 0.53, alpha: 1),
-            accessControl: UIColor(red: 0.99, green: 0.37, blue: 0.53, alpha: 1),
-            variableDecl: UIColor(red: 0.99, green: 0.37, blue: 0.53, alpha: 1),
-            preprocessor: UIColor(red: 0.99, green: 0.58, blue: 0.23, alpha: 1),
-            operatorColor: UIColor(red: 0.85, green: 0.85, blue: 0.87, alpha: 1),
-            interpolation: UIColor(red: 0.67, green: 0.85, blue: 0.33, alpha: 1),
-            placeholder: UIColor(red: 0.55, green: 0.55, blue: 0.60, alpha: 1)
+            background: ColorType(red: 0.11, green: 0.11, blue: 0.12, alpha: 1),
+            defaultText: ColorType(red: 0.85, green: 0.85, blue: 0.87, alpha: 1),
+            keyword: ColorType(red: 0.99, green: 0.37, blue: 0.53, alpha: 1),
+            string: ColorType(red: 0.99, green: 0.41, blue: 0.36, alpha: 1),
+            comment: ColorType(red: 0.42, green: 0.68, blue: 0.42, alpha: 1),
+            number: ColorType(red: 0.82, green: 0.68, blue: 1.0, alpha: 1),
+            type: ColorType(red: 0.35, green: 0.82, blue: 0.98, alpha: 1),
+            function: ColorType(red: 0.67, green: 0.85, blue: 0.33, alpha: 1),
+            attribute: ColorType(red: 0.99, green: 0.58, blue: 0.23, alpha: 1),
+            propertyWrapper: ColorType(red: 0.80, green: 0.58, blue: 1.0, alpha: 1),
+            swiftUIView: ColorType(red: 0.30, green: 0.78, blue: 0.95, alpha: 1),
+            modifier: ColorType(red: 0.55, green: 0.80, blue: 0.95, alpha: 1),
+            importModule: ColorType(red: 0.90, green: 0.55, blue: 0.95, alpha: 1),
+            controlFlow: ColorType(red: 0.99, green: 0.37, blue: 0.53, alpha: 1),
+            accessControl: ColorType(red: 0.99, green: 0.37, blue: 0.53, alpha: 1),
+            variableDecl: ColorType(red: 0.99, green: 0.37, blue: 0.53, alpha: 1),
+            preprocessor: ColorType(red: 0.99, green: 0.58, blue: 0.23, alpha: 1),
+            operatorColor: ColorType(red: 0.85, green: 0.85, blue: 0.87, alpha: 1),
+            interpolation: ColorType(red: 0.67, green: 0.85, blue: 0.33, alpha: 1),
+            placeholder: ColorType(red: 0.55, green: 0.55, blue: 0.60, alpha: 1)
         )
 
         static let xcodeDark = Theme(
-            background: UIColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 1),
-            defaultText: UIColor(red: 0.85, green: 0.85, blue: 0.87, alpha: 1),
-            keyword: UIColor(red: 0.99, green: 0.23, blue: 0.51, alpha: 1),
-            string: UIColor(red: 0.99, green: 0.38, blue: 0.32, alpha: 1),
-            comment: UIColor(red: 0.42, green: 0.68, blue: 0.42, alpha: 1),
-            number: UIColor(red: 0.82, green: 0.68, blue: 1.0, alpha: 1),
-            type: UIColor(red: 0.36, green: 0.85, blue: 0.98, alpha: 1),
-            function: UIColor(red: 0.40, green: 0.83, blue: 0.37, alpha: 1),
-            attribute: UIColor(red: 0.99, green: 0.58, blue: 0.23, alpha: 1),
-            propertyWrapper: UIColor(red: 0.75, green: 0.49, blue: 0.98, alpha: 1),
-            swiftUIView: UIColor(red: 0.36, green: 0.85, blue: 0.98, alpha: 1),
-            modifier: UIColor(red: 0.55, green: 0.80, blue: 0.95, alpha: 1),
-            importModule: UIColor(red: 0.75, green: 0.49, blue: 0.98, alpha: 1),
-            controlFlow: UIColor(red: 0.99, green: 0.23, blue: 0.51, alpha: 1),
-            accessControl: UIColor(red: 0.99, green: 0.23, blue: 0.51, alpha: 1),
-            variableDecl: UIColor(red: 0.99, green: 0.23, blue: 0.51, alpha: 1),
-            preprocessor: UIColor(red: 0.68, green: 0.51, blue: 0.32, alpha: 1),
-            operatorColor: UIColor(red: 0.85, green: 0.85, blue: 0.87, alpha: 1),
-            interpolation: UIColor(red: 0.40, green: 0.83, blue: 0.37, alpha: 1),
-            placeholder: UIColor(red: 0.55, green: 0.55, blue: 0.60, alpha: 1)
+            background: ColorType(red: 0.11, green: 0.11, blue: 0.12, alpha: 1),
+            defaultText: ColorType(red: 0.85, green: 0.85, blue: 0.87, alpha: 1),
+            keyword: ColorType(red: 0.99, green: 0.23, blue: 0.51, alpha: 1),
+            string: ColorType(red: 0.99, green: 0.38, blue: 0.32, alpha: 1),
+            comment: ColorType(red: 0.42, green: 0.68, blue: 0.42, alpha: 1),
+            number: ColorType(red: 0.82, green: 0.68, blue: 1.0, alpha: 1),
+            type: ColorType(red: 0.36, green: 0.85, blue: 0.98, alpha: 1),
+            function: ColorType(red: 0.40, green: 0.83, blue: 0.37, alpha: 1),
+            attribute: ColorType(red: 0.99, green: 0.58, blue: 0.23, alpha: 1),
+            propertyWrapper: ColorType(red: 0.75, green: 0.49, blue: 0.98, alpha: 1),
+            swiftUIView: ColorType(red: 0.36, green: 0.85, blue: 0.98, alpha: 1),
+            modifier: ColorType(red: 0.55, green: 0.80, blue: 0.95, alpha: 1),
+            importModule: ColorType(red: 0.75, green: 0.49, blue: 0.98, alpha: 1),
+            controlFlow: ColorType(red: 0.99, green: 0.23, blue: 0.51, alpha: 1),
+            accessControl: ColorType(red: 0.99, green: 0.23, blue: 0.51, alpha: 1),
+            variableDecl: ColorType(red: 0.99, green: 0.23, blue: 0.51, alpha: 1),
+            preprocessor: ColorType(red: 0.68, green: 0.51, blue: 0.32, alpha: 1),
+            operatorColor: ColorType(red: 0.85, green: 0.85, blue: 0.87, alpha: 1),
+            interpolation: ColorType(red: 0.40, green: 0.83, blue: 0.37, alpha: 1),
+            placeholder: ColorType(red: 0.55, green: 0.55, blue: 0.60, alpha: 1)
         )
     }
 
@@ -79,7 +85,7 @@ final class SyntaxHighlighter {
 
     private typealias PatternEntry = (regex: NSRegularExpression,
                                       captureGroup: Int,
-                                      color: (Theme) -> UIColor)
+                                      color: (Theme) -> ColorType)
 
     private var swiftPatterns: [PatternEntry] = []
     private var shellPatterns: [PatternEntry] = []
@@ -332,7 +338,7 @@ final class SyntaxHighlighter {
 
     private func add(
         _ pattern: String,
-        color: @escaping (Theme) -> UIColor,
+        color: @escaping (Theme) -> ColorType,
         captureGroup: Int = 0,
         to list: inout [PatternEntry],
         options: NSRegularExpression.Options = [.dotMatchesLineSeparators]

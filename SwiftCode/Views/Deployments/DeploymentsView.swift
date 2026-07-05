@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct DeploymentsView: View {
@@ -79,9 +80,10 @@ struct DeploymentsView: View {
                                 .font(.caption.monospaced())
                         }
 
+
                         Button("Open In Browser") {
-                            #if os(iOS)
-                            UIApplication.shared.open(URL(string: deploymentURL)!)
+                            #if canImport(AppKit)
+                            NSWorkspace.shared.open(URL(string: deploymentURL)!)
                             #endif
                         }
                     }

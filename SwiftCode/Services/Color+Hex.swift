@@ -1,7 +1,8 @@
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
+#if canImport(AppKit)
+import AppKit
 #endif
+
 
 extension Color {
     init(hex: String) {
@@ -39,8 +40,17 @@ extension Color {
         self.init(.sRGB, red: r, green: g, blue: b, opacity: a)
     }
 
-    var toHex: String {
-        #if canImport(UIKit)
+        var toHex: String {
+        #if canImport(AppKit)
+        let nsColor = NSColor(self)
+        guard let rgbColor = nsColor.usingColorSpace(.sRGB) else { return "#4F86FF" }
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        rgbColor.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
+        #elseif canImport(UIKit)
         let uiColor = UIColor(self)
         var r: CGFloat = 0
         var g: CGFloat = 0

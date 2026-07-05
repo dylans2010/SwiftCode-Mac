@@ -4,7 +4,7 @@ import SwiftUI
 public struct CollaborationMainView: View {
     @ObservedObject var manager: CollaborationManager
     @State private var selectedTab: CollaborationTab = .overview
-    private var currentUserID: String { UIDevice.current.name }
+    private var currentUserID: String { Host.current().localizedName ?? "macOS Device" }
     private let allTabs = CollaborationTab.allCases
 
     public init(manager: CollaborationManager) {

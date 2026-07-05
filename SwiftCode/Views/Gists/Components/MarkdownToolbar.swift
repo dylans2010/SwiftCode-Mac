@@ -39,7 +39,7 @@ struct MarkdownToolbar: View {
     }
 
     private func applyFormat(_ prefix: String, _ suffix: String) {
-        // Basic implementation, ideally it would handle selection if we had access to the underlying UITextView
+        // Basic implementation, ideally it would handle selection if we had access to the underlying NSTextView
         text += prefix + suffix
     }
 }

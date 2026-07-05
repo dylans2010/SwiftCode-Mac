@@ -270,7 +270,7 @@ struct ProjectWorkspaceView: View {
             CollaborationMainView(
                 manager: CollaborationSessionStore.shared.manager(
                     for: projectManager.activeProject ?? project,
-                    creatorID: UIDevice.current.name
+                    creatorID: Host.current().localizedName ?? "macOS Device"
                 )
             )
         }

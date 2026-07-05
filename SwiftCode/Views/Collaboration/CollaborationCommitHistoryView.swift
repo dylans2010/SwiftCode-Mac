@@ -5,6 +5,6 @@ struct CollaborationCommitHistoryView: View {
     @ObservedObject var manager: CollaborationManager
 
     var body: some View {
-        CommitManagerView(manager: manager, actorID: UIDevice.current.name)
+        CommitManagerView(manager: manager, actorID: Host.current().localizedName ?? "macOS Device")
     }
 }

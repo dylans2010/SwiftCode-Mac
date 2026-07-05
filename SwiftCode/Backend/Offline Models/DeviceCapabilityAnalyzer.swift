@@ -1,6 +1,6 @@
 import Foundation
-#if canImport(UIKit)
-import UIKit
+#if canImport(AppKit)
+import AppKit
 #endif
 
 enum DeviceTier: String {
@@ -140,20 +140,12 @@ final class DeviceCapabilityAnalyzer {
         return "low"
     }
 
+
+
     private func inferDeviceClass() -> String {
-        #if canImport(UIKit)
-        switch UIDevice.current.userInterfaceIdiom {
-        case .phone:
-            return "iPhone"
-        case .pad:
-            return "iPad"
-        default:
-            return "Apple Device"
-        }
-        #else
-        return "Apple Device"
-        #endif
+        return "Mac"
     }
+
 
     private func machineIdentifier() -> String {
         var systemInfo = utsname()
