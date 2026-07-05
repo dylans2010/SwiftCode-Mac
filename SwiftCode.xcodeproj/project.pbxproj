@@ -677,6 +677,11 @@
 		FD3BFB78E9851B43147403A0 /* MIT.md in Resources */ = {isa = PBXBuildFile; fileRef = 02D2E64119CACAB33D540DC8; };
 		FEC3B44DC8224E81AD104B28 /* SwiftCode/Tools/Agentic/QuestionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3095C7FC268B4822B1D7F891 /* SwiftCode/Tools/Agentic/QuestionHandler.swift */; };
 		FEFC87DC8083410D9A030894 /* ManageSecrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AE11BAA8BF4AA791C4B03B /* ManageSecrets.swift */; };
+		A6B90EA3C8484845B948EAB1 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = A0170D8F5C28416DA35935FE /* ZIPFoundation */; };
+		3A03081082E64D30A4EA603C /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = B94457CF33644AA882115C94 /* MLX */; };
+		24CF3E2E85F04AC794E9BFA8 /* MLXNN in Frameworks */ = {isa = PBXBuildFile; productRef = 1F87188B9053420BB40882CD /* MLXNN */; };
+		004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = BBB818A276304EA881DBF6E6 /* MLXOptimizers */; };
+		2E0A7FB1BC5F4001B2AEAD30 /* MLXRandom in Frameworks */ = {isa = PBXBuildFile; productRef = F58AD0F3D29C45FCA7AE5130 /* MLXRandom */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -1360,6 +1365,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+
+				A6B90EA3C8484845B948EAB1 /* ZIPFoundation in Frameworks */,
+				3A03081082E64D30A4EA603C /* MLX in Frameworks */,
+				24CF3E2E85F04AC794E9BFA8 /* MLXNN in Frameworks */,
+				004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */,
+				2E0A7FB1BC5F4001B2AEAD30 /* MLXRandom in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3080,6 +3091,13 @@
 			productName = SwiftCode;
 			productReference = 489731B7093610E91733BFAC /* SwiftCode.app */;
 			productType = "com.apple.product-type.application";
+			packageProductDependencies = (
+				A0170D8F5C28416DA35935FE /* ZIPFoundation */,
+				B94457CF33644AA882115C94 /* MLX */,
+				1F87188B9053420BB40882CD /* MLXNN */,
+				BBB818A276304EA881DBF6E6 /* MLXOptimizers */,
+				F58AD0F3D29C45FCA7AE5130 /* MLXRandom */,
+			);
 		};
 /* End PBXNativeTarget section */
 
@@ -3111,6 +3129,10 @@
 			targets = (
 				F5F8754DD3CCA3C604F671A0 /* SwiftCode */,
 			);
+			packageReferences = (
+				4A810247BF88432CBDA28834 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+				B5C11042228B46F1A40BB7DA /* XCRemoteSwiftPackageReference "mlx-swift" */,
+			);
 		};
 /* End PBXProject section */
 
@@ -3140,6 +3162,53 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+/* Begin XCRemoteSwiftPackageReference section */
+		4A810247BF88432CBDA28834 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.0;
+			};
+		};
+		B5C11042228B46F1A40BB7DA /* XCRemoteSwiftPackageReference "mlx-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.31.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+/* Begin XCSwiftPackageProductDependency section */
+		A0170D8F5C28416DA35935FE /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4A810247BF88432CBDA28834 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+		B94457CF33644AA882115C94 /* MLX */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B5C11042228B46F1A40BB7DA /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLX;
+		};
+		1F87188B9053420BB40882CD /* MLXNN */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B5C11042228B46F1A40BB7DA /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLXNN;
+		};
+		BBB818A276304EA881DBF6E6 /* MLXOptimizers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B5C11042228B46F1A40BB7DA /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLXOptimizers;
+		};
+		F58AD0F3D29C45FCA7AE5130 /* MLXRandom */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B5C11042228B46F1A40BB7DA /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLXRandom;
+		};
+/* End XCSwiftPackageProductDependency section */
+
+
 
 /* Begin PBXSourcesBuildPhase section */
 		9BF8BFB9B87ED46BDA700029 /* Sources */ = {
