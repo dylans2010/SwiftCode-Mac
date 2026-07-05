@@ -33,6 +33,14 @@ struct NativeTextView: NSViewRepresentable {
 
     private func applyHighlighting(_ textView: NSTextView) {
         guard let storage = textView.textStorage else { return }
+        // SAFETY: Only apply highlighting if tokens are available and not stale
+        guard !viewModel.tokenizedLines.isEmpty else {
+            storage.beginEditing()
+            storage.removeAttribute(.foregroundColor, range: NSRange(location: 0, length: storage.length))
+            storage.endEditing()
+            return
+        }
+
         storage.beginEditing()
         let fullRange = NSRange(location: 0, length: storage.length)
         storage.removeAttribute(.foregroundColor, range: fullRange)
@@ -41,6 +49,7 @@ struct NativeTextView: NSViewRepresentable {
         for line in viewModel.tokenizedLines {
             for token in line.tokens {
                 let range = NSRange(location: currentLocation, length: token.text.count)
+                // SAFETY: Ensure we don't go out of bounds of the current text storage
                 if range.location + range.length <= storage.length {
                     let color = colorForToken(token.kind)
                     storage.addAttribute(.foregroundColor, value: color, range: range)
@@ -48,6 +57,9 @@ struct NativeTextView: NSViewRepresentable {
                 currentLocation += token.text.count
             }
             currentLocation += 1 // for newline
+
+            // SAFETY: Stop if we've reached the end of the storage to avoid processing stale/extra tokens
+            if currentLocation >= storage.length { break }
         }
         storage.endEditing()
     }

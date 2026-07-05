@@ -3,91 +3,102 @@ import SwiftUI
 struct SettingsView: View {
     @State var viewModel = SettingsViewModel()
     @Environment(ThemeViewModel.self) var themeVM
+    @Environment(\.dismiss) var dismiss
 
     var body: some View {
-        TabView {
-            Form {
-                Section("AI Provider") {
-                    SecureField("OpenRouter API Key", text: $viewModel.openRouterKey)
+        NavigationStack {
+            TabView {
+                Form {
+                    Section("AI Provider") {
+                        SecureField("OpenRouter API Key", text: $viewModel.openRouterKey)
 
-                    if !viewModel.availableModels.isEmpty {
-                        Picker("Default Model", selection: $viewModel.selectedModel) {
-                            ForEach(viewModel.availableModels) { model in
-                                Text(model.name).tag(model.id)
+                        if !viewModel.availableModels.isEmpty {
+                            Picker("Default Model", selection: $viewModel.selectedModel) {
+                                ForEach(viewModel.availableModels) { model in
+                                    Text(model.name).tag(model.id)
+                                }
+                            }
+                        } else {
+                            Button("Fetch Models") {
+                                Task { await viewModel.fetchAvailableModels() }
                             }
                         }
-                    } else {
-                        Button("Fetch Models") {
-                            Task { await viewModel.fetchAvailableModels() }
+
+                        Toggle("Use Custom AI Provider", isOn: $viewModel.useCustomAI)
+                        if viewModel.useCustomAI {
+                            TextField("Endpoint", text: $viewModel.customAIEndpoint)
+                            TextField("Headers (JSON)", text: $viewModel.customAIHeaders)
+                            SecureField("API Key", text: $viewModel.customAIKey)
                         }
                     }
 
-                    Toggle("Use Custom AI Provider", isOn: $viewModel.useCustomAI)
-                    if viewModel.useCustomAI {
-                        TextField("Endpoint", text: $viewModel.customAIEndpoint)
-                        TextField("Headers (JSON)", text: $viewModel.customAIHeaders)
-                        SecureField("API Key", text: $viewModel.customAIKey)
+                    Section("GitHub") {
+                        SecureField("GitHub PAT", text: $viewModel.githubPAT)
+                    }
+
+                    Button("Save Settings") {
+                        Task { await viewModel.saveSettings() }
                     }
                 }
+                .tabItem { Label("Accounts & AI", systemImage: "person.crop.circle") }
+                .padding()
 
-                Section("GitHub") {
-                    SecureField("GitHub PAT", text: $viewModel.githubPAT)
+                Form {
+                    Section("Appearance") {
+                        ThemeGalleryView(viewModel: themeVM)
+                            .frame(height: 200)
+                    }
+
+                    Section("Editor") {
+                        Button("Customize Theme") {
+                            // Open theme editor
+                        }
+
+                        TextField("User Name", text: $viewModel.userName)
+
+                        VStack(alignment: .leading) {
+                            Text("File Header Template")
+                            TextEditor(text: $viewModel.headerTemplate)
+                                .frame(height: 100)
+                                .font(.system(.body, design: .monospaced))
+                                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.secondary.opacity(0.2)))
+                            Text("Tokens: {filename}, {projectname}, {username}, {date}")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
+                .tabItem { Label("Personalization", systemImage: "paintbrush") }
+                .padding()
 
-                Button("Save Settings") {
-                    Task { await viewModel.saveSettings() }
+                Form {
+                    Section("Maintenance") {
+                        Button("Clear Caches") {
+                            viewModel.clearCache()
+                        }
+                        .foregroundStyle(.red)
+                    }
+
+                    Section("App Information") {
+                        HStack {
+                            Text("Version")
+                            Spacer()
+                            Text("1.0.0")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .tabItem { Label("Advanced", systemImage: "cpu") }
+                .padding()
+            }
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
                 }
             }
-            .tabItem { Label("Accounts & AI", systemImage: "person.crop.circle") }
-            .padding()
-
-            Form {
-                Section("Appearance") {
-                    ThemeGalleryView(viewModel: themeVM)
-                        .frame(height: 200)
-                }
-
-                Section("Editor") {
-                    Button("Customize Theme") {
-                        // Open theme editor
-                    }
-
-                    TextField("User Name", text: $viewModel.userName)
-
-                    VStack(alignment: .leading) {
-                        Text("File Header Template")
-                        TextEditor(text: $viewModel.headerTemplate)
-                            .frame(height: 100)
-                            .font(.system(.body, design: .monospaced))
-                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.secondary.opacity(0.2)))
-                        Text("Tokens: {filename}, {projectname}, {username}, {date}")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            .tabItem { Label("Personalization", systemImage: "paintbrush") }
-            .padding()
-
-            Form {
-                Section("Maintenance") {
-                    Button("Clear Caches") {
-                        viewModel.clearCache()
-                    }
-                    .foregroundStyle(.red)
-                }
-
-                Section("App Information") {
-                    HStack {
-                        Text("Version")
-                        Spacer()
-                        Text("1.0.0")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .tabItem { Label("Advanced", systemImage: "cpu") }
-            .padding()
+            .navigationTitle("Settings")
         }
         .frame(width: 600, height: 500)
     }

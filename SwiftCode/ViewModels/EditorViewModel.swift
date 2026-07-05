@@ -14,6 +14,8 @@ public class EditorViewModel {
 
     public func openFile(url: URL) async {
         if let existing = openDocuments.first(where: { $0.url == url }) {
+            // SAFETY: Clear tokens before switching document to avoid stale highlighting
+            tokenizedLines = []
             activeDocument = existing
             selectedTabID = existing.id
             await tokenize()
@@ -21,6 +23,7 @@ public class EditorViewModel {
         }
 
         do {
+            tokenizedLines = []
             let content = try await TextBufferEngine.shared.load(url: url)
             let doc = SourceFileDocument(url: url, content: content, lastDiskModificationDate: Date())
             openDocuments.append(doc)
