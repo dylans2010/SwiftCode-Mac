@@ -1,0 +1,136 @@
+name: Build Project
+
+on:
+  push:
+    branches: [ build-project ]
+  workflow_dispatch:
+
+jobs:
+  generate:
+    name: Generate Xcode Project
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Resolve CI configuration
+        id: ci_config
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          defaults = {
+            'platform': 'iOS',
+            'deploymentTarget': '16.0',
+            'targetDeviceFamily': '1,2',
+            'schemeName': 'Test',
+            'bundleIdentifier': f"com.swiftcode.userproject.{os.environ.get('GITHUB_REPOSITORY', 'app').split('/')[-1].lower()}"
+          }
+
+          config_path = Path('.swiftcode/ci-build-config.json')
+          if config_path.exists():
+            with config_path.open('r', encoding='utf-8') as fh:
+              loaded = json.load(fh)
+            defaults['platform'] = loaded.get('platform', defaults['platform'])
+            defaults['deploymentTarget'] = loaded.get('deploymentTarget', defaults['deploymentTarget'])
+            defaults['schemeName'] = loaded.get('schemeName', defaults['schemeName'])
+            defaults['bundleIdentifier'] = loaded.get('bundleIdentifier', defaults['bundleIdentifier'])
+            family = loaded.get('targetDeviceFamily', '')
+            defaults['targetDeviceFamily'] = {'iPhone':'1','iPad':'2','iPhone + iPad':'1,2'}.get(family, defaults['targetDeviceFamily'])
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as out:
+            out.write(f"platform={defaults['platform']}\n")
+            out.write(f"deployment_target={defaults['deploymentTarget']}\n")
+            out.write(f"target_device_family={defaults['targetDeviceFamily']}\n")
+            out.write(f"scheme_name={defaults['schemeName']}\n")
+            out.write(f"bundle_identifier={defaults['bundleIdentifier']}\n")
+          PY
+
+      - name: Detect Project Name and Sources
+        id: detect
+        run: |
+          PROJECT_NAME=$(basename "$GITHUB_REPOSITORY")
+          echo "PROJECT_NAME=$PROJECT_NAME" >> $GITHUB_OUTPUT
+
+          SOURCES=""
+          for dir in Sources Views Features; do
+            if [ -d "$dir" ]; then
+              if [ -z "$SOURCES" ]; then
+                SOURCES="      - $dir"
+              else
+                SOURCES="$SOURCES\n      - $dir"
+              fi
+            fi
+          done
+
+          if [ -z "$SOURCES" ]; then
+            echo "::error::No source folders found (Sources/, Views/, Features/). At least one is required."
+            exit 1
+          fi
+
+          printf "SOURCES<<EOF\n%s\nEOF\n" "$SOURCES" >> $GITHUB_OUTPUT
+
+      - name: Create Info.plist if missing
+        run: |
+          if [ ! -f "Info.plist" ]; then
+            cat <<EOF > Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict><key>CFBundleIdentifier</key><string>\$(PRODUCT_BUNDLE_IDENTIFIER)</string></dict></plist>
+          EOF
+          fi
+
+      - name: Generate project.yml
+        run: |
+          PROJECT_NAME="${{ steps.detect.outputs.PROJECT_NAME }}"
+
+          cat <<EOF > project.yml
+          name: $PROJECT_NAME
+          options:
+            bundleIdPrefix: com.swiftcode.userproject
+            deploymentTarget:
+              iOS: "${{ steps.ci_config.outputs.deployment_target }}"
+          settings:
+            base:
+              SWIFT_VERSION: 5.0
+              IPHONEOS_DEPLOYMENT_TARGET: ${{ steps.ci_config.outputs.deployment_target }}
+              TARGETED_DEVICE_FAMILY: "${{ steps.ci_config.outputs.target_device_family }}"
+          configs:
+            Debug: debug
+            Release: release
+          targets:
+            ${{ steps.ci_config.outputs.scheme_name }}:
+              type: application
+              platform: iOS
+              deploymentTarget: "${{ steps.ci_config.outputs.deployment_target }}"
+              sources:
+          ${{ steps.detect.outputs.SOURCES }}
+              settings:
+                base:
+                  PRODUCT_BUNDLE_IDENTIFIER: ${{ steps.ci_config.outputs.bundle_identifier }}
+                  TARGETED_DEVICE_FAMILY: "${{ steps.ci_config.outputs.target_device_family }}"
+                  INFOPLIST_FILE: Info.plist
+          schemes:
+            ${{ steps.ci_config.outputs.scheme_name }}:
+              build:
+                targets:
+                  ${{ steps.ci_config.outputs.scheme_name }}: all
+          EOF
+
+      - name: Run XcodeGen
+        run: xcodegen generate
+
+      - name: Upload Project Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-xcode-files
+          path: |
+            *.xcodeproj
+            *.xcworkspace
+            project.yml
+          if-no-files-found: error
