@@ -5,7 +5,6 @@ struct NewProjectSheetView: View {
     @Environment(\.dismiss) var dismiss
 
     @State private var mode: SelectionMode = .create
-    @State private var gitURL: String = ""
 
     enum SelectionMode {
         case create, importFolder, clone, xcodeproj
@@ -56,10 +55,8 @@ struct NewProjectSheetView: View {
                             .padding(.top, 40)
 
                         } else if mode == .clone {
-                            SectionView(title: "Git Repository URL") {
-                                TextField("https://github.com/user/repo.git", text: $gitURL)
-                                    .textFieldStyle(.roundedBorder)
-                            }
+                            GitCloneSheetView(viewModel: viewModel)
+                                .frame(height: 450)
                         } else if mode == .importFolder {
                             VStack(alignment: .center) {
                                 Image(systemName: "folder.badge.plus")
@@ -68,6 +65,13 @@ struct NewProjectSheetView: View {
                                     .padding()
                                 Text("Select a folder to import it as a SwiftCode project.")
                                     .foregroundColor(.secondary)
+
+                                Button("Select Folder...") {
+                                    importFolder()
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
+                                .padding()
                             }
                             .frame(maxWidth: .infinity)
                             .padding()
@@ -79,6 +83,13 @@ struct NewProjectSheetView: View {
                                     .padding()
                                 Text("Import an existing .xcodeproj file.")
                                     .foregroundColor(.secondary)
+
+                                Button("Select .xcodeproj...") {
+                                    importXcodeProject()
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
+                                .padding()
                             }
                             .frame(maxWidth: .infinity)
                             .padding()
@@ -87,24 +98,19 @@ struct NewProjectSheetView: View {
                     .padding()
                 }
 
-                Divider()
-
-                // Footer
-                HStack {
-                    Button("Cancel") { dismiss() }
-                    Spacer()
-                    if mode != .create {
-                        Button(actionButtonTitle) {
-                            handleAction()
-                        }
-                        .buttonStyle(.borderedProminent)
+                if mode == .create {
+                    Divider()
+                    // Footer
+                    HStack {
+                        Button("Cancel") { dismiss() }
+                        Spacer()
                     }
+                    .padding()
                 }
-                .padding()
             }
             .navigationTitle(title)
         }
-        .frame(width: 500, height: 400)
+        .frame(width: 600, height: 600)
     }
 
     private var title: String {
@@ -116,28 +122,6 @@ struct NewProjectSheetView: View {
         }
     }
 
-    private var actionButtonTitle: String {
-        switch mode {
-        case .create: return "Create Project"
-        case .importFolder: return "Select Folder..."
-        case .clone: return "Clone & Open"
-        case .xcodeproj: return "Select .xcodeproj..."
-        }
-    }
-
-    private func handleAction() {
-        switch mode {
-        case .create:
-            break // Handled in TemplatePickerView
-        case .importFolder:
-            importFolder()
-        case .clone:
-            cloneRepo()
-        case .xcodeproj:
-            importXcodeProject()
-        }
-    }
-
     private func importFolder() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
@@ -146,28 +130,6 @@ struct NewProjectSheetView: View {
             Task {
                 await viewModel.importProject(url: url)
                 dismiss()
-            }
-        }
-    }
-
-    private func cloneRepo() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        if panel.runModal() == .OK, let url = panel.url {
-            let destinationURL = url.appendingPathComponent(URL(string: gitURL)?.lastPathComponent.replacingOccurrences(of: ".git", with: "") ?? "repo")
-            Task {
-                do {
-                    guard let remoteURL = URL(string: gitURL) else {
-                        throw AppError.validationError("Invalid Git URL")
-                    }
-                    try await GitService.shared.clone(remoteURL: remoteURL, destinationURL: destinationURL, token: nil)
-                    await viewModel.importProject(url: destinationURL)
-                    dismiss()
-                } catch {
-                    LoggingTool.error("Failed to clone repository: \(error)")
-                }
             }
         }
     }

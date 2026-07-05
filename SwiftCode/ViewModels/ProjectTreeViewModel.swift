@@ -16,7 +16,8 @@ public class ProjectTreeViewModel {
     public func loadProject(url: URL) async {
         isLoading = true
         do {
-            let children = try await FileSystemService.shared.listDirectory(at: url)
+            // Use recursive loading to ensure all content is available in the workspace
+            let children = try await FileSystemService.shared.listDirectory(at: url, recursive: true)
             rootNode = ProjectNode(url: url, kind: .folder, children: children)
         } catch {
             LoggingTool.error("Failed to load project tree: \(error)")
