@@ -22,17 +22,31 @@ struct NativeTextView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        guard let textView = nsView.documentView as? NSTextView,
-              let doc = viewModel.activeDocument else { return }
+        guard let textView = nsView.documentView as? NSTextView else { return }
+
+        guard let doc = viewModel.activeDocument else {
+            textView.string = ""
+            return
+        }
 
         if textView.string != doc.content {
+            let selectedRange = textView.selectedRange()
             textView.string = doc.content
+
+            // Restore selection if it's within bounds
+            if selectedRange.location + selectedRange.length <= textView.string.count {
+                textView.setSelectedRange(selectedRange)
+            }
+            applyHighlighting(textView)
+        } else if !viewModel.tokenizedLines.isEmpty {
+            // Apply highlighting even if text didn't change (e.g. tokens arrived later)
             applyHighlighting(textView)
         }
     }
 
     private func applyHighlighting(_ textView: NSTextView) {
         guard let storage = textView.textStorage else { return }
+
         // SAFETY: Only apply highlighting if tokens are available and not stale
         guard !viewModel.tokenizedLines.isEmpty else {
             storage.beginEditing()
@@ -55,6 +69,9 @@ struct NativeTextView: NSViewRepresentable {
                     storage.addAttribute(.foregroundColor, value: color, range: range)
                 }
                 currentLocation += token.text.count
+
+                // SAFETY: Stop if we've reached the end of the storage
+                if currentLocation >= storage.length { break }
             }
             currentLocation += 1 // for newline
 

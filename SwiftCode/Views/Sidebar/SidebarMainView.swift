@@ -60,40 +60,43 @@ struct SidebarMainView: View {
             Divider()
 
             // Content View
-            VStack {
-                Text(selectedItem.title)
-                    .font(.headline)
-                    .padding(.top, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal)
+            NavigationStack {
+                VStack {
+                    Text(selectedItem.title)
+                        .font(.headline)
+                        .padding(.top, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal)
 
-                Divider()
+                    Divider()
 
-                switch selectedItem {
-                case .files:
-                    FileNavigatorSidebarView(viewModel: workspaceViewModel.projectTree)
-                case .git:
-                    GitSidebarView(viewModel: workspaceViewModel.git)
-                case .search:
-                    SearchSidebarView()
-                case .debug:
-                    DebugInspectorSidebarView(viewModel: workspaceViewModel.debug)
-                case .debugSessions:
-                    DebugSessionsSidebarView(viewModel: workspaceViewModel.debug)
-                case .breakpoints:
-                    BreakpointsSidebarView()
-                case .bookmarks:
-                    BookmarksSidebarView()
-                case .tests:
-                    TestsSidebarView()
-                case .githubWorkflows:
-                    GitHubWorkflowsSidebarView()
-                case .agent:
-                    AgentChatView()
-                        .environment(workspaceViewModel.ai)
+                    switch selectedItem {
+                    case .files:
+                        FileNavigatorSidebarView(viewModel: workspaceViewModel.projectTree)
+                    case .git:
+                        GitSidebarView(viewModel: workspaceViewModel.git)
+                    case .search:
+                        SearchSidebarView()
+                    case .debug:
+                        DebugInspectorSidebarView(viewModel: workspaceViewModel.debug)
+                    case .debugSessions:
+                        DebugSessionsSidebarView(viewModel: workspaceViewModel.debug)
+                    case .breakpoints:
+                        BreakpointsSidebarView()
+                    case .bookmarks:
+                        BookmarksSidebarView()
+                    case .tests:
+                        TestsSidebarView()
+                    case .githubWorkflows:
+                        GitHubWorkflowsSidebarView()
+                    case .agent:
+                        AgentChatView()
+                            .environment(workspaceViewModel.ai)
+                    }
                 }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
+            .environment(workspaceViewModel)
         }
     }
 }
