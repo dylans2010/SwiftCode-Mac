@@ -40,7 +40,7 @@ struct ConsoleCommandRunnerView: View {
         case "clear":
             output = "Console cleared."
         case "whoami":
-            output += "\n\(UIDevice.current.name)"
+            output += "\n\(Host.current().localizedName ?? "macOS Device")"
         case "ping":
             output += "\n64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=0.042 ms"
         default:

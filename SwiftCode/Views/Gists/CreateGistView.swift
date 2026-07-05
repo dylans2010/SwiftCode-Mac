@@ -219,7 +219,7 @@ struct CreateGistView: View {
                 }
 
                 importButton(title: "Paste", icon: "doc.on.clipboard") {
-                    if let content = UIPasteboard.general.string {
+                    if let content = NSPasteboard.general.string(forType: .string) {
                         updateCurrentFileContent(content)
                     }
                 }
@@ -314,7 +314,7 @@ struct CreateGistView: View {
 
     private func suggestFilename(for content: String) -> String {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("import SwiftUI") || trimmed.hasPrefix("import UIKit") {
+        if trimmed.hasPrefix("import SwiftUI") || trimmed.hasPrefix("import AppKit") {
             return "View.swift"
         }
         if trimmed.hasPrefix("import Foundation") || trimmed.contains("func ") || trimmed.contains("struct ") {
@@ -422,7 +422,8 @@ struct GistSuccessView: View {
 
             VStack(spacing: 12) {
                 Button {
-                    UIPasteboard.general.string = gist.htmlUrl
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(gist.htmlUrl, forType: .string)
                 } label: {
                     HStack {
                         Image(systemName: "link")
@@ -440,7 +441,7 @@ struct GistSuccessView: View {
 
                 Button {
                     if let url = URL(string: gist.htmlUrl) {
-                        UIApplication.shared.open(url)
+                        NSWorkspace.shared.open(url)
                     }
                 } label: {
                     Label("Open in Browser", systemImage: "safari")
@@ -467,4 +468,6 @@ struct GistSuccessView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(red: 0.10, green: 0.10, blue: 0.14))
     }
+}
+
 }

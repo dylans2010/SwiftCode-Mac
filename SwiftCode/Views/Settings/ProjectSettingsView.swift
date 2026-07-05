@@ -146,9 +146,9 @@ struct ProjectSettingsView: View {
 
     private func openProjectInFiles(_ project: Project) {
         if let url = URL(string: "shareddocuments://\(project.directoryURL.path)") {
-            UIApplication.shared.open(url)
+            NSWorkspace.shared.open(url)
         } else {
-            UIApplication.shared.open(project.directoryURL)
+            NSWorkspace.shared.open(project.directoryURL)
         }
     }
 }

@@ -1,5 +1,5 @@
 import SwiftUI
-import UIKit
+import AppKit
 
 struct ModelDownloadProgressView: View {
     let modelName: String
@@ -137,8 +137,8 @@ struct ModelDownloadProgressView: View {
 
     @MainActor
     private func copyErrorMessage(_ message: String) {
-        UIPasteboard.general.string = message
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(message, forType: .string)
 
         didCopyError = true
         Task {

@@ -645,7 +645,7 @@ struct ProjectsDashboardView: View {
         let name = "Collaborative Project \(projectManager.projects.count + 1)"
         do {
             let project = try projectManager.createProject(name: name)
-            let creatorID = UIDevice.current.name
+            let creatorID = Host.current().localizedName ?? "macOS Device"
             let manager = CollaborationSessionStore.shared.manager(for: project, creatorID: creatorID)
             currentCollaborationManager = manager
             showCollaborationDashboard = true
@@ -975,19 +975,46 @@ struct ProjectListRowView: View {
     }
 }
 
-// MARK: - Share Sheet (UIActivityViewController wrapper)
+// MARK: - Share Sheet (NSSharingServicePicker wrapper)
 
-import UIKit
 
-struct ShareSheet: UIViewControllerRepresentable {
+
+
+
+struct ShareSheet: NSViewRepresentable {
     let activityItems: [Any]
 
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        context.coordinator.parent = self
+        context.coordinator.view = view
+        return view
     }
 
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.showIfNeeded()
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    class Coordinator: NSObject {
+        var parent: ShareSheet?
+        weak var view: NSView?
+        private var hasShown = false
+
+        func showIfNeeded() {
+            guard !hasShown, let view = view, let parent = parent, !parent.activityItems.isEmpty else { return }
+            hasShown = true
+            let picker = NSSharingServicePicker(items: parent.activityItems)
+            picker.show(relativeTo: view.bounds, of: view, preferredEdge: .minY)
+        }
+    }
 }
+
+
 
 // MARK: - Project Card
 

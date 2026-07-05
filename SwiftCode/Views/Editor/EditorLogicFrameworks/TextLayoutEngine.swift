@@ -1,4 +1,4 @@
-import UIKit
+import AppKit
 
 // MARK: - Text Layout Engine
 // Centralises all text layout constants and helpers used by the code editor.
@@ -12,9 +12,9 @@ final class TextLayoutEngine {
     // MARK: - Font
 
     /// Returns the standard monospaced editor font for a given size.
-    static func editorFont(size: CGFloat = 14) -> UIFont {
-        UIFont(name: "Menlo", size: size)
-            ?? UIFont.monospacedSystemFont(ofSize: size, weight: .regular)
+    static func editorFont(size: CGFloat = 14) -> NSFont {
+        NSFont(name: "Menlo", size: size)
+            ?? NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
     }
 
     // MARK: - Line Height
@@ -46,10 +46,10 @@ final class TextLayoutEngine {
 
     // MARK: - Text Container Insets
 
-    /// Insets applied to the editable UITextView.  The left inset ensures the
+    /// Insets applied to the editable NSTextView.  The left inset ensures the
     /// first character never touches the line-number/gutter boundary.
-    static func textContainerInset(topPadding: CGFloat = 8) -> UIEdgeInsets {
-        UIEdgeInsets(top: topPadding, left: 10, bottom: 12, right: 12)
+    static func textContainerInset(topPadding: CGFloat = 8) -> NSSize {
+        NSSize(width: 10, height: topPadding)
     }
 
     // MARK: - Y Position for a Line

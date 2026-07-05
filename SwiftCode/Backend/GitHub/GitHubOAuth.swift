@@ -1,7 +1,11 @@
 import Foundation
 import AuthenticationServices
 import CryptoKit
+#if canImport(AppKit)
+import AppKit
+#elseif canImport(UIKit)
 import UIKit
+#endif
 
 @MainActor
 final class GitHubOAuth: NSObject, ObservableObject {
@@ -252,12 +256,7 @@ final class GitHubOAuth: NSObject, ObservableObject {
 
 extension GitHubOAuth: ASWebAuthenticationPresentationContextProviding {
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = scene.windows.first else {
-            return ASPresentationAnchor()
-        }
-
-        return window
+        NSApplication.shared.mainWindow ?? ASPresentationAnchor()
     }
 }
 

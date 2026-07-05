@@ -1,6 +1,6 @@
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
+#if canImport(AppKit)
+import AppKit
 #endif
 
 final class SwiftUIViewRenderer {
@@ -29,9 +29,9 @@ final class SwiftUIViewRenderer {
         return CGSize(width: base.width * scale, height: base.height * scale)
     }
 
-    #if canImport(UIKit)
-    func hostingController(for loadedView: AnyView) -> UIHostingController<AnyView> {
-        UIHostingController(rootView: loadedView)
+    #if canImport(AppKit)
+    func hostingController(for loadedView: AnyView) -> NSHostingController<AnyView> {
+        NSHostingController(rootView: loadedView)
     }
     #endif
 }

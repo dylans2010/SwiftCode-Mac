@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -304,12 +305,13 @@ struct GistDetailView: View {
     }
 
     private func copyLink() {
-        UIPasteboard.general.string = gist?.htmlUrl
+        NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(gist?.htmlUrl, forType: .string)
     }
 
     private func openInBrowser() {
         if let urlStr = gist?.htmlUrl, let url = URL(string: urlStr) {
-            UIApplication.shared.open(url)
+            NSWorkspace.shared.open(url)
         }
     }
 
@@ -325,7 +327,8 @@ struct GistDetailView: View {
     private func copyCloneURL(isSSH: Bool) {
         guard let currentGist = gist else { return }
         let cloneURL = gistService.cloneURL(for: currentGist, useSSH: isSSH)
-        UIPasteboard.general.string = cloneURL
+        NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(cloneURL, forType: .string)
     }
 
     private func openCloneURL(isSSH: Bool) {
@@ -333,19 +336,21 @@ struct GistDetailView: View {
         let cloneString = gistService.cloneURL(for: currentGist, useSSH: isSSH)
 
         if isSSH {
-            UIPasteboard.general.string = cloneString
+            NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(cloneString, forType: .string)
             return
         }
 
         if let url = URL(string: cloneString) {
-            UIApplication.shared.open(url)
+            NSWorkspace.shared.open(url)
         }
     }
 
     private func copyEmbedCode() {
         guard let currentGist = gist, let owner = currentGist.owner?.login else { return }
         let embedCode = "<script src=\"https://gist.github.com/\(owner)/\(currentGist.id).js\"></script>"
-        UIPasteboard.general.string = embedCode
+        NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(embedCode, forType: .string)
     }
 
     private func downloadZIP() {
@@ -356,18 +361,12 @@ struct GistDetailView: View {
                 showZIPDownloadProgress = false
                 downloadedZIPURL = url
 
+
+
                 DispatchQueue.main.async {
-                    let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                       let rootVC = windowScene.windows.first?.rootViewController {
-
-                        if let popover = activityVC.popoverPresentationController {
-                            popover.sourceView = rootVC.view
-                            popover.sourceRect = CGRect(x: rootVC.view.bounds.midX, y: rootVC.view.bounds.midY, width: 0, height: 0)
-                            popover.permittedArrowDirections = []
-                        }
-
-                        rootVC.present(activityVC, animated: true)
+                    if let window = NSApplication.shared.mainWindow {
+                        let picker = NSSharingServicePicker(items: [url])
+                        picker.show(relativeTo: .zero, of: window.contentView ?? NSView(), preferredEdge: .minY)
                     }
                 }
             } catch {

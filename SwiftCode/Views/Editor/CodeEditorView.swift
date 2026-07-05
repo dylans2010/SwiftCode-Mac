@@ -1,8 +1,11 @@
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#elseif canImport(UIKit)
 import UIKit
+#endif
 
-// MARK: - Code Editor View (SwiftUI wrapper)
-
+// MARK: - Code Editor View
 struct CodeEditorView: View {
     @EnvironmentObject private var projectManager: ProjectManager
     @EnvironmentObject private var settings: AppSettings
@@ -539,41 +542,40 @@ struct MinimapView: View {
     }
 }
 
-// MARK: - UITextView Representable
+// MARK: - NSTextView Representable
 
-struct TextEditorRepresentable: UIViewRepresentable {
+struct TextEditorRepresentable: NSViewRepresentable {
     @Binding var text: String
     var wordWrap: Bool
     var searchQuery: String
     var fileExtension: String = "swift"
 
-    func makeUIView(context: Context) -> UIScrollView {
-        let scrollView = UIScrollView()
-        scrollView.backgroundColor = UIColor(red: 0.11, green: 0.11, blue: 0.14, alpha: 1)
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.backgroundColor = NSColor(red: 0.11, green: 0.11, blue: 0.14, alpha: 1)
         scrollView.showsVerticalScrollIndicator = true
         scrollView.showsHorizontalScrollIndicator = true
 
-        let container = UIView()
+        let container = NSView()
         container.backgroundColor = .clear
-        scrollView.addSubview(container)
+        scrollView.documentView = container
 
         let lineNumbers = LineNumberView()
         context.coordinator.lineNumberView = lineNumbers
 
-        let textView = UITextView()
+        let textView = NSTextView()
         textView.backgroundColor = .clear
-        textView.textColor = UIColor(red: 0.85, green: 0.85, blue: 0.85, alpha: 1)
+        textView.textColor = NSColor(red: 0.85, green: 0.85, blue: 0.85, alpha: 1)
         textView.font = TextLayoutEngine.editorFont()
 
 
-        textView.autocorrectionType = .no
-        textView.autocapitalizationType = .none
-        textView.spellCheckingType = .no
-        textView.smartDashesType = .no
-        textView.smartQuotesType = .no
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isEditable = true
-        textView.isScrollEnabled = false
-        textView.translatesAutoresizingMaskIntoConstraints = false
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = true
+        textView.isContinuousSpellCheckingEnabled = false
+        textView.isGrammarCheckingEnabled = false
         textView.delegate = context.coordinator
         textView.textContainerInset = TextLayoutEngine.textContainerInset()
 
@@ -588,20 +590,20 @@ struct TextEditorRepresentable: UIViewRepresentable {
         scrollView.delegate = context.coordinator
 
         let highlighted = SyntaxHighlighter.shared.highlight(text, fileExtension: fileExtension)
-        textView.attributedText = highlighted
+        textView.textStorage?.setAttributedString(highlighted)
 
         return scrollView
     }
 
-    func updateUIView(_ scrollView: UIScrollView, context: Context) {
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = context.coordinator.textView else { return }
 
         context.coordinator.fileExtension = fileExtension
 
-        if textView.attributedText.string != text {
+        if textView.string != text {
             let highlighted = SyntaxHighlighter.shared.highlight(text, fileExtension: fileExtension)
             let savedRange = textView.selectedRange
-            textView.attributedText = highlighted
+            textView.textStorage?.setAttributedString(highlighted)
             let clampedLocation = min(savedRange.location, max(0, text.count))
             textView.selectedRange = NSRange(location: clampedLocation, length: 0)
         }
@@ -629,12 +631,12 @@ struct TextEditorRepresentable: UIViewRepresentable {
         Coordinator(text: $text)
     }
 
-    final class Coordinator: NSObject, UITextViewDelegate, UIScrollViewDelegate {
+    final class Coordinator: NSObject, NSTextViewDelegate, NSScrollViewDelegate {
         var text: Binding<String>
         var fileExtension: String = "swift"
-        weak var textView: UITextView?
-        weak var scrollView: UIScrollView?
-        weak var containerView: UIView?
+        weak var textView: NSTextView?
+        weak var scrollView: NSScrollView?
+        weak var containerView: NSView?
         weak var lineNumberView: LineNumberView?
 
         init(text: Binding<String>) {
@@ -657,12 +659,13 @@ struct TextEditorRepresentable: UIViewRepresentable {
             textView?.undoManager?.redo()
         }
 
-        func textViewDidChange(_ textView: UITextView) {
-            text.wrappedValue = textView.text
-            let highlighted = SyntaxHighlighter.shared.highlight(textView.text, fileExtension: fileExtension)
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            text.wrappedValue = textView.string
+            let highlighted = SyntaxHighlighter.shared.highlight(textView.string, fileExtension: fileExtension)
             let savedRange = textView.selectedRange
-            textView.attributedText = highlighted
-            let clampedLocation = min(savedRange.location, max(0, textView.text.count))
+            textView.textStorage?.setAttributedString(highlighted)
+            let clampedLocation = min(savedRange.location, max(0, textView.string.count))
             textView.selectedRange = NSRange(location: clampedLocation, length: 0)
             updateLayout()
         }
@@ -683,7 +686,7 @@ struct TextEditorRepresentable: UIViewRepresentable {
             let contentHeight = max(textSize.height, scrollView.bounds.height)
 
             container.frame = CGRect(x: 0, y: 0, width: contentWidth, height: contentHeight)
-            scrollView.contentSize = container.frame.size
+            // scrollView.contentSize = container.frame.size
 
             lineNumbers.frame = CGRect(x: 0, y: 0, width: gutterWidth, height: contentHeight)
             textView.frame = CGRect(x: gutterWidth, y: 0,
@@ -692,8 +695,8 @@ struct TextEditorRepresentable: UIViewRepresentable {
 
             let font = textView.font ?? TextLayoutEngine.editorFont()
             lineNumbers.lineHeight = font.lineHeight
-            lineNumbers.topInset = textView.textContainerInset.top
-            lineNumbers.lineCount = textView.text.components(separatedBy: "\n").count
+            lineNumbers.topInset = textView.textContainerInset.height
+            lineNumbers.lineCount = textView.string.components(separatedBy: "\n").count
             lineNumbers.setNeedsDisplay()
         }
     }
@@ -701,32 +704,33 @@ struct TextEditorRepresentable: UIViewRepresentable {
 
 // MARK: - Line Number View
 
-final class LineNumberView: UIView {
+final class LineNumberView: NSView {
     var lineCount: Int = 1
     var lineHeight: CGFloat = TextLayoutEngine.lineHeight()
-    var topInset: CGFloat = TextLayoutEngine.textContainerInset().top
+    var topInset: CGFloat = TextLayoutEngine.textContainerInset().height
 
-    override init(frame: CGRect) {
+    override var isFlipped: Bool { true }
+
+    override init(frame: NSRect) {
         super.init(frame: frame)
-        backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.13, alpha: 1)
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
     override func draw(_ rect: CGRect) {
-        let font = UIFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        let font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
         let activeAttrs: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: UIColor.white.withAlphaComponent(0.4)
+            .foregroundColor: NSColor.white.withAlphaComponent(0.4)
         ]
         let attrs: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: UIColor.gray.withAlphaComponent(0.35)
+            .foregroundColor: NSColor.gray.withAlphaComponent(0.35)
         ]
 
         let separatorX = bounds.width - 0.5
-        UIColor.white.withAlphaComponent(0.05).setFill()
-        UIRectFill(CGRect(x: separatorX, y: 0, width: 0.5, height: bounds.height))
+        NSColor.white.withAlphaComponent(0.05).setFill()
+        NSRectFill(CGRect(x: separatorX, y: 0, width: 0.5, height: bounds.height))
 
         let count = max(1, lineCount)
         for i in 1...count {

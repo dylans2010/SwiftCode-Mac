@@ -1,44 +1,41 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AppKit
 
-/// A `UIViewControllerRepresentable` that presents a `UIDocumentPickerViewController`,
-/// fully replacing the SwiftUI `.fileImporter` modifier with direct UIKit control.
-struct FileImporterRepresentableView: UIViewControllerRepresentable {
+struct FileImporterRepresentableView: NSViewRepresentable {
     var allowedContentTypes: [UTType]
     var allowsMultipleSelection: Bool = false
     var onDocumentsPicked: ([URL]) -> Void
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onDocumentsPicked: onDocumentsPicked)
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            let panel = NSOpenPanel()
+            panel.allowedContentTypes = allowedContentTypes
+            panel.allowsMultipleSelection = allowsMultipleSelection
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = true
+
+            if let window = view.window {
+                panel.beginSheetModal(for: window) { response in
+                    if response == .OK {
+                        onDocumentsPicked(panel.urls)
+                    } else {
+                        onDocumentsPicked([])
+                    }
+                }
+            } else {
+                panel.begin { response in
+                    if response == .OK {
+                        onDocumentsPicked(panel.urls)
+                    } else {
+                        onDocumentsPicked([])
+                    }
+                }
+            }
+        }
+        return view
     }
 
-    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let picker = UIDocumentPickerViewController(
-            forOpeningContentTypes: allowedContentTypes,
-            asCopy: true
-        )
-        picker.delegate = context.coordinator
-        picker.allowsMultipleSelection = allowsMultipleSelection
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
-
-    // MARK: - Coordinator
-
-    class Coordinator: NSObject, UIDocumentPickerDelegate {
-        var onDocumentsPicked: ([URL]) -> Void
-
-        init(onDocumentsPicked: @escaping ([URL]) -> Void) {
-            self.onDocumentsPicked = onDocumentsPicked
-        }
-
-        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-            onDocumentsPicked(urls)
-        }
-
-        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-            onDocumentsPicked([])
-        }
-    }
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }

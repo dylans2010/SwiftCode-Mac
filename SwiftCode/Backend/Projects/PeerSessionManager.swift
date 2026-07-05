@@ -1,6 +1,5 @@
 import Foundation
 import MultipeerConnectivity
-import UIKit
 
 @MainActor
 final class PeerSessionManager: NSObject, ObservableObject {
@@ -9,7 +8,7 @@ final class PeerSessionManager: NSObject, ObservableObject {
     @Published private(set) var nearbyPeers: [MCPeerID] = []
     @Published private(set) var peerStates: [String: MCSessionState] = [:]
 
-    let localPeerID = MCPeerID(displayName: UIDevice.current.name)
+    let localPeerID = MCPeerID(displayName: Host.current().localizedName ?? "macOS Device")
     private let serviceType = "swiftcode-p2p"
     let session: MCSession
     private lazy var advertiser = MCNearbyServiceAdvertiser(peer: localPeerID, discoveryInfo: ["role": "swiftcode"], serviceType: serviceType)
