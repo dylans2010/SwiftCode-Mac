@@ -1,5 +1,5 @@
 import Foundation
-import UIKit
+import Combine
 
 @MainActor
 final class DeviceUtilityManager: ObservableObject {
@@ -7,8 +7,18 @@ final class DeviceUtilityManager: ObservableObject {
     private init() {}
 
     func isAppleIntelligenceSupported() -> Bool { getCapabilityLevel() != .unsupported }
-    func getDeviceModel() -> String { UIDevice.current.model }
-    func getiOSVersion() -> String { UIDevice.current.systemVersion }
+
+    func getDeviceModel() -> String {
+        var size = 0
+        sysctlbyname("hw.model", nil, &size, nil, 0)
+        var model = [CChar](repeating: 0, count: size)
+        sysctlbyname("hw.model", &model, &size, nil, 0)
+        return String(cString: model)
+    }
+
+    func getOSVersion() -> String {
+        ProcessInfo.processInfo.operatingSystemVersionString
+    }
 
     func getCapabilityLevel() -> OnDeviceCapabilities.CapabilityLevel {
         let version = ProcessInfo.processInfo.operatingSystemVersion
