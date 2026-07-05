@@ -2724,7 +2724,7 @@
 			path = Editor;
 			sourceTree = "<group>";
 		};
-		6CFC827E67DCAE34C72B9CED = {
+		6CFC827E67DCAE34C72B9CED /* Custom Group */ = {
 			isa = PBXGroup;
 			children = (
 				A83491FC57C3309ECF4AD0DD /* SwiftCode */,
@@ -3293,7 +3293,7 @@
 				en,
 				Base,
 			);
-			mainGroup = 6CFC827E67DCAE34C72B9CED;
+			mainGroup = 6CFC827E67DCAE34C72B9CED /* Custom Group */;
 			productRefGroup = 021F2B7F3E0C61452C987484 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -4022,10 +4022,10 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.dylans2010.SwiftCode-Mac";
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx27.0;
+				SDKROOT = macosx15.0;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
 			};
@@ -4163,10 +4163,10 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.dylans2010.SwiftCode-Mac";
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx27.0;
+				SDKROOT = macosx15.0;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
 			};
