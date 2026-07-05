@@ -1386,7 +1386,15 @@
 		22C2251C145B8C41B04536A6 /* Offline Models */ = {
 			isa = PBXGroup;
 			children = (
+				18693296FBA4E47237279C5D /* HuggingFaceAPI.swift */,
+				287AA726E98D4D06A1B84E1A /* DeviceCapabilityAnalyzer.swift */,
+				43CEAAEEBB0248577216B72E /* OfflineModelDownloader.swift */,
+				65664938409C5B74443AAFB1 /* OfflineModelMetadata.swift */,
 				88E2617898F04F36449D50DD /* MLXSwift Foundation */,
+				9483FA17345E823BB30E91F4 /* OfflineModelRunner.swift */,
+				A2F098187CB2ACAE0A0A6105 /* OfflineModelConverter.swift */,
+				C606A25F66EC0597CCDF0370 /* OfflineModelManager.swift */,
+				DB2253E2AF936D537CEB4997 /* OfflineModelsStorage.swift */,
 			);
 			path = "Offline Models";
 			sourceTree = "<group>";
@@ -1394,6 +1402,9 @@
 		88E2617898F04F36449D50DD /* MLXSwift Foundation */ = {
 			isa = PBXGroup;
 			children = (
+				0CC1E54976EEBE8EA9EE0F0E /* MLXIntegration.swift */,
+				5773BDFA96D372ADB0842A39 /* UniversalModelLoader.swift */,
+				ED6EA66DF16B64D2A7DE58FA /* README.md */,
 				F5298FA0709CD46777DA8616 /* MLXModelContainer.swift */,
 			);
 			path = "MLXSwift Foundation";
@@ -1402,7 +1413,12 @@
 		B5C6D06004D5DCBD438499FB /* On Device Intelligence */ = {
 			isa = PBXGroup;
 			children = (
+				4F629D95008520D7560DF64E /* OnDeviceModelRouter.swift */,
+				953210F454D6AB80BBC61923 /* DeviceUtilityManager.swift */,
+				C8FE776A78F47ED838E2CFBD /* AppleIntelligenceService.swift */,
 				D6DEA240A2B42A39E4B16E21 /* OnDeviceAIManager.swift */,
+				E10B50602823F86F52DE6384 /* OnDeviceCapabilities.swift */,
+				E740EBED3661A6F9A5501139 /* OnDeviceSession.swift */,
 			);
 			path = "On Device Intelligence";
 			sourceTree = "<group>";
@@ -1410,7 +1426,11 @@
 		6D969FB93A3CA6DEB364EE63 /* Deployments */ = {
 			isa = PBXGroup;
 			children = (
+				1871020200B4B90AB9F92D4E /* GitHubPagesManager.swift */,
+				5C77B8819AC86765B72F1508 /* DeploymentTargets.swift */,
 				93477D270675CF4CF5B2D556 /* DeploymentKeychainManager.swift */,
+				A9FB8F45B5456444FEE6A487 /* NetlifyManager.swift */,
+				DE8CD56E4017977998235354 /* VercelManager.swift */,
 			);
 			path = "Deployments";
 			sourceTree = "<group>";
@@ -1418,7 +1438,22 @@
 		ACCD78AD790D110C0A76E747 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				02BC29E58C19C690DD971DA0 /* SettingsView.swift */,
+				057EAE735A7C77DB1A01F4B0 /* PluginManagerView.swift */,
+				08968ED253EE45E40E03838E /* Custom Tools */,
+				089B1CE7F469330E3B904175 /* GeneralSettingsView.swift */,
+				2EC799EB285661299D07765D /* InstalledOfflineModelsView.swift */,
 				3563E370CBD42F8620297A0A /* Extension Management */,
+				373DE604AB4A71991FF565A9 /* ProjectSettingsView.swift */,
+				61D456F04F5F6358FD6ACB2D /* Skills */,
+				72DBED34C08ECDE38C8E737F /* ModelLinkInstallGuideView.swift */,
+				7E98EC5E61489CE7CE6AB854 /* ProjectTemplateView.swift */,
+				88A85C73A48C949CDCBC2007 /* OfflineModelsView.swift */,
+				9527AF8FE7655D61BB697E0F /* CodeSuggestionsView.swift */,
+				CBDD38A4F9ABC9C7074B75A0 /* UpdatesView.swift */,
+				D587D00CA4BBF03908427CC1 /* CreditsView.swift */,
+				DDF6BFF1BD9AC2E992179763 /* PluginCodeCreateView.swift */,
+				F41E7F18C6B47F81E7C1872A /* ModelDownloadProgressView.swift */,
 			);
 			path = "Settings";
 			sourceTree = "<group>";
@@ -1426,8 +1461,33 @@
 		3563E370CBD42F8620297A0A /* Extension Management */ = {
 			isa = PBXGroup;
 			children = (
+				00048987BBB25A712D49051C /* NordThemeExtensionView.swift */,
+				12FF9A136F8F7CBCD634A73C /* DarkProThemeExtensionView.swift */,
+				1A888309EDD9DFE93F9529C5 /* XcodeBuildToolExtensionView.swift */,
+				1C0D9F00673B0B4004DDE4BC /* UnitTestGenExtensionView.swift */,
+				212E996D0D662F7D03CFB91D /* JSONFormatterExtensionView.swift */,
+				2DA1A9EF90409DCFFB0ED343 /* CreateExtensionView.swift */,
+				3181B499A640865820F1B8B3 /* PythonSupportExtensionView.swift */,
+				37386EAB585EAED952D81C8A /* GoSupportExtensionView.swift */,
 				4EE2578A53F2C72B7DB43751 /* AIRefactorExtensionView.swift */,
+				4F2085534C1C343FD115D82F /* GruvboxThemeExtensionView.swift */,
+				5E75F572EDD4F8CE42F302CD /* RegexTesterExtensionView.swift */,
+				6054852DAF5EF6F58ADC0577 /* MarkdownPreviewExtensionView.swift */,
+				6B2C6A450EA442997F49FC1A /* ColorPickerExtensionView.swift */,
+				71C341303B125990C097CEDA /* SnippetLibraryExtensionView.swift */,
+				72C0C80C785A06322885C35C /* EditExtensionView.swift */,
+				8526C47363D79394BD1A44D6 /* CodeStatsExtensionView.swift */,
+				93DBB344B70D93A88269B581 /* TypeScriptSupportExtensionView.swift */,
+				982D7FE460FD439B66834515 /* TodoHighlighterExtensionView.swift */,
+				9AD15287E124ADDE417399CC /* RustSupportExtensionView.swift */,
+				B90A14F8825EA8F4E2475C4B /* SwiftLintRunnerExtensionView.swift */,
+				BAD7D75823F270BC97711B83 /* SwiftFormatterExtensionView.swift */,
+				BC417913E489F24E1DF29C07 /* DocCGeneratorExtensionView.swift */,
+				D3314F12A7A5A5C5140C2E22 /* KotlinSupportExtensionView.swift */,
 				E5D47536944D9D21484D6F8E /* AIDocGenExtensionView.swift */,
+				E6667D90FCA317DE3700C420 /* MultiCursorExtensionView.swift */,
+				F146FD8BE500A0EE2E1ED78C /* GitBlameExtensionView.swift */,
+				F8247E7641B2CC9EB2432153 /* SwiftPackageManagerExtensionView.swift */,
 			);
 			path = "Extension Management";
 			sourceTree = "<group>";
@@ -1435,7 +1495,43 @@
 		F584F6103978748E3DD5217D /* Developer */ = {
 			isa = PBXGroup;
 			children = (
+				040DEBA1FC7BDFB9DE2A733F /* MemoryInspector */,
+				048FFEA44DE3C634761BD5C6 /* CoreMLInspector */,
+				0D5CD3BDE45A1C516CCA10FC /* DatabaseInspector */,
+				0FE133C12839EAEF698BF049 /* APIInspector */,
 				12E1269935A37C9F4AF95B4F /* AIModelDebugger */,
+				133FD5908EAF09F6859709C5 /* APILatencyTrackerView.swift */,
+				253FF9285C7C1BC2DCC6D288 /* WebViewDebugger */,
+				36CCA00FE85EEBF696BA5563 /* ErrorFrequencyTrackerView.swift */,
+				37A185C9C391EC5059E71B33 /* BinaryTools */,
+				479000751304998B1B1ED4C0 /* BuildPipelineDebugger */,
+				48370F1091ED5500978436D7 /* FileSystemInspector */,
+				53754DD4A8CE21248EB540A6 /* ThreadInspector */,
+				609DB41C5AACAB1D43EAEE7A /* CrashDebugger */,
+				611069667F47F21CEE42B3C1 /* ConsoleCommandRunnerView.swift */,
+				62EEFFB507750E793AC7EF35 /* RuntimeFlags */,
+				65C13ED64600342DA2630304 /* DatabaseInspectorView.swift */,
+				6969997F3D5F5CB90C3DCA5D /* GitHubAPIDebug */,
+				6D16E936A382D4E8006FC4E1 /* VerboseLogging */,
+				6E77B42DC4B4DB699AA95E29 /* DebugOverlaysView.swift */,
+				6EB2D488DAD7AB85751FC5B8 /* DeveloperDashboard */,
+				6EDA931005139E6A1492943E /* PermissionsCheckerView.swift */,
+				78AD624E261B87B32D258928 /* BackgroundTaskMonitorView.swift */,
+				7D4E6BE0B8566D3E22FA7CC4 /* BuildDiagnosticsView.swift */,
+				80C72B98BCB6F61B652500B0 /* StoreKitDebug */,
+				883E77091FBBA56797A15987 /* RealtimeMetricsDashboardView.swift */,
+				9003D91BBB65C8C3421BC3A5 /* FeatureFlags */,
+				98B8B25FC71CD8A493578AF9 /* ExtensionDebugger */,
+				A158A091E53CACE725B6D0C4 /* NetworkInspector */,
+				A645D312F8AF5366E86E5644 /* DeploymentDebug */,
+				AC3324D3D2F2BCC613781816 /* LogConsole */,
+				AE43A068B400B4563E93C57B /* CacheInspectorView.swift */,
+				B675F1FE9EE790655526693C /* PaywallDebug */,
+				CEBB182A43396D637CB4B787 /* DependencyHealthView.swift */,
+				E19EA085FB79DF02F126335D /* EnvironmentSwitcherView.swift */,
+				E203F76FC6AA18FB282E8EB2 /* MemoryLeakDetectionView.swift */,
+				E5D64F9FF65A0ED54E33742B /* StateInspectorView.swift */,
+				F69153200808B37207CDDE2E /* PerformanceMonitor */,
 			);
 			path = "Developer";
 			sourceTree = "<group>";
@@ -1452,7 +1548,13 @@
 			isa = PBXGroup;
 			children = (
 				070568FDFE009D932399AA92 /* AppDetailsInfo.swift */,
+				520E553F89642C2F5E118C85 /* BuildLogsView.swift */,
 				677867FB275018155CE87ED1 /* PrepareCompileWaitingView.swift */,
+				85B4212740267470136E60B6 /* LocalBuildView.swift */,
+				C47D05763F6CC4D3BFEC1DA8 /* BuildStatusView.swift */,
+				D97F6F24303C4976255BACB4 /* LocalBuildDemoView.swift */,
+				F084AC3ABB1F1E370A979172 /* TerminalView.swift */,
+				F8083C6624E26957851A7207 /* CIBuildView.swift */,
 			);
 			path = "Build";
 			sourceTree = "<group>";
@@ -1460,7 +1562,13 @@
 		ABBC8A11E8527DDF62152F7F /* Editor */ = {
 			isa = PBXGroup;
 			children = (
+				2AEB32651A4E4F7B561D7B81 /* SymbolOutlineView.swift */,
+				46A5954FB1CB8C571A915115 /* SymbolNavigatorView.swift */,
 				77551FB61E8CADB4F5A4963C /* EditorLogicFrameworks */,
+				78E0384A674A291B4F2B2EAE /* CodeEditorManagementView.swift */,
+				88D5C675571394D656736CBB /* GoToLineView.swift */,
+				9885707843193FBBAC3F657E /* MinimapSettingsView.swift */,
+				FBAB409C7BAE9FEAEB52CBFD /* CodeEditorView.swift */,
 			);
 			path = "Editor";
 			sourceTree = "<group>";
@@ -1468,7 +1576,12 @@
 		77551FB61E8CADB4F5A4963C /* EditorLogicFrameworks */ = {
 			isa = PBXGroup;
 			children = (
+				30779705BBEB9DEE5EC0BAD7 /* CodeStructureAnalyzer.swift */,
+				770308227209166D70F0AAF4 /* CodeColoringTheme.swift */,
+				A0122F265953CCBF00E0194B /* SyntaxHighlightingEngine.swift */,
+				A553F7F0EC807183F16C3691 /* TextLayoutEngine.swift */,
 				CE760BD68F314B37F7AF35FC /* AISuggestionEngine.swift */,
+				F9EE69B891FE9AA2F03E6C1F /* CodeExecutionManager.swift */,
 			);
 			path = "EditorLogicFrameworks";
 			sourceTree = "<group>";
@@ -1517,7 +1630,9 @@
 		9A1B2298211314926FB40FFE /* Toolbar */ = {
 			isa = PBXGroup;
 			children = (
+				124CA9BA9F6ECBC4DCEA72BB /* ToolbarMinimizedView.swift */,
 				9E8E1E3F3E5CF371DEB8BED6 /* MainToolbarView.swift */,
+				B64BBFEADA10E5A599D72F4F /* ToolbarCustomizationView.swift */,
 			);
 			path = "Toolbar";
 			sourceTree = "<group>";
@@ -1525,6 +1640,11 @@
 		B2A7690712D32834FD7DE4D4 /* Gists */ = {
 			isa = PBXGroup;
 			children = (
+				1A6D06CCAD6655BAF43C1815 /* CreateGistView.swift */,
+				210F09408499DAF00DC22450 /* GistRevisionsView.swift */,
+				3069F55E6F6260382D383F1A /* GistsView.swift */,
+				65B55DDE1BD10D06341FF937 /* Components */,
+				A02D8F6C62F2A67B46F56709 /* GistDiffView.swift */,
 				BC306472B4DC097AF442EE29 /* GistDetailView.swift */,
 			);
 			path = "Gists";
@@ -1533,7 +1653,32 @@
 		865D34D3DC4F39171012B285 /* Collaboration */ = {
 			isa = PBXGroup;
 			children = (
+				08C0893DD6303723C51721E5 /* CollaborationConflictResolverView.swift */,
+				0BDD31EC9E6CCB7819671704 /* CollaborationPullRequestView.swift */,
+				0DB12E2478CCB57F5CB12C9E /* CollaborationDashboardView.swift */,
+				1003AE65D09089468A7412A2 /* CollaborationCommitHistoryView.swift */,
+				1365BE3C14994BB877BF5EDF /* BranchWorkspaceView.swift */,
+				166503E359F6530CAF149078 /* MemberManagementView.swift */,
+				1EDAB6A339F43FA6BF5A78D1 /* CollaborationSidebarView.swift */,
+				2B4E02E0765F74EF375F126E /* ActivityLogView.swift */,
+				321A0405166EEF11E8FEF56A /* ConflictResolverView.swift */,
+				4F73BA0184F327F66A9B7E1A /* CollaborationNotificationCenterView.swift */,
+				5484649C69D50E3B3151599B /* CollaborationFilePresenceOverlay.swift */,
+				55499AA69755D101C20D43B0 /* PushPullManagerView.swift */,
+				5764991BF5162A46CCCD57AE /* CollaborationCodeReviewView.swift */,
+				5BA427DBE07802D79F01231F /* CollaborationBranchManagementView.swift */,
+				5F527CCADC4EA16965746BA5 /* CollaborationBranchGraphView.swift */,
+				60D9562C914DDF4635B43D7C /* PRCreateView.swift */,
+				6160E9FC707A9B07E04C2B81 /* FilePermissionView.swift */,
+				98379720FF5B21C1289FB7E8 /* CommitManagerView.swift */,
 				A977BA9D804F72737F28D146 /* CollaborationMainView.swift */,
+				CAFF40957A1397E34EFFE144 /* CollaborationFeedbackView.swift */,
+				D6EC45A178541956913F098A /* CollaborationAuditLogView.swift */,
+				D8DB765C63820090AEFE6935 /* CollaborationChatView.swift */,
+				E03B5EC86437687DB8C9FDAB /* InviteMembersView.swift */,
+				EF9D62D399A22DCC39390E67 /* BranchGraphView.swift */,
+				F29B99D50A21305B8FEB86AA /* CollaborationDiffViewerView.swift */,
+				FDB0E8E843E3C57FACDD1B98 /* PushPullView.swift */,
 			);
 			path = "Collaboration";
 			sourceTree = "<group>";
@@ -1542,6 +1687,8 @@
 			isa = PBXGroup;
 			children = (
 				11D4A57C4D797F9F1C808B9F /* AI */,
+				85D89480C649F746954B1C4A /* Debug Tools */,
+				97B80356D4B807C8D785C776 /* Testing */,
 				BA509B38D66A2DFF0E2B7F38 /* AdvancedTools */,
 			);
 			path = "Features";
@@ -1560,6 +1707,7 @@
 		BA509B38D66A2DFF0E2B7F38 /* AdvancedTools */ = {
 			isa = PBXGroup;
 			children = (
+				10ACA9D9C269F7A0D14CAB5B /* Engines */,
 				C3179EE8BAF00CBFFCF2D957 /* Views */,
 			);
 			path = "AdvancedTools";
@@ -1568,7 +1716,21 @@
 		C3179EE8BAF00CBFFCF2D957 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				02E00B0D5F2DB68D7430C276 /* CodeRefactoringView.swift */,
+				0D2D2E27AD889F7C54A77B40 /* AssetManagerView.swift */,
+				10AA8C53B2A2753122DDB3A0 /* SymbolIndexView.swift */,
+				45D3741257D15CB4624B50BC /* ProjectDependencyGraphView.swift */,
 				4E1DD198B91F06453F4C5FA2 /* DocumentationAIInsightsView.swift */,
+				881DC2B16F0A3C9B2627B8D4 /* WorkspaceProfilesView.swift */,
+				A1332B8131E27F86E84CC220 /* SnippetsLibraryView.swift */,
+				B2730881CCB09DD938474F1F /* ExtensionMarketplaceView.swift */,
+				BA5F34FBCE0E82CAD0772957 /* CrashLogAnalyzerView.swift */,
+				BB82D09E7AD4E05ACD6AC572 /* CodeMetricsDashboardView.swift */,
+				C33725107C0F0A6D94F3898B /* CodeIntelligenceView.swift */,
+				CA3B94A52CC92B9B542B7A6E /* AdvancedToolsDesignSystem.swift */,
+				D640EAE98F392DC8DEAD3617 /* ErrorDiagnosticsView.swift */,
+				EC4978018A58A635B164593E /* SearchDocumentationView.swift */,
+				F60787477E14031160E05A32 /* DocumentationBrowserView.swift */,
 			);
 			path = "Views";
 			sourceTree = "<group>";
@@ -1576,7 +1738,27 @@
 		57AFC04E569B8BDE2658ECD4 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				10F0D87A99B6FE8E88BEDFFA /* FolderManager.swift */,
+				1C4A32C40B7DCC2C9C01DCD2 /* ProjectBuilderManager.swift */,
+				23FD14921CD050FBA75251B7 /* ProjectFilesExtracter.swift */,
+				3BACDC3CE460A750508E826C /* RepoPermManager.swift */,
+				3E7089AC68D39056BAC75278 /* CodeSuggestionsML.swift */,
 				4A9117BE5C6EF991F79E8454 /* KeychainService.swift */,
+				5137E17705BB41D95B0892BA /* ExtensionManager.swift */,
+				68981A4B255767A17FEDE087 /* LocalModelManager.swift */,
+				722FD53A2C6A67CFB5DBE973 /* ProjectManager.swift */,
+				7B00B0DA94E357ECFD961BF7 /* CodeFormatter.swift */,
+				8549A5CCC7EA4F5D861B7D46 /* Color+Hex.swift */,
+				86122350693B256B489D0029 /* NotificationManager.swift */,
+				8E9F0252B97FB06E5DF2B56A /* LogManager.swift */,
+				AC5DC561F8823924405A4BB3 /* ToolbarSettings.swift */,
+				B460F101BD1B63014A73A2C0 /* CodeIndexService.swift */,
+				B68DA3FF74B9ED80BC76F30C /* GitHubService.swift */,
+				BD599CB15931E1AE34531166 /* PluginManager.swift */,
+				C47ACC042411705FB3B2D05C /* OpenRouterService.swift */,
+				DFA7CBE035FA31B4DD1118D6 /* ProjectTemplateManager.swift */,
+				E88ABC5285FBB00F71402090 /* SyntaxHighlighter.swift */,
+				FECDF3B19AFE35EDD3CC54A0 /* ZipImporter.swift */,
 			);
 			path = "Services";
 			sourceTree = "<group>";
@@ -1635,34 +1817,6 @@
 			path = "AppIcon.appiconset";
 			sourceTree = "<group>";
 		};
-		22C2251C145B8C41B04536A6 /* Offline Models */ = {
-			isa = PBXGroup;
-			children = (
-				88E2617898F04F36449D50DD /* MLXSwift Foundation */,
-				9483FA17345E823BB30E91F4 /* OfflineModelRunner.swift */,
-				A2F098187CB2ACAE0A0A6105 /* OfflineModelConverter.swift */,
-				65664938409C5B74443AAFB1 /* OfflineModelMetadata.swift */,
-				C606A25F66EC0597CCDF0370 /* OfflineModelManager.swift */,
-				287AA726E98D4D06A1B84E1A /* DeviceCapabilityAnalyzer.swift */,
-				88E2617898F04F36449D50DD /* MLXSwift Foundation */,
-				43CEAAEEBB0248577216B72E /* OfflineModelDownloader.swift */,
-				DB2253E2AF936D537CEB4997 /* OfflineModelsStorage.swift */,
-				18693296FBA4E47237279C5D /* HuggingFaceAPI.swift */,
-			);
-			path = "Offline Models";
-			sourceTree = "<group>";
-		};
-		88E2617898F04F36449D50DD /* MLXSwift Foundation */ = {
-			isa = PBXGroup;
-			children = (
-				F5298FA0709CD46777DA8616 /* MLXModelContainer.swift */,
-				5773BDFA96D372ADB0842A39 /* UniversalModelLoader.swift */,
-				0CC1E54976EEBE8EA9EE0F0E /* MLXIntegration.swift */,
-				ED6EA66DF16B64D2A7DE58FA /* README.md */,
-			);
-			path = "MLXSwift Foundation";
-			sourceTree = "<group>";
-		};
 		808B808F9167AC4A0D66D4FD /* Developer */ = {
 			isa = PBXGroup;
 			children = (
@@ -1682,19 +1836,6 @@
 				8706905C703FA9C5060857F4 /* AppStore.swift */,
 			);
 			path = "Store";
-			sourceTree = "<group>";
-		};
-		B5C6D06004D5DCBD438499FB /* On Device Intelligence */ = {
-			isa = PBXGroup;
-			children = (
-				D6DEA240A2B42A39E4B16E21 /* OnDeviceAIManager.swift */,
-				4F629D95008520D7560DF64E /* OnDeviceModelRouter.swift */,
-				E740EBED3661A6F9A5501139 /* OnDeviceSession.swift */,
-				953210F454D6AB80BBC61923 /* DeviceUtilityManager.swift */,
-				E10B50602823F86F52DE6384 /* OnDeviceCapabilities.swift */,
-				C8FE776A78F47ED838E2CFBD /* AppleIntelligenceService.swift */,
-			);
-			path = "On Device Intelligence";
 			sourceTree = "<group>";
 		};
 		9F8B2D40599DF30F538F63A1 /* Licenses */ = {
@@ -1822,18 +1963,6 @@
 			path = "GitHub";
 			sourceTree = "<group>";
 		};
-		6D969FB93A3CA6DEB364EE63 /* Deployments */ = {
-			isa = PBXGroup;
-			children = (
-				93477D270675CF4CF5B2D556 /* DeploymentKeychainManager.swift */,
-				A9FB8F45B5456444FEE6A487 /* NetlifyManager.swift */,
-				1871020200B4B90AB9F92D4E /* GitHubPagesManager.swift */,
-				5C77B8819AC86765B72F1508 /* DeploymentTargets.swift */,
-				DE8CD56E4017977998235354 /* VercelManager.swift */,
-			);
-			path = "Deployments";
-			sourceTree = "<group>";
-		};
 		0AB50608FCE5717B55504EAD /* Local Simulation */ = {
 			isa = PBXGroup;
 			children = (
@@ -1895,70 +2024,12 @@
 			path = "FileSystem";
 			sourceTree = "<group>";
 		};
-		ACCD78AD790D110C0A76E747 /* Settings */ = {
-			isa = PBXGroup;
-			children = (
-				3563E370CBD42F8620297A0A /* Extension Management */,
-				7E98EC5E61489CE7CE6AB854 /* ProjectTemplateView.swift */,
-				08968ED253EE45E40E03838E /* Custom Tools */,
-				089B1CE7F469330E3B904175 /* GeneralSettingsView.swift */,
-				3563E370CBD42F8620297A0A /* Extension Management */,
-				CBDD38A4F9ABC9C7074B75A0 /* UpdatesView.swift */,
-				61D456F04F5F6358FD6ACB2D /* Skills */,
-				F41E7F18C6B47F81E7C1872A /* ModelDownloadProgressView.swift */,
-				DDF6BFF1BD9AC2E992179763 /* PluginCodeCreateView.swift */,
-				373DE604AB4A71991FF565A9 /* ProjectSettingsView.swift */,
-				057EAE735A7C77DB1A01F4B0 /* PluginManagerView.swift */,
-				2EC799EB285661299D07765D /* InstalledOfflineModelsView.swift */,
-				88A85C73A48C949CDCBC2007 /* OfflineModelsView.swift */,
-				72DBED34C08ECDE38C8E737F /* ModelLinkInstallGuideView.swift */,
-				02BC29E58C19C690DD971DA0 /* SettingsView.swift */,
-				D587D00CA4BBF03908427CC1 /* CreditsView.swift */,
-				9527AF8FE7655D61BB697E0F /* CodeSuggestionsView.swift */,
-			);
-			path = "Settings";
-			sourceTree = "<group>";
-		};
 		08968ED253EE45E40E03838E /* Custom Tools */ = {
 			isa = PBXGroup;
 			children = (
 				559B3A7644B6EC6BE90DEB43 /* CustomToolBuilderView.swift */,
 			);
 			path = "Custom Tools";
-			sourceTree = "<group>";
-		};
-		3563E370CBD42F8620297A0A /* Extension Management */ = {
-			isa = PBXGroup;
-			children = (
-				4EE2578A53F2C72B7DB43751 /* AIRefactorExtensionView.swift */,
-				E5D47536944D9D21484D6F8E /* AIDocGenExtensionView.swift */,
-				D3314F12A7A5A5C5140C2E22 /* KotlinSupportExtensionView.swift */,
-				3181B499A640865820F1B8B3 /* PythonSupportExtensionView.swift */,
-				F8247E7641B2CC9EB2432153 /* SwiftPackageManagerExtensionView.swift */,
-				2DA1A9EF90409DCFFB0ED343 /* CreateExtensionView.swift */,
-				BC417913E489F24E1DF29C07 /* DocCGeneratorExtensionView.swift */,
-				212E996D0D662F7D03CFB91D /* JSONFormatterExtensionView.swift */,
-				6B2C6A450EA442997F49FC1A /* ColorPickerExtensionView.swift */,
-				00048987BBB25A712D49051C /* NordThemeExtensionView.swift */,
-				71C341303B125990C097CEDA /* SnippetLibraryExtensionView.swift */,
-				9AD15287E124ADDE417399CC /* RustSupportExtensionView.swift */,
-				1A888309EDD9DFE93F9529C5 /* XcodeBuildToolExtensionView.swift */,
-				1C0D9F00673B0B4004DDE4BC /* UnitTestGenExtensionView.swift */,
-				6054852DAF5EF6F58ADC0577 /* MarkdownPreviewExtensionView.swift */,
-				72C0C80C785A06322885C35C /* EditExtensionView.swift */,
-				93DBB344B70D93A88269B581 /* TypeScriptSupportExtensionView.swift */,
-				8526C47363D79394BD1A44D6 /* CodeStatsExtensionView.swift */,
-				37386EAB585EAED952D81C8A /* GoSupportExtensionView.swift */,
-				E6667D90FCA317DE3700C420 /* MultiCursorExtensionView.swift */,
-				F146FD8BE500A0EE2E1ED78C /* GitBlameExtensionView.swift */,
-				B90A14F8825EA8F4E2475C4B /* SwiftLintRunnerExtensionView.swift */,
-				4F2085534C1C343FD115D82F /* GruvboxThemeExtensionView.swift */,
-				5E75F572EDD4F8CE42F302CD /* RegexTesterExtensionView.swift */,
-				BAD7D75823F270BC97711B83 /* SwiftFormatterExtensionView.swift */,
-				982D7FE460FD439B66834515 /* TodoHighlighterExtensionView.swift */,
-				12FF9A136F8F7CBCD634A73C /* DarkProThemeExtensionView.swift */,
-			);
-			path = "Extension Management";
 			sourceTree = "<group>";
 		};
 		61D456F04F5F6358FD6ACB2D /* Skills */ = {
@@ -1977,50 +2048,6 @@
 				B3A3AFA4A3606AC1D390A92A /* CommandPaletteView.swift */,
 			);
 			path = "CommandPalette";
-			sourceTree = "<group>";
-		};
-		F584F6103978748E3DD5217D /* Developer */ = {
-			isa = PBXGroup;
-			children = (
-				12E1269935A37C9F4AF95B4F /* AIModelDebugger */,
-				48370F1091ED5500978436D7 /* FileSystemInspector */,
-				6E77B42DC4B4DB699AA95E29 /* DebugOverlaysView.swift */,
-				78AD624E261B87B32D258928 /* BackgroundTaskMonitorView.swift */,
-				E19EA085FB79DF02F126335D /* EnvironmentSwitcherView.swift */,
-				AE43A068B400B4563E93C57B /* CacheInspectorView.swift */,
-				80C72B98BCB6F61B652500B0 /* StoreKitDebug */,
-				133FD5908EAF09F6859709C5 /* APILatencyTrackerView.swift */,
-				65C13ED64600342DA2630304 /* DatabaseInspectorView.swift */,
-				253FF9285C7C1BC2DCC6D288 /* WebViewDebugger */,
-				0D5CD3BDE45A1C516CCA10FC /* DatabaseInspector */,
-				6D16E936A382D4E8006FC4E1 /* VerboseLogging */,
-				611069667F47F21CEE42B3C1 /* ConsoleCommandRunnerView.swift */,
-				0FE133C12839EAEF698BF049 /* APIInspector */,
-				B675F1FE9EE790655526693C /* PaywallDebug */,
-				CEBB182A43396D637CB4B787 /* DependencyHealthView.swift */,
-				609DB41C5AACAB1D43EAEE7A /* CrashDebugger */,
-				9003D91BBB65C8C3421BC3A5 /* FeatureFlags */,
-				E5D64F9FF65A0ED54E33742B /* StateInspectorView.swift */,
-				6969997F3D5F5CB90C3DCA5D /* GitHubAPIDebug */,
-				048FFEA44DE3C634761BD5C6 /* CoreMLInspector */,
-				62EEFFB507750E793AC7EF35 /* RuntimeFlags */,
-				6EDA931005139E6A1492943E /* PermissionsCheckerView.swift */,
-				36CCA00FE85EEBF696BA5563 /* ErrorFrequencyTrackerView.swift */,
-				479000751304998B1B1ED4C0 /* BuildPipelineDebugger */,
-				53754DD4A8CE21248EB540A6 /* ThreadInspector */,
-				37A185C9C391EC5059E71B33 /* BinaryTools */,
-				040DEBA1FC7BDFB9DE2A733F /* MemoryInspector */,
-				A645D312F8AF5366E86E5644 /* DeploymentDebug */,
-				A158A091E53CACE725B6D0C4 /* NetworkInspector */,
-				F69153200808B37207CDDE2E /* PerformanceMonitor */,
-				E203F76FC6AA18FB282E8EB2 /* MemoryLeakDetectionView.swift */,
-				98B8B25FC71CD8A493578AF9 /* ExtensionDebugger */,
-				7D4E6BE0B8566D3E22FA7CC4 /* BuildDiagnosticsView.swift */,
-				AC3324D3D2F2BCC613781816 /* LogConsole */,
-				6EB2D488DAD7AB85751FC5B8 /* DeveloperDashboard */,
-				883E77091FBBA56797A15987 /* RealtimeMetricsDashboardView.swift */,
-			);
-			path = "Developer";
 			sourceTree = "<group>";
 		};
 		48370F1091ED5500978436D7 /* FileSystemInspector */ = {
@@ -2199,49 +2226,6 @@
 			path = "DeveloperDashboard";
 			sourceTree = "<group>";
 		};
-		50449986FA13E01B106DB1E2 /* Build */ = {
-			isa = PBXGroup;
-			children = (
-				070568FDFE009D932399AA92 /* AppDetailsInfo.swift */,
-				677867FB275018155CE87ED1 /* PrepareCompileWaitingView.swift */,
-				85B4212740267470136E60B6 /* LocalBuildView.swift */,
-				C47D05763F6CC4D3BFEC1DA8 /* BuildStatusView.swift */,
-				520E553F89642C2F5E118C85 /* BuildLogsView.swift */,
-				F084AC3ABB1F1E370A979172 /* TerminalView.swift */,
-				F8083C6624E26957851A7207 /* CIBuildView.swift */,
-				D97F6F24303C4976255BACB4 /* LocalBuildDemoView.swift */,
-			);
-			path = "Build";
-			sourceTree = "<group>";
-		};
-		ABBC8A11E8527DDF62152F7F /* Editor */ = {
-			isa = PBXGroup;
-			children = (
-				77551FB61E8CADB4F5A4963C /* EditorLogicFrameworks */,
-				2AEB32651A4E4F7B561D7B81 /* SymbolOutlineView.swift */,
-				78E0384A674A291B4F2B2EAE /* CodeEditorManagementView.swift */,
-				88D5C675571394D656736CBB /* GoToLineView.swift */,
-				9885707843193FBBAC3F657E /* MinimapSettingsView.swift */,
-				46A5954FB1CB8C571A915115 /* SymbolNavigatorView.swift */,
-				77551FB61E8CADB4F5A4963C /* EditorLogicFrameworks */,
-				FBAB409C7BAE9FEAEB52CBFD /* CodeEditorView.swift */,
-			);
-			path = "Editor";
-			sourceTree = "<group>";
-		};
-		77551FB61E8CADB4F5A4963C /* EditorLogicFrameworks */ = {
-			isa = PBXGroup;
-			children = (
-				CE760BD68F314B37F7AF35FC /* AISuggestionEngine.swift */,
-				30779705BBEB9DEE5EC0BAD7 /* CodeStructureAnalyzer.swift */,
-				F9EE69B891FE9AA2F03E6C1F /* CodeExecutionManager.swift */,
-				A553F7F0EC807183F16C3691 /* TextLayoutEngine.swift */,
-				770308227209166D70F0AAF4 /* CodeColoringTheme.swift */,
-				A0122F265953CCBF00E0194B /* SyntaxHighlightingEngine.swift */,
-			);
-			path = "EditorLogicFrameworks";
-			sourceTree = "<group>";
-		};
 		A6D0743A199544E4FAD45BA7 /* Dependencies */ = {
 			isa = PBXGroup;
 			children = (
@@ -2310,29 +2294,6 @@
 			path = "Navigator";
 			sourceTree = "<group>";
 		};
-		9A1B2298211314926FB40FFE /* Toolbar */ = {
-			isa = PBXGroup;
-			children = (
-				9E8E1E3F3E5CF371DEB8BED6 /* MainToolbarView.swift */,
-				124CA9BA9F6ECBC4DCEA72BB /* ToolbarMinimizedView.swift */,
-				B64BBFEADA10E5A599D72F4F /* ToolbarCustomizationView.swift */,
-			);
-			path = "Toolbar";
-			sourceTree = "<group>";
-		};
-		B2A7690712D32834FD7DE4D4 /* Gists */ = {
-			isa = PBXGroup;
-			children = (
-				BC306472B4DC097AF442EE29 /* GistDetailView.swift */,
-				3069F55E6F6260382D383F1A /* GistsView.swift */,
-				1A6D06CCAD6655BAF43C1815 /* CreateGistView.swift */,
-				65B55DDE1BD10D06341FF937 /* Components */,
-				210F09408499DAF00DC22450 /* GistRevisionsView.swift */,
-				A02D8F6C62F2A67B46F56709 /* GistDiffView.swift */,
-			);
-			path = "Gists";
-			sourceTree = "<group>";
-		};
 		65B55DDE1BD10D06341FF937 /* Components */ = {
 			isa = PBXGroup;
 			children = (
@@ -2348,14 +2309,35 @@
 		718173758FBD56C156A0D0F5 /* GitHub */ = {
 			isa = PBXGroup;
 			children = (
-				751C41EDED845FEEE481743C /* CommitHistoryView.swift */,
 				04A503F2498797A8908D9CE2 /* LicencesAddView.swift */,
-				E0D55218A665C9DD35C9A1BB /* GitHubIssuesView.swift */,
-				EFEA497EF66525C6EAF10DC2 /* BranchManagementView.swift */,
-				E2568535BF61BCCDCC5AE027 /* PullRequestView.swift */,
-				5A64BC744609FB58156F0EC8 /* GitCLIView.swift */,
-				5430117ECBE9C74EB302DE61 /* GitHubIntegrationView.swift */,
+				0B696CCBAC2A4F029DCC3183 /* SwiftCode/Views/Agent/AgentToolCallSummaryView.swift */,
+				16F849EB4E07411D8BA067AA /* SwiftCode/Views/Agent/AgentMessageBubbleView.swift */,
+				25379D97984683C3F0FBF856 /* GitChangesView.swift */,
+				29A60AD5A8F543A3B06736E3 /* SwiftCode/Views/Agent/AgentChecklistView.swift */,
 				45043C8513A5F80E6672887D /* GitCommandView.swift */,
+				4B59EE8372BC441A82461C7C /* SwiftCode/Views/Agent/AgentInputBarView.swift */,
+				4CAE27B62C18DFF02AF12C27 /* GitDiffView.swift */,
+				5430117ECBE9C74EB302DE61 /* GitHubIntegrationView.swift */,
+				58C22324AECE138382A52873 /* GitCloneSheetView.swift */,
+				5A64BC744609FB58156F0EC8 /* GitCLIView.swift */,
+				68051EEABE634E58A0F15236 /* SwiftCode/Views/Agent/AgentChatView.swift */,
+				6E47D50A0F434C7A8E6B4E76 /* SwiftCode/Views/Agent/QuestionsHandleView.swift */,
+				726DF8A6FC0C5A0CC4B7CEEC /* GitBranchesView.swift */,
+				751C41EDED845FEEE481743C /* CommitHistoryView.swift */,
+				86B91DA9130FD5B5B7A60271 /* GitFileRowView.swift */,
+				8999D37C49164210B184268A /* Skills */,
+				B6936AD38C3A245BE69068C5 /* GitPanelView.swift */,
+				BC231DAA2DC9437F7B6EB219 /* GitCommitComposerView.swift */,
+				BE7EAF83E22C522F5D3FCF5E /* GitConflictBannerView.swift */,
+				C59F0415D6B4E2C4C7901AAA /* GitNotInstalledView.swift */,
+				D187869D5B13477E85420015 /* SwiftCode/Views/Agent/AskUserPromptView.swift */,
+				D8033A3313244A9593648EF6 /* SwiftCode/Views/Agent/AgentAttachmentPickerView.swift */,
+				E0D55218A665C9DD35C9A1BB /* GitHubIssuesView.swift */,
+				E0FE8E43D52444368B4F7129 /* SwiftCode/Views/Agent/AgentMessageListView.swift */,
+				E2568535BF61BCCDCC5AE027 /* PullRequestView.swift */,
+				EFEA497EF66525C6EAF10DC2 /* BranchManagementView.swift */,
+				F68E78007D38BEDEADAC1868 /* GitHistoryView.swift */,
+				F9CCDC265B5F4E9FA3BFFEBF /* SwiftCode/Views/Agent/AgentAttachmentChipView.swift */,
 			);
 			path = "GitHub";
 			sourceTree = "<group>";
@@ -2375,39 +2357,6 @@
 				4E9720E95DFD220962A55F0E /* ErrorsPanelView.swift */,
 			);
 			path = "Errors";
-			sourceTree = "<group>";
-		};
-		865D34D3DC4F39171012B285 /* Collaboration */ = {
-			isa = PBXGroup;
-			children = (
-				A977BA9D804F72737F28D146 /* CollaborationMainView.swift */,
-				55499AA69755D101C20D43B0 /* PushPullManagerView.swift */,
-				60D9562C914DDF4635B43D7C /* PRCreateView.swift */,
-				5484649C69D50E3B3151599B /* CollaborationFilePresenceOverlay.swift */,
-				0DB12E2478CCB57F5CB12C9E /* CollaborationDashboardView.swift */,
-				1EDAB6A339F43FA6BF5A78D1 /* CollaborationSidebarView.swift */,
-				E03B5EC86437687DB8C9FDAB /* InviteMembersView.swift */,
-				FDB0E8E843E3C57FACDD1B98 /* PushPullView.swift */,
-				1365BE3C14994BB877BF5EDF /* BranchWorkspaceView.swift */,
-				6160E9FC707A9B07E04C2B81 /* FilePermissionView.swift */,
-				EF9D62D399A22DCC39390E67 /* BranchGraphView.swift */,
-				0BDD31EC9E6CCB7819671704 /* CollaborationPullRequestView.swift */,
-				5F527CCADC4EA16965746BA5 /* CollaborationBranchGraphView.swift */,
-				08C0893DD6303723C51721E5 /* CollaborationConflictResolverView.swift */,
-				F29B99D50A21305B8FEB86AA /* CollaborationDiffViewerView.swift */,
-				2B4E02E0765F74EF375F126E /* ActivityLogView.swift */,
-				D8DB765C63820090AEFE6935 /* CollaborationChatView.swift */,
-				98379720FF5B21C1289FB7E8 /* CommitManagerView.swift */,
-				4F73BA0184F327F66A9B7E1A /* CollaborationNotificationCenterView.swift */,
-				5BA427DBE07802D79F01231F /* CollaborationBranchManagementView.swift */,
-				D6EC45A178541956913F098A /* CollaborationAuditLogView.swift */,
-				5764991BF5162A46CCCD57AE /* CollaborationCodeReviewView.swift */,
-				321A0405166EEF11E8FEF56A /* ConflictResolverView.swift */,
-				CAFF40957A1397E34EFFE144 /* CollaborationFeedbackView.swift */,
-				166503E359F6530CAF149078 /* MemberManagementView.swift */,
-				1003AE65D09089468A7412A2 /* CollaborationCommitHistoryView.swift */,
-			);
-			path = "Collaboration";
 			sourceTree = "<group>";
 		};
 		A4C8D4B5D859D8EB5F28E90E /* Transfer Projects */ = {
@@ -2431,18 +2380,6 @@
 				34F3F49FB4F01F3566981623 /* OnboardingWelcomeView.swift */,
 			);
 			path = "Onboarding";
-			sourceTree = "<group>";
-		};
-		B6D3DE9CCA0AEA43F76382B4 /* Features */ = {
-			isa = PBXGroup;
-			children = (
-				11D4A57C4D797F9F1C808B9F /* AI */,
-				BA509B38D66A2DFF0E2B7F38 /* AdvancedTools */,
-				97B80356D4B807C8D785C776 /* Testing */,
-				85D89480C649F746954B1C4A /* Debug Tools */,
-				BA509B38D66A2DFF0E2B7F38 /* AdvancedTools */,
-			);
-			path = "Features";
 			sourceTree = "<group>";
 		};
 		97B80356D4B807C8D785C776 /* Testing */ = {
@@ -2469,16 +2406,6 @@
 			path = "Debug Tools";
 			sourceTree = "<group>";
 		};
-		BA509B38D66A2DFF0E2B7F38 /* AdvancedTools */ = {
-			isa = PBXGroup;
-			children = (
-				C3179EE8BAF00CBFFCF2D957 /* Views */,
-				10ACA9D9C269F7A0D14CAB5B /* Engines */,
-				C3179EE8BAF00CBFFCF2D957 /* Views */,
-			);
-			path = "AdvancedTools";
-			sourceTree = "<group>";
-		};
 		10ACA9D9C269F7A0D14CAB5B /* Engines */ = {
 			isa = PBXGroup;
 			children = (
@@ -2488,56 +2415,6 @@
 				8D887EA675E5AFE7EE14C383 /* WorkspaceProfilesManager.swift */,
 			);
 			path = "Engines";
-			sourceTree = "<group>";
-		};
-		C3179EE8BAF00CBFFCF2D957 /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				4E1DD198B91F06453F4C5FA2 /* DocumentationAIInsightsView.swift */,
-				EC4978018A58A635B164593E /* SearchDocumentationView.swift */,
-				CA3B94A52CC92B9B542B7A6E /* AdvancedToolsDesignSystem.swift */,
-				45D3741257D15CB4624B50BC /* ProjectDependencyGraphView.swift */,
-				BA5F34FBCE0E82CAD0772957 /* CrashLogAnalyzerView.swift */,
-				C33725107C0F0A6D94F3898B /* CodeIntelligenceView.swift */,
-				10AA8C53B2A2753122DDB3A0 /* SymbolIndexView.swift */,
-				0D2D2E27AD889F7C54A77B40 /* AssetManagerView.swift */,
-				02E00B0D5F2DB68D7430C276 /* CodeRefactoringView.swift */,
-				B2730881CCB09DD938474F1F /* ExtensionMarketplaceView.swift */,
-				A1332B8131E27F86E84CC220 /* SnippetsLibraryView.swift */,
-				D640EAE98F392DC8DEAD3617 /* ErrorDiagnosticsView.swift */,
-				BB82D09E7AD4E05ACD6AC572 /* CodeMetricsDashboardView.swift */,
-				F60787477E14031160E05A32 /* DocumentationBrowserView.swift */,
-				881DC2B16F0A3C9B2627B8D4 /* WorkspaceProfilesView.swift */,
-			);
-			path = "Views";
-			sourceTree = "<group>";
-		};
-		57AFC04E569B8BDE2658ECD4 /* Services */ = {
-			isa = PBXGroup;
-			children = (
-				4A9117BE5C6EF991F79E8454 /* KeychainService.swift */,
-				C47ACC042411705FB3B2D05C /* OpenRouterService.swift */,
-				68981A4B255767A17FEDE087 /* LocalModelManager.swift */,
-				FECDF3B19AFE35EDD3CC54A0 /* ZipImporter.swift */,
-				DFA7CBE035FA31B4DD1118D6 /* ProjectTemplateManager.swift */,
-				722FD53A2C6A67CFB5DBE973 /* ProjectManager.swift */,
-				B68DA3FF74B9ED80BC76F30C /* GitHubService.swift */,
-				23FD14921CD050FBA75251B7 /* ProjectFilesExtracter.swift */,
-				1C4A32C40B7DCC2C9C01DCD2 /* ProjectBuilderManager.swift */,
-				AC5DC561F8823924405A4BB3 /* ToolbarSettings.swift */,
-				3BACDC3CE460A750508E826C /* RepoPermManager.swift */,
-				7B00B0DA94E357ECFD961BF7 /* CodeFormatter.swift */,
-				E88ABC5285FBB00F71402090 /* SyntaxHighlighter.swift */,
-				3E7089AC68D39056BAC75278 /* CodeSuggestionsML.swift */,
-				BD599CB15931E1AE34531166 /* PluginManager.swift */,
-				8549A5CCC7EA4F5D861B7D46 /* Color+Hex.swift */,
-				86122350693B256B489D0029 /* NotificationManager.swift */,
-				10F0D87A99B6FE8E88BEDFFA /* FolderManager.swift */,
-				8E9F0252B97FB06E5DF2B56A /* LogManager.swift */,
-				5137E17705BB41D95B0892BA /* ExtensionManager.swift */,
-				B460F101BD1B63014A73A2C0 /* CodeIndexService.swift */,
-			);
-			path = "Services";
 			sourceTree = "<group>";
 		};
 		001BFD647D5F8303B39B8C64 /* Backend */ = {
@@ -2743,42 +2620,6 @@
 				CDCF79B3AB0C394332CFA219 /* GitFileStatus.swift */,
 			);
 			path = Git;
-			sourceTree = "<group>";
-		};
-		718173758FBD56C156A0D0F5 /* GitHub */ = {
-			isa = PBXGroup;
-			children = (
-				751C41EDED845FEEE481743C /* CommitHistoryView.swift */,
-				04A503F2498797A8908D9CE2 /* LicencesAddView.swift */,
-				E0D55218A665C9DD35C9A1BB /* GitHubIssuesView.swift */,
-				EFEA497EF66525C6EAF10DC2 /* BranchManagementView.swift */,
-				E2568535BF61BCCDCC5AE027 /* PullRequestView.swift */,
-				5A64BC744609FB58156F0EC8 /* GitCLIView.swift */,
-				5430117ECBE9C74EB302DE61 /* GitHubIntegrationView.swift */,
-				45043C8513A5F80E6672887D /* GitCommandView.swift */,
-				8999D37C49164210B184268A /* Skills */,
-				29A60AD5A8F543A3B06736E3 /* SwiftCode/Views/Agent/AgentChecklistView.swift */,
-				6E47D50A0F434C7A8E6B4E76 /* SwiftCode/Views/Agent/QuestionsHandleView.swift */,
-				D187869D5B13477E85420015 /* SwiftCode/Views/Agent/AskUserPromptView.swift */,
-				0B696CCBAC2A4F029DCC3183 /* SwiftCode/Views/Agent/AgentToolCallSummaryView.swift */,
-				F9CCDC265B5F4E9FA3BFFEBF /* SwiftCode/Views/Agent/AgentAttachmentChipView.swift */,
-				D8033A3313244A9593648EF6 /* SwiftCode/Views/Agent/AgentAttachmentPickerView.swift */,
-				4B59EE8372BC441A82461C7C /* SwiftCode/Views/Agent/AgentInputBarView.swift */,
-				16F849EB4E07411D8BA067AA /* SwiftCode/Views/Agent/AgentMessageBubbleView.swift */,
-				E0FE8E43D52444368B4F7129 /* SwiftCode/Views/Agent/AgentMessageListView.swift */,
-				68051EEABE634E58A0F15236 /* SwiftCode/Views/Agent/AgentChatView.swift */,
-				25379D97984683C3F0FBF856 /* GitChangesView.swift */,
-				4CAE27B62C18DFF02AF12C27 /* GitDiffView.swift */,
-				58C22324AECE138382A52873 /* GitCloneSheetView.swift */,
-				726DF8A6FC0C5A0CC4B7CEEC /* GitBranchesView.swift */,
-				86B91DA9130FD5B5B7A60271 /* GitFileRowView.swift */,
-				B6936AD38C3A245BE69068C5 /* GitPanelView.swift */,
-				BC231DAA2DC9437F7B6EB219 /* GitCommitComposerView.swift */,
-				BE7EAF83E22C522F5D3FCF5E /* GitConflictBannerView.swift */,
-				C59F0415D6B4E2C4C7901AAA /* GitNotInstalledView.swift */,
-				F68E78007D38BEDEADAC1868 /* GitHistoryView.swift */,
-			);
-			path = GitHub;
 			sourceTree = "<group>";
 		};
 		7AC2FEBCF22207B8E4FD7451 /* Theme */ = {
