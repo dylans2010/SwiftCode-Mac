@@ -140,15 +140,13 @@ struct DocumentationBrowserView: View {
         }
     }
 
-            private func openInSafari() {
+    private func openInSafari() {
         if let currentURL {
             #if canImport(AppKit)
             NSWorkspace.shared.open(currentURL)
             #endif
         }
     }
-
-        }
 
     private func loadFramework(_ name: String) {
         query = name
@@ -281,3 +279,4 @@ private extension DocsWebView {
     func updateNSView(_ webView: WKWebView, context: Context) {
         updatePlatformView(webView, context: context)
     }
+}

@@ -394,7 +394,7 @@ struct CreateGistView: View {
         guard let content = try? String(contentsOf: url) else { return nil }
         return [(url.lastPathComponent, content)]
     }
-}
+
 
 // MARK: - Success View
 
