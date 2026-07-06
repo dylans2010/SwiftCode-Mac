@@ -86,13 +86,15 @@ struct DocumentationBrowserView: View {
                 }
             }
             .navigationTitle("Documentation")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .searchable(text: $query, prompt: "Search")
             .onSubmit(of: .search) {
                 performSearch()
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Button(action: {
                             guard EntitlementManager.shared.proAccess else {

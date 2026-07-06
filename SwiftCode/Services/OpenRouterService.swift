@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - OpenRouter API Service
 
-final class OpenRouterService {
+final class OpenRouterService: Sendable {
     static let shared = OpenRouterService()
     private init() {}
 
