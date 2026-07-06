@@ -32,7 +32,7 @@ struct CollaborationDiffViewerView: View {
                 .font(.system(.caption, design: .monospaced))
                 .padding()
             }
-            .background(Color(.systemGray6))
+            .background(Color.secondary.opacity(0.1))
         }
         .navigationTitle("Diff Viewer")
     }

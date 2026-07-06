@@ -32,7 +32,7 @@ struct CollaborationPullRequestView: View {
         .background(Color.clear)
         .navigationTitle("Pull Requests")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .primaryAction) {
                 Button { showingCreatePR = true } label: {
                     Image(systemName: "plus")
                         .font(.title3)

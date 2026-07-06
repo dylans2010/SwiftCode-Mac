@@ -30,7 +30,7 @@ struct BranchWorkspaceView: View {
         .background(Color.clear)
         .navigationTitle("Branches")
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .primaryAction) {
                 if manager.workspaces.isLoadingWorkspace {
                     ProgressView()
                 }
