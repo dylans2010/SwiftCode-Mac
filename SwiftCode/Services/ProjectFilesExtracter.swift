@@ -6,8 +6,6 @@ public final class ProjectFilesExtracter: Sendable {
     public static let shared = ProjectFilesExtracter()
     private init() {}
 
-    private let fm = FileManager.default
-
     /// Polls for the completion of a workflow run and downloads/integrates its artifacts.
     /// - Parameters:
     ///   - project: The local project to update.
@@ -106,6 +104,7 @@ public final class ProjectFilesExtracter: Sendable {
     }
 
     private func integrate(zipData: Data, into project: Project, progress: @escaping (Double, String) -> Void) async throws {
+        let fm = FileManager.default
         let tempBase = fm.temporaryDirectory.appendingPathComponent("SwiftCode/Backend/tmp/", isDirectory: true)
         let tempDir = tempBase.appendingPathComponent(UUID().uuidString)
         try fm.createDirectory(at: tempDir, withIntermediateDirectories: true)

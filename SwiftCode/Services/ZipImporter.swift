@@ -2,16 +2,15 @@ import Foundation
 import ZIPFoundation
 
 /// Handles importing a .zip archive and converting it into a SwiftCode project.
-final class ZipImporter {
+final class ZipImporter: Sendable {
     static let shared = ZipImporter()
     private init() {}
-
-    private let fm = FileManager.default
 
     // MARK: - Export
 
     /// Exports an existing project directory as a .zip file and returns the local URL.
     func exportZip(for project: Project) async throws -> URL {
+        let fm = FileManager.default
         let projectDir = await MainActor.run { project.directoryURL }
         let zipName = "\(project.name).zip"
         let destURL = fm.temporaryDirectory.appendingPathComponent(zipName)
@@ -27,6 +26,7 @@ final class ZipImporter {
     /// - Parameter zipURL: The source .zip file URL.
     /// - Returns: The newly created Project.
     func importZip(at zipURL: URL) async throws -> Project {
+        let fm = FileManager.default
         let projectName = zipURL.deletingPathExtension().lastPathComponent
         let tempDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
 
@@ -71,13 +71,14 @@ final class ZipImporter {
     // MARK: - Unzip (using ZIPFoundation)
 
     private func unzip(_ zipURL: URL, to destination: URL) throws {
-        try fm.unzipItem(at: zipURL, to: destination)
+        try FileManager.default.unzipItem(at: zipURL, to: destination)
     }
 
     // MARK: - Find Root
 
     /// If the zip contains a single top-level directory, return it; otherwise return the temp dir itself.
     private func findExtractedRoot(in directory: URL) throws -> URL {
+        let fm = FileManager.default
         let contents = try fm.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: [.isDirectoryKey],
@@ -94,6 +95,7 @@ final class ZipImporter {
     // MARK: - Copy Contents with Path Validation
 
     private func copyContents(from source: URL, to destination: URL) throws {
+        let fm = FileManager.default
         try fm.createDirectory(at: destination, withIntermediateDirectories: true)
         let contents = try fm.contentsOfDirectory(
             at: source,
@@ -123,6 +125,7 @@ final class ZipImporter {
     // MARK: - File Tree
 
     private func buildFileTree(at url: URL, relativeTo base: URL) -> [FileNode] {
+        let fm = FileManager.default
         guard let contents = try? fm.contentsOfDirectory(
             at: url,
             includingPropertiesForKeys: [.isDirectoryKey],

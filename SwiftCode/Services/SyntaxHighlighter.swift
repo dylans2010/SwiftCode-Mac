@@ -6,9 +6,15 @@ import UIKit
 typealias ColorType = UIColor
 #endif
 
-final class SyntaxHighlighter {
+final class SyntaxHighlighter: Sendable {
     static let shared = SyntaxHighlighter()
-    private init() { buildAllPatterns() }
+    private init() {
+        self.swiftPatterns = Self.buildSwiftPatterns()
+        self.shellPatterns = Self.buildShellPatterns()
+        self.jsonPatterns = Self.buildJSONPatterns()
+        self.plistPatterns = Self.buildPlistPatterns()
+        self.markdownPatterns = Self.buildMarkdownPatterns()
+    }
 
     // MARK: - Theme
 
@@ -83,15 +89,17 @@ final class SyntaxHighlighter {
 
     // MARK: - Pattern Storage
 
-    private typealias PatternEntry = (regex: NSRegularExpression,
-                                      captureGroup: Int,
-                                      color: (Theme) -> ColorType)
+    private struct PatternEntry: Sendable {
+        let regex: NSRegularExpression
+        let captureGroup: Int
+        let color: @Sendable (Theme) -> ColorType
+    }
 
-    private var swiftPatterns: [PatternEntry] = []
-    private var shellPatterns: [PatternEntry] = []
-    private var jsonPatterns: [PatternEntry] = []
-    private var plistPatterns: [PatternEntry] = []
-    private var markdownPatterns: [PatternEntry] = []
+    private let swiftPatterns: [PatternEntry]
+    private let shellPatterns: [PatternEntry]
+    private let jsonPatterns: [PatternEntry]
+    private let plistPatterns: [PatternEntry]
+    private let markdownPatterns: [PatternEntry]
 
     // MARK: - Highlight (entry point)
 
@@ -138,33 +146,23 @@ final class SyntaxHighlighter {
         }
     }
 
-    // MARK: - Pattern Building
-
-    private func buildAllPatterns() {
-        buildSwiftPatterns()
-        buildShellPatterns()
-        buildJSONPatterns()
-        buildPlistPatterns()
-        buildMarkdownPatterns()
-    }
-
     // MARK: Swift
 
-    private func buildSwiftPatterns() {
+    private static func buildSwiftPatterns() -> [PatternEntry] {
         var p: [PatternEntry] = []
 
-        add(#"(\/\/[^\n]*)"#, color: \.comment, to: &p)
-        add(#"(\/\*[\s\S]*?\*\/)"#, color: \.comment, to: &p)
+        add(#"(\/\/[^\n]*)"#, color: { $0.comment }, to: &p)
+        add(#"(\/\*[\s\S]*?\*\/)"#, color: { $0.comment }, to: &p)
 
-        add(#"("""[\s\S]*?""")"#, color: \.string, to: &p)
-        add(#"("(?:[^"\\]|\\.)*")"#, color: \.string, to: &p)
+        add(#"("""[\s\S]*?""")"#, color: { $0.string }, to: &p)
+        add(#"("(?:[^"\\]|\\.)*")"#, color: { $0.string }, to: &p)
 
-        add(#"(\\(\())"#, color: \.interpolation, to: &p)
+        add(#"(\\(\())"#, color: { $0.interpolation }, to: &p)
 
-        add(#"\b(import)\s+([A-Za-z_][A-Za-z0-9_]*)"#, color: \.variableDecl, captureGroup: 1, to: &p)
-        add(#"\bimport\s+([A-Za-z_][A-Za-z0-9_]*)"#, color: \.importModule, captureGroup: 1, to: &p)
+        add(#"\b(import)\s+([A-Za-z_][A-Za-z0-9_]*)"#, color: { $0.variableDecl }, captureGroup: 1, to: &p)
+        add(#"\bimport\s+([A-Za-z_][A-Za-z0-9_]*)"#, color: { $0.importModule }, captureGroup: 1, to: &p)
 
-        add(#"(#if|#else|#elseif|#endif|#available|#unavailable|#selector|#keyPath|#file|#line|#function|#column|#dsohandle|#warning|#error|#sourceLocation|#Preview)\b"#, color: \.preprocessor, to: &p)
+        add(#"(#if|#else|#elseif|#endif|#available|#unavailable|#selector|#keyPath|#file|#line|#function|#column|#dsohandle|#warning|#error|#sourceLocation|#Preview)\b"#, color: { $0.preprocessor }, to: &p)
 
         let swiftUIViews = [
             "Text", "Image", "Button", "Toggle", "Slider", "Stepper",
@@ -188,7 +186,7 @@ final class SyntaxHighlighter {
             "ViewThatFits", "AnyLayout",
             "ContentUnavailableView", "TipView"
         ]
-        add("\\b(\(swiftUIViews.joined(separator: "|")))\\b", color: \.swiftUIView, to: &p)
+        add("\\b(\(swiftUIViews.joined(separator: "|")))\\b", color: { $0.swiftUIView }, to: &p)
 
         let modifiers = [
             "padding", "frame", "background", "foregroundColor", "foregroundStyle",
@@ -235,25 +233,25 @@ final class SyntaxHighlighter {
             "autocorrectionDisabled", "textInputAutocapitalization",
             "layoutPriority", "fixedSize", "geometryGroup"
         ]
-        add("\\.(\(modifiers.joined(separator: "|")))\\b", color: \.modifier, captureGroup: 1, to: &p)
+        add("\\.(\(modifiers.joined(separator: "|")))\\b", color: { $0.modifier }, captureGroup: 1, to: &p)
 
-        add(#"(@[a-zA-Z_][a-zA-Z0-9_]*)"#, color: \.propertyWrapper, to: &p)
+        add(#"(@[a-zA-Z_][a-zA-Z0-9_]*)"#, color: { $0.propertyWrapper }, to: &p)
 
         let accessKw = ["public", "private", "internal", "fileprivate", "open"]
-        add("\\b(\(accessKw.joined(separator: "|")))\\b", color: \.accessControl, to: &p)
+        add("\\b(\(accessKw.joined(separator: "|")))\\b", color: { $0.accessControl }, to: &p)
 
         let controlKw = ["if", "else", "for", "while", "repeat", "switch", "case",
                          "default", "break", "continue", "fallthrough", "return",
                          "guard", "where", "do", "catch", "throw", "defer"]
-        add("\\b(\(controlKw.joined(separator: "|")))\\b", color: \.controlFlow, to: &p)
+        add("\\b(\(controlKw.joined(separator: "|")))\\b", color: { $0.controlFlow }, to: &p)
 
         let declKw = ["struct", "class", "enum", "protocol", "extension",
                       "func", "init", "deinit", "subscript", "typealias",
                       "actor", "macro", "associatedtype"]
-        add("\\b(\(declKw.joined(separator: "|")))\\b", color: \.keyword, to: &p)
+        add("\\b(\(declKw.joined(separator: "|")))\\b", color: { $0.keyword }, to: &p)
 
         let varKw = ["var", "let"]
-        add("\\b(\(varKw.joined(separator: "|")))\\b", color: \.variableDecl, to: &p)
+        add("\\b(\(varKw.joined(separator: "|")))\\b", color: { $0.variableDecl }, to: &p)
 
         let otherKw = ["in", "is", "as", "try", "throws", "rethrows",
                        "async", "await", "get", "set", "willSet", "didSet",
@@ -265,85 +263,85 @@ final class SyntaxHighlighter {
                        "preconcurrency", "dynamic", "optional",
                        "indirect", "prefix", "postfix", "infix",
                        "precedencegroup", "operator"]
-        add("\\b(\(otherKw.joined(separator: "|")))\\b", color: \.keyword, to: &p)
+        add("\\b(\(otherKw.joined(separator: "|")))\\b", color: { $0.keyword }, to: &p)
 
-        add(#"\b([A-Z][a-zA-Z0-9_]*)\b"#, color: \.type, to: &p)
-        add(#"\bfunc\s+([a-zA-Z_][a-zA-Z0-9_]*)"#, color: \.function, captureGroup: 1, to: &p)
-        add(#"\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\("#, color: \.function, captureGroup: 1, to: &p)
-        add(#"\b(\d+\.?\d*(?:e[+-]?\d+)?)\b"#, color: \.number, to: &p)
-        add(#"\b(0x[0-9a-fA-F]+)\b"#, color: \.number, to: &p)
-        add(#"\b(0b[01]+)\b"#, color: \.number, to: &p)
-        add(#"\b(0o[0-7]+)\b"#, color: \.number, to: &p)
+        add(#"\b([A-Z][a-zA-Z0-9_]*)\b"#, color: { $0.type }, to: &p)
+        add(#"\bfunc\s+([a-zA-Z_][a-zA-Z0-9_]*)"#, color: { $0.function }, captureGroup: 1, to: &p)
+        add(#"\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\("#, color: { $0.function }, captureGroup: 1, to: &p)
+        add(#"\b(\d+\.?\d*(?:e[+-]?\d+)?)\b"#, color: { $0.number }, to: &p)
+        add(#"\b(0x[0-9a-fA-F]+)\b"#, color: { $0.number }, to: &p)
+        add(#"\b(0b[01]+)\b"#, color: { $0.number }, to: &p)
+        add(#"\b(0o[0-7]+)\b"#, color: { $0.number }, to: &p)
 
-        add(#"(\?\?|\.\.\.|\.\.<)"#, color: \.operatorColor, to: &p)
+        add(#"(\?\?|\.\.\.|\.\.<)"#, color: { $0.operatorColor }, to: &p)
 
-        swiftPatterns = p
+        return p
     }
 
     // MARK: Shell
 
-    private func buildShellPatterns() {
+    private static func buildShellPatterns() -> [PatternEntry] {
         var p: [PatternEntry] = []
-        add(#"(#[^\n]*)"#, color: \.comment, to: &p)
-        add(#"("(?:[^"\\]|\\.)*")"#, color: \.string, to: &p)
-        add(#"('(?:[^'\\]|\\.)*')"#, color: \.string, to: &p)
+        add(#"(#[^\n]*)"#, color: { $0.comment }, to: &p)
+        add(#"("(?:[^"\\]|\\.)*")"#, color: { $0.string }, to: &p)
+        add(#"('(?:[^'\\]|\\.)*')"#, color: { $0.string }, to: &p)
         let kw = ["if","then","else","elif","fi","for","while","do",
                   "done","case","esac","in","function","return","exit",
                   "local","export","source","true","false","echo","read"]
-        add("\\b(\(kw.joined(separator: "|")))\\b", color: \.keyword, to: &p)
+        add("\\b(\(kw.joined(separator: "|")))\\b", color: { $0.keyword }, to: &p)
         let cmds = ["mkdir","cp","rm","cd","ls","cat","grep","sed","awk",
                     "chmod","chown","curl","wget","git","brew","swift","xcodebuild"]
-        add("\\b(\(cmds.joined(separator: "|")))\\b", color: \.function, to: &p)
-        add(#"(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)"#, color: \.attribute, to: &p)
-        add(#"\b(\d+)\b"#, color: \.number, to: &p)
-        shellPatterns = p
+        add("\\b(\(cmds.joined(separator: "|")))\\b", color: { $0.function }, to: &p)
+        add(#"(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)"#, color: { $0.attribute }, to: &p)
+        add(#"\b(\d+)\b"#, color: { $0.number }, to: &p)
+        return p
     }
 
     // MARK: JSON
 
-    private func buildJSONPatterns() {
+    private static func buildJSONPatterns() -> [PatternEntry] {
         var p: [PatternEntry] = []
-        add(#"("(?:[^"\\]|\\.)*")\s*:"#, color: \.type, captureGroup: 1, to: &p)
-        add(#":\s*("(?:[^"\\]|\\.)*")"#, color: \.string, captureGroup: 1, to: &p)
-        add(#"\b(true|false|null)\b"#, color: \.keyword, to: &p)
-        add(#"(-?\d+\.?\d*(?:[eE][+-]?\d+)?)"#, color: \.number, to: &p)
-        jsonPatterns = p
+        add(#"("(?:[^"\\]|\\.)*")\s*:"#, color: { $0.type }, captureGroup: 1, to: &p)
+        add(#":\s*("(?:[^"\\]|\\.)*")"#, color: { $0.string }, captureGroup: 1, to: &p)
+        add(#"\b(true|false|null)\b"#, color: { $0.keyword }, to: &p)
+        add(#"(-?\d+\.?\d*(?:[eE][+-]?\d+)?)"#, color: { $0.number }, to: &p)
+        return p
     }
 
     // MARK: Plist
 
-    private func buildPlistPatterns() {
+    private static func buildPlistPatterns() -> [PatternEntry] {
         var p: [PatternEntry] = []
-        add(#"(<!--[\s\S]*?-->)"#, color: \.comment, to: &p)
-        add(#"(<[^>]+>)"#, color: \.keyword, to: &p)
-        add(#">([^<]+)<"#, color: \.string, captureGroup: 1, to: &p)
-        plistPatterns = p
+        add(#"(<!--[\s\S]*?-->)"#, color: { $0.comment }, to: &p)
+        add(#"(<[^>]+>)"#, color: { $0.keyword }, to: &p)
+        add(#">([^<]+)<"#, color: { $0.string }, captureGroup: 1, to: &p)
+        return p
     }
 
     // MARK: Markdown
 
-    private func buildMarkdownPatterns() {
+    private static func buildMarkdownPatterns() -> [PatternEntry] {
         var p: [PatternEntry] = []
-        add(#"(^#{1,6}\s+[^\n]+)"#, color: \.keyword, to: &p, options: [.anchorsMatchLines])
-        add(#"(\*\*[^\*]+\*\*|__[^_]+__)"#, color: \.type, to: &p)
-        add(#"(\*[^\*\n]+\*|_[^_\n]+_)"#, color: \.function, to: &p)
-        add(#"(`[^`\n]+`)"#, color: \.string, to: &p)
-        add(#"(```[\s\S]*?```)"#, color: \.string, to: &p)
-        add(#"(\[[^\]]+\]\([^\)]+\))"#, color: \.attribute, to: &p)
-        add(#"(^>\s+[^\n]*)"#, color: \.comment, to: &p, options: [.anchorsMatchLines])
-        markdownPatterns = p
+        add(#"(^#{1,6}\s+[^\n]+)"#, color: { $0.keyword }, to: &p, options: [.anchorsMatchLines])
+        add(#"(\*\*[^\*]+\*\*|__[^_]+__)"#, color: { $0.type }, to: &p)
+        add(#"(\*[^\*\n]+\*|_[^_\n]+_)"#, color: { $0.function }, to: &p)
+        add(#"(`[^`\n]+`)"#, color: { $0.string }, to: &p)
+        add(#"(```[\s\S]*?```)"#, color: { $0.string }, to: &p)
+        add(#"(\[[^\]]+\]\([^\)]+\))"#, color: { $0.attribute }, to: &p)
+        add(#"(^>\s+[^\n]*)"#, color: { $0.comment }, to: &p, options: [.anchorsMatchLines])
+        return p
     }
 
     // MARK: - Helper
 
-    private func add(
+    private static func add(
         _ pattern: String,
-        color: @escaping (Theme) -> ColorType,
+        color: @escaping @Sendable (Theme) -> ColorType,
         captureGroup: Int = 0,
         to list: inout [PatternEntry],
         options: NSRegularExpression.Options = [.dotMatchesLineSeparators]
     ) {
         guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else { return }
-        list.append((regex: regex, captureGroup: captureGroup, color: color))
+        list.append(PatternEntry(regex: regex, captureGroup: captureGroup, color: color))
     }
 }
