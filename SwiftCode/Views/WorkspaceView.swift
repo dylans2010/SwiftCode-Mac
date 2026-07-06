@@ -101,7 +101,6 @@ struct WorkspaceView: View {
                 case .testTools: TestToolsView(project: project)
                 case .collaboration:
                     CollaborationMainView(manager: CollaborationSessionStore.shared.manager(for: project, creatorID: Host.current().localizedName ?? "macOS"))
-                case .assistView: AssistMainView()
                 case .documentationBrowser: DocumentationBrowserView()
                 case .extensionMarketplace: ExtensionMarketplaceView()
                 case .debugTools: DebuggingToolsView()
