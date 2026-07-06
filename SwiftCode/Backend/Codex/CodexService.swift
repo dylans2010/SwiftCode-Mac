@@ -1,6 +1,6 @@
 import Foundation
 
-final class CodexService {
+final class CodexService: Sendable {
     private let session: URLSession
     private let requestBuilder = CodexRequestBuilder()
     private let responseParser = CodexResponseParser()
