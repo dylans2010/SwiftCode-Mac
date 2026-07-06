@@ -24,7 +24,6 @@ struct SearchDocumentationView: View {
                     TextField("GitHub Repository URL", text: $repositoryURL)
                         .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
 
                     HStack(spacing: 10) {
                         Button {

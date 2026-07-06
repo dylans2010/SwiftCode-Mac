@@ -1,4 +1,9 @@
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 
 struct AdvancedToolScreen<Content: View>: View {
     let title: String
@@ -12,7 +17,13 @@ struct AdvancedToolScreen<Content: View>: View {
                 }
                 .padding(20)
             }
-            .background(Color(.systemBackground))
+            .background {
+                #if canImport(AppKit)
+                Color(NSColor.windowBackgroundColor)
+                #else
+                Color(uiColor: .systemBackground)
+                #endif
+            }
             .navigationTitle(title)
         }
     }

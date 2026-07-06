@@ -7,7 +7,7 @@ struct OnboardingWelcomeView: View {
         VStack(spacing: 30) {
             Spacer()
 
-            if #available(iOS 18.0, *) {
+            if #available(iOS 18.0, macOS 15.0, *) {
                 Image(systemName: "checkmark.seal.fill")
                     .font(.system(size: 80))
                     .foregroundStyle(.green)

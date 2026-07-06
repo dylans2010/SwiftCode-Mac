@@ -4,8 +4,8 @@ struct ErrorDiagnosticsView: View {
     @EnvironmentObject private var projectManager: ProjectManager
     @State private var logs = ""
 
-    private var diagnostics: [BuildDiagnostic] {
-        logs.split(separator: "\n").compactMap { BuildDiagnostic(line: String($0)) }
+    private var diagnostics: [DiagnosticLogEntry] {
+        logs.split(separator: "\n").compactMap { DiagnosticLogEntry(line: String($0)) }
     }
 
     var body: some View {
@@ -18,7 +18,8 @@ struct ErrorDiagnosticsView: View {
             AdvancedToolCard(title: "Parsed Diagnostics", subtitle: "Click an item to open the corresponding file") {
                 ForEach(diagnostics) { item in
                     Button {
-                        if let node = projectManager.activeProject?.files.flatMapDeep().first(where: { $0.path.contains(item.file) }) {
+                        let allNodes = (projectManager.activeProject?.files ?? []).flatMapDeep()
+                        if let node = allNodes.first(where: { $0.path.contains(item.file) }) {
                             projectManager.openFile(node)
                         }
                     } label: {
@@ -37,7 +38,7 @@ struct ErrorDiagnosticsView: View {
     }
 }
 
-private struct BuildDiagnostic: Identifiable {
+private struct DiagnosticLogEntry: Identifiable {
     let id = UUID()
     let file: String
     let line: Int
