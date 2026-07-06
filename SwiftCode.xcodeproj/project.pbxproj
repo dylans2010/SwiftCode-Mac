@@ -2664,7 +2664,6 @@
 				8006C0E358CBE55622B23B6E /* DebugSessionViewModel.swift */,
 				82399C8198EFED7554056D89 /* GitViewModel.swift */,
 				9A8CA9359E850B65BF43DD21 /* ProjectTreeViewModel.swift */,
-				B94E3A032C12345600123456 /* AgentCodeReviewManager.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
