@@ -29,7 +29,7 @@ final class SwiftUIViewRenderer {
         return CGSize(width: base.width * scale, height: base.height * scale)
     }
 
-    #if canImport(AppKit)
+    #if os(macOS)
     func hostingController(for loadedView: AnyView) -> NSHostingController<AnyView> {
         NSHostingController(rootView: loadedView)
     }
