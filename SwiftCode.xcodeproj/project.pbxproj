@@ -2115,7 +2115,6 @@
 			children = (
 				30779705BBEB9DEE5EC0BAD7 /* CodeStructureAnalyzer.swift */,
 				770308227209166D70F0AAF4 /* CodeColoringTheme.swift */,
-				A0122F265953CCBF00E0194B /* SyntaxHighlightingEngine.swift */,
 				A553F7F0EC807183F16C3691 /* TextLayoutEngine.swift */,
 				CE760BD68F314B37F7AF35FC /* AISuggestionEngine.swift */,
 				F9EE69B891FE9AA2F03E6C1F /* CodeExecutionManager.swift */,
@@ -2885,6 +2884,7 @@
 		E62980EE6DD4661475F9BBF9 /* SyntaxHighlighting */ = {
 			isa = PBXGroup;
 			children = (
+				A0122F265953CCBF00E0194B /* SyntaxHighlightingEngine.swift */,
 				2CFB02C257E0B52A5E0DBC65 /* TokenizedLine.swift */,
 				43B6AE19277BC87E87856F0E /* SwiftTokenizer.swift */,
 			);
