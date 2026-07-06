@@ -28,8 +28,6 @@ struct OnboardingView: View {
                 OnboardingWelcomeView()
                     .tag(2)
             }
-            .tabViewStyle(.page(indexDisplayMode: .always))
-            .indexViewStyle(.page(backgroundDisplayMode: .always))
         }
     }
 }
