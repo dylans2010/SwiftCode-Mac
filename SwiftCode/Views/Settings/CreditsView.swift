@@ -40,7 +40,6 @@ struct CreditsView: View {
             }
             .background(Self.groupedBackground)
             .navigationTitle("Credits")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

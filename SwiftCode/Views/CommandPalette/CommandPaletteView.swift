@@ -125,7 +125,6 @@ struct CommandPaletteView: View {
             }
             .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle("Command Palette")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
