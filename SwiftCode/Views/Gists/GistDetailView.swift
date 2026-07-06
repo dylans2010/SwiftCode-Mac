@@ -53,7 +53,6 @@ struct GistDetailView: View {
                 }
             }
             .navigationTitle(isEditing ? "Editing Gist" : "Gist Details")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Done") { dismiss() }

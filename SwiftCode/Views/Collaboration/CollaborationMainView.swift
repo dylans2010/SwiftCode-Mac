@@ -28,7 +28,6 @@ public struct CollaborationMainView: View {
             .collaborationFeedback(message: manager.workspaces.lastSuccessMessage, icon: "checkmark.circle.fill", color: Color.green)
             .collaborationFeedback(message: manager.workspaces.lastErrorMessage, icon: "exclamationmark.triangle.fill", color: Color.red)
             .navigationTitle("")
-            .navigationBarHidden(true)
         }
     }
 
