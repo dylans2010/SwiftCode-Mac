@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 import Observation
 
 @Observable
@@ -27,6 +27,10 @@ public class HomeViewModel {
             recentProjects.insert(entry, at: 0)
             try? await ProjectRegistryStore.shared.save(recentProjects)
         }
+    }
+
+    public func createProject(at url: URL) async {
+        await importProject(url: url)
     }
 
     public func removeProject(_ project: ProjectRegistryEntry) async {

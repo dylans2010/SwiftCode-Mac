@@ -2,7 +2,7 @@ import SwiftUI
 
 struct EditorTextView: View {
     @Bindable var workspaceViewModel: WorkspaceViewModel
-    @State private var columnVisibility = NavigationSplitViewVisibility.doubleColumn
+    @State private var columnVisibility = NavigationSplitViewVisibility.all
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
