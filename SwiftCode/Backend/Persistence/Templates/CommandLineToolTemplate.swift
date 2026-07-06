@@ -1,6 +1,6 @@
 import Foundation
 
-public struct CommandLineToolTemplate: ProjectTemplate {
+public struct CommandLineToolTemplate: ProjectScaffoldTemplate {
     public let name = "Command Line Tool"
     public let description = "A template for a command-line utility."
     public let icon = "terminal"

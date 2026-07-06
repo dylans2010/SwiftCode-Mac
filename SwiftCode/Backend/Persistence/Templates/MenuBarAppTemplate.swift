@@ -1,6 +1,6 @@
 import Foundation
 
-public struct MenuBarAppTemplate: ProjectTemplate {
+public struct MenuBarAppTemplate: ProjectScaffoldTemplate {
     public let name = "Menu Bar App"
     public let description = "A macOS application that resides primarily in the menu bar."
     public let icon = "menubar.rectangle"

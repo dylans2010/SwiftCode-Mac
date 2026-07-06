@@ -1,6 +1,6 @@
 import Foundation
 
-public struct StaticLibraryTemplate: ProjectTemplate {
+public struct StaticLibraryTemplate: ProjectScaffoldTemplate {
     public let name = "Static Library"
     public let description = "A template for a static library (.a)."
     public let icon = "building.columns"

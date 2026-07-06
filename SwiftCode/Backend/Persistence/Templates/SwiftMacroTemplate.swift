@@ -1,6 +1,6 @@
 import Foundation
 
-public struct SwiftMacroTemplate: ProjectTemplate {
+public struct SwiftMacroTemplate: ProjectScaffoldTemplate {
     public let name = "Swift Macro"
     public let description = "A template for creating a Swift Macro library."
     public let icon = "wand.and.stars"

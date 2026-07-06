@@ -1,6 +1,6 @@
 import Foundation
 
-public struct SwiftPackageTemplate: ProjectTemplate {
+public struct SwiftPackageTemplate: ProjectScaffoldTemplate {
     public let name = "Swift Package"
     public let description = "A template for a Swift package, suitable for libraries and tools."
     public let icon = "shippingbox"

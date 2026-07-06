@@ -1,6 +1,6 @@
 import Foundation
 
-public struct GameSpriteKitTemplate: ProjectTemplate {
+public struct GameSpriteKitTemplate: ProjectScaffoldTemplate {
     public let name = "SpriteKit Game"
     public let description = "A 2D game template using the SpriteKit framework."
     public let icon = "gamecontroller"

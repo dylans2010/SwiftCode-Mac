@@ -1,6 +1,6 @@
 import Foundation
 
-public struct iOSAppTemplate: ProjectTemplate {
+public struct iOSAppTemplate: ProjectScaffoldTemplate {
     public let name = "iOS App"
     public let description = "A template for a native SwiftUI-based iOS application."
     public let icon = "iphone"

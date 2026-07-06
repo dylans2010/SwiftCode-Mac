@@ -5,9 +5,9 @@ struct TemplatePickerView: View {
     @Environment(\.dismiss) var dismiss
 
     @State private var projectName = "MyProject"
-    @State private var selectedTemplate: ProjectTemplate = MacOSAppTemplate()
+    @State private var selectedTemplate: any ProjectScaffoldTemplate = MacOSAppTemplate()
 
-    let templates: [ProjectTemplate] = [
+    let templates: [any ProjectScaffoldTemplate] = [
         MacOSAppTemplate(),
         MultiplatformAppTemplate(),
         DocumentAppTemplate(),
@@ -98,7 +98,7 @@ struct TemplatePickerView: View {
             let projectURL = url.appendingPathComponent(projectName)
             Task {
                 do {
-                    try await ProjectTemplateEngine.shared.createProject(at: projectURL, template: selectedTemplate)
+                    try await ProjectScaffoldTemplateEngine.shared.createProject(at: projectURL, template: selectedTemplate)
                     await viewModel.importProject(url: projectURL)
                     dismiss()
                 } catch {
