@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum SidebarItem: String, CaseIterable, Identifiable {
+enum MainSidebarItem: String, CaseIterable, Identifiable {
     case files = "folder"
     case git = "sourcecontrol"
     case search = "magnifyingglass"
@@ -31,14 +31,14 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 }
 
 struct SidebarMainView: View {
-    @State private var selectedItem: SidebarItem = .files
+    @State private var selectedItem: MainSidebarItem = .files
     @Bindable var workspaceViewModel: WorkspaceViewModel
 
     var body: some View {
         HStack(spacing: 0) {
             // Icon Sidebar
             VStack(spacing: 12) {
-                ForEach(SidebarItem.allCases) { item in
+                ForEach(MainSidebarItem.allCases) { item in
                     Button(action: { selectedItem = item }) {
                         Image(systemName: item.rawValue)
                             .font(.system(size: 18))
