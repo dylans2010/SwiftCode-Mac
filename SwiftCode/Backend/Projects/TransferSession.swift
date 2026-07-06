@@ -11,7 +11,7 @@ enum TransferSessionState: String, Codable {
     case rejected
 }
 
-public struct TransferAuditEntry: Identifiable, Codable, Hashable {
+public struct TransferAuditEntry: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID
     let timestamp: Date
     let actor: String
