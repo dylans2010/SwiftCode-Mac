@@ -1,7 +1,7 @@
 import Foundation
 
 
-final class GitCommands {
+final class GitCommands: @unchecked Sendable {
     static let shared = GitCommands()
     private init() {}
 

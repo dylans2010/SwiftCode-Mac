@@ -4,7 +4,7 @@ import Foundation
 ///
 /// All data is fetched via GitHubAPIBackend and the results are ready to display
 /// in the GitHub integration view.
-final class GitHubBuilds {
+final class GitHubBuilds: @unchecked Sendable {
     static let shared = GitHubBuilds()
     private init() {}
 

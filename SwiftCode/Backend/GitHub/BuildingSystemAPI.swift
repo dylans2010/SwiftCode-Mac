@@ -2,7 +2,7 @@ import Foundation
 import ZIPFoundation
 
 /// Coordinates retrieval of generated build assets from GitHub Actions and integrates them in the user's project.
-public final class BuildingSystemAPI {
+public final class BuildingSystemAPI: @unchecked Sendable {
     public static let shared = BuildingSystemAPI()
     private init() {}
 

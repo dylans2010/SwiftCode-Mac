@@ -1,6 +1,6 @@
 import Foundation
 
-final class GitHubAPIBackend {
+final class GitHubAPIBackend: @unchecked Sendable {
     static let shared = GitHubAPIBackend()
     private init() {}
 

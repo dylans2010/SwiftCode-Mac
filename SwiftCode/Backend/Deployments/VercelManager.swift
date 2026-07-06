@@ -1,6 +1,6 @@
 import Foundation
 
-final class VercelManager {
+final class VercelManager: @unchecked Sendable {
     static let shared = VercelManager()
     private init() {}
 

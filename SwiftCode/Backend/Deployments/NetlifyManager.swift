@@ -1,6 +1,6 @@
 import Foundation
 
-final class NetlifyManager {
+final class NetlifyManager: @unchecked Sendable {
     static let shared = NetlifyManager()
     private init() {}
 

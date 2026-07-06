@@ -41,7 +41,7 @@ public struct CIBuildConfiguration: Codable {
     }
 }
 
-public struct Project: Identifiable, Codable {
+public struct Project: Identifiable, Codable, @unchecked Sendable {
     public var id: UUID
     public var name: String
     public var createdAt: Date

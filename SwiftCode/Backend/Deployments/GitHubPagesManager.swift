@@ -1,6 +1,6 @@
 import Foundation
 
-final class GitHubPagesManager {
+final class GitHubPagesManager: @unchecked Sendable {
     static let shared = GitHubPagesManager()
     private init() {}
 
