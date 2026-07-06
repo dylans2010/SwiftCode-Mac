@@ -87,7 +87,7 @@ struct LLMResponse: Sendable {
     }
 }
 
-final class LLMService {
+final class LLMService: Sendable {
     static let shared = LLMService()
     private init() {}
 
@@ -189,7 +189,7 @@ final class LLMService {
 
         let response = try await sendChatRequest(
             model: model,
-            messages: [AIMessage(role: "user", content: messageContent)],
+            messages: [AIMessage(role: .user, content: messageContent)],
             providerOverride: providerOverride
         )
 
@@ -448,14 +448,14 @@ final class LLMService {
             if !systemPrompt.isEmpty {
                 body["system"] = systemPrompt
             }
-            body["messages"] = messages.map { ["role": $0.role, "content": $0.content] }
+            body["messages"] = messages.map { ["role": $0.role.rawValue, "content": $0.content] }
             body["max_tokens"] = 4096
         } else {
             var apiMessages: [[String: String]] = []
             if !systemPrompt.isEmpty {
                 apiMessages.append(["role": "system", "content": systemPrompt])
             }
-            apiMessages += messages.map { ["role": $0.role, "content": $0.content] }
+            apiMessages += messages.map { ["role": $0.role.rawValue, "content": $0.content] }
             body["messages"] = apiMessages
         }
 

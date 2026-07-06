@@ -54,11 +54,11 @@ struct GistDetailView: View {
             }
             .navigationTitle(isEditing ? "Editing Gist" : "Gist Details")
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem {
                     Button("Done") { dismiss() }
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem {
                     HStack {
                         if isEditing {
                             Button("Save") {
@@ -106,9 +106,8 @@ struct GistDetailView: View {
                 NavigationStack {
                     GistCommentSectionView(gistId: gistId)
                         .navigationTitle("Comments")
-                        .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
-                            ToolbarItem(placement: .navigationBarTrailing) {
+                            ToolbarItem {
                                 Button("Done") { showComments = false }
                             }
                         }
@@ -305,7 +304,7 @@ struct GistDetailView: View {
 
     private func copyLink() {
         NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(gist?.htmlUrl, forType: .string)
+                    NSPasteboard.general.setString(gist?.htmlUrl ?? "", forType: .string)
     }
 
     private func openInBrowser() {

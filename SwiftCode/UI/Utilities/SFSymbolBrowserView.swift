@@ -161,7 +161,6 @@ struct SFSymbolBrowserView: View {
                     TextField("Search \(store.allSymbols.count) symbols…", text: $searchText)
                         .font(.subheadline)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
                     if !searchText.isEmpty {
                         Button {
                             searchText = ""
@@ -199,7 +198,6 @@ struct SFSymbolBrowserView: View {
             }
             .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle("SF Symbols")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -376,7 +374,6 @@ struct SymbolCustomizationView: View {
             }
             .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle(symbol.name)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

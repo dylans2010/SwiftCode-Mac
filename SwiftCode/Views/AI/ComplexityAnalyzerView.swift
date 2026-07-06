@@ -83,9 +83,8 @@ struct ComplexityAnalyzerView: View {
                 }
             }
             .navigationTitle("Complexity Analyzer")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem {
                     Button {
                         Task { await analyzeProject() }
                     } label: {
@@ -288,7 +287,6 @@ struct ComplexityAnalyzerView: View {
                 }
             }
             .navigationTitle(result.fileName)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { selectedFile = nil }

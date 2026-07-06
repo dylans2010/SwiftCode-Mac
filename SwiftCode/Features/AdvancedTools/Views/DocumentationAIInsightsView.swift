@@ -21,9 +21,8 @@ struct DocumentationAIInsightsView: View {
                 .padding()
             }
             .navigationTitle("Insights")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem {
                     Button("Done") {
                         dismiss()
                     }

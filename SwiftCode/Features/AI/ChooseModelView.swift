@@ -57,7 +57,6 @@ struct ChooseModelView: View {
                     if selectedProvider != .offline {
                         SecureField("API Key", text: $apiKey)
                             .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
                     }
                 }
 
@@ -138,7 +137,6 @@ struct ChooseModelView: View {
                 }
             }
             .navigationTitle("Choose My Own Model")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

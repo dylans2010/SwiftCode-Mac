@@ -1,6 +1,6 @@
 import Foundation
 
-final class OfflineModelConverter {
+final class OfflineModelConverter: Sendable {
     static let shared = OfflineModelConverter()
     private init() {}
 

@@ -30,7 +30,7 @@ public final class AgentCodeReviewManager: ObservableObject {
             ),
             CodeReviewIssue(
                 severity: .info,
-                category: .style,
+                category: .readability,
                 lineNumber: 25,
                 description: "Prefer 'let' over 'var' for immutable values.",
                 suggestion: "Change 'var' to 'let' for this constant.",
