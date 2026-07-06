@@ -20,7 +20,9 @@ struct ConsoleCommandRunnerView: View {
                 TextField("Command...", text: $commandInput)
                     .onSubmit { runCommand() }
                     .autocorrectionDisabled()
+#if os(iOS)
                     .textInputAutocapitalization(.never)
+#endif
             }
             .padding()
             .background(.ultraThinMaterial)

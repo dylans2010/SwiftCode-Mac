@@ -77,7 +77,9 @@ struct CommandPaletteView: View {
                         .foregroundStyle(.orange)
                     TextField("Type A Command", text: $searchText)
                         .autocorrectionDisabled()
+#if os(iOS)
                         .textInputAutocapitalization(.never)
+#endif
                     if !searchText.isEmpty {
                         Button { searchText = "" } label: {
                             Image(systemName: "xmark.circle.fill")

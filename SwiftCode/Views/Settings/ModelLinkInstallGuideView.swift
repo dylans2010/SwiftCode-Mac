@@ -38,7 +38,9 @@ struct ModelLinkInstallGuideView: View {
                         .font(.headline)
 
                     TextField("https://huggingface.co/{author}/{model}", text: $repositoryLink)
+#if os(iOS)
                         .textInputAutocapitalization(.never)
+#endif
 #if canImport(AppKit)
                         .autocorrectionDisabled(true)
 #endif

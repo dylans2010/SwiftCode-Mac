@@ -39,7 +39,10 @@ struct GitHubAPIDebugView: View {
 
         Task {
             do {
-                let repos = try await GitHubService.shared.listUserRepositories()
+                guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else {
+                    throw URLError(.userAuthenticationRequired)
+                }
+                let repos = try await GitHubService.shared.fetchRepositories(token: token)
                 await MainActor.run {
                     isTesting = false
                     testResult = "Success! Found \(repos.count) repositories."
