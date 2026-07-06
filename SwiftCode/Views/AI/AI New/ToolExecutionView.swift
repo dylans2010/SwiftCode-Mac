@@ -69,7 +69,7 @@ struct ToolExecutionView: View {
         }
     }
 
-    private func formatArgs(_ args: [String: Any]) -> String {
+    private func formatArgs(_ args: [String: any Sendable]) -> String {
         return args.map { "\($0.key): \($0.value)" }.joined(separator: ", ")
     }
 }

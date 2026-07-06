@@ -1,6 +1,6 @@
 import Foundation
 
-final class DeploymentKeychainManager {
+final class DeploymentKeychainManager: Sendable {
     static let shared = DeploymentKeychainManager()
     private init() {}
 
