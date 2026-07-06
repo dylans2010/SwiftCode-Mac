@@ -92,7 +92,7 @@ struct SearchSidebarView: View {
                     let filePath = parts[0]
                     let lineNumber = Int(parts[1]) ?? 0
                     let content = parts.dropFirst(2).joined(separator: ":").trimmingCharacters(in: .whitespaces)
-                    return SearchResult(filePath: filePath, lineNumber: lineNumber, lineContent: content)
+                    return SearchResult(filePath: filePath, lineNumber: lineNumber, snippet: content)
                 }
             } catch {
                 print("Search failed: \(error)")
@@ -100,23 +100,5 @@ struct SearchSidebarView: View {
             }
             isSearching = false
         }
-    }
-}
-
-public struct SearchResult: Identifiable, Codable {
-    public let id: UUID
-    public let filePath: String
-    public let lineNumber: Int
-    public let lineContent: String
-
-    public var fileName: String {
-        URL(fileURLWithPath: filePath).lastPathComponent
-    }
-
-    public init(id: UUID = UUID(), filePath: String, lineNumber: Int, lineContent: String) {
-        self.id = id
-        self.filePath = filePath
-        self.lineNumber = lineNumber
-        self.lineContent = lineContent
     }
 }

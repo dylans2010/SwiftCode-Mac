@@ -160,6 +160,8 @@
 		33D51E7BB1EDA49B3346C2B5 /* CodeMetricsDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB82D09E7AD4E05ACD6AC572 /* CodeMetricsDashboardView.swift */; };
 		341A9F182E704F7F9B738B34 /* OpenRouterAIProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 393E65DB7FC04586A7090F73 /* OpenRouterAIProvider.swift */; };
 		34C9D91BFB0E5D11BE6F8E66 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE6C0AFC77474E588519FF8 /* Project.swift */; };
+		D1D1D1D1D1D1D1D1D1D1D1D1 /* PackageDependency.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D2D2D2D2D2D2D2D2D2D2D2 /* PackageDependency.swift */; };
+		AEF3A27D385B4F42AD46509E /* CoreModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F02183BE1140B1B9E4D376 /* CoreModels.swift */; };
 		A0BA2C8FB101493EA10980EB /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18B61526A0145AA9590C9AE /* AppSettings.swift */; };
 		187E48D6B1A5492490C1D52B /* AssistModelOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E796ACFB49B458BAFDDB3FA /* AssistModelOption.swift */; };
 		573301DF880D42EE98BEA10A /* AgentSkillManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB362A061CA144FC9EB1A0FC /* AgentSkillManager.swift */; };
@@ -1208,6 +1210,8 @@
 		BA5F34FBCE0E82CAD0772957 /* CrashLogAnalyzerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashLogAnalyzerView.swift; sourceTree = "<group>"; };
 		BAD7D75823F270BC97711B83 /* SwiftFormatterExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftFormatterExtensionView.swift; sourceTree = "<group>"; };
 		BAE6C0AFC77474E588519FF8 /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
+		D2D2D2D2D2D2D2D2D2D2D2D2 /* PackageDependency.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageDependency.swift; sourceTree = "<group>"; };
+		B8F02183BE1140B1B9E4D376 /* CoreModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreModels.swift; sourceTree = "<group>"; };
 		E18B61526A0145AA9590C9AE /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		7E796ACFB49B458BAFDDB3FA /* AssistModelOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistModelOption.swift; sourceTree = "<group>"; };
 		BB362A061CA144FC9EB1A0FC /* AgentSkillManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSkillManager.swift; sourceTree = "<group>"; };
@@ -1672,6 +1676,8 @@
 		2B21AC80A9DC86CB7D9BD14F /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				B8F02183BE1140B1B9E4D376 /* CoreModels.swift */,
+				D2D2D2D2D2D2D2D2D2D2D2D2 /* PackageDependency.swift */,
 				BAE6C0AFC77474E588519FF8 /* Project.swift */,
 				E18B61526A0145AA9590C9AE /* AppSettings.swift */,
 				7E796ACFB49B458BAFDDB3FA /* AssistModelOption.swift */,
@@ -3180,6 +3186,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AEF3A27D385B4F42AD46509E /* CoreModels.swift in Sources */,
+				D1D1D1D1D1D1D1D1D1D1D1D1 /* PackageDependency.swift in Sources */,
 				77B43DCE400F4545BE986643 /* AssistCIFunctions.swift in Sources */,
 				662EEBC461982F43E3AEDF10 /* MLXModelContainer.swift in Sources */,
 				B7420BD5E70499A641004656 /* OnDeviceAIManager.swift in Sources */,

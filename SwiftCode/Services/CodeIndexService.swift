@@ -2,57 +2,6 @@ import Foundation
 
 // MARK: - Code Indexing Service
 
-// MARK: - Index Entry
-
-struct IndexEntry: Identifiable {
-    let id = UUID()
-    let name: String
-    let kind: SymbolKind
-    let filePath: String
-    let lineNumber: Int
-    let snippet: String
-
-    enum SymbolKind: String, CaseIterable {
-        case function = "func"
-        case structType = "struct"
-        case classType = "class"
-        case enumType = "enum"
-        case variable = "var"
-        case constant = "let"
-        case importDecl = "import"
-        case protocolType = "protocol"
-        case extensionType = "extension"
-
-        var icon: String {
-            switch self {
-            case .function: return "f.circle.fill"
-            case .structType: return "s.circle.fill"
-            case .classType: return "c.circle.fill"
-            case .enumType: return "e.circle.fill"
-            case .variable: return "v.circle.fill"
-            case .constant: return "l.circle.fill"
-            case .importDecl: return "arrow.down.circle.fill"
-            case .protocolType: return "p.circle.fill"
-            case .extensionType: return "curlybraces"
-            }
-        }
-
-        var color: String {
-            switch self {
-            case .function: return "purple"
-            case .structType: return "blue"
-            case .classType: return "yellow"
-            case .enumType: return "green"
-            case .variable: return "cyan"
-            case .constant: return "teal"
-            case .importDecl: return "gray"
-            case .protocolType: return "orange"
-            case .extensionType: return "indigo"
-            }
-        }
-    }
-}
-
 @MainActor
 final class CodeIndexService: ObservableObject {
     static let shared = CodeIndexService()
@@ -229,9 +178,10 @@ final class CodeIndexService: ObservableObject {
             for (lineIndex, line) in lines.enumerated() {
                 if matchLine(line) {
                     results.append(SearchResult(
+                        fileName: fileName,
                         filePath: relativePath,
                         lineNumber: lineIndex + 1,
-                        lineContent: line.trimmingCharacters(in: .whitespaces)
+                        snippet: line.trimmingCharacters(in: .whitespaces)
                     ))
                 }
             }
@@ -242,9 +192,10 @@ final class CodeIndexService: ObservableObject {
                 let lq = caseSensitive ? query : query.lowercased()
                 if lname.contains(lq) && !results.contains(where: { $0.filePath == relativePath }) {
                     results.append(SearchResult(
+                        fileName: fileName,
                         filePath: relativePath,
                         lineNumber: 1,
-                        lineContent: fileName
+                        snippet: fileName
                     ))
                 }
             }
