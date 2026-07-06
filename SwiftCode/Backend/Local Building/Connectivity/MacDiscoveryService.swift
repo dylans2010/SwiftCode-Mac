@@ -8,7 +8,7 @@ public struct DiscoveredMac: Identifiable, Hashable {
     public let port: Int
 }
 
-public final class MacDiscoveryService: NSObject, ObservableObject {
+public final class MacDiscoveryService: NSObject, ObservableObject, @unchecked Sendable {
     @Published public var discoveredMacs: [DiscoveredMac] = []
     @Published public var isScanning = false
 

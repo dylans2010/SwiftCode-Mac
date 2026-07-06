@@ -3,7 +3,7 @@ import Foundation
 struct CodexModelRouter {
     @MainActor
     func useCodex() -> Bool {
-        AppSettings.shared.useCodexAsDefaultAgent
+        (UserDefaults.standard.object(forKey: "useCodexAsAgent") as? Bool) ?? (UserDefaults.standard.object(forKey: "useCodexAsDefaultAgent") as? Bool) ?? false
     }
 
     @MainActor

@@ -1,18 +1,18 @@
 import Foundation
 
-public enum TestStatus: String, Codable {
+public enum TestStatus: String, Codable, Sendable {
     case success
     case warning
     case failed
 }
 
-public enum TestCategory: String, Codable, CaseIterable {
+public enum TestCategory: String, Codable, CaseIterable, Sendable {
     case unit = "Unit"
     case integration = "Integration"
     case ui = "UI"
 }
 
-public struct TestResult: Identifiable, Codable {
+public struct TestResult: Identifiable, Codable, Sendable {
     public let id: UUID
     public let name: String
     public let status: TestStatus

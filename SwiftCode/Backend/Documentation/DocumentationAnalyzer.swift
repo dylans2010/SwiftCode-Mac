@@ -105,7 +105,7 @@ final class DocumentationAnalyzer: ObservableObject {
         """
 
         let messages = [
-            AIMessage(role: "user", content: userPrompt)
+            AIMessage(role: .user, content: userPrompt)
         ]
 
         let response = try await LLMService.shared.sendChatRequest(

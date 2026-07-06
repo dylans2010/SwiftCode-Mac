@@ -37,7 +37,7 @@ struct InstalledOfflineModelRecord: Identifiable {
     }
 }
 
-final class OfflineModelsStorage {
+final class OfflineModelsStorage: @unchecked Sendable {
     static let shared = OfflineModelsStorage()
     private init() {}
 

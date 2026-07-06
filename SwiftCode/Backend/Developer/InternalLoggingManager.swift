@@ -29,7 +29,7 @@ enum LogCategory: String, CaseIterable, Identifiable {
     var id: String { self.rawValue }
 }
 
-final class InternalLoggingManager: ObservableObject {
+final class InternalLoggingManager: ObservableObject, @unchecked Sendable {
     static let shared = InternalLoggingManager()
 
     @Published private(set) var logs: [LogEntry] = []

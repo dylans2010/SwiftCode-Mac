@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 
-final class EntitlementManager: ObservableObject {
+final class EntitlementManager: ObservableObject, @unchecked Sendable {
     static let shared = EntitlementManager()
 
     @Published private(set) var isProUser: Bool = false

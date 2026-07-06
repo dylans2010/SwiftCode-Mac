@@ -1,6 +1,6 @@
 import Foundation
 
-public final class ProjectPackager {
+public final class ProjectPackager: @unchecked Sendable {
     public static let shared = ProjectPackager()
 
     private init() {}

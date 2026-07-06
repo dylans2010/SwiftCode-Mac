@@ -65,14 +65,14 @@ final class CodexManager: ObservableObject {
         isRequestInFlight = true
         streamedText = ""
         activeSession.lastErrorMessage = nil
-        activeSession.messages.append(AIMessage(role: "user", content: trimmedPrompt))
+        activeSession.messages.append(AIMessage(role: .user, content: trimmedPrompt))
         activeSession.updatedAt = Date()
         defer { isRequestInFlight = false }
 
         do {
             let response = try await service.send(prompt: trimmedPrompt, session: activeSession, apiKey: apiKey, model: currentModel, taskType: inferTaskType(from: trimmedPrompt))
             let text = response.completionText.trimmingCharacters(in: .whitespacesAndNewlines)
-            activeSession.messages.append(AIMessage(role: "assistant", content: text))
+            activeSession.messages.append(AIMessage(role: .assistant, content: text))
             activeSession.lastResponse = text
             activeSession.updatedAt = Date()
             tracker.record(prompt: trimmedPrompt, response: text, tokenUsage: response.tokenUsage, mode: usageMode)
