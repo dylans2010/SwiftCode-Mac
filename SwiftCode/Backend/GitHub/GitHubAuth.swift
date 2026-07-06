@@ -1,6 +1,6 @@
 import Foundation
 
-final class GitHubAuth {
+final class GitHubAuth: @unchecked Sendable {
     static let shared = GitHubAuth()
     private init() {}
 

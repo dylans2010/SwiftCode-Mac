@@ -4,7 +4,7 @@ import Foundation
 ///
 /// This manager maintains the relationship between local projects and their
 /// remote GitHub repositories, and supports creating new repositories via the API.
-final class GitHubRepositoryManager {
+final class GitHubRepositoryManager: @unchecked Sendable {
     static let shared = GitHubRepositoryManager()
     private init() {}
 

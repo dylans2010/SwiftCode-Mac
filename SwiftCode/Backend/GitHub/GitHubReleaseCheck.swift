@@ -39,7 +39,7 @@ struct GitHubReleaseCheckResult {
     }
 }
 
-final class GitHubReleaseCheck {
+final class GitHubReleaseCheck: @unchecked Sendable {
     static let shared = GitHubReleaseCheck()
     private init() {}
 

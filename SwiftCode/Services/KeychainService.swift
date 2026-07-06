@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 /// Secure storage for API keys and tokens using the iOS Keychain.
-final class KeychainService {
+final class KeychainService: @unchecked Sendable {
     static let shared = KeychainService()
     private init() {}
 
@@ -49,6 +49,17 @@ final class KeychainService {
             return nil
         }
         return value
+    }
+
+
+    /// Async compatibility wrapper for backend git credential callers.
+    func get(account: String) async throws -> String? {
+        get(forKey: account)
+    }
+
+    /// Async compatibility wrapper for backend git credential callers.
+    func save(account: String, value: String) async throws {
+        _ = set(value, forKey: account)
     }
 
     /// Delete the value stored under the given key.

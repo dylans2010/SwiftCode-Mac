@@ -20,7 +20,7 @@ struct FrameworkConfig {
     let outputDirectory: String
 }
 
-final class DeploymentTargets {
+final class DeploymentTargets: @unchecked Sendable {
     static let shared = DeploymentTargets()
     private init() {}
 

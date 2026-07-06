@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 // Represents a file or folder in the project navigator
-public class FileNode: Identifiable, ObservableObject, Codable {
+public class FileNode: Identifiable, ObservableObject, Codable, @unchecked Sendable {
     public var id: UUID
     public var name: String
     public var path: String // relative path from project root

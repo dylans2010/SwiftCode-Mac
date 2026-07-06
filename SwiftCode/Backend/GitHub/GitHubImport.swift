@@ -5,7 +5,7 @@ import ZIPFoundation
 ///
 /// After extraction, runs a project indexing scan and registers the project
 /// in ProjectManager so it appears in the dashboard immediately.
-final class GitHubImporter {
+final class GitHubImporter: @unchecked Sendable {
     static let shared = GitHubImporter()
     private init() {}
 
