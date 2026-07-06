@@ -1,11 +1,11 @@
 import SwiftUI
 
-struct BuildToolbarView: ToolbarContent {
+struct BuildToolbarView: View {
     @State var viewModel: BuildViewModel
     let projectURL: URL
 
-    var body: some ToolbarContent {
-        ToolbarItemGroup {
+    var body: some View {
+        HStack {
             Button(action: {
                 Task {
                     await viewModel.build(projectURL: projectURL, scheme: "SwiftCode")

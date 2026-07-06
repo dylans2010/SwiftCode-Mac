@@ -129,6 +129,8 @@
 		265E9A562B28B39C005F9A10 /* iOSAppTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A542B28B39C005F9A10 /* iOSAppTemplate.swift */; };
 		265E9A572B28B39C005F9A10 /* SwiftDataAppTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A552B28B39C005F9A10 /* SwiftDataAppTemplate.swift */; };
 		265E9A582B28B39C005F9A10 /* SectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A592B28B39C005F9A10 /* SectionView.swift */; };
+		265E9A5C2B28B39C005F9A10 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A5B2B28B39C005F9A10 /* ShareSheet.swift */; };
+		265E9A5E2B28B39C005F9A10 /* FolderCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A5D2B28B39C005F9A10 /* FolderCardView.swift */; };
 		26FE3853DBA24DFCA079A053 /* ParseJSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD0EFEEFF10842969DB5A893 /* ParseJSON.swift */; };
 		2955B19BEC2E405BACC893C8 /* GitTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78BC6D7D1BCB4CABA2495D9D /* GitTag.swift */; };
 		29838114E66C4C0CA9A7BBE5 /* TaskPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7783E4BFD8A437286C1E429 /* TaskPlanner.swift */; };
@@ -805,6 +807,8 @@
 		265E9A542B28B39C005F9A10 /* iOSAppTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSAppTemplate.swift; sourceTree = "<group>"; };
 		265E9A552B28B39C005F9A10 /* SwiftDataAppTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataAppTemplate.swift; sourceTree = "<group>"; };
 		265E9A592B28B39C005F9A10 /* SectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionView.swift; sourceTree = "<group>"; };
+		265E9A5B2B28B39C005F9A10 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
+		265E9A5D2B28B39C005F9A10 /* FolderCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderCardView.swift; sourceTree = "<group>"; };
 		26A2214B1EA1974C9709B778 /* LogConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogConsoleView.swift; sourceTree = "<group>"; };
 		26FFEA3BEA79D669FD8D84E0 /* FoldersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoldersView.swift; sourceTree = "<group>"; };
 		279E78FBD3EA3D9DA61FC7C0 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
@@ -1911,6 +1915,7 @@
 			children = (
 				E5E9A1260294B0DD1562EA23 /* FilePreviewView.swift */,
 				8C063A51438D8C575DA58158 /* FileImporterRepresentableView.swift */,
+				265E9A5B2B28B39C005F9A10 /* ShareSheet.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -2901,6 +2906,7 @@
 				115F1E3E771A1592889FB55D /* GitHubRemoteSetupView.swift */,
 				9BE9D55B96AE4C0CF1531DE1 /* FolderCreateView.swift */,
 				26FFEA3BEA79D669FD8D84E0 /* FoldersView.swift */,
+				265E9A5D2B28B39C005F9A10 /* FolderCardView.swift */,
 			);
 			path = Dashboard;
 			sourceTree = "<group>";
@@ -3816,6 +3822,8 @@
 				64B4F79210164A398B335322 /* ReviewPullRequest.swift in Sources */,
 				AB1234567890ABCDEF100001 /* StatusIndicator.swift in Sources */,
 				AB1234567890ABCDEF100002 /* WorkflowEditorView.swift in Sources */,
+				265E9A5C2B28B39C005F9A10 /* ShareSheet.swift in Sources */,
+				265E9A5E2B28B39C005F9A10 /* FolderCardView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
