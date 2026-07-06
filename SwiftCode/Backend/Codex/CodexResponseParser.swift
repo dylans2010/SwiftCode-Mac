@@ -1,6 +1,6 @@
 import Foundation
 
-struct CodexResponseParser {
+struct CodexResponseParser: Sendable {
     func parseResponse(data: Data, response: URLResponse) throws -> LLMResponse {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw LLMError.networkError("Invalid server response")

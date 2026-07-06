@@ -74,13 +74,13 @@ enum LLMError: LocalizedError {
     }
 }
 
-struct LLMResponse {
+struct LLMResponse: Sendable {
     let modelName: String
     let completionText: String
     let tokenUsage: TokenUsage?
     let latency: TimeInterval
 
-    struct TokenUsage {
+    struct TokenUsage: Sendable {
         let promptTokens: Int
         let completionTokens: Int
         let totalTokens: Int

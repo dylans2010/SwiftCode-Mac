@@ -1,6 +1,6 @@
 import Foundation
 
-struct CodexSession: Identifiable, Codable {
+struct CodexSession: Identifiable, Codable, Sendable {
     let id: UUID
     let createdAt: Date
     var updatedAt: Date
@@ -23,12 +23,12 @@ struct CodexSession: Identifiable, Codable {
     }
 }
 
-enum CodexUsageMode: String, Codable {
+enum CodexUsageMode: String, Codable, Sendable {
     case unlimitedUserControlled
     case restrictedAppControlled
 }
 
-enum CodexTaskType: String, Codable, CaseIterable {
+enum CodexTaskType: String, Codable, CaseIterable, Sendable {
     case codeGeneration = "Code Generation"
     case debugging = "Debugging"
     case refactoring = "Refactoring"
