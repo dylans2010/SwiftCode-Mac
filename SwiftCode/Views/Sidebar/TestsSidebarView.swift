@@ -153,11 +153,11 @@ struct TestGroup: Identifiable {
 struct TestItem: Identifiable {
     let id = UUID()
     let name: String
-    var status: TestStatus = .notRun
+    var status: SidebarTestStatus = .notRun
     var duration: Double?
 }
 
-enum TestStatus {
+enum SidebarTestStatus {
     case notRun, passed, failed, running
 
     var iconName: String {
