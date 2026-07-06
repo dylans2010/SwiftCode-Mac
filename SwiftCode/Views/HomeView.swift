@@ -298,7 +298,7 @@ struct HomeProjectCardView: View {
                 .foregroundColor(.secondary)
         }
         .padding()
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(Color(nsColor: .controlBackgroundColor))
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)

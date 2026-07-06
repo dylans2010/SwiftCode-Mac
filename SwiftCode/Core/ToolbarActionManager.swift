@@ -6,7 +6,9 @@ final class ToolbarActionManager {
     static let shared = ToolbarActionManager()
     private init() {}
 
-    enum SheetDestination: String {
+    enum SheetDestination: String, Identifiable {
+        var id: String { rawValue }
+
         case fileNavigator
         case gistManager
         case aiAgent
