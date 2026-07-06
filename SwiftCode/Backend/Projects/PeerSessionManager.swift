@@ -45,7 +45,8 @@ final class PeerSessionManager: NSObject, ObservableObject {
 
 extension PeerSessionManager: MCNearbyServiceAdvertiserDelegate, MCNearbyServiceBrowserDelegate, MCSessionDelegate {
     nonisolated func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
-        Task { @MainActor in invitationHandler(true, self.session) }
+        nonisolated(unsafe) let safeHandler = invitationHandler
+        Task { @MainActor in safeHandler(true, self.session) }
     }
 
     nonisolated func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Error) {}
@@ -62,3 +63,5 @@ extension PeerSessionManager: MCNearbyServiceAdvertiserDelegate, MCNearbyService
     nonisolated func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {}
     nonisolated func session(_ session: MCSession, didReceiveCertificate certificate: [Any]?, fromPeer peerID: MCPeerID, certificateHandler: @escaping (Bool) -> Void) { certificateHandler(true) }
 }
+
+extension MCPeerID: @unchecked Sendable {}
