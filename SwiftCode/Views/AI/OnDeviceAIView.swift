@@ -21,7 +21,6 @@ struct OnDeviceAIView: View {
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.86), value: controller.messages)
         .navigationTitle("Apple Intelligence")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var headerCard: some View {
