@@ -1,40 +1,79 @@
 import Foundation
 import Security
 
-public actor KeychainService {
-    public static let shared = KeychainService()
+public final class KeychainService: @unchecked Sendable {
+  public static let shared = KeychainService()
 
-    private let service = "com.swiftcode.app"
+  private let service = "com.swiftcode.app"
 
-    public func save(account: String, value: String) throws {
-        // SAFETY: String.data(using: .utf8) only returns nil if the string contains invalid UTF-8, which is not the case for API keys.
-        let data = value.data(using: .utf8)!
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecValueData as String: data
-        ]
+  private init() {}
 
-        SecItemDelete(query as CFDictionary)
-        let status = SecItemAdd(query as CFDictionary, nil)
-        guard status == errSecSuccess else { throw AppError.securityError("Failed to save to keychain: \(status)") }
+  @discardableResult
+  public func set(_ value: String, forKey key: String) -> Bool {
+    guard let data = value.data(using: .utf8) else { return false }
+
+    delete(forKey: key)
+
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: key,
+      kSecValueData as String: data,
+      kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+    ]
+
+    let status = SecItemAdd(query as CFDictionary, nil)
+    return status == errSecSuccess
+  }
+
+  public func get(forKey key: String) -> String? {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: key,
+      kSecReturnData as String: true,
+      kSecMatchLimit as String: kSecMatchLimitOne,
+    ]
+
+    var result: AnyObject?
+    let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+    guard status == errSecSuccess,
+      let data = result as? Data
+    else { return nil }
+    return String(data: data, encoding: .utf8)
+  }
+
+  @discardableResult
+  public func delete(forKey key: String) -> Bool {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: key,
+    ]
+
+    let status = SecItemDelete(query as CFDictionary)
+    return status == errSecSuccess || status == errSecItemNotFound
+  }
+
+  public func contains(key: String) -> Bool {
+    get(forKey: key) != nil
+  }
+
+  public func save(account: String, value: String) throws {
+    guard set(value, forKey: account) else {
+      throw AppError.securityError("Failed to save to keychain")
     }
+  }
 
-    public func get(account: String) throws -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
+  public func get(account: String) throws -> String? {
+    get(forKey: account)
+  }
+}
 
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-
-        guard status == errSecSuccess else { return nil }
-        guard let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
+extension KeychainService {
+  public static let openRouterAPIKey = "openrouter_api_key"
+  public static let githubToken = "github_personal_access_token"
+  public static let codexUserAPIKey = "codex_user_api_key"
+  public static let codexAppAPIKey = "codex_app_api_key"
 }
