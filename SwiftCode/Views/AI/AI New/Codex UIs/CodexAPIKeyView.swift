@@ -29,7 +29,6 @@ struct CodexAPIKeyView: View {
             }
 
             SecureField(hasStoredKey ? "Enter a new API key to replace the current one" : "Enter OpenAI API key", text: $apiKey)
-                .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .textFieldStyle(.roundedBorder)
 

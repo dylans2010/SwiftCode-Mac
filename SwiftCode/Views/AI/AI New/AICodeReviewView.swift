@@ -32,7 +32,7 @@ struct AICodeReviewView: View {
             }
             .navigationTitle("Code Review")
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem {
                     Button {
                         showHistory.toggle()
                     } label: {
@@ -40,7 +40,7 @@ struct AICodeReviewView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem {
                     Button {
                         Task { await startReview() }
                     } label: {
@@ -268,7 +268,7 @@ struct AICodeReviewView: View {
             }
             .navigationTitle("Review History")
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem {
                     Button("Done") { showHistory = false }
                 }
             }
@@ -435,7 +435,7 @@ struct AICodeReviewIssueDetailSheet: View {
             .background(Color(red: 0.10, green: 0.10, blue: 0.14).ignoresSafeArea())
             .navigationTitle("Issue Detail")
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem {
                     Button("Done") { dismiss() }
                 }
             }

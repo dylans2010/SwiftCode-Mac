@@ -42,7 +42,7 @@ final class AISuggestionEngine: ObservableObject {
             do {
                 let response = try await LLMService.shared.sendChatRequest(
                     model: resolvedModel,
-                    messages: [AIMessage(role: "system", content: completionSystemPrompt), AIMessage(role: "user", content: prompt)]
+                    messages: [AIMessage(role: .system, content: completionSystemPrompt), AIMessage(role: .user, content: prompt)]
                 )
                 let result = response.completionText
                 guard !Task.isCancelled else { return }
