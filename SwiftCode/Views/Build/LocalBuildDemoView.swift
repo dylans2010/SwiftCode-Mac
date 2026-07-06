@@ -82,7 +82,6 @@ struct LocalBuildDemoView: View {
                 .padding()
             }
             .navigationTitle("Build Demo")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }

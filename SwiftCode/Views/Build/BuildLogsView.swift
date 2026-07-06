@@ -235,7 +235,6 @@ struct BuildLogsView: View {
             }
             .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle("Build Logs")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -401,7 +400,6 @@ struct BuildLogsView: View {
             }
             .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle("Build Assistant")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { showAssistant = false }
@@ -532,7 +530,7 @@ struct BuildLogsView: View {
                 """
 
                 let messages = [
-                    AIMessage(role: "user", content: "Analyze these logs:\n\n\(logContent)")
+                    AIMessage(role: .user, content: "Analyze these logs:\n\n\(logContent)")
                 ]
 
                 let analysis = try await OpenRouterService.shared.chat(

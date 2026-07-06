@@ -32,10 +32,9 @@ struct SymbolOutlineView: View {
                 }
             }
             .navigationTitle("Symbol Outline")
-            .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Filter Symbols")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem {
                     statsMenu
                 }
             }

@@ -44,7 +44,6 @@ struct DeveloperDashboardView: View {
                 }
             }
             .navigationTitle("Developer Dashboard")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

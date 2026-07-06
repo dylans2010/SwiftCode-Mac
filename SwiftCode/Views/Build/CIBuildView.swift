@@ -251,7 +251,6 @@ struct CIBuildView: View {
             TextField(label, text: text)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
         }
     }
 

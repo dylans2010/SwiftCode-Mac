@@ -82,7 +82,6 @@ struct PrepareCompileWaitingView: View {
                 }
             }
             .navigationTitle("Prepare Compiling")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
