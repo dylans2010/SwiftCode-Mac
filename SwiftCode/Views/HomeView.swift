@@ -34,7 +34,7 @@ struct HomeView: View {
                     ScrollView {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 250))], spacing: 20) {
                             ForEach(viewModel.recentProjects) { project in
-                                ProjectCardView(project: project) {
+                                HomeProjectCardView(project: project) {
                                     selectedProject = project
                                 } onDelete: {
                                     deleteProject(project)
@@ -98,7 +98,7 @@ struct HomeView: View {
     }
 }
 
-struct ProjectCardView: View {
+struct HomeProjectCardView: View {
     let project: ProjectRegistryEntry
     let onOpen: () -> Void
     let onDelete: () -> Void
