@@ -251,19 +251,19 @@ private final class RepositoryAnalysisViewModel: ObservableObject {
     }
 }
 
-private enum RepositorySource {
+private enum RepositorySource: Sendable {
     case github(String)
     case zip(URL?)
     case folder(URL?)
 }
 
-private struct SearchDocChatMessage: Identifiable {
-    let id = UUID()
+private struct SearchDocChatMessage: Identifiable, Sendable {
+    let id: UUID = UUID()
     let role: String
     let text: String
 }
 
-private struct RepositoryProgressUpdate {
+private struct RepositoryProgressUpdate: Sendable {
     let progress: Double
     let message: String
 }
@@ -290,7 +290,7 @@ private enum RepositoryScanError: LocalizedError {
     }
 }
 
-private struct RepositoryKnowledgeReport {
+private struct RepositoryKnowledgeReport: Sendable {
     var projectSummary: String
     var architectureOverview: String
     var importantFiles: String
@@ -300,7 +300,7 @@ private struct RepositoryKnowledgeReport {
 
     static let empty = Self(projectSummary: "", architectureOverview: "", importantFiles: "", dependencies: "", integrationGuide: "", searchableSnippets: [])
 
-    static func from(source: RepositorySource, progress: @escaping (RepositoryProgressUpdate) async -> Void) async throws -> Self {
+    static func from(source: RepositorySource, progress: @escaping @Sendable (RepositoryProgressUpdate) async -> Void) async throws -> Self {
         switch source {
         case .folder(let url):
             guard let root = url else { throw RepositoryScanError.invalidLocalFolder }
@@ -316,7 +316,7 @@ private struct RepositoryKnowledgeReport {
         }
     }
 
-    private static func analyzeGitHubRepository(input: String, progress: @escaping (RepositoryProgressUpdate) async -> Void) async throws -> Self {
+    private static func analyzeGitHubRepository(input: String, progress: @escaping @Sendable (RepositoryProgressUpdate) async -> Void) async throws -> Self {
         await progress(.init(progress: 0.05, message: "Validating GitHub URL..."))
         guard let parsed = GitHubRepoReference(urlString: input) else { throw RepositoryScanError.invalidGitHubURL }
         guard parsed.host == "github.com" else { throw RepositoryScanError.unsupportedGitHubURL }
@@ -344,7 +344,7 @@ private struct RepositoryKnowledgeReport {
         return dest
     }
 
-    private static func analyzeLocalRepository(rootURL: URL, progress: @escaping (RepositoryProgressUpdate) async -> Void) async throws -> Self {
+    private static func analyzeLocalRepository(rootURL: URL, progress: @escaping @Sendable (RepositoryProgressUpdate) async -> Void) async throws -> Self {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
@@ -439,7 +439,7 @@ private struct RepositoryKnowledgeReport {
         return (Array(manifests), dependency, readme)
     }
 
-    private static func buildLightweightReportFromGitHub(parsed: GitHubRepoReference, manifests: [String], dependencyPaths: [String], readmePath: String?, progress: @escaping (RepositoryProgressUpdate) async -> Void) async throws -> Self {
+    private static func buildLightweightReportFromGitHub(parsed: GitHubRepoReference, manifests: [String], dependencyPaths: [String], readmePath: String?, progress: @escaping @Sendable (RepositoryProgressUpdate) async -> Void) async throws -> Self {
         let swiftFiles = manifests.filter { $0.lowercased().hasSuffix(".swift") }
         var snippetLines: [String] = []
         var imports = Set<String>()
@@ -515,7 +515,7 @@ private struct RepositoryKnowledgeReport {
     }
 }
 
-private struct GitHubRepoReference {
+private struct GitHubRepoReference: Sendable {
     let host: String
     let owner: String
     let repo: String
@@ -538,11 +538,11 @@ private struct GitHubRepoReference {
     }
 }
 
-private struct SearchGitHubTreeResponse: Decodable {
+private struct SearchGitHubTreeResponse: Decodable, Sendable {
     let tree: [SearchGitHubTreeNode]
 }
 
-private struct SearchGitHubTreeNode: Decodable {
+private struct SearchGitHubTreeNode: Decodable, Sendable {
     let path: String
     let type: String
 }
