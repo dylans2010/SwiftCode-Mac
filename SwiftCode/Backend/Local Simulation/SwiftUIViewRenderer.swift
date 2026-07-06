@@ -3,6 +3,7 @@ import SwiftUI
 import AppKit
 #endif
 
+@MainActor
 final class SwiftUIViewRenderer {
     enum Orientation {
         case portrait
