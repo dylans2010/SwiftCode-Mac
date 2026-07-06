@@ -5,12 +5,9 @@ enum MainSidebarItem: String, CaseIterable, Identifiable {
     case git = "sourcecontrol"
     case search = "magnifyingglass"
     case debug = "ant"
-    case debugSessions = "play.square"
-    case breakpoints = "breakpoint"
-    case bookmarks = "bookmark"
-    case tests = "checklist"
-    case githubWorkflows = "square.stack.3d.down.right"
     case agent = "bubble.left.and.exclamationmark.bubble.right.fill"
+    case workflows = "square.stack.3d.down.right"
+    case terminal = "terminal"
 
     var id: String { rawValue }
 
@@ -19,13 +16,10 @@ enum MainSidebarItem: String, CaseIterable, Identifiable {
         case .files: return "Files"
         case .git: return "Source Control"
         case .search: return "Search"
-        case .debug: return "Debug Inspector"
-        case .debugSessions: return "Debug Sessions"
-        case .breakpoints: return "Breakpoints"
-        case .bookmarks: return "Bookmarks"
-        case .tests: return "Tests"
-        case .githubWorkflows: return "GitHub Workflows"
-        case .agent: return "Agent Chat"
+        case .debug: return "Debug"
+        case .agent: return "AI Agent"
+        case .workflows: return "Workflows"
+        case .terminal: return "Terminal"
         }
     }
 }
@@ -33,10 +27,11 @@ enum MainSidebarItem: String, CaseIterable, Identifiable {
 struct SidebarMainView: View {
     @State private var selectedItem: MainSidebarItem = .files
     @Bindable var workspaceViewModel: WorkspaceViewModel
+    @State private var isHovered: MainSidebarItem?
 
     var body: some View {
         HStack(spacing: 0) {
-            // Icon Sidebar
+            // Icon Sidebar (Visual Sidebar)
             VStack(spacing: 12) {
                 ForEach(MainSidebarItem.allCases) { item in
                     Button(action: { selectedItem = item }) {
@@ -47,29 +42,34 @@ struct SidebarMainView: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .background(selectedItem == item ? Color.accentColor.opacity(0.1) : Color.clear)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .background(selectedItem == item ? Color.accentColor.opacity(0.15) : (isHovered == item ? Color.white.opacity(0.05) : Color.clear))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                     .help(item.title)
+                    .onHover { hovering in
+                        isHovered = hovering ? item : nil
+                    }
                 }
                 Spacer()
             }
-            .padding(.vertical, 10)
+            .padding(.vertical, 12)
             .frame(width: 50)
             .background(Color(NSColor.windowBackgroundColor))
 
             Divider()
 
-            // Content View
-            NavigationStack {
-                VStack {
+            // Content View (Actual Navigation Column Content)
+            VStack(spacing: 0) {
+                HStack {
                     Text(selectedItem.title)
                         .font(.headline)
-                        .padding(.top, 10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal)
+                    Spacer()
+                }
+                .padding()
+                .background(.ultraThinMaterial)
 
-                    Divider()
+                Divider()
 
+                Group {
                     switch selectedItem {
                     case .files:
                         FileNavigatorSidebarView(viewModel: workspaceViewModel.projectTree)
@@ -78,25 +78,25 @@ struct SidebarMainView: View {
                     case .search:
                         SearchSidebarView()
                     case .debug:
-                        DebugInspectorSidebarView(viewModel: workspaceViewModel.debug)
-                    case .debugSessions:
                         DebugSessionsSidebarView(viewModel: workspaceViewModel.debug)
-                    case .breakpoints:
-                        BreakpointsSidebarView()
-                    case .bookmarks:
-                        BookmarksSidebarView()
-                    case .tests:
-                        TestsSidebarView()
-                    case .githubWorkflows:
-                        GitHubWorkflowsSidebarView()
                     case .agent:
                         AgentChatView()
                             .environment(workspaceViewModel.ai)
+                    case .workflows:
+                        GitHubWorkflowsSidebarView()
+                    case .terminal:
+                        TerminalView()
                     }
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .environment(workspaceViewModel)
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SelectSidebarItem"))) { notification in
+            if let itemString = notification.userInfo?["item"] as? String,
+               let item = MainSidebarItem(rawValue: itemString) {
+                selectedItem = item
+            }
+        }
+        .environment(workspaceViewModel)
     }
 }
