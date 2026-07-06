@@ -28,7 +28,7 @@ struct RecommendedOfflineModel: Identifiable {
     let suggestedLink: String
 }
 
-final class DeviceCapabilityAnalyzer {
+final class DeviceCapabilityAnalyzer: Sendable {
     static let shared = DeviceCapabilityAnalyzer()
     private init() {}
 

@@ -29,7 +29,7 @@ protocol OfflineTokenizer {
 }
 
 /// Factory for creating and managing MLX-backed models and tokenizers.
-final class LLMModelFactory {
+final class LLMModelFactory: Sendable {
     static let shared = LLMModelFactory()
 
     private let universalLoader = UniversalModelLoader()

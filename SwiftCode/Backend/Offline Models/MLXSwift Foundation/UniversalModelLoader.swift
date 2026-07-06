@@ -164,6 +164,8 @@ private enum ArchitectureRegistry {
     typealias Builder = (HuggingFaceModelConfig, WeightSource) async throws -> OfflineLanguageModel
 
     static func resolve(modelType: String) -> RegisteredArchitecture {
+        lock.lock()
+        defer { lock.unlock() }
         let normalized = normalize(modelType)
         if let architecture = mapping[normalized] {
             return architecture
@@ -175,12 +177,16 @@ private enum ArchitectureRegistry {
     }
 
     static func autoregisterIfNeeded(modelType: String) {
+        lock.lock()
+        defer { lock.unlock() }
         let normalized = normalize(modelType)
         guard mapping[normalized] == nil else { return }
         mapping[normalized] = RegisteredArchitecture(name: normalized, builder: GenericMLXArchitectureBuilders.generic)
     }
 
     static func register(modelTypes: [String], architectureName: String, builder: @escaping Builder) {
+        lock.lock()
+        defer { lock.unlock() }
         let architecture = RegisteredArchitecture(name: normalize(architectureName), builder: builder)
         for modelType in modelTypes {
             mapping[normalize(modelType)] = architecture
@@ -191,7 +197,9 @@ private enum ArchitectureRegistry {
         modelType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-    private static var mapping: [String: RegisteredArchitecture] = {
+    private static let lock = NSLock()
+
+    nonisolated(unsafe) private static var mapping: [String: RegisteredArchitecture] = {
         var map: [String: RegisteredArchitecture] = [:]
 
         registerKnown(into: &map, aliases: ["llama", "mistral", "qwen", "phi", "gpt_neox", "falcon", "gemma"], builder: GenericMLXArchitectureBuilders.generic)
