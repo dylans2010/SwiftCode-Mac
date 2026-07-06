@@ -57,7 +57,11 @@ struct DocumentationBrowserView: View {
                     .padding(.horizontal, 16) // Search section padding: 16 (shared)
                     .padding(.vertical, 12)
                 }
-                .background(Color(.secondarySystemBackground))
+                #if canImport(UIKit)
+                .background(Color(uiColor: .secondarySystemBackground))
+                #else
+                .background(Color(nsColor: .windowBackgroundColor))
+                #endif
 
                 // Documentation Content
                 if let currentURL {

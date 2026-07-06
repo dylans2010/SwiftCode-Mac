@@ -105,7 +105,8 @@ struct RepoPermission: Identifiable {
 
 // MARK: - Repo Permission Manager
 
-final class RepoPermManager: ObservableObject {
+@MainActor
+final class RepoPermManager: ObservableObject, Sendable {
     static let shared = RepoPermManager()
     private init() {}
 

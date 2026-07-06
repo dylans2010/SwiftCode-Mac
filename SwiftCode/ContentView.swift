@@ -68,10 +68,18 @@ struct ContentView: View {
             CodeSuggestionsView()
                 .environmentObject(suggestionsManager)
         }
+        #if os(iOS)
         .fullScreenCover(isPresented: .init(get: { !settings.hasCompletedOnboarding }, set: { _ in })) {
             OnboardingView()
                 .environmentObject(settings)
         }
+        #else
+        .sheet(isPresented: .init(get: { !settings.hasCompletedOnboarding }, set: { _ in })) {
+            OnboardingView()
+                .environmentObject(settings)
+                .frame(minWidth: 800, minHeight: 600)
+        }
+        #endif
         .sheet(isPresented: $isShowingDownloadProgress) {
             if let model = downloader.activeModel {
                 ModelDownloadProgressView(

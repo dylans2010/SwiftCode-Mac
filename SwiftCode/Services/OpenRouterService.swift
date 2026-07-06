@@ -31,7 +31,7 @@ final class OpenRouterService {
         var apiMessages: [[String: String]] = [
             ["role": "system", "content": systemPrompt]
         ]
-        apiMessages += messages.map { ["role": $0.role, "content": $0.content] }
+        apiMessages += messages.map { ["role": $0.role.rawValue, "content": $0.content] }
 
         let body: [String: Any] = [
             "model": model,
@@ -96,7 +96,7 @@ final class OpenRouterService {
         var apiMessages: [[String: String]] = [
             ["role": "system", "content": systemPrompt]
         ]
-        apiMessages += messages.map { ["role": $0.role, "content": $0.content] }
+        apiMessages += messages.map { ["role": $0.role.rawValue, "content": $0.content] }
 
         let body: [String: Any] = [
             "model": model,

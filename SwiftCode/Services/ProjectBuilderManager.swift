@@ -4,7 +4,8 @@ import Foundation
 
 /// Manages generation of user-project build files via XcodeGen.
 /// SwiftCode's own project files are not modified.
-final class ProjectBuilderManager {
+@MainActor
+final class ProjectBuilderManager: Sendable {
     static let shared = ProjectBuilderManager()
     private init() {}
 

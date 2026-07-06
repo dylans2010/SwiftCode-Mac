@@ -1,7 +1,8 @@
 import SwiftUI
 import Combine
 
-class ToolbarSettings: ObservableObject {
+@MainActor
+class ToolbarSettings: ObservableObject, Sendable {
     static let shared = ToolbarSettings()
 
     @Published var wordWrap: Bool = false

@@ -56,7 +56,8 @@ final class CodeSuggestionsML: ObservableObject {
             return [:]
         }
 
-        for case let fileURL as URL in enumerator where fileURL.pathExtension == "swift" {
+        while let fileURL = enumerator.nextObject() as? URL {
+            guard fileURL.pathExtension == "swift" else { continue }
             guard let content = try? String(contentsOf: fileURL) else { continue }
             let lines = content.components(separatedBy: .newlines)
 

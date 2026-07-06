@@ -1,6 +1,6 @@
 import Foundation
 
-final class CodeFormatter {
+final class CodeFormatter: Sendable {
     static let shared = CodeFormatter()
     private init() {}
 
