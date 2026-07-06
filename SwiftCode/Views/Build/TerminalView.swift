@@ -137,7 +137,6 @@ struct TerminalView: View {
                 .font(.system(size: 13, design: .monospaced))
                 .foregroundStyle(.white)
                 .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
                 .focused($inputFocused)
                 .onSubmit { runCommand() }
                 .onChange(of: commandInput) { _, _ in

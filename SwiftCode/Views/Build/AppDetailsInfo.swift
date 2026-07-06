@@ -16,7 +16,6 @@ struct AppDetailsInfo: View {
                 Section("App Metadata") {
                     TextField("App Name", text: $appName)
                     TextField("Bundle Identifier", text: $bundleIdentifier)
-                        .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     TextField("App Version", text: $marketingVersion)
                     TextField("Build Version", text: $buildVersion)
@@ -33,10 +32,10 @@ struct AppDetailsInfo: View {
             }
             .navigationTitle("App Details")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem {
                     Button("Skip") { onSkip() }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem {
                     Button("Start Compile") { onContinue() }
                         .fontWeight(.semibold)
                 }

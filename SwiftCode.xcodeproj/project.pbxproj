@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		77B43DCE400F4545BE986643 /* AssistCIFunctions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BE22505D0004FE0B4358328 /* AssistCIFunctions.swift */; };
 		004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = BBB818A276304EA881DBF6E6 /* MLXOptimizers */; };
 		028210A2C2DF33D15EF2B37A /* ProjectTemplateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E98EC5E61489CE7CE6AB854 /* ProjectTemplateView.swift */; };
 		02AFF64381F5BE083ABC5CD7 /* CodexErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BED4228DDA92C077BA85AE0 /* CodexErrorHandler.swift */; };
@@ -691,6 +692,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2BE22505D0004FE0B4358328 /* AssistCIFunctions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistCIFunctions.swift; sourceTree = "<group>"; };
 		00048987BBB25A712D49051C /* NordThemeExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NordThemeExtensionView.swift; sourceTree = "<group>"; };
 		0076F070FA7E4422B0FBAAB8 /* ParseMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseMarkdown.swift; sourceTree = "<group>"; };
 		00A96C0BE03E4321AB3DEAFB /* KubernetesApply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KubernetesApply.swift; sourceTree = "<group>"; };
@@ -1755,6 +1757,7 @@
 		36DFCDAA84A519209996D746 /* Build */ = {
 			isa = PBXGroup;
 			children = (
+				2BE22505D0004FE0B4358328 /* AssistCIFunctions.swift */,
 				6AB2D1AD681BC048CB097303 /* BuildDiagnostic.swift */,
 				8AE57462B0B5E506FA9CC059 /* BuildTargetInfo.swift */,
 				978D23E75B01ECDFDDE58E37 /* BuildScheme.swift */,
@@ -3177,6 +3180,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				77B43DCE400F4545BE986643 /* AssistCIFunctions.swift in Sources */,
 				662EEBC461982F43E3AEDF10 /* MLXModelContainer.swift in Sources */,
 				B7420BD5E70499A641004656 /* OnDeviceAIManager.swift in Sources */,
 				9E0C2AAF744606CC811F93ED /* DeploymentKeychainManager.swift in Sources */,

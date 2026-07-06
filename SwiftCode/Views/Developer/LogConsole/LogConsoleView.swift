@@ -42,7 +42,7 @@ struct LogConsoleView: View {
         .navigationTitle("Log Console")
         .searchable(text: $searchText, prompt: "Filter logs")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem {
                 Button(role: .destructive) {
                     logger.clearLogs()
                 } label: {

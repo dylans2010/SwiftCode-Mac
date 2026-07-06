@@ -32,7 +32,6 @@ struct LocalBuildView: View {
             }
         }
         .navigationTitle("Local Build")
-        .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             discoveryService.startScanning()
         }

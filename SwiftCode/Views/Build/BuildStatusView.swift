@@ -153,12 +153,11 @@ struct BuildStatusView: View {
                 }
             }
             .navigationTitle("Build Status")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem {
                     Button("Done") { dismiss() }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem {
                     Button {
                         loadData()
                     } label: {
@@ -632,7 +631,6 @@ struct BuildStatusView: View {
             }
             .background(Color(red: 0.11, green: 0.11, blue: 0.14))
             .navigationTitle("Build Logs")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { showLogs = false }
@@ -938,7 +936,6 @@ struct BuildGuideView: View {
                 }
             }
             .navigationTitle("Build Guide")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
