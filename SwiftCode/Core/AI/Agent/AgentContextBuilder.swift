@@ -5,7 +5,7 @@ public struct AgentContextBuilder: Sendable {
 
     public func buildContext(messages: [AgentMessage], model: OpenRouterModel) async -> [AgentMessage] {
         // Heuristic character-based token approximation (Layer 3, Feature F11)
-        let maxChars = model.contextLength * 4 // Rough estimate
+        let maxChars = (model.contextLength ?? 128000) * 4 // Rough estimate
         var currentChars = 0
         var result: [AgentMessage] = []
 
