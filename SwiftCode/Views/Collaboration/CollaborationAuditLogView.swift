@@ -18,7 +18,6 @@ public struct CollaborationAuditLogView: View {
             }
         }
         .navigationTitle("Audit Log")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

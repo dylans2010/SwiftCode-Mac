@@ -63,7 +63,6 @@ public struct CollaborationChatView: View {
             }
         }
         .navigationTitle("Team Chat")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

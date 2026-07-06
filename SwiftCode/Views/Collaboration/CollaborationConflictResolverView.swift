@@ -17,7 +17,6 @@ public struct CollaborationConflictResolverView: View {
             }
         }
         .navigationTitle("Conflict Resolver")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var emptyConflictsView: some View {

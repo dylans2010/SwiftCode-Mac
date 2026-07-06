@@ -33,7 +33,6 @@ public struct CollaborationNotificationCenterView: View {
                 }
             }
             .navigationTitle("Notifications")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Dismiss") { dismiss() }
