@@ -1,4 +1,10 @@
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct CreditsView: View {
     @Environment(\.dismiss) private var dismiss
@@ -6,6 +12,16 @@ struct CreditsView: View {
     @State private var isLoading = false
 
     private let usernames = ["dylans2010", "aoyn1xw"]
+
+    private static var groupedBackground: Color {
+#if canImport(UIKit)
+        Color(UIColor.systemGroupedBackground)
+#elseif canImport(AppKit)
+        Color(nsColor: NSColor.windowBackgroundColor)
+#else
+        Color.primary.opacity(0.04)
+#endif
+    }
 
     var body: some View {
         NavigationStack {
@@ -22,7 +38,7 @@ struct CreditsView: View {
                 }
                 .padding()
             }
-            .background(Color(.systemGroupedBackground))
+            .background(Self.groupedBackground)
             .navigationTitle("Credits")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -54,6 +70,16 @@ struct CreditsView: View {
 
 private struct GitHubProfileCard: View {
     let profile: GitHubProfile
+
+    private static var secondaryGroupedBackground: Color {
+#if canImport(UIKit)
+        Color(UIColor.secondarySystemGroupedBackground)
+#elseif canImport(AppKit)
+        Color(nsColor: NSColor.controlBackgroundColor)
+#else
+        Color.secondary.opacity(0.08)
+#endif
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -98,7 +124,7 @@ private struct GitHubProfileCard: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
+                .fill(Self.secondaryGroupedBackground)
         )
     }
 }
@@ -121,7 +147,7 @@ private struct GitHubProfile: Decodable, Identifiable {
     }
 }
 
-private final class GitHubProfileService {
+private final class GitHubProfileService: Sendable {
     static let shared = GitHubProfileService()
     private init() {}
 
