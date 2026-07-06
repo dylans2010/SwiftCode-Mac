@@ -1,6 +1,6 @@
 import Foundation
 
-public struct AIMessage: Identifiable, Sendable, Codable {
+public struct AIMessage: Identifiable, Sendable, Codable, Hashable {
     public let id: UUID
     public let role: Role
     public var content: String

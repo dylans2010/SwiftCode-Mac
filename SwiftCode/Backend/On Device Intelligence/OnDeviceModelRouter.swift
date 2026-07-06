@@ -6,7 +6,7 @@ final class OnDeviceModelRouter {
     private init() {}
 
     func useOnDeviceAI() -> Bool {
-        AppSettings.shared.appleIntelligenceEnabled && DeviceUtilityManager.shared.isAppleIntelligenceSupported()
+        UserDefaults.standard.bool(forKey: "appleIntelligenceEnabled") && DeviceUtilityManager.shared.isAppleIntelligenceSupported()
     }
 
     func generateResponse(prompt: String, useContext: Bool) async throws -> String {

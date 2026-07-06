@@ -14,9 +14,9 @@ final class OnDeviceAIManager: ObservableObject {
     private init() {}
 
     func sendPrompt(_ prompt: String, task: AppleIntelligenceService.TaskType = .textGeneration) async throws -> String {
-        activeSession.history.append(AIMessage(role: "user", content: prompt))
+        activeSession.history.append(AIMessage(role: .user, content: prompt))
         let response = try await service.process(prompt: prompt, task: task, session: activeSession)
-        activeSession.history.append(AIMessage(role: "assistant", content: response))
+        activeSession.history.append(AIMessage(role: .assistant, content: response))
         activeSession.lastUpdated = Date()
         return response
     }

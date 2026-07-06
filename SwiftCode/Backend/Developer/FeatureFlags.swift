@@ -1,6 +1,6 @@
 import Foundation
 
-final class FeatureFlags: ObservableObject {
+final class FeatureFlags: ObservableObject, @unchecked Sendable {
     static let shared = FeatureFlags()
 
     @Published var bypass_paywall: Bool {

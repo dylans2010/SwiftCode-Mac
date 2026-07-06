@@ -1,5 +1,7 @@
 import Foundation
+#if os(iOS) || os(tvOS)
 import BackgroundTasks
+#endif
 
 @MainActor
 final class OfflineModelDownloader: ObservableObject {
@@ -142,14 +144,17 @@ final class OfflineModelDownloader: ObservableObject {
     }
 
     func registerBackgroundTask() {
+        #if os(iOS) || os(tvOS)
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.backgroundTaskIdentifier, using: nil) { task in
             Task { @MainActor in
                 self.handleBackgroundProcessingTask(task)
             }
         }
+        #endif
     }
 
     func scheduleBackgroundDownloadContinuation() {
+        #if os(iOS) || os(tvOS)
         guard isDownloading || persistedPendingDownload() != nil else { return }
 
         let request = BGProcessingTaskRequest(identifier: Self.backgroundTaskIdentifier)
@@ -162,6 +167,7 @@ final class OfflineModelDownloader: ObservableObject {
         } catch {
             print("[OfflineModelDownloader] Failed to schedule background task: \(error)")
         }
+        #endif
     }
 
     func resumePendingDownloadIfNeeded() async {
@@ -210,6 +216,7 @@ final class OfflineModelDownloader: ObservableObject {
         return "Full error: \(nsError)"
     }
 
+    #if os(iOS) || os(tvOS)
     private func handleBackgroundProcessingTask(_ task: BGTask) {
         task.expirationHandler = {
             Task { @MainActor in
@@ -222,6 +229,7 @@ final class OfflineModelDownloader: ObservableObject {
             task.setTaskCompleted(success: !self.isDownloading)
         }
     }
+    #endif
 
     private func persistPendingDownload(_ model: OfflineModelMetadata) {
         guard let data = try? JSONEncoder().encode(model) else { return }

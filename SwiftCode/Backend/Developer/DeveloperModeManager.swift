@@ -1,6 +1,6 @@
 import Foundation
 
-final class DeveloperModeManager: ObservableObject {
+final class DeveloperModeManager: ObservableObject, @unchecked Sendable {
     static let shared = DeveloperModeManager()
 
     @Published var isDeveloperModeEnabled: Bool {

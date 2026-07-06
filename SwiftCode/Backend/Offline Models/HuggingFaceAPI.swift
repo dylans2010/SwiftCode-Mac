@@ -1,6 +1,6 @@
 import Foundation
 
-final class HuggingFaceAPI {
+final class HuggingFaceAPI: @unchecked Sendable {
     static let shared = HuggingFaceAPI()
     private init() {}
 
