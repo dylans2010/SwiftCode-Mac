@@ -87,7 +87,7 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
 }
 
 
-public struct ProjectTransferConfiguration: Codable, Hashable {
+public struct ProjectTransferConfiguration: Codable, Hashable, Sendable {
     public var originPeerID: String?
     public var permission: TransferPermission
     public var lastTransferSessionID: UUID?
