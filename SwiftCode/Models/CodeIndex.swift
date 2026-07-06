@@ -96,20 +96,20 @@ struct CodeError: Identifiable {
 
 // MARK: - Package Dependency
 
-struct PackageDependency: Identifiable, Codable {
-    var id = UUID()
-    var name: String
-    var url: String
-    var version: String
-    var source: DependencySource
+public struct PackageDependency: Identifiable, Codable {
+    public var id = UUID()
+    public var name: String
+    public var url: String
+    public var version: String
+    public var source: DependencySource
 
-    enum DependencySource: String, Codable, CaseIterable {
+    public enum DependencySource: String, Codable, CaseIterable {
         case github = "GitHub"
         case swiftPackageIndex = "Swift Package Index"
         case gitURL = "Git URL"
     }
 
-    var packageSwiftEntry: String {
+    public var packageSwiftEntry: String {
         ".package(url: \"\(url)\", from: \"\(version)\")"
     }
 }

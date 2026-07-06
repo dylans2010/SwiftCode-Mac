@@ -539,6 +539,8 @@
 		BF8FDA5218209CC94907A8E6 /* DeploymentDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D08F6FB2233309318ED1924E /* DeploymentDebugView.swift */; };
 		BFACEEA448AB4070944E15E8 /* AIChatInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBD8E720818763C489F3EC95 /* AIChatInputView.swift */; };
 		C04811B05F891985B5E8C598 /* CodeIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB814CE5CF49FABD682AE1AD /* CodeIndex.swift */; };
+		B94E3A022C12345600123456 /* CodeReviewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94E3A012C12345600123456 /* CodeReviewModels.swift */; };
+		B94E3A042C12345600123456 /* AgentCodeReviewManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94E3A032C12345600123456 /* AgentCodeReviewManager.swift */; };
 		C2406B28E37C4FA6B34A07ED /* RenameFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 984EC476599A4A4B879AAC04 /* RenameFile.swift */; };
 		C25F5DEF5BB44301A97F2B08 /* InstallDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4B04F1256524A7FBA04FEB5 /* InstallDependencies.swift */; };
 		C2613EE0C658D412F48C0B15 /* AIModelDebuggerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F1500D1399177D480F223EF /* AIModelDebuggerView.swift */; };
@@ -1354,6 +1356,8 @@
 		FA25A7735DA94083B03C6EE4 /* DeleteDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteDirectory.swift; sourceTree = "<group>"; };
 		FA6C9FEA3B0617FEA151EA5C /* AICodeReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AICodeReviewView.swift; sourceTree = "<group>"; };
 		FB814CE5CF49FABD682AE1AD /* CodeIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeIndex.swift; sourceTree = "<group>"; };
+		B94E3A012C12345600123456 /* CodeReviewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeReviewModels.swift; sourceTree = "<group>"; };
+		B94E3A032C12345600123456 /* AgentCodeReviewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentCodeReviewManager.swift; sourceTree = "<group>"; };
 		FBAB409C7BAE9FEAEB52CBFD /* CodeEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeEditorView.swift; sourceTree = "<group>"; };
 		FD0EFEEFF10842969DB5A893 /* ParseJSON.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseJSON.swift; sourceTree = "<group>"; };
 		FD158DEA1E8D463E25C6A4EC /* GistCommentSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GistCommentSectionView.swift; sourceTree = "<group>"; };
@@ -1670,6 +1674,7 @@
 				6555C1BE5A77537F356894BE /* ProjectFolder.swift */,
 				6291F6B2323D40008CF052F5 /* FileNode.swift */,
 				721C5D75E060E2E2DB7DD5E6 /* ToolbarItem.swift */,
+				B94E3A012C12345600123456 /* CodeReviewModels.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -1941,6 +1946,7 @@
 				BD599CB15931E1AE34531166 /* PluginManager.swift */,
 				C47ACC042411705FB3B2D05C /* OpenRouterService.swift */,
 				DFA7CBE035FA31B4DD1118D6 /* ProjectTemplateManager.swift */,
+				B94E3A032C12345600123456 /* AgentCodeReviewManager.swift */,
 				E88ABC5285FBB00F71402090 /* SyntaxHighlighter.swift */,
 				FECDF3B19AFE35EDD3CC54A0 /* ZipImporter.swift */,
 			);
@@ -2658,6 +2664,7 @@
 				8006C0E358CBE55622B23B6E /* DebugSessionViewModel.swift */,
 				82399C8198EFED7554056D89 /* GitViewModel.swift */,
 				9A8CA9359E850B65BF43DD21 /* ProjectTreeViewModel.swift */,
+				B94E3A032C12345600123456 /* AgentCodeReviewManager.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -3213,6 +3220,8 @@
 				A10DE9AB75E3E283785DD550 /* FileNode.swift in Sources */,
 				CC155183D1A7A48FFF88BAB9 /* ToolbarItem.swift in Sources */,
 				C04811B05F891985B5E8C598 /* CodeIndex.swift in Sources */,
+				B94E3A022C12345600123456 /* CodeReviewModels.swift in Sources */,
+				B94E3A042C12345600123456 /* AgentCodeReviewManager.swift in Sources */,
 				78E02B2D4E2602126D2B25F1 /* OfflineModelRunner.swift in Sources */,
 				BE41C6C9706D4F18C876C219 /* OfflineModelConverter.swift in Sources */,
 				979AAEE74876A34042A19ADF /* OfflineModelMetadata.swift in Sources */,
