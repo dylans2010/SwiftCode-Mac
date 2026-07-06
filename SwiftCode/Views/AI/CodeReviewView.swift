@@ -31,9 +31,8 @@ struct CodeReviewView: View {
                 }
             }
             .navigationTitle("Code Review")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .navigation) {
                     Button {
                         showHistory.toggle()
                     } label: {
@@ -41,7 +40,7 @@ struct CodeReviewView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     Button {
                         Task { await startReview() }
                     } label: {
@@ -268,7 +267,6 @@ struct CodeReviewView: View {
                 }
             }
             .navigationTitle("Review History")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { showHistory = false }
@@ -436,7 +434,6 @@ struct IssueDetailSheet: View {
             }
             .background(Color(red: 0.10, green: 0.10, blue: 0.14).ignoresSafeArea())
             .navigationTitle("Issue Detail")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

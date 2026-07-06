@@ -41,6 +41,5 @@ struct AIDocGenExtensionView: View {
             }
         }
         .navigationTitle("AI Doc Generator")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

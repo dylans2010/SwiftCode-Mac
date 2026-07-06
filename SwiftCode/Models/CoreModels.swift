@@ -49,6 +49,9 @@ public struct SearchResult: Identifiable, Codable, Sendable {
     public let filePath: String
     public let lineNumber: Int
     public let snippet: String
+    // NOTE: Range<String.Index> is not Codable (String.Index has no public
+    // Codable conformance), so it's intentionally excluded from
+    // encode/decode below. It's transient UI-highlight state only.
     public let matchRange: Range<String.Index>?
 
     public init(id: UUID = UUID(), fileName: String? = nil, filePath: String, lineNumber: Int, snippet: String, matchRange: Range<String.Index>? = nil) {
@@ -62,6 +65,29 @@ public struct SearchResult: Identifiable, Codable, Sendable {
 
     public var lineContent: String {
         snippet
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, fileName, filePath, lineNumber, snippet
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(UUID.self, forKey: .id)
+        self.fileName = try container.decode(String.self, forKey: .fileName)
+        self.filePath = try container.decode(String.self, forKey: .filePath)
+        self.lineNumber = try container.decode(Int.self, forKey: .lineNumber)
+        self.snippet = try container.decode(String.self, forKey: .snippet)
+        self.matchRange = nil
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(fileName, forKey: .fileName)
+        try container.encode(filePath, forKey: .filePath)
+        try container.encode(lineNumber, forKey: .lineNumber)
+        try container.encode(snippet, forKey: .snippet)
     }
 }
 

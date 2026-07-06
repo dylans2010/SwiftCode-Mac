@@ -46,6 +46,5 @@ struct AIRefactorExtensionView: View {
             }
         }
         .navigationTitle("AI Refactor")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

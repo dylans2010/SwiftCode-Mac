@@ -31,7 +31,6 @@ struct AICodeReviewView: View {
                 }
             }
             .navigationTitle("Code Review")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
@@ -268,7 +267,6 @@ struct AICodeReviewView: View {
                 }
             }
             .navigationTitle("Review History")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { showHistory = false }
@@ -436,7 +434,6 @@ struct AICodeReviewIssueDetailSheet: View {
             }
             .background(Color(red: 0.10, green: 0.10, blue: 0.14).ignoresSafeArea())
             .navigationTitle("Issue Detail")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
