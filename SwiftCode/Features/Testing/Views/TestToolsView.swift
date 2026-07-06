@@ -33,7 +33,7 @@ public struct TestToolsView: View {
                             TestResultRow(result: result)
                         }
                     }
-                    .listStyle(.insetGrouped)
+                    .listStyle(.inset)
                     .scrollContentBackground(.hidden)
                 }
             }
