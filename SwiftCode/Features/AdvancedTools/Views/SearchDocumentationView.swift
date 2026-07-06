@@ -345,31 +345,27 @@ private struct RepositoryKnowledgeReport: Sendable {
     }
 
     private static func analyzeLocalRepository(rootURL: URL, progress: @escaping @Sendable (RepositoryProgressUpdate) async -> Void) async throws -> Self {
-        try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    let fm = FileManager.default
-                    let allowed = Set(["swift", "md", "txt", "json", "yaml", "yml", "plist"])
-                    let enumerator = fm.enumerator(at: rootURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles, .skipsPackageDescendants])
+        // Perform the synchronous enumeration in a detached task to avoid blocking the main thread
+        // and to satisfy Sendability by avoiding the mixing of DispatchQueue and Task.
+        try await Task.detached(priority: .userInitiated) {
+            let fm = FileManager.default
+            let allowed = Set(["swift", "md", "txt", "json", "yaml", "yml", "plist"])
+            let enumerator = fm.enumerator(at: rootURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles, .skipsPackageDescendants])
 
-                    var files: [URL] = []
-                    var scanned = 0
-                    while let item = enumerator?.nextObject() as? URL {
-                        scanned += 1
-                        if scanned % 250 == 0 {
-                            Task { await progress(.init(progress: min(0.2 + Double(scanned) / 50000.0, 0.7), message: "Indexed \(scanned) paths...")) }
-                        }
-                        if allowed.contains(item.pathExtension.lowercased()) { files.append(item) }
-                    }
-
-                    guard !files.isEmpty else { throw RepositoryScanError.emptyRepository }
-                    Task { await progress(.init(progress: 0.78, message: "Analyzing code structure...")) }
-                    continuation.resume(returning: try buildReport(rootURL: rootURL, files: files))
-                } catch {
-                    continuation.resume(throwing: error)
+            var files: [URL] = []
+            var scanned = 0
+            while let item = enumerator?.nextObject() as? URL {
+                scanned += 1
+                if scanned % 250 == 0 {
+                    await progress(.init(progress: min(0.2 + Double(scanned) / 50000.0, 0.7), message: "Indexed \(scanned) paths..."))
                 }
+                if allowed.contains(item.pathExtension.lowercased()) { files.append(item) }
             }
-        }
+
+            guard !files.isEmpty else { throw RepositoryScanError.emptyRepository }
+            await progress(.init(progress: 0.78, message: "Analyzing code structure..."))
+            return try buildReport(rootURL: rootURL, files: files)
+        }.value
     }
 
     private static func buildReport(rootURL: URL, files: [URL]) throws -> Self {
