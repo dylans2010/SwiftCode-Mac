@@ -1,6 +1,6 @@
 import Foundation
 
-public struct DocumentAppTemplate: ProjectTemplate {
+public struct DocumentAppTemplate: ProjectScaffoldTemplate {
     public let name = "Document App"
     public let description = "A document-based app for macOS."
     public let icon = "doc.text"

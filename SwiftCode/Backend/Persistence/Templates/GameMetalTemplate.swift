@@ -1,6 +1,6 @@
 import Foundation
 
-public struct GameMetalTemplate: ProjectTemplate {
+public struct GameMetalTemplate: ProjectScaffoldTemplate {
     public let name = "Metal Game"
     public let description = "A high-performance game template using the Metal framework."
     public let icon = "cpu"

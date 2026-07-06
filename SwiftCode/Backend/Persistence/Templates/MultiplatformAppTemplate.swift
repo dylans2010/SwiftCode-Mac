@@ -1,6 +1,6 @@
 import Foundation
 
-public struct MultiplatformAppTemplate: ProjectTemplate {
+public struct MultiplatformAppTemplate: ProjectScaffoldTemplate {
     public let name = "Multiplatform App"
     public let description = "A SwiftUI app that runs on macOS, iOS, and visionOS."
     public let icon = "square.on.square"

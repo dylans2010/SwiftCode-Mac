@@ -1,6 +1,6 @@
 import Foundation
 
-public struct SafariExtensionTemplate: ProjectTemplate {
+public struct SafariExtensionTemplate: ProjectScaffoldTemplate {
     public let name = "Safari Extension"
     public let description = "A template for a Safari web extension."
     public let icon = "safari"

@@ -1,6 +1,6 @@
 import Foundation
 
-public struct FrameworkTemplate: ProjectTemplate {
+public struct FrameworkTemplate: ProjectScaffoldTemplate {
     public let name = "Framework"
     public let description = "A template for a shared framework."
     public let icon = "briefcase"

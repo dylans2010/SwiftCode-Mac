@@ -1,6 +1,6 @@
 import Foundation
 
-public struct SwiftUIViewLibraryTemplate: ProjectTemplate {
+public struct SwiftUIViewLibraryTemplate: ProjectScaffoldTemplate {
     public let name = "SwiftUI View Library"
     public let description = "A library of reusable SwiftUI components."
     public let icon = "macwindow.on.rectangle"

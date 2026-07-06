@@ -1,9 +1,9 @@
 import Foundation
 
-public actor ProjectTemplateEngine {
-    public static let shared = ProjectTemplateEngine()
+public actor ProjectScaffoldTemplateEngine {
+    public static let shared = ProjectScaffoldTemplateEngine()
 
-    public func createProject(at url: URL, template: ProjectTemplate) throws {
+    public func createProject(at url: URL, template: any ProjectScaffoldTemplate) throws {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         for file in template.files {
             let fileURL = url.appendingPathComponent(file.path)
@@ -12,7 +12,7 @@ public actor ProjectTemplateEngine {
     }
 }
 
-public protocol ProjectTemplate: Sendable {
+public protocol ProjectScaffoldTemplate: Sendable {
     var name: String { get }
     var description: String { get }
     var icon: String { get }

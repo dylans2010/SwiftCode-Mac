@@ -1,6 +1,6 @@
 import Foundation
 
-public struct SwiftDataAppTemplate: ProjectTemplate {
+public struct SwiftDataAppTemplate: ProjectScaffoldTemplate {
     public let name = "SwiftData App"
     public let description = "A template for a SwiftUI application using SwiftData for persistence."
     public let icon = "externaldrive.fill"

@@ -1,6 +1,6 @@
 import Foundation
 
-public struct SystemExtensionTemplate: ProjectTemplate {
+public struct SystemExtensionTemplate: ProjectScaffoldTemplate {
     public let name = "System Extension"
     public let description = "A template for creating a macOS system extension (e.g., Network Extension)."
     public let icon = "puzzlepiece"
