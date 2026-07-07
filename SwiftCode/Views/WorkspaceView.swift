@@ -50,6 +50,9 @@ struct WorkspaceView: View {
                             Button("Extensions") { activeSheet = .extensionMarketplace }
                             Button("Debug Tools") { activeSheet = .debugTools }
                             Button("Plugin Manager") { activeSheet = .pluginManager }
+                            NavigationLink(destination: DevToolsMainView()) {
+                                Text("Dev Tools")
+                            }
                         }
 
                         Section("Analysis") {
@@ -122,6 +125,7 @@ struct WorkspaceView: View {
                 case .codeIntelligence: CodeIntelligenceView()
                 case .workspaceProfiles: WorkspaceProfilesView()
                 case .gitHub: GitHubIntegrationView(project: project)
+                case .devTools: DevToolsMainView()
                 default:
                     ContentUnavailableView {
                         Label("Feature Detail", systemImage: "hammer")
