@@ -35,7 +35,6 @@ struct GistsView: View {
                 }
             }
             .navigationTitle("GitHub Gists")
-            .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchQuery, prompt: "Search Gists")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -48,7 +47,7 @@ struct GistsView: View {
                         Image(systemName: "plus")
                     }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem() {
                     Button {
                         Task { try await gistService.fetchGists() }
                     } label: {
@@ -140,7 +139,7 @@ struct GistsView: View {
             }
             .listRowBackground(Color.white.opacity(0.05))
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.inset)
         .scrollContentBackground(.hidden)
     }
 

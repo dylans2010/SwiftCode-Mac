@@ -31,7 +31,6 @@ struct CodeSearchView: View {
                         .foregroundStyle(.secondary)
                     TextField("Search", text: $searchQuery)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
                         .focused($searchFocused)
                         .onSubmit { performSearch() }
                         .onChange(of: searchQuery) { _, newValue in
@@ -116,12 +115,11 @@ struct CodeSearchView: View {
             }
             .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle("Code Search")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem() {
                     Button {
                         performSearch()
                     } label: {

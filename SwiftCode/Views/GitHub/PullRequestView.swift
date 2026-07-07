@@ -52,7 +52,6 @@ struct PullRequestView: View {
                 }
             }
             .navigationTitle("New Pull Request")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -254,7 +253,6 @@ struct PullRequestView: View {
             TextField(placeholder, text: text)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
             Text(hint)
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
@@ -335,7 +333,6 @@ struct PullRequestView: View {
             .padding()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(red: 0.08, green: 0.08, blue: 0.12).ignoresSafeArea())
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {

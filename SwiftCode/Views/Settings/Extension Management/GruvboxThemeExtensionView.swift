@@ -56,6 +56,5 @@ struct GruvboxThemeExtensionView: View {
             }
         }
         .navigationTitle("Gruvbox Theme")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

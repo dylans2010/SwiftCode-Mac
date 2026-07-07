@@ -46,7 +46,6 @@ struct SettingsView: View {
                     if showOpenRouterKey {
                         TextField("sk-or-xxxxxxxxxxxxxxxx", text: $openRouterKey)
                             .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
                             .font(.system(.body, design: .monospaced))
 
                         Button {
@@ -85,7 +84,6 @@ struct SettingsView: View {
                         }
                         TextField("e.g. mistralai/mistral-7b-instruct", text: $customModelInput)
                             .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
                             .font(.system(.body, design: .monospaced))
                         Button {
                             let trimmed = customModelInput.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -137,7 +135,6 @@ struct SettingsView: View {
                     if showGitHubToken {
                         TextField("ghp_xxxxxxxxxxxx", text: $githubToken)
                             .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
                             .font(.system(.body, design: .monospaced))
 
                         Button {
@@ -244,7 +241,6 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

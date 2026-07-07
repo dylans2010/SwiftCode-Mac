@@ -78,7 +78,6 @@ struct CommandPaletteView: View {
                     TextField("Type A Command", text: $searchText)
                         .autocorrectionDisabled()
 #if os(iOS)
-                        .textInputAutocapitalization(.never)
 #endif
                     if !searchText.isEmpty {
                         Button { searchText = "" } label: {

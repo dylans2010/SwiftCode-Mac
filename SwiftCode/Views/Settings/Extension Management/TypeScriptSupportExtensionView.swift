@@ -43,6 +43,5 @@ struct TypeScriptSupportExtensionView: View {
             }
         }
         .navigationTitle("TypeScript Support")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

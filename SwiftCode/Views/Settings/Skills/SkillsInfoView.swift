@@ -139,6 +139,5 @@ struct SkillsInfoView: View {
             .padding()
         }
         .navigationTitle("Skill Details")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

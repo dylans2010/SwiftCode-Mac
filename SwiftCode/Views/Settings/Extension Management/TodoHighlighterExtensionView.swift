@@ -51,6 +51,5 @@ struct TodoHighlighterExtensionView: View {
             }
         }
         .navigationTitle("TODO Highlighter")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

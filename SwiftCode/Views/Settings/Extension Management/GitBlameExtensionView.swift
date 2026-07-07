@@ -34,6 +34,5 @@ struct GitBlameExtensionView: View {
             }
         }
         .navigationTitle("Git Blame")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

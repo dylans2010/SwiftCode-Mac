@@ -24,7 +24,6 @@ struct CodeStatsExtensionView: View {
             }
         }
         .navigationTitle("Code Stats")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func statRow(_ label: String, value: String, icon: String) -> some View {

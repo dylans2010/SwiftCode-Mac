@@ -62,7 +62,6 @@ struct GoToLineView: View {
             }
             .padding(.top, 30)
             .background(Color(red: 0.10, green: 0.10, blue: 0.14))
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Cancel") { dismiss() }

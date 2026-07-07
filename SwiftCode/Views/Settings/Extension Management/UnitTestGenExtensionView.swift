@@ -41,6 +41,5 @@ struct UnitTestGenExtensionView: View {
             }
         }
         .navigationTitle("Unit Test Generator")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

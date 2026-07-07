@@ -83,7 +83,6 @@ struct GitCommandView: View {
                 }
             }
             .navigationTitle("Git Commands")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -178,7 +177,6 @@ struct GitCommandView: View {
                 }
             }
             .navigationTitle("git commit & push")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { showCommitInput = false }
@@ -194,7 +192,6 @@ struct GitCommandView: View {
                 Section("New Branch Name") {
                     TextField("feature/new-feature", text: $newBranchName)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
                 }
                 if !branches.isEmpty {
                     Section("Switch To Existing Branch") {
@@ -236,7 +233,6 @@ struct GitCommandView: View {
                 }
             }
             .navigationTitle("git branch / checkout")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { showBranchInput = false }
@@ -372,7 +368,6 @@ struct GitCommandView: View {
                 Section("Tag Details") {
                     TextField("v1.0.0", text: $tagName)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
                     TextField("Tag message (optional)", text: $tagMessage)
                 }
                 Section {
@@ -384,7 +379,6 @@ struct GitCommandView: View {
                 }
             }
             .navigationTitle("git tag")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { showTagInput = false }

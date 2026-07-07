@@ -45,6 +45,5 @@ struct DocCGeneratorExtensionView: View {
             }
         }
         .navigationTitle("DocC Generator")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

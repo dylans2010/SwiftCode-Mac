@@ -79,7 +79,6 @@ struct GitHubIssuesView: View {
                 }
             }
             .navigationTitle("GitHub Issues")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarItems }
             .sheet(isPresented: $showCreateIssue) {
                 createIssueSheet
@@ -100,7 +99,7 @@ struct GitHubIssuesView: View {
 
     @ToolbarContentBuilder
     private var toolbarItems: some ToolbarContent {
-        ToolbarItem(placement: .navigationBarLeading) {
+        ToolbarItem() {
             Picker("State", selection: $filterState) {
                 Text("Open").tag("open")
                 Text("Closed").tag("closed")
@@ -113,7 +112,7 @@ struct GitHubIssuesView: View {
                 filterTask = Task { await loadIssues() }
             }
         }
-        ToolbarItem(placement: .navigationBarTrailing) {
+        ToolbarItem() {
             HStack(spacing: 12) {
                 Button { Task { await loadIssues() } } label: {
                     Image(systemName: "arrow.clockwise").foregroundStyle(.cyan)
@@ -265,7 +264,6 @@ struct GitHubIssuesView: View {
             .padding(16)
             .background(Color(red: 0.10, green: 0.10, blue: 0.14).ignoresSafeArea())
             .navigationTitle("New Issue")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { showCreateIssue = false }
@@ -430,7 +428,6 @@ struct IssueDetailView: View {
             }
             .background(Color(red: 0.10, green: 0.10, blue: 0.14).ignoresSafeArea())
             .navigationTitle("Issue #\(issue.number)")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

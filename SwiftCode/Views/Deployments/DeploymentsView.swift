@@ -39,7 +39,6 @@ struct DeploymentsView: View {
                     if useCustomDomain {
                         TextField("Type Custom Domain", text: $customDomain)
                             .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
                     }
                 }
 
@@ -108,7 +107,6 @@ struct DeploymentsView: View {
                 }
             }
             .navigationTitle("Deployments")
-            .navigationBarTitleDisplayMode(.inline)
         }
     }
 

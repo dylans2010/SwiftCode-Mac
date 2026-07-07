@@ -62,7 +62,6 @@ struct CreateGistView: View {
                 }
             }
             .navigationTitle("New Gist")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if successGist == nil {
                     ToolbarItem(placement: .cancellationAction) {
@@ -258,7 +257,6 @@ struct CreateGistView: View {
                     .padding()
                     .background(Color.white.opacity(0.05))
                     .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
 
                 TextEditor(text: $pasteContent)
                     .font(.system(size: 14, design: .monospaced))
@@ -292,7 +290,6 @@ struct CreateGistView: View {
                 }
             }
             .navigationTitle("Paste Snippet")
-            .navigationBarTitleDisplayMode(.inline)
             .background(Color(red: 0.10, green: 0.10, blue: 0.14))
         }
         .presentationDetents([.medium, .large])

@@ -45,6 +45,5 @@ struct MultiCursorExtensionView: View {
             }
         }
         .navigationTitle("Multi-Cursor")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

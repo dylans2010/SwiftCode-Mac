@@ -39,6 +39,5 @@ struct RustSupportExtensionView: View {
             }
         }
         .navigationTitle("Rust Support")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

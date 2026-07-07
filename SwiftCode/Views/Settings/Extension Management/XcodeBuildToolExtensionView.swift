@@ -44,6 +44,5 @@ struct XcodeBuildToolExtensionView: View {
             }
         }
         .navigationTitle("Xcode Build Tool")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

@@ -108,7 +108,7 @@ struct DeploymentLogsView: View {
             do {
                 var fullResponse = ""
                 try await LLMService.shared.streamChat(
-                    messages: [AIMessage(role: "user", content: prompt)],
+                    messages: [AIMessage(role: .user, content: prompt)],
                     model: AppSettings.shared.selectedModel,
                     systemPrompt: "You are an AI assistant helping a developer debug deployment issues."
                 ) { token in
@@ -148,7 +148,6 @@ struct AnalysisResultView: View {
             }
             .background(Color(red: 0.05, green: 0.05, blue: 0.07))
             .navigationTitle("AI Log Analysis")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

@@ -49,6 +49,5 @@ struct NordThemeExtensionView: View {
             }
         }
         .navigationTitle("Nord Theme")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

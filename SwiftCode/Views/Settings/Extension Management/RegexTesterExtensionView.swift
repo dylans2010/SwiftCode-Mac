@@ -46,7 +46,6 @@ struct RegexTesterExtensionView: View {
             }
         }
         .navigationTitle("Regex Tester")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func evaluate() {

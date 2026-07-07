@@ -35,12 +35,11 @@ struct BranchManagementView: View {
                 }
             }
             .navigationTitle("Branches")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem() {
                     HStack(spacing: 12) {
                         Button {
                             Task { await loadBranches() }
@@ -144,7 +143,6 @@ struct BranchManagementView: View {
                 Section("New Branch") {
                     TextField("new-name", text: $newBranchName)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
                 }
 
                 Section("Base Branch") {
@@ -157,7 +155,6 @@ struct BranchManagementView: View {
                 }
             }
             .navigationTitle("Create Branch")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { showCreateSheet = false }

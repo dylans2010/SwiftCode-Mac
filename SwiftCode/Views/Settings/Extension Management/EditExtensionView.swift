@@ -69,7 +69,6 @@ struct EditExtensionView: View {
             .scrollContentBackground(.hidden)
             .background(Color(red: 0.08, green: 0.08, blue: 0.12).ignoresSafeArea())
             .navigationTitle("Edit Extension")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -268,13 +267,11 @@ struct EditExtensionView: View {
                 Section("File Name") {
                     TextField("NewFeature.swift", text: $newFileName)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
                 }
             }
             .scrollContentBackground(.hidden)
             .background(Color(red: 0.08, green: 0.08, blue: 0.12).ignoresSafeArea())
             .navigationTitle("Add File")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { showAddFileSheet = false }
@@ -310,7 +307,6 @@ struct EditExtensionView: View {
             }
             .background(Color(red: 0.08, green: 0.08, blue: 0.12).ignoresSafeArea())
             .navigationTitle("Edit File")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { editingFileIndex = nil }

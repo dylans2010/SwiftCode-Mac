@@ -21,7 +21,6 @@ struct ConsoleCommandRunnerView: View {
                     .onSubmit { runCommand() }
                     .autocorrectionDisabled()
 #if os(iOS)
-                    .textInputAutocapitalization(.never)
 #endif
             }
             .padding()

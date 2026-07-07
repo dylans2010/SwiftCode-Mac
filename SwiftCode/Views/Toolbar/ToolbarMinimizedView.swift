@@ -48,7 +48,6 @@ struct ToolbarExpandedPanelView: View {
                 }
             }
             .navigationTitle("All Tools")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { isPresented = false }

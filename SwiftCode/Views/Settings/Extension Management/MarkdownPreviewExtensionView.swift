@@ -36,6 +36,5 @@ struct MarkdownPreviewExtensionView: View {
             }
         }
         .navigationTitle("Markdown Preview")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

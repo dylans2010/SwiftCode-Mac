@@ -32,9 +32,8 @@ struct FilePreviewView: View {
                 content
             }
             .navigationTitle(projectManager.activeFileNode?.name ?? "Preview")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem() {
                     Picker("Tab", selection: $selectedTab) {
                         ForEach(PreviewTab.allCases, id: \.self) { tab in
                             Text(tab.rawValue).tag(tab)
@@ -169,7 +168,7 @@ struct FilePreviewView: View {
                 infoRow(label: "Words",      value: "\(rawText.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count)")
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.inset)
         .scrollContentBackground(.hidden)
     }
 
