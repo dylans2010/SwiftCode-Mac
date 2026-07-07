@@ -69,7 +69,6 @@ struct DiffViewerView: View {
             }
             .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle("Diff Viewer")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

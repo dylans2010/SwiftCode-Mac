@@ -74,7 +74,6 @@ struct PRCreateView: View {
                 }
             }
             .navigationTitle("New Pull Request")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

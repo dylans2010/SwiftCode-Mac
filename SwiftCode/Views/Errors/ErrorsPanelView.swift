@@ -94,7 +94,6 @@ struct ErrorsPanelView: View {
             }
             .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle("Errors & Warnings")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
