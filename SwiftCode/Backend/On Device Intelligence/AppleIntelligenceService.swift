@@ -1,8 +1,8 @@
 import Foundation
 import NaturalLanguage
 
-final class AppleIntelligenceService {
-    enum TaskType: String, Codable, CaseIterable {
+final class AppleIntelligenceService: Sendable {
+    enum TaskType: String, Sendable, Codable, CaseIterable {
         case textGeneration
         case summarization
         case rewriting
