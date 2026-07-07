@@ -13,6 +13,7 @@ public actor GitService {
             let commonPaths = [
                 "/usr/local/bin/git",
                 "/opt/homebrew/bin/git",
+                "/Library/Developer/CommandLineTools/usr/bin/git",
                 "/usr/bin/git"
             ]
 

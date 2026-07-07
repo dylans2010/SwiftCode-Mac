@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct NewProjectSheetView: View {
     @Bindable var viewModel: HomeViewModel
@@ -7,7 +8,7 @@ struct NewProjectSheetView: View {
     @State private var mode: SelectionMode = .create
 
     enum SelectionMode {
-        case create, importFolder, clone, xcodeproj
+        case create, importFolder, clone, xcodeproj, scproj
     }
 
     var body: some View {
@@ -24,6 +25,7 @@ struct NewProjectSheetView: View {
                         Text("Import").tag(SelectionMode.importFolder)
                         Text("Clone").tag(SelectionMode.clone)
                         Text("Xcode").tag(SelectionMode.xcodeproj)
+                        Text(".scproj").tag(SelectionMode.scproj)
                     }
                     .pickerStyle(.segmented)
                     .frame(width: 250)
@@ -93,6 +95,9 @@ struct NewProjectSheetView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding()
+                        } else if mode == .scproj {
+                            ImportProjView()
+                                .frame(height: 450)
                         }
                     }
                     .padding()
@@ -119,6 +124,7 @@ struct NewProjectSheetView: View {
         case .importFolder: return "Import Folder"
         case .clone: return "Clone Repository"
         case .xcodeproj: return "Import Xcode Project"
+        case .scproj: return "Import .scproj File"
         }
     }
 
@@ -129,7 +135,8 @@ struct NewProjectSheetView: View {
         if panel.runModal() == .OK, let url = panel.url {
             Task {
                 do {
-                    _ = try await ProjectManager.shared.importProject(from: url)
+                    let project = try await ProjectManager.shared.importProject(from: url)
+                    await ProjectManager.shared.openProject(project)
                     dismiss()
                 } catch {
                     LoggingTool.error("Failed to import folder: \(error)")
@@ -140,13 +147,14 @@ struct NewProjectSheetView: View {
 
     private func importXcodeProject() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.init(filenameExtension: "xcodeproj")!]
+        panel.allowedContentTypes = [UTType(filenameExtension: "xcodeproj")].compactMap { $0 }
         panel.canChooseFiles = true
-        panel.canChooseDirectories = false
+        panel.canChooseDirectories = true
         if panel.runModal() == .OK, let url = panel.url {
             Task {
                 do {
-                    _ = try await ProjectManager.shared.importProject(from: url.deletingLastPathComponent())
+                    let project = try await ProjectManager.shared.importProject(from: url.deletingLastPathComponent())
+                    await ProjectManager.shared.openProject(project)
                     dismiss()
                 } catch {
                     LoggingTool.error("Failed to import Xcode project: \(error)")
