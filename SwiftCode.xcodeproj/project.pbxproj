@@ -239,6 +239,10 @@
 		2C480CA68AA2BB6227503D10 /* AdvancedToolsSharedDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05507D123E0B0E10C1BEBFC0 /* AdvancedToolsSharedDesignSystem.swift */; };
 		2C5934C45B858222CE9C9408 /* GitCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0B922F7165B607EC09F89D2 /* GitCommands.swift */; };
 		2CC5CD2E947D7C5687C0F81D /* GitHubOAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D66843C6F7B3A1D1E31510A /* GitHubOAuth.swift */; };
+		B0010001B0010001B0010006 /* SCProjManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0010001B0010001B0010001 /* SCProjManager.swift */; };
+		B0010001B0010001B0010007 /* InfoProjView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0010001B0010001B0010002 /* InfoProjView.swift */; };
+		B0010001B0010001B0010008 /* ExportProjView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0010001B0010001B0010003 /* ExportProjView.swift */; };
+		B0010001B0010001B0010009 /* ImportProjView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0010001B0010001B0010004 /* ImportProjView.swift */; };
 		2CF09B9D90564C8B83A3BF1A /* ConsoleLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BFA536A5E5336066C8294FC /* ConsoleLine.swift */; };
 		2D064520A6394FC6B8CF549A /* AccessibilityInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A83CB66B7C68434481817B48 /* AccessibilityInspector.swift */; };
 		2D1BF9C4FAD5443FB148E1AD /* ListTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E67047F15594D14B133BF98 /* ListTools.swift */; };
@@ -1516,6 +1520,18 @@
 		E5F5D572C8434836889B0F20 /* CreateIssue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateIssue.swift; sourceTree = "<group>"; };
 		E6667D90FCA317DE3700C420 /* MultiCursorExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiCursorExtensionView.swift; sourceTree = "<group>"; };
 		E704370DAC1017831EE73E4E /* WorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceView.swift; sourceTree = "<group>"; };
+		B0010001B0010001B0010001 /* SCProjManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SCProjManager.swift; sourceTree = "<group>"; };
+		B0010001B0010001B0010002 /* InfoProjView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InfoProjView.swift; sourceTree = "<group>"; };
+		B0010001B0010001B0010003 /* ExportProjView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExportProjView.swift; sourceTree = "<group>"; };
+		B0010001B0010001B0010004 /* ImportProjView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImportProjView.swift; sourceTree = "<group>"; };
+		B0010001B0010001B0010005 /* Internal */ = {
+			isa = PBXGroup;
+			children = (
+				B0010001B0010001B0010001 /* SCProjManager.swift */,
+			);
+			path = Internal;
+			sourceTree = "<group>";
+		};
 		E715162B5187267B8824C56F /* Paper.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Paper.json; sourceTree = "<group>"; };
 		E740EBED3661A6F9A5501139 /* OnDeviceSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnDeviceSession.swift; sourceTree = "<group>"; };
 		E88ABC5285FBB00F71402090 /* SyntaxHighlighter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntaxHighlighter.swift; sourceTree = "<group>"; };
@@ -2466,6 +2482,7 @@
 				550406F186F4791910811394 /* Markdown */,
 				ACDB99DB88F546F6D6F4637B /* TextBuffer */,
 				E62980EE6DD4661475F9BBF9 /* SyntaxHighlighting */,
+				B0010001B0010001B0010005 /* Internal */,
 			);
 			path = Frameworks;
 			sourceTree = "<group>";
@@ -3385,6 +3402,9 @@
 				D392D5F47EE76B75952DBE05 /* IssueNavigatorView.swift */,
 				DF48A1CD567E4CDC4FB27905 /* HomeView.swift */,
 				E704370DAC1017831EE73E4E /* WorkspaceView.swift */,
+				B0010001B0010001B0010002 /* InfoProjView.swift */,
+				B0010001B0010001B0010003 /* ExportProjView.swift */,
+				B0010001B0010001B0010004 /* ImportProjView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -4094,6 +4114,10 @@
 				E6AC3A19AA984745806404B2 /* ThemeEditorView.swift in Sources */,
 				FCE346B6A8594C599371747B /* ThemeGalleryView.swift in Sources */,
 				4C8FC348DC244A6B8BFEC16B /* WorkspaceView.swift in Sources */,
+				B0010001B0010001B0010006 /* SCProjManager.swift in Sources */,
+				B0010001B0010001B0010007 /* InfoProjView.swift in Sources */,
+				B0010001B0010001B0010008 /* ExportProjView.swift in Sources */,
+				B0010001B0010001B0010009 /* ImportProjView.swift in Sources */,
 				C822BBE49EB84E8B85C22375 /* SidebarMainView.swift in Sources */,
 				DBEEF4307EC44BE79FB9F936 /* FileNavigatorSidebarView.swift in Sources */,
 				E3BCC043098948CAA2CD3039 /* GitSidebarView.swift in Sources */,

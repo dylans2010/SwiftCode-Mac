@@ -8,11 +8,19 @@ struct WorkspaceView: View {
 
     // Feature sheet states
     @State private var activeSheet: ToolbarActionManager.SheetDestination?
+    @State private var showingExportSheet = false
 
     var body: some View {
         EditorTextView(workspaceViewModel: viewModel)
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
+                    Button {
+                        projectManager.closeProject()
+                    } label: {
+                        Label("Close Project", systemImage: "xmark.square")
+                    }
+                    .help("Close current project")
+
                     BuildToolbarView(viewModel: viewModel.build, projectURL: viewModel.projectURL)
 
                     Button {
@@ -43,6 +51,7 @@ struct WorkspaceView: View {
                             Button("Gists") { activeSheet = .gistManager }
                             Button("Deployments") { activeSheet = .deployments }
                             Button("Collaboration") { activeSheet = .collaboration }
+                            Button("Export (.scproj)") { showingExportSheet = true }
                         }
 
                         Section("Tools") {
@@ -70,6 +79,9 @@ struct WorkspaceView: View {
             }
             .sheet(item: $activeSheet) { destination in
                 sheetView(for: destination)
+            }
+            .sheet(isPresented: $showingExportSheet) {
+                ExportProjView()
             }
             .onReceive(NotificationCenter.default.publisher(for: .toolbarToolActivated)) { notification in
                 if let toolId = notification.userInfo?["toolID"] as? String,
