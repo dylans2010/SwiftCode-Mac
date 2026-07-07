@@ -134,8 +134,8 @@ struct DeploymentsView: View {
                     platform: selectedPlatform,
                     token: tokenToUse,
                     domain: useCustomDomain ? customDomain : nil
-                ) { message in
-                    DispatchQueue.main.async {
+                ) { @Sendable message in
+                    Task { @MainActor in
                         logManager.logDeployment(message)
                     }
                 }

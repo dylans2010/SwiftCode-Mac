@@ -682,7 +682,7 @@ struct TextEditorRepresentable: NSViewRepresentable {
         func updateLayout() {
             guard let textView, let scrollView, let lineNumbers = lineNumberView else { return }
 
-            let gutterWidth = TextLayoutEngine.lineNumberColumnWidth()
+            let gutterWidth = TextLayoutEngine.lineNumberColumnWidth
             let availableWidth = TextLayoutEngine.codeColumnWidth(totalWidth: scrollView.bounds.width)
 
             let lines = textView.string.components(separatedBy: "\n").count
