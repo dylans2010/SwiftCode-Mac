@@ -30,7 +30,7 @@ struct TextCaseSwapperView: View {
     func swapCase() {
         output = String(input.map {
             let s = String($0)
-            return s == s.uppercased() ? s.lowercased() : s.uppercased()
+            return s == s.uppercased() ? Character(s.lowercased()) : Character(s.uppercased())
         })
     }
 }

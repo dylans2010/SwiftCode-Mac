@@ -106,7 +106,7 @@ struct CodeEditorView: View {
             )
         }
         .sheet(isPresented: $showAssist) {
-            AssistMainView()
+            Text("Assist Coming Soon")
         }
         .onChange(of: projectManager.fileLoadError) {
             if projectManager.fileLoadError != nil {
@@ -456,6 +456,7 @@ struct CodeEditorView: View {
     }
 }
 
+@MainActor
 private final class EditorCodeFormatter {
     static let shared = EditorCodeFormatter()
 
@@ -552,22 +553,16 @@ struct TextEditorRepresentable: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
-        scrollView.backgroundColor = NSColor(red: 0.11, green: 0.11, blue: 0.14, alpha: 1)
-        scrollView.showsVerticalScrollIndicator = true
-        scrollView.showsHorizontalScrollIndicator = true
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = NSColor(calibratedRed: 0.11, green: 0.11, blue: 0.14, alpha: 1)
 
-        let container = NSView()
-        container.backgroundColor = .clear
-        scrollView.documentView = container
-
-        let lineNumbers = LineNumberView()
-        context.coordinator.lineNumberView = lineNumbers
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = true
 
         let textView = NSTextView()
         textView.backgroundColor = .clear
         textView.textColor = NSColor(red: 0.85, green: 0.85, blue: 0.85, alpha: 1)
         textView.font = TextLayoutEngine.editorFont()
-
 
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticQuoteSubstitutionEnabled = false
@@ -579,15 +574,26 @@ struct TextEditorRepresentable: NSViewRepresentable {
         textView.delegate = context.coordinator
         textView.textContainerInset = TextLayoutEngine.textContainerInset()
 
-        container.addSubview(lineNumbers)
-        container.addSubview(textView)
+        textView.isRichText = false
+        textView.usesFontPanel = false
+
+        let textStorage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(size: .zero)
+
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.addTextContainer(textContainer)
+        textView.textContainer = textContainer
+
+        scrollView.documentView = textView
+
+        let lineNumbers = LineNumberView()
+        context.coordinator.lineNumberView = lineNumbers
+        scrollView.contentView.addSubview(lineNumbers)
 
         context.coordinator.textView = textView
         context.coordinator.scrollView = scrollView
-        context.coordinator.containerView = container
         context.coordinator.fileExtension = fileExtension
-
-        scrollView.delegate = context.coordinator
 
         let highlighted = SyntaxHighlighter.shared.highlight(text, fileExtension: fileExtension)
         textView.textStorage?.setAttributedString(highlighted)
@@ -608,20 +614,22 @@ struct TextEditorRepresentable: NSViewRepresentable {
             textView.selectedRange = NSRange(location: clampedLocation, length: 0)
         }
 
-        if wordWrap {
-            textView.textContainer.lineBreakMode = .byWordWrapping
-            textView.textContainer.widthTracksTextView = true
-            textView.textContainer.size = CGSize(
-                width: TextLayoutEngine.codeColumnWidth(totalWidth: scrollView.bounds.width),
-                height: .greatestFiniteMagnitude
-            )
-        } else {
-            textView.textContainer.lineBreakMode = .byClipping
-            textView.textContainer.widthTracksTextView = false
-            textView.textContainer.size = CGSize(
-                width: CGFloat.greatestFiniteMagnitude,
-                height: .greatestFiniteMagnitude
-            )
+        if let container = textView.textContainer {
+            if wordWrap {
+                container.lineBreakMode = .byWordWrapping
+                container.widthTracksTextView = true
+                container.containerSize = CGSize(
+                    width: TextLayoutEngine.codeColumnWidth(totalWidth: scrollView.bounds.width),
+                    height: .greatestFiniteMagnitude
+                )
+            } else {
+                container.lineBreakMode = .byClipping
+                container.widthTracksTextView = false
+                container.containerSize = CGSize(
+                    width: CGFloat.greatestFiniteMagnitude,
+                    height: .greatestFiniteMagnitude
+                )
+            }
         }
 
         context.coordinator.updateLayout()
@@ -631,12 +639,11 @@ struct TextEditorRepresentable: NSViewRepresentable {
         Coordinator(text: $text)
     }
 
-    final class Coordinator: NSObject, NSTextViewDelegate, NSScrollViewDelegate {
+    final class Coordinator: NSObject, NSTextViewDelegate {
         var text: Binding<String>
         var fileExtension: String = "swift"
         weak var textView: NSTextView?
         weak var scrollView: NSScrollView?
-        weak var containerView: NSView?
         weak var lineNumberView: LineNumberView?
 
         init(text: Binding<String>) {
@@ -671,33 +678,30 @@ struct TextEditorRepresentable: NSViewRepresentable {
         }
 
         func updateLayout() {
-            guard let textView, let scrollView, let container = containerView,
-                  let lineNumbers = lineNumberView else { return }
+            guard let textView, let scrollView, let lineNumbers = lineNumberView else { return }
 
             let gutterWidth = TextLayoutEngine.lineNumberColumnWidth
             let availableWidth = TextLayoutEngine.codeColumnWidth(totalWidth: scrollView.bounds.width)
 
-            let textSize = textView.sizeThatFits(CGSize(
-                width: availableWidth,
-                height: .greatestFiniteMagnitude
-            ))
+            let lines = textView.string.components(separatedBy: "\n").count
+            let font = textView.font ?? TextLayoutEngine.editorFont()
+            // Try to get line height from layoutManager if possible
+            let lineHeightFromLayout = textView.layoutManager?.defaultLineHeight(for: font)
+            let lineHeight = lineHeightFromLayout ?? TextLayoutEngine.lineHeight()
+            let topInset = TextLayoutEngine.textContainerInset().height
 
-            let contentWidth = max(textSize.width + gutterWidth, scrollView.bounds.width)
-            let contentHeight = max(textSize.height, scrollView.bounds.height)
-
-            container.frame = CGRect(x: 0, y: 0, width: contentWidth, height: contentHeight)
-            // scrollView.contentSize = container.frame.size
+            let contentWidth = max(scrollView.bounds.width, availableWidth + gutterWidth)
+            let contentHeight = max(CGFloat(lines) * lineHeight + topInset * 2, scrollView.bounds.height)
 
             lineNumbers.frame = CGRect(x: 0, y: 0, width: gutterWidth, height: contentHeight)
             textView.frame = CGRect(x: gutterWidth, y: 0,
                                     width: contentWidth - gutterWidth,
                                     height: contentHeight)
 
-            let font = textView.font ?? TextLayoutEngine.editorFont()
-            lineNumbers.lineHeight = font.lineHeight
+            lineNumbers.lineHeight = lineHeight
             lineNumbers.topInset = textView.textContainerInset.height
-            lineNumbers.lineCount = textView.string.components(separatedBy: "\n").count
-            lineNumbers.setNeedsDisplay()
+            lineNumbers.lineCount = lines
+            lineNumbers.needsDisplay = true
         }
     }
 }
@@ -730,7 +734,7 @@ final class LineNumberView: NSView {
 
         let separatorX = bounds.width - 0.5
         NSColor.white.withAlphaComponent(0.05).setFill()
-        NSRectFill(CGRect(x: separatorX, y: 0, width: 0.5, height: bounds.height))
+        NSBezierPath(rect: CGRect(x: separatorX, y: 0, width: 0.5, height: bounds.height)).fill()
 
         let count = max(1, lineCount)
         for i in 1...count {
@@ -747,3 +751,4 @@ final class LineNumberView: NSView {
         }
     }
 }
+

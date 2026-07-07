@@ -86,8 +86,6 @@ struct DocumentationBrowserView: View {
                 }
             }
             .navigationTitle("Documentation")
-            #if os(iOS)
-            #endif
             .searchable(text: $query, prompt: "Search")
             .onSubmit(of: .search) {
                 performSearch()

@@ -80,7 +80,7 @@ struct JSONToSwiftView: View {
             } else if value is Bool {
                 result += "    let \(swiftKey): Bool\n"
             } else {
-                result += "    let \(swiftKey): String? // Unknown type
+                result += "    let \(swiftKey): String? // Unknown type\n"
             }
         }
 

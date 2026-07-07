@@ -10,10 +10,10 @@ struct StringLengthCounterView: View {
                 .padding()
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
-                StatCard(label: "Characters", value: "\(input.count)")
-                StatCard(label: "Words", value: "\(input.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count)")
-                StatCard(label: "Lines", value: "\(input.components(separatedBy: .newlines).count)")
-                StatCard(label: "Characters (no spaces)", value: "\(input.replacingOccurrences(of: " ", with: "").count)")
+                StringLengthStatCard(label: "Characters", value: "\(input.count)")
+                StringLengthStatCard(label: "Words", value: "\(input.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count)")
+                StringLengthStatCard(label: "Lines", value: "\(input.components(separatedBy: .newlines).count)")
+                StringLengthStatCard(label: "Characters (no spaces)", value: "\(input.replacingOccurrences(of: " ", with: "").count)")
             }
             .padding()
 
@@ -23,7 +23,7 @@ struct StringLengthCounterView: View {
     }
 }
 
-struct StatCard: View {
+private struct StringLengthStatCard: View {
     let label: String
     let value: String
     var body: some View {
