@@ -72,10 +72,9 @@ struct ExtensionsView: View {
                 }
             }
             .navigationTitle("Extensions")
-            .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search Extensions")
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem() {
                     Menu {
                         Picker("Sort", selection: $sortOrder) {
                             ForEach(SortOrder.allCases, id: \.self) { order in
@@ -87,7 +86,7 @@ struct ExtensionsView: View {
                             .foregroundStyle(.orange)
                     }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem() {
                     HStack(spacing: 12) {
                         if !allDownloaded {
                             Button {
@@ -343,7 +342,6 @@ struct ExtensionDemoView: View {
             .padding(.top, 24)
             .background(Color(red: 0.08, green: 0.08, blue: 0.12))
             .navigationTitle("Try Demo")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

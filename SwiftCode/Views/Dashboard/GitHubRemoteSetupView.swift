@@ -59,7 +59,6 @@ struct GitHubRemoteSetupView: View {
                 }
             }
             .navigationTitle("Link Repository")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Skip") {
@@ -146,7 +145,6 @@ struct GitHubRemoteSetupView: View {
         Section {
             TextField("Repository Name", text: $newRepoName)
                 .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
             TextField("Description (Optional)", text: $newRepoDescription)
                 .autocorrectionDisabled()
             Toggle("Private Repository", isOn: $newRepoIsPrivate)

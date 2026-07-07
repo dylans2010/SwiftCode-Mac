@@ -48,7 +48,6 @@ struct MinimapSettingsView: View {
             .scrollContentBackground(.hidden)
             .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle("Minimap Settings")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

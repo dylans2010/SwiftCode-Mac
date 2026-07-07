@@ -34,6 +34,5 @@ struct SwiftPackageManagerExtensionView: View {
             }
         }
         .navigationTitle("Swift Package Manager")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

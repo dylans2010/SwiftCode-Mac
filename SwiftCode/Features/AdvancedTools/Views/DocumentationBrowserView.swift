@@ -87,7 +87,6 @@ struct DocumentationBrowserView: View {
             }
             .navigationTitle("Documentation")
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
             #endif
             .searchable(text: $query, prompt: "Search")
             .onSubmit(of: .search) {

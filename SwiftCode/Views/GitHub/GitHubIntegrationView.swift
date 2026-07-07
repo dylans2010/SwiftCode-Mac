@@ -107,7 +107,6 @@ struct GitHubIntegrationView: View {
                 }
             }
             .navigationTitle("GitHub")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -201,7 +200,6 @@ struct GitHubIntegrationView: View {
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
 
                     Button {
                         connectToGitHub()
@@ -316,7 +314,6 @@ struct GitHubIntegrationView: View {
                     TextField("GitHub URL", text: $repoURL)
                         .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
                         .onChange(of: repoURL) {
                             saveRepoURL()
@@ -679,7 +676,6 @@ struct GitHubIntegrationView: View {
                 }
             }
             .navigationTitle("Create Repository")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
@@ -783,7 +779,6 @@ struct GitHubIntegrationView: View {
             }
             .searchable(text: $repoSearchQuery, prompt: "Search Repositories")
             .navigationTitle("Select Repository")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {

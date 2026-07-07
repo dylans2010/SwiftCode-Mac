@@ -1,6 +1,6 @@
 import Foundation
 
-public struct GistFile: Codable, Identifiable, Equatable {
+public struct GistFile: Codable, Identifiable, Equatable, Sendable {
     public let id: UUID
     public var filename: String
     public var content: String
@@ -56,7 +56,7 @@ public struct GistFile: Codable, Identifiable, Equatable {
     }
 }
 
-public struct GistOwner: Codable {
+public struct GistOwner: Codable, Sendable {
     public let login: String
     public let avatarUrl: String?
 
@@ -66,7 +66,7 @@ public struct GistOwner: Codable {
     }
 }
 
-public struct GistResponse: Codable, Identifiable {
+public struct GistResponse: Codable, Identifiable, Sendable {
     public let id: String
     public let htmlUrl: String
     public let gitPullUrl: String?
@@ -94,7 +94,7 @@ public struct GistResponse: Codable, Identifiable {
     }
 }
 
-public struct GistHistoryEntry: Codable, Identifiable {
+public struct GistHistoryEntry: Codable, Identifiable, Sendable {
     public var id: String { version }
     public let version: String
     public let committedAt: Date?
@@ -105,7 +105,7 @@ public struct GistHistoryEntry: Codable, Identifiable {
     }
 }
 
-public struct GistComment: Codable, Identifiable {
+public struct GistComment: Codable, Identifiable, Sendable {
     public let id: Int
     public let body: String
     public let user: GistOwner?
@@ -119,14 +119,14 @@ public struct GistComment: Codable, Identifiable {
     }
 }
 
-public struct GistRevision: Codable, Identifiable {
+public struct GistRevision: Codable, Identifiable, Sendable {
     public var id: String { version }
     public let version: String
     public let user: GistOwner?
     public let changeStatus: ChangeStatus?
     public let committedAt: Date
 
-    public struct ChangeStatus: Codable {
+    public struct ChangeStatus: Codable, Sendable {
         public let total: Int?
         public let additions: Int?
         public let deletions: Int?

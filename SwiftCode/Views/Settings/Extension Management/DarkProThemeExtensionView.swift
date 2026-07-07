@@ -43,6 +43,5 @@ struct DarkProThemeExtensionView: View {
             }
         }
         .navigationTitle("Dark Pro Theme")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

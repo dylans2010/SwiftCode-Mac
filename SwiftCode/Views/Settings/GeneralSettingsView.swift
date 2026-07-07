@@ -496,7 +496,6 @@ struct GeneralSettingsView: View {
                 aboutSection
             }
             .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -744,7 +743,6 @@ struct GeneralSettingsView: View {
                 }
 
                 SecureField(CodexManager.shared.userHasCustomAPIKey ? "Enter a new OpenAI API key to replace the current one" : "OpenAI API Key", text: $codexAPIKey)
-                    .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
 
                 HStack {
@@ -1316,7 +1314,6 @@ struct APIKeysManagementView: View {
                 }
             }
             .navigationTitle("API & Deployment Keys")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -1403,7 +1400,6 @@ struct APIKeysHelpView: View {
                 }
             }
             .navigationTitle("Get API Keys")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -1500,7 +1496,6 @@ struct AddEditAPIKeyView: View {
                             }
                         }
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
                         .fontDesign(.monospaced)
 
                         Button {
@@ -1518,7 +1513,6 @@ struct AddEditAPIKeyView: View {
                 }
             }
             .navigationTitle(isEditing ? "Edit Key" : "Add API Key")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -1671,7 +1665,6 @@ struct ThemeManagementView: View {
                 }
             }
             .navigationTitle("Themes")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -1804,7 +1797,6 @@ struct CustomThemeEditorView: View {
                 }
             }
             .navigationTitle(isEditing ? "Edit Theme" : "New Theme")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -1896,7 +1888,6 @@ struct GitHubConfigView: View {
                         .autocorrectionDisabled()
                     TextField("Email (e.g. jane@example.com)", text: $settings.gitUserEmail)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
                         .keyboardType(.emailAddress)
                 } header: {
                     Label("Git Identity", systemImage: "person.fill")
@@ -1938,10 +1929,8 @@ struct GitHubConfigView: View {
                 Section {
                     TextField("SSH Key Path", text: $settings.sshKeyPath)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
                     TextField("HTTPS Auth Token", text: $settings.httpsAuthToken)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
                 } header: {
                     Label("Authentication", systemImage: "lock.shield.fill")
                 } footer: {
@@ -2030,7 +2019,6 @@ struct GitHubConfigView: View {
                 }
             }
             .navigationTitle("GitHub & Git Config")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -2109,7 +2097,6 @@ struct AgentConnectionsView: View {
                 }
             }
             .navigationTitle("Agent Connections")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -2177,7 +2164,6 @@ struct CustomToolEditorView: View {
                 Section {
                     TextField("API Endpoint URL", text: $apiEndpoint)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
                     TextField("Expected Output Description", text: $expectedOutput, axis: .vertical)
                         .lineLimit(2)
@@ -2252,7 +2238,6 @@ struct CustomToolEditorView: View {
                 }
             }
             .navigationTitle(isEditing ? "Edit Tool" : "New Tool")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -2426,7 +2411,6 @@ struct CoreMLSettingsView: View {
                 }
             }
             .navigationTitle("CoreML Integration")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

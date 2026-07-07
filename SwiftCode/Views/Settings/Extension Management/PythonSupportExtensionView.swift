@@ -45,6 +45,5 @@ struct PythonSupportExtensionView: View {
             }
         }
         .navigationTitle("Python Support")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

@@ -49,13 +49,12 @@ struct GistDiffView: View {
                 }
             }
             .navigationTitle("Diff (\(revision.version.prefix(7)))")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem() {
                     Button("Done") { dismiss() }
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem() {
                     Picker("Style", selection: $diffStyle) {
                         ForEach(DiffStyle.allCases) { style in
                             Text(style.rawValue).tag(style)

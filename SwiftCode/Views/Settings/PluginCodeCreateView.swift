@@ -38,7 +38,6 @@ struct AdvancedPlugin {
                 implementationSection
             }
             .navigationTitle("Create Plugin")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -159,7 +158,6 @@ struct AdvancedPlugin {
                 .font(.system(.body, design: .monospaced))
                 .frame(minHeight: 280)
                 .autocorrectionDisabled()
-                .textInputAutocapitalization(.none)
         }
     }
 

@@ -20,9 +20,8 @@ struct PluginManagerView: View {
                 }
             }
             .navigationTitle("Plugin Manager")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem() {
                     HStack {
                         Button {
                             showCreateView = true
@@ -70,7 +69,7 @@ struct PluginManagerView: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.inset)
     }
 
     // MARK: - Empty State

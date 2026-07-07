@@ -70,7 +70,6 @@ struct UpdatesView: View {
                 }
             }
             .navigationTitle("Updates")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

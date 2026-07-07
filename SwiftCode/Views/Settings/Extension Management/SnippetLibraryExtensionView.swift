@@ -48,6 +48,5 @@ struct SnippetLibraryExtensionView: View {
             }
         }
         .navigationTitle("Snippet Library")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

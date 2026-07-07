@@ -36,6 +36,5 @@ struct KotlinSupportExtensionView: View {
             }
         }
         .navigationTitle("Kotlin Support")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

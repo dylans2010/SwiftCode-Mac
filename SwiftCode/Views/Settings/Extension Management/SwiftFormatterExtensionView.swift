@@ -26,6 +26,5 @@ struct SwiftFormatterExtensionView: View {
             }
         }
         .navigationTitle("Swift Formatter")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

@@ -28,7 +28,6 @@ struct SymbolNavigatorView: View {
                         .foregroundStyle(.secondary)
                     TextField("Filter Symbols", text: $searchText)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
                 }
                 .padding(10)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -92,7 +91,6 @@ struct SymbolNavigatorView: View {
             }
             .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle("Symbols")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

@@ -49,7 +49,6 @@ struct LicencesAddView: View {
             List {
                 Section("Filters") {
                     TextField("Search licenses", text: $searchText)
-                        .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 
                     Picker("Category", selection: $selectedCategory) {

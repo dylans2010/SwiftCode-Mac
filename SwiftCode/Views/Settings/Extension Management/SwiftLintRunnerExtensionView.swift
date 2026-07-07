@@ -37,6 +37,5 @@ struct SwiftLintRunnerExtensionView: View {
             }
         }
         .navigationTitle("SwiftLint Runner")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

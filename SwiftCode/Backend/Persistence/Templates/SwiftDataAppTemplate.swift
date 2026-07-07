@@ -67,7 +67,7 @@ struct ContentView: View {
             }
             .navigationTitle("SwiftData Items")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem() {
                     EditButton()
                 }
                 ToolbarItem {

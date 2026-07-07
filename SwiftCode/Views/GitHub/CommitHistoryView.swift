@@ -39,12 +39,11 @@ struct CommitHistoryView: View {
                 }
             }
             .navigationTitle("Commit History")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem() {
                     Button {
                         Task { await loadHistory() }
                     } label: {
@@ -259,7 +258,6 @@ struct CommitHistoryView: View {
             .padding(.top)
             .background(Color(red: 0.08, green: 0.08, blue: 0.12).ignoresSafeArea())
             .navigationTitle("Amend Commit")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { showAmendSheet = false }
@@ -500,7 +498,6 @@ struct CommitDetailView: View {
             }
             .background(Color(red: 0.08, green: 0.08, blue: 0.12).ignoresSafeArea())
             .navigationTitle("Commit Details")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

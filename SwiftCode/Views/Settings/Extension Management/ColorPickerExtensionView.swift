@@ -44,6 +44,5 @@ struct ColorPickerExtensionView: View {
             }
         }
         .navigationTitle("Color Picker")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

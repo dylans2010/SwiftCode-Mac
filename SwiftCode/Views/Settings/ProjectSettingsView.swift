@@ -33,13 +33,11 @@ struct ProjectSettingsView: View {
                 Section("GitHub") {
                     TextField("Repository (Owner/Repo)", text: $githubRepo)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
                 }
 
                 Section("Build Settings") {
                     TextField("Bundle Identifier", text: $bundleIdentifier)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
 
                     HStack {
                         Text("Version")
@@ -108,7 +106,6 @@ struct ProjectSettingsView: View {
             .scrollContentBackground(.hidden)
             .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle("Project Settings")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

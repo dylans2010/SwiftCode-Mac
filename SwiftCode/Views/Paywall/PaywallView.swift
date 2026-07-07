@@ -26,7 +26,6 @@ struct PaywallView: View {
                 .padding()
             }
             .navigationTitle("SwiftCode Pro")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

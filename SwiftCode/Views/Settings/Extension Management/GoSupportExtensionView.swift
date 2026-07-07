@@ -36,6 +36,5 @@ struct GoSupportExtensionView: View {
             }
         }
         .navigationTitle("Go Support")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

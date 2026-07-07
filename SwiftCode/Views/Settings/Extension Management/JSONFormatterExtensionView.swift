@@ -36,6 +36,5 @@ struct JSONFormatterExtensionView: View {
             }
         }
         .navigationTitle("JSON Formatter")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

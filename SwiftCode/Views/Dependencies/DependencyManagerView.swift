@@ -73,7 +73,6 @@ struct DependencyManagerView: View {
             }
             .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle("Dependencies")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -107,7 +106,6 @@ struct DependencyManagerView: View {
                         .autocorrectionDisabled()
                     TextField("Repository URL", text: $newURL)
                         .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
                     TextField("Version", text: $newVersion)
                         .autocorrectionDisabled()
                 }
@@ -130,7 +128,6 @@ struct DependencyManagerView: View {
             .scrollContentBackground(.hidden)
             .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle(editingDependency != nil ? "Edit Dependency" : "Add Dependency")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { showAddSheet = false }
