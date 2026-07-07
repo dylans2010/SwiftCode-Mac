@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import Observation
 
 public struct DiscoveredMac: Identifiable, Hashable {
     public let id: UUID = UUID()
@@ -8,9 +9,11 @@ public struct DiscoveredMac: Identifiable, Hashable {
     public let port: Int
 }
 
-public final class MacDiscoveryService: NSObject, ObservableObject, @unchecked Sendable {
-    @Published public var discoveredMacs: [DiscoveredMac] = []
-    @Published public var isScanning = false
+@Observable
+@MainActor
+public final class MacDiscoveryService: NSObject {
+    public var discoveredMacs: [DiscoveredMac] = []
+    public var isScanning = false
 
     private var browser: NWBrowser?
 
@@ -28,7 +31,7 @@ public final class MacDiscoveryService: NSObject, ObservableObject, @unchecked S
         browser.browseResultsChangedHandler = { [weak self] results, changes in
             guard let self = self else { return }
 
-            let workItem = DispatchWorkItem {
+            Task { @MainActor in
                 self.discoveredMacs = results.compactMap { result in
                     if case let .service(name, _, _, _) = result.endpoint {
                         return DiscoveredMac(
@@ -40,13 +43,13 @@ public final class MacDiscoveryService: NSObject, ObservableObject, @unchecked S
                     return nil
                 }
             }
-            DispatchQueue.main.async(execute: workItem)
         }
 
         browser.start(queue: .main)
 
         // Simulating some results for the demo/development environment where Bonjour might not be available
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
             if self.discoveredMacs.isEmpty {
                 self.discoveredMacs = [
                     DiscoveredMac(name: "Dylan’s MacBook Pro", host: "dylans-mbp.local", port: 8080),

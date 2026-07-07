@@ -1,10 +1,12 @@
 import Foundation
-import Combine
+import Observation
 
-public final class LocalBuildService: ObservableObject {
-    @Published public var buildLogs: [BuildStatusMessage] = []
-    @Published public var isBuilding = false
-    @Published public var progress: Double = 0.0
+@Observable
+@MainActor
+public final class LocalBuildService {
+    public var buildLogs: [BuildStatusMessage] = []
+    public var isBuilding = false
+    public var progress: Double = 0.0
 
     private var session: URLSession
 
@@ -13,22 +15,20 @@ public final class LocalBuildService: ObservableObject {
     }
 
     public func startBuild(on mac: DiscoveredMac, project: Project) async throws -> URL? {
-        await MainActor.run {
-            isBuilding = true
-            buildLogs = []
-            progress = 0.0
-        }
+        isBuilding = true
+        buildLogs = []
+        progress = 0.0
 
-        await addLog("Connecting to \(mac.name)...")
+        addLog("Connecting to \(mac.name)...")
 
         // Prepare project data
-        await addLog("Packaging project files...")
+        addLog("Packaging project files...")
         let projectData = try await Task.detached {
             try await ProjectPackager.shared.packageProject(at: project.directoryURL)
         }.value
 
-        await addLog("Sending project to \(mac.host)...")
-        await updateProgress(0.2)
+        addLog("Sending project to \(mac.host)...")
+        updateProgress(0.2)
 
         let buildRequest = BuildRequest(
             projectName: project.name,
@@ -46,13 +46,13 @@ public final class LocalBuildService: ObservableObject {
 
         try await Task.sleep(nanoseconds: 2_000_000_000)
 
-        await addLog("Building app on \(mac.name) with Xcode...")
-        await updateProgress(0.5)
+        addLog("Building app on \(mac.name) with Xcode...")
+        updateProgress(0.5)
 
         try await Task.sleep(nanoseconds: 3_000_000_000)
 
-        await addLog("Generating IPA...")
-        await updateProgress(0.8)
+        addLog("Generating IPA...")
+        updateProgress(0.8)
 
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
@@ -60,26 +60,24 @@ public final class LocalBuildService: ObservableObject {
         let response = BuildResponse(success: true, message: "Build completed", ipaData: dummyIPA)
 
         if response.success, let ipaData = response.ipaData {
-            await addLog("Receiving IPA...")
+            addLog("Receiving IPA...")
             let savedURL = try ProjectPackager.shared.saveIPA(data: ipaData, projectName: project.name)
 
-            await addLog("Build completed successfully")
-            await updateProgress(1.0)
-            await MainActor.run { isBuilding = false }
+            addLog("Build completed successfully")
+            updateProgress(1.0)
+            isBuilding = false
             return savedURL
         } else {
-            await addLog("Build failed: \(response.message)")
-            await MainActor.run { isBuilding = false }
+            addLog("Build failed: \(response.message)")
+            isBuilding = false
             return nil
         }
     }
 
-    @MainActor
     private func addLog(_ message: String) {
         buildLogs.append(BuildStatusMessage(status: message))
     }
 
-    @MainActor
     private func updateProgress(_ value: Double) {
         progress = value
     }
