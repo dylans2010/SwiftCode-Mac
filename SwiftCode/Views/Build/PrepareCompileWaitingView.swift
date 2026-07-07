@@ -136,7 +136,7 @@ struct PrepareCompileWaitingView: View {
                 owner: owner,
                 repo: repo,
                 branch: branch,
-                progress: { prog, status in
+                progress: { @Sendable prog, status in
                     Task { @MainActor in
                         self.progress = prog
                         self.subtext = status
@@ -151,7 +151,7 @@ struct PrepareCompileWaitingView: View {
                         }
                     }
                 },
-                logCallback: { newLogs in
+                logCallback: { @Sendable newLogs in
                     Task { @MainActor in
                         self.logs = newLogs
                     }
