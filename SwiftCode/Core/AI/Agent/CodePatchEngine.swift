@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import Observation
 
 public struct CodePatch: Identifiable, Sendable {
     public let id: UUID
@@ -13,10 +14,12 @@ public struct CodePatch: Identifiable, Sendable {
     }
 }
 
-public final class CodePatchEngine: ObservableObject {
+@Observable
+@MainActor
+public final class CodePatchEngine {
     public static let shared = CodePatchEngine()
 
-    @Published public var pendingPatches: [CodePatch] = []
+    public var pendingPatches: [CodePatch] = []
 
     private init() {}
 

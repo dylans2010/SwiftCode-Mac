@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CodeChangesView: View {
-    @ObservedObject private var patchEngine = CodePatchEngine.shared
+    @State private var patchEngine = CodePatchEngine.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
