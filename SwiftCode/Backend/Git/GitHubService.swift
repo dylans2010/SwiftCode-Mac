@@ -26,7 +26,7 @@ final class GitHubService: @unchecked Sendable {
     private let baseURL = URL(string: "https://api.github.com")!
 
     private var token: String? {
-        APIKeyManager.shared.retrieveKey(service: .gitHub) ?? KeychainService.shared.get(forKey: KeychainService.githubToken)
+        KeychainService.shared.get(forKey: KeychainService.githubToken)
     }
 
     private func authorizedRequest(url: URL, method: String = "GET") -> URLRequest {

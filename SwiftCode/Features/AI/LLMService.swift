@@ -87,6 +87,7 @@ struct LLMResponse: Sendable {
     }
 }
 
+@MainActor
 final class LLMService: Sendable {
     static let shared = LLMService()
     private init() {}

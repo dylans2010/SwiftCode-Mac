@@ -313,8 +313,6 @@ struct GitHubIntegrationView: View {
                 HStack(spacing: 8) {
                     TextField("GitHub URL", text: $repoURL)
                         .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
                         .onChange(of: repoURL) {
                             saveRepoURL()
                             repoDetail = nil

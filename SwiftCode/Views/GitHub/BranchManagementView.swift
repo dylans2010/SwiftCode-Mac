@@ -151,7 +151,7 @@ struct BranchManagementView: View {
                             Text(b.name).tag(b.name)
                         }
                     }
-                    .pickerStyle(.wheel)
+                    .pickerStyle(.menu)
                 }
             }
             .navigationTitle("Create Branch")

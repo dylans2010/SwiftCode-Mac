@@ -35,7 +35,6 @@ struct GoToLineView: View {
                 }
 
                 TextField("Line Number", text: $lineNumber)
-                    .keyboardType(.numberPad)
                     .font(.title2.monospaced())
                     .multilineTextAlignment(.center)
                     .padding(12)
