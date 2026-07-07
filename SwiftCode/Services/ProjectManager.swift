@@ -443,6 +443,18 @@ struct \(structName): View {
     }
 
     private func loadOrCreateProject(at url: URL) throws -> Project {
+        // Try to use the new project package system if manifest exists
+        if FileManager.default.fileExists(atPath: url.appendingPathComponent("manifest.json").path) {
+            let projectURL = url.appendingPathComponent("project.json")
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            if let data = try? Data(contentsOf: projectURL),
+               var project = try? decoder.decode(Project.self, from: data) {
+                project.files = buildFileTree(at: url, relativeTo: url)
+                return project
+            }
+        }
+
         let metaURL = url.appendingPathComponent("project.json")
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
