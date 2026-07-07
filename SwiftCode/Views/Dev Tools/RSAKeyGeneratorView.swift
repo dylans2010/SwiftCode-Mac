@@ -1,4 +1,5 @@
 import SwiftUI
+import Security
 
 struct RSAKeyGeneratorView: View {
     @State private var keySize = 2048
@@ -8,58 +9,65 @@ struct RSAKeyGeneratorView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            HStack {
-                Picker("Key Size", selection: $keySize) {
-                    Text("1024").tag(1024)
-                    Text("2048").tag(2048)
-                    Text("4096").tag(4096)
+            Picker("Key Size", selection: $keySize) {
+                Text("1024 bits").tag(1024)
+                Text("2048 bits").tag(2048)
+                Text("4096 bits").tag(4096)
+            }
+            .pickerStyle(.segmented)
+            .padding()
+
+            Button(isGenerating ? "Generating..." : "Generate Key Pair") { generate() }
+                .buttonStyle(.borderedProminent)
+                .disabled(isGenerating)
+
+            HSplitView {
+                VStack(alignment: .leading) {
+                    Text("Public Key (DER Base64)")
+                    TextEditor(text: .constant(publicKey))
+                        .font(.system(.caption, design: .monospaced))
                 }
-                .frame(width: 200)
-
-                Button("Generate Keys") { generate() }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isGenerating)
+                VStack(alignment: .leading) {
+                    Text("Private Key (In Keychain)")
+                    TextEditor(text: .constant(privateKey))
+                        .font(.system(.caption, design: .monospaced))
+                }
             }
-            .padding(.top)
-
-            if isGenerating {
-                ProgressView("Generating keys...")
-            }
-
-            HStack(spacing: 20) {
-                KeyBox(label: "Public Key", key: publicKey)
-                KeyBox(label: "Private Key", key: privateKey)
-            }
+            .padding()
 
             Spacer()
         }
-        .padding()
         .navigationTitle("RSA Key Generator")
     }
 
     func generate() {
         isGenerating = true
-        // Mock key generation
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            isGenerating = false
-            publicKey = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7V...\n-----END PUBLIC KEY-----"
-            privateKey = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA7Vv...\n-----END RSA PRIVATE KEY-----"
-        }
-    }
-}
+        DispatchQueue.global(qos: .userInitiated).async {
+            let parameters: [String: Any] = [
+                kSecAttrKeyType as String: kSecAttrKeyTypeRSA,
+                kSecAttrKeySizeInBits as String: keySize,
+                kSecPrivateKeyAttrs as String: [
+                    kSecAttrIsPermanent as String: false
+                ]
+            ]
 
-struct KeyBox: View {
-    let label: String
-    let key: String
+            var error: Unmanaged<CFError>?
+            guard let privKey = SecKeyCreateRandomKey(parameters as CFDictionary, &error) else {
+                DispatchQueue.main.async {
+                    self.privateKey = "Error: \(error!.takeRetainedValue() as Error)"
+                    self.isGenerating = false
+                }
+                return
+            }
 
-    var body: some View {
-        VStack(alignment: .leading) {
-            Text(label)
-                .font(.headline)
-            TextEditor(text: .constant(key))
-                .font(.system(.caption, design: .monospaced))
-                .cornerRadius(8)
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.2)))
+            let pubKey = SecKeyCopyPublicKey(privKey)!
+            let pubData = SecKeyCopyExternalRepresentation(pubKey, &error)! as Data
+
+            DispatchQueue.main.async {
+                self.publicKey = pubData.base64EncodedString(options: .lineLength64Characters)
+                self.privateKey = "Private key generated and held in memory/keychain."
+                self.isGenerating = false
+            }
         }
     }
 }

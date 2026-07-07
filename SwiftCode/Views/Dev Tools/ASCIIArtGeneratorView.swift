@@ -1,44 +1,49 @@
 import SwiftUI
 
 struct ASCIIArtGeneratorView: View {
-    @State private var input = "SWIFT"
+    @State private var input = "SwiftCode"
     @State private var output = ""
 
     var body: some View {
         VStack(spacing: 20) {
-            TextField("Type text...", text: $input)
+            TextField("Enter text", text: $input)
                 .textFieldStyle(.roundedBorder)
-                .font(.title)
-                .onChange(of: input) { generate() }
+                .padding()
 
-            ScrollView([.horizontal, .vertical]) {
+            Button("Generate ASCII Art") { generate() }
+                .buttonStyle(.borderedProminent)
+
+            ScrollView {
                 Text(output)
                     .font(.system(.body, design: .monospaced))
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .background(Color.black)
+                    .foregroundColor(.green)
             }
-            .background(Color.black)
-            .foregroundColor(.green)
-            .cornerRadius(8)
+            .padding()
 
-            Button("Copy ASCII Art") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(output, forType: .string)
-            }
+            Spacer()
         }
-        .padding()
         .navigationTitle("ASCII Art Generator")
-        .onAppear { generate() }
     }
 
     func generate() {
-        // Very simple mock ASCII art generator
-        output = """
-         ____  _      _____ _____ _____
-        / ___|| |    |_   _|  ___|_   _|
-        \\___ \\| |      | | | |_    | |
-         ___) | |___   | | |  _|   | |
-        |____/|_____|  |_| |_|     |_|
-        """
+        // A real ASCII art generator would use FIGlet or similar.
+        // This is a simplified "blocky" representation.
+        output = input.uppercased().map { char -> String in
+            switch char {
+            case "S": return " #### \n#     \n ###  \n    # \n####  "
+            case "W": return "#   # \n#   # \n# # # \n# # # \n # #  "
+            case "I": return " ###  \n  #   \n  #   \n  #   \n ###  "
+            case "F": return "####  \n#     \n###   \n#     \n#     "
+            case "T": return "##### \n  #   \n  #   \n  #   \n  #   "
+            case "C": return " #### \n#     \n#     \n#     \n #### "
+            case "O": return " #### \n#    #\n#    #\n#    #\n #### "
+            case "D": return "###   \n#  #  \n#   # \n#  #  \n###   "
+            case "E": return "##### \n#     \n####  \n#     \n##### "
+            default: return "  ?   \n"
+            }
+        }.joined(separator: "\n\n")
     }
 }

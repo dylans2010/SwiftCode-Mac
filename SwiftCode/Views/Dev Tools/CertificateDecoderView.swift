@@ -1,4 +1,5 @@
 import SwiftUI
+import Security
 
 struct CertificateDecoderView: View {
     @State private var certInput = ""
@@ -42,21 +43,26 @@ struct CertificateDecoderView: View {
     }
 
     func decode() {
-        // In a real app, you would use Security framework or a library like SwiftASN1
-        // For this UI demo, we'll simulate the extraction of common fields if it looks like a cert
-        if certInput.contains("BEGIN CERTIFICATE") {
-            decodedInfo = """
-            Subject: CN=swiftcode.app, O=SwiftCode, L=San Francisco, ST=California, C=US
-            Issuer: CN=DigiCert TLS RSA SHA256 2020 CA1, O=DigiCert Inc, C=US
-            Validity:
-                Not Before: Oct 10 00:00:00 2023 GMT
-                Not After : Oct 10 23:59:59 2024 GMT
-            Public Key Algorithm: rsaEncryption
-            RSA Public-Key: (2048 bit)
-            Signature Algorithm: sha256WithRSAEncryption
-            """
+        let cleanPem = certInput.replacingOccurrences(of: "-----BEGIN CERTIFICATE-----", with: "")
+                                .replacingOccurrences(of: "-----END CERTIFICATE-----", with: "")
+                                .replacingOccurrences(of: "\n", with: "")
+                                .replacingOccurrences(of: "\r", with: "")
+
+        guard let data = Data(base64Encoded: cleanPem) else {
+            decodedInfo = "Invalid Base64 data in certificate."
+            return
+        }
+
+        if let cert = SecCertificateCreateWithData(nil, data as CFData) {
+            if let summary = SecCertificateCopySubjectSummary(cert) {
+                decodedInfo = "Subject: \(summary as String)\n"
+            }
+
+            // For more details we would need SecCertificateCopyValues, but it's complex to parse.
+            // We'll provide at least the summary and basic confirmation.
+            decodedInfo += "\nCertificate successfully parsed by Security framework."
         } else {
-            decodedInfo = "Invalid certificate format. Please ensure it starts with -----BEGIN CERTIFICATE-----"
+            decodedInfo = "Could not parse certificate data using Security framework."
         }
     }
 }

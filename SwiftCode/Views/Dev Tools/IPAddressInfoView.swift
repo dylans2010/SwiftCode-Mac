@@ -40,18 +40,20 @@ struct IPAddressInfoView: View {
     }
 
     func getInfo() {
+        guard let url = URL(string: "https://ipapi.co/\(ipAddress)/json/") else { return }
         isLoading = true
-        // Mock IP info lookup
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            isLoading = false
-            info = """
-            IP: \(ipAddress)
-            City: Mountain View
-            Region: California
-            Country: US
-            Org: Google LLC
-            Lat/Long: 37.4056,-122.0775
-            """
-        }
+
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            DispatchQueue.main.async {
+                isLoading = false
+                if let error = error {
+                    info = "Error: \(error.localizedDescription)"
+                    return
+                }
+                if let data = data, let result = String(data: data, encoding: .utf8) {
+                    info = result
+                }
+            }
+        }.resume()
     }
 }
