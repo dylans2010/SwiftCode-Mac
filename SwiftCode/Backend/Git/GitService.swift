@@ -8,6 +8,20 @@ public actor GitService {
             if let customPath = await PreferencesStore.shared.get(forKey: "git_executable_path") as? String {
                 return URL(fileURLWithPath: customPath)
             }
+
+            // Try common paths to find a direct git executable that might not be a wrapper
+            let commonPaths = [
+                "/usr/local/bin/git",
+                "/opt/homebrew/bin/git",
+                "/usr/bin/git"
+            ]
+
+            for path in commonPaths {
+                if FileManager.default.isExecutableFile(atPath: path) {
+                    return URL(fileURLWithPath: path)
+                }
+            }
+
             return URL(fileURLWithPath: "/usr/bin/git")
         }
     }

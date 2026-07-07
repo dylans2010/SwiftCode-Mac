@@ -18,14 +18,10 @@ public class HomeViewModel {
     }
 
     public func importProject(url: URL) async {
-        let entry = ProjectRegistryEntry(
-            name: url.lastPathComponent,
-            rootURL: url,
-            kind: url.pathExtension == "xcodeproj" ? .xcodeProject : .folder
-        )
-        if !recentProjects.contains(where: { $0.rootURL == url }) {
-            recentProjects.insert(entry, at: 0)
-            try? await ProjectRegistryStore.shared.save(recentProjects)
+        do {
+            _ = try await ProjectManager.shared.importProject(from: url)
+        } catch {
+            LoggingTool.error("Failed to import project: \(error)")
         }
     }
 

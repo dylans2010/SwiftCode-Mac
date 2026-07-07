@@ -65,7 +65,11 @@ final class ProjectManager: ObservableObject {
         ) else {
             // If disk scan fails, restore from UserDefaults
             let cached = loadProjectListFromDefaults()
-            if !cached.isEmpty { projects = cached }
+            if !cached.isEmpty {
+                projects = cached
+            } else {
+                scaffoldIntroProjectIfNeeded()
+            }
             return
         }
 
@@ -98,9 +102,35 @@ final class ProjectManager: ObservableObject {
         if loaded.isEmpty {
             // Fallback: try to recover from UserDefaults if disk is empty
             let cached = loadProjectListFromDefaults()
-            projects = cached.sorted { $0.lastOpened > $1.lastOpened }
+            if !cached.isEmpty {
+                projects = cached.sorted { $0.lastOpened > $1.lastOpened }
+            } else {
+                scaffoldIntroProjectIfNeeded()
+            }
         } else {
             projects = loaded.sorted { $0.lastOpened > $1.lastOpened }
+        }
+    }
+
+    private func scaffoldIntroProjectIfNeeded() {
+        let introName = "Introduction"
+        let introURL = projectsDirectory.appendingPathComponent(introName)
+
+        // Don't scaffold if it already exists on disk
+        guard !FileManager.default.fileExists(atPath: introURL.path) else { return }
+
+        Task {
+            do {
+                try await ProjectScaffoldTemplateEngine.shared.createProject(at: introURL, template: IntroductionTemplate())
+                let project = try loadOrCreateProject(at: introURL)
+                await MainActor.run {
+                    if !self.projects.contains(where: { $0.name == introName }) {
+                        self.projects.insert(project, at: 0)
+                    }
+                }
+            } catch {
+                LoggingTool.error("Failed to scaffold intro project: \(error)")
+            }
         }
     }
 
@@ -384,9 +414,57 @@ struct \(structName): View {
         buildFileTree(at: directoryURL, relativeTo: directoryURL)
     }
 
+    func importProject(from url: URL) async throws -> Project {
+        let name = url.lastPathComponent
+        let destinationURL = projectsDirectory.appendingPathComponent(name)
+
+        // Security scoping for sandboxed file access
+        let isAccessing = url.startAccessingSecurityScopedResource()
+        defer { if isAccessing { url.stopAccessingSecurityScopedResource() } }
+
+        // If it's already in the projects directory, just register it
+        if url.standardizedFileURL.path == destinationURL.standardizedFileURL.path {
+            let project = try loadOrCreateProject(at: url)
+            if !projects.contains(where: { $0.id == project.id }) {
+                projects.insert(project, at: 0)
+            }
+            return project
+        }
+
+        // Otherwise copy it in
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            throw ProjectError.alreadyExists
+        }
+
+        try FileManager.default.copyItem(at: url, to: destinationURL)
+        let project = try loadOrCreateProject(at: destinationURL)
+        projects.insert(project, at: 0)
+        return project
+    }
+
+    private func loadOrCreateProject(at url: URL) throws -> Project {
+        let metaURL = url.appendingPathComponent("project.json")
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        if let data = try? Data(contentsOf: metaURL),
+           var project = try? decoder.decode(Project.self, from: data) {
+            project.files = buildFileTree(at: url, relativeTo: url)
+            return project
+        } else {
+            let name = url.lastPathComponent
+            var project = Project(name: name)
+            project.files = buildFileTree(at: url, relativeTo: url)
+            try saveMetadata(project)
+            return project
+        }
+    }
+
     func saveImportedProject(_ project: Project) throws {
         try saveMetadata(project)
-        projects.insert(project, at: 0)
+        if !projects.contains(where: { $0.id == project.id }) {
+            projects.insert(project, at: 0)
+        }
     }
 
     func updateDescription(_ description: String, for project: Project) {
