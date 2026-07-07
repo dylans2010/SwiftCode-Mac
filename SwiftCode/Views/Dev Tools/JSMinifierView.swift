@@ -1,55 +1,29 @@
 import SwiftUI
 
 struct JSMinifierView: View {
-    @State private var input = "function hello() {\n  console.log(\"Hello World\");\n}"
+    @State private var input = "function hello() {\n  console.log(\"Hello world\");\n}"
     @State private var output = ""
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 0) {
             HStack {
-                Spacer()
                 Button("Minify JS") { minify() }
                     .buttonStyle(.borderedProminent)
+                Spacer()
             }
-            .padding([.top, .horizontal])
+            .padding()
 
-            VStack(alignment: .leading) {
-                Text("Source Code")
-                    .font(.headline)
+            HSplitView {
                 TextEditor(text: $input)
-                    .font(.system(.body, design: .monospaced))
-                    .frame(height: 200)
-                    .cornerRadius(8)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                    )
-            }
-            .padding(.horizontal)
-
-            VStack(alignment: .leading) {
-                Text("Minified Output")
-                    .font(.headline)
                 TextEditor(text: .constant(output))
-                    .font(.system(.body, design: .monospaced))
-                    .frame(height: 100)
-                    .cornerRadius(8)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                    )
             }
-            .padding([.bottom, .horizontal])
         }
         .navigationTitle("JS Minifier")
-        .onAppear { minify() }
     }
 
     func minify() {
-        // Simple mock minifier: remove extra whitespace and newlines
-        output = input
-            .replacingOccurrences(of: "\n", with: " ")
-            .replacingOccurrences(of: "  +", with: " ", options: .regularExpression)
+        output = input.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s*([\\{\\}\\(\\)=,;])\\s*", with: "$1", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

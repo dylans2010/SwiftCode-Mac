@@ -2,40 +2,27 @@ import SwiftUI
 
 struct YAMLConverterView: View {
     @State private var jsonInput = "{\n  \"name\": \"John Doe\",\n  \"age\": 30,\n  \"city\": \"New York\"\n}"
-    @State private var yamlOutput = "name: John Doe\nage: 30\ncity: New York"
+    @State private var yamlOutput = ""
 
     var body: some View {
         VStack(spacing: 20) {
-            Text("Convert JSON to YAML")
-                .font(.headline)
-
             HStack(spacing: 20) {
                 VStack(alignment: .leading) {
-                    Text("JSON")
+                    Text("JSON Input")
                         .font(.caption)
                     TextEditor(text: $jsonInput)
                         .font(.system(.body, design: .monospaced))
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                        )
                 }
 
                 VStack(alignment: .leading) {
-                    Text("YAML")
+                    Text("YAML Output")
                         .font(.caption)
                     TextEditor(text: .constant(yamlOutput))
                         .font(.system(.body, design: .monospaced))
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                        )
                 }
             }
 
-            Button("Convert") { convert() }
+            Button("Convert JSON to YAML") { convert() }
                 .buttonStyle(.borderedProminent)
 
             Spacer()
@@ -45,11 +32,30 @@ struct YAMLConverterView: View {
     }
 
     func convert() {
-        // Simple mock JSON to YAML converter
-        if jsonInput.contains("name") {
-            yamlOutput = "name: John Doe\nage: 30\ncity: New York"
-        } else {
-            yamlOutput = "# Resulting YAML will appear here"
+        guard let data = jsonInput.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            yamlOutput = "Invalid JSON"
+            return
         }
+
+        yamlOutput = jsonToYaml(json, indent: 0)
+    }
+
+    func jsonToYaml(_ dict: [String: Any], indent: Int) -> String {
+        var result = ""
+        let prefix = String(repeating: "  ", count: indent)
+        for (key, value) in dict {
+            if let nested = value as? [String: Any] {
+                result += "\(prefix)\(key):\n" + jsonToYaml(nested, indent: indent + 1)
+            } else if let array = value as? [Any] {
+                result += "\(prefix)\(key):\n"
+                for item in array {
+                    result += "\(prefix)  - \(item)\n"
+                }
+            } else {
+                result += "\(prefix)\(key): \(value)\n"
+            }
+        }
+        return result
     }
 }

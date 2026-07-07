@@ -36,27 +36,22 @@ struct SSLCheckerView: View {
 
     func check() {
         isLoading = true
-        // Mock SSL check
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+        guard let url = URL(string: "https://api.ssllabs.com/api/v3/analyze?host=\(domain)") else {
             isLoading = false
-            report = """
-            Checking \(domain)...
-
-            [Summary]
-            Status: VALID
-            Expires: in 245 days
-
-            [Certificate Details]
-            Common Name: \(domain)
-            Issuer: DigiCert Inc
-            Algorithm: sha256WithRSAEncryption
-            Key Strength: 2048 bits
-
-            [Protocol Support]
-            TLS 1.3: Yes
-            TLS 1.2: Yes
-            TLS 1.1: No (Secure)
-            """
+            return
         }
+
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            DispatchQueue.main.async {
+                isLoading = false
+                if let error = error {
+                    report = "Error: \(error.localizedDescription)"
+                    return
+                }
+                if let data = data, let result = String(data: data, encoding: .utf8) {
+                    report = result
+                }
+            }
+        }.resume()
     }
 }

@@ -36,19 +36,23 @@ struct WhoisLookupView: View {
 
     func lookup() {
         isLoading = true
-        // Mock Whois lookup
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        // Using a public WHOIS API
+        guard let url = URL(string: "https://rdap.org/domain/\(domain)") else {
             isLoading = false
-            results = """
-            Domain Name: \(domain.uppercased())
-            Registry Domain ID: 23456789_DOMAIN_ORG-VRSN
-            Registrar WHOIS Server: whois.registrar.com
-            Registrar URL: http://www.registrar.com
-            Updated Date: 2023-01-15T10:00:00Z
-            Creation Date: 2014-06-02T15:00:00Z
-            Registry Expiry Date: 2025-06-02T15:00:00Z
-            Registrar: Registrar Name, LLC
-            """
+            return
         }
+
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            DispatchQueue.main.async {
+                isLoading = false
+                if let error = error {
+                    results = "Error: \(error.localizedDescription)"
+                    return
+                }
+                if let data = data, let result = String(data: data, encoding: .utf8) {
+                    results = result
+                }
+            }
+        }.resume()
     }
 }
