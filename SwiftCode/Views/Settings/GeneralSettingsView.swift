@@ -60,6 +60,7 @@ struct APIKeyEntry: Identifiable, Codable {
 
 // MARK: - API Key Manager
 
+@MainActor
 final class APIKeyManager: ObservableObject {
     static let shared = APIKeyManager()
 
@@ -267,6 +268,7 @@ struct AppTheme: Identifiable, Codable, Equatable {
 
 // MARK: - Theme Manager
 
+@MainActor
 final class ThemeManager: ObservableObject {
     static let shared = ThemeManager()
 
@@ -316,6 +318,41 @@ final class ThemeManager: ObservableObject {
 }
 
 // MARK: - Custom Agent Connection Models
+
+struct CustomAgentTool: AgentTool {
+    let id: String
+    let name: String
+    let description: String
+    let apiEndpoint: String
+    let parameters: [CustomToolParameter]
+    let expectedOutput: String
+
+    var schema: [String: any Sendable] {
+        var properties: [String: any Sendable] = [:]
+        var requiredKeys: [String] = []
+
+        for param in parameters {
+            properties[param.name] = [
+                "type": param.type,
+                "description": param.paramDescription
+            ]
+            if param.required {
+                requiredKeys.append(param.name)
+            }
+        }
+
+        return [
+            "type": "object",
+            "properties": properties,
+            "required": requiredKeys
+        ]
+    }
+
+    func execute(arguments: [String: any Sendable]) async throws -> String {
+        // Placeholder for custom tool execution
+        return "Custom tool \(name) execution via \(apiEndpoint) with arguments: \(arguments)"
+    }
+}
 
 struct CustomToolParameter: Identifiable, Codable {
     var id: UUID
@@ -376,20 +413,21 @@ struct CustomAgentConnection: Identifiable, Codable {
 
     var agentToolID: String { "custom_\(id.uuidString.prefix(8))" }
 
-    func toAgentTool() -> AgentTool {
-        let agentParams = parameters.map {
-            AgentToolParameter(name: $0.name, type: $0.type,
-                               description: $0.paramDescription, required: $0.required)
-        }
-        return AgentTool(
-            id: agentToolID, displayName: name, description: toolDescription,
-            parameters: agentParams, category: .utilities
+    func toAgentTool() -> any AgentTool {
+        return CustomAgentTool(
+            id: agentToolID,
+            name: name,
+            description: toolDescription,
+            apiEndpoint: apiEndpoint,
+            parameters: parameters,
+            expectedOutput: expectedOutput
         )
     }
 }
 
 // MARK: - Custom Tool Registry
 
+@MainActor
 final class CustomToolRegistry: ObservableObject {
     static let shared = CustomToolRegistry()
 
@@ -401,7 +439,7 @@ final class CustomToolRegistry: ObservableObject {
 
     private init() { load() }
 
-    var asAgentTools: [AgentTool] { connections.map { $0.toAgentTool() } }
+    var asAgentTools: [any AgentTool] { connections.map { $0.toAgentTool() } }
 
     private func save() {
         if let data = try? JSONEncoder().encode(connections) {
@@ -1888,7 +1926,6 @@ struct GitHubConfigView: View {
                         .autocorrectionDisabled()
                     TextField("Email (e.g. jane@example.com)", text: $settings.gitUserEmail)
                         .autocorrectionDisabled()
-                        .keyboardType(.emailAddress)
                 } header: {
                     Label("Git Identity", systemImage: "person.fill")
                 } footer: {
@@ -2164,7 +2201,6 @@ struct CustomToolEditorView: View {
                 Section {
                     TextField("API Endpoint URL", text: $apiEndpoint)
                         .autocorrectionDisabled()
-                        .keyboardType(.URL)
                     TextField("Expected Output Description", text: $expectedOutput, axis: .vertical)
                         .lineLimit(2)
                 } header: {
