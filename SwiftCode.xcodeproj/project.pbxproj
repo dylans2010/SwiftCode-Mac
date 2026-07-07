@@ -239,7 +239,6 @@
 		2C480CA68AA2BB6227503D10 /* AdvancedToolsSharedDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05507D123E0B0E10C1BEBFC0 /* AdvancedToolsSharedDesignSystem.swift */; };
 		2C5934C45B858222CE9C9408 /* GitCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0B922F7165B607EC09F89D2 /* GitCommands.swift */; };
 		2CC5CD2E947D7C5687C0F81D /* GitHubOAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D66843C6F7B3A1D1E31510A /* GitHubOAuth.swift */; };
-		B0010001B0010001B0010006 /* SCProjManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0010001B0010001B0010001 /* SCProjManager.swift */; };
 		B0010001B0010001B0010007 /* InfoProjView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0010001B0010001B0010002 /* InfoProjView.swift */; };
 		B0010001B0010001B0010008 /* ExportProjView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0010001B0010001B0010003 /* ExportProjView.swift */; };
 		B0010001B0010001B0010009 /* ImportProjView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0010001B0010001B0010004 /* ImportProjView.swift */; };
@@ -1520,14 +1519,50 @@
 		E5F5D572C8434836889B0F20 /* CreateIssue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateIssue.swift; sourceTree = "<group>"; };
 		E6667D90FCA317DE3700C420 /* MultiCursorExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiCursorExtensionView.swift; sourceTree = "<group>"; };
 		E704370DAC1017831EE73E4E /* WorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceView.swift; sourceTree = "<group>"; };
-		B0010001B0010001B0010001 /* SCProjManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SCProjManager.swift; sourceTree = "<group>"; };
+		REFFM001 /* ExportProjManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExportProjManager.swift; sourceTree = "<group>"; };
+		REFFM002 /* ImportProjManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImportProjManager.swift; sourceTree = "<group>"; };
+		REFFM003 /* ManifestProjManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ManifestProjManager.swift; sourceTree = "<group>"; };
+		REFFM004 /* ProjectCoordinator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectCoordinator.swift; sourceTree = "<group>"; };
+		REFFM005 /* ProjectDeserializer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectDeserializer.swift; sourceTree = "<group>"; };
+		REFFM006 /* ProjectErrorManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectErrorManager.swift; sourceTree = "<group>"; };
+		REFFM007 /* ProjectFileManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectFileManager.swift; sourceTree = "<group>"; };
+		REFFM008 /* ProjectHashManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectHashManager.swift; sourceTree = "<group>"; };
+		REFFM009 /* ProjectIntegrityManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectIntegrityManager.swift; sourceTree = "<group>"; };
+		REFFM010 /* ProjectJSONManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectJSONManager.swift; sourceTree = "<group>"; };
+		REFFM011 /* ProjectManifest.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectManifest.swift; sourceTree = "<group>"; };
+		REFFM012 /* ProjectMetadataManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectMetadataManager.swift; sourceTree = "<group>"; };
+		REFFM013 /* ProjectPackageManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectPackageManager.swift; sourceTree = "<group>"; };
+		REFFM014 /* ProjectPlistManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectPlistManager.swift; sourceTree = "<group>"; };
+		REFFM015 /* ProjectResourceManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectResourceManager.swift; sourceTree = "<group>"; };
+		REFFM016 /* ProjectSerializer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectSerializer.swift; sourceTree = "<group>"; };
+		REFFM017 /* ProjectValidator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectValidator.swift; sourceTree = "<group>"; };
+		REFFM018 /* ProjectVersionManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectVersionManager.swift; sourceTree = "<group>"; };
+		REFFM019 /* ProjectXMLManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectXMLManager.swift; sourceTree = "<group>"; };
 		B0010001B0010001B0010002 /* InfoProjView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InfoProjView.swift; sourceTree = "<group>"; };
 		B0010001B0010001B0010003 /* ExportProjView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExportProjView.swift; sourceTree = "<group>"; };
 		B0010001B0010001B0010004 /* ImportProjView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImportProjView.swift; sourceTree = "<group>"; };
 		B0010001B0010001B0010005 /* Internal */ = {
 			isa = PBXGroup;
 			children = (
-				B0010001B0010001B0010001 /* SCProjManager.swift */,
+				REFFM001 /* ExportProjManager.swift */,
+				REFFM002 /* ImportProjManager.swift */,
+				REFFM003 /* ManifestProjManager.swift */,
+				REFFM004 /* ProjectCoordinator.swift */,
+				REFFM005 /* ProjectDeserializer.swift */,
+				REFFM006 /* ProjectErrorManager.swift */,
+				REFFM007 /* ProjectFileManager.swift */,
+				REFFM008 /* ProjectHashManager.swift */,
+				REFFM009 /* ProjectIntegrityManager.swift */,
+				REFFM010 /* ProjectJSONManager.swift */,
+				REFFM011 /* ProjectManifest.swift */,
+				REFFM012 /* ProjectMetadataManager.swift */,
+				REFFM013 /* ProjectPackageManager.swift */,
+				REFFM014 /* ProjectPlistManager.swift */,
+				REFFM015 /* ProjectResourceManager.swift */,
+				REFFM016 /* ProjectSerializer.swift */,
+				REFFM017 /* ProjectValidator.swift */,
+				REFFM018 /* ProjectVersionManager.swift */,
+				REFFM019 /* ProjectXMLManager.swift */,
 			);
 			path = Internal;
 			sourceTree = "<group>";
@@ -4114,7 +4149,25 @@
 				E6AC3A19AA984745806404B2 /* ThemeEditorView.swift in Sources */,
 				FCE346B6A8594C599371747B /* ThemeGalleryView.swift in Sources */,
 				4C8FC348DC244A6B8BFEC16B /* WorkspaceView.swift in Sources */,
-				B0010001B0010001B0010006 /* SCProjManager.swift in Sources */,
+				REFFM001 /* ExportProjManager.swift in Sources */,
+				REFFM002 /* ImportProjManager.swift in Sources */,
+				REFFM003 /* ManifestProjManager.swift in Sources */,
+				REFFM004 /* ProjectCoordinator.swift in Sources */,
+				REFFM005 /* ProjectDeserializer.swift in Sources */,
+				REFFM006 /* ProjectErrorManager.swift in Sources */,
+				REFFM007 /* ProjectFileManager.swift in Sources */,
+				REFFM008 /* ProjectHashManager.swift in Sources */,
+				REFFM009 /* ProjectIntegrityManager.swift in Sources */,
+				REFFM010 /* ProjectJSONManager.swift in Sources */,
+				REFFM011 /* ProjectManifest.swift in Sources */,
+				REFFM012 /* ProjectMetadataManager.swift in Sources */,
+				REFFM013 /* ProjectPackageManager.swift in Sources */,
+				REFFM014 /* ProjectPlistManager.swift in Sources */,
+				REFFM015 /* ProjectResourceManager.swift in Sources */,
+				REFFM016 /* ProjectSerializer.swift in Sources */,
+				REFFM017 /* ProjectValidator.swift in Sources */,
+				REFFM018 /* ProjectVersionManager.swift in Sources */,
+				REFFM019 /* ProjectXMLManager.swift in Sources */,
 				B0010001B0010001B0010007 /* InfoProjView.swift in Sources */,
 				B0010001B0010001B0010008 /* ExportProjView.swift in Sources */,
 				B0010001B0010001B0010009 /* ImportProjView.swift in Sources */,
