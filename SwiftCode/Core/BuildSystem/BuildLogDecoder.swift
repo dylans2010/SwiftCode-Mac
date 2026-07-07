@@ -72,7 +72,7 @@ struct DecodedBuildLog {
 /// - Detecting errors
 /// - Detecting compile steps
 /// - Extracting timestamps
-final class BuildLogDecoder {
+final class BuildLogDecoder: Sendable {
     static let shared = BuildLogDecoder()
     private init() {}
 

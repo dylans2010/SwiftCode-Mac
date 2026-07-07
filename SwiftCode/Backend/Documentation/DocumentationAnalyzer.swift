@@ -67,7 +67,7 @@ final class DocumentationAnalyzer: ObservableObject {
             var swiftFileCount = 0
             var imports = Set<String>()
 
-            for case let fileURL as URL in enumerator {
+            while let fileURL = enumerator.nextObject() as? URL {
                 if fileURL.pathExtension == "swift" {
                     swiftFileCount += 1
                     if let content = try? String(contentsOf: fileURL) {
