@@ -1,6 +1,6 @@
 import Foundation
 
-struct OnDeviceSession: Identifiable, Codable, Hashable {
+struct OnDeviceSession: Identifiable, Sendable, Codable, Hashable {
     let id: UUID
     var createdAt: Date
     var lastUpdated: Date
