@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct LocalBuildView: View {
-    @StateObject private var discoveryService = MacDiscoveryService()
-    @StateObject private var buildService = LocalBuildService()
+    @State private var discoveryService = MacDiscoveryService()
+    @State private var buildService = LocalBuildService()
     @EnvironmentObject private var projectManager: ProjectManager
     @State private var selectedMac: DiscoveredMac?
     @State private var buildResultURL: URL?
