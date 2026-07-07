@@ -7,11 +7,11 @@ import Foundation
 ///
 /// The editor must always read files through CodeReaderManager so that file paths are
 /// resolved correctly regardless of how they were originally stored (e.g., after ZIP import).
-final class CodeReaderManager {
+final class CodeReaderManager: Sendable {
     static let shared = CodeReaderManager()
     private init() {}
 
-    private let fm = FileManager.default
+    private var fm: FileManager { .default }
 
     // MARK: - Projects Directory
 

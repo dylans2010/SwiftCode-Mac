@@ -1,6 +1,6 @@
 import Foundation
 
-final class GitHubImportManager {
+final class GitHubImportManager: Sendable {
     static let shared = GitHubImportManager()
     private init() {}
 

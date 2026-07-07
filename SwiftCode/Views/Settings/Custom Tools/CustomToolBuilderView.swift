@@ -82,7 +82,6 @@ struct CustomToolBuilderView: View {
                 }
             }
             .navigationTitle("Advanced Tool Builder")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -247,7 +246,6 @@ struct CustomToolBuilderView: View {
                 }
             }
             .navigationTitle("Add Header")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showHeaderEntry = false } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -272,7 +270,6 @@ struct CustomToolBuilderView: View {
             Text(label).font(.caption).foregroundStyle(.secondary)
             TextField(placeholder, text: text)
                 .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
         }
     }
 
