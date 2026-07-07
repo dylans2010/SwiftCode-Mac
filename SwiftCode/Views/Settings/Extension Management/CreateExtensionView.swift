@@ -100,7 +100,6 @@ struct CreateExtensionView: View {
                 TextField("1.0.0", text: $version)
                     .multilineTextAlignment(.trailing)
                     .autocorrectionDisabled()
-                    .keyboardType(.numbersAndPunctuation)
             } label: {
                 Label("Version", systemImage: "number")
             }
@@ -134,7 +133,7 @@ struct CreateExtensionView: View {
                     Label(cat.rawValue, systemImage: cat.icon).tag(cat)
                 }
             }
-            .pickerStyle(.navigationLink)
+            .pickerStyle(.menu)
         }
     }
 
