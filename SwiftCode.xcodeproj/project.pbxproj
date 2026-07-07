@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		515E89AEA7C647BDA12F5C28 /* CodePatchEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41C43254B0B44AE496E8A432 /* CodePatchEngine.swift */; };
+		E3D0BAB87E8A4858BC1E8328 /* AgentLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52536B9B604E4525AB34519A /* AgentLogger.swift */; };
+		955A05A8ABD2498CB26E8F43 /* ToolSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15C14C45B1646A3B30C309B /* ToolSource.swift */; };
+		C5762BC298DC4971ABF5C713 /* AgentToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3A636A4CE544A9E85E3A992 /* AgentToolbar.swift */; };
+		07377823BA0D465E8B8AE3BE /* AgentModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4343BE17C8E44C48A819A30F /* AgentModeView.swift */; };
 		77B43DCE400F4545BE986643 /* AssistCIFunctions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BE22505D0004FE0B4358328 /* AssistCIFunctions.swift */; };
 		004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = BBB818A276304EA881DBF6E6 /* MLXOptimizers */; };
 		028210A2C2DF33D15EF2B37A /* ProjectTemplateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E98EC5E61489CE7CE6AB854 /* ProjectTemplateView.swift */; };
@@ -694,6 +699,11 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		41C43254B0B44AE496E8A432 /* CodePatchEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodePatchEngine.swift; sourceTree = "<group>"; };
+		52536B9B604E4525AB34519A /* AgentLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentLogger.swift; sourceTree = "<group>"; };
+		F15C14C45B1646A3B30C309B /* ToolSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolSource.swift; sourceTree = "<group>"; };
+		A3A636A4CE544A9E85E3A992 /* AgentToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentToolbar.swift; sourceTree = "<group>"; };
+		4343BE17C8E44C48A819A30F /* AgentModeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentModeView.swift; sourceTree = "<group>"; };
 		2BE22505D0004FE0B4358328 /* AssistCIFunctions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistCIFunctions.swift; sourceTree = "<group>"; };
 		00048987BBB25A712D49051C /* NordThemeExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NordThemeExtensionView.swift; sourceTree = "<group>"; };
 		0076F070FA7E4422B0FBAAB8 /* ParseMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseMarkdown.swift; sourceTree = "<group>"; };
@@ -2358,6 +2368,9 @@
 		9FAB492FE3914F789AA58201 /* Agent */ = {
 			isa = PBXGroup;
 			children = (
+				41C43254B0B44AE496E8A432 /* CodePatchEngine.swift */,
+				52536B9B604E4525AB34519A /* AgentLogger.swift */,
+				F15C14C45B1646A3B30C309B /* ToolSource.swift */,
 				2132E3AB1A6A49219F9B9F52 /* Skills */,
 				F0020090FFA9479A801F49F8 /* AgentSystem.md */,
 				2ECB37E969994856A07F71EE /* AIProvider.swift */,
@@ -2409,6 +2422,8 @@
 		A46BEBEDE34BBDA370490F35 /* AI New */ = {
 			isa = PBXGroup;
 			children = (
+				A3A636A4CE544A9E85E3A992 /* AgentToolbar.swift */,
+				4343BE17C8E44C48A819A30F /* AgentModeView.swift */,
 				BBB4061A4B61B8DA3324F1C3 /* CodeChangesView.swift */,
 				24ABC0198989436E1FF60CEF /* ToolExecutionView.swift */,
 				57D8446A55F333AEC1C328A2 /* Codex UIs */,
@@ -3186,6 +3201,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				515E89AEA7C647BDA12F5C28 /* CodePatchEngine.swift in Sources */,
+				E3D0BAB87E8A4858BC1E8328 /* AgentLogger.swift in Sources */,
+				955A05A8ABD2498CB26E8F43 /* ToolSource.swift in Sources */,
+				C5762BC298DC4971ABF5C713 /* AgentToolbar.swift in Sources */,
+				07377823BA0D465E8B8AE3BE /* AgentModeView.swift in Sources */,
 				AEF3A27D385B4F42AD46509E /* CoreModels.swift in Sources */,
 				D1D1D1D1D1D1D1D1D1D1D1D1 /* PackageDependency.swift in Sources */,
 				77B43DCE400F4545BE986643 /* AssistCIFunctions.swift in Sources */,
