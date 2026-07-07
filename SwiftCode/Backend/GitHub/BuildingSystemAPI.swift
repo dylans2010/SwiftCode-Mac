@@ -13,8 +13,8 @@ public final class BuildingSystemAPI: @unchecked Sendable {
         owner: String,
         repo: String,
         branch: String,
-        progress: @escaping (Double, String) -> Void,
-        logCallback: ((String) -> Void)? = nil
+        progress: @Sendable @escaping (Double, String) -> Void,
+        logCallback: (@Sendable (String) -> Void)? = nil
     ) async throws {
         progress(0.1, "Waiting for workflow to start...")
 
@@ -88,7 +88,7 @@ public final class BuildingSystemAPI: @unchecked Sendable {
     private func integrateGeneratedZip(
         zipData: Data,
         into project: Project,
-        progress: @escaping (Double, String) -> Void
+        progress: @Sendable @escaping (Double, String) -> Void
     ) async throws {
         let tempDir = fm.temporaryDirectory
             .appendingPathComponent("BuildingSystemAPI", isDirectory: true)
