@@ -40,6 +40,40 @@ public final class ProjectPackageManager {
     }
 
     public func cleanupPackage(at url: URL) throws {
-        // Remove temporary or redundant files
+        let fm = FileManager.default
+        if let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) {
+            for case let fileURL as URL in enumerator {
+                if fileURL.lastPathComponent == ".DS_Store" {
+                    try? fm.removeItem(at: fileURL)
+                }
+            }
+        }
+
+        // Remove empty directories in Sources, Assets, Resources
+        let subs = ["Sources", "Assets", "Resources", "Frameworks"]
+        for sub in subs {
+            let subURL = url.appendingPathComponent(sub)
+            removeEmptyDirectories(at: subURL)
+        }
+    }
+
+    private func removeEmptyDirectories(at url: URL) {
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else { return }
+
+        guard let contents = try? fm.contentsOfDirectory(at: url, includingPropertiesForKeys: nil) else { return }
+
+        for item in contents {
+            removeEmptyDirectories(at: item)
+        }
+
+        // Re-check if empty after cleaning children
+        if let remaining = try? fm.contentsOfDirectory(at: url, includingPropertiesForKeys: nil), remaining.isEmpty {
+            // Don't delete the root structural directories themselves, only their empty subdirectories
+            if !["Sources", "Assets", "Resources", "Frameworks", "Settings"].contains(url.lastPathComponent) {
+                try? fm.removeItem(at: url)
+            }
+        }
     }
 }

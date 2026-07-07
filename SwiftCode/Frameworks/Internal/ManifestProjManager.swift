@@ -4,16 +4,22 @@ public final class ManifestProjManager {
     public static let shared = ManifestProjManager()
     private init() {}
 
+    @MainActor
     public func createInitialManifest(for project: Project) -> ProjectManifest {
         let now = Date()
+        let settings = AppSettings.shared
+
         let identity = ProjectManifest.Identity(
             id: project.id,
             name: project.name,
             slug: project.name.lowercased().replacingOccurrences(of: " ", with: "-"),
+            organizationName: settings.fileHeaderAuthor,
+            organizationIdentifier: "com.\(settings.fileHeaderAuthor.lowercased().replacingOccurrences(of: " ", with: ""))",
             createdAt: project.createdAt,
             updatedAt: now,
             lastOpenedAt: project.lastOpened,
             description: project.description,
+            category: nil,
             tags: []
         )
 
@@ -57,15 +63,16 @@ public final class ManifestProjManager {
             migrationHistory: []
         )
 
+        let stats = calculateStatistics(for: project)
         let statistics = ProjectManifest.Statistics(
-            fileCount: project.fileCount,
-            directoryCount: 0,
-            totalSizeInBytes: 0,
-            lineCount: 0,
-            codeLineCount: 0,
-            commentLineCount: 0,
-            assetCount: 0,
-            resourceCount: 0
+            fileCount: stats.fileCount,
+            directoryCount: stats.directoryCount,
+            totalSizeInBytes: stats.totalSize,
+            lineCount: stats.totalLines,
+            codeLineCount: stats.codeLines,
+            commentLineCount: stats.commentLines,
+            assetCount: stats.assetCount,
+            resourceCount: stats.resourceCount
         )
 
         let sourceCode = ProjectManifest.SourceMetadata(
@@ -151,6 +158,76 @@ public final class ManifestProjManager {
     }
 
     public func validateManifest(_ manifest: ProjectManifest) throws {
-        // Implement validation logic
+        guard !manifest.identity.name.isEmpty else {
+            throw ProjectErrorManager.ProjectError.invalidFormat("Project name is empty in manifest")
+        }
+
+        guard !manifest.bundle.bundleIdentifier.isEmpty else {
+            throw ProjectErrorManager.ProjectError.invalidFormat("Bundle identifier is empty in manifest")
+        }
+
+        if manifest.versioning.schemaVersion > ProjectVersionManager.shared.currentSchemaVersion {
+            throw ProjectErrorManager.ProjectError.versionIncompatible(ProjectVersionManager.shared.currentSchemaVersion, manifest.versioning.schemaVersion)
+        }
+    }
+
+    // MARK: - Private Helpers
+
+    private struct CalcStats {
+        var fileCount = 0
+        var directoryCount = 0
+        var totalSize: Int64 = 0
+        var totalLines = 0
+        var codeLines = 0
+        var commentLines = 0
+        var assetCount = 0
+        var resourceCount = 0
+    }
+
+    @MainActor
+    private func calculateStatistics(for project: Project) -> CalcStats {
+        var stats = CalcStats()
+        processNodes(project.files, in: project.directoryURL, into: &stats)
+        return stats
+    }
+
+    @MainActor
+    private func processNodes(_ nodes: [FileNode], in directoryURL: URL, into stats: inout CalcStats) {
+        for node in nodes {
+            if node.isDirectory {
+                stats.directoryCount += 1
+                processNodes(node.children, in: directoryURL, into: &stats)
+            } else {
+                stats.fileCount += 1
+
+                let fileURL = directoryURL.appendingPathComponent(node.path)
+
+                // Categorize based on extension and count lines
+                let ext = node.fileExtension
+                if ["swift", "h", "m", "c", "cpp"].contains(ext) {
+                    if let content = try? String(contentsOf: fileURL) {
+                        let lines = content.components(separatedBy: .newlines)
+                        stats.totalLines += lines.count
+                        for line in lines {
+                            let trimmed = line.trimmingCharacters(in: .whitespaces)
+                            if trimmed.isEmpty { continue }
+                            if trimmed.hasPrefix("//") || trimmed.hasPrefix("/*") || trimmed.hasPrefix("*") {
+                                stats.commentLines += 1
+                            } else {
+                                stats.codeLines += 1
+                            }
+                        }
+                    }
+                } else if ["xcassets", "png", "jpg", "pdf"].contains(ext) {
+                    stats.assetCount += 1
+                } else {
+                    stats.resourceCount += 1
+                }
+
+                if let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path) {
+                    stats.totalSize += (attributes[.size] as? Int64) ?? 0
+                }
+            }
+        }
     }
 }
