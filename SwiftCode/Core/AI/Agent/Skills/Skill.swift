@@ -8,8 +8,20 @@ public struct Skill: Identifiable, Codable, Sendable {
     public let content: String
     public let metadata: [String: String]
     public let url: URL?
+    public let scheme: SkillScheme
+    public var swiftCodeAssistCapable: Bool
 
-    public init(id: UUID = UUID(), name: String, description: String, isEnabled: Bool = true, content: String, metadata: [String: String] = [:], url: URL? = nil) {
+    public init(
+        id: UUID = UUID(),
+        name: String,
+        description: String,
+        isEnabled: Bool = true,
+        content: String,
+        metadata: [String: String] = [:],
+        url: URL? = nil,
+        scheme: SkillScheme = SkillScheme(),
+        swiftCodeAssistCapable: Bool = false
+    ) {
         self.id = id
         self.name = name
         self.description = description
@@ -17,5 +29,7 @@ public struct Skill: Identifiable, Codable, Sendable {
         self.content = content
         self.metadata = metadata
         self.url = url
+        self.scheme = scheme
+        self.swiftCodeAssistCapable = swiftCodeAssistCapable
     }
 }

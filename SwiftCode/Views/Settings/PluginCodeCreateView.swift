@@ -11,7 +11,7 @@ struct PluginCodeCreateView: View {
     @State private var pluginAuthor = ""
     @State private var tagsText = ""
     @State private var selectedCapabilities: Set<PluginManifest.Capability> = []
-    @State private var selectedToolIDs: Set<String> = []
+    @State private var selectedToolNames: Set<String> = []
     @State private var automationSteps: [PluginAutomationStep] = []
     @State private var configFields: [PluginConfigField] = []
     @State private var mainCode = """
@@ -25,7 +25,7 @@ struct AdvancedPlugin {
 }
 """
 
-    private var availableTools: [AgentTool] { AgentTool.all }
+    private var availableTools: [any AgentTool] { Array(ListTools.shared.tools.values) }
 
     var body: some View {
         NavigationStack {
@@ -78,12 +78,12 @@ struct AdvancedPlugin {
 
     private var toolInteropSection: some View {
         Section("Tool Interop") {
-            ForEach(availableTools, id: \.id) { tool in
-                Toggle(tool.displayName, isOn: Binding(
-                    get: { selectedToolIDs.contains(tool.id) },
+            ForEach(availableTools, id: \.name) { tool in
+                Toggle(tool.name, isOn: Binding(
+                    get: { selectedToolNames.contains(tool.name) },
                     set: { isSelected in
-                        if isSelected { selectedToolIDs.insert(tool.id) }
-                        else { selectedToolIDs.remove(tool.id) }
+                        if isSelected { selectedToolNames.insert(tool.name) }
+                        else { selectedToolNames.remove(tool.name) }
                     }
                 ))
             }
@@ -177,7 +177,7 @@ struct AdvancedPlugin {
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty },
             minimumSwiftCodeVersion: minimumVersion,
-            toolBindings: selectedToolIDs.map {
+            toolBindings: Array(selectedToolNames).map {
                 PluginToolBinding(toolID: $0, usageDescription: "Linked in Create Plugin flow", isRequired: false)
             },
             automationSteps: automationSteps,

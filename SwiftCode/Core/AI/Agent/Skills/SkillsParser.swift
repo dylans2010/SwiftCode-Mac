@@ -11,13 +11,13 @@ public struct SkillsParser: Sendable {
             .dropFirst(2)
             .trimmingCharacters(in: .whitespaces) ?? "Unknown Skill"
 
-        // Extract Description from first non-empty line after title
-        var description = "No description"
+        // Extract Description/Summary from first non-empty line after title
+        var summary = "No description"
         if let titleIndex = lines.firstIndex(where: { $0.hasPrefix("# ") }) {
             for i in (titleIndex + 1)..<lines.count {
                 let line = lines[i].trimmingCharacters(in: .whitespaces)
                 if !line.isEmpty && !line.hasPrefix("#") {
-                    description = line
+                    summary = line
                     break
                 }
             }
@@ -43,14 +43,32 @@ public struct SkillsParser: Sendable {
         // Use a consistent UUID if provided in metadata, otherwise generate new
         let id = metadata["id"].flatMap { UUID(uuidString: $0) } ?? UUID()
 
+        let author = metadata["author"] ?? "SwiftCode"
+        let version = metadata["version"] ?? "1.0.0"
+        let tags = metadata["tags"]?.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } ?? []
+        let recommendedTools = metadata["recommendedTools"]?.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } ?? []
+        let guidance = metadata["guidance"]?.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) } ?? []
+
+        let scheme = SkillScheme(
+            name: String(name),
+            summary: summary,
+            version: version,
+            author: author,
+            tags: tags,
+            recommendedTools: recommendedTools,
+            guidance: guidance
+        )
+
         return Skill(
             id: id,
             name: String(name),
-            description: String(description),
+            description: summary,
             isEnabled: true,
             content: content,
             metadata: metadata,
-            url: url
+            url: url,
+            scheme: scheme,
+            swiftCodeAssistCapable: false
         )
     }
 }

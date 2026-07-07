@@ -17,7 +17,10 @@ struct SkillsView: View {
     }
 
     private var filteredUploaded: [AgentSkillBundle] {
-        filterSkills(manager.uploadedSkills)
+        let uploaded = manager.uploadedSkills.map {
+            AgentSkillBundle(id: $0.id, scheme: $0.scheme, markdown: $0.content, source: .uploaded)
+        }
+        return filterSkills(uploaded)
     }
 
     private func filterSkills(_ skills: [AgentSkillBundle]) -> [AgentSkillBundle] {
@@ -34,7 +37,7 @@ struct SkillsView: View {
         NavigationStack {
             List {
                 Section("Preset Skills") {
-                    ForEach(manager.presetSkills) { skill in
+                    ForEach(filteredPresets) { skill in
                         NavigationLink(skill.scheme.name) {
                             SkillsInfoView(skill: skill)
                         }
@@ -42,11 +45,11 @@ struct SkillsView: View {
                 }
 
                 Section("Uploaded Skills") {
-                    if manager.uploadedSkills.isEmpty {
+                    if filteredUploaded.isEmpty {
                         Text("No Uploaded Skills")
                             .foregroundStyle(.secondary)
                     }
-                    ForEach(manager.uploadedSkills) { skill in
+                    ForEach(filteredUploaded) { skill in
                         NavigationLink(skill.scheme.name) {
                             SkillsInfoView(skill: skill)
                         }
@@ -54,6 +57,7 @@ struct SkillsView: View {
                 }
             }
             .navigationTitle("Skills")
+            .searchable(text: $searchText)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
