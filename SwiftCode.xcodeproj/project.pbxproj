@@ -790,6 +790,25 @@
 		FD2931D13CF16B1DA1ED14BB /* GitHubIntegrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5430117ECBE9C74EB302DE61 /* GitHubIntegrationView.swift */; };
 		FD3BFB78E9851B43147403A0 /* MIT.md in Resources */ = {isa = PBXBuildFile; fileRef = 02D2E64119CACAB33D540DC8 /* MIT.md */; };
 		FEC3B44DC8224E81AD104B28 /* SwiftCode/Tools/Agentic/QuestionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3095C7FC268B4822B1D7F891 /* SwiftCode/Tools/Agentic/QuestionHandler.swift */; };
+		A19M001B0010001B0010001 /* ExportProjManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM001 /* ExportProjManager.swift */; };
+		A19M002B0010001B0010001 /* ImportProjManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM002 /* ImportProjManager.swift */; };
+		A19M003B0010001B0010001 /* ManifestProjManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM003 /* ManifestProjManager.swift */; };
+		A19M004B0010001B0010001 /* ProjectCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM004 /* ProjectCoordinator.swift */; };
+		A19M005B0010001B0010001 /* ProjectDeserializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM005 /* ProjectDeserializer.swift */; };
+		A19M006B0010001B0010001 /* ProjectErrorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM006 /* ProjectErrorManager.swift */; };
+		A19M007B0010001B0010001 /* ProjectFileManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM007 /* ProjectFileManager.swift */; };
+		A19M008B0010001B0010001 /* ProjectHashManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM008 /* ProjectHashManager.swift */; };
+		A19M009B0010001B0010001 /* ProjectIntegrityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM009 /* ProjectIntegrityManager.swift */; };
+		A19M010B0010001B0010001 /* ProjectJSONManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM010 /* ProjectJSONManager.swift */; };
+		A19M011B0010001B0010001 /* ProjectManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM011 /* ProjectManifest.swift */; };
+		A19M012B0010001B0010001 /* ProjectMetadataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM012 /* ProjectMetadataManager.swift */; };
+		A19M013B0010001B0010001 /* ProjectPackageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM013 /* ProjectPackageManager.swift */; };
+		A19M014B0010001B0010001 /* ProjectPlistManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM014 /* ProjectPlistManager.swift */; };
+		A19M015B0010001B0010001 /* ProjectResourceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM015 /* ProjectResourceManager.swift */; };
+		A19M016B0010001B0010001 /* ProjectSerializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM016 /* ProjectSerializer.swift */; };
+		A19M017B0010001B0010001 /* ProjectValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM017 /* ProjectValidator.swift */; };
+		A19M018B0010001B0010001 /* ProjectVersionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM018 /* ProjectVersionManager.swift */; };
+		A19M019B0010001B0010001 /* ProjectXMLManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM019 /* ProjectXMLManager.swift */; };
 		FEFC87DC8083410D9A030894 /* ManageSecrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AE11BAA8BF4AA791C4B03B /* ManageSecrets.swift */; };
 /* End PBXBuildFile section */
 
@@ -4149,25 +4168,25 @@
 				E6AC3A19AA984745806404B2 /* ThemeEditorView.swift in Sources */,
 				FCE346B6A8594C599371747B /* ThemeGalleryView.swift in Sources */,
 				4C8FC348DC244A6B8BFEC16B /* WorkspaceView.swift in Sources */,
-				REFFM001 /* ExportProjManager.swift in Sources */,
-				REFFM002 /* ImportProjManager.swift in Sources */,
-				REFFM003 /* ManifestProjManager.swift in Sources */,
-				REFFM004 /* ProjectCoordinator.swift in Sources */,
-				REFFM005 /* ProjectDeserializer.swift in Sources */,
-				REFFM006 /* ProjectErrorManager.swift in Sources */,
-				REFFM007 /* ProjectFileManager.swift in Sources */,
-				REFFM008 /* ProjectHashManager.swift in Sources */,
-				REFFM009 /* ProjectIntegrityManager.swift in Sources */,
-				REFFM010 /* ProjectJSONManager.swift in Sources */,
-				REFFM011 /* ProjectManifest.swift in Sources */,
-				REFFM012 /* ProjectMetadataManager.swift in Sources */,
-				REFFM013 /* ProjectPackageManager.swift in Sources */,
-				REFFM014 /* ProjectPlistManager.swift in Sources */,
-				REFFM015 /* ProjectResourceManager.swift in Sources */,
-				REFFM016 /* ProjectSerializer.swift in Sources */,
-				REFFM017 /* ProjectValidator.swift in Sources */,
-				REFFM018 /* ProjectVersionManager.swift in Sources */,
-				REFFM019 /* ProjectXMLManager.swift in Sources */,
+				A19M001B0010001B0010001 /* ExportProjManager.swift in Sources */,
+				A19M002B0010001B0010001 /* ImportProjManager.swift in Sources */,
+				A19M003B0010001B0010001 /* ManifestProjManager.swift in Sources */,
+				A19M004B0010001B0010001 /* ProjectCoordinator.swift in Sources */,
+				A19M005B0010001B0010001 /* ProjectDeserializer.swift in Sources */,
+				A19M006B0010001B0010001 /* ProjectErrorManager.swift in Sources */,
+				A19M007B0010001B0010001 /* ProjectFileManager.swift in Sources */,
+				A19M008B0010001B0010001 /* ProjectHashManager.swift in Sources */,
+				A19M009B0010001B0010001 /* ProjectIntegrityManager.swift in Sources */,
+				A19M010B0010001B0010001 /* ProjectJSONManager.swift in Sources */,
+				A19M011B0010001B0010001 /* ProjectManifest.swift in Sources */,
+				A19M012B0010001B0010001 /* ProjectMetadataManager.swift in Sources */,
+				A19M013B0010001B0010001 /* ProjectPackageManager.swift in Sources */,
+				A19M014B0010001B0010001 /* ProjectPlistManager.swift in Sources */,
+				A19M015B0010001B0010001 /* ProjectResourceManager.swift in Sources */,
+				A19M016B0010001B0010001 /* ProjectSerializer.swift in Sources */,
+				A19M017B0010001B0010001 /* ProjectValidator.swift in Sources */,
+				A19M018B0010001B0010001 /* ProjectVersionManager.swift in Sources */,
+				A19M019B0010001B0010001 /* ProjectXMLManager.swift in Sources */,
 				B0010001B0010001B0010007 /* InfoProjView.swift in Sources */,
 				B0010001B0010001B0010008 /* ExportProjView.swift in Sources */,
 				B0010001B0010001B0010009 /* ImportProjView.swift in Sources */,
