@@ -5,7 +5,15 @@ public final class ProjectResourceManager {
     private init() {}
 
     public func validateResources(at packageURL: URL) throws {
-        // Ensure Assets, Resources, and Frameworks directories exist and contain valid items
+        let fm = FileManager.default
+        let requiredDirs = ["Sources", "Resources"]
+        for dir in requiredDirs {
+            let dirURL = packageURL.appendingPathComponent(dir)
+            var isDir: ObjCBool = false
+            if !fm.fileExists(atPath: dirURL.path, isDirectory: &isDir) || !isDir.boolValue {
+                throw ProjectErrorManager.ProjectError.corruptedPackage("Missing required directory: \(dir)")
+            }
+        }
     }
 
     public func copyResource(_ resourceURL: URL, to packageURL: URL) throws {

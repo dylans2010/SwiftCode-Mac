@@ -5,21 +5,50 @@ public final class ProjectIntegrityManager {
     private init() {}
 
     public func verifyIntegrity(at packageURL: URL, manifest: ProjectManifest) throws -> Bool {
-        // Verification logic using hashes from manifest
-        guard let expectedHash = manifest.security.packageIntegrityHash else {
-            return true // No hash to verify
-        }
-
-        // Simplified check: verify manifest hash if present
+        // 1. Verify Manifest Hash if present
         let manifestURL = packageURL.appendingPathComponent("manifest.json")
-        let manifestData = try Data(contentsOf: manifestURL)
-        let actualHash = ProjectHashManager.shared.hash(data: manifestData)
-
-        if let expectedManifestHash = manifest.security.manifestHash, actualHash != expectedManifestHash {
-            return false
+        if let expectedManifestHash = manifest.security.manifestHash {
+            let manifestData = try Data(contentsOf: manifestURL)
+            let actualManifestHash = ProjectHashManager.shared.hash(data: manifestData)
+            if actualManifestHash != expectedManifestHash {
+                return false
+            }
         }
 
-        return true
+        // 2. Verify Package Integrity Hash (all files except manifest and integrity)
+        guard let expectedPackageHash = manifest.security.packageIntegrityHash else {
+            return true // Nothing more to verify
+        }
+
+        let actualPackageHash = try calculatePackageHash(at: packageURL)
+        return actualPackageHash == expectedPackageHash
+    }
+
+    private func calculatePackageHash(at packageURL: URL) throws -> String {
+        let fm = FileManager.default
+        var combinedHash = ""
+
+        if let enumerator = fm.enumerator(at: packageURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
+            var fileURLs: [URL] = []
+            for case let fileURL as URL in enumerator {
+                let isFile = (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile ?? false
+                if isFile {
+                    let filename = fileURL.lastPathComponent
+                    if filename != "manifest.json" && filename != "integrity.json" {
+                        fileURLs.append(fileURL)
+                    }
+                }
+            }
+
+            // Sort URLs for deterministic hashing
+            fileURLs.sort { $0.path < $1.path }
+
+            for url in fileURLs {
+                combinedHash += try ProjectHashManager.shared.hashFile(at: url)
+            }
+        }
+
+        return combinedHash.isEmpty ? "" : ProjectHashManager.shared.hash(data: combinedHash.data(using: .utf8)!)
     }
 
     public func detectCorruption(at packageURL: URL) -> Bool {

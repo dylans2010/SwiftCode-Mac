@@ -511,8 +511,18 @@ struct \(structName): View {
 
         let basePath = base.standardizedFileURL.path
 
+        let metadataFiles = [
+            "manifest.json",
+            "metadata.json",
+            "integrity.json",
+            "version.json",
+            "project.json",
+            "project.xml",
+            "project.plist"
+        ]
+
         return contents
-            .filter { $0.lastPathComponent != "project.json" }
+            .filter { !metadataFiles.contains($0.lastPathComponent) }
             .sorted {
                 let aIsDir = (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
                 let bIsDir = (try? $1.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false

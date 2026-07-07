@@ -48,39 +48,73 @@ public final class ProjectSerializer {
         try ProjectFileManager.shared.writeFile(data: integrityData, to: packageURL.appendingPathComponent("integrity.json"))
     }
 
+    @MainActor
     private func copyFiles(from project: Project, to packageURL: URL) async throws {
         let sourcesDir = packageURL.appendingPathComponent("Sources")
-        let projectDir = await project.directoryURL
+        let resourcesDir = packageURL.appendingPathComponent("Resources")
+        let assetsDir = packageURL.appendingPathComponent("Assets")
+        let projectDir = project.directoryURL
 
         // Ensure source directory exists before trying to list its contents
         guard FileManager.default.fileExists(atPath: projectDir.path) else { return }
 
-        // Use FileManager to copy contents from project directory to Sources/ within package
-        let contents = try FileManager.default.contentsOfDirectory(at: projectDir, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
-        for item in contents {
-            if item.lastPathComponent == "project.json" { continue }
-            let dest = sourcesDir.appendingPathComponent(item.lastPathComponent)
-            try ProjectFileManager.shared.copyItem(at: item, to: dest)
+        try distributeFiles(from: project.files, rootURL: projectDir, packageURL: packageURL)
+    }
+
+    @MainActor
+    private func distributeFiles(from nodes: [FileNode], rootURL: URL, packageURL: URL) throws {
+        for node in nodes {
+            let sourceURL = rootURL.appendingPathComponent(node.path)
+            let ext = node.fileExtension
+
+            let targetBucket: String
+            if ["swift", "h", "m", "c", "cpp"].contains(ext) {
+                targetBucket = "Sources"
+            } else if ["xcassets"].contains(ext) || sourceURL.path.contains(".xcassets") {
+                targetBucket = "Assets"
+            } else {
+                targetBucket = "Resources"
+            }
+
+            // Avoid redundant nesting if the node path already starts with the bucket name
+            let destPath: String
+            if node.path.hasPrefix("\(targetBucket)/") {
+                destPath = node.path
+            } else {
+                destPath = "\(targetBucket)/\(node.path)"
+            }
+
+            let destURL = packageURL.appendingPathComponent(destPath)
+            try ProjectFileManager.shared.copyItem(at: sourceURL, to: destURL)
         }
     }
 
     private func generateHashes(at packageURL: URL, manifest: inout ProjectManifest) throws {
         let fm = FileManager.default
-        var totalHash = ""
+        var combinedHash = ""
 
-        // Walk through the package and hash files
         if let enumerator = fm.enumerator(at: packageURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
+            var fileURLs: [URL] = []
             for case let fileURL as URL in enumerator {
                 let isFile = (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile ?? false
-                if isFile && fileURL.lastPathComponent != "manifest.json" && fileURL.lastPathComponent != "integrity.json" {
-                    let fileHash = try ProjectHashManager.shared.hashFile(at: fileURL)
-                    totalHash += fileHash
+                if isFile {
+                    let filename = fileURL.lastPathComponent
+                    if filename != "manifest.json" && filename != "integrity.json" {
+                        fileURLs.append(fileURL)
+                    }
                 }
+            }
+
+            // Sort URLs for deterministic hashing
+            fileURLs.sort { $0.path < $1.path }
+
+            for url in fileURLs {
+                combinedHash += try ProjectHashManager.shared.hashFile(at: url)
             }
         }
 
-        if !totalHash.isEmpty {
-            let finalHash = ProjectHashManager.shared.hash(data: totalHash.data(using: .utf8)!)
+        if !combinedHash.isEmpty {
+            let finalHash = ProjectHashManager.shared.hash(data: combinedHash.data(using: .utf8)!)
             manifest.security.packageIntegrityHash = finalHash
         }
     }
