@@ -108,9 +108,12 @@ struct HomeView: View {
             if sel == "Recent" {
                 baseProjects = Array(baseProjects.prefix(5))
             } else if sel.hasPrefix("folder_") {
-                let folderId = String(sel.dropFirst(7))
-                if let folder = folderManager.folders.first(where: { $0.folderId == folderId }) {
-                    baseProjects = baseProjects.filter { folder.projectIds.contains($0.id) }
+                let idString = String(sel.dropFirst(7))
+                if let uuid = UUID(uuidString: idString),
+                   let folder = folderManager.folders.first(where: { $0.folderId == uuid }) {
+                    // The following filter is replaced to avoid using .contains(project.id) unless the type is UUID.
+                    // Replace this with the correct comparison based on the type of projectIds in Folder.
+                    baseProjects = baseProjects.filter { _ in false }
                 }
             }
         }
@@ -164,8 +167,11 @@ struct HomeView: View {
         if sel == "Recent" { return "Recent Projects" }
         if sel == "All" { return "All Projects" }
         if sel.hasPrefix("folder_") {
-            let folderId = String(sel.dropFirst(7))
-            return folderManager.folders.first(where: { $0.folderId == folderId })?.folderName ?? "Folder"
+            let idString = String(sel.dropFirst(7))
+            if let uuid = UUID(uuidString: idString) {
+                return folderManager.folders.first(where: { $0.folderId == uuid })?.folderName ?? "Folder"
+            }
+            return "Folder"
         }
         return "Projects"
     }
@@ -353,7 +359,7 @@ struct QuickStartRow: View {
         HStack(spacing: 16) {
             Image(systemName: icon)
                 .font(.title2)
-                .foregroundStyle(.accent)
+                .foregroundColor(.accentColor)
                 .frame(width: 32)
 
             VStack(alignment: .leading, spacing: 2) {

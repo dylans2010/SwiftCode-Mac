@@ -18,6 +18,50 @@
             endingLineNumber = "60"
             landmarkName = "sendPrompt(_:)"
             landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "32068C64-DB0A-4EC2-954C-4EB8F70FA428 - b1cc923735e82863"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(1) suspend resume partial function for SwiftCode.CodexManager.sendPrompt(Swift.String) async throws -&gt; Swift.String"
+                  moduleName = "SwiftCode.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/dylan/SwiftCode-Mac/SwiftCode/Backend/Codex/CodexManager.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "60"
+                  endingLineNumber = "60">
+               </Location>
+               <Location
+                  uuid = "32068C64-DB0A-4EC2-954C-4EB8F70FA428 - 9b4d0da653aeec65"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(3) suspend resume partial function for SwiftCode.CodexManager.sendPrompt(Swift.String) async throws -&gt; Swift.String"
+                  moduleName = "SwiftCode.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/dylan/SwiftCode-Mac/SwiftCode/Backend/Codex/CodexManager.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "60"
+                  endingLineNumber = "60">
+               </Location>
+               <Location
+                  uuid = "32068C64-DB0A-4EC2-954C-4EB8F70FA428 - 918ebc5dde820e64"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(4) suspend resume partial function for SwiftCode.CodexManager.sendPrompt(Swift.String) async throws -&gt; Swift.String"
+                  moduleName = "SwiftCode.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/dylan/SwiftCode-Mac/SwiftCode/Backend/Codex/CodexManager.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "60"
+                  endingLineNumber = "60">
+               </Location>
+            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>
