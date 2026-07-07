@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import Observation
 
 public struct ToolLogEntry: Identifiable, Sendable {
     public let id: UUID
@@ -17,17 +18,17 @@ public struct ToolLogEntry: Identifiable, Sendable {
     }
 }
 
-public final class AgentLogger: ObservableObject {
+@Observable
+@MainActor
+public final class AgentLogger {
     public static let shared = AgentLogger()
 
-    @Published public var toolLogs: [ToolLogEntry] = []
+    public var toolLogs: [ToolLogEntry] = []
 
     private init() {}
 
     public func logToolExecution(name: String, arguments: [String: any Sendable], source: ToolSource) {
         let entry = ToolLogEntry(toolName: name, arguments: arguments, source: source)
-        DispatchQueue.main.async {
-            self.toolLogs.append(entry)
-        }
+        self.toolLogs.append(entry)
     }
 }

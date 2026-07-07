@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ToolExecutionView: View {
-    @ObservedObject private var logger = AgentLogger.shared
+    @State private var logger = AgentLogger.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
