@@ -29,7 +29,7 @@ enum ProjectSerializationError: LocalizedError {
     }
 }
 
-struct ProjectSerializer {
+struct ProjectTransferSerializer {
     @MainActor
     func serialize(project: Project, permission: TransferPermission) throws -> Data {
         let root = project.directoryURL

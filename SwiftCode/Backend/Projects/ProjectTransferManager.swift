@@ -9,7 +9,7 @@ final class ProjectTransferManager: ObservableObject {
     @Published private(set) var incomingSession: TransferSession?
     @Published private(set) var lastError: String?
 
-    private let serializer = ProjectSerializer()
+    private let serializer = ProjectTransferSerializer()
     private let chunkSize = 256_000
     private var stagedPayloads: [UUID: Data] = [:]
     private var pendingChunks: [UUID: [Int: Data]] = [:]
