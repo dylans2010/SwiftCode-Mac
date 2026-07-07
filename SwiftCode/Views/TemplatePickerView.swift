@@ -8,6 +8,7 @@ struct TemplatePickerView: View {
     @State private var selectedTemplate: any ProjectScaffoldTemplate = MacOSAppTemplate()
 
     let templates: [any ProjectScaffoldTemplate] = [
+        IntroductionTemplate(),
         MacOSAppTemplate(),
         MultiplatformAppTemplate(),
         DocumentAppTemplate(),
@@ -99,7 +100,7 @@ struct TemplatePickerView: View {
             Task {
                 do {
                     try await ProjectScaffoldTemplateEngine.shared.createProject(at: projectURL, template: selectedTemplate)
-                    await viewModel.importProject(url: projectURL)
+                    _ = try await ProjectManager.shared.importProject(from: projectURL)
                     dismiss()
                 } catch {
                     LoggingTool.error("Failed to create project: \(error)")

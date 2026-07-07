@@ -128,8 +128,12 @@ struct NewProjectSheetView: View {
         panel.canChooseDirectories = true
         if panel.runModal() == .OK, let url = panel.url {
             Task {
-                await viewModel.importProject(url: url)
-                dismiss()
+                do {
+                    _ = try await ProjectManager.shared.importProject(from: url)
+                    dismiss()
+                } catch {
+                    LoggingTool.error("Failed to import folder: \(error)")
+                }
             }
         }
     }
@@ -141,8 +145,12 @@ struct NewProjectSheetView: View {
         panel.canChooseDirectories = false
         if panel.runModal() == .OK, let url = panel.url {
             Task {
-                await viewModel.importProject(url: url.deletingLastPathComponent())
-                dismiss()
+                do {
+                    _ = try await ProjectManager.shared.importProject(from: url.deletingLastPathComponent())
+                    dismiss()
+                } catch {
+                    LoggingTool.error("Failed to import Xcode project: \(error)")
+                }
             }
         }
     }

@@ -24,10 +24,25 @@ final class SwiftRuntimeCompiler {
 
 #if os(macOS)
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+
+        // Use a direct path to swiftc if possible to avoid xcrun sandbox issues
+        let swiftcPaths = [
+            "/usr/bin/swiftc",
+            "/usr/local/bin/swiftc",
+            "/opt/homebrew/bin/swiftc"
+        ]
+
+        var resolvedSwiftc = URL(fileURLWithPath: "/usr/bin/swiftc")
+        for path in swiftcPaths {
+            if FileManager.default.isExecutableFile(atPath: path) {
+                resolvedSwiftc = URL(fileURLWithPath: path)
+                break
+            }
+        }
+
+        process.executableURL = resolvedSwiftc
         process.currentDirectoryURL = sandboxPolicy.projectDirectory
         process.arguments = [
-            "swiftc",
             "-swift-version", "6",
             "-emit-library",
             "-module-name", "SimulationApp",

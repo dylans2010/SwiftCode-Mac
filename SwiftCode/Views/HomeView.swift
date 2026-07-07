@@ -1,17 +1,13 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct HomeView: View {
-    @State var viewModel = HomeViewModel()
-    @Environment(ThemeViewModel.self) private var themeVM
     @EnvironmentObject private var projectManager: ProjectManager
     @EnvironmentObject private var folderManager: FolderManager
-    @EnvironmentObject private var settings: AppSettings
-    @EnvironmentObject private var suggestionsManager: CodeSuggestionsML
-
+    @Environment(ThemeViewModel.self) private var themeVM
     @State private var showingNewProject = false
     @State private var showingSettings = false
-    @State private var selectedProject: Project?
+    @State private var selection: String? = "Recent"
+    @State private var searchText = ""
 
     // Project management states
     @State private var showRenameSheet = false
@@ -25,128 +21,159 @@ struct HomeView: View {
     @State private var showError = false
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(hex: themeVM.currentTheme.background).ignoresSafeArea()
-
-                VStack {
-                    if projectManager.projects.isEmpty && folderManager.folders.isEmpty {
-                        emptyStateView
-                    } else {
-                        ScrollView {
-                            foldersSection
-
-                            projectsSection
-                        }
-                    }
-                }
+        NavigationSplitView {
+            sidebar
+        } detail: {
+            detail
+        }
+        .frame(minWidth: 900, minHeight: 600)
+        .sheet(isPresented: $showingNewProject) {
+            NewProjectSheetView(viewModel: HomeViewModel())
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView().frame(width: 600, height: 500)
+        }
+        .sheet(isPresented: $showRenameSheet) {
+            renameSheet
+        }
+        .sheet(isPresented: $showAddToFolderSheet) {
+            addToFolderSheet
+        }
+        .sheet(isPresented: $showShareSheet) {
+            if let url = exportURL {
+                ShareSheet(activityItems: [url])
             }
-            .frame(minWidth: 800, minHeight: 600)
-            .navigationTitle("SwiftCode")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: { showingNewProject = true }) {
-                        Label("New Project", systemImage: "plus")
-                    }
-                    .help("New Project (⌘⇧N)")
-                }
-                ToolbarItem(placement: .navigation) {
-                    Button(action: { showingSettings = true }) {
-                        Label("Settings", systemImage: "gear")
-                    }
-                    .help("Settings")
-                }
-            }
-            .sheet(isPresented: $showingNewProject) {
-                NewProjectSheetView(viewModel: viewModel)
-            }
-            .sheet(isPresented: $showingSettings) {
-                SettingsView()
-                    .frame(width: 600, height: 500)
-            }
-            .sheet(isPresented: $showRenameSheet) {
-                renameSheet
-            }
-            .sheet(isPresented: $showAddToFolderSheet) {
-                addToFolderSheet
-            }
-            .sheet(isPresented: $showShareSheet) {
-                if let url = exportURL {
-                    ShareSheet(activityItems: [url])
-                }
-            }
-            .navigationDestination(isPresented: .init(get: { projectManager.activeProject != nil }, set: { if !$0 { projectManager.closeProject() } })) {
-                if let project = projectManager.activeProject {
-                    WorkspaceView(viewModel: WorkspaceViewModel(projectURL: project.directoryURL))
-                }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowNewProjectSheet"))) { _ in
-                showingNewProject = true
-            }
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowImportPicker"))) { _ in
-                showingNewProject = true
-            }
-            .onChange(of: projectManager.activeProject?.id) {
-                guard settings.codeSuggestionsEnabled, let project = projectManager.activeProject else { return }
-                suggestionsManager.analyze(project: project)
-            }
-            .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
-                Button("OK") {}
-            } message: { msg in Text(msg) }
+        }
+        .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
+            Button("OK") {}
+        } message: { msg in Text(msg) }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowImportPicker"))) { _ in
+            showingNewProject = true
         }
     }
 
-    private var emptyStateView: some View {
-        ContentUnavailableView {
-            Label("SwiftCode", systemImage: "swift")
-                .font(.system(size: 80))
-                .foregroundStyle(.orange)
-        } description: {
-            Text("The Next Generation IDE for Swift.\nCreate a new project or import an existing one to get started.")
-        } actions: {
-            Button("New Project...") { showingNewProject = true }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-        }
-    }
+    private var sidebar: some View {
+        List(selection: $selection) {
+            Section("Library") {
+                Label("Recent", systemImage: "clock").tag("Recent")
+                Label("All Projects", systemImage: "folder").tag("All")
+            }
 
-    private var foldersSection: some View {
-        Group {
             if !folderManager.folders.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Folders")
-                        .font(.headline)
-                        .padding(.horizontal)
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(folderManager.folders) { folder in
-                                FolderCardView(folder: folder)
-                                    .contextMenu {
-                                        Button(role: .destructive) {
-                                            folderManager.deleteFolder(folder)
-                                        } label: {
-                                            Label("Delete Folder", systemImage: "trash")
-                                        }
-                                    }
+                Section("Folders") {
+                    ForEach(folderManager.folders) { folder in
+                        Label(folder.folderName, systemImage: "folder.badge.gearshape")
+                            .tag("folder_\(folder.folderId)")
+                            .contextMenu {
+                                Button(role: .destructive) {
+                                    folderManager.deleteFolder(folder)
+                                } label: {
+                                    Label("Delete Folder", systemImage: "trash")
+                                }
                             }
-                        }
-                        .padding(.horizontal)
                     }
                 }
-                .padding(.top)
+            }
+
+            Section("Templates") {
+                Label("Browse Templates", systemImage: "square.grid.2x2").tag("Templates")
+            }
+        }
+        .listStyle(.sidebar)
+        .navigationTitle("SwiftCode")
+    }
+
+    private var detail: some View {
+        ZStack {
+            Color(hex: themeVM.currentTheme.background).ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                headerView
+
+                if filteredProjects.isEmpty && !isSearching {
+                    emptyStateView
+                } else {
+                    projectsGrid
+                }
             }
         }
     }
 
-    private var projectsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Recent Projects")
-                .font(.headline)
-                .padding(.horizontal)
+    private var isSearching: Bool { !searchText.isEmpty }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 250))], spacing: 20) {
-                ForEach(projectManager.projects) { project in
+    private var filteredProjects: [Project] {
+        var baseProjects = projectManager.projects
+
+        if let sel = selection {
+            if sel == "Recent" {
+                baseProjects = Array(baseProjects.prefix(5))
+            } else if sel.hasPrefix("folder_") {
+                let folderId = String(sel.dropFirst(7))
+                if let folder = folderManager.folders.first(where: { $0.folderId == folderId }) {
+                    baseProjects = baseProjects.filter { folder.projectIds.contains($0.id) }
+                }
+            }
+        }
+
+        if isSearching {
+            return baseProjects.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        }
+        return baseProjects
+    }
+
+    private var headerView: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(titleForSelection)
+                    .font(.largeTitle)
+                    .bold()
+                Text("\(filteredProjects.count) projects")
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            HStack(spacing: 12) {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search projects...", text: $searchText)
+                        .textFieldStyle(.plain)
+                }
+                .padding(8)
+                .background(Color.secondary.opacity(0.1))
+                .cornerRadius(8)
+                .frame(width: 250)
+
+                Button(action: { showingNewProject = true }) {
+                    Label("New Project", systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button(action: { showingSettings = true }) {
+                    Image(systemName: "gear")
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(32)
+    }
+
+    private var titleForSelection: String {
+        guard let sel = selection else { return "Projects" }
+        if sel == "Recent" { return "Recent Projects" }
+        if sel == "All" { return "All Projects" }
+        if sel.hasPrefix("folder_") {
+            let folderId = String(sel.dropFirst(7))
+            return folderManager.folders.first(where: { $0.folderId == folderId })?.folderName ?? "Folder"
+        }
+        return "Projects"
+    }
+
+    private var projectsGrid: some View {
+        ScrollView {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 20)], spacing: 20) {
+                ForEach(filteredProjects) { project in
                     HomeProjectCardView(project: project) {
                         projectManager.openProject(project)
                     } onDelete: {
@@ -155,7 +182,8 @@ struct HomeView: View {
                     .contextMenu { projectContextMenu(for: project) }
                 }
             }
-            .padding(24)
+            .padding(.horizontal, 32)
+            .padding(.bottom, 32)
         }
     }
 
@@ -199,6 +227,55 @@ struct HomeView: View {
         } label: {
             Label("Delete", systemImage: "trash")
         }
+    }
+
+    private var emptyStateView: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "swift")
+                .font(.system(size: 80))
+                .foregroundStyle(.orange.gradient)
+                .padding()
+                .background(Circle().fill(.orange.opacity(0.1)))
+
+            VStack(spacing: 8) {
+                Text("Welcome to SwiftCode")
+                    .font(.title)
+                    .bold()
+                Text("Start your next great idea by creating a new project or importing an existing one.")
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 400)
+            }
+
+            HStack(spacing: 16) {
+                Button(action: { showingNewProject = true }) {
+                    Label("Create New Project", systemImage: "plus")
+                        .padding(.horizontal, 8)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+
+                Button(action: { showingNewProject = true }) {
+                    Label("Import Project", systemImage: "folder.badge.plus")
+                        .padding(.horizontal, 8)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+            }
+
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Quick Start")
+                    .font(.headline)
+                    .padding(.top)
+
+                QuickStartRow(icon: "book.pages", title: "Learn SwiftCode", description: "Read the introduction guide to get started.")
+                QuickStartRow(icon: "shippingbox", title: "Swift Packages", description: "Create and manage Swift packages with ease.")
+                QuickStartRow(icon: "macwindow", title: "App Templates", description: "Choose from a variety of pre-configured templates.")
+            }
+            .frame(maxWidth: 400)
+            .padding(.top, 40)
+        }
+        .frame(maxHeight: .infinity)
     }
 
     private var renameSheet: some View {
@@ -267,6 +344,30 @@ struct HomeView: View {
     }
 }
 
+struct QuickStartRow: View {
+    let icon: String
+    let title: String
+    let description: String
+
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundStyle(.accent)
+                .frame(width: 32)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline)
+                    .bold()
+                Text(description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
 struct HomeProjectCardView: View {
     let project: Project
     let onOpen: () -> Void
@@ -274,40 +375,62 @@ struct HomeProjectCardView: View {
     @State private var isHovered = false
 
     var body: some View {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "swift")
-                    .font(.title)
+                    .font(.title2)
                     .foregroundColor(.orange)
+                    .padding(8)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(8)
+
                 Spacer()
-                Button(action: onDelete) {
-                    Image(systemName: "xmark")
-                        .foregroundColor(.secondary)
+
+                Menu {
+                    Button("Open", action: onOpen)
+                    Button("Delete", role: .destructive, action: onDelete)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .foregroundStyle(.secondary)
                 }
+                .menuStyle(.button)
                 .buttonStyle(.plain)
                 .opacity(isHovered ? 1 : 0)
             }
-            .padding(.bottom, 8)
 
-            Text(project.name)
-                .font(.headline)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(project.name)
+                    .font(.headline)
+                    .lineLimit(1)
 
-            Text(project.lastOpened, style: .relative)
-                .font(.caption)
-                .foregroundColor(.secondary)
+                Text(project.lastOpened, style: .relative)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                HStack(spacing: 12) {
+                    Label("\(project.fileCount) files", systemImage: "doc")
+                    if let repo = project.githubRepo {
+                        Label(repo, systemImage: "network")
+                            .lineLimit(1)
+                    }
+                }
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+                .padding(.top, 4)
+            }
         }
-        .padding()
+        .padding(16)
         .background(Color(nsColor: .controlBackgroundColor))
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.secondary.opacity(isHovered ? 0.4 : 0.1), lineWidth: 1)
+                .stroke(isHovered ? Color.accentColor.opacity(0.5) : Color.secondary.opacity(0.1), lineWidth: 1.5)
         )
         .contentShape(Rectangle())
         .onTapGesture(perform: onOpen)
         .onHover { isHovered = $0 }
-        .scaleEffect(isHovered ? 1.01 : 1.0)
+        .scaleEffect(isHovered ? 1.02 : 1.0)
         .animation(.spring(response: 0.3), value: isHovered)
+        .shadow(color: .black.opacity(isHovered ? 0.1 : 0), radius: 10, x: 0, y: 5)
     }
 }
