@@ -214,6 +214,7 @@
 		265E9A472B28B39C005F9A10 /* GameMetalTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A382B28B39C005F9A10 /* GameMetalTemplate.swift */; };
 		265E9A482B28B39C005F9A10 /* GameSpriteKitTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A392B28B39C005F9A10 /* GameSpriteKitTemplate.swift */; };
 		265E9A492B28B39C005F9A10 /* MacOSAppTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A3A2B28B39C005F9A10 /* MacOSAppTemplate.swift */; };
+		265E9A602B28B39C005F9A10 /* IntroductionTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A612B28B39C005F9A10 /* IntroductionTemplate.swift */; };
 		265E9A4A2B28B39C005F9A10 /* MenuBarAppTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A3B2B28B39C005F9A10 /* MenuBarAppTemplate.swift */; };
 		265E9A4B2B28B39C005F9A10 /* MultiplatformAppTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A3C2B28B39C005F9A10 /* MultiplatformAppTemplate.swift */; };
 		265E9A4C2B28B39C005F9A10 /* SafariExtensionTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A3D2B28B39C005F9A10 /* SafariExtensionTemplate.swift */; };
@@ -994,6 +995,7 @@
 		265E9A382B28B39C005F9A10 /* GameMetalTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameMetalTemplate.swift; sourceTree = "<group>"; };
 		265E9A392B28B39C005F9A10 /* GameSpriteKitTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSpriteKitTemplate.swift; sourceTree = "<group>"; };
 		265E9A3A2B28B39C005F9A10 /* MacOSAppTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacOSAppTemplate.swift; sourceTree = "<group>"; };
+		265E9A612B28B39C005F9A10 /* IntroductionTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroductionTemplate.swift; sourceTree = "<group>"; };
 		265E9A3B2B28B39C005F9A10 /* MenuBarAppTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarAppTemplate.swift; sourceTree = "<group>"; };
 		265E9A3C2B28B39C005F9A10 /* MultiplatformAppTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiplatformAppTemplate.swift; sourceTree = "<group>"; };
 		265E9A3D2B28B39C005F9A10 /* SafariExtensionTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariExtensionTemplate.swift; sourceTree = "<group>"; };
@@ -1939,6 +1941,7 @@
 				265E9A372B28B39C005F9A10 /* FrameworkTemplate.swift */,
 				265E9A382B28B39C005F9A10 /* GameMetalTemplate.swift */,
 				265E9A392B28B39C005F9A10 /* GameSpriteKitTemplate.swift */,
+				265E9A612B28B39C005F9A10 /* IntroductionTemplate.swift */,
 				265E9A3A2B28B39C005F9A10 /* MacOSAppTemplate.swift */,
 				265E9A3B2B28B39C005F9A10 /* MenuBarAppTemplate.swift */,
 				265E9A3C2B28B39C005F9A10 /* MultiplatformAppTemplate.swift */,
@@ -4027,6 +4030,7 @@
 				265E9A472B28B39C005F9A10 /* GameMetalTemplate.swift in Sources */,
 				265E9A482B28B39C005F9A10 /* GameSpriteKitTemplate.swift in Sources */,
 				265E9A492B28B39C005F9A10 /* MacOSAppTemplate.swift in Sources */,
+				265E9A602B28B39C005F9A10 /* IntroductionTemplate.swift in Sources */,
 				265E9A4A2B28B39C005F9A10 /* MenuBarAppTemplate.swift in Sources */,
 				265E9A4B2B28B39C005F9A10 /* MultiplatformAppTemplate.swift in Sources */,
 				265E9A4C2B28B39C005F9A10 /* SafariExtensionTemplate.swift in Sources */,
