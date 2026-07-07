@@ -2243,7 +2243,6 @@ struct CustomToolEditorView: View {
                         Text("Parameters")
                         Spacer()
                         if !parameters.isEmpty {
-                                .font(.caption)
                         }
                     }
                 }

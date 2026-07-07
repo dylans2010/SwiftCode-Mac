@@ -5,6 +5,7 @@ import AppKit
 // Provides consistent line height, indentation, tab rendering,
 // cursor placement, and wrapping logic so the editor behaves like a real IDE.
 
+@MainActor
 final class TextLayoutEngine {
     static let shared = TextLayoutEngine()
     private init() {}
@@ -22,7 +23,7 @@ final class TextLayoutEngine {
     /// Returns the consistent line height for the editor font at the given size.
     /// All layout calculations (line numbers, scrolling, cursor) must use this value.
     static func lineHeight(fontSize: CGFloat = 14) -> CGFloat {
-        editorFont(size: fontSize).lineHeight.rounded(.up)
+        editorFont(size: fontSize).ascender - editorFont(size: fontSize).descender + editorFont(size: fontSize).leading
     }
 
     // MARK: - Paragraph Style

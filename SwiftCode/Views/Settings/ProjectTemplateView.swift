@@ -105,8 +105,8 @@ struct ProjectTemplateView: View {
                 try templateManager.applyTemplate(template, to: project)
 
                 // Block until repository is initialized
-                try await GitHubService.shared.initializeGitHubRepository(for: project) { log in
-                    DispatchQueue.main.async {
+                try await GitHubService.shared.initializeGitHubRepository(for: project) { @Sendable log in
+                    Task { @MainActor in
                         LogManager.shared.logDeployment("[GitHub Init] \(log)")
                     }
                 }

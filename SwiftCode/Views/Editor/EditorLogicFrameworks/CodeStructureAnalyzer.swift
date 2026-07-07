@@ -37,6 +37,7 @@ struct CodeSymbol: Identifiable, Equatable {
     }
 }
 
+@MainActor
 final class CodeStructureAnalyzer {
     static let shared = CodeStructureAnalyzer()
     private init() {}

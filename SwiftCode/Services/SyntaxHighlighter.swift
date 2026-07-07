@@ -103,6 +103,7 @@ final class SyntaxHighlighter: Sendable {
 
     // MARK: - Highlight (entry point)
 
+    @MainActor
     func highlight(_ source: String, fileExtension: String = "swift", theme: Theme = .dark) -> NSAttributedString {
         let patterns = patternsForExtension(fileExtension)
         return apply(patterns: patterns, to: source, theme: theme)
@@ -110,6 +111,7 @@ final class SyntaxHighlighter: Sendable {
 
     // MARK: - Apply Patterns
 
+    @MainActor
     private func apply(patterns: [PatternEntry], to source: String, theme: Theme) -> NSAttributedString {
         let font = TextLayoutEngine.editorFont()
         let paragraphStyle = TextLayoutEngine.paragraphStyle()

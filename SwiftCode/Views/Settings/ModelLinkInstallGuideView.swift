@@ -38,11 +38,6 @@ struct ModelLinkInstallGuideView: View {
                         .font(.headline)
 
                     TextField("https://huggingface.co/{author}/{model}", text: $repositoryLink)
-#if os(iOS)
-#endif
-#if canImport(AppKit)
-                        .autocorrectionDisabled(true)
-#endif
                         .textFieldStyle(.roundedBorder)
 
                     Button("Fetch Model Info") {

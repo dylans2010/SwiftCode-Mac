@@ -104,7 +104,7 @@ final class LocalSimulationEngine {
         let sandboxPolicy = sandbox.makePolicy(projectDirectory: projectDirectory)
 
         onLogs?("Compiling runtime module...")
-        let compiled = try await compiler.compile(projectStructure: structure, entry: entry, sandboxPolicy: sandboxPolicy)
+        let compiled = try await SwiftRuntimeCompiler().compile(projectStructure: structure, entry: entry, sandboxPolicy: sandboxPolicy)
 
         onLogs?("Loading dynamic module...")
         let loaded = try loader.load(module: compiled, entry: entry)

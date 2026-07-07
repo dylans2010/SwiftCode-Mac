@@ -27,7 +27,7 @@ struct SnippetLibraryExtensionView: View {
                     HStack {
                         Text(trigger)
                             .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.accentColor)
+                            .foregroundStyle(Color.accentColor)
                         Spacer()
                         Text(name)
                             .foregroundStyle(.secondary)

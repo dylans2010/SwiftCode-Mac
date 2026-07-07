@@ -545,6 +545,7 @@ struct MinimapView: View {
 
 // MARK: - NSTextView Representable
 
+@MainActor
 struct TextEditorRepresentable: NSViewRepresentable {
     @Binding var text: String
     var wordWrap: Bool
@@ -639,6 +640,7 @@ struct TextEditorRepresentable: NSViewRepresentable {
         Coordinator(text: $text)
     }
 
+    @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         var text: Binding<String>
         var fileExtension: String = "swift"
@@ -680,7 +682,7 @@ struct TextEditorRepresentable: NSViewRepresentable {
         func updateLayout() {
             guard let textView, let scrollView, let lineNumbers = lineNumberView else { return }
 
-            let gutterWidth = TextLayoutEngine.lineNumberColumnWidth
+            let gutterWidth = TextLayoutEngine.lineNumberColumnWidth()
             let availableWidth = TextLayoutEngine.codeColumnWidth(totalWidth: scrollView.bounds.width)
 
             let lines = textView.string.components(separatedBy: "\n").count
@@ -708,6 +710,7 @@ struct TextEditorRepresentable: NSViewRepresentable {
 
 // MARK: - Line Number View
 
+@MainActor
 final class LineNumberView: NSView {
     var lineCount: Int = 1
     var lineHeight: CGFloat = TextLayoutEngine.lineHeight()
