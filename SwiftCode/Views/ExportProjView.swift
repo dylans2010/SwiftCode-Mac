@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct ExportProjView: View {
     @EnvironmentObject private var projectManager: ProjectManager
-    @StateObject private var exportManager = ExportProjManager.shared
+    @State private var exportManager = ExportProjManager.shared
     @Environment(\.dismiss) private var dismiss
     @State private var errorMessage: String?
 
