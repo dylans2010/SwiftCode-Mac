@@ -5,6 +5,7 @@ public final class ProjectPackageManager: Sendable {
     private init() {}
 
     public func createPackageStructure(at url: URL) throws {
+        let fm = FileManager.default
         let directories = [
             "Sources",
             "Assets",

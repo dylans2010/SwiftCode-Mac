@@ -1,6 +1,6 @@
 import Foundation
 
-public final class ProjectErrorManager {
+public final class ProjectErrorManager: Sendable {
     public static let shared = ProjectErrorManager()
     private init() {}
 

@@ -14,7 +14,7 @@ public final class ProjectFileManager: Sendable {
         if !fm.fileExists(atPath: parent.path) {
             try fm.createDirectory(at: parent, withIntermediateDirectories: true)
         }
-        try data.write(to: url, atomically: true)
+        try data.write(to: url, options: .atomic)
     }
 
     public func copyItem(at src: URL, to dst: URL) throws {
