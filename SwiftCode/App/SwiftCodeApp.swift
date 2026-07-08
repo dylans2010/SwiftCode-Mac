@@ -7,6 +7,7 @@ struct SwiftCodeApp: App {
     init() {
         OfflineModelDownloader.shared.registerBackgroundTask()
         AgentSystemInitializer.shared.initialize()
+        StylingBootstrap.initialize()
     }
 
     @StateObject private var projectManager = ProjectManager.shared
@@ -20,13 +21,15 @@ struct SwiftCodeApp: App {
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if let activeProject = projectManager.activeProject {
-                    WorkspaceView(viewModel: WorkspaceViewModel(projectURL: activeProject.directoryURL))
-                } else {
-                    HomeView()
+            StylingBootstrap.configureEnvironment(
+                Group {
+                    if let activeProject = projectManager.activeProject {
+                        WorkspaceView(viewModel: WorkspaceViewModel(projectURL: activeProject.directoryURL))
+                    } else {
+                        HomeView()
+                    }
                 }
-            }
+            )
             .environment(themeVM)
             .environmentObject(projectManager)
             .environmentObject(settings)

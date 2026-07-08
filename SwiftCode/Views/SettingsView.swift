@@ -6,7 +6,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
-        NavigationStack {
+        AdaptiveSettingsPage {
             TabView {
                 Form {
                     Section("AI Provider") {
@@ -100,6 +100,5 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
         }
-        .frame(width: 600, height: 500)
     }
 }

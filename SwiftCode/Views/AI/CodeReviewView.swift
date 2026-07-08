@@ -13,8 +13,9 @@ struct CodeReviewView: View {
     @State private var showHistory = false
 
     var body: some View {
-        NavigationStack {
-            ZStack {
+        AdaptivePage {
+            NavigationStack {
+                ZStack {
                 LinearGradient(
                     colors: [Color(red: 0.08, green: 0.06, blue: 0.18),
                              Color(red: 0.10, green: 0.10, blue: 0.16)],
@@ -56,9 +57,10 @@ struct CodeReviewView: View {
             .sheet(isPresented: $showHistory) {
                 reviewHistorySheet
             }
-            .alert("Review Error", isPresented: .constant(reviewManager.errorMessage != nil), presenting: reviewManager.errorMessage) { _ in
-                Button("OK") { reviewManager.errorMessage = nil }
-            } message: { msg in Text(msg) }
+                .alert("Review Error", isPresented: .constant(reviewManager.errorMessage != nil), presenting: reviewManager.errorMessage) { _ in
+                    Button("OK") { reviewManager.errorMessage = nil }
+                } message: { msg in Text(msg) }
+            }
         }
         .preferredColorScheme(.dark)
     }

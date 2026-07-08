@@ -208,30 +208,27 @@ struct CodexMainView: View {
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
-    private var responsiveColumns: some View {
-        GeometryReader { geometry in
-            let isCompact = geometry.size.width < 900
+    @Environment(\.adaptiveMetrics) var metrics
 
-            Group {
-                if isCompact {
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            primaryColumn
-                            secondaryColumn
-                        }
-                        .padding(.vertical, 2)
-                    }
-                } else {
-                    HStack(alignment: .top, spacing: 16) {
+    private var responsiveColumns: some View {
+        Group {
+            if metrics.currentBreakpoint < .largeDesktop {
+                ScrollView {
+                    VStack(spacing: 16) {
                         primaryColumn
-                            .frame(maxWidth: .infinity)
                         secondaryColumn
-                            .frame(width: min(max(geometry.size.width * 0.34, 280), 380))
                     }
+                    .padding(.vertical, 2)
+                }
+            } else {
+                HStack(alignment: .top, spacing: 16) {
+                    primaryColumn
+                        .frame(maxWidth: .infinity)
+                    secondaryColumn
+                        .frame(width: min(max(metrics.windowWidth * 0.34, 280), 380))
                 }
             }
         }
-        .frame(minHeight: 900)
     }
 
     private var primaryColumn: some View {

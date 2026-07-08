@@ -20,8 +20,9 @@ struct SymbolNavigatorView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
+        AdaptiveSheet {
+            NavigationStack {
+                VStack(spacing: 0) {
                 // Search
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
@@ -96,7 +97,8 @@ struct SymbolNavigatorView: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .onAppear { loadSymbols() }
+                .onAppear { loadSymbols() }
+            }
         }
     }
 

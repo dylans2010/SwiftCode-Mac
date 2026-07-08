@@ -11,8 +11,14 @@ struct WorkspaceView: View {
     @State private var showingExportSheet = false
 
     var body: some View {
-        EditorTextView(workspaceViewModel: viewModel)
-            .toolbar {
+        AdaptiveEditorPage {
+            ProjectNavigatorView()
+        } content: {
+            EditorTextView(workspaceViewModel: viewModel)
+        } inspector: {
+            InspectorPanelView(workspaceViewModel: viewModel)
+        }
+        .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button {
                         projectManager.closeProject()
@@ -106,9 +112,10 @@ struct WorkspaceView: View {
         let owner = project.githubRepo?.split(separator: "/").first.map(String.init) ?? ""
         let repo = project.githubRepo?.split(separator: "/").last.map(String.init) ?? ""
 
-        NavigationStack {
-            Group {
-                switch destination {
+        AdaptiveSheet {
+            NavigationStack {
+                Group {
+                    switch destination {
                 case .codeSearch: CodeSearchView()
                 case .settings: GeneralSettingsView()
                 case .goToLine: GoToLineView { _ in activeSheet = nil }
@@ -152,13 +159,13 @@ struct WorkspaceView: View {
                     }
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { activeSheet = nil }
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { activeSheet = nil }
+                    }
                 }
             }
         }
-        .frame(minWidth: 600, minHeight: 400)
     }
 }
 
