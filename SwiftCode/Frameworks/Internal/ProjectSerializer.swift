@@ -1,6 +1,6 @@
 import Foundation
 
-public final class ProjectSerializer {
+public final class ProjectSerializer: Sendable {
     public static let shared = ProjectSerializer()
     private init() {}
 
@@ -9,10 +9,10 @@ public final class ProjectSerializer {
         try ProjectPackageManager.shared.createPackageStructure(at: packageURL)
 
         // 2. Generate and write manifest.json
-        var manifest = ManifestProjManager.shared.createInitialManifest(for: project)
+        var manifest = await ManifestProjManager.shared.createInitialManifest(for: project)
 
         // 3. Generate and write metadata.json
-        let metadata = ProjectMetadataManager.shared.generateMetadata(for: project)
+        let metadata = await ProjectMetadataManager.shared.generateMetadata(for: project)
         let metadataData = try ProjectJSONManager.shared.encode(metadata)
         try ProjectFileManager.shared.writeFile(data: metadataData, to: packageURL.appendingPathComponent("metadata.json"))
 

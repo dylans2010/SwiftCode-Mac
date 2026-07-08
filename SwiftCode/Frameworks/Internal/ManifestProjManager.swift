@@ -1,6 +1,6 @@
 import Foundation
 
-public final class ManifestProjManager {
+public final class ManifestProjManager: Sendable {
     public static let shared = ManifestProjManager()
     private init() {}
 

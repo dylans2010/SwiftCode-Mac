@@ -1,21 +1,21 @@
 import Foundation
 
-public final class ProjectJSONManager {
+public final class ProjectJSONManager: Sendable {
     public static let shared = ProjectJSONManager()
     private init() {}
 
-    private let encoder: JSONEncoder = {
+    private var encoder: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         return encoder
-    }()
+    }
 
-    private let decoder: JSONDecoder = {
+    private var decoder: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return decoder
-    }()
+    }
 
     public func encode<T: Encodable>(_ value: T) throws -> Data {
         return try encoder.encode(value)

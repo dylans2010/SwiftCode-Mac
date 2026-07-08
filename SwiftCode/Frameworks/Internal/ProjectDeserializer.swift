@@ -1,6 +1,6 @@
 import Foundation
 
-public final class ProjectDeserializer {
+public final class ProjectDeserializer: Sendable {
     public static let shared = ProjectDeserializer()
     private init() {}
 

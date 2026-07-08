@@ -1,6 +1,6 @@
 import Foundation
 
-public final class ProjectResourceManager {
+public final class ProjectResourceManager: Sendable {
     public static let shared = ProjectResourceManager()
     private init() {}
 

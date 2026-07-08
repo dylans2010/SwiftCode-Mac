@@ -1,7 +1,7 @@
 import Foundation
 import CryptoKit
 
-public final class ProjectHashManager {
+public final class ProjectHashManager: Sendable {
     public static let shared = ProjectHashManager()
     private init() {}
 

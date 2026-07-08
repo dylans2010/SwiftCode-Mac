@@ -9,7 +9,7 @@ public struct ProjectMetadata: Codable, Sendable {
     public var updatedAt: Date
 }
 
-public final class ProjectMetadataManager {
+public final class ProjectMetadataManager: Sendable {
     public static let shared = ProjectMetadataManager()
     private init() {}
 

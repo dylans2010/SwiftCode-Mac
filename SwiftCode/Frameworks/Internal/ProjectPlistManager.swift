@@ -1,6 +1,6 @@
 import Foundation
 
-public final class ProjectPlistManager {
+public final class ProjectPlistManager: Sendable {
     public static let shared = ProjectPlistManager()
     private init() {}
 

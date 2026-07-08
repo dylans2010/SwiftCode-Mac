@@ -1,6 +1,6 @@
 import Foundation
 
-public final class ProjectXMLManager {
+public final class ProjectXMLManager: Sendable {
     public static let shared = ProjectXMLManager()
     private init() {}
 
