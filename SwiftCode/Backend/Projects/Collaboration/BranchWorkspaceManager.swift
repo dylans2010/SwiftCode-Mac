@@ -238,7 +238,7 @@ public final class BranchWorkspaceManager: ObservableObject {
         for file in workspace.files {
             let fileURL = root.appendingPathComponent(file.path)
             try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? file.content.write(to: fileURL, options: .atomic, encoding: .utf8)
+            try? file.content.write(to: fileURL, atomically: true, encoding: .utf8)
         }
     }
 

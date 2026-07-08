@@ -176,7 +176,7 @@ final class ProjectBuilderManager: Sendable {
 </plist>
 """
 
-        try plist.write(to: url, options: .atomic, encoding: .utf8)
+        try plist.write(to: url, atomically: true, encoding: .utf8)
     }
 
     private func makeProjectYAML(

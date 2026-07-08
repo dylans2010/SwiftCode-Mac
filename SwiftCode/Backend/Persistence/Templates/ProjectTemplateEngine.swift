@@ -7,7 +7,7 @@ public actor ProjectScaffoldTemplateEngine {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         for file in template.files {
             let fileURL = url.appendingPathComponent(file.path)
-            try file.content.write(to: fileURL, options: .atomic, encoding: .utf8)
+            try file.content.write(to: fileURL, atomically: true, encoding: .utf8)
         }
     }
 }
