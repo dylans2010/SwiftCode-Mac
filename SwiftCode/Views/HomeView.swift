@@ -21,17 +21,20 @@ struct HomeView: View {
     @State private var showError = false
 
     var body: some View {
-        NavigationSplitView {
+        AdaptiveSplitLayout {
             sidebar
         } detail: {
             detail
         }
-        .frame(minWidth: 900, minHeight: 600)
         .sheet(isPresented: $showingNewProject) {
-            NewProjectSheetView(viewModel: HomeViewModel())
+            AdaptiveSheet {
+                NewProjectSheetView(viewModel: HomeViewModel())
+            }
         }
         .sheet(isPresented: $showingSettings) {
-            SettingsView().frame(width: 600, height: 500)
+            AdaptiveSheet {
+                SettingsView()
+            }
         }
         .sheet(isPresented: $showRenameSheet) {
             renameSheet
@@ -177,19 +180,13 @@ struct HomeView: View {
     }
 
     private var projectsGrid: some View {
-        ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 20)], spacing: 20) {
-                ForEach(filteredProjects) { project in
-                    HomeProjectCardView(project: project) {
-                        projectManager.openProject(project)
-                    } onDelete: {
-                        try? projectManager.deleteProject(project)
-                    }
-                    .contextMenu { projectContextMenu(for: project) }
-                }
+        AdaptiveGrid(filteredProjects, id: \.id) { project in
+            HomeProjectCardView(project: project) {
+                projectManager.openProject(project)
+            } onDelete: {
+                try? projectManager.deleteProject(project)
             }
-            .padding(.horizontal, 32)
-            .padding(.bottom, 32)
+            .contextMenu { projectContextMenu(for: project) }
         }
     }
 

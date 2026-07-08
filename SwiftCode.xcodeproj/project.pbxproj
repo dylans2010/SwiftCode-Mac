@@ -812,6 +812,19 @@
 		A19M018B0010001B0010001 /* ProjectVersionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM018 /* ProjectVersionManager.swift */; };
 		A19M019B0010001B0010001 /* ProjectXMLManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM019 /* ProjectXMLManager.swift */; };
 		FEFC87DC8083410D9A030894 /* ManageSecrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AE11BAA8BF4AA791C4B03B /* ManageSecrets.swift */; };
+		B0020001B0020001B0020015 /* AdaptiveBreakpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020002 /* AdaptiveBreakpoints.swift */; };
+		B0020001B0020001B0020016 /* AdaptiveWindowMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020003 /* AdaptiveWindowMetrics.swift */; };
+		B0020001B0020001B0020017 /* AdaptiveLayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020004 /* AdaptiveLayoutEngine.swift */; };
+		B0020001B0020001B0020018 /* StylingRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020005 /* StylingRegistry.swift */; };
+		B0020001B0020001B0020019 /* StylingBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020006 /* StylingBootstrap.swift */; };
+		B0020001B0020001B0020020 /* MacDesktopOptimized.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020007 /* MacDesktopOptimized.swift */; };
+		B0020001B0020001B0020021 /* AdaptivePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020008 /* AdaptivePage.swift */; };
+		B0020001B0020001B0020022 /* AdaptiveGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020009 /* AdaptiveGrid.swift */; };
+		B0020001B0020001B0020023 /* AdaptiveSettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020010 /* AdaptiveSettingsPage.swift */; };
+		B0020001B0020001B0020024 /* AdaptiveEditorPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020011 /* AdaptiveEditorPage.swift */; };
+		B0020001B0020001B0020025 /* AdaptiveDashboardPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020012 /* AdaptiveDashboardPage.swift */; };
+		B0020001B0020001B0020026 /* AdaptiveSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020013 /* AdaptiveSheet.swift */; };
+		B0020001B0020001B0020027 /* AdaptiveSplitLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020014 /* AdaptiveSplitLayout.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -1644,6 +1657,19 @@
 		FE266D10FFA543278D1B02A3 /* ReviewCode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewCode.swift; sourceTree = "<group>"; };
 		FE4A7939BD82F2676EA4854A /* CodexErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexErrorView.swift; sourceTree = "<group>"; };
 		FECDF3B19AFE35EDD3CC54A0 /* ZipImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZipImporter.swift; sourceTree = "<group>"; };
+		B0020001B0020001B0020002 /* AdaptiveBreakpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveBreakpoints.swift; sourceTree = "<group>"; };
+		B0020001B0020001B0020003 /* AdaptiveWindowMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveWindowMetrics.swift; sourceTree = "<group>"; };
+		B0020001B0020001B0020004 /* AdaptiveLayoutEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveLayoutEngine.swift; sourceTree = "<group>"; };
+		B0020001B0020001B0020005 /* StylingRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingRegistry.swift; sourceTree = "<group>"; };
+		B0020001B0020001B0020006 /* StylingBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylingBootstrap.swift; sourceTree = "<group>"; };
+		B0020001B0020001B0020007 /* MacDesktopOptimized.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacDesktopOptimized.swift; sourceTree = "<group>"; };
+		B0020001B0020001B0020008 /* AdaptivePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptivePage.swift; sourceTree = "<group>"; };
+		B0020001B0020001B0020009 /* AdaptiveGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveGrid.swift; sourceTree = "<group>"; };
+		B0020001B0020001B0020010 /* AdaptiveSettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveSettingsPage.swift; sourceTree = "<group>"; };
+		B0020001B0020001B0020011 /* AdaptiveEditorPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveEditorPage.swift; sourceTree = "<group>"; };
+		B0020001B0020001B0020012 /* AdaptiveDashboardPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveDashboardPage.swift; sourceTree = "<group>"; };
+		B0020001B0020001B0020013 /* AdaptiveSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveSheet.swift; sourceTree = "<group>"; };
+		B0020001B0020001B0020014 /* AdaptiveSplitLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveSplitLayout.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -3376,9 +3402,30 @@
 		F6BF190F0AA0DB7084C90007 /* Styles */ = {
 			isa = PBXGroup;
 			children = (
+				B0020001B0020001B0020001 /* Styling */,
 				F8FD88FFDEC9B3D53C786E23 /* ModernGroupBoxStyle.swift */,
 			);
 			path = Styles;
+			sourceTree = "<group>";
+		};
+		B0020001B0020001B0020001 /* Styling */ = {
+			isa = PBXGroup;
+			children = (
+				B0020001B0020001B0020002 /* AdaptiveBreakpoints.swift */,
+				B0020001B0020001B0020003 /* AdaptiveWindowMetrics.swift */,
+				B0020001B0020001B0020004 /* AdaptiveLayoutEngine.swift */,
+				B0020001B0020001B0020005 /* StylingRegistry.swift */,
+				B0020001B0020001B0020006 /* StylingBootstrap.swift */,
+				B0020001B0020001B0020007 /* MacDesktopOptimized.swift */,
+				B0020001B0020001B0020008 /* AdaptivePage.swift */,
+				B0020001B0020001B0020009 /* AdaptiveGrid.swift */,
+				B0020001B0020001B0020010 /* AdaptiveSettingsPage.swift */,
+				B0020001B0020001B0020011 /* AdaptiveEditorPage.swift */,
+				B0020001B0020001B0020012 /* AdaptiveDashboardPage.swift */,
+				B0020001B0020001B0020013 /* AdaptiveSheet.swift */,
+				B0020001B0020001B0020014 /* AdaptiveSplitLayout.swift */,
+			);
+			path = Styling;
 			sourceTree = "<group>";
 		};
 		F8373FD99C056ADA512A5B32 /* Themes */ = {
@@ -4198,6 +4245,19 @@
 				B0010001B0010001B0010007 /* InfoProjView.swift in Sources */,
 				B0010001B0010001B0010008 /* ExportProjView.swift in Sources */,
 				B0010001B0010001B0010009 /* ImportProjView.swift in Sources */,
+				B0020001B0020001B0020015 /* AdaptiveBreakpoints.swift in Sources */,
+				B0020001B0020001B0020016 /* AdaptiveWindowMetrics.swift in Sources */,
+				B0020001B0020001B0020017 /* AdaptiveLayoutEngine.swift in Sources */,
+				B0020001B0020001B0020018 /* StylingRegistry.swift in Sources */,
+				B0020001B0020001B0020019 /* StylingBootstrap.swift in Sources */,
+				B0020001B0020001B0020020 /* MacDesktopOptimized.swift in Sources */,
+				B0020001B0020001B0020021 /* AdaptivePage.swift in Sources */,
+				B0020001B0020001B0020022 /* AdaptiveGrid.swift in Sources */,
+				B0020001B0020001B0020023 /* AdaptiveSettingsPage.swift in Sources */,
+				B0020001B0020001B0020024 /* AdaptiveEditorPage.swift in Sources */,
+				B0020001B0020001B0020025 /* AdaptiveDashboardPage.swift in Sources */,
+				B0020001B0020001B0020026 /* AdaptiveSheet.swift in Sources */,
+				B0020001B0020001B0020027 /* AdaptiveSplitLayout.swift in Sources */,
 				C822BBE49EB84E8B85C22375 /* SidebarMainView.swift in Sources */,
 				DBEEF4307EC44BE79FB9F936 /* FileNavigatorSidebarView.swift in Sources */,
 				E3BCC043098948CAA2CD3039 /* GitSidebarView.swift in Sources */,

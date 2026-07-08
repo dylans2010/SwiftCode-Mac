@@ -9,7 +9,7 @@ struct PerformanceMonitorView: View {
     @State private var timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        ScrollView {
+        AdaptiveDashboardPage {
             VStack(spacing: 24) {
                 // CPU Metric
                 MetricCard(title: "CPU Usage", value: String(format: "%.1f%%", cpuUsage), icon: "cpu", color: .blue) {

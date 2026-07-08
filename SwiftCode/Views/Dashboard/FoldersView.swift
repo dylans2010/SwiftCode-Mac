@@ -11,7 +11,7 @@ struct FoldersView: View {
     }
 
     var body: some View {
-        List {
+        AdaptiveDashboardPage {
             if projects.isEmpty {
                 ContentUnavailableView("No Projects", systemImage: "folder", description: Text("Add projects to this folder from the Home page."))
                     .listRowBackground(Color.clear)
@@ -35,26 +35,14 @@ struct FoldersView: View {
                 }
             }
         }
-        .navigationTitle(folder.folderName)
-        .scrollContentBackground(.hidden)
-        .background {
-            ZStack {
-                Color(red: 0.05, green: 0.05, blue: 0.08).ignoresSafeArea()
-                Color(hex: folder.colorHex)
-                    .opacity(0.12)
-                    .ignoresSafeArea()
-
-                // Subtle gradient overlay
-                LinearGradient(
-                    colors: [
-                        Color(hex: folder.colorHex).opacity(0.1),
-                        .clear
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+            AdaptiveGrid(projects, id: \.id) { project in
+                HomeProjectCardView(project: project) {
+                    projectManager.openProject(project)
+                } onDelete: {
+                    try? projectManager.deleteProject(project)
+                }
             }
         }
+        .navigationTitle(folder.folderName)
     }
 }

@@ -505,8 +505,9 @@ struct GeneralSettingsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
+        AdaptiveSettingsPage {
+            NavigationStack {
+                Form {
                 proSection
                 quickSetupSection
                 aiSection
@@ -533,10 +534,11 @@ struct GeneralSettingsView: View {
                 appManagementSection
                 aboutSection
             }
-            .navigationTitle("Settings")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                .navigationTitle("Settings")
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
+                    }
                 }
             }
         }
