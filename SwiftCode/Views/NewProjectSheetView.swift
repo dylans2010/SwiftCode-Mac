@@ -7,105 +7,65 @@ struct NewProjectSheetView: View {
 
     @State private var mode: SelectionMode = .create
 
-    enum SelectionMode {
-        case create, importFolder, clone, xcodeproj, scproj
+    enum SelectionMode: String, CaseIterable, Identifiable {
+        case create = "New"
+        case importFolder = "Import"
+        case clone = "Clone"
+        case xcodeproj = "Xcode"
+        case scproj = ".scproj"
+
+        var id: String { rawValue }
+        var icon: String {
+            switch self {
+            case .create: return "plus.square.fill"
+            case .importFolder: return "folder.badge.plus"
+            case .clone: return "arrow.triangle.pull"
+            case .xcodeproj: return "app.badge"
+            case .scproj: return "shippingbox.fill"
+            }
+        }
     }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Header
-                HStack {
-                    Text(title)
-                        .font(.title2)
-                        .bold()
-                    Spacer()
-                    Picker("", selection: $mode) {
-                        Text("New").tag(SelectionMode.create)
-                        Text("Import").tag(SelectionMode.importFolder)
-                        Text("Clone").tag(SelectionMode.clone)
-                        Text("Xcode").tag(SelectionMode.xcodeproj)
-                        Text(".scproj").tag(SelectionMode.scproj)
+            HStack(spacing: 0) {
+                // Sidebar
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(SelectionMode.allCases) { item in
+                        Button {
+                            mode = item
+                        } label: {
+                            HStack {
+                                Image(systemName: item.icon)
+                                    .frame(width: 20)
+                                Text(item.rawValue)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(mode == item ? Color.accentColor : Color.clear)
+                            .foregroundColor(mode == item ? .white : .primary)
+                            .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .pickerStyle(.segmented)
-                    .frame(width: 250)
+                    Spacer()
                 }
+                .frame(width: 150)
                 .padding()
-                .background(Color(NSColor.windowBackgroundColor))
+                .background(Color(NSColor.windowBackgroundColor).opacity(0.5))
 
                 Divider()
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        if mode == .create {
-                            VStack(alignment: .center, spacing: 20) {
-                                Image(systemName: "plus.square.fill")
-                                    .font(.system(size: 60))
-                                    .foregroundColor(.accentColor)
-
-                                Text("Create a new project from a template.")
-                                    .font(.headline)
-
-                                NavigationLink(destination: TemplatePickerView(viewModel: viewModel)) {
-                                    Text("Choose Template...")
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.large)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 40)
-
-                        } else if mode == .clone {
-                            GitCloneSheetView(viewModel: viewModel)
-                                .frame(height: 450)
-                        } else if mode == .importFolder {
-                            VStack(alignment: .center) {
-                                Image(systemName: "folder.badge.plus")
-                                    .font(.system(size: 50))
-                                    .foregroundColor(.accentColor)
-                                    .padding()
-                                Text("Select a folder to import it as a SwiftCode project.")
-                                    .foregroundColor(.secondary)
-
-                                Button("Select Folder...") {
-                                    importFolder()
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.large)
-                                .padding()
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                        } else if mode == .xcodeproj {
-                            VStack(alignment: .center) {
-                                Image(systemName: "app.badge")
-                                    .font(.system(size: 50))
-                                    .foregroundColor(.accentColor)
-                                    .padding()
-                                Text("Import an existing .xcodeproj file.")
-                                    .foregroundColor(.secondary)
-
-                                Button("Select .xcodeproj...") {
-                                    importXcodeProject()
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.large)
-                                .padding()
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                        } else if mode == .scproj {
-                            ImportProjView()
-                                .frame(height: 450)
-                        }
+                // Content Area
+                VStack(spacing: 0) {
+                    ScrollView {
+                        contentView
+                            .padding(30)
                     }
-                    .padding()
-                }
 
-                if mode == .create {
                     Divider()
-                    // Footer
+
                     HStack {
                         Button("Cancel") { dismiss() }
                         Spacer()
@@ -115,7 +75,93 @@ struct NewProjectSheetView: View {
             }
             .navigationTitle(title)
         }
-        .frame(width: 600, height: 600)
+        .frame(width: 750, height: 600)
+    }
+
+    @ViewBuilder
+    private var contentView: some View {
+        switch mode {
+        case .create:
+            VStack(spacing: 30) {
+                VStack(spacing: 15) {
+                    Image(systemName: "plus.square.fill")
+                        .font(.system(size: 80))
+                        .foregroundColor(.accentColor)
+                        .shadow(radius: 5)
+
+                    Text("Create a new project from a template.")
+                        .font(.title2.bold())
+
+                    Text("Select from various application types and library templates to get started quickly.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                }
+
+                NavigationLink(destination: TemplatePickerView(viewModel: viewModel)) {
+                    HStack {
+                        Text("Choose Template...")
+                        Image(systemName: "chevron.right")
+                    }
+                    .frame(width: 200)
+                    .padding()
+                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 10))
+                    .foregroundColor(.white)
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 20)
+
+        case .clone:
+            GitCloneSheetView(viewModel: viewModel)
+
+        case .importFolder:
+            VStack(spacing: 25) {
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 70))
+                    .foregroundColor(.accentColor)
+
+                Text("Import Folder")
+                    .font(.title2.bold())
+
+                Text("Select an existing folder on your disk to manage it as a SwiftCode project.")
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+
+                Button("Select Folder...") {
+                    importFolder()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            }
+            .frame(maxWidth: .infinity)
+
+        case .xcodeproj:
+            VStack(spacing: 25) {
+                Image(systemName: "app.badge")
+                    .font(.system(size: 70))
+                    .foregroundColor(.accentColor)
+
+                Text("Import Xcode Project")
+                    .font(.title2.bold())
+
+                Text("Open an existing .xcodeproj file to work with it in SwiftCode.")
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+
+                Button("Select .xcodeproj...") {
+                    importXcodeProject()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            }
+            .frame(maxWidth: .infinity)
+
+        case .scproj:
+            ImportProjView()
+        }
     }
 
     private var title: String {

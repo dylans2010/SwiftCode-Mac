@@ -48,5 +48,29 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("l", modifiers: [.command])
         }
+
+        CommandMenu("Editor") {
+            Button("Find...") {
+                NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "code_search"])
+            }
+            .keyboardShortcut("f", modifiers: [.command])
+
+            Button("Format Code") {
+                NotificationCenter.default.post(name: NSNotification.Name("FormatCode"), object: nil)
+            }
+            .keyboardShortcut("f", modifiers: [.command, .shift])
+
+            Divider()
+
+            Button("Next Tab") {
+                NotificationCenter.default.post(name: NSNotification.Name("NextTab"), object: nil)
+            }
+            .keyboardShortcut("}", modifiers: [.command, .shift])
+
+            Button("Previous Tab") {
+                NotificationCenter.default.post(name: NSNotification.Name("PreviousTab"), object: nil)
+            }
+            .keyboardShortcut("{", modifiers: [.command, .shift])
+        }
     }
 }

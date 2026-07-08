@@ -32,19 +32,21 @@ struct WorkspaceView: View {
                 }
 
                 ToolbarItemGroup(placement: .secondaryAction) {
-                    Button {
-                        activeSheet = .codeSearch
-                    } label: {
-                        Label("Search", systemImage: "magnifyingglass")
-                    }
-                    .help("Global Search")
+                    ControlGroup {
+                        Button {
+                            activeSheet = .codeSearch
+                        } label: {
+                            Label("Search", systemImage: "magnifyingglass")
+                        }
+                        .help("Global Search")
 
-                    Button {
-                        activeSheet = .settings
-                    } label: {
-                        Label("Settings", systemImage: "gear")
+                        Button {
+                            activeSheet = .settings
+                        } label: {
+                            Label("Settings", systemImage: "gear")
+                        }
+                        .help("Settings")
                     }
-                    .help("Settings")
 
                     Menu {
                         Section("Project") {
@@ -59,9 +61,10 @@ struct WorkspaceView: View {
                             Button("Extensions") { activeSheet = .extensionMarketplace }
                             Button("Debug Tools") { activeSheet = .debugTools }
                             Button("Plugin Manager") { activeSheet = .pluginManager }
-                            NavigationLink(destination: DevToolsMainView()) {
-                                Text("Dev Tools")
-                            }
+                            Button("Dev Tools") { activeSheet = .devTools }
+                            Button("Source Control") { activeSheet = .sourceControl }
+                            Button("CI Build") { activeSheet = .ciBuild }
+                            Button("Dependency Manager") { activeSheet = .dependencyManager }
                         }
 
                         Section("Analysis") {
@@ -138,6 +141,9 @@ struct WorkspaceView: View {
                 case .workspaceProfiles: WorkspaceProfilesView()
                 case .gitHub: GitHubIntegrationView(project: project)
                 case .devTools: DevToolsMainView()
+                case .sourceControl: SourceControlView()
+                case .ciBuild: CIBuildView(project: project)
+                case .dependencyManager: DependencyManagerView()
                 default:
                     ContentUnavailableView {
                         Label("Feature Detail", systemImage: "hammer")
