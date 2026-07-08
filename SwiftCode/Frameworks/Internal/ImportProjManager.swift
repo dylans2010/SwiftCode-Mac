@@ -1,12 +1,15 @@
 import Foundation
+import Observation
 
-public final class ImportProjManager: ObservableObject {
+@MainActor
+@Observable
+public final class ImportProjManager {
     public static let shared = ImportProjManager()
     private init() {}
 
-    @Published public var importProgress: Double = 0
-    @Published public var isImporting = false
-    @Published public var importError: Error?
+    public var importProgress: Double = 0
+    public var isImporting = false
+    public var importError: Error?
 
     public func importProject(from url: URL) async throws -> Project {
         isImporting = true
