@@ -1,6 +1,6 @@
 import Foundation
 
-public final class ProjectIntegrityManager {
+public final class ProjectIntegrityManager: Sendable {
     public static let shared = ProjectIntegrityManager()
     private init() {}
 

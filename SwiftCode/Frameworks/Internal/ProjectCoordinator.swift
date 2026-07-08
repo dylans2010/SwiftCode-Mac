@@ -1,6 +1,6 @@
 import Foundation
 
-public final class ProjectCoordinator {
+public final class ProjectCoordinator: Sendable {
     public static let shared = ProjectCoordinator()
     private init() {}
 

@@ -1,6 +1,6 @@
 import Foundation
 
-public final class ProjectVersionManager {
+public final class ProjectVersionManager: Sendable {
     public static let shared = ProjectVersionManager()
     private init() {}
 

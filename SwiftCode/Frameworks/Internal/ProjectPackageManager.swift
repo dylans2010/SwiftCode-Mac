@@ -1,10 +1,8 @@
 import Foundation
 
-public final class ProjectPackageManager {
+public final class ProjectPackageManager: Sendable {
     public static let shared = ProjectPackageManager()
     private init() {}
-
-    private let fm = FileManager.default
 
     public func createPackageStructure(at url: URL) throws {
         let directories = [
@@ -22,6 +20,7 @@ public final class ProjectPackageManager {
     }
 
     public func validatePackageStructure(at url: URL) -> Bool {
+        let fm = FileManager.default
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else {
             return false
