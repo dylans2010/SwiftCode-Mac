@@ -788,6 +788,8 @@
 		FC90C49ECF974E48BE53E0F0 /* SearchFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D9B5ECD6D804EFDBC2D0B28 /* SearchFiles.swift */; };
 		FCE346B6A8594C599371747B /* ThemeGalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62238748230CA02A3DED159C /* ThemeGalleryView.swift */; };
 		FD2931D13CF16B1DA1ED14BB /* GitHubIntegrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5430117ECBE9C74EB302DE61 /* GitHubIntegrationView.swift */; };
+		SC5E70B001D001D001D00102 /* SCSetupOnboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = SC5E70B001D001D001D00101 /* SCSetupOnboard.swift */; };
+		SC5E70B001D001D001D00104 /* SourceControlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SC5E70B001D001D001D00103 /* SourceControlView.swift */; };
 		FD3BFB78E9851B43147403A0 /* MIT.md in Resources */ = {isa = PBXBuildFile; fileRef = 02D2E64119CACAB33D540DC8 /* MIT.md */; };
 		FEC3B44DC8224E81AD104B28 /* SwiftCode/Tools/Agentic/QuestionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3095C7FC268B4822B1D7F891 /* SwiftCode/Tools/Agentic/QuestionHandler.swift */; };
 		A19M001B0010001B0010001 /* ExportProjManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM001 /* ExportProjManager.swift */; };
@@ -1149,6 +1151,8 @@
 		53A9C8E4D6A94BCB72E884B0 /* DocumentationAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentationAnalyzer.swift; sourceTree = "<group>"; };
 		54104BCCE32C415A9698D4DE /* MemoryProfiler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryProfiler.swift; sourceTree = "<group>"; };
 		5430117ECBE9C74EB302DE61 /* GitHubIntegrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubIntegrationView.swift; sourceTree = "<group>"; };
+		SC5E70B001D001D001D00101 /* SCSetupOnboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SCSetupOnboard.swift; sourceTree = "<group>"; };
+		SC5E70B001D001D001D00103 /* SourceControlView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceControlView.swift; sourceTree = "<group>"; };
 		5439F8DDEA0C49D697F0F05F /* GitShow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitShow.swift; sourceTree = "<group>"; };
 		54792A364538E5DFCDC395E8 /* ProjectScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectScanner.swift; sourceTree = "<group>"; };
 		5484649C69D50E3B3151599B /* CollaborationFilePresenceOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollaborationFilePresenceOverlay.swift; sourceTree = "<group>"; };
@@ -2476,6 +2480,8 @@
 				4B59EE8372BC441A82461C7C /* SwiftCode/Views/Agent/AgentInputBarView.swift */,
 				4CAE27B62C18DFF02AF12C27 /* GitDiffView.swift */,
 				5430117ECBE9C74EB302DE61 /* GitHubIntegrationView.swift */,
+				SC5E70B001D001D001D00101 /* SCSetupOnboard.swift */,
+				SC5E70B001D001D001D00103 /* SourceControlView.swift */,
 				58C22324AECE138382A52873 /* GitCloneSheetView.swift */,
 				5A64BC744609FB58156F0EC8 /* GitCLIView.swift */,
 				68051EEABE634E58A0F15236 /* SwiftCode/Views/Agent/AgentChatView.swift */,
@@ -3921,6 +3927,8 @@
 				3E752BE39CBD767C338A64F8 /* PullRequestView.swift in Sources */,
 				8ECFC5DDA35B8EF05C27459E /* GitCLIView.swift in Sources */,
 				FD2931D13CF16B1DA1ED14BB /* GitHubIntegrationView.swift in Sources */,
+				SC5E70B001D001D001D00102 /* SCSetupOnboard.swift in Sources */,
+				SC5E70B001D001D001D00104 /* SourceControlView.swift in Sources */,
 				0E909856E84D0C6AB23FF4EF /* GitCommandView.swift in Sources */,
 				8BC23BC9FB495E53B90D4CD1 /* DeploymentLogsView.swift in Sources */,
 				6AB5481D6D10457E2CDBA0AB /* DeploymentsView.swift in Sources */,

@@ -82,6 +82,9 @@ class AppSettings: ObservableObject {
     }
 
     // MARK: - Git / GitHub Configuration
+    @Published var gitPath: String {
+        didSet { debouncedSave("gitPath", gitPath) }
+    }
     @Published var gitUserName: String {
         didSet { debouncedSave("gitUserName", gitUserName) }
     }
@@ -231,6 +234,7 @@ class AppSettings: ObservableObject {
         fileHeaderAuthor = UserDefaults.standard.string(forKey: "fileHeaderAuthor") ?? ""
         fileHeaderCustomComment = UserDefaults.standard.string(forKey: "fileHeaderCustomComment") ?? "Made with SwiftCode"
         selectedThemeID = UserDefaults.standard.string(forKey: "selectedThemeID") ?? "dark"
+        gitPath = UserDefaults.standard.string(forKey: "gitPath") ?? ""
         gitUserName = UserDefaults.standard.string(forKey: "gitUserName") ?? ""
         gitUserEmail = UserDefaults.standard.string(forKey: "gitUserEmail") ?? ""
         defaultBranch = UserDefaults.standard.string(forKey: "defaultBranch") ?? "main"

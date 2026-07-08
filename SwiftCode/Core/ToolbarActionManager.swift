@@ -7,8 +7,6 @@ final class ToolbarActionManager {
     private init() {}
 
     enum SheetDestination: String, Identifiable {
-        var id: String { rawValue }
-
         case fileNavigator
         case gistManager
         case aiAgent
@@ -55,6 +53,10 @@ final class ToolbarActionManager {
         case collaboration
         case assistView
         case devTools
+        case sourceControl
+        case ciBuild
+
+        var id: String { rawValue }
 
         var isPro: Bool {
             switch self {
@@ -163,6 +165,10 @@ final class ToolbarActionManager {
             return .assistView
         case "dev_tools":
             return .devTools
+        case "source_control":
+            return .sourceControl
+        case "ci_build":
+            return .ciBuild
 
         default:
             return nil
