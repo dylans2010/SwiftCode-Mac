@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct ImportProjView: View {
     @EnvironmentObject private var projectManager: ProjectManager
-    @StateObject private var importManager = ImportProjManager.shared
+    @State private var importManager = ImportProjManager.shared
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
