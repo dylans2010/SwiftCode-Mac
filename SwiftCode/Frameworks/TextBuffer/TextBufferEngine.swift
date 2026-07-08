@@ -8,6 +8,6 @@ public actor TextBufferEngine {
     }
 
     public func save(content: String, to url: URL) throws {
-        try content.write(to: url, atomically: true, encoding: .utf8)
+        try content.write(to: url, options: .atomic, encoding: .utf8)
     }
 }

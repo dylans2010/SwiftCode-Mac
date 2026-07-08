@@ -55,6 +55,7 @@ struct TerminalView: View {
                 currentDirectory = dir.path
             }
         }
+        .macDesktopOptimized()
     }
 
     // MARK: - Header

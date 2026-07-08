@@ -79,7 +79,7 @@ final class GitHubRepositoryManager: @unchecked Sendable {
         let fileURL = projectDir.appendingPathComponent(path)
         let parentDir = fileURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: parentDir, withIntermediateDirectories: true)
-        try content.write(to: fileURL, atomically: true, encoding: .utf8)
+        try content.write(to: fileURL, options: .atomic, encoding: .utf8)
     }
 
     // MARK: - Repository Tree

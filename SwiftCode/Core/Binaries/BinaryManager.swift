@@ -63,7 +63,7 @@ actor BinaryManager {
     func generateDependencyGraph(dotSource: String, outputPath: String) async throws -> BinaryExecutionResult {
         let dotURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("swiftcode-deps-\(UUID().uuidString).dot")
-        try dotSource.write(to: dotURL, atomically: true, encoding: .utf8)
+        try dotSource.write(to: dotURL, options: .atomic, encoding: .utf8)
         return try await run(.graphviz, arguments: ["-Tsvg", dotURL.path, "-o", outputPath])
     }
 

@@ -25,8 +25,10 @@ struct SwiftCodeApp: App {
                 Group {
                     if let activeProject = projectManager.activeProject {
                         WorkspaceView(viewModel: WorkspaceViewModel(projectURL: activeProject.directoryURL))
+                            .navigationTitle(activeProject.name)
                     } else {
                         HomeView()
+                            .navigationTitle("SwiftCode")
                     }
                 }
             )

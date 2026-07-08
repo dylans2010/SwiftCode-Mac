@@ -56,7 +56,7 @@ public actor SkillsRuntime {
     }
 
     public func saveSkill(_ skill: Skill, at url: URL) async throws {
-        try skill.content.write(to: url, atomically: true, encoding: .utf8)
+        try skill.content.write(to: url, options: .atomic, encoding: .utf8)
         // Refresh local state
         let updatedSkill = try parser.parse(content: skill.content, url: url)
         if let index = skills.firstIndex(where: { $0.id == updatedSkill.id }) {

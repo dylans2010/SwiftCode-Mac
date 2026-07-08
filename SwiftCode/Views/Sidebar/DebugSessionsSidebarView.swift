@@ -48,5 +48,6 @@ struct DebugSessionsSidebarView: View {
             }
             .padding()
         }
+        .macDesktopOptimized()
     }
 }

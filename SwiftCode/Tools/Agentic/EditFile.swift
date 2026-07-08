@@ -30,7 +30,7 @@ public struct EditFileTool: AgentTool {
                 content = content.replacingOccurrences(of: search, with: replace)
             }
         }
-        try content.write(toFile: path, atomically: true, encoding: .utf8)
+        try content.write(to: URL(fileURLWithPath: path), options: .atomic, encoding: .utf8)
     }
 
     public func execute(arguments: [String: any Sendable]) async throws -> String {

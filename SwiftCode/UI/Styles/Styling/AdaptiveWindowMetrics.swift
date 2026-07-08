@@ -8,8 +8,19 @@ public struct AdaptiveWindowMetrics: Sendable {
     public var displayScale: CGFloat = 1.0
     public var isFullscreen: Bool = false
     public var currentBreakpoint: AdaptiveBreakpoint = .regularDesktop
+    public var appearance: Appearance = .light
+
+    public enum Appearance: Sendable {
+        case light
+        case dark
+    }
 
     public init() {}
+
+    // Convenience computed properties for adaptive layout
+    public var standardPadding: CGFloat { currentBreakpoint.standardPadding }
+    public var standardSpacing: CGFloat { currentBreakpoint.standardSpacing }
+    public var isCompact: Bool { currentBreakpoint == .compactDesktop }
 }
 
 public struct AdaptiveWindowMetricsKey: EnvironmentKey {

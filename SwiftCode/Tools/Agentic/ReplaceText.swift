@@ -17,7 +17,7 @@ public struct ReplaceTextTool: AgentTool {
     public func run(path: String, target: String, replacement: String) async throws {
         let content = try String(contentsOfFile: path, encoding: .utf8)
         let newContent = content.replacingOccurrences(of: target, with: replacement)
-        try newContent.write(toFile: path, atomically: true, encoding: .utf8)
+        try newContent.write(to: URL(fileURLWithPath: path), options: .atomic, encoding: .utf8)
     }
 
     public func execute(arguments: [String: any Sendable]) async throws -> String {

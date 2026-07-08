@@ -13,12 +13,10 @@ public struct AdaptiveSplitLayout<Sidebar: View, Detail: View>: View {
     }
 
     public var body: some View {
-        AdaptivePage {
-            NavigationSplitView {
-                sidebar
-            } detail: {
-                detail
-            }
+        NavigationSplitView {
+            sidebar
+        } detail: {
+            detail
         }
     }
 }

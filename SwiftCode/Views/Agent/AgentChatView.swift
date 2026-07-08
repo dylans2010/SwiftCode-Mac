@@ -39,5 +39,6 @@ public struct AgentChatView: View {
                 }
             }
         }
+        .macDesktopOptimized()
     }
 }

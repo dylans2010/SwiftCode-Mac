@@ -11,13 +11,16 @@ struct WorkspaceView: View {
     @State private var showingExportSheet = false
 
     var body: some View {
-        AdaptiveEditorPage {
-            ProjectNavigatorView()
-        } content: {
-            EditorTextView(workspaceViewModel: viewModel)
-        } inspector: {
-            InspectorPanelView(workspaceViewModel: viewModel)
+        AdaptivePage {
+            AdaptiveEditorPage {
+                ProjectNavigatorView(viewModel: viewModel.projectTree)
+            } content: {
+                EditorTextView(workspaceViewModel: viewModel)
+            } inspector: {
+                InspectorPanelView(workspaceViewModel: viewModel)
+            }
         }
+        .environment(viewModel)
         .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button {
@@ -91,6 +94,9 @@ struct WorkspaceView: View {
             }
             .sheet(isPresented: $showingExportSheet) {
                 ExportProjView()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowExportSheet"))) { _ in
+                showingExportSheet = true
             }
             .onReceive(NotificationCenter.default.publisher(for: .toolbarToolActivated)) { notification in
                 if let toolId = notification.userInfo?["toolID"] as? String,
