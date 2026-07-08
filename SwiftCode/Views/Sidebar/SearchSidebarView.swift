@@ -75,6 +75,7 @@ struct SearchSidebarView: View {
 
             Spacer()
         }
+        .macDesktopOptimized()
     }
 
     private func performSearch() {

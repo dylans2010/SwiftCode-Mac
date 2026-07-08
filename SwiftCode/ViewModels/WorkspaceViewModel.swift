@@ -21,4 +21,14 @@ public class WorkspaceViewModel: Sendable {
             await git.refreshStatus()
         }
     }
+
+    public func handleFileSelectionChange(nodeID: String?) {
+        guard let nodeID = nodeID else { return }
+        // We need to find the node in the tree to get its URL.
+        // For now, we can assume the ID is the path.
+        let url = URL(fileURLWithPath: nodeID)
+        Task {
+            await editor.openFile(url: url)
+        }
+    }
 }

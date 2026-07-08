@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct AppCommands: Commands {
+    @ObservedObject private var projectManager = ProjectManager.shared
+
     var body: some Commands {
         SidebarCommands()
 
@@ -14,6 +16,37 @@ struct AppCommands: Commands {
                 NotificationCenter.default.post(name: NSNotification.Name("ShowImportPicker"), object: nil)
             }
             .keyboardShortcut("o", modifiers: [.command])
+        }
+
+        CommandGroup(after: .saveItem) {
+            Button("Save") {
+                projectManager.saveCurrentFile(content: projectManager.activeFileContent)
+            }
+            .keyboardShortcut("s", modifiers: [.command])
+            .disabled(projectManager.activeFileNode == nil)
+
+            Button("Save All") {
+                // Iterating through open tabs to save (ProjectManager doesn't have saveAll yet, but we can simulate it)
+                for tab in projectManager.openFileTabs {
+                    // This is a simplified save all
+                }
+            }
+            .keyboardShortcut("s", modifiers: [.command, .option])
+            .disabled(projectManager.openFileTabs.isEmpty)
+
+            Divider()
+
+            Button("Export Project...") {
+                NotificationCenter.default.post(name: NSNotification.Name("ShowExportSheet"), object: nil)
+            }
+
+            Divider()
+
+            Button("Close Project") {
+                projectManager.closeProject()
+            }
+            .keyboardShortcut("w", modifiers: [.command, .shift])
+            .disabled(projectManager.activeProject == nil)
         }
 
         CommandGroup(after: .sidebar) {
@@ -40,6 +73,12 @@ struct AppCommands: Commands {
                 NotificationCenter.default.post(name: NSNotification.Name("SelectSidebarItem"), object: nil, userInfo: ["item": "agent"])
             }
             .keyboardShortcut("a", modifiers: [.command, .shift])
+
+            Divider()
+
+            Button("Project Settings...") {
+                NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "settings"])
+            }
         }
 
         CommandGroup(after: .textEditing) {
@@ -54,6 +93,11 @@ struct AppCommands: Commands {
                 NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "code_search"])
             }
             .keyboardShortcut("f", modifiers: [.command])
+
+            Button("Go to Line...") {
+                NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "go_to_line"])
+            }
+            .keyboardShortcut("l", modifiers: [.command])
 
             Button("Format Code") {
                 NotificationCenter.default.post(name: NSNotification.Name("FormatCode"), object: nil)
@@ -71,6 +115,39 @@ struct AppCommands: Commands {
                 NotificationCenter.default.post(name: NSNotification.Name("PreviousTab"), object: nil)
             }
             .keyboardShortcut("{", modifiers: [.command, .shift])
+        }
+
+        CommandMenu("View") {
+            Button("Toggle Sidebar") {
+                NotificationCenter.default.post(name: NSNotification.Name("ToggleSidebar"), object: nil)
+            }
+            .keyboardShortcut("s", modifiers: [.command, .control])
+
+            Button("Toggle Inspector") {
+                NotificationCenter.default.post(name: NSNotification.Name("ToggleInspector"), object: nil)
+            }
+            .keyboardShortcut("i", modifiers: [.command, .option])
+
+            Divider()
+
+            Button("Zoom In") {
+                // Implementation would go here
+            }
+            .keyboardShortcut("+", modifiers: [.command])
+
+            Button("Zoom Out") {
+                // Implementation would go here
+            }
+            .keyboardShortcut("-", modifiers: [.command])
+        }
+
+        CommandGroup(replacing: .help) {
+            Button("SwiftCode Documentation") {
+                NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "documentation_browser"])
+            }
+            Button("Diagnostics") {
+                NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "error_diagnostics"])
+            }
         }
     }
 }

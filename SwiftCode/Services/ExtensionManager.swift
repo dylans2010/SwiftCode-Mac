@@ -328,7 +328,7 @@ final class ExtensionManager: ObservableObject {
                 let placeholder = "// \(manifest.name) Extension Entry Point\n// Category: \(manifest.category.rawValue)\n"
                 try placeholder.write(
                     to: folderURL.appendingPathComponent(manifest.entryPoint),
-                    atomically: true, encoding: .utf8
+                    options: .atomic, encoding: .utf8
                 )
             } catch {
                 print("[ExtensionManager] Failed to seed \(manifest.id): \(error)")
@@ -509,7 +509,7 @@ final class ExtensionManager: ObservableObject {
         // Save Swift source files
         for file in swiftFiles {
             let fileURL = folderURL.appendingPathComponent(file.name)
-            try file.content.write(to: fileURL, atomically: true, encoding: .utf8)
+            try file.content.write(to: fileURL, options: .atomic, encoding: .utf8)
         }
 
         // Save asset files

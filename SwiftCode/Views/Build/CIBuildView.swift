@@ -293,7 +293,7 @@ struct CIBuildView: View {
                 try FileManager.default.createDirectory(at: workflowDir, withIntermediateDirectories: true)
 
                 let yamlText = AssistCIFunctions.generateBuildYML(config: buildConfig)
-                try yamlText.write(to: workflowDir.appendingPathComponent("build.yml"), atomically: true, encoding: .utf8)
+                try yamlText.write(to: workflowDir.appendingPathComponent("build.yml"), options: .atomic, encoding: .utf8)
 
                 let ciConfig = CIBuildConfiguration(
                     platform: .iOSAndIPadOS,

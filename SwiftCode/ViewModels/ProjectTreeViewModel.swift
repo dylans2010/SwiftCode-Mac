@@ -6,6 +6,7 @@ import Observation
 public class ProjectTreeViewModel {
     public var rootNode: ProjectNode?
     public var isLoading = false
+    public var selectedNodeID: String?
 
     public var projectURL: URL? {
         rootNode?.url
@@ -13,13 +14,17 @@ public class ProjectTreeViewModel {
 
     public init() {}
 
+    public var loadError: String?
+
     public func loadProject(url: URL) async {
         isLoading = true
+        loadError = nil
         do {
             // Use recursive loading to ensure all content is available in the workspace
             let children = try await FileSystemService.shared.listDirectory(at: url, recursive: true)
             rootNode = ProjectNode(url: url, kind: .folder, children: children)
         } catch {
+            loadError = "Failed to load project: \(error.localizedDescription)"
             LoggingTool.error("Failed to load project tree: \(error)")
         }
         isLoading = false

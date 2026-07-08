@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FileNavigatorSidebarView: View {
     @Bindable var viewModel: ProjectTreeViewModel
+    @Environment(WorkspaceViewModel.self) var workspaceViewModel
     @State private var showingRenameSheet = false
     @State private var selectedNodeForRename: ProjectNode?
 
@@ -48,10 +49,18 @@ struct FileNavigatorSidebarView: View {
             .padding(.horizontal)
             .padding(.top, 4)
 
-            List {
+            List(selection: $viewModel.selectedNodeID) {
+                if let error = viewModel.loadError {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                        .padding()
+                }
+
                 if let rootNode = viewModel.rootNode {
                     OutlineGroup(rootNode, children: \.children) { node in
                         ProjectTreeRowView(node: node)
+                            .tag(node.id)
                             .contextMenu {
                                 Button("Rename...") {
                                     selectedNodeForRename = node
@@ -71,6 +80,9 @@ struct FileNavigatorSidebarView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+        }
+        .onChange(of: viewModel.selectedNodeID) { oldValue, newValue in
+            workspaceViewModel.handleFileSelectionChange(nodeID: newValue)
         }
     }
 }

@@ -53,7 +53,7 @@ struct CodeRefactoringView: View {
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("swiftcode-format-\(UUID().uuidString).swift")
         do {
-            try projectManager.activeFileContent.write(to: tempURL, atomically: true, encoding: .utf8)
+            try projectManager.activeFileContent.write(to: tempURL, options: .atomic, encoding: .utf8)
         } catch {
             preview = projectManager.activeFileContent
             return
@@ -76,7 +76,7 @@ struct CodeRefactoringView: View {
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("swiftcode-parse-\(UUID().uuidString).swift")
         do {
-            try projectManager.activeFileContent.write(to: tempURL, atomically: true, encoding: .utf8)
+            try projectManager.activeFileContent.write(to: tempURL, options: .atomic, encoding: .utf8)
         } catch {
             parserOutput = "Unable to create temporary file for parser."
             return

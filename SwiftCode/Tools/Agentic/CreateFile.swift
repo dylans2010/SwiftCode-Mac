@@ -15,7 +15,7 @@ public struct CreateFileTool: AgentTool {
 
     public func run(path: String, content: String = "") async throws {
         let url = URL(fileURLWithPath: path)
-        try content.write(to: url, atomically: true, encoding: .utf8)
+        try content.write(to: url, options: .atomic, encoding: .utf8)
     }
 
     public func execute(arguments: [String: any Sendable]) async throws -> String {

@@ -16,15 +16,13 @@ public struct AdaptiveEditorPage<Sidebar: View, Content: View, Inspector: View>:
     }
 
     public var body: some View {
-        AdaptivePage {
-            NavigationSplitView {
-                sidebar
-            } detail: {
-                content
-                    .inspector(isPresented: .constant(true)) {
-                        inspector
-                    }
-            }
+        NavigationSplitView {
+            sidebar
+        } detail: {
+            content
+                .inspector(isPresented: .constant(true)) {
+                    inspector
+                }
         }
     }
 }

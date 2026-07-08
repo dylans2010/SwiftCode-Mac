@@ -21,10 +21,12 @@ struct HomeView: View {
     @State private var showError = false
 
     var body: some View {
-        AdaptiveSplitLayout {
-            sidebar
-        } detail: {
-            detail
+        AdaptivePage {
+            AdaptiveSplitLayout {
+                sidebar
+            } detail: {
+                detail
+            }
         }
         .sheet(isPresented: $showingNewProject) {
             AdaptiveSheet {
