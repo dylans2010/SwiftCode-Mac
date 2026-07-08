@@ -16,30 +16,12 @@ struct FoldersView: View {
                 ContentUnavailableView("No Projects", systemImage: "folder", description: Text("Add projects to this folder from the Home page."))
                     .listRowBackground(Color.clear)
             } else {
-                ForEach(projects) { project in
-                    Button {
+                AdaptiveGrid(projects, id: \.id) { project in
+                    HomeProjectCardView(project: project) {
                         projectManager.openProject(project)
-                    } label: {
-                        HStack {
-                            Image(systemName: "swift")
-                                .foregroundStyle(.orange)
-                            VStack(alignment: .leading) {
-                                Text(project.name)
-                                Text("\(project.fileCount) Files")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
+                    } onDelete: {
+                        try? projectManager.deleteProject(project)
                     }
-                    .listRowBackground(Color.white.opacity(0.05))
-                }
-            }
-        }
-            AdaptiveGrid(projects, id: \.id) { project in
-                HomeProjectCardView(project: project) {
-                    projectManager.openProject(project)
-                } onDelete: {
-                    try? projectManager.deleteProject(project)
                 }
             }
         }
