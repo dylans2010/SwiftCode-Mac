@@ -75,7 +75,7 @@ struct ImportProjView: View {
             Task {
                 do {
                     let project = try await importManager.importProject(from: url)
-                    try await projectManager.saveImportedProject(project)
+                    try projectManager.saveImportedProject(project)
                     try await projectManager.openProject(project)
                     dismiss()
                 } catch {
