@@ -13,7 +13,7 @@ struct WorkspaceView: View {
     var body: some View {
         AdaptivePage {
             AdaptiveEditorPage {
-                ProjectNavigatorView(viewModel: viewModel.projectTree)
+                SidebarMainView(workspaceViewModel: viewModel)
             } content: {
                 EditorTextView(workspaceViewModel: viewModel)
             } inspector: {
