@@ -46,8 +46,13 @@ enum FileNavigatorAnimationStyle: String, Codable, CaseIterable {
 }
 
 @MainActor
-class AppSettings: ObservableObject {
+final class AppSettings: ObservableObject, KernelService {
+    let id = "com.swiftcode.service.settings"
     static let shared = AppSettings()
+
+    func initialize() async throws {
+        // Initialization logic if any
+    }
 
     private var saveTask: Task<Void, Never>?
 

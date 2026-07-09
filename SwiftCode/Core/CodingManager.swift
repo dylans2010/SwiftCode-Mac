@@ -1,8 +1,14 @@
 import Foundation
 
 @MainActor
-final class CodingManager: ObservableObject {
+final class CodingManager: ObservableObject, KernelService {
+    let id = "com.swiftcode.service.coding"
     static let shared = CodingManager()
+
+    func initialize() async throws {
+        ensureProjectsDirectory()
+        ensureModelsDirectory()
+    }
 
     private let fm = FileManager.default
 

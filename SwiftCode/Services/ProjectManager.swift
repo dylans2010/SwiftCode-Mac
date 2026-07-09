@@ -2,8 +2,13 @@ import Foundation
 import Combine
 
 @MainActor
-final class ProjectManager: ObservableObject {
+final class ProjectManager: ObservableObject, KernelService {
+    let id = "com.swiftcode.service.projects"
     static let shared = ProjectManager()
+
+    func initialize() async throws {
+        loadProjects()
+    }
 
     @Published var projects: [Project] = [] {
         didSet { persistProjectList() }
@@ -266,6 +271,10 @@ final class ProjectManager: ObservableObject {
         activeProject = updated
         activeFileNode = nil
         activeFileContent = ""
+
+        Task {
+            await EventBus.shared.publish(ProjectOpenedEvent(projectName: updated.name))
+        }
     }
 
     func closeProject() {
@@ -346,6 +355,10 @@ final class ProjectManager: ObservableObject {
             activeFileContent = content
             modifiedFilePaths.remove(node.path)
             fileLoadError = nil
+
+            Task {
+                await EventBus.shared.publish(FileSavedEvent(filePath: node.path))
+            }
         } catch {
             // Keep the modified state and show error to user
             fileLoadError = "Failed to save \(node.name): \(error.localizedDescription)"

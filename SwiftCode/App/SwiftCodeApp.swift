@@ -5,6 +5,13 @@ struct SwiftCodeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     init() {
+        Task {
+            do {
+                try await Bootstrapper.shared.bootstrap()
+            } catch {
+                print("Kernel Bootstrap failed: \(error)")
+            }
+        }
         OfflineModelDownloader.shared.registerBackgroundTask()
         AgentSystemInitializer.shared.initialize()
         StylingBootstrap.initialize()
