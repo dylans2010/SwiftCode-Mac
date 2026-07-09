@@ -184,7 +184,13 @@ struct HomeView: View {
     private var projectsGrid: some View {
         AdaptiveGrid(filteredProjects, id: \.id) { project in
             HomeProjectCardView(project: project) {
-                projectManager.openProject(project)
+                Task {
+                    do {
+                        try await projectManager.openProject(project)
+                    } catch {
+                        showError(error)
+                    }
+                }
             } onDelete: {
                 try? projectManager.deleteProject(project)
             }

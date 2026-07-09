@@ -22,9 +22,13 @@ public class ProjectTreeViewModel {
         do {
             // Root-only loading for initial tree state
             let children = try await FileSystemService.shared.listDirectory(at: url, recursive: false)
-            rootNode = ProjectNode(url: url, kind: .folder, children: children)
+            await MainActor.run {
+                rootNode = ProjectNode(url: url, kind: .folder, children: children)
+            }
         } catch {
-            loadError = "Failed to load project: \(error.localizedDescription)"
+            await MainActor.run {
+                loadError = "Failed to load project: \(error.localizedDescription)"
+            }
             LoggingTool.error("Failed to load project tree: \(error)")
         }
         isLoading = false
