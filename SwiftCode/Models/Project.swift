@@ -72,17 +72,17 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
     }
 
     public var fileCount: Int {
-        countFiles(in: files)
-    }
+        let fm = FileManager.default
+        let url = directoryURL
+        guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else { return 0 }
 
-    private func countFiles(in nodes: [FileNode]) -> Int {
-        nodes.reduce(0) { count, node in
-            if node.isDirectory {
-                return count + countFiles(in: node.children)
-            } else {
-                return count + 1
+        var count = 0
+        for case let fileURL as URL in enumerator {
+            if (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true {
+                count += 1
             }
         }
+        return count
     }
 }
 

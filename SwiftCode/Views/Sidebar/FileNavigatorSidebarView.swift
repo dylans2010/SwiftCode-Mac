@@ -5,6 +5,7 @@ struct FileNavigatorSidebarView: View {
     @Environment(WorkspaceViewModel.self) var workspaceViewModel
     @State private var showingRenameSheet = false
     @State private var selectedNodeForRename: ProjectNode?
+    @State private var renameText = ""
 
     var body: some View {
         VStack {
@@ -58,22 +59,12 @@ struct FileNavigatorSidebarView: View {
                 }
 
                 if let rootNode = viewModel.rootNode {
-                    OutlineGroup(rootNode, children: \.children) { node in
-                        ProjectTreeRowView(node: node)
-                            .tag(node.id)
-                            .contextMenu {
-                                Button("Rename...") {
-                                    selectedNodeForRename = node
-                                    showingRenameSheet = true
-                                }
-
-                                Button("Delete", role: .destructive) {
-                                    Task {
-                                        try? await FileSystemService.shared.delete(at: node.url)
-                                        await viewModel.refresh()
-                                    }
-                                }
-                            }
+                    // Start with the root children to avoid showing the project root itself in the list
+                    // but since the current structure shows rootNode, we keep it but fix the recursive rendering
+                    ProjectTreeNodeView(node: rootNode, viewModel: viewModel) { node in
+                        selectedNodeForRename = node
+                        renameText = node.url.lastPathComponent
+                        showingRenameSheet = true
                     }
                 } else {
                     Text("No project open")
@@ -83,6 +74,90 @@ struct FileNavigatorSidebarView: View {
         }
         .onChange(of: viewModel.selectedNodeID) { oldValue, newValue in
             workspaceViewModel.handleFileSelectionChange(nodeID: newValue)
+        }
+        .sheet(isPresented: $showingRenameSheet) {
+            NavigationStack {
+                VStack {
+                    TextField("Name", text: $renameText)
+                        .textFieldStyle(.roundedBorder)
+                }
+                .padding()
+                .navigationTitle("Rename")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { showingRenameSheet = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Rename") {
+                            if let node = selectedNodeForRename {
+                                Task {
+                                    let newURL = node.url.deletingLastPathComponent().appendingPathComponent(renameText)
+                                    try? FileManager.default.moveItem(at: node.url, to: newURL)
+                                    await viewModel.refresh()
+                                    showingRenameSheet = false
+                                }
+                            }
+                        }
+                        .disabled(renameText.isEmpty)
+                    }
+                }
+            }
+            .frame(width: 300, height: 150)
+        }
+    }
+}
+
+struct ProjectTreeNodeView: View {
+    let node: ProjectNode
+    @Bindable var viewModel: ProjectTreeViewModel
+    let onRename: (ProjectNode) -> Void
+    @State private var isExpanded: Bool = false
+
+    var body: some View {
+        if node.kind == .folder {
+            DisclosureGroup(isExpanded: $isExpanded) {
+                if let children = node.children {
+                    ForEach(children) { child in
+                        ProjectTreeNodeView(node: child, viewModel: viewModel, onRename: onRename)
+                    }
+                } else if isExpanded {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                }
+            } label: {
+                ProjectTreeRowView(node: node)
+                    .tag(node.id)
+                    .contextMenu {
+                        treeContextMenu(for: node)
+                    }
+            }
+            .onChange(of: isExpanded) { oldValue, newValue in
+                if newValue && node.children == nil {
+                    Task {
+                        await viewModel.toggleExpanded(node)
+                    }
+                }
+            }
+        } else {
+            ProjectTreeRowView(node: node)
+                .tag(node.id)
+                .contextMenu {
+                    treeContextMenu(for: node)
+                }
+        }
+    }
+
+    @ViewBuilder
+    private func treeContextMenu(for node: ProjectNode) -> some View {
+        Button("Rename...") {
+            onRename(node)
+        }
+
+        Button("Delete", role: .destructive) {
+            Task {
+                try? await FileSystemService.shared.delete(at: node.url)
+                await viewModel.refresh()
+            }
         }
     }
 }
