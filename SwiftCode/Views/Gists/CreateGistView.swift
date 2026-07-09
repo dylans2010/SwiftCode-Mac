@@ -6,8 +6,16 @@ struct CreateGistView: View {
 
     @State private var description = ""
     @State private var isPublic = false
-    @State private var files: [GistFile] = [GistFile(filename: "untitled.swift", content: "")]
+    @State private var files: [GistFile]
     @State private var selectedFileID: UUID?
+
+    init(initialFilename: String? = nil, initialContent: String = "") {
+        _description = State(initialValue: "")
+        _isPublic = State(initialValue: false)
+        let initialFile = GistFile(filename: initialFilename ?? "untitled.swift", content: initialContent)
+        _files = State(initialValue: [initialFile])
+        _selectedFileID = State(initialValue: initialFile.id)
+    }
 
     var body: some View {
         NavigationStack {
