@@ -103,7 +103,7 @@ final class ProjectManager: ObservableObject {
         // Asynchronously update file counts for all loaded projects
         for index in loaded.indices {
             let project = loaded[index]
-            let url = project.directoryURL
+            let url = projectsDirectory.appendingPathComponent(project.name)
             Task {
                 let count = await self.calculateFileCount(at: url)
                 await MainActor.run {
