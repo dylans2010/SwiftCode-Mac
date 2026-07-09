@@ -16,6 +16,7 @@ final class ProjectManager: ObservableObject {
     }
     @Published var activeFileNode: FileNode?
     @Published var activeFileContent: String = ""
+    @Published var isOpeningProject = false
 
     private var autoSaveCancellable: AnyCancellable?
     private var pendingSave: DispatchWorkItem?
@@ -96,6 +97,20 @@ final class ProjectManager: ObservableObject {
                 project.files = buildFileTree(at: url, relativeTo: url)
                 try? saveMetadata(project)
                 loaded.append(project)
+            }
+        }
+
+        // Asynchronously update file counts for all loaded projects
+        for index in loaded.indices {
+            let project = loaded[index]
+            let url = project.directoryURL
+            Task {
+                let count = await self.calculateFileCount(at: url)
+                await MainActor.run {
+                    if let currentIdx = self.projects.firstIndex(where: { $0.id == project.id }) {
+                        self.projects[currentIdx].fileCount = count
+                    }
+                }
             }
         }
 
@@ -229,14 +244,25 @@ final class ProjectManager: ObservableObject {
 
     // MARK: - Open / Close Project
 
-    func openProject(_ project: Project) {
+    func openProject(_ project: Project) async throws {
+        guard !isOpeningProject else { return }
+        isOpeningProject = true
+        defer { isOpeningProject = false }
+
         var updated = project
         updated.lastOpened = Date()
+
         if let idx = projects.firstIndex(where: { $0.id == project.id }) {
             projects[idx] = updated
             try? saveMetadata(projects[idx])
         }
-        updated.files = buildFileTree(at: updated.directoryURL, relativeTo: updated.directoryURL)
+
+        let url = updated.directoryURL
+        let files = try await Task.detached(priority: .userInitiated) {
+            try self.buildFileTreeInternal(at: url, relativeTo: url)
+        }.value
+
+        updated.files = files
         activeProject = updated
         activeFileNode = nil
         activeFileContent = ""
@@ -502,12 +528,16 @@ struct \(structName): View {
     // MARK: - File Tree
 
     private func buildFileTree(at url: URL, relativeTo base: URL) -> [FileNode] {
+        return (try? buildFileTreeInternal(at: url, relativeTo: base)) ?? []
+    }
+
+    private func buildFileTreeInternal(at url: URL, relativeTo base: URL) throws -> [FileNode] {
         let fm = FileManager.default
-        guard let contents = try? fm.contentsOfDirectory(
+        let contents = try fm.contentsOfDirectory(
             at: url,
             includingPropertiesForKeys: [.isDirectoryKey],
             options: .skipsHiddenFiles
-        ) else { return [] }
+        )
 
         let basePath = base.standardizedFileURL.path
 
@@ -550,13 +580,38 @@ struct \(structName): View {
     }
 
     func refreshFileTree(for project: Project) {
-        let files = buildFileTree(at: project.directoryURL, relativeTo: project.directoryURL)
-        if let idx = projects.firstIndex(where: { $0.id == project.id }) {
-            projects[idx].files = files
+        let url = project.directoryURL
+
+        Task {
+            let files = (try? await Task.detached { try self.buildFileTreeInternal(at: url, relativeTo: url) }.value) ?? []
+            let count = await self.calculateFileCount(at: url)
+
+            await MainActor.run {
+                if let idx = self.projects.firstIndex(where: { $0.id == project.id }) {
+                    self.projects[idx].files = files
+                    self.projects[idx].fileCount = count
+                }
+                if self.activeProject?.id == project.id {
+                    self.activeProject?.files = files
+                    self.activeProject?.fileCount = count
+                }
+            }
         }
-        if activeProject?.id == project.id {
-            activeProject?.files = files
-        }
+    }
+
+    private func calculateFileCount(at url: URL) async -> Int {
+        return await Task.detached(priority: .background) {
+            let fm = FileManager.default
+            guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else { return 0 }
+
+            var count = 0
+            for case let fileURL as URL in enumerator {
+                if (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true {
+                    count += 1
+                }
+            }
+            return count
+        }.value
     }
 
     // MARK: - Metadata Persistence

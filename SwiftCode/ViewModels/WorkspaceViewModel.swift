@@ -12,14 +12,22 @@ public class WorkspaceViewModel: Sendable {
     public let debug = DebugSessionViewModel()
     public let ai = AgentViewModel()
 
+    private var loadingTask: Task<Void, Never>?
+
     public init(projectURL: URL) {
         self.projectURL = projectURL
         self.git.repositoryURL = projectURL
-        Task {
+        self.loadingTask = Task {
             await git.refreshInstallationStatus()
+            if Task.isCancelled { return }
             await projectTree.loadProject(url: projectURL)
+            if Task.isCancelled { return }
             await git.refreshStatus()
         }
+    }
+
+    deinit {
+        loadingTask?.cancel()
     }
 
     public func handleFileSelectionChange(nodeID: String?) {
