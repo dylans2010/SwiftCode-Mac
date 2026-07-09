@@ -8,15 +8,6 @@ public struct GistFile: Codable, Identifiable, Hashable, Sendable {
     public var rawUrl: String?
     public var size: Int?
 
-    public init(id: UUID = UUID(), filename: String, content: String, language: String? = nil, rawUrl: String? = nil, size: Int? = nil) {
-        self.id = id
-        self.filename = filename
-        self.content = content
-        self.language = language
-        self.rawUrl = rawUrl
-        self.size = size
-    }
-
     public var patch: String?
 
     public init(id: UUID = UUID(), filename: String, content: String, language: String? = nil, rawUrl: String? = nil, size: Int? = nil, patch: String? = nil) {
@@ -54,6 +45,10 @@ public struct GistFile: Codable, Identifiable, Hashable, Sendable {
         try container.encodeIfPresent(size, forKey: .size)
         try container.encodeIfPresent(patch, forKey: .patch)
     }
+}
+
+extension GistFile: Equatable {
+    public static func == (lhs: GistFile, rhs: GistFile) -> Bool { lhs.id == rhs.id }
 }
 
 extension GistFile {
@@ -102,7 +97,7 @@ extension GistResponse: Equatable {
     public static func == (lhs: GistResponse, rhs: GistResponse) -> Bool { lhs.id == rhs.id }
 }
 
-extension GistResponse {
+extension GistResponse: Hashable {
     public func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
@@ -115,6 +110,10 @@ public struct GistHistoryEntry: Codable, Identifiable, Hashable, Sendable {
         case version
         case committedAt = "committed_at"
     }
+}
+
+extension GistHistoryEntry: Equatable {
+    public static func == (lhs: GistHistoryEntry, rhs: GistHistoryEntry) -> Bool { lhs.version == rhs.version }
 }
 
 extension GistHistoryEntry {
