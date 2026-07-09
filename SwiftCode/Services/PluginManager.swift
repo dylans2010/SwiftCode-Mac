@@ -207,7 +207,7 @@ final class PluginManager: ObservableObject {
 
         try mainCode.write(
             to: pluginURL.appendingPathComponent(manifest.entryPoint),
-            options: .atomic,
+            atomically: true,
             encoding: .utf8
         )
 

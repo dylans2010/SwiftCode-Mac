@@ -1,6 +1,6 @@
 import Foundation
 
-public struct GistFile: Codable, Identifiable, Equatable, Sendable {
+public struct GistFile: Codable, Identifiable, Hashable, Sendable {
     public let id: UUID
     public var filename: String
     public var content: String
@@ -56,7 +56,11 @@ public struct GistFile: Codable, Identifiable, Equatable, Sendable {
     }
 }
 
-public struct GistOwner: Codable, Sendable {
+extension GistFile {
+    public func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+public struct GistOwner: Codable, Hashable, Sendable {
     public let login: String
     public let avatarUrl: String?
 
@@ -66,7 +70,7 @@ public struct GistOwner: Codable, Sendable {
     }
 }
 
-public struct GistResponse: Codable, Identifiable, Sendable {
+public struct GistResponse: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public let htmlUrl: String
     public let gitPullUrl: String?
@@ -94,7 +98,15 @@ public struct GistResponse: Codable, Identifiable, Sendable {
     }
 }
 
-public struct GistHistoryEntry: Codable, Identifiable, Sendable {
+extension GistResponse: Equatable {
+    public static func == (lhs: GistResponse, rhs: GistResponse) -> Bool { lhs.id == rhs.id }
+}
+
+extension GistResponse {
+    public func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+public struct GistHistoryEntry: Codable, Identifiable, Hashable, Sendable {
     public var id: String { version }
     public let version: String
     public let committedAt: Date?
@@ -105,7 +117,11 @@ public struct GistHistoryEntry: Codable, Identifiable, Sendable {
     }
 }
 
-public struct GistComment: Codable, Identifiable, Sendable {
+extension GistHistoryEntry {
+    public func hash(into hasher: inout Hasher) { hasher.combine(version) }
+}
+
+public struct GistComment: Codable, Identifiable, Hashable, Sendable {
     public let id: Int
     public let body: String
     public let user: GistOwner?
@@ -119,7 +135,7 @@ public struct GistComment: Codable, Identifiable, Sendable {
     }
 }
 
-public struct GistRevision: Codable, Identifiable, Sendable {
+public struct GistRevision: Codable, Identifiable, Hashable, Sendable {
     public var id: String { version }
     public let version: String
     public let user: GistOwner?
@@ -136,6 +152,16 @@ public struct GistRevision: Codable, Identifiable, Sendable {
         case version, user
         case changeStatus = "change_status"
         case committedAt = "committed_at"
+    }
+}
+
+extension GistRevision {
+    public func hash(into hasher: inout Hasher) { hasher.combine(version) }
+}
+
+extension GistRevision: Equatable {
+    public static func == (lhs: GistRevision, rhs: GistRevision) -> Bool {
+        lhs.version == rhs.version
     }
 }
 
