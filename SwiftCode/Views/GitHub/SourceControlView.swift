@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SourceControlView: View {
+    var gitViewModel: GitViewModel
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var projectManager: ProjectManager
     @Environment(\.dismiss) private var dismiss
@@ -69,16 +70,16 @@ struct SourceControlView: View {
 
             Section("Local Git") {
                 if let project = projectManager.activeProject {
-                    NavigationLink(destination: GitChangesView(project: project)) {
+                    NavigationLink(destination: GitChangesView(viewModel: gitViewModel)) {
                         Label("Changes", systemImage: "plus.minus.circle")
                     }
-                    NavigationLink(destination: GitBranchesView(project: project)) {
+                    NavigationLink(destination: GitBranchesView(branches: gitViewModel.branches)) {
                         Label("Branches", systemImage: "arrow.triangle.branch")
                     }
-                    NavigationLink(destination: GitHistoryView()) {
+                    NavigationLink(destination: GitHistoryView(commits: gitViewModel.history)) {
                         Label("History", systemImage: "clock.arrow.circlepath")
                     }
-                    NavigationLink(destination: GitCLIView()) {
+                    NavigationLink(destination: GitCLIView(project: project)) {
                         Label("Git CLI", systemImage: "terminal")
                     }
                 }
