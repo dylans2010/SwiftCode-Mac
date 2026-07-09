@@ -101,7 +101,7 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
 
     @MainActor
     public var directoryURL: URL {
-        ProjectManager.shared.projectsDirectory.appendingPathComponent(name)
+        CodingManager.shared.projectsRoot.appendingPathComponent(name)
     }
 
     public var fileCount: Int = 0
