@@ -135,7 +135,7 @@ struct LicencesAddView: View {
 
         do {
             let destination = project.directoryURL.appendingPathComponent("LICENSE")
-            try license.body.write(to: destination, options: .atomic, encoding: .utf8)
+            try license.body.write(to: destination, atomically: true, encoding: .utf8)
             projectManager.refreshFileTree(for: project)
             alertMessage = "\(license.name) license added to project as LICENSE."
             showAlert = true

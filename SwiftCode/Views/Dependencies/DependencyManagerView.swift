@@ -231,7 +231,7 @@ let package = Package(
     ]
 )
 """
-        try? packageContent.write(to: packageURL, options: .atomic, encoding: .utf8)
+        try? packageContent.write(to: packageURL, atomically: true, encoding: .utf8)
         projectManager.refreshFileTree(for: project)
     }
 }

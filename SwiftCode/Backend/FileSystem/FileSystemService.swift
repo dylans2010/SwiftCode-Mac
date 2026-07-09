@@ -28,7 +28,7 @@ public actor FileSystemService {
             let header = await NewFileComment.generateHeader(filename: filename, projectName: projectName)
             finalContent = header + content
         }
-        try finalContent.write(to: url, options: .atomic, encoding: .utf8)
+        try finalContent.write(to: url, atomically: true, encoding: .utf8)
     }
 
     public func delete(at url: URL) throws {

@@ -350,7 +350,7 @@ struct EditExtensionView: View {
             let folderURL = manager.extensionsDirectory.appendingPathComponent(`extension`.id)
             for file in swiftFiles {
                 let fileURL = folderURL.appendingPathComponent(file.name)
-                try file.content.write(to: fileURL, options: .atomic, encoding: String.Encoding.utf8)
+                try file.content.write(to: fileURL, atomically: true, encoding: String.Encoding.utf8)
             }
             dismiss()
         } catch {

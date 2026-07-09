@@ -15,7 +15,7 @@ final class SwiftRuntimeCompiler {
 
         let bootstrapFile = temporaryRoot.appendingPathComponent("SimulationBootstrap.swift")
         let bootstrapSource = makeBootstrapSource(viewTypes: projectStructure.swiftUIViewTypes, defaultRoot: entry.rootViewType)
-        try bootstrapSource.write(to: bootstrapFile, options: .atomic, encoding: .utf8)
+        try bootstrapSource.write(to: bootstrapFile, atomically: true, encoding: .utf8)
 
         let outputLibrary = temporaryRoot.appendingPathComponent("libSimulationApp.dylib")
 

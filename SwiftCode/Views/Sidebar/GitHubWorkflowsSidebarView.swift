@@ -123,7 +123,7 @@ jobs:
         do {
             try FileManager.default.createDirectory(at: workflowsDir, withIntermediateDirectories: true)
             let fileURL = workflowsDir.appendingPathComponent(workflow.name)
-            try content.write(to: fileURL, options: .atomic, encoding: .utf8)
+            try content.write(to: fileURL, atomically: true, encoding: .utf8)
             refreshWorkflows()
         } catch {
             print("Failed to save workflow: \(error)")

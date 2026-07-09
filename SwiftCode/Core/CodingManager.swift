@@ -117,7 +117,7 @@ final class CodingManager: ObservableObject {
         }
         let parent = standardized.deletingLastPathComponent()
         try fm.createDirectory(at: parent, withIntermediateDirectories: true)
-        try content.write(to: standardized, options: .atomic, encoding: .utf8)
+        try content.write(to: standardized, atomically: true, encoding: .utf8)
     }
 
     // MARK: - Create
@@ -135,7 +135,7 @@ final class CodingManager: ObservableObject {
             throw CodingError.alreadyExists
         }
         try fm.createDirectory(at: base, withIntermediateDirectories: true)
-        try content.write(to: standardized, options: .atomic, encoding: .utf8)
+        try content.write(to: standardized, atomically: true, encoding: .utf8)
     }
 
     /// Create a new directory.
@@ -263,7 +263,7 @@ final class CodingManager: ObservableObject {
         let parent = standardized.deletingLastPathComponent()
         try fm.createDirectory(at: parent, withIntermediateDirectories: true)
         if !fm.fileExists(atPath: standardized.path) {
-            try "".write(to: standardized, options: .atomic, encoding: .utf8)
+            try "".write(to: standardized, atomically: true, encoding: .utf8)
         }
     }
 
