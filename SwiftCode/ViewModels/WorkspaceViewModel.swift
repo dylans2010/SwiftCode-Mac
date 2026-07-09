@@ -35,9 +35,15 @@ public class WorkspaceViewModel: Sendable {
 
     public func handleFileSelectionChange(nodeID: String?) {
         guard let nodeID = nodeID else { return }
-        // We need to find the node in the tree to get its URL.
-        // For now, we can assume the ID is the path.
+        // The ID is the full path of the file
         let url = URL(fileURLWithPath: nodeID)
+
+        // Ensure it's not a directory (IDs for folders also come through here)
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: nodeID, isDirectory: &isDir), isDir.boolValue {
+            return
+        }
+
         Task {
             await editor.openFile(url: url)
         }

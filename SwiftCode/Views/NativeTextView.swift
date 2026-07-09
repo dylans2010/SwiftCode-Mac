@@ -37,14 +37,20 @@ struct NativeTextView: NSViewRepresentable {
             if selectedRange.location + selectedRange.length <= textView.string.count {
                 textView.setSelectedRange(selectedRange)
             }
-            applyHighlighting(textView)
+            context.coordinator.lastTokenizedLines = nil // Force re-highlight
+            applyHighlighting(textView, coordinator: context.coordinator)
         } else if !viewModel.tokenizedLines.isEmpty {
             // Apply highlighting even if text didn't change (e.g. tokens arrived later)
-            applyHighlighting(textView)
+            applyHighlighting(textView, coordinator: context.coordinator)
         }
     }
 
-    private func applyHighlighting(_ textView: NSTextView) {
+    private func applyHighlighting(_ textView: NSTextView, coordinator: Coordinator) {
+        // PERFORMANCE: Check if we already applied these tokens
+        if let last = coordinator.lastTokenizedLines, last == viewModel.tokenizedLines {
+            return
+        }
+
         guard let storage = textView.textStorage else { return }
 
         // SAFETY: Only apply highlighting if tokens are available and not stale
@@ -52,6 +58,7 @@ struct NativeTextView: NSViewRepresentable {
             storage.beginEditing()
             storage.removeAttribute(.foregroundColor, range: NSRange(location: 0, length: storage.length))
             storage.endEditing()
+            coordinator.lastTokenizedLines = []
             return
         }
 
@@ -79,6 +86,7 @@ struct NativeTextView: NSViewRepresentable {
             if currentLocation >= storage.length { break }
         }
         storage.endEditing()
+        coordinator.lastTokenizedLines = viewModel.tokenizedLines
     }
 
     private func colorForToken(_ kind: SyntaxTokenKind) -> NSColor {
@@ -98,6 +106,7 @@ struct NativeTextView: NSViewRepresentable {
 
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: NativeTextView
+        var lastTokenizedLines: [TokenizedLine]?
 
         init(_ parent: NativeTextView) {
             self.parent = parent
