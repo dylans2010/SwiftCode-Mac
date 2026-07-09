@@ -5,6 +5,7 @@ public struct StylingBootstrap {
         StylingRegistry.shared.registerDefaults()
     }
 
+    @MainActor
     public static func configureEnvironment<V: View>(_ view: V) -> some View {
         view
             .environmentObject(AdaptiveLayoutEngine.shared)

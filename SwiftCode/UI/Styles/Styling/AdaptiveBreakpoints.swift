@@ -1,6 +1,6 @@
 import SwiftUI
 
-public enum AdaptiveBreakpoint: String, CaseIterable, Comparable {
+public enum AdaptiveBreakpoint: String, CaseIterable, Comparable, Sendable {
     case compactDesktop
     case regularDesktop
     case largeDesktop
