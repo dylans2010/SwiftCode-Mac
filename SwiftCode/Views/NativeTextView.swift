@@ -47,7 +47,12 @@ struct NativeTextView: NSViewRepresentable {
 
     private func applyHighlighting(_ textView: NSTextView, coordinator: Coordinator) {
         // PERFORMANCE: Check if we already applied these tokens
-        if let last = coordinator.lastTokenizedLines, last == viewModel.tokenizedLines {
+        if let last = coordinator.lastTokenizedLines,
+           last.elementsEqual(viewModel.tokenizedLines, by: { lhs, rhs in
+               lhs.tokens.elementsEqual(rhs.tokens, by: { lt, rt in
+                   lt.kind == rt.kind && lt.text == rt.text
+               })
+           }) {
             return
         }
 
