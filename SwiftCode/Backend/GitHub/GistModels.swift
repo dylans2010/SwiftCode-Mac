@@ -47,13 +47,6 @@ public struct GistFile: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-extension GistFile: Equatable {
-    public static func == (lhs: GistFile, rhs: GistFile) -> Bool { lhs.id == rhs.id }
-}
-
-extension GistFile {
-    public func hash(into hasher: inout Hasher) { hasher.combine(id) }
-}
 
 public struct GistOwner: Codable, Hashable, Sendable {
     public let login: String
@@ -93,13 +86,6 @@ public struct GistResponse: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-extension GistResponse: Equatable {
-    public static func == (lhs: GistResponse, rhs: GistResponse) -> Bool { lhs.id == rhs.id }
-}
-
-extension GistResponse {
-    public func hash(into hasher: inout Hasher) { hasher.combine(id) }
-}
 
 public struct GistHistoryEntry: Codable, Identifiable, Hashable, Sendable {
     public var id: String { version }
@@ -112,13 +98,6 @@ public struct GistHistoryEntry: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-extension GistHistoryEntry: Equatable {
-    public static func == (lhs: GistHistoryEntry, rhs: GistHistoryEntry) -> Bool { lhs.version == rhs.version }
-}
-
-extension GistHistoryEntry {
-    public func hash(into hasher: inout Hasher) { hasher.combine(version) }
-}
 
 public struct GistComment: Codable, Identifiable, Hashable, Sendable {
     public let id: Int
@@ -141,7 +120,7 @@ public struct GistRevision: Codable, Identifiable, Hashable, Sendable {
     public let changeStatus: ChangeStatus?
     public let committedAt: Date
 
-    public struct ChangeStatus: Codable, Sendable {
+    public struct ChangeStatus: Codable, Hashable, Sendable {
         public let total: Int?
         public let additions: Int?
         public let deletions: Int?
@@ -154,15 +133,6 @@ public struct GistRevision: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-extension GistRevision {
-    public func hash(into hasher: inout Hasher) { hasher.combine(version) }
-}
-
-extension GistRevision: Equatable {
-    public static func == (lhs: GistRevision, rhs: GistRevision) -> Bool {
-        lhs.version == rhs.version
-    }
-}
 
 public struct CreateGistRequest: Encodable {
     public let description: String?
