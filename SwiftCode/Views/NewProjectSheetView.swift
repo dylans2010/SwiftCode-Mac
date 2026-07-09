@@ -182,7 +182,7 @@ struct NewProjectSheetView: View {
             Task {
                 do {
                     let project = try await ProjectManager.shared.importProject(from: url)
-                    await ProjectManager.shared.openProject(project)
+                    try await ProjectManager.shared.openProject(project)
                     dismiss()
                 } catch {
                     LoggingTool.error("Failed to import folder: \(error)")
@@ -200,7 +200,7 @@ struct NewProjectSheetView: View {
             Task {
                 do {
                     let project = try await ProjectManager.shared.importProject(from: url.deletingLastPathComponent())
-                    await ProjectManager.shared.openProject(project)
+                    try await ProjectManager.shared.openProject(project)
                     dismiss()
                 } catch {
                     LoggingTool.error("Failed to import Xcode project: \(error)")

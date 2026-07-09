@@ -18,7 +18,7 @@ struct FoldersView: View {
             } else {
                 AdaptiveGrid(projects, id: \.id) { project in
                     HomeProjectCardView(project: project) {
-                        Task {
+                        Task { @MainActor in
                             try? await projectManager.openProject(project)
                         }
                     } onDelete: {

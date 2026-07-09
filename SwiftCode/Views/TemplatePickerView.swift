@@ -102,7 +102,7 @@ struct TemplatePickerView: View {
                 do {
                     try await ProjectScaffoldTemplateEngine.shared.createProject(at: projectURL, template: selectedTemplate)
                     let project = try await ProjectManager.shared.importProject(from: projectURL)
-                    await projectManager.openProject(project)
+                    try await projectManager.openProject(project)
                     dismiss()
                 } catch {
                     LoggingTool.error("Failed to create project: \(error)")
