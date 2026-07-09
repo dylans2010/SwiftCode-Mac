@@ -76,7 +76,7 @@ struct ImportProjView: View {
                 do {
                     let project = try await importManager.importProject(from: url)
                     try await projectManager.saveImportedProject(project)
-                    await projectManager.openProject(project)
+                    try await projectManager.openProject(project)
                     dismiss()
                 } catch {
                     // Error is handled by ImportProjManager @Published property

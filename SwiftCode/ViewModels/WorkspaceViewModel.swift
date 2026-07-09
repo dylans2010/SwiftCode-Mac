@@ -12,7 +12,7 @@ public class WorkspaceViewModel: Sendable {
     public let debug = DebugSessionViewModel()
     public let ai = AgentViewModel()
 
-    nonisolated(unsafe) private var loadingTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) private var loadingTask: Task<Void, Never>?
 
     public init(projectURL: URL) {
         self.projectURL = projectURL
