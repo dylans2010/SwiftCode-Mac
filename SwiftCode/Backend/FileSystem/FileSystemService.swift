@@ -6,13 +6,9 @@ public actor FileSystemService {
     public func listDirectory(at url: URL, recursive: Bool = false) throws -> [ProjectNode] {
         let contents = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])
 
-        return try contents.map { itemURL in
+        return contents.map { itemURL in
             let isDirectory = (try? itemURL.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-            var children: [ProjectNode]? = nil
-            if isDirectory && recursive {
-                children = try listDirectory(at: itemURL, recursive: true)
-            }
-            return ProjectNode(url: itemURL, kind: isDirectory ? .folder : .file, children: children)
+            return ProjectNode(url: itemURL, kind: isDirectory ? .folder : .file, children: nil)
         }
     }
 

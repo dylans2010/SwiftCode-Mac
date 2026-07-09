@@ -535,11 +535,7 @@ struct \(structName): View {
                 let relativePath = childPath.hasPrefix(basePath + "/")
                     ? String(childPath.dropFirst(basePath.count + 1))
                     : childURL.lastPathComponent
-                let node = FileNode(name: childURL.lastPathComponent, path: relativePath, isDirectory: isDir)
-                if isDir {
-                    node.children = buildFileTree(at: childURL, relativeTo: base)
-                }
-                return node
+                return FileNode(name: childURL.lastPathComponent, path: relativePath, isDirectory: isDir)
             }
     }
 

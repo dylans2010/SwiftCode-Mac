@@ -20,8 +20,8 @@ public class ProjectTreeViewModel {
         isLoading = true
         loadError = nil
         do {
-            // Use recursive loading to ensure all content is available in the workspace
-            let children = try await FileSystemService.shared.listDirectory(at: url, recursive: true)
+            // Root-only loading for initial tree state
+            let children = try await FileSystemService.shared.listDirectory(at: url, recursive: false)
             rootNode = ProjectNode(url: url, kind: .folder, children: children)
         } catch {
             loadError = "Failed to load project: \(error.localizedDescription)"
@@ -49,11 +49,13 @@ public class ProjectTreeViewModel {
         if node.id == targetID {
             if node.children == nil {
                 do {
-                    newNode.children = try await FileSystemService.shared.listDirectory(at: node.url)
+                    // Lazy load children
+                    newNode.children = try await FileSystemService.shared.listDirectory(at: node.url, recursive: false)
                 } catch {
                     LoggingTool.error("Failed to expand node: \(error)")
                 }
             } else {
+                // Collapse folder by clearing children
                 newNode.children = nil
             }
             return newNode
