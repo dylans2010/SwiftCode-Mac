@@ -360,13 +360,21 @@ final class ProjectManager: ObservableObject {
         let content: String
         if let provided = initialContent {
             content = provided
-        } else if name.hasSuffix(".swift") {
-            content = generateSwiftTemplate(for: name, in: project)
         } else {
-            content = ""
+            let fileURL = URL(fileURLWithPath: name)
+            if let provider = LanguageManager.shared.provider(for: fileURL) {
+                content = provider.generateDefaultContent(fileName: name)
+            } else if name.hasSuffix(".swift") {
+                content = generateSwiftTemplate(for: name, in: project)
+            } else {
+                content = ""
+            }
         }
         try CodingManager.shared.createFile(named: name, at: directoryPath, in: project.directoryURL, content: content)
         refreshFileTree(for: project)
+
+        // Notify other systems of file creation if needed
+        NotificationCenter.default.post(name: NSNotification.Name("FileCreated"), object: nil, userInfo: ["path": name, "project": project.name])
     }
 
     private func generateSwiftTemplate(for name: String, in project: Project) -> String {
@@ -581,20 +589,25 @@ struct \(structName): View {
 
     func refreshFileTree(for project: Project) {
         let url = project.directoryURL
+        let projectID = project.id
 
         Task {
-            let files = (try? await Task.detached { try self.buildFileTreeInternal(at: url, relativeTo: url) }.value) ?? []
-            let count = await self.calculateFileCount(at: url)
+            do {
+                let files = try await Task.detached { try self.buildFileTreeInternal(at: url, relativeTo: url) }.value
+                let count = await self.calculateFileCount(at: url)
 
-            await MainActor.run {
-                if let idx = self.projects.firstIndex(where: { $0.id == project.id }) {
-                    self.projects[idx].files = files
-                    self.projects[idx].fileCount = count
+                await MainActor.run {
+                    if let idx = self.projects.firstIndex(where: { $0.id == projectID }) {
+                        self.projects[idx].files = files
+                        self.projects[idx].fileCount = count
+                    }
+                    if self.activeProject?.id == projectID {
+                        self.activeProject?.files = files
+                        self.activeProject?.fileCount = count
+                    }
                 }
-                if self.activeProject?.id == project.id {
-                    self.activeProject?.files = files
-                    self.activeProject?.fileCount = count
-                }
+            } catch {
+                LoggingTool.error("Failed to refresh file tree for \(project.name): \(error)")
             }
         }
     }

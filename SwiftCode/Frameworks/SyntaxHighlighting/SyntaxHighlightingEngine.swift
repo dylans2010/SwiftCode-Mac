@@ -8,14 +8,14 @@ public actor SyntaxHighlightingEngine {
         let lines = text.components(separatedBy: .newlines)
         var tokenizedLines: [TokenizedLine] = []
 
+        let provider = LanguageManager.shared.provider(forId: language.rawValue)
+
         for (index, line) in lines.enumerated() {
             let tokens: [TokenizedLine.Token] = {
-                switch language {
-                case .swift:
-                    return SwiftTokenizer.shared.tokenize(line)
-                default:
-                    return [TokenizedLine.Token(text: line, kind: .plain)]
+                if let provider = provider {
+                    return provider.tokenize(line: line)
                 }
+                return [TokenizedLine.Token(text: line, kind: .plain)]
             }()
             tokenizedLines.append(TokenizedLine(lineNumber: index + 1, tokens: tokens))
         }

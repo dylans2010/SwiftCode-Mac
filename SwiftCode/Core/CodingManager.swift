@@ -116,8 +116,15 @@ final class CodingManager: ObservableObject {
             throw CodingError.pathOutsideProject
         }
         let parent = standardized.deletingLastPathComponent()
-        try fm.createDirectory(at: parent, withIntermediateDirectories: true)
-        try content.write(to: standardized, atomically: true, encoding: .utf8)
+        if !fm.fileExists(atPath: parent.path) {
+            try fm.createDirectory(at: parent, withIntermediateDirectories: true)
+        }
+
+        // Convert string to Data and use .atomic option for safer writing
+        guard let data = content.data(using: .utf8) else {
+            throw CodingError.encodingError
+        }
+        try data.write(to: standardized, options: .atomic)
     }
 
     // MARK: - Create
@@ -128,14 +135,27 @@ final class CodingManager: ObservableObject {
         let fileURL = base.appendingPathComponent(name)
         let standardized = fileURL.standardizedFileURL.resolvingSymlinksInPath()
         let projectStd = projectDir.standardizedFileURL.resolvingSymlinksInPath()
+
+        // Validate filename
+        guard !name.isEmpty, !name.contains("/") else {
+            throw CodingError.invalidFilename
+        }
+
         guard standardized.path.hasPrefix(projectStd.path + "/") || standardized.path == projectStd.path else {
             throw CodingError.pathOutsideProject
         }
         guard !fm.fileExists(atPath: standardized.path) else {
             throw CodingError.alreadyExists
         }
-        try fm.createDirectory(at: base, withIntermediateDirectories: true)
-        try content.write(to: standardized, atomically: true, encoding: .utf8)
+
+        if !fm.fileExists(atPath: base.path) {
+            try fm.createDirectory(at: base, withIntermediateDirectories: true)
+        }
+
+        guard let data = content.data(using: .utf8) else {
+            throw CodingError.encodingError
+        }
+        try data.write(to: standardized, options: .atomic)
     }
 
     /// Create a new directory.
@@ -331,14 +351,16 @@ enum CodingError: LocalizedError {
     case cannotDeleteRoot
     case encodingError
     case fileNotFound
+    case invalidFilename
 
     var errorDescription: String? {
         switch self {
         case .pathOutsideProject: return "Path is outside the project directory."
         case .alreadyExists: return "A file with that name already exists."
         case .cannotDeleteRoot: return "Cannot delete the project root directory."
-        case .encodingError: return "Failed to decode file content as UTF-8."
+        case .encodingError: return "Failed to encode file content as UTF-8."
         case .fileNotFound: return "File not found."
+        case .invalidFilename: return "The filename is invalid."
         }
     }
 }

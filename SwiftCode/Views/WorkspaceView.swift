@@ -9,13 +9,22 @@ struct WorkspaceView: View {
     // Feature sheet states
     @State private var activeSheet: ToolbarActionManager.SheetDestination?
     @State private var showingExportSheet = false
+    @State private var showLivePreview = false
 
     var body: some View {
         AdaptivePage {
             AdaptiveEditorPage {
                 ProjectNavigatorView(viewModel: viewModel.projectTree)
             } content: {
-                EditorTextView(workspaceViewModel: viewModel)
+                HStack(spacing: 0) {
+                    EditorTextView(workspaceViewModel: viewModel)
+
+                    if showLivePreview, let url = LivePreviewService.shared.previewURL {
+                        Divider()
+                        LivePreviewView(url: url)
+                            .frame(minWidth: 300)
+                    }
+                }
             } inspector: {
                 InspectorPanelView(workspaceViewModel: viewModel)
             }
@@ -31,6 +40,22 @@ struct WorkspaceView: View {
                     .help("Close current project")
 
                     BuildToolbarView(viewModel: viewModel.build, projectURL: viewModel.projectURL)
+                        .opacity(viewModel.projectCapabilities.contains(.build) ? 1.0 : 0.0)
+                        .disabled(!viewModel.projectCapabilities.contains(.build))
+
+                    if viewModel.projectCapabilities.contains(.livePreview) {
+                        Button {
+                            showLivePreview.toggle()
+                            if showLivePreview {
+                                LivePreviewService.shared.startPreview(for: viewModel.projectURL)
+                            } else {
+                                LivePreviewService.shared.stopPreview()
+                            }
+                        } label: {
+                            Label("Live Preview", systemImage: showLivePreview ? "stop.circle" : "play.circle")
+                        }
+                        .help(showLivePreview ? "Stop Live Preview" : "Show Live Preview")
+                    }
 
                     Button {
                         showInspector.toggle()

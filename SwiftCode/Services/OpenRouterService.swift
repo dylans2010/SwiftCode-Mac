@@ -6,7 +6,12 @@ final class OpenRouterService: Sendable {
     static let shared = OpenRouterService()
     private init() {}
 
-    private let baseURL = URL(string: "https://openrouter.ai/api/v1")!
+    private let baseURL: URL = {
+        guard let url = URL(string: "https://openrouter.ai/api/v1") else {
+            preconditionFailure("Invalid OpenRouter base URL")
+        }
+        return url
+    }()
 
     // MARK: - Chat Completion (non-streaming)
 
