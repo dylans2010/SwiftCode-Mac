@@ -531,7 +531,7 @@ struct \(structName): View {
         return (try? buildFileTreeInternal(at: url, relativeTo: base)) ?? []
     }
 
-    private func buildFileTreeInternal(at url: URL, relativeTo base: URL) throws -> [FileNode] {
+    nonisolated private func buildFileTreeInternal(at url: URL, relativeTo base: URL) throws -> [FileNode] {
         let fm = FileManager.default
         let contents = try fm.contentsOfDirectory(
             at: url,
@@ -605,7 +605,7 @@ struct \(structName): View {
             guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else { return 0 }
 
             var count = 0
-            for case let fileURL as URL in enumerator {
+            while let fileURL = enumerator.nextObject() as? URL {
                 if (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true {
                     count += 1
                 }

@@ -6,7 +6,7 @@ struct GistsView: View {
 
     @State private var searchQuery = ""
     @State private var showCreateSheet = false
-    @State private var selectedGist: GistResponse?
+    @State private var selectedGistID: String?
     @State private var starredGistIDs: Set<String> = []
 
     var filteredGists: [GistResponse] {
@@ -29,9 +29,9 @@ struct GistsView: View {
                 } else if filteredGists.isEmpty {
                     ContentUnavailableView("No Gists Found", systemImage: "doc.on.doc", description: Text("Create your first gist to get started."))
                 } else {
-                    List(filteredGists, selection: $selectedGist) { gist in
+                    List(filteredGists, selection: $selectedGistID) { gist in
                         GistRowView(gist: gist, isStarred: starredGistIDs.contains(gist.id))
-                            .tag(gist)
+                            .tag(gist.id)
                             .contextMenu {
                                 Button("Delete", role: .destructive) {
                                     Task { try await gistService.deleteGist(id: gist.id) }
@@ -54,8 +54,8 @@ struct GistsView: View {
                 }
             }
         } detail: {
-            if let gist = selectedGist {
-                GistDetailView(gistId: gist.id)
+            if let id = selectedGistID {
+                GistDetailView(gistId: id)
             } else {
                 ContentUnavailableView("Select a Gist", systemImage: "doc.text")
             }
