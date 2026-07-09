@@ -29,17 +29,19 @@ struct GistsView: View {
                 } else if filteredGists.isEmpty {
                     ContentUnavailableView("No Gists Found", systemImage: "doc.on.doc", description: Text("Create your first gist to get started."))
                 } else {
-                    List(filteredGists, selection: $selectedGistID) { gist in
-                        GistRowView(gist: gist, isStarred: starredGistIDs.contains(gist.id))
-                            .tag(gist.id)
-                            .contextMenu {
-                                Button("Delete", role: .destructive) {
-                                    Task { try await gistService.deleteGist(id: gist.id) }
+                    List(selection: $selectedGistID) {
+                        ForEach(filteredGists) { gist in
+                            GistRowView(gist: gist, isStarred: starredGistIDs.contains(gist.id))
+                                .tag(gist.id)
+                                .contextMenu {
+                                    Button("Delete", role: .destructive) {
+                                        Task { try await gistService.deleteGist(id: gist.id) }
+                                    }
+                                    Button(starredGistIDs.contains(gist.id) ? "Unstar" : "Star") {
+                                        toggleStar(gist)
+                                    }
                                 }
-                                Button(starredGistIDs.contains(gist.id) ? "Unstar" : "Star") {
-                                    toggleStar(gist)
-                                }
-                            }
+                        }
                     }
                 }
             }
