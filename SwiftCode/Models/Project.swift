@@ -73,7 +73,9 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
 
     public var fileCount: Int {
         let fm = FileManager.default
-        let url = directoryURL
+        let url = MainActor.assumeIsolated {
+            directoryURL
+        }
         guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else { return 0 }
 
         var count = 0
