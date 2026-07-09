@@ -154,7 +154,7 @@ struct WorkspaceView: View {
                 case .workspaceProfiles: WorkspaceProfilesView()
                 case .gitHub: GitHubIntegrationView(project: project)
                 case .devTools: DevToolsMainView()
-                case .sourceControl: SourceControlView()
+                case .sourceControl: SourceControlView(gitViewModel: viewModel.git)
                 case .ciBuild: CIBuildView(project: project)
                 case .dependencyManager: DependencyManagerView()
                 default:
