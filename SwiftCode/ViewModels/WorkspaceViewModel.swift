@@ -27,7 +27,10 @@ public class WorkspaceViewModel: Sendable {
     }
 
     deinit {
-        loadingTask?.cancel()
+        let task = loadingTask
+        Task.detached {
+            task?.cancel()
+        }
     }
 
     public func handleFileSelectionChange(nodeID: String?) {
