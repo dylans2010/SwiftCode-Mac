@@ -97,7 +97,7 @@ extension GistResponse: Equatable {
     public static func == (lhs: GistResponse, rhs: GistResponse) -> Bool { lhs.id == rhs.id }
 }
 
-extension GistResponse: Hashable {
+extension GistResponse {
     public func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
