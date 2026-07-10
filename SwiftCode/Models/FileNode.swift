@@ -1,14 +1,16 @@
 import Foundation
+import Observation
 import SwiftUI
 
 // Represents a file or folder in the project navigator
-public class FileNode: Identifiable, ObservableObject, Codable, @unchecked Sendable {
+@Observable
+public class FileNode: Identifiable, Codable, @unchecked Sendable {
     public var id: UUID
     public var name: String
     public var path: String // relative path from project root
     public var isDirectory: Bool
-    @Published public var children: [FileNode]
-    @Published public var isExpanded: Bool
+    public var children: [FileNode]
+    public var isExpanded: Bool
 
     public enum CodingKeys: String, CodingKey {
         case id, name, path, isDirectory, children
