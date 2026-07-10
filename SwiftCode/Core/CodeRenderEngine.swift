@@ -159,7 +159,7 @@ public actor CodeRenderEngine {
         if language == .swift {
             let font = Splash.Font(size: 13)
             let splashTheme = Splash.Theme.midnight(withFont: font)
-            let highlighter = SyntaxHighlighter(format: AttributedStringOutputFormat(theme: splashTheme))
+            let highlighter = Splash.SyntaxHighlighter(format: AttributedStringOutputFormat(theme: splashTheme))
             let result = highlighter.highlight(text)
 
             // Adjust paragraph line spacing on the returned attributed string
