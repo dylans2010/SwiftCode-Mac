@@ -17,10 +17,46 @@ struct SymbolOutlineView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(red: 0.08, green: 0.08, blue: 0.12).ignoresSafeArea()
+        VStack(spacing: 0) {
+            // Header with Title and Stats
+            HStack {
+                Text("Symbol Outline")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Spacer()
+                statsMenu
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
 
+            // Local Filter/Search Bar
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                TextField("Filter Symbols", text: $searchText)
+                    .font(.caption)
+                    .textFieldStyle(.plain)
+                    .autocorrectionDisabled()
+                if !searchText.isEmpty {
+                    Button { searchText = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(6)
+            .background(Color.white.opacity(0.06))
+            .cornerRadius(6)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+
+            Divider().opacity(0.3)
+
+            Group {
                 if symbols.isEmpty {
                     emptyState
                 } else {
@@ -31,14 +67,9 @@ struct SymbolOutlineView: View {
                     }
                 }
             }
-            .navigationTitle("Symbol Outline")
-            .searchable(text: $searchText, prompt: "Filter Symbols")
-            .toolbar {
-                ToolbarItem {
-                    statsMenu
-                }
-            }
+            .frame(maxHeight: .infinity)
         }
+        .background(Color(red: 0.08, green: 0.08, blue: 0.12))
         .preferredColorScheme(.dark)
         .onAppear { analyzeCurrentFile() }
         .onChange(of: sessionStore.activeFileContent) { _, _ in analyzeCurrentFile() }
