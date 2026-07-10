@@ -135,6 +135,21 @@ final class ProjectSessionStore {
         }
     }
 
+    func updateProjectSettings(description: String, githubRepo: String?, for project: Project) {
+        if let idx = projects.firstIndex(where: { $0.id == project.id }) {
+            projects[idx].description = description
+            projects[idx].githubRepo = githubRepo
+            saveMetadata(projects[idx])
+        }
+        if activeProject?.id == project.id {
+            if case .ready(var p) = state {
+                p.description = description
+                p.githubRepo = githubRepo
+                state = .ready(p)
+            }
+        }
+    }
+
     // MARK: - Session Actions
 
     private var openingTask: Task<Void, Never>?
