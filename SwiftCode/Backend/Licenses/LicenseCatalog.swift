@@ -9,7 +9,102 @@ public struct LicenseTemplate: Identifiable, Hashable, Sendable {
 }
 
 public enum LicenseCatalog {
-    public static let all: [LicenseTemplate] = [
+    private static var cachedTemplates: [LicenseTemplate]?
+
+    /// Dynamically discovered and parsed license templates from the bundle resources.
+    public static var all: [LicenseTemplate] {
+        if let cached = cachedTemplates {
+            return cached
+        }
+        let loaded = loadTemplates()
+        cachedTemplates = loaded
+        return loaded
+    }
+
+    public static func licenseBody(for id: String) -> String? {
+        all.first(where: { $0.id == id })?.body
+    }
+
+    private static func loadTemplates() -> [LicenseTemplate] {
+        var templates: [LicenseTemplate] = []
+
+        // Find all Markdown files bundled as offline resources in the application
+        if let urls = Bundle.main.urls(forResourcesWithExtension: "md", subdirectory: nil) {
+            for url in urls {
+                // Skip general README and non-license files
+                let filename = url.lastPathComponent.lowercased()
+                if filename == "readme.md" || filename == "agentsystem.md" {
+                    continue
+                }
+
+                do {
+                    let content = try String(contentsOf: url, encoding: .utf8)
+                    if let parsed = parseFrontMatter(content, id: url.deletingPathExtension().lastPathComponent) {
+                        templates.append(parsed)
+                    }
+                } catch {
+                    // Log and gracefully fallback
+                    continue
+                }
+            }
+        }
+
+        // Deduplicate and return, merging with fallbacks if no bundled licenses could be loaded
+        if templates.isEmpty {
+            return fallbackTemplates
+        }
+
+        return templates.sorted(by: { $0.name < $1.name })
+    }
+
+    private static func parseFrontMatter(_ content: String, id defaultId: String) -> LicenseTemplate? {
+        let scanner = Scanner(string: content)
+        scanner.charactersToBeSkipped = nil
+
+        var id = defaultId.lowercased()
+        var name = defaultId.replacingOccurrences(of: "-", with: " ")
+        var category = "Other"
+        var summary = "Open Source License template."
+        var body = content
+
+        if scanner.scanString("---") != nil {
+            if let metadataBlock = scanner.scanUpToString("---") {
+                _ = scanner.scanString("---") // scan past closing ---
+
+                // Parse lines of metadata
+                let lines = metadataBlock.components(separatedBy: .newlines)
+                for line in lines {
+                    let parts = line.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    if parts.count == 2 {
+                        let key = parts[0].lowercased()
+                        let val = parts[1]
+
+                        switch key {
+                        case "id": id = val.lowercased()
+                        case "name": name = val
+                        case "category": category = val
+                        case "summary": summary = val
+                        default: break
+                        }
+                    }
+                }
+
+                // Body is everything after the metadata block and past the closing ---
+                // We skip any initial whitespace/newlines
+                body = scanner.string.suffix(from: scanner.currentIndex).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        return LicenseTemplate(
+            id: id,
+            name: name,
+            category: category,
+            summary: summary,
+            body: body
+        )
+    }
+
+    private static let fallbackTemplates: [LicenseTemplate] = [
         .init(id: "mit", name: "MIT", category: "Permissive", summary: "Simple permissive license with attribution requirement.", body: mit),
         .init(id: "apache-2.0", name: "Apache 2.0", category: "Permissive", summary: "Permissive license with explicit patent grant and NOTICE requirements.", body: apache),
         .init(id: "bsd-2", name: "BSD 2-Clause", category: "Permissive", summary: "Short permissive license with attribution and disclaimer.", body: bsd2),
@@ -32,10 +127,6 @@ public enum LicenseCatalog {
         .init(id: "eupl-1.2", name: "EUPL 1.2", category: "Copyleft", summary: "European Union Public License with compatibility matrix.", body: eupl12),
         .init(id: "cc0-1.0", name: "CC0 1.0", category: "Public Domain", summary: "Creative Commons zero rights reserved dedication.", body: cc0)
     ]
-
-    public static func licenseBody(for id: String) -> String? {
-        all.first(where: { $0.id == id })?.body
-    }
 
     private static let mit = "MIT License\n\nCopyright (c) [year] [fullname]\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software."
     private static let apache = "Apache License 2.0\n\nLicensed under the Apache License, Version 2.0. See: http://www.apache.org/licenses/LICENSE-2.0"

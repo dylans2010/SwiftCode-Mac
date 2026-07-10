@@ -7,6 +7,57 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F5F896D8201EC1D5A3B9A47F /* BSD-2-Clause.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F8901F45B5F4DAE7DD57DE /* BSD-2-Clause.md */; };
+		F5F89ABE69C494B4DFC71530 /* ISC-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89DE7B7E50F831AF09D2E /* ISC-License.md */; };
+		F5F89902DB407353761F239A /* zlib-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F8982C52639A1347B8B5D2 /* zlib-License.md */; };
+		F5F895E791766574E532350D /* The-Unlicense.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89D48DF2C17B90072E5BD /* The-Unlicense.md */; };
+		F5F897EFDAED8A2E5CFF2F83 /* WTFPL.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F896B5468E424C06324655 /* WTFPL.md */; };
+		F5F89B45E66E1989BD7A8BF5 /* LGPL-v2.1.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89E3B24744513B4D2E5E6 /* LGPL-v2.1.md */; };
+		F5F896A8FE0531D038E9C6B8 /* LGPL-v3.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F898BB1AA7EFAA1C60F4C8 /* LGPL-v3.md */; };
+		F5F8957D105465BB8F69ABC2 /* EPL-2.0.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89A8989F2473FE5F6151B /* EPL-2.0.md */; };
+		F5F89B1088F604B736AEE9C4 /* CDDL-1.0.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89146F89BA5C7DCB42101 /* CDDL-1.0.md */; };
+		F5F8924C5D3063C9D6483937 /* GPL-v2.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89CB988B4F0948903343F /* GPL-v2.md */; };
+		F5F89B4247578AE42541C08E /* AGPL-v3.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89E9FEA778D3AE3899A86 /* AGPL-v3.md */; };
+		F5F895B5BF44CD1A33FA52E3 /* AFL-3.0.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F8932DD101A5462F10D14A /* AFL-3.0.md */; };
+		F5F895ECE59E818C1A1D891D /* Artistic-2.0.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F8954136F2ACDFFD5A59FE /* Artistic-2.0.md */; };
+		F5F8981DF47E5BED139D90BD /* EUPL-1.2.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89DF610D6404A9A6FA618 /* EUPL-1.2.md */; };
+		F5F893F86994272D6FF134D0 /* CC0-1.0.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F891097731D64F402F3CB3 /* CC0-1.0.md */; };
+		F5F89F512E8AE87B1E46E260 /* MS-PL.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89EB1988B106D2FBB5BCE /* MS-PL.md */; };
+		F5F898011C551E9F7AB4B84A /* MS-RL.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F895700B10023328F23EB2 /* MS-RL.md */; };
+		F5F89DD3F501A1481AB45453 /* PostgreSQL-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89ABAC66BFFC169DA2C2D /* PostgreSQL-License.md */; };
+		F5F89DA5081A40C1A0F3D906 /* OpenSSL-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F8948CE2900435D52A0332 /* OpenSSL-License.md */; };
+		F5F890F6C7C8E8E842DF3B01 /* Beerware-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F899F2A63F672784ED1E40 /* Beerware-License.md */; };
+		F5F898126ED65F43E5F3003C /* JSON-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F896F5FAC882A15F34F44F /* JSON-License.md */; };
+		F5F8919EC6D3F4C61B347B63 /* Vim-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F8962B535287981BC9EC1C /* Vim-License.md */; };
+		F5F89E5BA94153AD435F3351 /* PHP-License-v3.01.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89125BA7E67EE14E09D40 /* PHP-License-v3.01.md */; };
+		F5F893F31CA99E0B1E8681EE /* Python-License-v2.0.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F8918D94AACB03C56AE140 /* Python-License-v2.0.md */; };
+		F5F898C215640227ABBA88DF /* Ruby-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89EAF635F60077AC530A0 /* Ruby-License.md */; };
+		F5F8947941EF525095171D1B /* W3C-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F897107166D1E46AC62F3C /* W3C-License.md */; };
+		F5F89721C726F699B727EAC2 /* APSL-2.0.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F893604304F7928210F888 /* APSL-2.0.md */; };
+		F5F89ACDBBFDAC1F84106AA8 /* NPL-1.1.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89CE03A5C938CC0283493 /* NPL-1.1.md */; };
+		F5F8940D2786CEB78DD4589F /* CPL-1.0.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F896211715FB053268BDEC /* CPL-1.0.md */; };
+		F5F89CEA52AADBD13E8BB59C /* QPL-1.0.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89899FE26E5A36F41EA42 /* QPL-1.0.md */; };
+		F5F8905CBED3AD78C48DB2A8 /* EPL-1.0.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F894822099F37B1CF2FFBE /* EPL-1.0.md */; };
+		F5F89572EBBB6E1FFA113B64 /* IPL-1.0.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89A4F770D075C0B5F8C22 /* IPL-1.0.md */; };
+		F5F89B84DB7CC3B1F5F4B069 /* NASA-1.3.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89DDF0DB06FC8A40436CF /* NASA-1.3.md */; };
+		F5F89ABEDCA8B10DE66409DE /* RPL-1.5.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89C92AFB823102C6EF015 /* RPL-1.5.md */; };
+		F5F89FC05B26464D1D83311A /* Adaptive-Public-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89FC247A35BCAF4E6FD9E /* Adaptive-Public-License.md */; };
+		F5F89E408A9C3F6C464C1A5A /* GFDL-1.3.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F898C104FEFD91D8EBE2BF /* GFDL-1.3.md */; };
+		F5F89BDE246197807BD24FCB /* CC-BY-4.0.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F893E54FC84A6132C08ADA /* CC-BY-4.0.md */; };
+		F5F89C2167E431BA625DD868 /* CC-BY-SA-4.0.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F8970EF3E69F1408D23556 /* CC-BY-SA-4.0.md */; };
+		F5F898AF43C23AE072D25008 /* SIL-OFL-1.1.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F898A43A047CA910FCF723 /* SIL-OFL-1.1.md */; };
+		F5F89FEDD642C67EF4CA13BE /* OSL-3.0.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89F32B190B340D5A9DA2B /* OSL-3.0.md */; };
+		F5F89CB4D385C785A02110FC /* Sleepycat-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F899D5C50F421F3C3B0586 /* Sleepycat-License.md */; };
+		F5F89673726BED24A81CBCA4 /* Apache-1.1.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89981B8486E8C00805AFA /* Apache-1.1.md */; };
+		F5F892BE5992073F1A5F44A5 /* CPAL-1.0.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F895BCD919B388EDE1C397 /* CPAL-1.0.md */; };
+		F5F89E6CFEB28A34F253B51B /* LPPL-1.3c.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F891BB12D40A2242AEADA2 /* LPPL-1.3c.md */; };
+		F5F891956EA31780A32C70B1 /* MPL-1.1.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F8970F95021A9343623115 /* MPL-1.1.md */; };
+		F5F8979C01E35FC473FDD633 /* OSD-Evaluation-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89B56D3CAB95273919943 /* OSD-Evaluation-License.md */; };
+		F5F89AD9B6B07CFE70351B0B /* Sun-Public-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89D2041D1843CDEBF2FB8 /* Sun-Public-License.md */; };
+		F5F896C85B1D577382A77799 /* Upstream-Compatibility-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F895C1136B2F21057F1EFD /* Upstream-Compatibility-License.md */; };
+		F5F89ADA1073298AE7A780CC /* Vovida-Software-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89AA0CC39E2937D4B96C3 /* Vovida-Software-License.md */; };
+		F5F8955028095970DE0140BF /* Sybase-Watcom-Public-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89BF8547755CD4DB89A3A /* Sybase-Watcom-Public-License.md */; };
+		F5F89134EC8C4320F57A935B /* wxWindows-Library-Licence.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F896CE3A8A9FA32EAD290F /* wxWindows-Library-Licence.md */; };
 		694FB44AE58C6F9166959343 /* JSONToSwiftView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65A3FDC991F7D91CA5531EE /* JSONToSwiftView.swift */; };
 		16A5D30603089356A7F4CFD8 /* JSONToKotlinView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F8463771960A3AC1C3E0E8B /* JSONToKotlinView.swift */; };
 		D9FF9FA3FE7EC71D61FFCA39 /* JSONToTSView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEA8F39726DF498FCCD5D17 /* JSONToTSView.swift */; };
@@ -510,6 +561,8 @@
 		96D66B4EB2279EE42983B761 /* CommitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BDD49FC4FEC3D5B58C3F610 /* CommitManager.swift */; };
 		96F52E3B70DE4D35ACC808D0 /* GitCherryPick.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14A83F2226794C04881DAB12 /* GitCherryPick.swift */; };
 		96FCF2C38DAA4914BABA1D61 /* TextBufferEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8DD1FD745ECC23DEC52C8C0 /* TextBufferEngine.swift */; };
+		A1B2C3D4E5F60123456789AD /* Splash in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60123456789AC /* Splash */; };
+		A2B3C4D5E6F7012345678902 /* CodeRenderEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4D5E6F7012345678901 /* CodeRenderEngine.swift */; };
 		974D1FF1E6B74749B5C4383C /* TestsSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6A0E872738A49CE95EFD426 /* TestsSidebarView.swift */; };
 		979AAEE74876A34042A19ADF /* OfflineModelMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65664938409C5B74443AAFB1 /* OfflineModelMetadata.swift */; };
 		9842ADAFCAE846D0AF8E562A /* GitCloneSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C22324AECE138382A52873 /* GitCloneSheetView.swift */; };
@@ -830,6 +883,57 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		F5F8901F45B5F4DAE7DD57DE /* BSD-2-Clause.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = BSD-2-Clause.md; sourceTree = "<group>"; };
+		F5F89DE7B7E50F831AF09D2E /* ISC-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ISC-License.md; sourceTree = "<group>"; };
+		F5F8982C52639A1347B8B5D2 /* zlib-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = zlib-License.md; sourceTree = "<group>"; };
+		F5F89D48DF2C17B90072E5BD /* The-Unlicense.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = The-Unlicense.md; sourceTree = "<group>"; };
+		F5F896B5468E424C06324655 /* WTFPL.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = WTFPL.md; sourceTree = "<group>"; };
+		F5F89E3B24744513B4D2E5E6 /* LGPL-v2.1.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = LGPL-v2.1.md; sourceTree = "<group>"; };
+		F5F898BB1AA7EFAA1C60F4C8 /* LGPL-v3.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = LGPL-v3.md; sourceTree = "<group>"; };
+		F5F89A8989F2473FE5F6151B /* EPL-2.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = EPL-2.0.md; sourceTree = "<group>"; };
+		F5F89146F89BA5C7DCB42101 /* CDDL-1.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CDDL-1.0.md; sourceTree = "<group>"; };
+		F5F89CB988B4F0948903343F /* GPL-v2.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = GPL-v2.md; sourceTree = "<group>"; };
+		F5F89E9FEA778D3AE3899A86 /* AGPL-v3.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AGPL-v3.md; sourceTree = "<group>"; };
+		F5F8932DD101A5462F10D14A /* AFL-3.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AFL-3.0.md; sourceTree = "<group>"; };
+		F5F8954136F2ACDFFD5A59FE /* Artistic-2.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Artistic-2.0.md; sourceTree = "<group>"; };
+		F5F89DF610D6404A9A6FA618 /* EUPL-1.2.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = EUPL-1.2.md; sourceTree = "<group>"; };
+		F5F891097731D64F402F3CB3 /* CC0-1.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CC0-1.0.md; sourceTree = "<group>"; };
+		F5F89EB1988B106D2FBB5BCE /* MS-PL.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = MS-PL.md; sourceTree = "<group>"; };
+		F5F895700B10023328F23EB2 /* MS-RL.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = MS-RL.md; sourceTree = "<group>"; };
+		F5F89ABAC66BFFC169DA2C2D /* PostgreSQL-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = PostgreSQL-License.md; sourceTree = "<group>"; };
+		F5F8948CE2900435D52A0332 /* OpenSSL-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = OpenSSL-License.md; sourceTree = "<group>"; };
+		F5F899F2A63F672784ED1E40 /* Beerware-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Beerware-License.md; sourceTree = "<group>"; };
+		F5F896F5FAC882A15F34F44F /* JSON-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = JSON-License.md; sourceTree = "<group>"; };
+		F5F8962B535287981BC9EC1C /* Vim-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Vim-License.md; sourceTree = "<group>"; };
+		F5F89125BA7E67EE14E09D40 /* PHP-License-v3.01.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = PHP-License-v3.01.md; sourceTree = "<group>"; };
+		F5F8918D94AACB03C56AE140 /* Python-License-v2.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Python-License-v2.0.md; sourceTree = "<group>"; };
+		F5F89EAF635F60077AC530A0 /* Ruby-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Ruby-License.md; sourceTree = "<group>"; };
+		F5F897107166D1E46AC62F3C /* W3C-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = W3C-License.md; sourceTree = "<group>"; };
+		F5F893604304F7928210F888 /* APSL-2.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = APSL-2.0.md; sourceTree = "<group>"; };
+		F5F89CE03A5C938CC0283493 /* NPL-1.1.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = NPL-1.1.md; sourceTree = "<group>"; };
+		F5F896211715FB053268BDEC /* CPL-1.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CPL-1.0.md; sourceTree = "<group>"; };
+		F5F89899FE26E5A36F41EA42 /* QPL-1.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = QPL-1.0.md; sourceTree = "<group>"; };
+		F5F894822099F37B1CF2FFBE /* EPL-1.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = EPL-1.0.md; sourceTree = "<group>"; };
+		F5F89A4F770D075C0B5F8C22 /* IPL-1.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = IPL-1.0.md; sourceTree = "<group>"; };
+		F5F89DDF0DB06FC8A40436CF /* NASA-1.3.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = NASA-1.3.md; sourceTree = "<group>"; };
+		F5F89C92AFB823102C6EF015 /* RPL-1.5.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = RPL-1.5.md; sourceTree = "<group>"; };
+		F5F89FC247A35BCAF4E6FD9E /* Adaptive-Public-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Adaptive-Public-License.md; sourceTree = "<group>"; };
+		F5F898C104FEFD91D8EBE2BF /* GFDL-1.3.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = GFDL-1.3.md; sourceTree = "<group>"; };
+		F5F893E54FC84A6132C08ADA /* CC-BY-4.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CC-BY-4.0.md; sourceTree = "<group>"; };
+		F5F8970EF3E69F1408D23556 /* CC-BY-SA-4.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CC-BY-SA-4.0.md; sourceTree = "<group>"; };
+		F5F898A43A047CA910FCF723 /* SIL-OFL-1.1.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = SIL-OFL-1.1.md; sourceTree = "<group>"; };
+		F5F89F32B190B340D5A9DA2B /* OSL-3.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = OSL-3.0.md; sourceTree = "<group>"; };
+		F5F899D5C50F421F3C3B0586 /* Sleepycat-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Sleepycat-License.md; sourceTree = "<group>"; };
+		F5F89981B8486E8C00805AFA /* Apache-1.1.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Apache-1.1.md; sourceTree = "<group>"; };
+		F5F895BCD919B388EDE1C397 /* CPAL-1.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CPAL-1.0.md; sourceTree = "<group>"; };
+		F5F891BB12D40A2242AEADA2 /* LPPL-1.3c.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = LPPL-1.3c.md; sourceTree = "<group>"; };
+		F5F8970F95021A9343623115 /* MPL-1.1.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = MPL-1.1.md; sourceTree = "<group>"; };
+		F5F89B56D3CAB95273919943 /* OSD-Evaluation-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = OSD-Evaluation-License.md; sourceTree = "<group>"; };
+		F5F89D2041D1843CDEBF2FB8 /* Sun-Public-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Sun-Public-License.md; sourceTree = "<group>"; };
+		F5F895C1136B2F21057F1EFD /* Upstream-Compatibility-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Upstream-Compatibility-License.md; sourceTree = "<group>"; };
+		F5F89AA0CC39E2937D4B96C3 /* Vovida-Software-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Vovida-Software-License.md; sourceTree = "<group>"; };
+		F5F89BF8547755CD4DB89A3A /* Sybase-Watcom-Public-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Sybase-Watcom-Public-License.md; sourceTree = "<group>"; };
+		F5F896CE3A8A9FA32EAD290F /* wxWindows-Library-Licence.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = wxWindows-Library-Licence.md; sourceTree = "<group>"; };
 		F65A3FDC991F7D91CA5531EE /* JSONToSwiftView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONToSwiftView.swift; sourceTree = "<group>"; };
 		7F8463771960A3AC1C3E0E8B /* JSONToKotlinView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONToKotlinView.swift; sourceTree = "<group>"; };
 		8CEA8F39726DF498FCCD5D17 /* JSONToTSView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONToTSView.swift; sourceTree = "<group>"; };
@@ -1295,6 +1399,7 @@
 		8399992DC054EE07E0402ACE /* GitCommit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitCommit.swift; sourceTree = "<group>"; };
 		83BB8653F0663A05F8B15B7A /* CodexService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexService.swift; sourceTree = "<group>"; };
 		844AB75BF6A47BBC5BE346FF /* SourceLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceLanguage.swift; sourceTree = "<group>"; };
+		A2B3C4D5E6F7012345678901 /* CodeRenderEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CodeRenderEngine.swift; sourceTree = "<group>"; };
 		845C5FB2FEA458A1BC0A7CB4 /* build-project.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = "build-project.yml"; sourceTree = "<group>"; };
 		8526C47363D79394BD1A44D6 /* CodeStatsExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeStatsExtensionView.swift; sourceTree = "<group>"; };
 		8549A5CCC7EA4F5D861B7D46 /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Hex.swift"; sourceTree = "<group>"; };
@@ -1681,6 +1786,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1B2C3D4E5F60123456789AD /* Splash in Frameworks */,
 				A6B90EA3C8484845B948EAB1 /* ZIPFoundation in Frameworks */,
 				3A03081082E64D30A4EA603C /* MLX in Frameworks */,
 				24CF3E2E85F04AC794E9BFA8 /* MLXNN in Frameworks */,
@@ -2176,6 +2282,7 @@
 				0801FE77C016F8F6DAA035C0 /* BuildSystem */,
 				A941C4224B2EB40B83D69DD8 /* Binaries */,
 				9364A4B6A9071BA261504D70 /* CodingManager.swift */,
+				A2B3C4D5E6F7012345678901 /* CodeRenderEngine.swift */,
 				3220283DA93BB06D9C28D37E /* GitHub */,
 				221D39CA6B546D13C401A74F /* FileSystem */,
 				524BA6E998942A67A8792268 /* ToolbarActionManager.swift */,
@@ -2747,6 +2854,57 @@
 		9F8B2D40599DF30F538F63A1 /* Licenses */ = {
 			isa = PBXGroup;
 			children = (
+				F5F8901F45B5F4DAE7DD57DE /* BSD-2-Clause.md */,
+				F5F89DE7B7E50F831AF09D2E /* ISC-License.md */,
+				F5F8982C52639A1347B8B5D2 /* zlib-License.md */,
+				F5F89D48DF2C17B90072E5BD /* The-Unlicense.md */,
+				F5F896B5468E424C06324655 /* WTFPL.md */,
+				F5F89E3B24744513B4D2E5E6 /* LGPL-v2.1.md */,
+				F5F898BB1AA7EFAA1C60F4C8 /* LGPL-v3.md */,
+				F5F89A8989F2473FE5F6151B /* EPL-2.0.md */,
+				F5F89146F89BA5C7DCB42101 /* CDDL-1.0.md */,
+				F5F89CB988B4F0948903343F /* GPL-v2.md */,
+				F5F89E9FEA778D3AE3899A86 /* AGPL-v3.md */,
+				F5F8932DD101A5462F10D14A /* AFL-3.0.md */,
+				F5F8954136F2ACDFFD5A59FE /* Artistic-2.0.md */,
+				F5F89DF610D6404A9A6FA618 /* EUPL-1.2.md */,
+				F5F891097731D64F402F3CB3 /* CC0-1.0.md */,
+				F5F89EB1988B106D2FBB5BCE /* MS-PL.md */,
+				F5F895700B10023328F23EB2 /* MS-RL.md */,
+				F5F89ABAC66BFFC169DA2C2D /* PostgreSQL-License.md */,
+				F5F8948CE2900435D52A0332 /* OpenSSL-License.md */,
+				F5F899F2A63F672784ED1E40 /* Beerware-License.md */,
+				F5F896F5FAC882A15F34F44F /* JSON-License.md */,
+				F5F8962B535287981BC9EC1C /* Vim-License.md */,
+				F5F89125BA7E67EE14E09D40 /* PHP-License-v3.01.md */,
+				F5F8918D94AACB03C56AE140 /* Python-License-v2.0.md */,
+				F5F89EAF635F60077AC530A0 /* Ruby-License.md */,
+				F5F897107166D1E46AC62F3C /* W3C-License.md */,
+				F5F893604304F7928210F888 /* APSL-2.0.md */,
+				F5F89CE03A5C938CC0283493 /* NPL-1.1.md */,
+				F5F896211715FB053268BDEC /* CPL-1.0.md */,
+				F5F89899FE26E5A36F41EA42 /* QPL-1.0.md */,
+				F5F894822099F37B1CF2FFBE /* EPL-1.0.md */,
+				F5F89A4F770D075C0B5F8C22 /* IPL-1.0.md */,
+				F5F89DDF0DB06FC8A40436CF /* NASA-1.3.md */,
+				F5F89C92AFB823102C6EF015 /* RPL-1.5.md */,
+				F5F89FC247A35BCAF4E6FD9E /* Adaptive-Public-License.md */,
+				F5F898C104FEFD91D8EBE2BF /* GFDL-1.3.md */,
+				F5F893E54FC84A6132C08ADA /* CC-BY-4.0.md */,
+				F5F8970EF3E69F1408D23556 /* CC-BY-SA-4.0.md */,
+				F5F898A43A047CA910FCF723 /* SIL-OFL-1.1.md */,
+				F5F89F32B190B340D5A9DA2B /* OSL-3.0.md */,
+				F5F899D5C50F421F3C3B0586 /* Sleepycat-License.md */,
+				F5F89981B8486E8C00805AFA /* Apache-1.1.md */,
+				F5F895BCD919B388EDE1C397 /* CPAL-1.0.md */,
+				F5F891BB12D40A2242AEADA2 /* LPPL-1.3c.md */,
+				F5F8970F95021A9343623115 /* MPL-1.1.md */,
+				F5F89B56D3CAB95273919943 /* OSD-Evaluation-License.md */,
+				F5F89D2041D1843CDEBF2FB8 /* Sun-Public-License.md */,
+				F5F895C1136B2F21057F1EFD /* Upstream-Compatibility-License.md */,
+				F5F89AA0CC39E2937D4B96C3 /* Vovida-Software-License.md */,
+				F5F89BF8547755CD4DB89A3A /* Sybase-Watcom-Public-License.md */,
+				F5F896CE3A8A9FA32EAD290F /* wxWindows-Library-Licence.md */,
 				5AE271BFB6A62D82F1E73972 /* GPL-3.0.md */,
 				1C063DE54CC9E93EADB8A626 /* MPL-2.0.md */,
 				920B5BFE45A3C9AD6F635DFC /* Apache-2.0.md */,
@@ -3575,6 +3733,7 @@
 			mainGroup = 6CFC827E67DCAE34C72B9CED;
 			packageReferences = (
 				4A810247BF88432CBDA28834 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+				A1B2C3D4E5F60123456789AB /* XCRemoteSwiftPackageReference "Splash" */,
 				B5C11042228B46F1A40BB7DA /* XCRemoteSwiftPackageReference "mlx-swift" */,
 			);
 			productRefGroup = 021F2B7F3E0C61452C987484 /* Products */;
@@ -3591,6 +3750,57 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F5F896D8201EC1D5A3B9A47F /* BSD-2-Clause.md in Resources */,
+				F5F89ABE69C494B4DFC71530 /* ISC-License.md in Resources */,
+				F5F89902DB407353761F239A /* zlib-License.md in Resources */,
+				F5F895E791766574E532350D /* The-Unlicense.md in Resources */,
+				F5F897EFDAED8A2E5CFF2F83 /* WTFPL.md in Resources */,
+				F5F89B45E66E1989BD7A8BF5 /* LGPL-v2.1.md in Resources */,
+				F5F896A8FE0531D038E9C6B8 /* LGPL-v3.md in Resources */,
+				F5F8957D105465BB8F69ABC2 /* EPL-2.0.md in Resources */,
+				F5F89B1088F604B736AEE9C4 /* CDDL-1.0.md in Resources */,
+				F5F8924C5D3063C9D6483937 /* GPL-v2.md in Resources */,
+				F5F89B4247578AE42541C08E /* AGPL-v3.md in Resources */,
+				F5F895B5BF44CD1A33FA52E3 /* AFL-3.0.md in Resources */,
+				F5F895ECE59E818C1A1D891D /* Artistic-2.0.md in Resources */,
+				F5F8981DF47E5BED139D90BD /* EUPL-1.2.md in Resources */,
+				F5F893F86994272D6FF134D0 /* CC0-1.0.md in Resources */,
+				F5F89F512E8AE87B1E46E260 /* MS-PL.md in Resources */,
+				F5F898011C551E9F7AB4B84A /* MS-RL.md in Resources */,
+				F5F89DD3F501A1481AB45453 /* PostgreSQL-License.md in Resources */,
+				F5F89DA5081A40C1A0F3D906 /* OpenSSL-License.md in Resources */,
+				F5F890F6C7C8E8E842DF3B01 /* Beerware-License.md in Resources */,
+				F5F898126ED65F43E5F3003C /* JSON-License.md in Resources */,
+				F5F8919EC6D3F4C61B347B63 /* Vim-License.md in Resources */,
+				F5F89E5BA94153AD435F3351 /* PHP-License-v3.01.md in Resources */,
+				F5F893F31CA99E0B1E8681EE /* Python-License-v2.0.md in Resources */,
+				F5F898C215640227ABBA88DF /* Ruby-License.md in Resources */,
+				F5F8947941EF525095171D1B /* W3C-License.md in Resources */,
+				F5F89721C726F699B727EAC2 /* APSL-2.0.md in Resources */,
+				F5F89ACDBBFDAC1F84106AA8 /* NPL-1.1.md in Resources */,
+				F5F8940D2786CEB78DD4589F /* CPL-1.0.md in Resources */,
+				F5F89CEA52AADBD13E8BB59C /* QPL-1.0.md in Resources */,
+				F5F8905CBED3AD78C48DB2A8 /* EPL-1.0.md in Resources */,
+				F5F89572EBBB6E1FFA113B64 /* IPL-1.0.md in Resources */,
+				F5F89B84DB7CC3B1F5F4B069 /* NASA-1.3.md in Resources */,
+				F5F89ABEDCA8B10DE66409DE /* RPL-1.5.md in Resources */,
+				F5F89FC05B26464D1D83311A /* Adaptive-Public-License.md in Resources */,
+				F5F89E408A9C3F6C464C1A5A /* GFDL-1.3.md in Resources */,
+				F5F89BDE246197807BD24FCB /* CC-BY-4.0.md in Resources */,
+				F5F89C2167E431BA625DD868 /* CC-BY-SA-4.0.md in Resources */,
+				F5F898AF43C23AE072D25008 /* SIL-OFL-1.1.md in Resources */,
+				F5F89FEDD642C67EF4CA13BE /* OSL-3.0.md in Resources */,
+				F5F89CB4D385C785A02110FC /* Sleepycat-License.md in Resources */,
+				F5F89673726BED24A81CBCA4 /* Apache-1.1.md in Resources */,
+				F5F892BE5992073F1A5F44A5 /* CPAL-1.0.md in Resources */,
+				F5F89E6CFEB28A34F253B51B /* LPPL-1.3c.md in Resources */,
+				F5F891956EA31780A32C70B1 /* MPL-1.1.md in Resources */,
+				F5F8979C01E35FC473FDD633 /* OSD-Evaluation-License.md in Resources */,
+				F5F89AD9B6B07CFE70351B0B /* Sun-Public-License.md in Resources */,
+				F5F896C85B1D577382A77799 /* Upstream-Compatibility-License.md in Resources */,
+				F5F89ADA1073298AE7A780CC /* Vovida-Software-License.md in Resources */,
+				F5F8955028095970DE0140BF /* Sybase-Watcom-Public-License.md in Resources */,
+				F5F89134EC8C4320F57A935B /* wxWindows-Library-Licence.md in Resources */,
 				0369DA571BAEF9BC2B2FC2C7 /* sf_symbols_full.json in Resources */,
 				7AF34FDC87F6CBB14A114394 /* README.md in Resources */,
 				B3A80B64F1304C0AA6D6A49F /* GPL-3.0.md in Resources */,
@@ -3618,6 +3828,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A2B3C4D5E6F7012345678902 /* CodeRenderEngine.swift in Sources */,
 				694FB44AE58C6F9166959343 /* JSONToSwiftView.swift in Sources */,
 				16A5D30603089356A7F4CFD8 /* JSONToKotlinView.swift in Sources */,
 				D9FF9FA3FE7EC71D61FFCA39 /* JSONToTSView.swift in Sources */,
@@ -4623,6 +4834,14 @@
 				minimumVersion = 0.9.0;
 			};
 		};
+		A1B2C3D4E5F60123456789AB /* XCRemoteSwiftPackageReference "Splash" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/JohnSundell/Splash.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.16.0;
+			};
+		};
 		B5C11042228B46F1A40BB7DA /* XCRemoteSwiftPackageReference "mlx-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/ml-explore/mlx-swift.git";
@@ -4643,6 +4862,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4A810247BF88432CBDA28834 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
 			productName = ZIPFoundation;
+		};
+		A1B2C3D4E5F60123456789AC /* Splash */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4E5F60123456789AB /* XCRemoteSwiftPackageReference "Splash" */;
+			productName = Splash;
 		};
 		B94457CF33644AA882115C94 /* MLX */ = {
 			isa = XCSwiftPackageProductDependency;

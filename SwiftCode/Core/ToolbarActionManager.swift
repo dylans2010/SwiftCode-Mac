@@ -55,6 +55,7 @@ final class ToolbarActionManager {
         case devTools
         case sourceControl
         case ciBuild
+        case licensesAdd
 
         // Sidebar & Inspector additions
         case debugSessions
@@ -178,6 +179,8 @@ final class ToolbarActionManager {
             return .sourceControl
         case "ci_build":
             return .ciBuild
+        case "licenses_add":
+            return .licensesAdd
 
         case "debug_sessions":
             return .debugSessions

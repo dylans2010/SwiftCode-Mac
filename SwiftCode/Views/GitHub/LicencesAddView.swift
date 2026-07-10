@@ -3,10 +3,12 @@ import SwiftUI
 struct LicencesAddView: View {
     let project: Project
 
-    enum SortMode: String, CaseIterable {
+    enum SortMode: String, CaseIterable, Identifiable {
         case nameAZ = "Name A-Z"
         case nameZA = "Name Z-A"
         case category = "Category"
+
+        var id: String { rawValue }
     }
 
     @Environment(\.dismiss) private var dismiss
@@ -15,7 +17,7 @@ struct LicencesAddView: View {
     @State private var searchText = ""
     @State private var selectedCategory = "All"
     @State private var sortMode: SortMode = .nameAZ
-    @State private var selectedLicense: LicenseTemplate?
+    @State private var previewLicense: LicenseTemplate?
     @State private var isWriting = false
     @State private var alertMessage = ""
     @State private var showAlert = false
@@ -31,99 +33,173 @@ struct LicencesAddView: View {
             values = values.filter { $0.category == selectedCategory }
         }
 
-        if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let q = searchText.lowercased()
-            values = values.filter { $0.name.lowercased().contains(q) || $0.summary.lowercased().contains(q) }
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if !query.isEmpty {
+            values = values.filter {
+                $0.name.lowercased().contains(query) ||
+                $0.summary.lowercased().contains(query) ||
+                $0.category.lowercased().contains(query)
+            }
         }
 
         switch sortMode {
-        case .nameAZ: values.sort { $0.name < $1.name }
-        case .nameZA: values.sort { $0.name > $1.name }
+        case .nameAZ: values.sort { $0.name.localizedCompare($1.name) == .orderedAscending }
+        case .nameZA: values.sort { $0.name.localizedCompare($1.name) == .orderedDescending }
         case .category: values.sort { ($0.category, $0.name) < ($1.category, $1.name) }
         }
         return values
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section("Filters") {
-                    TextField("Search licenses", text: $searchText)
+        NavigationSplitView {
+            // Sidebar List of Licenses
+            VStack(spacing: 0) {
+                // Filters Header
+                VStack(spacing: 12) {
+                    TextField("Search licenses...", text: $searchText)
+                        .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
+                        .padding(.horizontal)
+                        .padding(.top, 12)
 
-                    Picker("Category", selection: $selectedCategory) {
-                        ForEach(categories, id: \.self) { Text($0).tag($0) }
-                    }
-
-                    Picker("Sort", selection: $sortMode) {
-                        ForEach(SortMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                    }
-                }
-
-                Section("Available Licenses") {
-                    ForEach(filteredLicenses) { license in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text(license.name).font(.headline)
-                                Spacer()
-                                Text(license.category)
-                                    .font(.caption)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color.blue.opacity(0.14), in: Capsule())
-                            }
-
-                            Text(license.summary)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            HStack {
-                                Button("Preview") { selectedLicense = license }
-                                    .buttonStyle(.bordered)
-
-                                Button {
-                                    Task { await addLicense(license) }
-                                } label: {
-                                    if isWriting {
-                                        ProgressView()
-                                    } else {
-                                        Text("Add to Project")
-                                    }
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(isWriting)
-                            }
+                    HStack(spacing: 8) {
+                        Picker("Category", selection: $selectedCategory) {
+                            ForEach(categories, id: \.self) { Text($0).tag($0) }
                         }
-                        .padding(.vertical, 4)
+                        .pickerStyle(.menu)
+
+                        Picker("Sort", selection: $sortMode) {
+                            ForEach(SortMode.allCases) { Text($0.rawValue).tag($0) }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 12)
+                }
+                .background(.background.opacity(0.4))
+
+                Divider()
+
+                if filteredLicenses.isEmpty {
+                    ContentUnavailableView(
+                        "No Licenses Found",
+                        systemImage: "doc.text.magnifyingglass",
+                        description: Text("Try adjusting your search filters.")
+                    )
+                    .frame(maxHeight: .infinity)
+                } else {
+                    List(filteredLicenses, selection: $previewLicense) { license in
+                        NavigationLink(value: license) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(license.name)
+                                        .font(.headline)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    Text(license.category)
+                                        .font(.caption2)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.blue.opacity(0.12), in: Capsule())
+                                        .foregroundStyle(.blue)
+                                }
+
+                                Text(license.summary)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .tag(license)
                     }
                 }
             }
-            .navigationTitle("Add Licenses")
+            .navigationTitle("Add License")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
                 }
             }
-            .sheet(item: $selectedLicense) { license in
-                NavigationStack {
-                    ScrollView {
-                        Text(license.body)
-                            .font(.system(.footnote, design: .monospaced))
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .navigationTitle(license.name)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Done") { selectedLicense = nil }
+        } detail: {
+            // Detailed License Preview & Action Screen
+            if let license = previewLicense {
+                VStack(spacing: 0) {
+                    // Header Bar
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(license.name)
+                                .font(.title.bold())
+                            HStack(spacing: 8) {
+                                Text(license.category)
+                                    .font(.subheadline)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(Color.blue.opacity(0.12), in: Capsule())
+                                    .foregroundStyle(.blue)
+
+                                Text("Offline Available")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
+                        Spacer()
+
+                        Button {
+                            Task { await addLicense(license) }
+                        } label: {
+                            if isWriting {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Label("Add to Project", systemImage: "plus.circle.fill")
+                                    .font(.headline)
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .disabled(isWriting)
+                    }
+                    .padding()
+                    .background(.background.opacity(0.5))
+
+                    Divider()
+
+                    // License text
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(license.summary)
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+                                .padding(.bottom, 8)
+
+                            Text(license.body)
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+                                .lineSpacing(4)
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
+            } else {
+                ContentUnavailableView(
+                    "Select a License",
+                    systemImage: "doc.text",
+                    description: Text("Choose a license from the sidebar to preview and add it to your project.")
+                )
             }
-            .alert("License", isPresented: $showAlert) {
-                Button("OK") {}
-            } message: {
-                Text(alertMessage)
+        }
+        .frame(minWidth: 700, minHeight: 500)
+        .alert("License Installation", isPresented: $showAlert) {
+            Button("OK") {}
+        } message: {
+            Text(alertMessage)
+        }
+        .onAppear {
+            // Default select first license if available
+            if previewLicense == nil, let first = filteredLicenses.first {
+                previewLicense = first
             }
         }
     }
@@ -135,12 +211,13 @@ struct LicencesAddView: View {
 
         do {
             let destination = project.directoryURL.appendingPathComponent("LICENSE")
+            // SAFETY: atomic writes prevent project file corruption
             try license.body.write(to: destination, atomically: true, encoding: .utf8)
             sessionStore.refreshFileTree(for: project)
-            alertMessage = "\(license.name) license added to project as LICENSE."
+            alertMessage = "Successfully added the \(license.name) license to your project as 'LICENSE'."
             showAlert = true
         } catch {
-            alertMessage = error.localizedDescription
+            alertMessage = "Failed to add license: \(error.localizedDescription)"
             showAlert = true
         }
     }
