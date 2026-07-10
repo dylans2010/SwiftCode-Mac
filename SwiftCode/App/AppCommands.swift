@@ -46,13 +46,6 @@ struct AppCommands: Commands {
             .disabled(sessionStore.activeProject == nil)
         }
 
-        CommandGroup(after: .sidebar) {
-            Button("Toggle Inspector") {
-                NotificationCenter.default.post(name: NSNotification.Name("ToggleInspector"), object: nil)
-            }
-            .keyboardShortcut("i", modifiers: [.command, .option])
-        }
-
         CommandMenu("Project") {
             Button("Run Build") {
                 NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "build_trigger"])
@@ -115,18 +108,6 @@ struct AppCommands: Commands {
         }
 
         CommandMenu("View") {
-            Button("Toggle Sidebar") {
-                NotificationCenter.default.post(name: NSNotification.Name("ToggleSidebar"), object: nil)
-            }
-            .keyboardShortcut("s", modifiers: [.command, .control])
-
-            Button("Toggle Inspector") {
-                NotificationCenter.default.post(name: NSNotification.Name("ToggleInspector"), object: nil)
-            }
-            .keyboardShortcut("i", modifiers: [.command, .option])
-
-            Divider()
-
             Button("Zoom In") {
                 // Implementation would go here
             }

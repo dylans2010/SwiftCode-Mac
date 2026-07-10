@@ -5,7 +5,6 @@ struct WorkspaceView: View {
     @State var viewModel: WorkspaceViewModel
     @Environment(ThemeViewModel.self) var themeVM
     @Environment(ProjectSessionStore.self) private var sessionStore
-    @State private var showInspector = false
 
     // Feature sheet states
     @State private var activeSheet: ToolbarActionManager.SheetDestination?
@@ -18,7 +17,12 @@ struct WorkspaceView: View {
 
     var body: some View {
         AdaptivePage {
-            EditorTextView(workspaceViewModel: viewModel)
+            HSplitView {
+                FileNavigatorSidebarView(viewModel: viewModel.projectTree)
+                    .frame(minWidth: 200, idealWidth: 260, maxWidth: 500)
+
+                EditorTextView(workspaceViewModel: viewModel)
+            }
         }
         .environment(viewModel)
         .toolbar {
@@ -31,13 +35,6 @@ struct WorkspaceView: View {
                     .help("Close current project")
 
                     BuildToolbarView(viewModel: viewModel.build, projectURL: viewModel.projectURL)
-
-                    Button {
-                        showInspector.toggle()
-                    } label: {
-                        Label("Inspector", systemImage: "sidebar.right")
-                    }
-                    .help("Toggle Inspector (⌘⌥I)")
                 }
 
                 ToolbarItemGroup(placement: .secondaryAction) {
@@ -75,8 +72,7 @@ struct WorkspaceView: View {
                             Button("Dependency Graph") { activeSheet = .projectDependencyGraph }
                         }
 
-                        Section("Sidebar Views") {
-                            Button("File Navigator") { activeSheet = .fileNavigator }
+                        Section("Additional Views") {
                             Button("Search") { activeSheet = .codeSearch }
                             Button("Terminal") { activeSheet = .terminal }
                             Button("Debug Sessions") { activeSheet = .debugSessions }
@@ -86,9 +82,6 @@ struct WorkspaceView: View {
                             Button("Workflows") { activeSheet = .workflowsSidebar }
                             Button("Tests") { activeSheet = .testsSidebar }
                             Button("Workflow Editor") { activeSheet = .workflowEditor }
-                        }
-
-                        Section("Inspector Views") {
                             Button("System Outline") { activeSheet = .symbolOutline }
                             Button("Minimap Settings") { activeSheet = .minimapSettings }
                             Button("Code Metrics Dashboard") { activeSheet = .codeMetrics }
@@ -97,10 +90,6 @@ struct WorkspaceView: View {
                         Label("More", systemImage: "ellipsis.circle")
                     }
                 }
-            }
-            .inspector(isPresented: $showInspector) {
-                InspectorPanelView(workspaceViewModel: viewModel)
-                    .inspectorColumnWidth(min: 250, ideal: 300)
             }
             .sheet(item: $activeSheet) { destination in
                 sheetView(for: destination)
@@ -116,9 +105,6 @@ struct WorkspaceView: View {
                    let destination = ToolbarActionManager.shared.destination(for: toolId) {
                     activeSheet = destination
                 }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ToggleInspector"))) { _ in
-                showInspector.toggle()
             }
             .background(Color(hex: themeVM.currentTheme.background))
             .foregroundStyle(Color(hex: themeVM.currentTheme.foreground))
@@ -260,38 +246,3 @@ jobs:
     }
 }
 
-struct InspectorPanelView: View {
-    let workspaceViewModel: WorkspaceViewModel
-    @State private var selection: InspectorTab = .outline
-
-    enum InspectorTab: String, CaseIterable, Identifiable {
-        case outline = "list.bullet.indent"
-        case settings = "slider.horizontal.3"
-        case metrics = "chart.bar"
-
-        var id: String { rawValue }
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            Picker("Tab", selection: $selection) {
-                ForEach(InspectorTab.allCases) { tab in
-                    Image(systemName: tab.rawValue).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding()
-
-            Divider()
-
-            switch selection {
-            case .outline:
-                SymbolOutlineView()
-            case .settings:
-                MinimapSettingsView()
-            case .metrics:
-                CodeMetricsDashboardView()
-            }
-        }
-    }
-}
