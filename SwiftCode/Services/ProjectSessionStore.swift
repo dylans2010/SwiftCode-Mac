@@ -406,6 +406,19 @@ final class ProjectSessionStore {
         refreshFileTree(for: project)
     }
 
+    func updateCIBuildConfiguration(_ configuration: CIBuildConfiguration, for project: Project) {
+        if let idx = projects.firstIndex(where: { $0.id == project.id }) {
+            projects[idx].ciBuildConfiguration = configuration
+            saveMetadata(projects[idx])
+        }
+        if activeProject?.id == project.id {
+            if case .ready(var p) = state {
+                p.ciBuildConfiguration = configuration
+                state = .ready(p)
+            }
+        }
+    }
+
     func refreshFileTree(for project: Project) {
         Task {
             let files = (try? await coordinator.buildFileTreeInternal(at: project.directoryURL, relativeTo: project.directoryURL)) ?? []
