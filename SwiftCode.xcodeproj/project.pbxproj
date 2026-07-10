@@ -238,6 +238,9 @@
 		1D11AAF6F2B6477DB3E1117E /* OpenRouterModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEA659299FF228F9AAF96CB /* OpenRouterModel.swift */; };
 		1DF3B5B2837660DC2AE8A80E /* CollaborationFilePresenceOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5484649C69D50E3B3151599B /* CollaborationFilePresenceOverlay.swift */; };
 		1E1F4DCC51AB5FC97C414DBD /* ToolbarActionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 524BA6E998942A67A8792268 /* ToolbarActionManager.swift */; };
+		CE101002E34BBDA370490001 /* ProjectEditorCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE101001E34BBDA370490001 /* ProjectEditorCoordinator.swift */; };
+		CE101004E34BBDA370490001 /* InfoPlistEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE101003E34BBDA370490001 /* InfoPlistEditor.swift */; };
+		CE101006E34BBDA370490001 /* EntitlementsEditorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE101005E34BBDA370490001 /* EntitlementsEditorManager.swift */; };
 		1E49EC56E3524F57BA2AA96B /* EditorTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE94D35D1397D6B283EBBC31 /* EditorTab.swift */; };
 		1E95A1E5F9CF42BBAE89191F /* FileSystemService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B64F08D3609EBD7E7A72D1C3 /* FileSystemService.swift */; };
 		1EF170539D938FBA54685EF6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9A8B5A6300D41FD4657622E3 /* Assets.xcassets */; };
@@ -686,6 +689,8 @@
 		BBAE30C55740484D944B7966 /* TokenizedLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CFB02C257E0B52A5E0DBC65 /* TokenizedLine.swift */; };
 		BBDFC47144EC6B699FFAAD37 /* LocalBuildService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9D8B6F7E6858CD777E21AE4 /* LocalBuildService.swift */; };
 		BBE0540236424BE7A797B857 /* AppCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDEAADAAA0F64EA9401BDF5A /* AppCommands.swift */; };
+		CE10100AE34BBDA370490001 /* EntitlementsEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE101009E34BBDA370490001 /* EntitlementsEditorView.swift */; };
+		CE101008E34BBDA370490001 /* InfoPlistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE101007E34BBDA370490001 /* InfoPlistView.swift */; };
 		BC72448004FB03F6440094C2 /* SymbolOutlineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AEB32651A4E4F7B561D7B81 /* SymbolOutlineView.swift */; };
 		BCFBD28039868EA9B401573F /* PerformanceMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A973E05C298E5221CED81F33 /* PerformanceMonitorView.swift */; };
 		BDABC1779DBF9095D54D5BF1 /* CodexUsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DE75B7F3A058C3C4DD32CBA /* CodexUsageView.swift */; };
@@ -1169,6 +1174,8 @@
 		2A2C1D88F8A848CEA608C302 /* AgentTurnState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTurnState.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6478901234569 /* AgentModelCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentModelCheck.swift; sourceTree = "<group>"; };
 		2A4929A3150C49399013561C /* SymbolicateCrashLogs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SymbolicateCrashLogs.swift; sourceTree = "<group>"; };
+		CE101009E34BBDA370490001 /* EntitlementsEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementsEditorView.swift; sourceTree = "<group>"; };
+		CE101007E34BBDA370490001 /* InfoPlistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoPlistView.swift; sourceTree = "<group>"; };
 		2AEB32651A4E4F7B561D7B81 /* SymbolOutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SymbolOutlineView.swift; sourceTree = "<group>"; };
 		2B0757CC6635DACECA598706 /* PermissionConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionConfigView.swift; sourceTree = "<group>"; };
 		2B4E02E0765F74EF375F126E /* ActivityLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLogView.swift; sourceTree = "<group>"; };
@@ -1604,6 +1611,9 @@
 		CDCF79B3AB0C394332CFA219 /* GitFileStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitFileStatus.swift; sourceTree = "<group>"; };
 		CDEAADAAA0F64EA9401BDF5A /* AppCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommands.swift; sourceTree = "<group>"; };
 		CE760BD68F314B37F7AF35FC /* AISuggestionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISuggestionEngine.swift; sourceTree = "<group>"; };
+		CE101005E34BBDA370490001 /* EntitlementsEditorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementsEditorManager.swift; sourceTree = "<group>"; };
+		CE101003E34BBDA370490001 /* InfoPlistEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoPlistEditor.swift; sourceTree = "<group>"; };
+		CE101001E34BBDA370490001 /* ProjectEditorCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectEditorCoordinator.swift; sourceTree = "<group>"; };
 		CE94D35D1397D6B283EBBC31 /* EditorTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTab.swift; sourceTree = "<group>"; };
 		CEBB182A43396D637CB4B787 /* DependencyHealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyHealthView.swift; sourceTree = "<group>"; };
 		CFE93F6E9F8960DBC11BA8A2 /* MarkdownRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRenderer.swift; sourceTree = "<group>"; };
@@ -2513,6 +2523,9 @@
 		61E964C9D3569A4036FE5296 /* Editor */ = {
 			isa = PBXGroup;
 			children = (
+				CE101005E34BBDA370490001 /* EntitlementsEditorManager.swift */,
+				CE101003E34BBDA370490001 /* InfoPlistEditor.swift */,
+				CE101001E34BBDA370490001 /* ProjectEditorCoordinator.swift */,
 				844AB75BF6A47BBC5BE346FF /* SourceLanguage.swift */,
 				BC727B04EEB229D89FB8499E /* TextSelection.swift */,
 				CE94D35D1397D6B283EBBC31 /* EditorTab.swift */,
@@ -3050,6 +3063,8 @@
 		ABBC8A11E8527DDF62152F7F /* Editor */ = {
 			isa = PBXGroup;
 			children = (
+				CE101009E34BBDA370490001 /* EntitlementsEditorView.swift */,
+				CE101007E34BBDA370490001 /* InfoPlistView.swift */,
 				2AEB32651A4E4F7B561D7B81 /* SymbolOutlineView.swift */,
 				46A5954FB1CB8C571A915115 /* SymbolNavigatorView.swift */,
 				77551FB61E8CADB4F5A4963C /* EditorLogicFrameworks */,
@@ -4160,6 +4175,8 @@
 				CE9E0B1FEE82EE958787245A /* TerminalView.swift in Sources */,
 				600543D7E6B7E1A1B8B81B21 /* CIBuildView.swift in Sources */,
 				2416B2BFAAC1F95FED7A02DE /* LocalBuildDemoView.swift in Sources */,
+				CE10100AE34BBDA370490001 /* EntitlementsEditorView.swift in Sources */,
+				CE101008E34BBDA370490001 /* InfoPlistView.swift in Sources */,
 				BC72448004FB03F6440094C2 /* SymbolOutlineView.swift in Sources */,
 				5123DBD7E22E4869FB68CEED /* CodeEditorManagementView.swift in Sources */,
 				876F7F4C0080C1A3BB9BD0B5 /* GoToLineView.swift in Sources */,
@@ -4361,6 +4378,9 @@
 				2CF09B9D90564C8B83A3BF1A /* ConsoleLine.swift in Sources */,
 				36F49382F6AA47C78E48E5AC /* DebugSession.swift in Sources */,
 				265E9A342B28B39C005F9A10 /* DebugModels.swift in Sources */,
+				CE101006E34BBDA370490001 /* EntitlementsEditorManager.swift in Sources */,
+				CE101004E34BBDA370490001 /* InfoPlistEditor.swift in Sources */,
+				CE101002E34BBDA370490001 /* ProjectEditorCoordinator.swift in Sources */,
 				1E49EC56E3524F57BA2AA96B /* EditorTab.swift in Sources */,
 				4715083EA3F740A49B0BAD02 /* SourceFileDocument.swift in Sources */,
 				96BAE9813D674D5B908788FD /* SourceLanguage.swift in Sources */,
