@@ -170,7 +170,7 @@ struct WorkspaceView: View {
                 case .debugSessions: DebugSessionsSidebarView(viewModel: viewModel.debug)
                 case .bookmarksSidebar: BookmarksSidebarView()
                 case .breakpointsSidebar: BreakpointsSidebarView()
-                case .debugInspectorSidebar: DebugInspectorSidebarView()
+                case .debugInspectorSidebar: DebugInspectorSidebarView(viewModel: viewModel.debug)
                 case .workflowsSidebar: GitHubWorkflowsSidebarView()
                 case .testsSidebar: TestsSidebarView()
                 case .workflowEditor: WorkflowEditorView()

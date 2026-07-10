@@ -8,9 +8,10 @@ public struct LicenseTemplate: Identifiable, Hashable, Sendable {
     public let body: String
 }
 
+@MainActor
 public enum LicenseCatalog {
     /// Dynamically discovered and parsed license templates from the bundle resources.
-    nonisolated(unsafe) public static let cachedTemplates: [LicenseTemplate] = loadTemplates()
+    public static let cachedTemplates: [LicenseTemplate] = loadTemplates()
     public static var all: [LicenseTemplate] { cachedTemplates }
 
     public static func licenseBody(for id: String) -> String? {

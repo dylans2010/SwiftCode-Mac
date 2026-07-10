@@ -4,6 +4,8 @@ import os.log
 
 #if canImport(Splash)
 import Splash
+typealias SplashSyntaxHighlighter = Splash.SyntaxHighlighter
+typealias SplashAttributedStringOutputFormat = Splash.AttributedStringOutputFormat
 #endif
 
 #if canImport(AppKit)
@@ -159,7 +161,7 @@ public actor CodeRenderEngine {
         if language == .swift {
             let font = Splash.Font(size: 13)
             let splashTheme = Splash.Theme.midnight(withFont: font)
-            let highlighter = Splash.SyntaxHighlighter(format: AttributedStringOutputFormat(theme: splashTheme))
+            let highlighter = SplashSyntaxHighlighter(format: SplashAttributedStringOutputFormat(theme: splashTheme))
             let result = highlighter.highlight(text)
 
             // Adjust paragraph line spacing on the returned attributed string
