@@ -5,28 +5,33 @@ actor ProjectOpeningCoordinator {
     static let defaultTimeout: TimeInterval = 15.0
 
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "ProjectOpening")
-    private let fm = FileManager.default
+    private var fm: FileManager { .default }
 
     init() {}
 
     func loadProjectWithTimeout(url: URL, timeout: TimeInterval = defaultTimeout) async throws -> Project {
-        try await withThrowingTaskGroup(of: Project.self) { group in
-            group.addTask {
-                try await self.resolveAndLoad(url: url)
-            }
+        let loadTask = Task {
+            try await self.resolveAndLoad(url: url)
+        }
 
-            group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+        let timeoutTask = Task {
+            try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+            loadTask.cancel()
+        }
+
+        do {
+            let project = try await loadTask.value
+            timeoutTask.cancel()
+            return project
+        } catch {
+            timeoutTask.cancel()
+            if Task.isCancelled {
+                throw ProjectOpenError.cancelled
+            } else if loadTask.isCancelled {
                 self.logger.error("Project load timed out after \(timeout)s")
                 throw ProjectOpenError.timeout
             }
-
-            guard let result = try await group.next() else {
-                throw ProjectOpenError.cancelled
-            }
-
-            group.cancelAll()
-            return result
+            throw error
         }
     }
 
@@ -84,15 +89,18 @@ actor ProjectOpeningCoordinator {
 
         try Task.checkCancellation()
 
-        // 5. Build file tree
-        let files = try await buildFileTreeInternal(at: url, relativeTo: url)
+        // 5. Build file tree (recursive & non-blocking)
+        let files = try await Task.detached(priority: .userInitiated) {
+            try self.buildFileTree(at: url, relativeTo: url)
+        }.value
         project.files = files
 
         logger.info("Successfully loaded project: \(project.name)")
         return project
     }
 
-    func buildFileTreeInternal(at url: URL, relativeTo base: URL) async throws -> [FileNode] {
+    private nonisolated func buildFileTree(at url: URL, relativeTo base: URL) throws -> [FileNode] {
+        let fm = FileManager.default
         let contents = try fm.contentsOfDirectory(
             at: url,
             includingPropertiesForKeys: [.isDirectoryKey],
@@ -109,8 +117,6 @@ actor ProjectOpeningCoordinator {
         var nodes: [FileNode] = []
 
         for childURL in contents {
-            try Task.checkCancellation()
-
             if metadataFiles.contains(childURL.lastPathComponent) { continue }
 
             let resourceValues = try childURL.resourceValues(forKeys: [.isDirectoryKey])
@@ -121,12 +127,23 @@ actor ProjectOpeningCoordinator {
                 ? String(childPath.dropFirst(basePath.count + 1))
                 : childURL.lastPathComponent
 
-            nodes.append(FileNode(name: childURL.lastPathComponent, path: relativePath, isDirectory: isDir))
+            let node = FileNode(name: childURL.lastPathComponent, path: relativePath, isDirectory: isDir)
+            if isDir {
+                node.children = try buildFileTree(at: childURL, relativeTo: base)
+            }
+            nodes.append(node)
         }
 
         return nodes.sorted {
             if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
             return $0.name.localizedStandardCompare($1.name) == .orderedAscending
         }
+    }
+
+    // Retained for backward compatibility/external interface callers
+    func buildFileTreeInternal(at url: URL, relativeTo base: URL) async throws -> [FileNode] {
+        try await Task.detached(priority: .userInitiated) {
+            try self.buildFileTree(at: url, relativeTo: base)
+        }.value
     }
 }

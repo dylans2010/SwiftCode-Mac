@@ -214,7 +214,7 @@ struct FileNavigatorView: View {
 // MARK: - File Node Row
 
 struct FileNodeRowView: View {
-    @ObservedObject var node: FileNode
+    var node: FileNode
     let depth: Int
     let onTap: (FileNode) -> Void
     let onRename: (FileNode) -> Void
