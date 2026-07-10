@@ -7,7 +7,6 @@ struct SourceControlView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showSetup = false
-    @State private var showRepoPicker = false
     @State private var isFetchingRepos = false
     @State private var userRepos: [GitHubRepoSummary] = []
     @State private var repoFetchError: String?
@@ -52,158 +51,259 @@ struct SourceControlView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if isSetupRequired {
-                    VStack(spacing: 20) {
-                        Image(systemName: "gearshape.2")
-                            .font(.system(size: 60))
+        NavigationSplitView {
+            // Left Sidebar: Connection & Local Git Actions
+            VStack(alignment: .leading, spacing: 0) {
+                // Header
+                HStack(spacing: 12) {
+                    Image(systemName: "arrow.triangle.branch")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Source Control")
+                            .font(.headline)
+                        Text("Git & GitHub Control")
+                            .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text("Git not configured")
-                            .font(.title2.bold())
-                        Text("Please complete the setup to use Source Control features.")
-                            .foregroundStyle(.secondary)
-                        Button("Start Setup") {
-                            showSetup = true
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
                     }
+                }
+                .padding()
+
+                Divider()
+
+                List {
+                    Section("Repository Settings") {
+                        Button {
+                            fetchUserRepos()
+                        } label: {
+                            Label("Connect Repository", systemImage: "link.circle.fill")
+                        }
+
+                        Button {
+                            showSetup = true
+                        } label: {
+                            Label("Configure Git Token", systemImage: "key.fill")
+                        }
+                    }
+
+                    if let project = sessionStore.activeProject {
+                        Section("GitHub Integration") {
+                            NavigationLink(destination: GitHubIntegrationView(project: project)) {
+                                Label("Manage Repository", systemImage: "folder.badge.gearshape")
+                            }
+                            NavigationLink(destination: GitHubIssuesView()) {
+                                Label("Issues Tracker", systemImage: "exclamationmark.circle")
+                            }
+                            NavigationLink(destination: GistsView()) {
+                                Label("Personal Gists", systemImage: "doc.on.doc")
+                            }
+                        }
+
+                        Section("Local Git Utilities") {
+                            NavigationLink(destination: GitChangesView(viewModel: gitViewModel)) {
+                                Label("Unstaged Changes", systemImage: "plus.minus.circle")
+                            }
+                            NavigationLink(destination: GitBranchesView(branches: gitViewModel.branches)) {
+                                Label("Branches", systemImage: "arrow.triangle.branch")
+                            }
+                            NavigationLink(destination: GitHistoryView(commits: gitViewModel.history)) {
+                                Label("Commit History", systemImage: "clock.arrow.circlepath")
+                            }
+                            NavigationLink(destination: GitCLIView(project: project)) {
+                                Label("Terminal Git CLI", systemImage: "terminal")
+                            }
+                        }
+                    }
+                }
+                .listStyle(.sidebar)
+            }
+            .navigationSplitViewColumnWidth(min: 240, ideal: 260, max: 320)
+        } detail: {
+            // Right Detail: Repository Connection Dashboard or onboarding
+            VStack(spacing: 0) {
+                // Toolbar in detail header
+                HStack {
+                    if let project = sessionStore.activeProject, let linkedRepo = project.githubRepo, !linkedRepo.isEmpty {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Linked Repository")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                            Text(linkedRepo)
+                                .font(.title3.bold())
+                        }
+                    } else {
+                        Text("Repository Dashboard")
+                            .font(.title3.bold())
+                    }
+
+                    Spacer()
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("Close")
+                            .font(.subheadline.semibold())
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 4)
+                            .background(Color.orange.opacity(0.2), in: Capsule())
+                            .foregroundStyle(.orange)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding()
+                .background(.background.opacity(0.4))
+
+                Divider()
+
+                if isSetupRequired {
+                    setupRequiredView
                 } else {
-                    dashboard
+                    mainDashboardView
                 }
-            }
-            .navigationTitle("Source Control")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .sheet(isPresented: $showSetup) {
-                SCSetupOnboard()
-            }
-            .sheet(isPresented: $showRepoPicker) {
-                repoPickerSheet
-            }
-            .alert("Success", isPresented: $showSuccess, presenting: successMessage) { _ in
-                Button("OK") {}
-            } message: { msg in Text(msg) }
-            .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
-                Button("OK") {}
-            } message: { msg in Text(msg) }
-            .onAppear {
-                checkSetup()
             }
         }
+        .frame(minWidth: 850, minHeight: 550)
+        .sheet(isPresented: $showSetup) {
+            SCSetupOnboard()
+        }
+        .alert("Success", isPresented: $showSuccess, presenting: successMessage) { _ in
+            Button("OK") {}
+        } message: { msg in Text(msg) }
+        .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
+            Button("OK") {}
+        } message: { msg in Text(msg) }
+        .onAppear {
+            checkSetup()
+        }
     }
+
+    // MARK: - Setup Check & Required View
 
     private func checkSetup() {
         if isSetupRequired {
             showSetup = true
+        } else {
+            // Automatically pre-load repos if authenticated
+            fetchUserReposSilently()
         }
     }
 
-    private var dashboard: some View {
-        List {
-            Section("Repository Connection") {
+    private var setupRequiredView: some View {
+        VStack(spacing: 24) {
+            ZStack {
+                Circle()
+                    .fill(Color.orange.opacity(0.1))
+                    .frame(width: 80, height: 80)
+                Image(systemName: "lock.shield")
+                    .font(.system(size: 40))
+                    .foregroundStyle(.orange)
+            }
+
+            VStack(spacing: 8) {
+                Text("Git Token Required")
+                    .font(.title2.bold())
+                Text("You must provide your GitHub Personal Access Token to explore and connect remote repositories.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 48)
+            }
+
+            Button("Configure Git & Token") {
+                showSetup = true
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .tint(.orange)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Main Dashboard View
+
+    private var mainDashboardView: some View {
+        VStack(spacing: 0) {
+            // Search & Filtering of GitHub repositories
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search your remote repositories...", text: $repoSearchQuery)
+                        .textFieldStyle(.plain)
+                }
+                .padding(6)
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+
                 Button {
                     fetchUserRepos()
                 } label: {
-                    Label("Connect Repository", systemImage: "link.circle.fill")
-                        .foregroundColor(.green)
+                    Image(systemName: "arrow.clockwise")
+                        .help("Refresh Repositories")
                 }
-                .buttonStyle(.plain)
+                .disabled(isFetchingRepos)
             }
+            .padding()
 
-            Section("GitHub Integration") {
-                if let project = sessionStore.activeProject {
-                    NavigationLink(destination: GitHubIntegrationView(project: project)) {
-                        Label("Manage Repo", systemImage: "folder.badge.gearshape")
-                    }
-                    NavigationLink(destination: GitHubIssuesView()) {
-                        Label("Issues", systemImage: "exclamationmark.circle")
-                    }
-                }
+            Divider()
 
-                NavigationLink(destination: GistsView()) {
-                    Label("Gists", systemImage: "doc.on.doc")
-                }
-            }
-
-            Section("Local Git") {
-                if let project = sessionStore.activeProject {
-                    NavigationLink(destination: GitChangesView(viewModel: gitViewModel)) {
-                        Label("Changes", systemImage: "plus.minus.circle")
-                    }
-                    NavigationLink(destination: GitBranchesView(branches: gitViewModel.branches)) {
-                        Label("Branches", systemImage: "arrow.triangle.branch")
-                    }
-                    NavigationLink(destination: GitHistoryView(commits: gitViewModel.history)) {
-                        Label("History", systemImage: "clock.arrow.circlepath")
-                    }
-                    NavigationLink(destination: GitCLIView(project: project)) {
-                        Label("Git CLI", systemImage: "terminal")
-                    }
-                }
-            }
-
-            Section("Settings") {
-                Button {
-                    showSetup = true
-                } label: {
-                    Label("Configure Git / Token", systemImage: "gear")
-                }
-            }
-        }
-    }
-
-    // MARK: - Repo Picker Sheet
-
-    private var filteredRepos: [GitHubRepoSummary] {
-        if repoSearchQuery.isEmpty { return userRepos }
-        return userRepos.filter {
-            $0.fullName.localizedCaseInsensitiveContains(repoSearchQuery) ||
-            ($0.description ?? "").localizedCaseInsensitiveContains(repoSearchQuery)
-        }
-    }
-
-    private var repoPickerSheet: some View {
-        NavigationStack {
+            // Repositories List
             Group {
                 if isFetchingRepos {
-                    ProgressView("Loading Repositories…")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    VStack(spacing: 16) {
+                        ProgressView()
+                        Text("Fetching your repositories from GitHub…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let fetchError = repoFetchError {
-                    ContentUnavailableView(
-                        "Could Not Load Repositories",
-                        systemImage: "exclamationmark.triangle.fill",
-                        description: Text(fetchError)
-                    )
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.largeTitle)
+                            .foregroundStyle(.red)
+                        Text("Could Not Load Repositories")
+                            .font(.headline)
+                        Text(fetchError)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+
+                        Button("Retry Fetch") {
+                            fetchUserRepos()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if userRepos.isEmpty {
                     ContentUnavailableView(
                         "No Repositories Found",
                         systemImage: "folder.badge.questionmark",
-                        description: Text("No repositories are accessible with your current token.")
-                    )
-                } else if filteredRepos.isEmpty {
-                    ContentUnavailableView(
-                        "No Results",
-                        systemImage: "magnifyingglass",
-                        description: Text("No repositories match \(repoSearchQuery).")
+                        description: Text("Verify your token scopes include repo accessibility on GitHub.")
                     )
                 } else {
-                    List(filteredRepos) { repo in
-                        Button {
-                            connectRepository(repo)
-                        } label: {
-                            HStack(spacing: 12) {
+                    let filtered = repoSearchQuery.isEmpty ? userRepos : userRepos.filter {
+                        $0.fullName.localizedCaseInsensitiveContains(repoSearchQuery) ||
+                        ($0.description ?? "").localizedCaseInsensitiveContains(repoSearchQuery)
+                    }
+
+                    if filtered.isEmpty {
+                        ContentUnavailableView.search(text: repoSearchQuery)
+                    } else {
+                        List(filtered) { repo in
+                            HStack(spacing: 16) {
                                 Image(systemName: repo.isPrivate ? "lock.fill" : "globe")
                                     .foregroundStyle(repo.isPrivate ? .yellow : .green)
-                                    .frame(width: 20)
-                                VStack(alignment: .leading, spacing: 2) {
+                                    .font(.title3)
+                                    .frame(width: 24)
+
+                                VStack(alignment: .leading, spacing: 4) {
                                     Text(repo.fullName)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.primary)
+                                        .font(.subheadline.bold())
                                     if let desc = repo.description, !desc.isEmpty {
                                         Text(desc)
                                             .font(.caption)
@@ -211,32 +311,27 @@ struct SourceControlView: View {
                                             .lineLimit(1)
                                     }
                                 }
+
                                 Spacer()
-                                Image(systemName: "checkmark.circle")
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
+
+                                Button {
+                                    connectRepository(repo)
+                                } label: {
+                                    Text("Connect")
+                                        .font(.caption.bold())
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(Color.orange, in: Capsule())
+                                        .foregroundStyle(.white)
+                                }
+                                .buttonStyle(.plain)
                             }
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 8)
+                            .background(Color.white.opacity(0.01))
+                            .cornerRadius(8)
                         }
-                        .buttonStyle(.plain)
                     }
-                }
-            }
-            .searchable(text: $repoSearchQuery, prompt: "Search Repositories")
-            .navigationTitle("Connect Repository")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        repoSearchQuery = ""
-                        showRepoPicker = false
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        fetchUserRepos()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .disabled(isFetchingRepos)
                 }
             }
         }
@@ -244,21 +339,35 @@ struct SourceControlView: View {
 
     // MARK: - Actions
 
-    private func fetchUserRepos() {
-        isFetchingRepos = true
-        repoFetchError = nil
-        showRepoPicker = true
+    private func fetchUserReposSilently() {
         Task {
             do {
                 let repos = try await GitHubService.shared.listUserRepositories()
                 await MainActor.run {
-                    userRepos = repos
-                    isFetchingRepos = false
+                    self.userRepos = repos
+                    self.repoFetchError = nil
+                }
+            } catch {
+                // Ignore silent fetch failures
+            }
+        }
+    }
+
+    private func fetchUserRepos() {
+        isFetchingRepos = true
+        repoFetchError = nil
+        Task {
+            do {
+                let repos = try await GitHubService.shared.listUserRepositories()
+                await MainActor.run {
+                    self.userRepos = repos
+                    self.isFetchingRepos = false
+                    self.repoFetchError = nil
                 }
             } catch {
                 await MainActor.run {
-                    isFetchingRepos = false
-                    repoFetchError = error.localizedDescription
+                    self.isFetchingRepos = false
+                    self.repoFetchError = error.localizedDescription
                 }
             }
         }
@@ -266,7 +375,6 @@ struct SourceControlView: View {
 
     private func connectRepository(_ repo: GitHubRepoSummary) {
         guard let project = sessionStore.activeProject else { return }
-        showRepoPicker = false
 
         sessionStore.updateProjectSettings(description: project.description, githubRepo: repo.fullName, for: project)
 
@@ -283,7 +391,7 @@ struct SourceControlView: View {
                     workingDirectory: dirURL
                 )
 
-                // Configure local credentials for git push/pull
+                // Configure credentials
                 _ = try? await ProcessRunnerTool.shared.run(
                     executableURL: gitBinary,
                     arguments: ["config", "user.name", settings.gitUserName.isEmpty ? "SwiftCode" : settings.gitUserName],
@@ -295,10 +403,8 @@ struct SourceControlView: View {
                     workingDirectory: dirURL
                 )
 
-                // Set authenticated remote URL
                 let authenticatedURL = "https://\(token)@github.com/\(repo.fullName).git"
 
-                // Try removing existing origin and re-adding
                 _ = try? await ProcessRunnerTool.shared.run(
                     executableURL: gitBinary,
                     arguments: ["remote", "remove", "origin"],
@@ -315,13 +421,13 @@ struct SourceControlView: View {
                     if result.exitCode == 0 {
                         successMessage = "Successfully connected project to \(repo.fullName) and configured local Git remote."
                     } else {
-                        successMessage = "Connected project to \(repo.fullName). Configured remote URL but encountered minor git notice: \(result.stderr)"
+                        successMessage = "Connected project to \(repo.fullName). remote set but notice: \(result.stderr)"
                     }
                     showSuccess = true
                 }
             } catch {
                 await MainActor.run {
-                    errorMessage = "Connected metadata but failed to configure local git: \(error.localizedDescription)"
+                    errorMessage = "Failed to configure local git: \(error.localizedDescription)"
                     showError = true
                 }
             }

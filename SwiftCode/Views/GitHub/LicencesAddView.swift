@@ -55,27 +55,38 @@ struct LicencesAddView: View {
             // Sidebar List of Licenses
             VStack(spacing: 0) {
                 // Filters Header
-                VStack(spacing: 12) {
-                    TextField("Search licenses...", text: $searchText)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-                        .padding(.horizontal)
-                        .padding(.top, 12)
+                VStack(spacing: 8) {
+                    // Search box
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        TextField("Search licenses...", text: $searchText)
+                            .textFieldStyle(.plain)
+                    }
+                    .padding(6)
+                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
 
                     HStack(spacing: 8) {
                         Picker("Category", selection: $selectedCategory) {
                             ForEach(categories, id: \.self) { Text($0).tag($0) }
                         }
                         .pickerStyle(.menu)
+                        .controlSize(.small)
+
+                        Spacer()
 
                         Picker("Sort", selection: $sortMode) {
                             ForEach(SortMode.allCases) { Text($0.rawValue).tag($0) }
                         }
                         .pickerStyle(.menu)
+                        .controlSize(.small)
                     }
-                    .padding(.horizontal)
-                    .padding(.bottom, 12)
                 }
+                .padding()
                 .background(.background.opacity(0.4))
 
                 Divider()
@@ -89,36 +100,45 @@ struct LicencesAddView: View {
                     .frame(maxHeight: .infinity)
                 } else {
                     List(filteredLicenses, selection: $previewLicense) { license in
-                        NavigationLink(value: license) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text(license.name)
-                                        .font(.headline)
-                                        .lineLimit(1)
-                                    Spacer()
-                                    Text(license.category)
-                                        .font(.caption2)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color.blue.opacity(0.12), in: Capsule())
-                                        .foregroundStyle(.blue)
-                                }
-
-                                Text(license.summary)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(license.name)
+                                    .font(.subheadline.bold())
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(license.category)
+                                    .font(.system(size: 8, weight: .bold))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.blue.opacity(0.12), in: Capsule())
+                                    .foregroundStyle(.blue)
                             }
-                            .padding(.vertical, 4)
+
+                            Text(license.summary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
                         }
+                        .padding(.vertical, 4)
                         .tag(license)
                     }
+                    .listStyle(.sidebar)
                 }
             }
             .navigationTitle("Add License")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                ToolbarItem(placement: .navigation) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("Close")
+                            .font(.subheadline.semibold())
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Color.orange.opacity(0.2), in: Capsule())
+                            .foregroundStyle(.orange)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         } detail: {
@@ -127,15 +147,15 @@ struct LicencesAddView: View {
                 VStack(spacing: 0) {
                     // Header Bar
                     HStack {
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 6) {
                             Text(license.name)
                                 .font(.title.bold())
                             HStack(spacing: 8) {
                                 Text(license.category)
-                                    .font(.subheadline)
+                                    .font(.subheadline.bold())
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 3)
-                                    .background(Color.blue.opacity(0.12), in: Capsule())
+                                    .background(Color.blue.opacity(0.15), in: Capsule())
                                     .foregroundStyle(.blue)
 
                                 Text("Offline Available")
@@ -143,6 +163,7 @@ struct LicencesAddView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
+
                         Spacer()
 
                         Button {
@@ -158,27 +179,35 @@ struct LicencesAddView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
+                        .tint(.orange)
                         .disabled(isWriting)
                     }
-                    .padding()
+                    .padding(24)
                     .background(.background.opacity(0.5))
 
                     Divider()
 
                     // License text
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 16) {
                             Text(license.summary)
-                                .font(.headline)
+                                .font(.title3.bold())
                                 .foregroundColor(.secondary)
                                 .padding(.bottom, 8)
 
                             Text(license.body)
                                 .font(.system(.body, design: .monospaced))
                                 .textSelection(.enabled)
-                                .lineSpacing(4)
+                                .lineSpacing(6)
+                                .padding()
+                                .background(Color.white.opacity(0.02))
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                                )
                         }
-                        .padding()
+                        .padding(24)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
@@ -190,7 +219,7 @@ struct LicencesAddView: View {
                 )
             }
         }
-        .frame(minWidth: 700, minHeight: 500)
+        .frame(minWidth: 800, minHeight: 550)
         .alert("License Installation", isPresented: $showAlert) {
             Button("OK") {}
         } message: {

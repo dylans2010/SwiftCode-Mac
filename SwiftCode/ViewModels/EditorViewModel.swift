@@ -24,7 +24,13 @@ public class EditorViewModel {
 
         do {
             tokenizedLines = []
-            let content = try await TextBufferEngine.shared.load(url: url)
+            let isXcodeProj = url.pathExtension == "xcodeproj" || url.lastPathComponent == "project.pbxproj"
+            let content: String
+            if isXcodeProj {
+                content = ""
+            } else {
+                content = try await TextBufferEngine.shared.load(url: url)
+            }
             let doc = SourceFileDocument(url: url, content: content, lastDiskModificationDate: Date())
             openDocuments.append(doc)
             activeDocument = doc
