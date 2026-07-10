@@ -92,7 +92,7 @@ actor ProjectOpeningCoordinator {
         return project
     }
 
-    private func buildFileTreeInternal(at url: URL, relativeTo base: URL) async throws -> [FileNode] {
+    func buildFileTreeInternal(at url: URL, relativeTo base: URL) async throws -> [FileNode] {
         let contents = try fm.contentsOfDirectory(
             at: url,
             includingPropertiesForKeys: [.isDirectoryKey],
