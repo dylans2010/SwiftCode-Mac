@@ -266,17 +266,24 @@ struct CodeSearchView: View {
                 let match = String(snippet.prefix(endIdx).dropFirst(startIdx))
                 let suffix = String(snippet.dropFirst(endIdx))
 
-                let prefixText = Text(prefix)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                let matchText = Text(match)
-                    .font(.caption.monospaced().bold())
-                    .foregroundStyle(.orange)
-                    .background(Color.orange.opacity(0.15))
-                let suffixText = Text(suffix)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                prefixText + matchText + suffixText
+                var prefixAttr = AttributedString(prefix)
+                prefixAttr.font = .caption.monospaced()
+                prefixAttr.foregroundColor = .secondary
+
+                var matchAttr = AttributedString(match)
+                matchAttr.font = .caption.monospaced().bold()
+                matchAttr.foregroundColor = .orange
+                matchAttr.backgroundColor = Color.orange.opacity(0.15)
+
+                var suffixAttr = AttributedString(suffix)
+                suffixAttr.font = .caption.monospaced()
+                suffixAttr.foregroundColor = .secondary
+
+                var combined = prefixAttr
+                combined.append(matchAttr)
+                combined.append(suffixAttr)
+
+                Text(combined)
             } else {
                 Text(snippet)
                     .font(.caption.monospaced())
