@@ -7,7 +7,7 @@ import UIKit
 
 // MARK: - Code Editor View
 struct CodeEditorView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var toolbarSettings: ToolbarSettings
     @EnvironmentObject private var suggestionsManager: CodeSuggestionsML
@@ -23,16 +23,16 @@ struct CodeEditorView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
-            if !projectManager.openFileTabs.isEmpty {
+            if !sessionStore.openFileTabs.isEmpty {
                 fileTabsBar
             }
 
-            if projectManager.activeFileNode != nil {
+            if sessionStore.activeFileNode != nil {
                 editorActionBar
             }
 
             Button("") {
-                projectManager.saveCurrentFile(content: projectManager.activeFileContent)
+                sessionStore.saveCurrentFile(content: sessionStore.activeFileContent)
             }
             .keyboardShortcut("s", modifiers: .command)
             .opacity(0)
@@ -43,13 +43,13 @@ struct CodeEditorView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            if projectManager.activeFileNode != nil {
+            if sessionStore.activeFileNode != nil {
                 HStack(spacing: 0) {
                     TextEditorRepresentable(
                         text: Binding(
-                            get: { projectManager.activeFileContent },
+                            get: { sessionStore.activeFileContent },
                             set: { newValue in
-                                projectManager.activeFileContent = newValue
+                                sessionStore.activeFileContent = newValue
                                 if settings.autoSave {
                                     scheduleAutoSave(content: newValue)
                                 }
@@ -57,13 +57,13 @@ struct CodeEditorView: View {
                         ),
                         wordWrap: toolbarSettings.wordWrap,
                         searchQuery: toolbarSettings.showSearchBar ? searchQuery : "",
-                        fileExtension: projectManager.activeFileNode?.name.components(separatedBy: ".").last ?? "swift"
+                        fileExtension: sessionStore.activeFileNode?.name.components(separatedBy: ".").last ?? "swift"
                     )
                     .background(Color(red: 0.11, green: 0.11, blue: 0.14))
-                    .id(projectManager.activeFileNode?.id)
+                    .id(sessionStore.activeFileNode?.id)
 
                     if minimapEnabled {
-                        MinimapView(content: projectManager.activeFileContent)
+                        MinimapView(content: sessionStore.activeFileContent)
                     }
                 }
             } else {
@@ -101,15 +101,15 @@ struct CodeEditorView: View {
         }
         .sheet(isPresented: $showGistComposer) {
             CreateGistView(
-                initialFilename: projectManager.activeFileNode?.name,
-                initialContent: projectManager.activeFileContent
+                initialFilename: sessionStore.activeFileNode?.name,
+                initialContent: sessionStore.activeFileContent
             )
         }
         .sheet(isPresented: $showAssist) {
             Text("Assist Coming Soon")
         }
-        .onChange(of: projectManager.fileLoadError) {
-            if projectManager.fileLoadError != nil {
+        .onChange(of: sessionStore.fileLoadError) {
+            if sessionStore.fileLoadError != nil {
                 showFileLoadError = true
             }
         }
@@ -126,7 +126,7 @@ struct CodeEditorView: View {
     private var fileTabsBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 1) {
-                ForEach(projectManager.openFileTabs) { tab in
+                ForEach(sessionStore.openFileTabs) { tab in
                     fileTab(tab)
                 }
             }
@@ -137,7 +137,7 @@ struct CodeEditorView: View {
     }
 
     private func fileTab(_ node: FileNode) -> some View {
-        let isActive = projectManager.activeFileNode?.id == node.id
+        let isActive = sessionStore.activeFileNode?.id == node.id
         return HStack(spacing: 6) {
             Image(systemName: node.icon)
                 .font(.system(size: 10, weight: .medium))
@@ -147,7 +147,7 @@ struct CodeEditorView: View {
                 .foregroundStyle(isActive ? .white : .secondary)
                 .lineLimit(1)
             Button {
-                projectManager.closeTab(node)
+                sessionStore.closeTab(node)
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 8, weight: .semibold))
@@ -174,7 +174,7 @@ struct CodeEditorView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture {
-            projectManager.openFile(node)
+            sessionStore.openFile(node)
         }
     }
 
@@ -184,7 +184,7 @@ struct CodeEditorView: View {
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 2) {
-                    if let project = projectManager.activeProject {
+                    if let project = sessionStore.activeProject {
                         HStack(spacing: 4) {
                             Image(systemName: "folder.fill")
                                 .font(.system(size: 9))
@@ -195,7 +195,7 @@ struct CodeEditorView: View {
                         }
                     }
 
-                    if let node = projectManager.activeFileNode {
+                    if let node = sessionStore.activeFileNode {
                         let components = node.path.components(separatedBy: "/")
                         ForEach(Array(components.enumerated()), id: \.offset) { index, component in
                             Image(systemName: "chevron.right")
@@ -405,7 +405,7 @@ struct CodeEditorView: View {
                 Text("File Load Error")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.white)
-                Text(projectManager.fileLoadError ?? "Unknown Error")
+                Text(sessionStore.fileLoadError ?? "Unknown Error")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -418,7 +418,7 @@ struct CodeEditorView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Dismiss") {
-                        projectManager.fileLoadError = nil
+                        sessionStore.fileLoadError = nil
                         showFileLoadError = false
                     }
                 }
@@ -437,22 +437,22 @@ struct CodeEditorView: View {
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             guard !Task.isCancelled else { return }
             await MainActor.run {
-                projectManager.saveCurrentFile(content: content)
+                sessionStore.saveCurrentFile(content: content)
             }
         }
     }
 
     private func replaceAll() {
         guard !searchQuery.isEmpty else { return }
-        let updated = projectManager.activeFileContent.replacingOccurrences(of: searchQuery, with: replaceText)
-        projectManager.saveCurrentFile(content: updated)
+        let updated = sessionStore.activeFileContent.replacingOccurrences(of: searchQuery, with: replaceText)
+        sessionStore.saveCurrentFile(content: updated)
     }
 
     private func formatCode() {
-        let ext = projectManager.activeFileNode?.name.components(separatedBy: ".").last ?? "swift"
-        let formatted = EditorCodeFormatter.shared.format(projectManager.activeFileContent, fileExtension: ext)
-        projectManager.activeFileContent = formatted
-        projectManager.saveCurrentFile(content: formatted)
+        let ext = sessionStore.activeFileNode?.name.components(separatedBy: ".").last ?? "swift"
+        let formatted = EditorCodeFormatter.shared.format(sessionStore.activeFileContent, fileExtension: ext)
+        sessionStore.activeFileContent = formatted
+        sessionStore.saveCurrentFile(content: formatted)
     }
 }
 

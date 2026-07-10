@@ -3,7 +3,7 @@ import SwiftUI
 struct LocalBuildView: View {
     @State private var discoveryService = MacDiscoveryService()
     @State private var buildService = LocalBuildService()
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var selectedMac: DiscoveredMac?
     @State private var buildResultURL: URL?
     @State private var showDemo = false
@@ -248,7 +248,7 @@ struct LocalBuildView: View {
     }
 
     private func startBuild() {
-        guard let mac = selectedMac, let project = projectManager.activeProject else { return }
+        guard let mac = selectedMac, let project = sessionStore.activeProject else { return }
 
         Task {
             do {

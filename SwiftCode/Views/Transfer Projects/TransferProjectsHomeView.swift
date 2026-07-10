@@ -2,7 +2,7 @@ import SwiftUI
 import MultipeerConnectivity
 
 struct TransferProjectsHomeView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @StateObject private var transferManager = ProjectTransferManager.shared
     @StateObject private var peerManager = PeerSessionManager.shared
     @State private var selectedPeer: MCPeerID?
@@ -49,7 +49,7 @@ struct TransferProjectsHomeView: View {
             }
             .listRowBackground(Color.clear)
 
-            if let project = projectManager.activeProject {
+            if let project = sessionStore.activeProject {
                 Section("Active Project: \(project.name)") {
                     NavigationLink {
                         PermissionConfigView(permission: $permission)

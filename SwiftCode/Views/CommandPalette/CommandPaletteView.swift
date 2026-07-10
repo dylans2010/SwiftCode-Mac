@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CommandPaletteView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var searchText = ""

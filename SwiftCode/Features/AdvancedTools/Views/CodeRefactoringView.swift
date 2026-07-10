@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CodeRefactoringView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var fromText = ""
     @State private var toText = ""
     @State private var preview = ""
@@ -13,16 +13,16 @@ struct CodeRefactoringView: View {
                 TextField("Old Symbol", text: $fromText).textFieldStyle(.roundedBorder)
                 TextField("New Symbol", text: $toText).textFieldStyle(.roundedBorder)
                 HStack {
-                    Button("Preview Rename") { preview = projectManager.activeFileContent.replacingOccurrences(of: fromText, with: toText) }
-                    Button("Apply Rename") { projectManager.activeFileContent = preview }
+                    Button("Preview Rename") { preview = sessionStore.activeFileContent.replacingOccurrences(of: fromText, with: toText) }
+                    Button("Apply Rename") { sessionStore.activeFileContent = preview }
                 }
                 .buttonStyle(.bordered)
             }
 
             AdvancedToolCard(title: "Transformations") {
                 HStack {
-                    Button("Extract to Function") { preview = projectManager.activeFileContent + "\n\nfunc extractedFunction() {\n    // Extracted code\n}" }
-                    Button("To async/await") { preview = projectManager.activeFileContent.replacingOccurrences(of: "completion:", with: "async") }
+                    Button("Extract to Function") { preview = sessionStore.activeFileContent + "\n\nfunc extractedFunction() {\n    // Extracted code\n}" }
+                    Button("To async/await") { preview = sessionStore.activeFileContent.replacingOccurrences(of: "completion:", with: "async") }
                     Button("Run SwiftFormat") { runFormatter() }
                     Button("Parse (Tree-sitter)") { runTreeSitter() }
                 }
@@ -32,7 +32,7 @@ struct CodeRefactoringView: View {
             AdvancedToolCard(title: "Preview") {
                 ScrollView { Text(preview).frame(maxWidth: .infinity, alignment: .leading).font(.caption.monospaced()) }
                     .frame(minHeight: 180)
-                Button("Confirm All Changes") { projectManager.activeFileContent = preview }
+                Button("Confirm All Changes") { sessionStore.activeFileContent = preview }
                     .buttonStyle(.borderedProminent)
             }
 
@@ -53,20 +53,20 @@ struct CodeRefactoringView: View {
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("swiftcode-format-\(UUID().uuidString).swift")
         do {
-            try projectManager.activeFileContent.write(to: tempURL, atomically: true, encoding: .utf8)
+            try sessionStore.activeFileContent.write(to: tempURL, atomically: true, encoding: .utf8)
         } catch {
-            preview = projectManager.activeFileContent
+            preview = sessionStore.activeFileContent
             return
         }
 
         Task {
             do {
                 _ = try await BinaryManager.shared.runSwiftFormat(at: tempURL.path)
-                let updated = (try? String(contentsOf: tempURL)) ?? projectManager.activeFileContent
+                let updated = (try? String(contentsOf: tempURL)) ?? sessionStore.activeFileContent
                 await MainActor.run { preview = updated }
             } catch {
                 await MainActor.run {
-                    preview = projectManager.activeFileContent.replacingOccurrences(of: "\t", with: "    ")
+                    preview = sessionStore.activeFileContent.replacingOccurrences(of: "\t", with: "    ")
                 }
             }
         }
@@ -76,7 +76,7 @@ struct CodeRefactoringView: View {
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("swiftcode-parse-\(UUID().uuidString).swift")
         do {
-            try projectManager.activeFileContent.write(to: tempURL, atomically: true, encoding: .utf8)
+            try sessionStore.activeFileContent.write(to: tempURL, atomically: true, encoding: .utf8)
         } catch {
             parserOutput = "Unable to create temporary file for parser."
             return

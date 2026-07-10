@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ImportProjView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var importManager = ImportProjManager.shared
     @Environment(\.dismiss) private var dismiss
 
@@ -75,8 +75,9 @@ struct ImportProjView: View {
             Task {
                 do {
                     let project = try await importManager.importProject(from: url)
-                    try projectManager.saveImportedProject(project)
-                    try await projectManager.openProject(project)
+                    // Update sessionStore library (assuming it's already on disk)
+                    sessionStore.projects.insert(project, at: 0)
+                    await sessionStore.openProject(project)
                     dismiss()
                 } catch {
                     // Error is handled by ImportProjManager @Published property

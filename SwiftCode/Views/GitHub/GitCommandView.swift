@@ -6,7 +6,7 @@ import ZIPFoundation
 struct GitCommandView: View {
     let project: Project
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
 
     @State private var commitMessage = "Update From SwiftCode"
     @State private var newBranchName = ""
@@ -391,14 +391,14 @@ struct GitCommandView: View {
     // MARK: - Actions
 
     private func checkStatus() {
-        let modified = projectManager.modifiedFilePaths.count
+        let modified = sessionStore.modifiedFilePaths.count
         isSuccess = true
         statusMessage = "Working tree status:\n\n" + (modified == 0 ? "Clean. No changes detected." : "\(modified) files modified locally.")
         showStatus = true
     }
 
     private func cleanWorkingTree() {
-        projectManager.modifiedFilePaths.removeAll()
+        sessionStore.modifiedFilePaths.removeAll()
         isSuccess = true
         statusMessage = "Cleaned: Local change markers have been cleared."
         showStatus = true
@@ -557,7 +557,7 @@ struct GitCommandView: View {
 
     private func showRemoteDiff() {
         guard isRepoConnected else { return }
-        guard let node = projectManager.activeFileNode, !node.isDirectory else {
+        guard let node = sessionStore.activeFileNode, !node.isDirectory else {
             isSuccess = false
             statusMessage = "Select a file first to compare it with the remote version."
             showStatus = true
@@ -571,7 +571,7 @@ struct GitCommandView: View {
                     repo: repoNameFromURL,
                     path: node.path
                 )
-                let localContent = await MainActor.run { projectManager.activeFileContent }
+                let localContent = await MainActor.run { sessionStore.activeFileContent }
                 let diff: String
                 if localContent == remoteContent {
                     diff = "✅ No differences — local file matches remote."

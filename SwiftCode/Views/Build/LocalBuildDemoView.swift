@@ -2,7 +2,7 @@ import SwiftUI
 
 struct LocalBuildDemoView: View {
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var isSimulating = false
     @State private var logs: [String] = []
     @State private var progress: Double = 0.0
@@ -112,7 +112,7 @@ struct LocalBuildDemoView: View {
                     .foregroundStyle(.blue)
 
                 VStack(alignment: .leading) {
-                    Text("\(projectManager.activeProject?.name ?? "Project").ipa")
+                    Text("\(sessionStore.activeProject?.name ?? "Project").ipa")
                         .font(.subheadline.bold())
                         .foregroundStyle(.white)
                     Text("Ready to download")

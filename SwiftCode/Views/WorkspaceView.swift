@@ -3,7 +3,7 @@ import SwiftUI
 struct WorkspaceView: View {
     @State var viewModel: WorkspaceViewModel
     @Environment(ThemeViewModel.self) var themeVM
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var showInspector = false
 
     // Feature sheet states
@@ -24,7 +24,7 @@ struct WorkspaceView: View {
         .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button {
-                        projectManager.closeProject()
+                        sessionStore.closeProject()
                     } label: {
                         Label("Close Project", systemImage: "xmark.square")
                     }
@@ -114,7 +114,7 @@ struct WorkspaceView: View {
 
     @ViewBuilder
     private func sheetView(for destination: ToolbarActionManager.SheetDestination) -> some View {
-        let project = projectManager.activeProject ?? Project(name: "Untitled")
+        let project = sessionStore.activeProject ?? Project(name: "Untitled")
         let owner = project.githubRepo?.split(separator: "/").first.map(String.init) ?? ""
         let repo = project.githubRepo?.split(separator: "/").last.map(String.init) ?? ""
 

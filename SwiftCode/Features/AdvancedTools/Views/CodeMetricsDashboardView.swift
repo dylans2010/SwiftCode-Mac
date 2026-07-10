@@ -1,16 +1,16 @@
 import SwiftUI
 
 struct CodeMetricsDashboardView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
 
     @State private var lintSummary = "Run SwiftLint to gather diagnostics."
     @State private var isLinting = false
 
-    private var files: [FileNode] { projectManager.activeProject?.files.flatMapDeep(includeDirectories: false) ?? [] }
+    private var files: [FileNode] { sessionStore.activeProject?.files.flatMapDeep(includeDirectories: false) ?? [] }
     private var swiftFiles: [FileNode] { files.filter { $0.name.hasSuffix(".swift") } }
 
     private var totalLOC: Int {
-        guard let project = projectManager.activeProject else { return 0 }
+        guard let project = sessionStore.activeProject else { return 0 }
         return files.reduce(0) { result, node in
             let url = project.directoryURL.appendingPathComponent(node.path)
             let text = (try? String(contentsOf: url)) ?? ""
@@ -28,7 +28,7 @@ struct CodeMetricsDashboardView: View {
 
             AdvancedToolCard(title: "Architecture Signals") {
                 Text("Language Breakdown: \(languageBreakdown())")
-                Text("Most Modified: \(projectManager.modifiedFilePaths.prefix(3).joined(separator: ", "))")
+                Text("Most Modified: \(sessionStore.modifiedFilePaths.prefix(3).joined(separator: ", "))")
                     .foregroundStyle(.secondary)
             }
 
@@ -47,7 +47,7 @@ struct CodeMetricsDashboardView: View {
     }
 
     private func runSwiftLint() {
-        guard let project = projectManager.activeProject else { return }
+        guard let project = sessionStore.activeProject else { return }
         isLinting = true
         Task {
             do {

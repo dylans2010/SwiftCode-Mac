@@ -2,7 +2,7 @@ import SwiftUI
 
 struct GitHubIntegrationView: View {
     let project: Project
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
     @AppStorage("github_repo_url") private var sharedRepoURL: String = ""
 
@@ -829,8 +829,8 @@ struct GitHubIntegrationView: View {
 
     private func saveRepoURL() {
         guard !ownerFromRepo.isEmpty, !repoNameFromURL.isEmpty,
-              let idx = projectManager.projects.firstIndex(where: { $0.id == project.id }) else { return }
-        projectManager.projects[idx].githubRepo = "\(ownerFromRepo)/\(repoNameFromURL)"
+              let idx = sessionStore.projects.firstIndex(where: { $0.id == project.id }) else { return }
+        sessionStore.projects[idx].githubRepo = "\(ownerFromRepo)/\(repoNameFromURL)"
         sharedRepoURL = "https://github.com/\(ownerFromRepo)/\(repoNameFromURL)"
     }
 

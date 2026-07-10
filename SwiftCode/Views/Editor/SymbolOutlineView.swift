@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SymbolOutlineView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var symbols: [CodeSymbol] = []
     @State private var searchText = ""
     @State private var selectedKindFilter: CodeSymbol.SymbolKind?
@@ -41,7 +41,7 @@ struct SymbolOutlineView: View {
         }
         .preferredColorScheme(.dark)
         .onAppear { analyzeCurrentFile() }
-        .onChange(of: projectManager.activeFileContent) { _, _ in analyzeCurrentFile() }
+        .onChange(of: sessionStore.activeFileContent) { _, _ in analyzeCurrentFile() }
     }
 
     // MARK: - Kind Filter Bar
@@ -131,12 +131,12 @@ struct SymbolOutlineView: View {
             Image(systemName: "list.bullet.rectangle")
                 .font(.system(size: 44))
                 .foregroundStyle(.orange.opacity(0.6))
-            Text(projectManager.activeFileNode == nil
+            Text(sessionStore.activeFileNode == nil
                  ? "No File Open"
                  : "No Symbols Found")
                 .font(.headline)
                 .foregroundStyle(.white)
-            Text(projectManager.activeFileNode == nil
+            Text(sessionStore.activeFileNode == nil
                  ? "Open a Swift file to see its symbol outline."
                  : "This file has no detectable symbols (classes, structs, functions, etc.).")
                 .font(.caption)
@@ -150,7 +150,7 @@ struct SymbolOutlineView: View {
 
     private var statsMenu: some View {
         Menu {
-            let stats = CodeStructureAnalyzer.shared.statistics(for: projectManager.activeFileContent)
+            let stats = CodeStructureAnalyzer.shared.statistics(for: sessionStore.activeFileContent)
             Text("Lines: \(stats.totalLines)")
             Text("Non Empty: \(stats.nonEmptyLines)")
             Text("Comments: \(stats.commentLines)")
@@ -167,7 +167,7 @@ struct SymbolOutlineView: View {
     // MARK: - Logic
 
     private func analyzeCurrentFile() {
-        let content = projectManager.activeFileContent
+        let content = sessionStore.activeFileContent
         guard !content.isEmpty else { symbols = []; return }
         symbols = CodeStructureAnalyzer.shared.analyze(content)
     }

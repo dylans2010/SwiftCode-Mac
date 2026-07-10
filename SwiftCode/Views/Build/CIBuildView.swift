@@ -3,7 +3,7 @@ import SwiftUI
 struct CIBuildView: View {
     let project: Project
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
 
     @State private var projectName: String = ""
     @State private var schemeName: String = ""
@@ -304,8 +304,8 @@ struct CIBuildView: View {
                 )
 
                 await MainActor.run {
-                    projectManager.updateCIBuildConfiguration(ciConfig, for: project)
-                    projectManager.refreshFileTree(for: project)
+                    sessionStore.updateCIBuildConfiguration(ciConfig, for: project)
+                    sessionStore.refreshFileTree(for: project)
                     isSuccess = true
                     statusMessage = "Generated .github/workflows/build.yml in your project."
                     isBuilding = false

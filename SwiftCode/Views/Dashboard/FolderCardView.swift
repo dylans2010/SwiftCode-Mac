@@ -3,7 +3,7 @@ import SwiftUI
 struct FolderCardView: View {
     let folder: ProjectFolder
     @EnvironmentObject private var folderManager: FolderManager
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var isHovered = false
 
     private var projectCount: Int {

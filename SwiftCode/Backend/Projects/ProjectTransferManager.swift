@@ -92,7 +92,7 @@ final class ProjectTransferManager: ObservableObject {
     private func importPackage(_ package: SerializedProjectPackage, peer: MCPeerID, sessionID: UUID) throws {
         var project = package.project
         project.name = uniqueProjectName(for: project.name)
-        let projectURL = ProjectManager.shared.projectsDirectory.appendingPathComponent(project.name)
+        let projectURL = ProjectSessionStore.shared.projectsDirectory.appendingPathComponent(project.name)
         try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true, attributes: nil)
         for entry in package.fileEntries {
             let fileURL = projectURL.appendingPathComponent(entry.relativePath)
@@ -104,8 +104,8 @@ final class ProjectTransferManager: ObservableObject {
             }
         }
         project.transferConfiguration = .init(originPeerID: peer.displayName, permission: package.permission, lastTransferSessionID: sessionID, lastTransferDate: Date())
-        project.files = ProjectManager.shared.rebuildFileTree(at: projectURL)
-        try ProjectManager.shared.saveImportedProject(project)
+        project.files = ProjectSessionStore.shared.rebuildFileTree(at: projectURL)
+        try ProjectSessionStore.shared.saveImportedProject(project)
         var completed = sessions.first(where: { $0.id == sessionID })
         completed?.projectName = project.name
         completed?.state = .completed
@@ -117,7 +117,7 @@ final class ProjectTransferManager: ObservableObject {
     private func uniqueProjectName(for base: String) -> String {
         var candidate = base
         var counter = 2
-        while FileManager.default.fileExists(atPath: ProjectManager.shared.projectsDirectory.appendingPathComponent(candidate).path) {
+        while FileManager.default.fileExists(atPath: ProjectSessionStore.shared.projectsDirectory.appendingPathComponent(candidate).path) {
             candidate = "\(base) \(counter)"
             counter += 1
         }

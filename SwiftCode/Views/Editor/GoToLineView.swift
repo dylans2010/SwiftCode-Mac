@@ -1,14 +1,14 @@
 import SwiftUI
 
 struct GoToLineView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var lineNumber = ""
     let onGoToLine: (Int) -> Void
 
     var totalLines: Int {
-        projectManager.activeFileContent.components(separatedBy: "\n").count
+        sessionStore.activeFileContent.components(separatedBy: "\n").count
     }
 
     var body: some View {
@@ -23,7 +23,7 @@ struct GoToLineView: View {
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(.white)
 
-                    if let node = projectManager.activeFileNode {
+                    if let node = sessionStore.activeFileNode {
                         Text(node.name)
                             .font(.caption)
                             .foregroundStyle(.secondary)

@@ -2,7 +2,7 @@ import SwiftUI
 
 struct TemplatePickerView: View {
     @Bindable var viewModel: HomeViewModel
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) var dismiss
 
     @State private var projectName = "MyProject"
@@ -101,8 +101,8 @@ struct TemplatePickerView: View {
             Task {
                 do {
                     try await ProjectScaffoldTemplateEngine.shared.createProject(at: projectURL, template: selectedTemplate)
-                    let project = try await ProjectManager.shared.importProject(from: projectURL)
-                    try await projectManager.openProject(project)
+                    let project = try sessionStore.createProject(name: projectName)
+                    await sessionStore.openProject(project)
                     dismiss()
                 } catch {
                     LoggingTool.error("Failed to create project: \(error)")

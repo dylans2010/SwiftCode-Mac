@@ -10,7 +10,7 @@ struct LicencesAddView: View {
     }
 
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
 
     @State private var searchText = ""
     @State private var selectedCategory = "All"
@@ -136,7 +136,7 @@ struct LicencesAddView: View {
         do {
             let destination = project.directoryURL.appendingPathComponent("LICENSE")
             try license.body.write(to: destination, atomically: true, encoding: .utf8)
-            projectManager.refreshFileTree(for: project)
+            sessionStore.refreshFileTree(for: project)
             alertMessage = "\(license.name) license added to project as LICENSE."
             showAlert = true
         } catch {

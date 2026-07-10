@@ -2,6 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct NewProjectSheetView: View {
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @Bindable var viewModel: HomeViewModel
     @Environment(\.dismiss) var dismiss
 
@@ -181,8 +182,8 @@ struct NewProjectSheetView: View {
         if panel.runModal() == .OK, let url = panel.url {
             Task {
                 do {
-                    let project = try await ProjectManager.shared.importProject(from: url)
-                    try await ProjectManager.shared.openProject(project)
+                    let project = try await sessionStore.importProject(from: url)
+                    await sessionStore.openProject(project)
                     dismiss()
                 } catch {
                     LoggingTool.error("Failed to import folder: \(error)")
@@ -199,8 +200,8 @@ struct NewProjectSheetView: View {
         if panel.runModal() == .OK, let url = panel.url {
             Task {
                 do {
-                    let project = try await ProjectManager.shared.importProject(from: url.deletingLastPathComponent())
-                    try await ProjectManager.shared.openProject(project)
+                    let project = try await sessionStore.importProject(from: url.deletingLastPathComponent())
+                    await sessionStore.openProject(project)
                     dismiss()
                 } catch {
                     LoggingTool.error("Failed to import Xcode project: \(error)")

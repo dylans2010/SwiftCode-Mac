@@ -727,7 +727,7 @@ struct BuildStatusView: View {
         Task {
             do {
                 // Push changes first using GitCommands
-                if let project = await ProjectManager.shared.activeProject {
+                if let project = await ProjectSessionStore.shared.activeProject {
                     compileWorkflowStage = "Pushing Changes..."
                     try await GitCommands.shared.push(
                         project: project,

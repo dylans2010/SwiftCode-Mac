@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CodeSearchView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
     @StateObject private var indexService = CodeIndexService.shared
 
@@ -219,7 +219,7 @@ struct CodeSearchView: View {
 
     private func performSearch() {
         guard !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty,
-              let project = projectManager.activeProject else { return }
+              let project = sessionStore.activeProject else { return }
         isSearching = true
         let dirURL = project.directoryURL
         let query = searchQuery
@@ -291,9 +291,9 @@ struct CodeSearchView: View {
     }
 
     private func openResult(_ result: SearchResult) {
-        guard projectManager.activeProject != nil else { return }
+        guard sessionStore.activeProject != nil else { return }
         let node = FileNode(name: result.fileName, path: result.filePath, isDirectory: false)
-        projectManager.openFile(node)
+        sessionStore.openFile(node)
         dismiss()
     }
 

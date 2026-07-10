@@ -2,14 +2,14 @@ import SwiftUI
 
 struct CodeIntelligenceView: View {
     @StateObject private var engine = CodeIntelligenceEngine.shared
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
 
     var body: some View {
         AdvancedToolScreen(title: "Code Intelligence") {
             AdvancedToolCard(title: "Realtime Index") {
                 HStack {
                     Button("Refresh Intelligence") {
-                        engine.index(content: projectManager.activeFileContent)
+                        engine.index(content: sessionStore.activeFileContent)
                     }
                     .buttonStyle(.borderedProminent)
                     Spacer()

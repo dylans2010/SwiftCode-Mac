@@ -10,7 +10,7 @@ struct SwiftCodeApp: App {
         StylingBootstrap.initialize()
     }
 
-    @StateObject private var projectManager = ProjectManager.shared
+    @State private var sessionStore = ProjectSessionStore.shared
     @StateObject private var settings = AppSettings.shared
     @StateObject private var codingManager = CodingManager.shared
     @StateObject private var toolbarSettings = ToolbarSettings.shared
@@ -23,7 +23,7 @@ struct SwiftCodeApp: App {
         WindowGroup {
             StylingBootstrap.configureEnvironment(
                 Group {
-                    if let activeProject = projectManager.activeProject {
+                    if let activeProject = sessionStore.activeProject {
                         WorkspaceView(viewModel: WorkspaceViewModel(projectURL: activeProject.directoryURL))
                             .navigationTitle(activeProject.name)
                     } else {
@@ -33,7 +33,7 @@ struct SwiftCodeApp: App {
                 }
             )
             .environment(themeVM)
-            .environmentObject(projectManager)
+            .environment(sessionStore)
             .environmentObject(settings)
             .environmentObject(toolbarSettings)
             .environmentObject(folderManager)

@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Project Template View
 
 struct ProjectTemplateView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @StateObject private var templateManager = ProjectTemplateManager.shared
     @State private var selectedTemplate: ProjectTemplate?
     @State private var showApplyConfirm = false
@@ -92,7 +92,7 @@ struct ProjectTemplateView: View {
 
     private func applyTemplate() {
         guard let template = selectedTemplate,
-              let project = projectManager.activeProject else {
+              let project = sessionStore.activeProject else {
             applyResult = "No active project. Open a project first."
             showResultAlert = true
             return

@@ -53,7 +53,7 @@ final class DocumentationAnalyzer: ObservableObject {
     }
 
     private func scanProjectContext() async throws -> String {
-        guard let project = ProjectManager.shared.activeProject else {
+        guard let project = ProjectSessionStore.shared.activeProject else {
             return "No active project found."
         }
 

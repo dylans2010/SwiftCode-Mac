@@ -3,7 +3,7 @@ import SwiftUI
 struct SourceControlView: View {
     var gitViewModel: GitViewModel
     @EnvironmentObject private var settings: AppSettings
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var showSetup = false
@@ -54,7 +54,7 @@ struct SourceControlView: View {
     private var dashboard: some View {
         List {
             Section("GitHub Integration") {
-                if let project = projectManager.activeProject {
+                if let project = sessionStore.activeProject {
                     NavigationLink(destination: GitHubIntegrationView(project: project)) {
                         Label("GitHub Project Sync", systemImage: "arrow.triangle.2.circlepath")
                     }
@@ -69,7 +69,7 @@ struct SourceControlView: View {
             }
 
             Section("Local Git") {
-                if let project = projectManager.activeProject {
+                if let project = sessionStore.activeProject {
                     NavigationLink(destination: GitChangesView(viewModel: gitViewModel)) {
                         Label("Changes", systemImage: "plus.minus.circle")
                     }

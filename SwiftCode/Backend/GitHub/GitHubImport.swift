@@ -77,7 +77,7 @@ final class GitHubImporter: @unchecked Sendable {
         // 8. Register in ProjectManager on main thread
         let registeredProject = project
         await MainActor.run {
-            ProjectManager.shared.projects.insert(registeredProject, at: 0)
+            ProjectSessionStore.shared.projects.insert(registeredProject, at: 0)
         }
 
         return registeredProject

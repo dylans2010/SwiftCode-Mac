@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SymbolNavigatorView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var symbols: [IndexEntry] = []
@@ -136,8 +136,8 @@ struct SymbolNavigatorView: View {
     }
 
     private func loadSymbols() {
-        guard let content = projectManager.activeFileNode != nil ? projectManager.activeFileContent : nil,
-              let filePath = projectManager.activeFileNode?.path else { return }
+        guard let content = sessionStore.activeFileNode != nil ? sessionStore.activeFileContent : nil,
+              let filePath = sessionStore.activeFileNode?.path else { return }
         symbols = CodeIndexService.shared.indexFile(content: content, filePath: filePath)
     }
 }

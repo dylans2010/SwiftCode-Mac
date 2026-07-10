@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SymbolIndexView: View {
     @StateObject private var engine = SymbolIndexingEngine.shared
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var query = ""
 
     var filtered: [IndexedSymbol] {
@@ -20,8 +20,8 @@ struct SymbolIndexView: View {
             AdvancedToolCard(title: "Indexed Symbols", subtitle: "Open a symbol to jump to file") {
                 ForEach(filtered) { symbol in
                     Button("\(symbol.kind): \(symbol.name) — \(symbol.file):\(symbol.line)") {
-                        if let node = projectManager.activeProject?.files.flatMapDeep().first(where: { $0.path == symbol.file }) {
-                            projectManager.openFile(node)
+                        if let node = sessionStore.activeProject?.files.flatMapDeep().first(where: { $0.path == symbol.file }) {
+                            sessionStore.openFile(node)
                         }
                     }
                     .buttonStyle(.plain)
@@ -29,7 +29,7 @@ struct SymbolIndexView: View {
                 }
             }
         }
-        .onAppear { engine.index(project: projectManager.activeProject) }
+        .onAppear { engine.index(project: sessionStore.activeProject) }
     }
 }
 
