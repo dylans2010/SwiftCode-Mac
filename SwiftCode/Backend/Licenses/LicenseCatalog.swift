@@ -9,17 +9,8 @@ public struct LicenseTemplate: Identifiable, Hashable, Sendable {
 }
 
 public enum LicenseCatalog {
-    private static var cachedTemplates: [LicenseTemplate]?
-
     /// Dynamically discovered and parsed license templates from the bundle resources.
-    public static var all: [LicenseTemplate] {
-        if let cached = cachedTemplates {
-            return cached
-        }
-        let loaded = loadTemplates()
-        cachedTemplates = loaded
-        return loaded
-    }
+    public static let all: [LicenseTemplate] = loadTemplates()
 
     public static func licenseBody(for id: String) -> String? {
         all.first(where: { $0.id == id })?.body
