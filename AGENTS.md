@@ -1,24 +1,53 @@
-# SwiftCode for Mac — AI Agent Guide & Rules (AGENTS.md)
+# AGENTS.md
 
-> **File Scope:** Root of SwiftCode codebase.
-> **Target Audience:** All AI Agents (especially Jules) operating on this repository.
-> **Compliance:** Strict, mandatory compliance is required. Any deviation is considered an implementation failure.
+## 0. What This File Is
+This is the operating contract for any autonomous agent working in this repository. It is read before every task, not just the first one. If an instruction elsewhere conflicts with this file, this file wins unless the current AED explicitly and visibly overrides a specific clause.
 
----
+## 1. Project Snapshot
+- SwiftCode, Swift 6, Xcode 26, deployment target macOS 15+.
+- Build system: native Xcode project (`.xcodeproj`), not SPM-only.
+- This is one of several related codebases (SwiftCode-Mac, Tools-Kit, Browse). Conventions from one do not automatically apply to another unless this file says so.
 
-## 1. Executive Mandates & Hard Rules
+## 2. Mandatory Procedure — Every Task, No Exceptions
 
-These three executive mandates supersede all other instructions and must be followed with absolute rigor.
+### 2.1 Before writing code
+- [ ] Read the AED completely before touching any file.
+- [ ] Identify every file the task will touch, and every file it must NOT touch.
+- [ ] Scan the surrounding module for existing patterns — naming, error handling, actor boundaries — and match them instead of introducing a new style.
+- [ ] If the AED says "no new files," that's absolute. Solve it inside existing files.
 
-### Rule 1: Automatic Registration of New Swift Files
-If you create any new Swift file, you **MUST** automatically register it within the Xcode project structure (`project.pbxproj`) without being explicitly asked or told to do so. This is a basic yet critical rule. Leaving a file unregistered or orphaning it is a direct violation of project integrity.
-To register a new file correctly, you must implement the **4-Entry Coordinated Protocol** in `SwiftCode.xcodeproj/project.pbxproj`:
-1. **`PBXFileReference`**: Add a reference for the file on disk. Specify `lastKnownFileType = sourcecode.swift`, path, and `sourceTree = "<group>"`.
-2. **`PBXBuildFile`**: Add a build file pointing to the `PBXFileReference` UUID.
-3. **`PBXSourcesBuildPhase`**: Append the `PBXBuildFile` UUID to the target's build phase (Sources Build Phase: `9BF8BFB9B87ED46BDA700029`).
-4. **`PBXGroup`**: Append the `PBXFileReference` UUID to the correct parent group children array.
+### 2.2 While writing code
+- [ ] Concurrency: `actor` for shared mutable state; `@Observable` for anything SwiftUI observes. Never `ObservableObject`, never `@Published`, never Combine.
+- [ ] Logging: `Logger` from `os.log` exclusively. `print()` is never acceptable, including "temporary" debug output.
+- [ ] Force-unwraps (`!`) require an inline comment directly above stating the specific invariant that makes the unwrap safe. No comment, no unwrap — use `guard let` / `if let` / a typed error instead.
+- [ ] No hardcoded values that could plausibly change — pull from a constant, config, or existing enum. Covers magic numbers, URLs, and string keys.
+- [ ] No stubs, no `// TODO: implement`, no mocked responses, no simulated SDK behavior. A partially working feature is a failed task, not a partial success — see §6.
 
-#### Known UUIDs for Groups and Build Phases
+### 2.3 After writing code
+- [ ] Every new Swift file is registered in `.xcodeproj` — exact procedure in §4. Compiling locally but not being registered makes it an orphan file, which is a failed task.
+- [ ] No broken imports, no unused imports left behind.
+- [ ] Re-read the diff once, specifically hunting for shortcuts — a suppressed warning, an unjustified force-unwrap, a copy-pasted block that should have been refactored.
+
+## 3. Concurrency & Observation Rules (Swift 6 strict mode)
+- Shared mutable state lives behind an `actor`. If a type needs to be read from multiple isolation domains, make the type itself an actor rather than adding locks.
+- `@MainActor` is applied at the type level for UI-bound state, not scattered per-method — a type is either UI-bound or it isn't.
+- Do not redeclare conformances the compiler already synthesizes or that are already inherited. Check what's already satisfied before adding `: Sendable`, `: Equatable`, etc. — this is the direct cause of the redundant-conformance errors already seen on this project.
+- Anything crossing an actor boundary must be `Sendable`. `@unchecked Sendable` is a last resort and requires a comment explaining exactly what makes it safe.
+- Prefer structured concurrency (`async let`, `TaskGroup`) over a bare `Task { }`. If an unstructured `Task` is unavoidable, state which actor it's expected to run on.
+
+## 4. Xcode Project File Integration (CRITICAL — read this twice)
+Every new Swift file requires exactly four entries in `project.pbxproj`, each keyed by a 24-character uppercase hex UUID:
+
+1. `PBXBuildFile` entry — one new UUID, references the file's `PBXFileReference` UUID.
+2. `PBXFileReference` entry — a second new UUID, declares the file itself (path, `lastKnownFileType = sourcecode.swift`).
+3. That `PBXFileReference` UUID added to the `children` array of the correct `PBXGroup` — the group matching where the file actually lives, not an arbitrary one.
+4. The `PBXBuildFile` UUID added to the `files` array of the target's `PBXSourcesBuildPhase`.
+
+Two UUIDs generated, each referenced across two of the four locations. Wrong UUID length, a reused UUID, or the wrong group is exactly how this project file has corrupted before. Treat this as procedure, not a suggestion.
+
+No orphan files. No missing target memberships. No untracked assets. No broken module references. Any one of these invalidates the task.
+
+### Known UUIDs for Groups and Build Phases
 Use these exact uppercase 24-character hexadecimal UUIDs when placing files into the corresponding directories:
 * **Core/AI**: `DA941B6FA862048858B975DF`
 * **Core/AI/Agent**: `9FAB492FE3914F789AA58201`
@@ -39,179 +68,73 @@ Use these exact uppercase 24-character hexadecimal UUIDs when placing files into
 
 Every UUID you generate for new items must be a unique, 24-character uppercase hexadecimal string.
 
-### Rule 2: Absolute Autonomy & No Clarification Requests
-You may **NEVER** ask the user for input, feedback, or clarification. Do not prompt, message, or use tools to ask questions. You must solve all tasks entirely autonomously.
-- If a task is underspecified or ambiguous, perform a codebase audit, inspect existing patterns, and make highly professional, best-practice engineering decisions.
-- Document any assumptions made, architectural directions taken, or decisions resolved in your final report.
+## 5. What Must Never Happen
+- Never invent an API, framework, or SDK method that doesn't exist to make something compile. If the correct API is unclear, say so in the PR description instead of fabricating one.
+- Never delete or weaken a test to make CI pass.
+- Never suppress a compiler warning or error instead of fixing what's causing it.
+- Never touch a file outside the AED's stated scope, even if something else looks wrong nearby — flag it instead (§7).
+- Never commit a secret, API key, or credential, even a placeholder-looking one in a comment.
+- Never mark a task complete when part of it is stubbed, mocked, or deferred.
 
-### Rule 3: Zero Mocking / Zero Placeholders / Zero Fake Data
-When creating new systems, adding new features, or modifying existing ones, you may **NEVER** write mocks, stubs, placeholders, fake data, or temporary structures.
-- All code, data pipelines, integrations, and services must use **real data** and be fully end-to-end functional.
-- Do not use comments like `// TODO: Implement later`, `// FIXME`, or return fake mock objects.
-- If you build a service, connect it to the real underlying APIs, databases, or subsystems immediately. If a downstream module or system doesn't exist yet, build it out in a fully functional state.
+## 6. Functional Completeness Mandate
+A stub, placeholder, or "will implement later" comment is not a smaller version of the feature — it is a missing feature. Tasks are binary: fully done against the AED's stated scope, or not done. This is a CAF-9 violation (§8) and invalidates the task's completion status even if everything else about it is correct.
 
----
+## 7. Ambiguity Protocol
+There's no human in the loop mid-task, so silence isn't an option and neither is guessing recklessly. When the AED underspecifies something:
+1. Choose the interpretation most consistent with the existing architecture and least destructive to revert.
+2. Document the assumption explicitly in the PR description — what was ambiguous, what you chose, and why.
+3. Only leave part of the task undone if the ambiguous action is both irreversible and broad in scope (e.g., an unclear boundary on a destructive purge). Even then, finish everything unambiguous first and flag only the remainder.
 
-## 2. SwiftCode Architecture Blueprint
+## 8. Failure Taxonomy
+This repository uses the CAF (Critical Architecture Failure) codes from the agentic-prompt-compiler skill, plus one addition already established in prior work:
 
-SwiftCode is a native macOS IDE built with Swift 6 and SwiftUI. It adheres to a downward-only dependency model.
+| Code | Violation |
+|---|---|
+| CAF-1 | Mock or placeholder usage |
+| CAF-2 | Missing project registration |
+| CAF-3 | Skipped architecture synthesis |
+| CAF-4 | Simulated API or SDK behavior |
+| CAF-5 | Incomplete feature expansion |
+| CAF-6 | Broken dependency graph |
+| CAF-7 | Missing validation phase |
+| CAF-9 | Stub/placeholder treated as complete (Functional Completeness Mandate) |
+| CAF-X | System-level architectural violation |
 
-```
-+-------------------------------------------------------------+
-|                         VIEW (View)                         |
-|         - SwiftUI Desktop-First Responsive Components       |
-+------------------------------+------------------------------+
-                               | (Reads / Observes)
-                               v
-+-------------------------------------------------------------+
-|                     VIEWMODEL (ViewModel)                   |
-|         - MainActor & Observable State Containers           |
-+------------------------------+------------------------------+
-                               | (Triggers operations)
-                               v
-+-------------------------------------------------------------+
-|                     BACKEND & SERVICES                      |
-|         - Actors (Network, Git, LLM Runners)                |
-+------------------------------+------------------------------+
-                               | (Operates on)
-                               v
-+-------------------------------------------------------------+
-|                         CORE LAYER                          |
-|         - Immutable Domain Models, Protocols & Enums        |
-+-------------------------------------------------------------+
-```
+If a fuller CAF-1–20+ taxonomy already exists elsewhere in this project (System.md or similar), reconcile numbering against that source rather than treating this table as exhaustive — don't assign a new meaning to a code that's already taken.
 
-### Architectural Constraints
-1. **Core Layer**: Contains pure domain models, protocols, and fundamental business rules. Dependencies must only be system frameworks (e.g., Foundation). No imports of Backend, ViewModel, or View layers.
-2. **Backend & Services Layer**: Contains actors and manager singletons executing intensive background processes (e.g., file system I/O, LLM operations, Git commands, compilation).
-3. **ViewModel Layer**: MainActor-isolated, observable types that bridge the background layers with display-ready state.
-4. **View Layer**: Pure SwiftUI views that consume state from the ViewModel. Do not embed raw business or network logic directly inside views.
+Any CAF-1, CAF-2, or CAF-9 invalidates the entire task.
 
----
+## 9. Commit & PR Conventions
 
-## 3. Subsystem Technical Breakdown
+### 9.1 Commit messages
+`<type>(<scope>): <summary>` — type is one of `fix`, `feat`, `refactor`, `chore`, `test`; scope is the module name.
 
-### 3.1 Adaptive Desktop UI System
-All views must utilize the centralized adaptive layout engine located in `SwiftCode/UI/Styles/Styling/`.
-- **AdaptiveBreakpoints**: Standardizes desktop responsiveness (Compact, Regular, Large, Professional, Ultra Wide).
-- **AdaptiveWindowMetrics**: Supplies environment-driven sizing, padding, and spacing.
-- **AdaptiveLayoutEngine**: MainActor singleton tracking window properties.
-- **Adaptive Components**: Replace mobile-style and hardcoded frames with:
-  * `AdaptivePage` (responsive content wrapper)
-  * `AdaptiveGrid` (responsive multi-column layout)
-  * `AdaptiveSettingsPage` (width-constrained centered view)
-  * `AdaptiveEditorPage` (3-panel IDE layout: Sidebar, Content, Inspector)
-  * `AdaptiveDashboardPage` (high-density scrollable widget panel)
-  * `AdaptiveSheet` (desktop-optimized sheet)
-  * `AdaptiveSplitLayout` (native NavigationSplitView integration)
-- **Rules**: Never use hardcoded frame dimensions like `.frame(width: 800, height: 600)`. Use `.macDesktopOptimized()` or metrics paddings.
+### 9.2 PR description must include
+- What changed and why, in plain language.
+- Files touched, and confirmation nothing outside scope was touched.
+- Any assumption made under §7.
+- Validation performed (build result, tests run).
 
-### 3.2 Thread-Safe File & Project Management
-- **TextBufferEngine**: An actor implementing thread-safe file operations. Writes must use `.atomic` options to avoid corrupted project/file states.
-- **CodingManager**: Manages atomic file manipulation, checking project-relative paths to prevent directory-traversal attacks.
-- **ProjectManager**: Orchestrates project lifecycles. Offloads heavy operations (such as loading recursive file structures) to background tasks with `nonisolated` functions (`buildFileTreeInternal`). Avoid referencing the shared `ProjectManager` instance during singleton initialization.
+### 9.3 One task, one PR
+Don't bundle an unrelated fix into a PR because you happened to notice it. Flag it for a future AED instead.
 
-### 3.3 Strict Swift 6 Concurrency & State
-- All code must compile cleanly under Swift 6 strict concurrency rules.
-- **Banned Primitives**: `Combine` (`Publisher`, `@Published`, `sink`), `DispatchQueue`, `ObservableObject`, `@StateObject`, `@ObservedObject`.
-- **Permitted Primitives**: `actor`, `Task`, `async/await`, `@Observable` (with `@State` or `@Bindable`).
+### 9.4 Cross-project notes
+SwiftCode-Mac is macOS-only — no iOS availability checks, no iOS conditional compilation. Tools-Kit and Browse target both iOS and macOS, so platform-conditional code is expected there, not here. The Discord bot is a separate runtime; only the stack-agnostic sections above (§2.1, §5, §7, §9.1–9.3) apply to it.
 
-### 3.4 Security & Secrets
-- Never store API keys, Personal Access Tokens, or passwords in plain text, `UserDefaults`, plists, or `.env` files.
-- All secrets must be securely stored in the macOS Keychain using `KeychainService`.
+## 10. Definition of Done
+A task is complete only when all of the following are true:
+- [ ] Builds with zero errors and zero new warnings.
+- [ ] Every new file is registered per §4.
+- [ ] No force-unwrap lacks a justifying comment.
+- [ ] No `print()`, no stub, no mock, no hardcoded value that should be a constant.
+- [ ] PR description satisfies §9.2.
+- [ ] Nothing outside the AED's stated scope was touched.
 
-### 3.5 Error Handling & Logging
-- Use typed error enums. Swallowing errors with silent `catch {}` blocks is strictly prohibited.
-- Do not use `print()` or `NSLog()`. Always use the unified `LogManager` which maps to system `Logger`.
+## 11. Quick Reference
+`actor` for state · `@Observable` never `ObservableObject` · `Logger` never `print` · force-unwraps need a comment · no stubs ever · four pbxproj entries, 24-char uppercase hex UUIDs · one task, one PR · ambiguity gets documented, not guessed silently.
 
----
-
-## 4. Coding Standard Reference (Do's & Don'ts)
-
-### Concurrency & State (Correct ✅)
-```swift
-// Modern swift State & Observation
-@Observable
-@MainActor
-final class ProjectSettingsViewModel {
-    var themeName: String = "Default"
-    var isSaving = false
-    private let manager: ProjectMetadataManager
-
-    init(manager: ProjectMetadataManager) {
-        self.manager = manager
-    }
-
-    func updateTheme(_ newTheme: String) async {
-        isSaving = true
-        defer { isSaving = false }
-        // Invoke backend / service asynchronously
-        await manager.saveThemePreference(newTheme)
-        themeName = newTheme
-    }
-}
-```
-
-### Concurrency & State (Banned ❌)
-```swift
-// DEPRECATED: Do not use Combine / ObservableObject
-final class ProjectSettingsViewModel: ObservableObject {
-    @Published var themeName: String = "Default"
-
-    func updateTheme(_ newTheme: String) {
-        DispatchQueue.main.async { // BANNED: Do not use DispatchQueue
-            self.themeName = newTheme
-        }
-    }
-}
-```
-
-### Force Unwrapping (Correct ✅)
-```swift
-// SAFETY: Checked count above; array is guaranteed to contain at least one element.
-let activeElement = elements.first!
-```
-
-### Force Unwrapping (Banned ❌)
-```swift
-let activeElement = elements.first! // BANNED: Missing explanatory SAFETY comment
-```
-
-### Layout Constraints (Correct ✅)
-```swift
-struct CustomSettingsView: View {
-    var body: some View {
-        AdaptiveSettingsPage {
-            VStack {
-                Text("Theme Configuration")
-                // Uses adaptive metrics
-            }
-        }
-    }
-}
-```
-
-### Layout Constraints (Banned ❌)
-```swift
-struct CustomSettingsView: View {
-    var body: some View {
-        VStack {
-            Text("Theme Configuration")
-        }
-        .frame(width: 800, height: 600) // BANNED: Hardcoded frame anti-pattern
-    }
-}
-```
-
----
-
-## 5. Definition of Done Checklist
-
-Every task execution must fulfill this checklist entirely before being marked complete:
-
-- [ ] **Auto-Registration Validation**: If new files were added, verify `project.pbxproj` has exactly 4 entries per new file, pointing to correct groups and build phases.
-- [ ] **No Mocks / Placeholders**: Verify all added code is 100% complete and uses real data. No stubs, placeholders, or mocked models.
-- [ ] **No Human Input**: Ensure no questions or clarification prompts were sent to the user during the entire task lifecycle.
-- [ ] **Swift 6 Strict Concurrency**: Ensure zero concurrency warnings or errors are introduced. No banned Combine/DispatchQueue elements.
-- [ ] **Clean Build**: Execute project validation and build to guarantee compiling source with zero new errors/warnings.
-- [ ] **Detailed Final Report**: Formulate the structured summary outlining Objectives, Files Touched (labeled new/modified/deleted), Architecture Notes, Assumptions, and Build Status.
+## 12. Change Log
+| Version | Date | Change |
+|---|---|---|
+| 2.0 | 2026-07-10 | Full rewrite per AED-009 — structured procedure, failure taxonomy, and cross-project rules added. |
+| 1.x | (prior) | Superseded — see git history. |
