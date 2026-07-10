@@ -4,6 +4,17 @@ import os.log
 actor ProjectOpeningCoordinator {
     static let defaultTimeout: TimeInterval = 15.0
 
+    private enum FileTreeDefaults {
+        static let directoryReadKeys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey, .isPackageKey]
+        static let metadataFilenames: Set<String> = [
+            "manifest.json", "metadata.json", "integrity.json",
+            "version.json", "project.json", "project.xml", "project.plist"
+        ]
+        static let deferredDirectoryNames: Set<String> = [
+            ".build", ".git", "DerivedData", "node_modules", "Pods", "build"
+        ]
+    }
+
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "ProjectOpening")
     private var fm: FileManager { .default }
 
@@ -89,49 +100,42 @@ actor ProjectOpeningCoordinator {
 
         try Task.checkCancellation()
 
-        // 5. Build file tree (recursive & non-blocking)
-        let files = try await Task.detached(priority: .userInitiated) {
-            try self.buildFileTree(at: url, relativeTo: url)
-        }.value
-        project.files = files
+        // 5. Build only the initial navigator level. The workspace lazily expands folders later,
+        // which avoids recursive package traversal and oversized project metadata during open.
+        project.files = try await buildFileTreeInternal(at: url, relativeTo: url)
 
         logger.info("Successfully loaded project: \(project.name)")
         return project
     }
 
     private nonisolated func buildFileTree(at url: URL, relativeTo base: URL) throws -> [FileNode] {
-        let fm = FileManager.default
-        let contents = try fm.contentsOfDirectory(
+        let contents = try FileManager.default.contentsOfDirectory(
             at: url,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: .skipsHiddenFiles
+            includingPropertiesForKeys: Array(FileTreeDefaults.directoryReadKeys),
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
         )
 
         let basePath = base.standardizedFileURL.path
-
-        let metadataFiles = [
-            "manifest.json", "metadata.json", "integrity.json",
-            "version.json", "project.json", "project.xml", "project.plist"
-        ]
-
         var nodes: [FileNode] = []
 
         for childURL in contents {
-            if metadataFiles.contains(childURL.lastPathComponent) { continue }
+            try Task.checkCancellation()
 
-            let resourceValues = try childURL.resourceValues(forKeys: [.isDirectoryKey])
-            let isDir = resourceValues.isDirectory ?? false
+            let filename = childURL.lastPathComponent
+            if FileTreeDefaults.metadataFilenames.contains(filename) { continue }
+
+            let resourceValues = try childURL.resourceValues(forKeys: FileTreeDefaults.directoryReadKeys)
+            let isDirectory = resourceValues.isDirectory ?? false
+            if resourceValues.isSymbolicLink == true || (isDirectory && FileTreeDefaults.deferredDirectoryNames.contains(filename)) {
+                continue
+            }
+
             let childPath = childURL.standardizedFileURL.path
-
             let relativePath = childPath.hasPrefix(basePath + "/")
                 ? String(childPath.dropFirst(basePath.count + 1))
-                : childURL.lastPathComponent
+                : filename
 
-            let node = FileNode(name: childURL.lastPathComponent, path: relativePath, isDirectory: isDir)
-            if isDir {
-                node.children = try buildFileTree(at: childURL, relativeTo: base)
-            }
-            nodes.append(node)
+            nodes.append(FileNode(name: filename, path: relativePath, isDirectory: isDirectory))
         }
 
         return nodes.sorted {

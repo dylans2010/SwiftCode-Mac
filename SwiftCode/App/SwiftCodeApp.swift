@@ -24,8 +24,8 @@ struct SwiftCodeApp: App {
             StylingBootstrap.configureEnvironment(
                 Group {
                     if let activeProject = sessionStore.activeProject {
-                        WorkspaceView(viewModel: WorkspaceViewModel(projectURL: activeProject.directoryURL))
-                            .navigationTitle(activeProject.name)
+                        WorkspaceHostView(project: activeProject)
+                            .id(activeProject.id)
                     } else {
                         HomeView()
                             .navigationTitle("SwiftCode")
@@ -53,5 +53,20 @@ struct SwiftCodeApp: App {
         .commands {
             AppCommands()
         }
+    }
+}
+
+private struct WorkspaceHostView: View {
+    let project: Project
+    @State private var viewModel: WorkspaceViewModel
+
+    init(project: Project) {
+        self.project = project
+        _viewModel = State(wrappedValue: WorkspaceViewModel(projectURL: project.directoryURL))
+    }
+
+    var body: some View {
+        WorkspaceView(viewModel: viewModel)
+            .navigationTitle(project.name)
     }
 }
