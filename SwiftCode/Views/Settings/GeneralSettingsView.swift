@@ -1272,9 +1272,7 @@ struct GeneralSettingsView: View {
             }
         }
         // 8. Clear active project state and reload
-        ProjectSessionStore.shared.activeProject = nil
-        ProjectSessionStore.shared.activeFileNode = nil
-        ProjectSessionStore.shared.activeFileContent = ""
+        ProjectSessionStore.shared.closeProject()
         ProjectSessionStore.shared.loadProjects()
         dismiss()
     }
