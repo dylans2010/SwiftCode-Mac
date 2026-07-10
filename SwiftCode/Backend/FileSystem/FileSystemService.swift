@@ -23,7 +23,8 @@ public actor FileSystemService {
             if values?.isSymbolicLink == true || (isDirectory && DirectoryListingDefaults.deferredDirectoryNames.contains(itemURL.lastPathComponent)) {
                 return nil
             }
-            return ProjectNode(url: itemURL, kind: isDirectory ? .folder : .file, children: nil)
+            let isPackage = itemURL.pathExtension == "xcodeproj"
+            return ProjectNode(url: itemURL, kind: (isDirectory && !isPackage) ? .folder : .file, children: nil)
         }.sorted {
             switch ($0.kind, $1.kind) {
             case (.folder, .file):

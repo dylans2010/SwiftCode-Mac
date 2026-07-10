@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct DevToolsMainView: View {
+    @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
 
     struct DevTool: Identifiable {
@@ -142,5 +143,12 @@ struct DevToolsMainView: View {
         }
         .searchable(text: $searchText, placement: .sidebar, prompt: "Search developer tools")
         .navigationTitle("Developer Tools")
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Close") {
+                    dismiss()
+                }
+            }
+        }
     }
 }
