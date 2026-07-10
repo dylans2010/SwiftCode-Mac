@@ -24,87 +24,139 @@ struct DeploymentsView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Platform") {
-                    Picker("Platform", selection: $selectedPlatform) {
-                        ForEach(DeploymentPlatform.allCases) { platform in
-                            Text(platform.rawValue).tag(platform)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-
-                Section("Configuration") {
-                    Toggle("Use Custom Domain", isOn: $useCustomDomain)
-                    if useCustomDomain {
-                        TextField("Type Custom Domain", text: $customDomain)
-                            .autocorrectionDisabled()
-                    }
-                }
-
-                Section {
-                    Button(action: startDeployment) {
-                        HStack {
-                            if isDeploying {
-                                ProgressView().padding(.trailing, 8)
-                            } else {
-                                Image(systemName: "cloud.fill")
+            ScrollView {
+                VStack(spacing: 24) {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Deployment Platform", systemImage: "cloud.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
                             }
-                            Text(isDeploying ? "Deploying..." : "Start Deployment")
-                                .fontWeight(.semibold)
+
+                            Picker("Platform", selection: $selectedPlatform) {
+                                ForEach(DeploymentPlatform.allCases) { platform in
+                                    Text(platform.rawValue).tag(platform)
+                                }
+                            }
+                            .pickerStyle(.segmented)
                         }
-                        .frame(maxWidth: .infinity)
+                        .padding()
                     }
-                    .disabled(isDeploying || !hasToken)
-                    .listRowBackground(isDeploying || !hasToken ? Color.gray.opacity(0.2) : Color.orange)
-                    .foregroundStyle(.white)
-                } footer: {
-                    if !hasToken {
-                        Text("Please configure your API key in Settings.")
-                            .foregroundStyle(.red)
+                    .groupBoxStyle(PreferencesGroupBoxStyle())
+
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Configuration", systemImage: "gearshape")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
+
+                            Toggle("Use Custom Domain", isOn: $useCustomDomain)
+                            if useCustomDomain {
+                                TextField("Type Custom Domain", text: $customDomain)
+                                    .textFieldStyle(.roundedBorder)
+                                    .autocorrectionDisabled()
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(PreferencesGroupBoxStyle())
+
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Action", systemImage: "play.circle")
+                                    .font(.headline)
+                                    .foregroundColor(.green)
+                                Spacer()
+                            }
+
+                            Button(action: startDeployment) {
+                                HStack {
+                                    if isDeploying {
+                                        ProgressView().scaleEffect(0.8).padding(.trailing, 8)
+                                    } else {
+                                        Image(systemName: "cloud.fill")
+                                    }
+                                    Text(isDeploying ? "Deploying..." : "Start Deployment")
+                                        .fontWeight(.semibold)
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                            .disabled(isDeploying || !hasToken)
+
+                            if !hasToken {
+                                Text("Please configure your API key in Settings.")
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(PreferencesGroupBoxStyle())
+
+                    if let deploymentURL = deploymentURL {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                    Text("Deployment Successful")
+                                        .font(.subheadline.bold())
+                                }
+
+                                Link(destination: URL(string: deploymentURL)!) {
+                                    Label(deploymentURL, systemImage: "link")
+                                        .font(.caption.monospaced())
+                                }
+
+                                Button("Open In Browser") {
+                                    NSWorkspace.shared.open(URL(string: deploymentURL)!)
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(PreferencesGroupBoxStyle())
+                    }
+
+                    if let errorMessage = errorMessage {
+                        GroupBox {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.red)
+                                Text(errorMessage)
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(PreferencesGroupBoxStyle())
+                    }
+
+                    if !logManager.deploymentLogs.isEmpty {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label("Deployment Logs", systemImage: "doc.text")
+                                    .font(.headline)
+                                    .foregroundColor(.gray)
+
+                                DeploymentLogsView(logs: logManager.deploymentLogs)
+                                    .frame(height: 200)
+                                    .cornerRadius(8)
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(PreferencesGroupBoxStyle())
                     }
                 }
-
-                if let deploymentURL = deploymentURL {
-                    Section("Result") {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                            Text("Deployment Successful")
-                                .font(.subheadline.bold())
-                        }
-
-                        Link(destination: URL(string: deploymentURL)!) {
-                            Label(deploymentURL, systemImage: "link")
-                                .font(.caption.monospaced())
-                        }
-
-
-                        Button("Open In Browser") {
-                            #if canImport(AppKit)
-                            NSWorkspace.shared.open(URL(string: deploymentURL)!)
-                            #endif
-                        }
-                    }
-                }
-
-                if let errorMessage = errorMessage {
-                    Section {
-                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
-                            .font(.caption)
-                    } header: {
-                        Text("Error").foregroundStyle(.red)
-                    }
-                }
-
-                if !logManager.deploymentLogs.isEmpty {
-                    Section("Deployment Logs") {
-                        DeploymentLogsView(logs: logManager.deploymentLogs)
-                            .frame(height: 200)
-                            .listRowInsets(EdgeInsets())
-                    }
-                }
+                .padding(24)
             }
             .navigationTitle("Deployments")
         }

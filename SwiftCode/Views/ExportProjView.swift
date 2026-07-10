@@ -32,15 +32,27 @@ struct ExportProjView: View {
                             .foregroundColor(.secondary)
                     }
                 } else {
-                    Button(action: selectDestinationAndExport) {
-                        Label("Export Project", systemImage: "square.and.arrow.up")
-                            .frame(maxWidth: .infinity)
+                    VStack(spacing: 10) {
+                        Button(action: selectDestinationAndExport) {
+                            Label("Export Project", systemImage: "square.and.arrow.up")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+
+                        Button("Close") {
+                            dismiss()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
                 }
             } else {
                 Text("No active project to export.")
+                Button("Close") {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
             }
 
             if let error = exportManager.exportError {

@@ -18,60 +18,76 @@ struct DependencyManagerView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 if dependencies.isEmpty {
-                    VStack(spacing: 12) {
+                    VStack(spacing: 16) {
                         Image(systemName: "shippingbox")
-                            .font(.system(size: 40))
-                            .foregroundStyle(.secondary.opacity(0.5))
+                            .font(.system(size: 48))
+                            .foregroundStyle(.secondary.opacity(0.6))
                         Text("No Dependencies Yet")
-                            .foregroundStyle(.secondary)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
                         Text("Add Swift Package dependencies to this project.")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        Button("Add Dependency") {
+                            resetAddForm()
+                            showAddSheet = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List {
                         ForEach(dependencies) { dep in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(dep.name)
-                                    .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(.white)
-                                Text(dep.url)
-                                    .font(.caption)
-                                    .foregroundStyle(.blue)
-                                    .lineLimit(1)
-                                HStack {
-                                    Text("v\(dep.version)")
-                                        .font(.caption2)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
-                                        .foregroundStyle(.orange)
-                                    Text(dep.source.rawValue)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
+                            HStack(alignment: .center, spacing: 16) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(dep.name)
+                                        .font(.headline)
+                                        .foregroundStyle(.primary)
+                                    Text(dep.url)
+                                        .font(.caption)
+                                        .foregroundStyle(.blue)
+                                        .lineLimit(1)
+                                    HStack {
+                                        Text("v\(dep.version)")
+                                            .font(.caption2)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+                                            .foregroundStyle(.orange)
+                                        Text(dep.source.rawValue)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+
+                                Spacer()
+
+                                HStack(spacing: 8) {
+                                    Button {
+                                        beginEdit(dep)
+                                    } label: {
+                                        Image(systemName: "pencil")
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .help("Edit Dependency")
+
+                                    Button(role: .destructive) {
+                                        removeDependency(dep)
+                                    } label: {
+                                        Image(systemName: "trash")
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .help("Delete Dependency")
                                 }
                             }
-                            .padding(.vertical, 2)
-                            .swipeActions(edge: .trailing) {
-                                Button(role: .destructive) {
-                                    removeDependency(dep)
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                                Button {
-                                    beginEdit(dep)
-                                } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-                                .tint(.blue)
-                            }
+                            .padding(.vertical, 6)
                         }
                     }
-                    .scrollContentBackground(.hidden)
                 }
             }
-            .background(Color(red: 0.10, green: 0.10, blue: 0.14))
+            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Dependencies")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -103,10 +119,13 @@ struct DependencyManagerView: View {
             Form {
                 Section("Package Info") {
                     TextField("Package Name", text: $newName)
+                        .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
                     TextField("Repository URL", text: $newURL)
+                        .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
                     TextField("Version", text: $newVersion)
+                        .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
                 }
 
@@ -123,10 +142,10 @@ struct DependencyManagerView: View {
                     Text(previewEntry)
                         .font(.caption.monospaced())
                         .foregroundStyle(.green)
+                        .padding(.vertical, 4)
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(Color(red: 0.10, green: 0.10, blue: 0.14))
+            .padding()
             .navigationTitle(editingDependency != nil ? "Edit Dependency" : "Add Dependency")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -140,7 +159,7 @@ struct DependencyManagerView: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .frame(width: 500, height: 400)
     }
 
     private var previewEntry: String {

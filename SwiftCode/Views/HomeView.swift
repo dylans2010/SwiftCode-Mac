@@ -29,9 +29,7 @@ struct HomeView: View {
             }
         }
         .sheet(isPresented: $showingNewProject) {
-            AdaptiveSheet {
-                NewProjectSheetView(viewModel: HomeViewModel())
-            }
+            NewProjectSheetView(viewModel: HomeViewModel())
         }
         .sheet(isPresented: $showingSettings) {
             AdaptiveSheet {

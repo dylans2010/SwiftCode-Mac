@@ -56,6 +56,15 @@ final class ToolbarActionManager {
         case sourceControl
         case ciBuild
 
+        // Sidebar & Inspector additions
+        case debugSessions
+        case bookmarksSidebar
+        case breakpointsSidebar
+        case debugInspectorSidebar
+        case workflowsSidebar
+        case testsSidebar
+        case workflowEditor
+
         var id: String { rawValue }
 
         var isPro: Bool {
@@ -169,6 +178,21 @@ final class ToolbarActionManager {
             return .sourceControl
         case "ci_build":
             return .ciBuild
+
+        case "debug_sessions":
+            return .debugSessions
+        case "bookmarks_sidebar":
+            return .bookmarksSidebar
+        case "breakpoints_sidebar":
+            return .breakpointsSidebar
+        case "debug_inspector_sidebar":
+            return .debugInspectorSidebar
+        case "workflows_sidebar":
+            return .workflowsSidebar
+        case "tests_sidebar":
+            return .testsSidebar
+        case "workflow_editor":
+            return .workflowEditor
 
         default:
             return nil

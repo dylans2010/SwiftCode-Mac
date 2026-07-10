@@ -62,7 +62,7 @@ struct NewProjectSheetView: View {
                 VStack(spacing: 0) {
                     ScrollView {
                         contentView
-                            .padding(30)
+                            .padding(16)
                     }
 
                     Divider()
@@ -71,33 +71,33 @@ struct NewProjectSheetView: View {
                         Button("Cancel") { dismiss() }
                         Spacer()
                     }
-                    .padding()
+                    .padding(12)
                 }
             }
             .navigationTitle(title)
         }
-        .frame(width: 750, height: 600)
+        .frame(width: 680, height: 500)
     }
 
     @ViewBuilder
     private var contentView: some View {
         switch mode {
         case .create:
-            VStack(spacing: 30) {
-                VStack(spacing: 15) {
+            VStack(spacing: 20) {
+                VStack(spacing: 10) {
                     Image(systemName: "plus.square.fill")
-                        .font(.system(size: 80))
+                        .font(.system(size: 60))
                         .foregroundColor(.accentColor)
-                        .shadow(radius: 5)
+                        .shadow(radius: 3)
 
                     Text("Create a new project from a template.")
-                        .font(.title2.bold())
+                        .font(.title3.bold())
 
                     Text("Select from various application types and library templates to get started quickly.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
+                        .padding(.horizontal, 20)
                 }
 
                 NavigationLink(destination: TemplatePickerView(viewModel: viewModel)) {
@@ -105,15 +105,15 @@ struct NewProjectSheetView: View {
                         Text("Choose Template...")
                         Image(systemName: "chevron.right")
                     }
-                    .frame(width: 200)
-                    .padding()
+                    .frame(width: 180)
+                    .padding(12)
                     .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 10))
                     .foregroundColor(.white)
                 }
                 .buttonStyle(.plain)
             }
             .frame(maxWidth: .infinity)
-            .padding(.top, 20)
+            .padding(.top, 10)
 
         case .clone:
             GitCloneSheetView(viewModel: viewModel)

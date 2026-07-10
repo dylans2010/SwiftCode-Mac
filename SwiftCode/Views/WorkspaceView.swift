@@ -12,13 +12,7 @@ struct WorkspaceView: View {
 
     var body: some View {
         AdaptivePage {
-            AdaptiveEditorPage {
-                SidebarMainView(workspaceViewModel: viewModel)
-            } content: {
-                EditorTextView(workspaceViewModel: viewModel)
-            } inspector: {
-                InspectorPanelView(workspaceViewModel: viewModel)
-            }
+            EditorTextView(workspaceViewModel: viewModel)
         }
         .environment(viewModel)
         .toolbar {
@@ -48,13 +42,6 @@ struct WorkspaceView: View {
                             Label("Search", systemImage: "magnifyingglass")
                         }
                         .help("Global Search")
-
-                        Button {
-                            activeSheet = .settings
-                        } label: {
-                            Label("Settings", systemImage: "gear")
-                        }
-                        .help("Settings")
                     }
 
                     Menu {
@@ -79,6 +66,25 @@ struct WorkspaceView: View {
                         Section("Analysis") {
                             Button("Crash Logs") { activeSheet = .crashLogAnalyzer }
                             Button("Dependency Graph") { activeSheet = .projectDependencyGraph }
+                        }
+
+                        Section("Sidebar Views") {
+                            Button("File Navigator") { activeSheet = .fileNavigator }
+                            Button("Search") { activeSheet = .codeSearch }
+                            Button("Terminal") { activeSheet = .terminal }
+                            Button("Debug Sessions") { activeSheet = .debugSessions }
+                            Button("Bookmarks") { activeSheet = .bookmarksSidebar }
+                            Button("Breakpoints") { activeSheet = .breakpointsSidebar }
+                            Button("Debug Inspector") { activeSheet = .debugInspectorSidebar }
+                            Button("Workflows") { activeSheet = .workflowsSidebar }
+                            Button("Tests") { activeSheet = .testsSidebar }
+                            Button("Workflow Editor") { activeSheet = .workflowEditor }
+                        }
+
+                        Section("Inspector Views") {
+                            Button("System Outline") { activeSheet = .symbolOutline }
+                            Button("Minimap Settings") { activeSheet = .minimapSettings }
+                            Button("Code Metrics Dashboard") { activeSheet = .codeMetrics }
                         }
                     } label: {
                         Label("More", systemImage: "ellipsis.circle")
@@ -123,7 +129,6 @@ struct WorkspaceView: View {
                 Group {
                     switch destination {
                 case .codeSearch: CodeSearchView()
-                case .settings: GeneralSettingsView()
                 case .goToLine: GoToLineView { _ in activeSheet = nil }
                 case .buildStatus: BuildStatusView(project: project, owner: owner, repo: repo)
                 case .buildLogs: BuildLogsView(owner: owner, repo: repo)
@@ -157,6 +162,21 @@ struct WorkspaceView: View {
                 case .sourceControl: SourceControlView(gitViewModel: viewModel.git)
                 case .ciBuild: CIBuildView(project: project)
                 case .dependencyManager: DependencyManagerView()
+
+                // Relocated Sidebar & Inspector cases
+                case .fileNavigator: FileNavigatorSidebarView(viewModel: viewModel.projectTree)
+                case .debugSessions: DebugSessionsSidebarView(viewModel: viewModel.debug)
+                case .bookmarksSidebar: BookmarksSidebarView()
+                case .breakpointsSidebar: BreakpointsSidebarView()
+                case .debugInspectorSidebar: DebugInspectorSidebarView()
+                case .workflowsSidebar: GitHubWorkflowsSidebarView()
+                case .testsSidebar: TestsSidebarView()
+                case .workflowEditor: WorkflowEditorView()
+                case .symbolOutline: SymbolOutlineView()
+                case .minimapSettings: MinimapSettingsView()
+                case .codeMetrics: CodeMetricsDashboardView()
+                case .terminal: TerminalView()
+
                 default:
                     ContentUnavailableView {
                         Label("Feature Detail", systemImage: "hammer")

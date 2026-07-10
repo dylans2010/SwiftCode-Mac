@@ -121,10 +121,44 @@ actor BinaryManager {
         arguments: [String],
         workingDirectory: String?
     ) async throws -> BinaryExecutionResult {
-        // iOS/iPadOS do not support subprocess execution.
-        // Return a clear error explaining that CLI tools are only available on macOS.
+        #if os(macOS)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = arguments
+        if let workingDirectory {
+            process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
+        }
+
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+
+        try process.run()
+
+        var stdoutData = Data()
+        var stderrData = Data()
+
+        if let outData = try? stdoutPipe.fileHandleForReading.readToEnd() {
+            stdoutData = outData
+        }
+        if let errData = try? stderrPipe.fileHandleForReading.readToEnd() {
+            stderrData = errData
+        }
+
+        process.waitUntilExit()
+
+        return BinaryExecutionResult(
+            command: ([executablePath] + arguments).joined(separator: " "),
+            stdout: String(data: stdoutData, encoding: .utf8) ?? "",
+            stderr: String(data: stderrData, encoding: .utf8) ?? "",
+            exitCode: process.terminationStatus
+        )
+        #else
+        // iOS/iPadOS fallback
         throw NSError(domain: "BinaryManager", code: 501, userInfo: [
             NSLocalizedDescriptionKey: "Command line tools (including git, npm, and xcodebuild) are not supported on iOS/iPadOS. Please use the integrated API-based features instead."
         ])
+        #endif
     }
 }

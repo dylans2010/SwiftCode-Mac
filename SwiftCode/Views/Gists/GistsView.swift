@@ -27,7 +27,11 @@ struct GistsView: View {
                 if gistService.isLoading && gistService.gists.isEmpty {
                     ProgressView()
                 } else if filteredGists.isEmpty {
-                    ContentUnavailableView("No Gists Found", systemImage: "doc.on.doc", description: Text("Create your first gist to get started."))
+                    ContentUnavailableView(
+                        "No Gists Found",
+                        systemImage: "doc.on.doc",
+                        description: Text("Create your first gist to get started.")
+                    )
                 } else {
                     List(selection: $selectedGistID) {
                         ForEach(filteredGists) { gist in
@@ -35,7 +39,7 @@ struct GistsView: View {
                                 .tag(gist.id)
                                 .contextMenu {
                                     Button("Delete", role: .destructive) {
-                                        Task { try await gistService.deleteGist(id: gist.id) }
+                                        Task { try? await gistService.deleteGist(id: gist.id) }
                                     }
                                     Button(starredGistIDs.contains(gist.id) ? "Unstar" : "Star") {
                                         toggleStar(gist)
@@ -43,23 +47,31 @@ struct GistsView: View {
                                 }
                         }
                     }
+                    .listStyle(.sidebar)
                 }
             }
             .navigationTitle("Gists")
             .searchable(text: $searchQuery)
             .toolbar {
-                ToolbarItem {
-                    Button { showCreateSheet = true } label: { Image(systemName: "plus") }
-                }
-                ToolbarItem {
-                    Button { Task { try await gistService.fetchGists() } } label: { Image(systemName: "arrow.clockwise") }
+                ToolbarItem(placement: .primaryAction) {
+                    HStack {
+                        Button { showCreateSheet = true } label: { Image(systemName: "plus") }
+                            .help("New Gist")
+
+                        Button { Task { try? await gistService.fetchGists() } } label: { Image(systemName: "arrow.clockwise") }
+                            .help("Reload Gists")
+                    }
                 }
             }
         } detail: {
             if let id = selectedGistID {
                 GistDetailView(gistId: id)
             } else {
-                ContentUnavailableView("Select a Gist", systemImage: "doc.text")
+                ContentUnavailableView(
+                    "Select a Gist",
+                    systemImage: "doc.text",
+                    description: Text("Select a Gist from the sidebar to view details, files, and revision history.")
+                )
             }
         }
         .sheet(isPresented: $showCreateSheet) {
