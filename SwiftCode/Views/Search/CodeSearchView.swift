@@ -248,12 +248,11 @@ struct CodeSearchView: View {
     }
 
     // Snippet highlighter using SwiftUI Text views
-    @ViewBuilder
-    private func highlightedSnippet(_ snippet: String, query: String) -> some View {
+    private func highlightedSnippet(_ snippet: String, query: String) -> Text {
         if query.isEmpty {
-            Text(snippet)
+            return Text(snippet)
                 .font(.caption.monospaced())
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
         } else {
             let lowerSnippet = snippet.lowercased()
             let lowerQuery = query.lowercased()
@@ -283,11 +282,11 @@ struct CodeSearchView: View {
                 combined.append(matchAttr)
                 combined.append(suffixAttr)
 
-                Text(combined)
+                return Text(combined)
             } else {
-                Text(snippet)
+                return Text(snippet)
                     .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
             }
         }
     }
