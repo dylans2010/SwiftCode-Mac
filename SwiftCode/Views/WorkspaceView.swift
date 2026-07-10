@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 
 struct WorkspaceView: View {
     @State var viewModel: WorkspaceViewModel
@@ -9,6 +10,11 @@ struct WorkspaceView: View {
     // Feature sheet states
     @State private var activeSheet: ToolbarActionManager.SheetDestination?
     @State private var showingExportSheet = false
+
+    // Workflow Editor States
+    @State private var workflowContent = ""
+    @State private var workflowFileName = "main.yml"
+    private let logger = Logger(subsystem: "com.swiftcode.app", category: "WorkspaceView")
 
     var body: some View {
         AdaptivePage {
@@ -173,7 +179,18 @@ struct WorkspaceView: View {
                 case .debugInspectorSidebar: DebugInspectorSidebarView(viewModel: viewModel.debug)
                 case .workflowsSidebar: GitHubWorkflowsSidebarView()
                 case .testsSidebar: TestsSidebarView()
-                case .workflowEditor: WorkflowEditorView()
+                case .workflowEditor:
+                    WorkflowEditorView(
+                        content: $workflowContent,
+                        fileName: workflowFileName,
+                        onSave: { newContent in
+                            saveWorkflow(content: newContent)
+                            activeSheet = nil
+                        }
+                    )
+                    .onAppear {
+                        loadWorkflow()
+                    }
                 case .symbolOutline: SymbolOutlineView()
                 case .minimapSettings: MinimapSettingsView()
                 case .codeMetrics: CodeMetricsDashboardView()
@@ -193,6 +210,52 @@ struct WorkspaceView: View {
                     }
                 }
             }
+        }
+    }
+
+    private func loadWorkflow() {
+        let fileURL = viewModel.projectURL.appendingPathComponent(".github/workflows/\(workflowFileName)")
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            do {
+                workflowContent = try String(contentsOf: fileURL, encoding: .utf8)
+                return
+            } catch {
+                logger.error("Failed to load workflow file: \(error.localizedDescription)")
+            }
+        }
+
+        // Default template
+        workflowContent = """
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: swift build
+"""
+    }
+
+    private func saveWorkflow(content: String) {
+        let workflowsDir = viewModel.projectURL.appendingPathComponent(".github/workflows")
+        let fileURL = workflowsDir.appendingPathComponent(workflowFileName)
+        do {
+            try FileManager.default.createDirectory(at: workflowsDir, withIntermediateDirectories: true)
+            // SAFETY: atomic writes prevent project file corruption
+            try content.write(to: fileURL, atomically: true, encoding: .utf8)
+            if let project = sessionStore.activeProject {
+                sessionStore.refreshFileTree(for: project)
+            }
+        } catch {
+            logger.error("Failed to save workflow from editor: \(error.localizedDescription)")
         }
     }
 }
