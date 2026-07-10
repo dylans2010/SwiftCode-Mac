@@ -421,6 +421,55 @@ final class ProjectSessionStore {
         }
     }
 
+    func rebuildFileTree(at url: URL) -> [FileNode] {
+        let fm = FileManager.default
+        guard let contents = try? fm.contentsOfDirectory(
+            at: url,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: .skipsHiddenFiles
+        ) else { return [] }
+
+        let basePath = url.standardizedFileURL.path
+
+        let metadataFiles = [
+            "manifest.json", "metadata.json", "integrity.json",
+            "version.json", "project.json", "project.xml", "project.plist"
+        ]
+
+        var nodes: [FileNode] = []
+
+        for childURL in contents {
+            if metadataFiles.contains(childURL.lastPathComponent) { continue }
+
+            let resourceValues = try? childURL.resourceValues(forKeys: [.isDirectoryKey])
+            let isDir = resourceValues?.isDirectory ?? false
+            let childPath = childURL.standardizedFileURL.path
+
+            let relativePath = childPath.hasPrefix(basePath + "/")
+                ? String(childPath.dropFirst(basePath.count + 1))
+                : childURL.lastPathComponent
+
+            nodes.append(FileNode(name: childURL.lastPathComponent, path: relativePath, isDirectory: isDir))
+        }
+
+        return nodes.sorted {
+            if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
+            return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
+    }
+
+    func saveImportedProject(_ project: Project) throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(project)
+        let metaURL = project.directoryURL.appendingPathComponent("project.json")
+        try data.write(to: metaURL, options: .atomic)
+
+        if !projects.contains(where: { $0.id == project.id }) {
+            projects.insert(project, at: 0)
+        }
+    }
+
     // MARK: - Helpers
 
     private func saveMetadata(_ project: Project) {
