@@ -25,28 +25,40 @@ struct GistDetailView: View {
                     }
                 )
 
+                Divider()
+
                 if let selectedFileIndex = editableFiles.firstIndex(where: { $0.id == selectedFileID }) {
                     GistFileEditorView(file: $editableFiles[selectedFileIndex], isEditing: isEditing)
+                        .padding(16)
                 } else {
-                    ContentUnavailableView("Select a file", systemImage: "doc.text")
+                    ContentUnavailableView(
+                        "Select a file",
+                        systemImage: "doc.text",
+                        description: Text("Select a file from the tab bar above to edit its content.")
+                    )
+                    .frame(maxHeight: .infinity)
                 }
             } else {
                 ProgressView("Loading Gist...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .background(Color(NSColor.windowBackgroundColor))
         .navigationTitle("Gist Details")
         .toolbar {
-            ToolbarItem {
+            ToolbarItem(placement: .primaryAction) {
                 HStack {
                     if isEditing {
                         Button("Save") {
                             Task { await saveGist() }
                         }
-                        .bold()
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
                     } else {
                         Button("Edit") {
                             isEditing = true
                         }
+                        .buttonStyle(.bordered)
                     }
                 }
             }
@@ -76,8 +88,10 @@ struct GistDetailView: View {
                     .foregroundStyle(.tertiary)
             }
         }
-        .padding()
-        .background(Color.white.opacity(0.05))
+        .padding(16)
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+        .padding([.horizontal, .top], 16)
     }
 
     private func loadGist() async {

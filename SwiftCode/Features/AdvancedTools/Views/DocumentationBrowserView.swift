@@ -38,6 +38,54 @@ struct DocumentationBrowserView: View {
                     .background(Color.accentColor.opacity(0.05))
                 }
 
+                // Header Search & Platform bar
+                HStack(spacing: 12) {
+                    TextField("Search documentation or enter URL...", text: $query)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit { performSearch() }
+
+                    Button {
+                        performSearch()
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+
+                    Divider().frame(height: 20)
+
+                    // Back & Forward Controls
+                    HStack(spacing: 4) {
+                        Button {
+                            backTrigger.toggle()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!canGoBack)
+
+                        Button {
+                            forwardTrigger.toggle()
+                        } label: {
+                            Image(systemName: "chevron.right")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!canGoForward)
+
+                        Button {
+                            reloadTrigger.toggle()
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color(NSColor.windowBackgroundColor))
+
+                Divider()
+
                 // Framework Chips
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
@@ -47,37 +95,21 @@ struct DocumentationBrowserView: View {
                             }) {
                                 Text(framework)
                                     .font(.subheadline.weight(.medium))
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(Color.accentColor.opacity(0.1))
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 6)
+                                    .background(query == framework ? Color.orange.opacity(0.2) : Color.accentColor.opacity(0.1))
                                     .clipShape(Capsule())
+                                    .foregroundColor(query == framework ? .orange : .accentColor)
                             }
+                            .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal, 16) // Search section padding: 16 (shared)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
                 }
-                #if canImport(UIKit)
-                .background(Color(uiColor: .secondarySystemBackground))
-                #else
-                .background(Color(nsColor: .windowBackgroundColor))
-                #endif
+                .background(Color(NSColor.controlBackgroundColor))
 
-#if os(macOS)
-                HStack(spacing: 8) {
-                    TextField("Search", text: $query)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { performSearch() }
-                    Button {
-                        performSearch()
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                    }
-                    .buttonStyle(.bordered)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-#endif
+                Divider()
 
                 // Documentation Content
                 if let currentURL {
@@ -91,7 +123,7 @@ struct DocumentationBrowserView: View {
                         forwardTrigger: $forwardTrigger,
                         extractedContent: $extractedContent
                     )
-                    .padding(12)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ContentUnavailableView(
                         "No URL Loaded",
@@ -102,12 +134,6 @@ struct DocumentationBrowserView: View {
                 }
             }
             .navigationTitle("Documentation")
-#if os(iOS)
-            .searchable(text: $query, prompt: "Search")
-            .onSubmit(of: .search) {
-                performSearch()
-            }
-#endif
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
@@ -126,26 +152,9 @@ struct DocumentationBrowserView: View {
                             Label("AI Insights", systemImage: "apple.intelligence")
                         }
 
-                        Button(action: { reloadTrigger.toggle() }) {
-                            Label("Reload", systemImage: "arrow.clockwise")
-                        }
-
                         Button(action: openInSafari) {
                             Label("Open In Safari", systemImage: "safari")
                         }
-
-                        Divider()
-
-                        Button(action: { backTrigger.toggle() }) {
-                            Label("Back", systemImage: "chevron.left")
-                        }
-                        .disabled(!canGoBack)
-
-                        Button(action: { forwardTrigger.toggle() }) {
-                            Label("Forward", systemImage: "chevron.right")
-                        }
-                        .disabled(!canGoForward)
-
                     } label: {
                         Image(systemName: "ellipsis.circle")
                             .font(.title3)
@@ -163,9 +172,7 @@ struct DocumentationBrowserView: View {
 
     private func openInSafari() {
         if let currentURL {
-            #if canImport(AppKit)
             NSWorkspace.shared.open(currentURL)
-            #endif
         }
     }
 
@@ -214,7 +221,6 @@ private struct DocsWebView: PlatformViewRepresentable {
     func makePlatformView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
-        // Important: Apple documentation site uses dynamic rendering
         configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
@@ -273,7 +279,6 @@ private struct DocsWebView: PlatformViewRepresentable {
                 self.parent.canGoForward = webView.canGoForward
             }
 
-            // Extract content for AI Analysis
             webView.evaluateJavaScript("document.body.innerText") { [weak self] result, error in
                 guard let content = result as? String, error == nil else { return }
                 DispatchQueue.main.async {

@@ -76,18 +76,39 @@ struct CIBuildView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(colors: [.blue.opacity(0.3), .purple.opacity(0.35), .black], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    .ignoresSafeArea()
+                Color(NSColor.windowBackgroundColor).ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: 16) {
+                    VStack(spacing: 20) {
                         headerCard
-                        configurationCard
-                        outputCard
-                        optionsCard
-                        actionCard
+
+                        // Adaptive Grid for macOS layouts
+                        HStack(alignment: .top, spacing: 20) {
+                            VStack(spacing: 16) {
+                                GroupBox(label: Label("Main Configuration", systemImage: "slider.horizontal.3")) {
+                                    configurationCard
+                                }
+                                .groupBoxStyle(PreferencesGroupBoxStyle())
+
+                                GroupBox(label: Label("Outputs", systemImage: "folder")) {
+                                    outputCard
+                                }
+                                .groupBoxStyle(PreferencesGroupBoxStyle())
+                            }
+                            .frame(maxWidth: .infinity)
+
+                            VStack(spacing: 16) {
+                                GroupBox(label: Label("Build Options", systemImage: "checkmark.square")) {
+                                    optionsCard
+                                }
+                                .groupBoxStyle(PreferencesGroupBoxStyle())
+
+                                actionCard
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
                     }
-                    .padding()
+                    .padding(24)
                 }
             }
             .navigationTitle("CI Builder")
@@ -106,13 +127,11 @@ struct CIBuildView: View {
                         startBuild()
                     }
                 )
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
+                .frame(width: 500, height: 400)
             }
             .sheet(isPresented: $showPrepareCompile) {
                 PrepareCompileWaitingView(project: project)
-                    .presentationDetents([.medium])
-                    .presentationDragIndicator(.visible)
+                    .frame(width: 500, height: 400)
             }
             .alert(isSuccess ? "Success" : "Error", isPresented: $showStatusAlert) {
                 Button("OK") {
@@ -137,15 +156,17 @@ struct CIBuildView: View {
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Advanced CI Configuration")
-                .font(.title3.bold())
-                .foregroundStyle(.white)
+                .font(.title2.bold())
+                .foregroundStyle(.primary)
             Text("Customize workflow triggers, runner image, artifacts, app metadata, and compile behavior.")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.75))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(12)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.secondary.opacity(0.15)))
     }
 
     private var configurationCard: some View {
@@ -164,7 +185,7 @@ struct CIBuildView: View {
             .pickerStyle(.segmented)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Timeout: \(Int(timeoutMinutes)) min").font(.caption).foregroundStyle(.white.opacity(0.8))
+                Text("Timeout: \(Int(timeoutMinutes)) min").font(.caption).foregroundStyle(.secondary)
                 Slider(value: $timeoutMinutes, in: 5...180, step: 5)
             }
 
@@ -187,8 +208,7 @@ struct CIBuildView: View {
             }
             .pickerStyle(.segmented)
         }
-        .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(.vertical, 8)
     }
 
     private var outputCard: some View {
@@ -201,8 +221,7 @@ struct CIBuildView: View {
             }
             .pickerStyle(.segmented)
         }
-        .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(.vertical, 8)
     }
 
     private var optionsCard: some View {
@@ -215,12 +234,11 @@ struct CIBuildView: View {
             Toggle("Upload build logs artifact", isOn: $uploadLogsArtifact)
             Toggle("Cancel old runs on same branch", isOn: $includeConcurrencyControl)
         }
-        .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(.vertical, 8)
     }
 
     private var actionCard: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             Button {
                 generatedYAMLText = AssistCIFunctions.generateBuildYML(config: buildConfig)
                 showYAMLPreview = true
@@ -229,25 +247,25 @@ struct CIBuildView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
+            .controlSize(.large)
 
             Button { showAppDetailsSheet = true } label: {
                 HStack {
-                    if isBuilding { ProgressView().tint(.white) }
+                    if isBuilding { ProgressView().scaleEffect(0.8).padding(.trailing, 4) }
                     Text(isBuilding ? "Building..." : "Continue to App Details")
                 }
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .tint(.purple)
+            .controlSize(.large)
             .disabled(isBuilding)
         }
-        .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private func labeledField(_ label: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundStyle(.white.opacity(0.8))
+            Text(label).font(.caption).foregroundStyle(.secondary)
             TextField(label, text: text)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
@@ -266,6 +284,7 @@ struct CIBuildView: View {
             .navigationTitle("build.yml")
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { showYAMLPreview = false } } }
         }
+        .frame(width: 600, height: 500)
     }
 
     private func startBuild() {

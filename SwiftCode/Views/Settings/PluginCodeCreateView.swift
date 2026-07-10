@@ -29,13 +29,39 @@ struct AdvancedPlugin {
 
     var body: some View {
         NavigationStack {
-            Form {
-                metadataSection
-                capabilitiesSection
-                toolInteropSection
-                automationSection
-                configSchemaSection
-                implementationSection
+            ScrollView {
+                VStack(spacing: 24) {
+                    GroupBox(label: Label("Plugin Metadata", systemImage: "doc.text")) {
+                        metadataSection
+                    }
+                    .groupBoxStyle(PreferencesGroupBoxStyle())
+
+                    GroupBox(label: Label("Capabilities", systemImage: "bolt.fill")) {
+                        capabilitiesSection
+                    }
+                    .groupBoxStyle(PreferencesGroupBoxStyle())
+
+                    GroupBox(label: Label("Tool Interop", systemImage: "wrench.and.screwdriver")) {
+                        toolInteropSection
+                    }
+                    .groupBoxStyle(PreferencesGroupBoxStyle())
+
+                    GroupBox(label: Label("Automation Steps", systemImage: "play.circle")) {
+                        automationSection
+                    }
+                    .groupBoxStyle(PreferencesGroupBoxStyle())
+
+                    GroupBox(label: Label("Config Schema", systemImage: "slider.horizontal.3")) {
+                        configSchemaSection
+                    }
+                    .groupBoxStyle(PreferencesGroupBoxStyle())
+
+                    GroupBox(label: Label("Implementation (main.swift)", systemImage: "curlybraces")) {
+                        implementationSection
+                    }
+                    .groupBoxStyle(PreferencesGroupBoxStyle())
+                }
+                .padding(24)
             }
             .navigationTitle("Create Plugin")
             .toolbar {
@@ -51,19 +77,26 @@ struct AdvancedPlugin {
     }
 
     private var metadataSection: some View {
-        Section("Plugin Metadata") {
-            TextField("Plugin Name", text: $pluginName)
-            TextField("Version", text: $pluginVersion)
-            TextField("Minimum SwiftCode Version", text: $minimumVersion)
-            TextField("Author", text: $pluginAuthor)
-            TextField("Tags (Comma Separated)", text: $tagsText)
-            TextField("Description", text: $pluginDescription, axis: .vertical)
-                .lineLimit(3...5)
+        VStack(spacing: 12) {
+            labeledField("Plugin Name", text: $pluginName)
+            labeledField("Version", text: $pluginVersion)
+            labeledField("Minimum SwiftCode Version", text: $minimumVersion)
+            labeledField("Author", text: $pluginAuthor)
+            labeledField("Tags (Comma Separated)", text: $tagsText)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Description").font(.caption).foregroundStyle(.secondary)
+                TextEditor(text: $pluginDescription)
+                    .frame(height: 60)
+                    .cornerRadius(6)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.15)))
+            }
         }
+        .padding(.vertical, 8)
     }
 
     private var capabilitiesSection: some View {
-        Section("Capabilities") {
+        VStack(alignment: .leading, spacing: 10) {
             ForEach(PluginManifest.Capability.allCases, id: \.self) { capability in
                 Toggle(capability.rawValue, isOn: Binding(
                     get: { selectedCapabilities.contains(capability) },
@@ -74,10 +107,12 @@ struct AdvancedPlugin {
                 ))
             }
         }
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var toolInteropSection: some View {
-        Section("Tool Interop") {
+        VStack(alignment: .leading, spacing: 10) {
             ForEach(availableTools, id: \.name) { tool in
                 Toggle(tool.name, isOn: Binding(
                     get: { selectedToolNames.contains(tool.name) },
@@ -88,20 +123,26 @@ struct AdvancedPlugin {
                 ))
             }
         }
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var automationSection: some View {
-        Section("Automation Steps") {
+        VStack(alignment: .leading, spacing: 12) {
             if automationSteps.isEmpty {
                 Text("No Steps Added Yet")
                     .foregroundStyle(.secondary)
-            }
-            ForEach(automationSteps) { step in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(step.title).font(.subheadline.weight(.semibold))
-                    Text(step.instruction).font(.caption).foregroundStyle(.secondary)
+                    .font(.subheadline)
+            } else {
+                ForEach(automationSteps) { step in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(step.title).font(.subheadline.weight(.semibold))
+                        Text(step.instruction).font(.caption).foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
                 }
             }
+
             Button {
                 automationSteps.append(
                     PluginAutomationStep(
@@ -113,29 +154,36 @@ struct AdvancedPlugin {
             } label: {
                 Label("Add Step", systemImage: "plus.circle.fill")
             }
+            .buttonStyle(.bordered)
         }
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var configSchemaSection: some View {
-        Section("Config Schema") {
+        VStack(alignment: .leading, spacing: 12) {
             if configFields.isEmpty {
                 Text("No Config Fields Yet")
                     .foregroundStyle(.secondary)
-            }
-            ForEach(configFields) { field in
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text(field.title)
-                        Text("\(field.key) • \(field.type.rawValue)")
-                            .font(.caption)
+                    .font(.subheadline)
+            } else {
+                ForEach(configFields) { field in
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(field.title).font(.subheadline)
+                            Text("\(field.key) • \(field.type.rawValue)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(field.isRequired ? "Required" : "Optional")
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
-                    Spacer()
-                    Text(field.isRequired ? "Required" : "Optional")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    .padding(.vertical, 4)
                 }
             }
+
             Button {
                 configFields.append(
                     PluginConfigField(
@@ -149,14 +197,29 @@ struct AdvancedPlugin {
             } label: {
                 Label("Add Config Field", systemImage: "slider.horizontal.3")
             }
+            .buttonStyle(.bordered)
         }
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var implementationSection: some View {
-        Section("Implementation (main.swift)") {
+        VStack(alignment: .leading, spacing: 4) {
             TextEditor(text: $mainCode)
                 .font(.system(.body, design: .monospaced))
                 .frame(minHeight: 280)
+                .cornerRadius(6)
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.15)))
+                .autocorrectionDisabled()
+        }
+        .padding(.vertical, 8)
+    }
+
+    private func labeledField(_ label: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            TextField(label, text: text)
+                .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
         }
     }

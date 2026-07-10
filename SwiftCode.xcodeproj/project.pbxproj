@@ -2908,6 +2908,7 @@
 		ACCD78AD790D110C0A76E747 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				02BC29E58C19C690DD971DA0 /* SettingsView.swift */,
 				E5C09D1515DC441A8619FDB6 /* AssistSettingsView.swift */,
 				057EAE735A7C77DB1A01F4B0 /* PluginManagerView.swift */,
 				08968ED253EE45E40E03838E /* Custom Tools */,
@@ -3503,7 +3504,6 @@
 				7B2CE463D02257ED17065693 /* AIAssistantPanelView.swift */,
 				89F158925057E585F0850BD5 /* ProjectNavigatorView.swift */,
 				8BFC6217FFC69DDFBDA6971C /* EditorGutterView.swift */,
-				02BC29E58C19C690DD971DA0 /* SettingsView.swift */,
 				944E4AE4CFB27BC9214D0122 /* AISuggestionActionBar.swift */,
 				BBD8E720818763C489F3EC95 /* AIChatInputView.swift */,
 				BFB7651072DED0D5EAE7FE92 /* AIModelPickerView.swift */,
