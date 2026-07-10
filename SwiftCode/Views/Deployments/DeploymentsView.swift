@@ -159,8 +159,3 @@ struct DeploymentsView: View {
         }
     }
 }
-
-#Preview {
-    DeploymentsView()
-        .environmentObject(ProjectSessionStore.shared)
-}
