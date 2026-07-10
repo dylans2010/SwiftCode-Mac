@@ -26,9 +26,12 @@ struct NativeTextView: NSViewRepresentable {
 
         guard let doc = viewModel.activeDocument else {
             textView.string = ""
+            context.coordinator.lastHighlightedContent = nil
+            context.coordinator.lastHighlightedLanguage = nil
             return
         }
 
+        // 1. Sync string contents if mismatched
         if textView.string != doc.content {
             let selectedRange = textView.selectedRange()
             textView.string = doc.content
@@ -37,71 +40,47 @@ struct NativeTextView: NSViewRepresentable {
             if selectedRange.location + selectedRange.length <= textView.string.count {
                 textView.setSelectedRange(selectedRange)
             }
-            context.coordinator.lastTokenizedLines = nil // Force re-highlight
-            applyHighlighting(textView, coordinator: context.coordinator)
-        } else if !viewModel.tokenizedLines.isEmpty {
-            // Apply highlighting even if text didn't change (e.g. tokens arrived later)
-            applyHighlighting(textView, coordinator: context.coordinator)
         }
-    }
 
-    private func applyHighlighting(_ textView: NSTextView, coordinator: Coordinator) {
-        // PERFORMANCE: Check if we already applied these tokens
-        if let last = coordinator.lastTokenizedLines,
-           last.elementsEqual(viewModel.tokenizedLines, by: { lhs, rhs in
-               lhs.tokens.elementsEqual(rhs.tokens, by: { lt, rt in
-                   lt.kind == rt.kind && lt.text == rt.text
-               })
-           }) {
+        // 2. PERFORMANCE: Only highlight if content or language actually mutated!
+        // This avoids spawning tasks on selection changes, focus gains, or cursor moves.
+        guard doc.content != context.coordinator.lastHighlightedContent ||
+              doc.language != context.coordinator.lastHighlightedLanguage else {
             return
         }
 
-        guard let storage = textView.textStorage else { return }
+        context.coordinator.lastHighlightedContent = doc.content
+        context.coordinator.lastHighlightedLanguage = doc.language
 
-        // SAFETY: Only apply highlighting if tokens are available and not stale
-        guard !viewModel.tokenizedLines.isEmpty else {
-            storage.beginEditing()
-            storage.removeAttribute(.foregroundColor, range: NSRange(location: 0, length: storage.length))
-            storage.endEditing()
-            coordinator.lastTokenizedLines = []
-            return
-        }
+        // 3. PERFORMANCE: Cancel any outstanding previous highlighting task
+        context.coordinator.activeHighlightTask?.cancel()
 
-        storage.beginEditing()
-        let fullRange = NSRange(location: 0, length: storage.length)
-        storage.removeAttribute(.foregroundColor, range: fullRange)
+        // 4. Asynchronously apply modern high-fidelity highlighting
+        context.coordinator.activeHighlightTask = Task {
+            let highlighted = await CodeRenderEngine.shared.parseAndHighlight(doc.content, language: doc.language)
 
-        var currentLocation = 0
-        for line in viewModel.tokenizedLines {
-            for token in line.tokens {
-                let range = NSRange(location: currentLocation, length: token.text.count)
-                // SAFETY: Ensure we don't go out of bounds of the current text storage
-                if range.location + range.length <= storage.length {
-                    let color = colorForToken(token.kind)
-                    storage.addAttribute(.foregroundColor, value: color, range: range)
+            // Check for cancellation before scheduling UI updates on Main Actor
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                guard doc.id == viewModel.activeDocument?.id else { return }
+                guard let storage = textView.textStorage, storage.string == doc.content else { return }
+
+                storage.beginEditing()
+
+                // Cleansing: Remove existing attributes to prevent style leaks/ghosting
+                let fullRange = NSRange(location: 0, length: storage.length)
+                storage.removeAttribute(.foregroundColor, range: fullRange)
+
+                // Safely apply attributes without resetting text storage
+                highlighted.enumerateAttributes(in: NSRange(location: 0, length: highlighted.length), options: []) { attributes, range, _ in
+                    if range.location + range.length <= storage.length {
+                        storage.addAttributes(attributes, range: range)
+                    }
                 }
-                currentLocation += token.text.count
 
-                // SAFETY: Stop if we've reached the end of the storage
-                if currentLocation >= storage.length { break }
+                storage.endEditing()
             }
-            currentLocation += 1 // for newline
-
-            // SAFETY: Stop if we've reached the end of the storage to avoid processing stale/extra tokens
-            if currentLocation >= storage.length { break }
-        }
-        storage.endEditing()
-        coordinator.lastTokenizedLines = viewModel.tokenizedLines
-    }
-
-    private func colorForToken(_ kind: SyntaxTokenKind) -> NSColor {
-        switch kind {
-        case .keyword: return .systemPink
-        case .string: return .systemOrange
-        case .comment: return .systemGreen
-        case .number: return .systemPurple
-        case .type: return .systemTeal
-        case .plain: return .labelColor
         }
     }
 
@@ -111,7 +90,9 @@ struct NativeTextView: NSViewRepresentable {
 
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: NativeTextView
-        var lastTokenizedLines: [TokenizedLine]?
+        var activeHighlightTask: Task<Void, Never>?
+        var lastHighlightedContent: String?
+        var lastHighlightedLanguage: SourceLanguage?
 
         init(_ parent: NativeTextView) {
             self.parent = parent

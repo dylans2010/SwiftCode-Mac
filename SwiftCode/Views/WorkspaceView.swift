@@ -49,6 +49,7 @@ struct WorkspaceView: View {
                             Button("Gists") { activeSheet = .gistManager }
                             Button("Deployments") { activeSheet = .deployments }
                             Button("Collaboration") { activeSheet = .collaboration }
+                            Button("Licenses") { activeSheet = .licensesAdd }
                             Button("Export (.scproj)") { showingExportSheet = true }
                         }
 
@@ -162,6 +163,7 @@ struct WorkspaceView: View {
                 case .sourceControl: SourceControlView(gitViewModel: viewModel.git)
                 case .ciBuild: CIBuildView(project: project)
                 case .dependencyManager: DependencyManagerView()
+                case .licensesAdd: LicencesAddView(project: project)
 
                 // Relocated Sidebar & Inspector cases
                 case .fileNavigator: FileNavigatorSidebarView(viewModel: viewModel.projectTree)

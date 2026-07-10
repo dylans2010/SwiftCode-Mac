@@ -57,7 +57,6 @@ public class EditorViewModel {
     }
 
     private func tokenize() async {
-        guard let doc = activeDocument else { return }
-        tokenizedLines = await SyntaxHighlightingEngine.shared.tokenize(text: doc.content, language: doc.language)
+        // Highlighting is now handled asynchronously by CodeRenderEngine directly inside NativeTextView
     }
 }

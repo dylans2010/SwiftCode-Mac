@@ -17,10 +17,44 @@ struct SourceControlView: View {
     @State private var errorMessage: String?
     @State private var showError = false
 
+    private var isSetupRequired: Bool {
+        // Retrieve token from Keychain
+        let token = KeychainService.shared.get(forKey: KeychainService.githubToken) ?? ""
+        let hasToken = !token.isEmpty
+
+        let hasGit = !settings.gitPath.isEmpty && FileManager.default.fileExists(atPath: settings.gitPath)
+
+        if hasToken {
+            if hasGit {
+                if settings.httpsAuthToken.isEmpty {
+                    settings.httpsAuthToken = token
+                }
+                return false
+            }
+
+            // Auto-detect standard git executable if empty or invalid
+            for path in ["/usr/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git"] {
+                if FileManager.default.fileExists(atPath: path) {
+                    settings.gitPath = path
+                    if settings.httpsAuthToken.isEmpty {
+                        settings.httpsAuthToken = token
+                    }
+                    return false
+                }
+            }
+        }
+
+        if !settings.gitPath.isEmpty && !settings.httpsAuthToken.isEmpty {
+            return false
+        }
+
+        return true
+    }
+
     var body: some View {
         NavigationStack {
             Group {
-                if settings.gitPath.isEmpty || settings.httpsAuthToken.isEmpty {
+                if isSetupRequired {
                     VStack(spacing: 20) {
                         Image(systemName: "gearshape.2")
                             .font(.system(size: 60))
@@ -64,7 +98,7 @@ struct SourceControlView: View {
     }
 
     private func checkSetup() {
-        if settings.gitPath.isEmpty || settings.httpsAuthToken.isEmpty {
+        if isSetupRequired {
             showSetup = true
         }
     }
