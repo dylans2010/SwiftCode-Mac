@@ -97,6 +97,18 @@ public struct RenderTheme: Sendable, Hashable {
     )
 }
 
+/// A syntax-highlighted attributed string that can be passed between actors.
+///
+/// `NSAttributedString` is immutable after initialization and the render engine only stores immutable
+/// copies in this wrapper, making cross-actor transfer safe for the UI to enumerate later.
+public struct HighlightedAttributedContent: @unchecked Sendable {
+    public let attributedString: NSAttributedString
+
+    public init(_ attributedString: NSAttributedString) {
+        self.attributedString = NSAttributedString(attributedString: attributedString)
+    }
+}
+
 /// The centralized, high-performance rendering engine subsystem.
 public actor CodeRenderEngine {
     public static let shared = CodeRenderEngine()
@@ -104,7 +116,7 @@ public actor CodeRenderEngine {
 
     // Caches to avoid O(N) re-parsing / re-rendering
     private var tokenCache: [String: [HighlightToken]] = [:]
-    private var highlightedCache: [String: NSAttributedString] = [:]
+    private var highlightedCache: [String: HighlightedAttributedContent] = [:]
 
     private init() {}
 
@@ -118,19 +130,19 @@ public actor CodeRenderEngine {
         _ text: String,
         language: SourceLanguage,
         theme: RenderTheme = .standardDark
-    ) -> NSAttributedString {
+    ) -> HighlightedAttributedContent {
         let cacheKey = "\(text.hashValue)-\(language.rawValue)-\(theme.hashValue)"
 
         if let cached = highlightedCache[cacheKey] {
             return cached
         }
 
-        let attributed = highlightContent(text, language: language, theme: theme)
+        let attributed = HighlightedAttributedContent(highlightContent(text, language: language, theme: theme))
         highlightedCache[cacheKey] = attributed
 
         // Trim cache to prevent memory bloat
-        if highlightedCache.count > 100 {
-            highlightedCache.removeValue(forKey: highlightedCache.keys.first!)
+        if highlightedCache.count > 100, let oldestCacheKey = highlightedCache.keys.first {
+            highlightedCache.removeValue(forKey: oldestCacheKey)
         }
 
         return attributed

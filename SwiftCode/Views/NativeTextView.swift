@@ -73,7 +73,8 @@ struct NativeTextView: NSViewRepresentable {
                 storage.removeAttribute(.foregroundColor, range: fullRange)
 
                 // Safely apply attributes without resetting text storage
-                highlighted.enumerateAttributes(in: NSRange(location: 0, length: highlighted.length), options: []) { attributes, range, _ in
+                let attributedString = highlighted.attributedString
+                attributedString.enumerateAttributes(in: NSRange(location: 0, length: attributedString.length), options: []) { attributes, range, _ in
                     if range.location + range.length <= storage.length {
                         storage.addAttributes(attributes, range: range)
                     }
