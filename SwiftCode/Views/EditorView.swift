@@ -4,9 +4,28 @@ struct EditorView: View {
     @Bindable var viewModel: EditorViewModel
     @Environment(WorkspaceViewModel.self) private var workspaceViewModel
 
+    @State private var editorMode: EditorMode = .visual
+
+    enum EditorMode: String, CaseIterable, Identifiable {
+        case visual = "Visual Editor"
+        case raw = "Raw XML Editor"
+
+        var id: String { rawValue }
+    }
+
     private var isXcodeProj: Bool {
         guard let url = viewModel.activeDocument?.url else { return false }
         return url.pathExtension == "xcodeproj" || url.lastPathComponent == "project.pbxproj"
+    }
+
+    private var isInfoPlist: Bool {
+        guard let url = viewModel.activeDocument?.url else { return false }
+        return url.pathExtension == "plist" || url.lastPathComponent == "Info.plist"
+    }
+
+    private var isEntitlements: Bool {
+        guard let url = viewModel.activeDocument?.url else { return false }
+        return url.pathExtension == "entitlements"
     }
 
     private var xcodeProjModel: XcodeProjModel? {
@@ -25,8 +44,31 @@ struct EditorView: View {
     var body: some View {
         VStack(spacing: 0) {
             EditorTabBarView(viewModel: viewModel)
+
+            // Switcher for plist / entitlements
+            if isInfoPlist || isEntitlements {
+                HStack {
+                    Picker("Editor Mode", selection: $editorMode) {
+                        ForEach(EditorMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 250)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial)
+                Divider()
+            }
+
             if isXcodeProj, let model = xcodeProjModel {
                 XcodeProjViewer(model: model)
+            } else if isInfoPlist, let url = viewModel.activeDocument?.url, editorMode == .visual {
+                InfoPlistView(fileURL: url)
+            } else if isEntitlements, let url = viewModel.activeDocument?.url, editorMode == .visual {
+                EntitlementsEditorView(fileURL: url)
             } else {
                 NativeTextView(viewModel: viewModel)
             }

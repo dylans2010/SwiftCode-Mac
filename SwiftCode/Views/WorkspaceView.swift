@@ -49,6 +49,31 @@ struct WorkspaceView: View {
 
                     Menu {
                         Section("Project") {
+                            Menu("Configuration Editors") {
+                                Button("Project Overview") { routeToProjectSection(.overview) }
+                                Button("General") { routeToProjectSection(.general) }
+                                Button("Identity") { routeToProjectSection(.identity) }
+                                Button("Targets") { routeToProjectSection(.targets) }
+                                Button("Build Settings") { routeToProjectSection(.buildSettings) }
+                                Button("Build Rules") { routeToProjectSection(.buildRules) }
+                                Button("Build Phases") { routeToProjectSection(.buildPhases) }
+                                Button("Build Configurations") { routeToProjectSection(.buildConfigurations) }
+                                Button("Packages") { routeToProjectSection(.packages) }
+                                Button("Frameworks") { routeToProjectSection(.frameworks) }
+                                Button("Dependencies") { routeToProjectSection(.dependencies) }
+                                Button("Signing & Capabilities") { routeToProjectSection(.signingCapabilities) }
+                                Button("Entitlements") { routeToProjectSection(.entitlements) }
+                                Button("Info.plist") { routeToProjectSection(.infoPlist) }
+                                Button("Resources") { routeToProjectSection(.resources) }
+                                Button("Assets") { routeToProjectSection(.assets) }
+                                Button("Localization") { routeToProjectSection(.localization) }
+                                Button("Products") { routeToProjectSection(.products) }
+                                Button("Warnings") { routeToProjectSection(.warnings) }
+                                Button("Diagnostics") { routeToProjectSection(.diagnostics) }
+                                Button("Statistics") { routeToProjectSection(.projectStatistics) }
+                                Button("Relationships") { routeToProjectSection(.relationships) }
+                                Button("Metadata") { routeToProjectSection(.metadata) }
+                            }
                             Button("Gists") { activeSheet = .gistManager }
                             Button("Deployments") { activeSheet = .deployments }
                             Button("Collaboration") { activeSheet = .collaboration }
@@ -242,6 +267,18 @@ jobs:
             }
         } catch {
             logger.error("Failed to save workflow from editor: \(error.localizedDescription)")
+        }
+    }
+
+    private func routeToProjectSection(_ section: ProjectEditorCoordinator.ProjectSection) {
+        let coordinator = ProjectEditorCoordinator.shared
+        coordinator.selectedTab = section
+
+        // Find any active xcodeproj URL in our cached project dictionary
+        if let firstProjURL = viewModel.parsedXcodeProjects.keys.first(where: { $0.pathExtension == "xcodeproj" }) {
+            Task {
+                await viewModel.editor.openFile(url: firstProjURL)
+            }
         }
     }
 }
