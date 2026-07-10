@@ -3,6 +3,7 @@ import SwiftUI
 struct FileNavigatorView: View {
     let project: Project
     @Environment(ProjectSessionStore.self) private var sessionStore
+    @EnvironmentObject private var settings: AppSettings
     @State private var searchText = ""
     @State private var showNewFileDialog = false
     @State private var showNewFolderDialog = false
