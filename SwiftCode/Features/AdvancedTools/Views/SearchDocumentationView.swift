@@ -2,7 +2,7 @@ import SwiftUI
 import ZIPFoundation
 
 struct SearchDocumentationView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @StateObject private var viewModel = RepositoryAnalysisViewModel()
     @State private var repositoryURL = ""
     @State private var prompt = ""
@@ -36,7 +36,7 @@ struct SearchDocumentationView: View {
                         .buttonStyle(.borderedProminent)
 
                         Button {
-                            viewModel.runScan(source: .folder(projectManager.activeProject?.directoryURL))
+                            viewModel.runScan(source: .folder(sessionStore.activeProject?.directoryURL))
                         } label: {
                             Text("Current Project")
                                 .font(.subheadline.bold())

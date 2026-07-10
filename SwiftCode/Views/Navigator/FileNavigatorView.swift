@@ -2,8 +2,7 @@ import SwiftUI
 
 struct FileNavigatorView: View {
     let project: Project
-    @EnvironmentObject private var projectManager: ProjectManager
-    @EnvironmentObject private var settings: AppSettings
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var searchText = ""
     @State private var showNewFileDialog = false
     @State private var showNewFolderDialog = false
@@ -149,7 +148,7 @@ struct FileNavigatorView: View {
             }
             return
         }
-        projectManager.openFile(node)
+        sessionStore.openFile(node)
     }
 
     private func createItem() {
@@ -157,9 +156,9 @@ struct FileNavigatorView: View {
         guard !name.isEmpty else { return }
         do {
             if isCreatingFolder {
-                try projectManager.createFolder(named: name, inDirectory: targetDirectory, project: project)
+                try sessionStore.createFolder(named: name, inDirectory: targetDirectory, project: project)
             } else {
-                try projectManager.createFile(named: name, inDirectory: targetDirectory, project: project)
+                try sessionStore.createFile(named: name, inDirectory: targetDirectory, project: project)
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -179,7 +178,7 @@ struct FileNavigatorView: View {
         let name = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         do {
-            try projectManager.renameNode(node, to: name, project: project)
+            try sessionStore.renameNode(node, to: name, project: project)
         } catch {
             errorMessage = error.localizedDescription
             showError = true
@@ -188,7 +187,7 @@ struct FileNavigatorView: View {
 
     private func deleteNode(_ node: FileNode) {
         do {
-            try projectManager.deleteNode(node, project: project)
+            try sessionStore.deleteNode(node, project: project)
         } catch {
             errorMessage = error.localizedDescription
             showError = true
@@ -223,10 +222,10 @@ struct FileNodeRowView: View {
     let onNewFolder: (FileNode) -> Void
     let settings: AppSettings
 
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
 
     var isSelected: Bool {
-        projectManager.activeFileNode?.id == node.id
+        sessionStore.activeFileNode?.id == node.id
     }
 
     private var iconTint: Color {
@@ -270,7 +269,7 @@ struct FileNodeRowView: View {
                     .lineLimit(1)
 
                 // Modified indicator
-                if !node.isDirectory && projectManager.modifiedFilePaths.contains(node.path) {
+                if !node.isDirectory && sessionStore.modifiedFilePaths.contains(node.path) {
                     Circle()
                         .fill(.orange)
                         .frame(width: 6, height: 6)

@@ -2,14 +2,14 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ExportProjView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var exportManager = ExportProjManager.shared
     @Environment(\.dismiss) private var dismiss
     @State private var errorMessage: String?
 
     var body: some View {
         VStack(spacing: 20) {
-            if let project = projectManager.activeProject {
+            if let project = sessionStore.activeProject {
                 Image(systemName: "square.and.arrow.up.fill")
                     .font(.system(size: 60))
                     .foregroundColor(.accentColor)
@@ -55,7 +55,7 @@ struct ExportProjView: View {
     }
 
     private func selectDestinationAndExport() {
-        guard let project = projectManager.activeProject else { return }
+        guard let project = sessionStore.activeProject else { return }
 
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(exportedAs: "com.swiftcode.project")]

@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct AssetManagerView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var importedAssets: [URL] = []
     @State private var isImporting = false
     @State private var importError: String?
@@ -55,14 +55,14 @@ struct AssetManagerView: View {
 
     private func reloadAssets() {
         importError = nil
-        guard let project = projectManager.activeProject else { importedAssets = []; return }
+        guard let project = sessionStore.activeProject else { importedAssets = []; return }
         let assetsURL = project.directoryURL.appendingPathComponent("Assets")
         let files = (try? FileManager.default.contentsOfDirectory(at: assetsURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
         importedAssets = files.filter { ["png", "jpg", "jpeg", "gif", "heic"].contains($0.pathExtension.lowercased()) }
     }
 
     private func importAssets(_ urls: [URL]) {
-        guard let project = projectManager.activeProject else {
+        guard let project = sessionStore.activeProject else {
             importError = "Open a project before importing assets."
             return
         }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ErrorDiagnosticsView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var logs = ""
 
     private var diagnostics: [DiagnosticLogEntry] {
@@ -18,9 +18,9 @@ struct ErrorDiagnosticsView: View {
             AdvancedToolCard(title: "Parsed Diagnostics", subtitle: "Click an item to open the corresponding file") {
                 ForEach(diagnostics) { item in
                     Button {
-                        let allNodes = (projectManager.activeProject?.files ?? []).flatMapDeep()
+                        let allNodes = (sessionStore.activeProject?.files ?? []).flatMapDeep()
                         if let node = allNodes.first(where: { $0.path.contains(item.file) }) {
-                            projectManager.openFile(node)
+                            sessionStore.openFile(node)
                         }
                     } label: {
                         VStack(alignment: .leading) {

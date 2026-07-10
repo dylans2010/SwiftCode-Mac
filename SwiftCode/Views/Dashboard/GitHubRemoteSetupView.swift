@@ -5,7 +5,7 @@ struct GitHubRemoteSetupView: View {
 
     let onComplete: (Project?) -> Void
 
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedTab: RemoteSetupTab = .existing
@@ -241,8 +241,8 @@ struct GitHubRemoteSetupView: View {
 
     /// Persists the `githubRepo` field in ProjectManager and calls the completion handler.
     private func applyRemote(to project: Project) {
-        if let idx = projectManager.projects.firstIndex(where: { $0.id == project.id }) {
-            projectManager.projects[idx].githubRepo = project.githubRepo
+        if let idx = sessionStore.projects.firstIndex(where: { $0.id == project.id }) {
+            sessionStore.projects[idx].githubRepo = project.githubRepo
         }
         dismiss()
         onComplete(project)

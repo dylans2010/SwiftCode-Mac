@@ -4,7 +4,7 @@ import Combine
 // MARK: - Terminal View
 
 struct TerminalView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var commandInput = ""
     @State private var outputLines: [TerminalLine] = [
         TerminalLine(text: "SwiftCode Native Terminal v2.1", type: .info)
@@ -37,7 +37,7 @@ struct TerminalView: View {
         if let cwd = currentDirectory {
             return URL(fileURLWithPath: cwd)
         }
-        return projectManager.activeProject?.directoryURL
+        return sessionStore.activeProject?.directoryURL
     }
 
     var body: some View {
@@ -51,7 +51,7 @@ struct TerminalView: View {
         .background(Color(red: 0.06, green: 0.07, blue: 0.10))
         .onAppear {
             inputFocused = true
-            if let dir = projectManager.activeProject?.directoryURL {
+            if let dir = sessionStore.activeProject?.directoryURL {
                 currentDirectory = dir.path
             }
         }

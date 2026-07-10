@@ -135,7 +135,7 @@ public final class BuildingSystemAPI: @unchecked Sendable {
         }
 
         await MainActor.run {
-            ProjectManager.shared.refreshFileTree(for: project)
+            ProjectSessionStore.shared.refreshFileTree(for: project)
         }
     }
 }

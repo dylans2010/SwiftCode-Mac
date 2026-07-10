@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Complexity Analyzer View
 
 struct ComplexityAnalyzerView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
 
     @State private var fileResults: [FileComplexityResult] = []
     @State private var isAnalyzing = false
@@ -91,7 +91,7 @@ struct ComplexityAnalyzerView: View {
                         Label("Analyze", systemImage: "chart.xyaxis.line")
                             .foregroundStyle(.purple)
                     }
-                    .disabled(isAnalyzing || projectManager.activeProject == nil)
+                    .disabled(isAnalyzing || sessionStore.activeProject == nil)
                 }
             }
             .sheet(item: $selectedFile) { result in
@@ -233,7 +233,7 @@ struct ComplexityAnalyzerView: View {
             Text("Scan your project to detect code complexity, function counts, and maintainability scores for every Swift file.")
                 .font(.callout).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center).padding(.horizontal, 32)
-            if projectManager.activeProject != nil {
+            if sessionStore.activeProject != nil {
                 Button { Task { await analyzeProject() } } label: {
                     Label("Analyze Project", systemImage: "chart.xyaxis.line")
                         .font(.body.bold())
@@ -308,7 +308,7 @@ struct ComplexityAnalyzerView: View {
     // MARK: - Analysis Logic
 
     private func analyzeProject() async {
-        guard let project = projectManager.activeProject else { return }
+        guard let project = sessionStore.activeProject else { return }
         isAnalyzing = true
         defer { isAnalyzing = false }
 

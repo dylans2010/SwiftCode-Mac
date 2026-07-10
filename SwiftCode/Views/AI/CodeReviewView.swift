@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Code Review View
 
 struct CodeReviewView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @EnvironmentObject private var settings: AppSettings
     @StateObject private var reviewManager = AgentCodeReviewManager.shared
 
@@ -48,7 +48,7 @@ struct CodeReviewView: View {
                         Label("Review", systemImage: "magnifyingglass.circle.fill")
                             .foregroundStyle(.purple)
                     }
-                    .disabled(reviewManager.isReviewing || projectManager.activeFileNode == nil)
+                    .disabled(reviewManager.isReviewing || sessionStore.activeFileNode == nil)
                 }
             }
             .sheet(item: $showIssueDetail) { issue in
@@ -83,7 +83,7 @@ struct CodeReviewView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
 
-            if projectManager.activeFileNode != nil {
+            if sessionStore.activeFileNode != nil {
                 Button {
                     Task { await startReview() }
                 } label: {
@@ -281,10 +281,10 @@ struct CodeReviewView: View {
     // MARK: - Helpers
 
     private func startReview() async {
-        guard let node = projectManager.activeFileNode,
-              !projectManager.activeFileContent.isEmpty else { return }
+        guard let node = sessionStore.activeFileNode,
+              !sessionStore.activeFileContent.isEmpty else { return }
         await reviewManager.reviewCode(
-            code: projectManager.activeFileContent,
+            code: sessionStore.activeFileContent,
             fileName: node.name
         )
     }

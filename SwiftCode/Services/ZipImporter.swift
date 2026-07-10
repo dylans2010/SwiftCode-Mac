@@ -39,7 +39,7 @@ final class ZipImporter: Sendable {
         let sanitized = sanitizeName(projectName)
 
         // Build destination project directory, handling name collisions.
-        let baseDir = await MainActor.run { ProjectManager.shared.projectsDirectory }
+        let baseDir = await MainActor.run { ProjectSessionStore.shared.projectsDirectory }
         var finalName = sanitized
         var destDir = baseDir.appendingPathComponent(finalName)
         var counter = 2
@@ -62,7 +62,7 @@ final class ZipImporter: Sendable {
 
         let finalProject = project
         await MainActor.run {
-            ProjectManager.shared.projects.insert(finalProject, at: 0)
+            ProjectSessionStore.shared.projects.insert(finalProject, at: 0)
         }
 
         return project

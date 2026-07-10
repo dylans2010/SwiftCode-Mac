@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ErrorsPanelView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var errors: [CodeError] = []
@@ -138,7 +138,7 @@ struct ErrorsPanelView: View {
     }
 
     private func analyzeProject() {
-        guard let project = projectManager.activeProject else { return }
+        guard let project = sessionStore.activeProject else { return }
 
         Task {
             do {
@@ -178,7 +178,7 @@ struct ErrorsPanelView: View {
 
     private func navigateToError(_ error: CodeError) {
         let node = FileNode(name: error.fileName, path: error.filePath, isDirectory: false)
-        projectManager.openFile(node)
+        sessionStore.openFile(node)
         dismiss()
     }
 }

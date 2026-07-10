@@ -38,13 +38,13 @@ final class ProjectTemplateManager: ObservableObject {
             let dirPath: String? = directory.isEmpty ? nil : directory
 
             if content == "__DIRECTORY__" {
-                try ProjectManager.shared.createFolder(
+                try ProjectSessionStore.shared.createFolder(
                     named: fileName,
                     inDirectory: dirPath,
                     project: project
                 )
             } else {
-                try ProjectManager.shared.createFile(
+                try ProjectSessionStore.shared.createFile(
                     named: fileName,
                     inDirectory: dirPath,
                     project: project,

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct AppCommands: Commands {
-    @ObservedObject private var projectManager = ProjectManager.shared
+    private var sessionStore = ProjectSessionStore.shared
 
     var body: some Commands {
         SidebarCommands()
@@ -20,19 +20,16 @@ struct AppCommands: Commands {
 
         CommandGroup(after: .saveItem) {
             Button("Save") {
-                projectManager.saveCurrentFile(content: projectManager.activeFileContent)
+                sessionStore.saveCurrentFile(content: sessionStore.activeFileContent)
             }
             .keyboardShortcut("s", modifiers: [.command])
-            .disabled(projectManager.activeFileNode == nil)
+            .disabled(sessionStore.activeFileNode == nil)
 
             Button("Save All") {
-                // Iterating through open tabs to save (ProjectManager doesn't have saveAll yet, but we can simulate it)
-                for tab in projectManager.openFileTabs {
-                    // This is a simplified save all
-                }
+                sessionStore.saveAll()
             }
             .keyboardShortcut("s", modifiers: [.command, .option])
-            .disabled(projectManager.openFileTabs.isEmpty)
+            .disabled(sessionStore.openFileTabs.isEmpty)
 
             Divider()
 
@@ -43,10 +40,10 @@ struct AppCommands: Commands {
             Divider()
 
             Button("Close Project") {
-                projectManager.closeProject()
+                sessionStore.closeProject()
             }
             .keyboardShortcut("w", modifiers: [.command, .shift])
-            .disabled(projectManager.activeProject == nil)
+            .disabled(sessionStore.activeProject == nil)
         }
 
         CommandGroup(after: .sidebar) {

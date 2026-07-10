@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ProjectSettingsView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var projectName = ""
@@ -61,7 +61,7 @@ struct ProjectSettingsView: View {
                     }
                 }
 
-                if let project = projectManager.activeProject {
+                if let project = sessionStore.activeProject {
                     Section("Statistics") {
                         HStack {
                             Text("Files")
@@ -122,7 +122,7 @@ struct ProjectSettingsView: View {
     }
 
     private func loadSettings() {
-        guard let project = projectManager.activeProject else { return }
+        guard let project = sessionStore.activeProject else { return }
         projectName = project.name
         projectDescription = project.description
         githubRepo = project.githubRepo ?? ""
@@ -130,13 +130,13 @@ struct ProjectSettingsView: View {
     }
 
     private func saveSettings() {
-        guard let project = projectManager.activeProject,
-              let idx = projectManager.projects.firstIndex(where: { $0.id == project.id }) else { return }
+        guard let project = sessionStore.activeProject,
+              let idx = sessionStore.projects.firstIndex(where: { $0.id == project.id }) else { return }
 
-        projectManager.projects[idx].description = projectDescription
-        projectManager.projects[idx].githubRepo = githubRepo.isEmpty ? nil : githubRepo
-        projectManager.activeProject?.description = projectDescription
-        projectManager.activeProject?.githubRepo = githubRepo.isEmpty ? nil : githubRepo
+        sessionStore.projects[idx].description = projectDescription
+        sessionStore.projects[idx].githubRepo = githubRepo.isEmpty ? nil : githubRepo
+        sessionStore.activeProject?.description = projectDescription
+        sessionStore.activeProject?.githubRepo = githubRepo.isEmpty ? nil : githubRepo
 
         dismiss()
     }

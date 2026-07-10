@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct DeploymentsView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @StateObject private var logManager = LogManager.shared
     @State private var selectedPlatform: DeploymentPlatform = .netlify
     @State private var customDomain: String = ""
@@ -111,7 +111,7 @@ struct DeploymentsView: View {
     }
 
     private func startDeployment() {
-        guard let project = projectManager.activeProject else { return }
+        guard let project = sessionStore.activeProject else { return }
 
         isDeploying = true
         deploymentURL = nil
@@ -162,5 +162,5 @@ struct DeploymentsView: View {
 
 #Preview {
     DeploymentsView()
-        .environmentObject(ProjectManager.shared)
+        .environmentObject(ProjectSessionStore.shared)
 }

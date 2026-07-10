@@ -11,6 +11,7 @@ public class WorkspaceViewModel: Sendable {
     public let build = BuildViewModel()
     public let debug = DebugSessionViewModel()
     public let ai = AgentViewModel()
+    private let sessionStore = ProjectSessionStore.shared
 
     @ObservationIgnored nonisolated(unsafe) private var loadingTask: Task<Void, Never>?
 
@@ -45,6 +46,10 @@ public class WorkspaceViewModel: Sendable {
         }
 
         Task {
+            if let project = sessionStore.activeProject,
+               let node = project.files.first(where: { url.path.hasSuffix($0.path) }) {
+                sessionStore.openFile(node)
+            }
             await editor.openFile(url: url)
         }
     }

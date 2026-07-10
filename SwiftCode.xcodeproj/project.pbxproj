@@ -343,7 +343,9 @@
 		517FA6ED20CD489FB1A32A45 /* GitRemote.swift in Sources */ = {isa = PBXBuildFile; fileRef = A491FFB19879EC410C29D5BD /* GitRemote.swift */; };
 		526C4BB26726FC83DD1F79B4 /* TransferProjectsHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F187B81D8E3BE0478F704E3 /* TransferProjectsHomeView.swift */; };
 		53A00184BB43CC7A21571AA3 /* GistFileEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3CC4FC5E2E4CCF488745B7C /* GistFileEditorView.swift */; };
-		555B1BB59B8A43E81028B4B5 /* ProjectManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 722FD53A2C6A67CFB5DBE973 /* ProjectManager.swift */; };
+		555B1BB59B8A43E81028B4B5 /* ProjectOpenError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 722FD53A2C6A67CFB5DBE973 /* ProjectOpenError.swift */; };
+		A46B0001E3914F789AA58201 /* ProjectOpeningCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A46B0002E3914F789AA58201 /* ProjectOpeningCoordinator.swift */; };
+		A46B0003E3914F789AA58201 /* ProjectSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A46B0004E3914F789AA58201 /* ProjectSessionStore.swift */; };
 		557E9403BD12B2AE0D023378 /* CollaborationConflictResolverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C0893DD6303723C51721E5 /* CollaborationConflictResolverView.swift */; };
 		55869C849B7D454FA85F8EB6 /* ParseYAML.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0555CABBB96455C9E116172 /* ParseYAML.swift */; };
 		5593137037853747DB179FCA /* BuildLogDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60918861E595AC72A6C72F8 /* BuildLogDecoder.swift */; };
@@ -1246,7 +1248,9 @@
 		71AE874FD1433E8EA90B8A4B /* EntitlementManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementManager.swift; sourceTree = "<group>"; };
 		71C341303B125990C097CEDA /* SnippetLibraryExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetLibraryExtensionView.swift; sourceTree = "<group>"; };
 		721C5D75E060E2E2DB7DD5E6 /* ToolbarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarItem.swift; sourceTree = "<group>"; };
-		722FD53A2C6A67CFB5DBE973 /* ProjectManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectManager.swift; sourceTree = "<group>"; };
+		722FD53A2C6A67CFB5DBE973 /* ProjectOpenError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectOpenError.swift; sourceTree = "<group>"; };
+		A46B0002E3914F789AA58201 /* ProjectOpeningCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectOpeningCoordinator.swift; sourceTree = "<group>"; };
+		A46B0004E3914F789AA58201 /* ProjectSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSessionStore.swift; sourceTree = "<group>"; };
 		726DF8A6FC0C5A0CC4B7CEEC /* GitBranchesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitBranchesView.swift; sourceTree = "<group>"; };
 		72C0C80C785A06322885C35C /* EditExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditExtensionView.swift; sourceTree = "<group>"; };
 		72DBED34C08ECDE38C8E737F /* ModelLinkInstallGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelLinkInstallGuideView.swift; sourceTree = "<group>"; };
@@ -2078,6 +2082,7 @@
 				6291F6B2323D40008CF052F5 /* FileNode.swift */,
 				721C5D75E060E2E2DB7DD5E6 /* ToolbarItem.swift */,
 				B94E3A012C12345600123456 /* CodeReviewModels.swift */,
+				722FD53A2C6A67CFB5DBE973 /* ProjectOpenError.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -2340,7 +2345,8 @@
 				3E7089AC68D39056BAC75278 /* CodeSuggestionsML.swift */,
 				5137E17705BB41D95B0892BA /* ExtensionManager.swift */,
 				68981A4B255767A17FEDE087 /* LocalModelManager.swift */,
-				722FD53A2C6A67CFB5DBE973 /* ProjectManager.swift */,
+				A46B0002E3914F789AA58201 /* ProjectOpeningCoordinator.swift */,
+				A46B0004E3914F789AA58201 /* ProjectSessionStore.swift */,
 				7B00B0DA94E357ECFD961BF7 /* CodeFormatter.swift */,
 				8549A5CCC7EA4F5D861B7D46 /* Color+Hex.swift */,
 				86122350693B256B489D0029 /* NotificationManager.swift */,
@@ -4039,7 +4045,9 @@
 				FBBAB137E4D128B6FEC1C1EC /* LocalModelManager.swift in Sources */,
 				A47BC68AC3763016745B2253 /* ZipImporter.swift in Sources */,
 				2A235046727B0BDA1FDDAD9B /* ProjectTemplateManager.swift in Sources */,
-				555B1BB59B8A43E81028B4B5 /* ProjectManager.swift in Sources */,
+				555B1BB59B8A43E81028B4B5 /* ProjectOpenError.swift in Sources */,
+				A46B0001E3914F789AA58201 /* ProjectOpeningCoordinator.swift in Sources */,
+				A46B0003E3914F789AA58201 /* ProjectSessionStore.swift in Sources */,
 				9B06D4BEBFA0B8929066D581 /* GitHubService.swift in Sources */,
 				AC77F68EB4931E8CED9A2D05 /* ProjectFilesExtracter.swift in Sources */,
 				E78B8F7BD24FDE793B229CB2 /* ProjectBuilderManager.swift in Sources */,

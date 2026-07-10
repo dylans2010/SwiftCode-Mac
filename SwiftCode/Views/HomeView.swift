@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct HomeView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @EnvironmentObject private var folderManager: FolderManager
     @Environment(ThemeViewModel.self) private var themeVM
     @State private var showingNewProject = false
@@ -107,7 +107,7 @@ struct HomeView: View {
     private var isSearching: Bool { !searchText.isEmpty }
 
     private var filteredProjects: [Project] {
-        var baseProjects = projectManager.projects
+        var baseProjects = sessionStore.projects
 
         if let sel = selection {
             if sel == "Recent" {
@@ -182,19 +182,74 @@ struct HomeView: View {
     }
 
     private var projectsGrid: some View {
-        AdaptiveGrid(filteredProjects, id: \.id) { project in
-            HomeProjectCardView(project: project) {
-                Task {
-                    do {
-                        try await projectManager.openProject(project)
-                    } catch {
-                        showError(error)
+        ZStack {
+            AdaptiveGrid(filteredProjects, id: \.id) { project in
+                HomeProjectCardView(project: project) {
+                    Task {
+                        await sessionStore.openProject(project)
+                    }
+                } onDelete: {
+                    try? sessionStore.deleteProject(project)
+                }
+                .contextMenu { projectContextMenu(for: project) }
+            }
+
+            loadingOverlay
+        }
+    }
+
+    @ViewBuilder
+    private var loadingOverlay: some View {
+        if sessionStore.state != .idle && sessionStore.state != .cancelled {
+            ZStack {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+
+                VStack(spacing: 16) {
+                    switch sessionStore.state {
+                    case .resolving, .loading:
+                        ProgressView()
+                            .controlSize(.large)
+
+                        Text("Opening project...")
+                            .font(.headline)
+
+                        Button("Cancel") {
+                            sessionStore.cancelLoad()
+                        }
+                        .buttonStyle(.bordered)
+                    case .failed(let error):
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 40))
+                            .foregroundColor(.red)
+
+                        Text("Failed to open project")
+                            .font(.headline)
+
+                        Text(error.localizedDescription)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 300)
+
+                        HStack {
+                            Button("Cancel") {
+                                sessionStore.closeProject()
+                            }
+                            .buttonStyle(.bordered)
+
+                            Button("Retry") {
+                                sessionStore.state = .idle
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    default:
+                        EmptyView()
                     }
                 }
-            } onDelete: {
-                try? projectManager.deleteProject(project)
+                .padding(32)
+                .background(RoundedRectangle(cornerRadius: 16).fill(.thinMaterial))
             }
-            .contextMenu { projectContextMenu(for: project) }
         }
     }
 
@@ -210,7 +265,7 @@ struct HomeView: View {
 
         Button {
             Task {
-                do { try projectManager.duplicateProject(project) }
+                do { try sessionStore.duplicateProject(project) }
                 catch { showError(error) }
             }
         } label: {
@@ -233,7 +288,7 @@ struct HomeView: View {
         Divider()
 
         Button(role: .destructive) {
-            do { try projectManager.deleteProject(project) }
+            do { try sessionStore.deleteProject(project) }
             catch { showError(error) }
         } label: {
             Label("Delete", systemImage: "trash")
@@ -304,7 +359,7 @@ struct HomeView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Rename") {
                         if let project = projectToRename {
-                            try? projectManager.renameProject(project, to: renameText)
+                            try? sessionStore.renameProject(project, to: renameText)
                             showRenameSheet = false
                         }
                     }

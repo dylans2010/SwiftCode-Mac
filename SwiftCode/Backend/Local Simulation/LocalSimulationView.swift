@@ -2,7 +2,7 @@ import SwiftUI
 
 struct LocalSimulationView: View {
     @StateObject private var runManager = LocalRunManager.shared
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -127,7 +127,7 @@ struct LocalSimulationView: View {
     }
 
     private func startSimulation() {
-        guard let project = projectManager.activeProject else {
+        guard let project = sessionStore.activeProject else {
             runManager.diagnostics = SimulationError(type: .runtime, message: "No open project available.", file: nil, line: nil, stackTrace: nil)
             return
         }

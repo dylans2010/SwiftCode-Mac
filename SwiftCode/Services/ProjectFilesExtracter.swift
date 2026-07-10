@@ -155,7 +155,7 @@ public final class ProjectFilesExtracter: Sendable {
 
         // Refresh the file tree
         await MainActor.run {
-            ProjectManager.shared.refreshFileTree(for: project)
+            ProjectSessionStore.shared.refreshFileTree(for: project)
         }
     }
 }

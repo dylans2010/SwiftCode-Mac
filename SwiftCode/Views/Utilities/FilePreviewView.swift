@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - File Preview View
 
 struct FilePreviewView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
 
     @State private var previewContent: PreviewContent = .loading
     @State private var selectedTab: PreviewTab = .preview
@@ -31,7 +31,7 @@ struct FilePreviewView: View {
                 Color(red: 0.08, green: 0.08, blue: 0.12).ignoresSafeArea()
                 content
             }
-            .navigationTitle(projectManager.activeFileNode?.name ?? "Preview")
+            .navigationTitle(sessionStore.activeFileNode?.name ?? "Preview")
             .toolbar {
                 ToolbarItem() {
                     Picker("Tab", selection: $selectedTab) {
@@ -46,7 +46,7 @@ struct FilePreviewView: View {
         }
         .preferredColorScheme(.dark)
         .onAppear { loadPreview() }
-        .onChange(of: projectManager.activeFileNode) { _, _ in loadPreview() }
+        .onChange(of: sessionStore.activeFileNode) { _, _ in loadPreview() }
     }
 
     // MARK: - Content Router
@@ -154,7 +154,7 @@ struct FilePreviewView: View {
 
     private var infoView: some View {
         List {
-            if let node = projectManager.activeFileNode {
+            if let node = sessionStore.activeFileNode {
                 Section("File") {
                     infoRow(label: "Name",      value: node.name)
                     infoRow(label: "Path",      value: node.path)
@@ -197,18 +197,18 @@ struct FilePreviewView: View {
     // MARK: - Load Logic
 
     private func loadPreview() {
-        guard let node = projectManager.activeFileNode else {
+        guard let node = sessionStore.activeFileNode else {
             previewContent = .unsupported("")
             return
         }
         previewContent = .loading
 
-        let content = projectManager.activeFileContent
+        let content = sessionStore.activeFileContent
         let ext = (node.name as NSString).pathExtension.lowercased()
 
         switch ext {
         case "png", "jpg", "jpeg", "gif", "webp", "heic":
-            if let project = projectManager.activeProject,
+            if let project = sessionStore.activeProject,
                let data = try? Data(contentsOf: project.directoryURL.appendingPathComponent(node.path)),
                let image = NSImage(data: data) {
                 previewContent = .image(image)

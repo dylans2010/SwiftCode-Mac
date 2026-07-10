@@ -22,7 +22,7 @@ struct SnippetsLibraryView: View {
                         Text(snippet.title).font(.headline)
                         Text(snippet.code).font(.caption).lineLimit(3)
                         HStack {
-                            Button("Insert Into Editor") { ProjectManager.shared.activeFileContent += "\n\n" + snippet.code }
+                            Button("Insert Into Editor") { ProjectSessionStore.shared.activeFileContent += "\n\n" + snippet.code }
                             Button("Delete", role: .destructive) {
                                 snippets.removeAll { $0.id == snippet.id }
                                 CodeSnippetStore.save(snippets)

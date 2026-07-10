@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct DiffViewerView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var originalContent = ""
@@ -103,12 +103,12 @@ struct DiffViewerView: View {
     }
 
     private func computeDiff() {
-        guard let project = projectManager.activeProject,
-              let node = projectManager.activeFileNode else { return }
+        guard let project = sessionStore.activeProject,
+              let node = sessionStore.activeFileNode else { return }
 
         let fileURL = project.directoryURL.appendingPathComponent(node.path)
         let diskContent = (try? String(contentsOf: fileURL.standardizedFileURL, encoding: .utf8)) ?? ""
-        let editorContent = projectManager.activeFileContent
+        let editorContent = sessionStore.activeFileContent
 
         originalContent = diskContent
         modifiedContent = editorContent

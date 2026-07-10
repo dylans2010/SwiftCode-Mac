@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct DependencyManagerView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var dependencies: [PackageDependency] = []
@@ -150,7 +150,7 @@ struct DependencyManagerView: View {
     // MARK: - Actions
 
     private func loadDependencies() {
-        guard let project = projectManager.activeProject else { return }
+        guard let project = sessionStore.activeProject else { return }
         let packageURL = project.directoryURL.appendingPathComponent("Package.swift")
         // Parse simple dependencies from Package.swift if it exists
         guard let content = try? String(contentsOf: packageURL, encoding: .utf8) else { return }
@@ -210,7 +210,7 @@ struct DependencyManagerView: View {
     }
 
     private func updatePackageSwift() {
-        guard let project = projectManager.activeProject else { return }
+        guard let project = sessionStore.activeProject else { return }
         let packageURL = project.directoryURL.appendingPathComponent("Package.swift")
         let depsString = dependencies.map { "        \($0.packageSwiftEntry)" }.joined(separator: ",\n")
         let packageContent = """
@@ -232,6 +232,6 @@ let package = Package(
 )
 """
         try? packageContent.write(to: packageURL, atomically: true, encoding: .utf8)
-        projectManager.refreshFileTree(for: project)
+        sessionStore.refreshFileTree(for: project)
     }
 }

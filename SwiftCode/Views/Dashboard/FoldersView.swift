@@ -3,11 +3,11 @@ import SwiftUI
 struct FoldersView: View {
     let folder: ProjectFolder
 
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @EnvironmentObject private var folderManager: FolderManager
 
     private var projects: [Project] {
-        folderManager.projects(in: folder, allProjects: projectManager.projects)
+        folderManager.projects(in: folder, allProjects: sessionStore.projects)
     }
 
     var body: some View {
@@ -19,10 +19,10 @@ struct FoldersView: View {
                 AdaptiveGrid(projects, id: \.id) { project in
                     HomeProjectCardView(project: project) {
                         Task { @MainActor in
-                            try? await projectManager.openProject(project)
+                            try? await sessionStore.openProject(project)
                         }
                     } onDelete: {
-                        try? projectManager.deleteProject(project)
+                        try? sessionStore.deleteProject(project)
                     }
                 }
             }

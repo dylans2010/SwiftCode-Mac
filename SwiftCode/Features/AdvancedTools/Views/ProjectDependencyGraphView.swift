@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ProjectDependencyGraphView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
 
     @State private var isGenerating = false
     @State private var graphOutput = ""
@@ -41,7 +41,7 @@ struct ProjectDependencyGraphView: View {
     }
 
     private func generateGraph() {
-        guard let project = projectManager.activeProject else { return }
+        guard let project = sessionStore.activeProject else { return }
         isGenerating = true
 
         Task {

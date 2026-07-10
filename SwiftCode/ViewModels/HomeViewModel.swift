@@ -19,7 +19,7 @@ public class HomeViewModel {
 
     public func importProject(url: URL) async {
         do {
-            _ = try await ProjectManager.shared.importProject(from: url)
+            _ = try ProjectSessionStore.shared.createProject(name: url.lastPathComponent)
         } catch {
             LoggingTool.error("Failed to import project: \(error)")
         }

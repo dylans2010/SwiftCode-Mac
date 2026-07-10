@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct DatabaseInspectorView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @EnvironmentObject private var folderManager: FolderManager
     @State private var selectedTable = "Projects"
     let tables = ["Projects", "Folders", "Settings"]
@@ -21,7 +21,7 @@ struct DatabaseInspectorView: View {
 
                 switch selectedTable {
                 case "Projects":
-                    ForEach(projectManager.projects) { project in
+                    ForEach(sessionStore.projects) { project in
                         HStack {
                             Text(project.id.uuidString.prefix(8)).font(.system(.caption, design: .monospaced))
                             Spacer()

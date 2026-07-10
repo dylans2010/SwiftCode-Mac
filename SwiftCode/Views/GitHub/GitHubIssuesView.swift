@@ -40,7 +40,7 @@ struct GitHubIssue: Identifiable, Decodable {
 // MARK: - GitHub Issues View
 
 struct GitHubIssuesView: View {
-    @EnvironmentObject private var projectManager: ProjectManager
+    @Environment(ProjectSessionStore.self) private var sessionStore
     @EnvironmentObject private var settings: AppSettings
 
     @State private var issues: [GitHubIssue] = []
@@ -55,11 +55,11 @@ struct GitHubIssuesView: View {
     @State private var filterTask: Task<Void, Never>?
 
     private var owner: String {
-        guard let repo = projectManager.activeProject?.githubRepo else { return "" }
+        guard let repo = sessionStore.activeProject?.githubRepo else { return "" }
         return String(repo.split(separator: "/").first ?? "")
     }
     private var repoName: String {
-        guard let repo = projectManager.activeProject?.githubRepo else { return "" }
+        guard let repo = sessionStore.activeProject?.githubRepo else { return "" }
         return String(repo.split(separator: "/").last ?? "")
     }
 
