@@ -72,7 +72,7 @@ final class ProjectSessionStore {
         }
     }
 
-    private func loadProjects() {
+    func loadProjects() {
         let fm = FileManager.default
         guard let contents = try? fm.contentsOfDirectory(
             at: projectsDirectory,
