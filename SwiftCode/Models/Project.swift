@@ -63,7 +63,7 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
         name = try container.decode(String.self, forKey: .name)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         lastOpened = try container.decode(Date.self, forKey: .lastOpened)
-        files = try container.decode([FileNode].self, forKey: .files)
+        files = []
         fileCount = (try? container.decode(Int.self, forKey: .fileCount)) ?? 0
         githubRepo = try container.decodeIfPresent(String.self, forKey: .githubRepo)
         description = try container.decode(String.self, forKey: .description)
@@ -77,7 +77,7 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
         try container.encode(name, forKey: .name)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(lastOpened, forKey: .lastOpened)
-        try container.encode(files, forKey: .files)
+        try container.encode([FileNode](), forKey: .files)
         try container.encode(fileCount, forKey: .fileCount)
         try container.encode(githubRepo, forKey: .githubRepo)
         try container.encode(description, forKey: .description)
