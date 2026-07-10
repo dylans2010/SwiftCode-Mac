@@ -126,7 +126,7 @@ struct ProjectTreeNodeView: View {
                 }
             } label: {
                 ProjectTreeRowView(node: node)
-                    .tag(node.id)
+                    .tag(node.url.path)
                     .contextMenu {
                         treeContextMenu(for: node)
                     }
@@ -140,7 +140,7 @@ struct ProjectTreeNodeView: View {
             }
         } else {
             ProjectTreeRowView(node: node)
-                .tag(node.id)
+                .tag(node.url.path)
                 .contextMenu {
                     treeContextMenu(for: node)
                 }

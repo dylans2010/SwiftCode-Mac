@@ -63,6 +63,22 @@ struct DocumentationBrowserView: View {
                 .background(Color(nsColor: .windowBackgroundColor))
                 #endif
 
+#if os(macOS)
+                HStack(spacing: 8) {
+                    TextField("Search", text: $query)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit { performSearch() }
+                    Button {
+                        performSearch()
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+#endif
+
                 // Documentation Content
                 if let currentURL {
                     DocsWebView(
@@ -86,10 +102,12 @@ struct DocumentationBrowserView: View {
                 }
             }
             .navigationTitle("Documentation")
+#if os(iOS)
             .searchable(text: $query, prompt: "Search")
             .onSubmit(of: .search) {
                 performSearch()
             }
+#endif
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {

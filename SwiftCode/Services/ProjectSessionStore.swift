@@ -341,18 +341,81 @@ final class ProjectSessionStore {
 
         currentFileLoadTask = Task {
             do {
-                let content = try await CodeReaderManager.shared.readFileAsync(
-                    project: projectName,
-                    relativePath: relativePath
-                )
+                let fileURL = project.directoryURL.appendingPathComponent(relativePath)
+                let content = try await self.readFileContent(at: fileURL)
                 guard !Task.isCancelled, self.activeFileNode?.id == nodeId else { return }
                 self.activeFileContent = content
+            } catch is CancellationError {
+                // Ignore cancellation
             } catch {
                 guard !Task.isCancelled, self.activeFileNode?.id == nodeId else { return }
                 self.activeFileContent = ""
                 self.fileLoadError = "Failed to load: \(error.localizedDescription)"
             }
         }
+    }
+
+    private func readFileContent(at url: URL, maxBytes: Int = 5_242_880) async throws -> String {
+        try await Task.detached(priority: .userInitiated) {
+            // Verify regular file and obtain size if available
+            let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+            guard values?.isRegularFile == true else {
+                throw NSError(domain: "SwiftCode.FileRead", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not a regular file"])
+            }
+
+            let fileSize = values?.fileSize ?? 0
+            let hardLimit = maxBytes
+            let limit = fileSize > 0 ? min(fileSize, hardLimit) : hardLimit
+
+            // Fast path for small files
+            if fileSize > 0 && fileSize <= hardLimit {
+                let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+                if let text = await await self.decodeText(from: data) {
+                    return text
+                } else {
+                    let sizeDesc = ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file)
+                    return "Binary file (\(sizeDesc)) — not previewable."
+                }
+            }
+
+            // Stream read up to limit for large files
+            let handle = try FileHandle(forReadingFrom: url)
+            defer { try? handle.close() }
+
+            var buffer = Data()
+            buffer.reserveCapacity(min(limit, hardLimit))
+
+            while !Task.isCancelled {
+                let remaining = limit - buffer.count
+                if remaining <= 0 { break }
+                let chunk = try handle.read(upToCount: min(64 * 1024, remaining)) ?? Data()
+                if chunk.isEmpty { break }
+                buffer.append(chunk)
+            }
+
+            if Task.isCancelled { throw CancellationError() }
+
+            if let text = await self.decodeText(from: buffer) {
+                if fileSize > hardLimit && fileSize > 0 {
+                    let total = ByteCountFormatter.string(fromByteCount: Int64(fileSize), countStyle: .file)
+                    let shown = ByteCountFormatter.string(fromByteCount: Int64(buffer.count), countStyle: .file)
+                    return text + "\n\n// Preview truncated — showing \(shown) of \(total)."
+                }
+                return text
+            } else {
+                let shown = ByteCountFormatter.string(fromByteCount: Int64(buffer.count), countStyle: .file)
+                return "Binary file — showing first \(shown)."
+            }
+        }.value
+    }
+
+    private func decodeText(from data: Data) -> String? {
+        if let s = String(data: data, encoding: .utf8) { return s }
+        if let s = String(data: data, encoding: .utf16LittleEndian) { return s }
+        if let s = String(data: data, encoding: .utf16BigEndian) { return s }
+        if let s = String(data: data, encoding: .isoLatin1) { return s }
+        if let s = String(data: data, encoding: .ascii) { return s }
+        return nil
     }
 
     func closeTab(_ node: FileNode) {
@@ -453,8 +516,8 @@ final class ProjectSessionStore {
         let fm = FileManager.default
         guard let contents = try? fm.contentsOfDirectory(
             at: url,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: .skipsHiddenFiles
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isPackageKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else { return [] }
 
         let basePath = url.standardizedFileURL.path
@@ -464,20 +527,28 @@ final class ProjectSessionStore {
             "version.json", "project.json", "project.xml", "project.plist"
         ]
 
+        let deferredDirectoryNames: Set<String> = [
+            ".build", ".git", "DerivedData", "node_modules", "Pods", "build"
+        ]
+
         var nodes: [FileNode] = []
 
         for childURL in contents {
-            if metadataFiles.contains(childURL.lastPathComponent) { continue }
+            let filename = childURL.lastPathComponent
+            if metadataFiles.contains(filename) { continue }
 
-            let resourceValues = try? childURL.resourceValues(forKeys: [.isDirectoryKey])
+            let resourceValues = try? childURL.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isPackageKey])
             let isDir = resourceValues?.isDirectory ?? false
-            let childPath = childURL.standardizedFileURL.path
+            if resourceValues?.isSymbolicLink == true || (isDir && deferredDirectoryNames.contains(filename)) {
+                continue
+            }
 
+            let childPath = childURL.standardizedFileURL.path
             let relativePath = childPath.hasPrefix(basePath + "/")
                 ? String(childPath.dropFirst(basePath.count + 1))
-                : childURL.lastPathComponent
+                : filename
 
-            nodes.append(FileNode(name: childURL.lastPathComponent, path: relativePath, isDirectory: isDir))
+            nodes.append(FileNode(name: filename, path: relativePath, isDirectory: isDir))
         }
 
         return nodes.sorted {
