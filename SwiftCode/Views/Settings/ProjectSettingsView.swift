@@ -130,13 +130,10 @@ struct ProjectSettingsView: View {
     }
 
     private func saveSettings() {
-        guard let project = sessionStore.activeProject,
-              let idx = sessionStore.projects.firstIndex(where: { $0.id == project.id }) else { return }
+        guard let project = sessionStore.activeProject else { return }
 
-        sessionStore.projects[idx].description = projectDescription
-        sessionStore.projects[idx].githubRepo = githubRepo.isEmpty ? nil : githubRepo
-        sessionStore.activeProject?.description = projectDescription
-        sessionStore.activeProject?.githubRepo = githubRepo.isEmpty ? nil : githubRepo
+        let repo = githubRepo.isEmpty ? nil : githubRepo
+        sessionStore.updateProjectSettings(description: projectDescription, githubRepo: repo, for: project)
 
         dismiss()
     }
