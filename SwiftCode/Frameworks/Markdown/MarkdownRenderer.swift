@@ -232,14 +232,14 @@ public struct MarkdownBlockView: View {
     public var body: some View {
         switch block {
         case .heading(let level, let text):
-            Text(AttributedString(MarkdownRenderer.shared.render(text)))
+            Text(MarkdownRenderer.shared.render(text))
                 .font(headingFont(level))
                 .fontWeight(.bold)
                 .padding(.top, level == 1 ? 12 : 6)
                 .padding(.bottom, 4)
 
         case .paragraph(let text):
-            Text(AttributedString(MarkdownRenderer.shared.render(text)))
+            Text(MarkdownRenderer.shared.render(text))
                 .font(.body)
                 .lineSpacing(4)
 
@@ -269,7 +269,7 @@ public struct MarkdownBlockView: View {
                 Rectangle()
                     .fill(Color.blue.opacity(0.6))
                     .frame(width: 4)
-                Text(AttributedString(MarkdownRenderer.shared.render(text)))
+                Text(MarkdownRenderer.shared.render(text))
                     .font(.body.italic())
                     .foregroundStyle(.secondary)
             }
@@ -281,7 +281,7 @@ public struct MarkdownBlockView: View {
                     HStack(alignment: .top, spacing: 6) {
                         Text("•")
                             .font(.body)
-                        Text(AttributedString(MarkdownRenderer.shared.render(item)))
+                        Text(MarkdownRenderer.shared.render(item))
                             .font(.body)
                     }
                 }
@@ -294,7 +294,7 @@ public struct MarkdownBlockView: View {
                     HStack(alignment: .top, spacing: 6) {
                         Text("\(index + 1).")
                             .font(.body)
-                        Text(AttributedString(MarkdownRenderer.shared.render(item)))
+                        Text(MarkdownRenderer.shared.render(item))
                             .font(.body)
                     }
                 }
@@ -307,7 +307,7 @@ public struct MarkdownBlockView: View {
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: item.checked ? "checkmark.square.fill" : "square")
                             .foregroundStyle(item.checked ? .blue : .secondary)
-                        Text(AttributedString(MarkdownRenderer.shared.render(item.text)))
+                        Text(MarkdownRenderer.shared.render(item.text))
                             .font(.body)
                     }
                 }
