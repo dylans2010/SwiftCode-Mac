@@ -6,6 +6,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedPane: SettingsPane = .general
+    @State private var searchQuery = ""
 
     enum SettingsPane: String, CaseIterable, Identifiable {
         case general = "General"
@@ -35,34 +36,79 @@ struct SettingsView: View {
         }
     }
 
+    var filteredPanes: [SettingsPane] {
+        if searchQuery.isEmpty {
+            return SettingsPane.allCases
+        } else {
+            return SettingsPane.allCases.filter {
+                $0.rawValue.lowercased().contains(searchQuery.lowercased())
+            }
+        }
+    }
+
     var body: some View {
         NavigationSplitView {
-            List(SettingsPane.allCases, selection: $selectedPane) { pane in
-                NavigationLink(value: pane) {
-                    Label(pane.rawValue, systemImage: pane.icon)
-                        .font(.headline)
+            VStack(spacing: 0) {
+                // Settings Search Bar
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search preferences...", text: $searchQuery)
+                        .textFieldStyle(.plain)
                 }
+                .padding(8)
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                .padding()
+
+                Divider()
+
+                List(filteredPanes, selection: $selectedPane) { pane in
+                    NavigationLink(value: pane) {
+                        Label(pane.rawValue, systemImage: pane.icon)
+                            .font(.headline)
+                    }
+                }
+                .listStyle(.sidebar)
             }
-            .listStyle(.sidebar)
             .navigationTitle("Preferences")
-            .frame(minWidth: 200)
+            .frame(minWidth: 220, idealWidth: 240, maxWidth: 300)
         } detail: {
             VStack(spacing: 0) {
-                ScrollView {
-                    paneView(for: selectedPane)
-                        .padding()
-                }
-            }
-            .background(Color(NSColor.windowBackgroundColor))
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
+                // Toolbar Header
+                HStack {
+                    Text(selectedPane.rawValue)
+                        .font(.title2.bold())
+                    Spacer()
                     Button("Done") {
                         dismiss()
                     }
+                    .keyboardShortcut(.cancelAction)
                 }
+                .padding()
+                .background(.ultraThinMaterial)
+
+                Divider()
+
+                ScrollView {
+                    paneView(for: selectedPane)
+                        .padding(24)
+                        .frame(maxWidth: 800, alignment: .leading)
+                }
+                .background(Color(NSColor.windowBackgroundColor))
             }
         }
         .frame(width: 1050, height: 750)
+        .onAppear {
+            // Restore previous selection state
+            if let savedValue = UserDefaults.standard.string(forKey: "com.swiftcode.settings.selectedPane"),
+               let restored = SettingsPane(rawValue: savedValue) {
+                selectedPane = restored
+            }
+        }
+        .onChange(of: selectedPane) { _, newValue in
+            // Save state for restoration
+            UserDefaults.standard.set(newValue.rawValue, forKey: "com.swiftcode.settings.selectedPane")
+        }
     }
 
     @ViewBuilder

@@ -1,4 +1,7 @@
 import Foundation
+import os.log
+
+private let logger = Logger(subsystem: "com.swiftcode.Core", category: "CodingManager")
 
 @MainActor
 final class CodingManager: ObservableObject {
@@ -7,15 +10,38 @@ final class CodingManager: ObservableObject {
     private let fm = FileManager.default
 
     var projectsRoot: URL
-
     var modelsRoot: URL
 
+    // Centralized Subsystem Directories
+    static var appSupportRoot: URL {
+        // SAFETY: applicationSupportDirectory is always available on macOS.
+        let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+        let root = paths.first! // SAFETY: userDomainMask always has at least one directory
+        let appSupport = root.appendingPathComponent("SwiftCode", isDirectory: true)
+        return appSupport
+    }
+
+    static func subdirectory(named name: String) -> URL {
+        let dir = appSupportRoot.appendingPathComponent(name, isDirectory: true)
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return dir
+    }
+
     private init() {
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        projectsRoot = docs.appendingPathComponent("Projects")
-        modelsRoot = docs.appendingPathComponent("Models")
-        try? FileManager.default.createDirectory(at: projectsRoot, withIntermediateDirectories: true)
-        try? FileManager.default.createDirectory(at: modelsRoot, withIntermediateDirectories: true)
+        // Centralized source of truth under ~/Library/Application Support/SwiftCode
+        let root = Self.appSupportRoot
+        try? fm.createDirectory(at: root, withIntermediateDirectories: true)
+
+        self.projectsRoot = Self.subdirectory(named: "Projects")
+        self.modelsRoot = Self.subdirectory(named: "Models")
+
+        ensureProjectsDirectory()
+        ensureModelsDirectory()
+
+        // Trigger automatic migration on first launch
+        performMigrationIfNeeded()
     }
 
     /// Ensure the Projects directory exists. Called at app startup.
@@ -29,6 +55,75 @@ final class CodingManager: ObservableObject {
     func ensureModelsDirectory() {
         if !fm.fileExists(atPath: modelsRoot.path) {
             try? fm.createDirectory(at: modelsRoot, withIntermediateDirectories: true)
+        }
+    }
+
+    // MARK: - Migration Helper
+    private func performMigrationIfNeeded() {
+        let migrationDoneKey = "com.swiftcode.storageMigrationDone"
+        if UserDefaults.standard.bool(forKey: migrationDoneKey) {
+            return
+        }
+
+        let fm = FileManager.default
+        let docs = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let legacyProjects = docs.appendingPathComponent("Projects")
+        let legacyModels = docs.appendingPathComponent("Models")
+
+        var migratedSuccessfully = true
+
+        // Migrate Projects
+        if fm.fileExists(atPath: legacyProjects.path) {
+            logger.info("Legacy Projects directory found. Migrating...")
+            do {
+                if !fm.fileExists(atPath: projectsRoot.path) {
+                    try fm.createDirectory(at: projectsRoot, withIntermediateDirectories: true)
+                }
+                let contents = try fm.contentsOfDirectory(at: legacyProjects, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+                for item in contents {
+                    let dest = projectsRoot.appendingPathComponent(item.lastPathComponent)
+                    if fm.fileExists(atPath: dest.path) {
+                        try fm.removeItem(at: dest)
+                    }
+                    try fm.copyItem(at: item, to: dest)
+                    logger.info("Migrated project: \(item.lastPathComponent)")
+                }
+            } catch {
+                logger.error("Failed to migrate projects: \(error.localizedDescription)")
+                migratedSuccessfully = false
+            }
+        }
+
+        // Migrate Models
+        if fm.fileExists(atPath: legacyModels.path) {
+            logger.info("Legacy Models directory found. Migrating...")
+            do {
+                if !fm.fileExists(atPath: modelsRoot.path) {
+                    try fm.createDirectory(at: modelsRoot, withIntermediateDirectories: true)
+                }
+                let contents = try fm.contentsOfDirectory(at: legacyModels, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+                for item in contents {
+                    let dest = modelsRoot.appendingPathComponent(item.lastPathComponent)
+                    if fm.fileExists(atPath: dest.path) {
+                        try fm.removeItem(at: dest)
+                    }
+                    try fm.copyItem(at: item, to: dest)
+                    logger.info("Migrated model: \(item.lastPathComponent)")
+                }
+            } catch {
+                logger.error("Failed to migrate models: \(error.localizedDescription)")
+                migratedSuccessfully = false
+            }
+        }
+
+        // Clean up legacy directories ONLY after successful verification
+        if migratedSuccessfully {
+            logger.info("Storage migration completed successfully. Cleaning up legacy directories...")
+            try? fm.removeItem(at: legacyProjects)
+            try? fm.removeItem(at: legacyModels)
+            UserDefaults.standard.set(true, forKey: migrationDoneKey)
+        } else {
+            logger.error("Storage migration failed or partially failed. Keeping legacy files intact.")
         }
     }
 
@@ -320,25 +415,5 @@ final class CodingManager: ObservableObject {
         }
         try fm.createDirectory(at: projectDir, withIntermediateDirectories: true)
         return projectDir
-    }
-}
-
-// MARK: - Errors
-
-enum CodingError: LocalizedError {
-    case pathOutsideProject
-    case alreadyExists
-    case cannotDeleteRoot
-    case encodingError
-    case fileNotFound
-
-    var errorDescription: String? {
-        switch self {
-        case .pathOutsideProject: return "Path is outside the project directory."
-        case .alreadyExists: return "A file with that name already exists."
-        case .cannotDeleteRoot: return "Cannot delete the project root directory."
-        case .encodingError: return "Failed to decode file content as UTF-8."
-        case .fileNotFound: return "File not found."
-        }
     }
 }

@@ -182,7 +182,10 @@ struct SourceControlView: View {
                 if isSetupRequired {
                     setupRequiredView
                 } else {
-                    detailPaneView(for: selectedTab)
+                    ScrollView {
+                        detailPaneView(for: selectedTab)
+                            .padding(24)
+                    }
                 }
             }
             .background(Color(NSColor.windowBackgroundColor))
@@ -249,104 +252,113 @@ struct SourceControlView: View {
     // MARK: - Local Workspace Detail Pane
 
     private var localWorkspacePane: some View {
-        VStack(spacing: 0) {
-            HStack {
-                if let status = gitViewModel.status {
-                    HStack(spacing: 12) {
-                        Image(systemName: "arrow.triangle.branch")
-                            .foregroundStyle(.blue)
-                        Text(status.branchName)
-                            .fontWeight(.semibold)
-
-                        HStack(spacing: 8) {
-                            Label("\(status.ahead)", systemImage: "arrow.up.circle.fill")
-                                .help("Ahead of remote")
-                            Label("\(status.behind)", systemImage: "arrow.down.circle.fill")
-                                .help("Behind remote")
+        VStack(spacing: 20) {
+            GroupBox {
+                HStack {
+                    if let status = gitViewModel.status {
+                        HStack(spacing: 12) {
+                            Image(systemName: "arrow.triangle.branch")
+                                .font(.title3)
+                                .foregroundStyle(.blue)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(status.branchName)
+                                    .fontWeight(.bold)
+                                HStack(spacing: 8) {
+                                    Label("\(status.ahead)", systemImage: "arrow.up.circle.fill")
+                                    Label("\(status.behind)", systemImage: "arrow.down.circle.fill")
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            }
                         }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    } else {
+                        Text("Not Initialized")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
                     }
-                } else {
-                    Text("Not Initialized")
-                        .foregroundStyle(.secondary)
-                }
 
-                Spacer()
+                    Spacer()
 
-                Button {
-                    performAction {
-                        await gitViewModel.refreshStatus()
+                    Button {
+                        performAction {
+                            await gitViewModel.refreshStatus()
+                        }
+                    } label: {
+                        Label("Refresh Status", systemImage: "arrow.clockwise")
                     }
-                } label: {
-                    Label("Refresh Status", systemImage: "arrow.clockwise")
+                    .buttonStyle(.bordered)
+                    .disabled(gitViewModel.isScanning || isPerformingGitAction)
                 }
-                .disabled(gitViewModel.isScanning || isPerformingGitAction)
+                .padding()
             }
-            .padding()
-            .background(Color.secondary.opacity(0.04))
-
-            Divider()
+            .groupBoxStyle(ModernGroupBoxStyle())
 
             if let status = gitViewModel.status {
-                HSplitView {
-                    // Left column: Changed Files lists
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            let conflicts = status.files.filter { $0.status == .conflicted }
-                            if !conflicts.isEmpty {
-                                fileGroupSection(title: "Conflicts", files: conflicts, badgeColor: .red)
+                VStack(spacing: 20) {
+                    // Left Column GroupBoxes: Changed Files Lists
+                    let conflicts = status.files.filter { $0.status == .conflicted }
+                    if !conflicts.isEmpty {
+                        GroupBox {
+                            fileGroupSection(title: "Conflicts", files: conflicts, badgeColor: .red)
+                                .padding()
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+                    }
+
+                    let staged = status.files.filter { $0.isStaged }
+                    GroupBox {
+                        fileGroupSection(title: "Staged Changes", files: staged, badgeColor: .green)
+                            .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    let unstaged = status.files.filter { !$0.isStaged && $0.status != .conflicted }
+                    GroupBox {
+                        fileGroupSection(title: "Unstaged / Untracked", files: unstaged, badgeColor: .orange)
+                            .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Right Column GroupBox: Commit Composer Form
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Label("Commit Composer", systemImage: "checkmark.seal.fill")
+                                .font(.headline)
+                                .foregroundColor(.orange)
+
+                            TextEditor(text: $commitMessage)
+                                .font(.system(.body, design: .monospaced))
+                                .frame(height: 120)
+                                .cornerRadius(8)
+                                .padding(4)
+                                .background(Color.black.opacity(0.1))
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.2)))
+
+                            Button {
+                                performAction {
+                                    await gitViewModel.commit(message: commitMessage)
+                                    commitMessage = ""
+                                }
+                            } label: {
+                                HStack {
+                                    if isPerformingGitAction {
+                                        ProgressView().controlSize(.small).padding(.trailing, 8)
+                                    } else {
+                                        Image(systemName: "checkmark.circle.fill")
+                                    }
+                                    Text("Commit to Local Branch")
+                                        .fontWeight(.semibold)
+                                }
+                                .frame(maxWidth: .infinity)
                             }
-
-                            let staged = status.files.filter { $0.isStaged }
-                            fileGroupSection(title: "Staged Changes", files: staged, badgeColor: .green)
-
-                            let unstaged = status.files.filter { !$0.isStaged && $0.status != .conflicted }
-                            fileGroupSection(title: "Unstaged / Untracked", files: unstaged, badgeColor: .orange)
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                            .tint(.orange)
+                            .disabled(commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isPerformingGitAction)
                         }
                         .padding()
                     }
-                    .frame(minWidth: 400, maxWidth: .infinity)
-
-                    // Right column: Commit Composer Form
-                    VStack(spacing: 16) {
-                        Text("Commit Composer")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        Form {
-                            Section {
-                                TextEditor(text: $commitMessage)
-                                    .font(.system(.body, design: .monospaced))
-                                    .frame(minHeight: 120, maxHeight: 200)
-                                    .cornerRadius(6)
-                            } header: {
-                                Text("Commit Message")
-                            }
-
-                            Section {
-                                Button {
-                                    performAction {
-                                        await gitViewModel.commit(message: commitMessage)
-                                        commitMessage = ""
-                                    }
-                                } label: {
-                                    if isPerformingGitAction {
-                                        ProgressView().controlSize(.small)
-                                    } else {
-                                        Text("Commit to Local Branch")
-                                            .frame(maxWidth: .infinity)
-                                    }
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.orange)
-                                .disabled(commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isPerformingGitAction)
-                            }
-                        }
-                        .formStyle(.grouped)
-                        .frame(width: 320)
-                    }
-                    .background(Color.secondary.opacity(0.02))
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
             } else {
                 noGitRepoPlaceholder
@@ -355,7 +367,7 @@ struct SourceControlView: View {
     }
 
     private func fileGroupSection(title: String, files: [GitFileStatus], badgeColor: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(title)
                     .font(.subheadline.bold())
@@ -429,7 +441,7 @@ struct SourceControlView: View {
                         }
                     }
                     .padding(8)
-                    .background(Color(NSColor.controlBackgroundColor))
+                    .background(Color.white.opacity(0.04))
                     .cornerRadius(8)
                 }
             }
@@ -464,29 +476,29 @@ struct SourceControlView: View {
     // MARK: - Remote Repositories detail Pane
 
     private var remoteRepositoriesPane: some View {
-        VStack(spacing: 0) {
-            // Search / Filter and Fetch row
-            HStack(spacing: 12) {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("Search remote repositories...", text: $repoSearchQuery)
-                        .textFieldStyle(.plain)
-                }
-                .padding(6)
-                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+        VStack(spacing: 20) {
+            GroupBox {
+                HStack(spacing: 12) {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        TextField("Search remote repositories...", text: $repoSearchQuery)
+                            .textFieldStyle(.plain)
+                    }
+                    .padding(8)
+                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
 
-                Button {
-                    fetchUserRepos()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
+                    Button {
+                        fetchUserRepos()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(isFetchingRepos)
                 }
-                .disabled(isFetchingRepos)
+                .padding()
             }
-            .padding()
-            .background(Color.secondary.opacity(0.03))
-
-            Divider()
+            .groupBoxStyle(ModernGroupBoxStyle())
 
             if isFetchingRepos {
                 VStack(spacing: 12) {
@@ -495,7 +507,7 @@ struct SourceControlView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, minHeight: 200)
             } else if let fetchError = repoFetchError {
                 ContentUnavailableView {
                     Label("Fetch Failed", systemImage: "exclamationmark.triangle.fill")
@@ -523,31 +535,36 @@ struct SourceControlView: View {
                 if filtered.isEmpty {
                     ContentUnavailableView.search(text: repoSearchQuery)
                 } else {
-                    List(filtered) { repo in
-                        HStack(spacing: 16) {
-                            Image(systemName: repo.isPrivate ? "lock.fill" : "globe")
-                                .foregroundStyle(repo.isPrivate ? .yellow : .green)
-                                .font(.title3)
+                    VStack(spacing: 12) {
+                        ForEach(filtered) { repo in
+                            GroupBox {
+                                HStack(spacing: 16) {
+                                    Image(systemName: repo.isPrivate ? "lock.fill" : "globe")
+                                        .foregroundStyle(repo.isPrivate ? .yellow : .green)
+                                        .font(.title3)
 
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(repo.fullName)
-                                    .font(.subheadline.bold())
-                                if let desc = repo.description, !desc.isEmpty {
-                                    Text(desc)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(repo.fullName)
+                                            .font(.subheadline.bold())
+                                        if let desc = repo.description, !desc.isEmpty {
+                                            Text(desc)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(1)
+                                        }
+                                    }
+
+                                    Spacer()
+
+                                    Button("Connect") {
+                                        connectRepository(repo)
+                                    }
+                                    .buttonStyle(.borderedProminent)
                                 }
+                                .padding(8)
                             }
-
-                            Spacer()
-
-                            Button("Connect") {
-                                connectRepository(repo)
-                            }
-                            .buttonStyle(.borderedProminent)
+                            .groupBoxStyle(ModernGroupBoxStyle())
                         }
-                        .padding(.vertical, 6)
                     }
                 }
             }

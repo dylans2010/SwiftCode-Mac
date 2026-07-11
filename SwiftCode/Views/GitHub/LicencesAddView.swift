@@ -54,20 +54,19 @@ struct LicencesAddView: View {
         NavigationSplitView {
             // Sidebar List of Licenses
             VStack(spacing: 0) {
-                // Filters Header
-                VStack(spacing: 8) {
-                    // Search box
+                // Filters Header Card
+                VStack(spacing: 12) {
                     HStack {
                         Image(systemName: "magnifyingglass")
                             .foregroundStyle(.secondary)
                         TextField("Search licenses...", text: $searchText)
                             .textFieldStyle(.plain)
                     }
-                    .padding(6)
+                    .padding(8)
                     .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
                     )
 
                     HStack(spacing: 8) {
@@ -87,7 +86,7 @@ struct LicencesAddView: View {
                     }
                 }
                 .padding()
-                .background(.background.opacity(0.4))
+                .background(.ultraThinMaterial)
 
                 Divider()
 
@@ -100,7 +99,7 @@ struct LicencesAddView: View {
                     .frame(maxHeight: .infinity)
                 } else {
                     List(filteredLicenses, selection: $previewLicense) { license in
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text(license.name)
                                     .font(.subheadline.bold())
@@ -119,7 +118,7 @@ struct LicencesAddView: View {
                                 .foregroundStyle(.secondary)
                                 .lineLimit(2)
                         }
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 6)
                         .tag(license)
                     }
                     .listStyle(.sidebar)
@@ -128,90 +127,123 @@ struct LicencesAddView: View {
             .navigationTitle("Add License")
             .toolbar {
                 ToolbarItem(placement: .navigation) {
-                    Button {
-                        dismiss()
-                    } label: {
+                    Button(action: { dismiss() }) {
                         Text("Close")
-                            .font(.subheadline)
                             .fontWeight(.semibold)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Color.orange.opacity(0.2), in: Capsule())
-                            .foregroundStyle(.orange)
                     }
-                    .buttonStyle(.plain)
+                    .keyboardShortcut(.cancelAction)
                 }
             }
         } detail: {
             // Detailed License Preview & Action Screen
             if let license = previewLicense {
-                VStack(spacing: 0) {
-                    // Header Bar
-                    HStack {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(license.name)
-                                .font(.title.bold())
-                            HStack(spacing: 8) {
-                                Text(license.category)
-                                    .font(.subheadline.bold())
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(Color.blue.opacity(0.15), in: Capsule())
-                                    .foregroundStyle(.blue)
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Title Header Panel
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(license.name)
+                                            .font(.title2.bold())
+                                        HStack(spacing: 8) {
+                                            Text(license.category)
+                                                .font(.subheadline.bold())
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 3)
+                                                .background(Color.blue.opacity(0.15), in: Capsule())
+                                                .foregroundStyle(.blue)
 
-                                Text("Offline Available")
-                                    .font(.caption)
+                                            Text("Offline Available")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    Spacer()
+                                }
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+
+                        // License Meta summary card
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Label("License Summary", systemImage: "text.alignleft")
+                                        .font(.headline)
+                                        .foregroundColor(.orange)
+                                    Spacer()
+                                }
+                                Text(license.summary)
+                                    .font(.subheadline)
                                     .foregroundStyle(.secondary)
+                                    .lineSpacing(4)
                             }
+                            .padding()
                         }
+                        .groupBoxStyle(ModernGroupBoxStyle())
 
-                        Spacer()
+                        // Actions panel card
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Label("Action", systemImage: "play.circle.fill")
+                                        .font(.headline)
+                                        .foregroundColor(.green)
+                                    Spacer()
+                                }
 
-                        Button {
-                            Task { await addLicense(license) }
-                        } label: {
-                            if isWriting {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Label("Add to Project", systemImage: "plus.circle.fill")
-                                    .font(.headline)
+                                Button {
+                                    Task { await addLicense(license) }
+                                } label: {
+                                    HStack {
+                                        if isWriting {
+                                            ProgressView()
+                                                .controlSize(.small)
+                                                .padding(.trailing, 8)
+                                        } else {
+                                            Image(systemName: "plus.circle.fill")
+                                        }
+                                        Text(isWriting ? "Adding..." : "Add to Project")
+                                            .fontWeight(.semibold)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
+                                .tint(.orange)
+                                .disabled(isWriting)
                             }
+                            .padding()
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .tint(.orange)
-                        .disabled(isWriting)
+                        .groupBoxStyle(ModernGroupBoxStyle())
+
+                        // Code Block card
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Label("Full License Text", systemImage: "doc.text.fill")
+                                        .font(.headline)
+                                        .foregroundColor(.gray)
+                                    Spacer()
+                                }
+
+                                Text(license.body)
+                                    .font(.system(.body, design: .monospaced))
+                                    .textSelection(.enabled)
+                                    .lineSpacing(6)
+                                    .padding()
+                                    .background(Color.black.opacity(0.2))
+                                    .cornerRadius(8)
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
                     .padding(24)
-                    .background(.background.opacity(0.5))
-
-                    Divider()
-
-                    // License text
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text(license.summary)
-                                .font(.title3.bold())
-                                .foregroundColor(.secondary)
-                                .padding(.bottom, 8)
-
-                            Text(license.body)
-                                .font(.system(.body, design: .monospaced))
-                                .textSelection(.enabled)
-                                .lineSpacing(6)
-                                .padding()
-                                .background(Color.white.opacity(0.02))
-                                .cornerRadius(12)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                                )
-                        }
-                        .padding(24)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
                 }
+                .background(Color(NSColor.windowBackgroundColor))
             } else {
                 ContentUnavailableView(
                     "Select a License",
@@ -227,7 +259,6 @@ struct LicencesAddView: View {
             Text(alertMessage)
         }
         .onAppear {
-            // Default select first license if available
             if previewLicense == nil, let first = filteredLicenses.first {
                 previewLicense = first
             }
@@ -241,7 +272,6 @@ struct LicencesAddView: View {
 
         do {
             let destination = project.directoryURL.appendingPathComponent("LICENSE")
-            // SAFETY: atomic writes prevent project file corruption
             try license.body.write(to: destination, atomically: true, encoding: .utf8)
             sessionStore.refreshFileTree(for: project)
             alertMessage = "Successfully added the \(license.name) license to your project as 'LICENSE'."

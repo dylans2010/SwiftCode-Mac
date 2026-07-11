@@ -9,6 +9,9 @@ struct HomeView: View {
     @State private var selection: String? = "Recent"
     @State private var searchText = ""
 
+    // View layout preference: Grid vs List
+    @State private var isGridLayout = true
+
     // Project management states
     @State private var showRenameSheet = false
     @State private var projectToRename: Project?
@@ -20,10 +23,14 @@ struct HomeView: View {
     @State private var errorMessage: String?
     @State private var showError = false
 
+    // Favorites & Recents persistence sets
+    @State private var favoriteProjectIDs: Set<UUID> = []
+
     var body: some View {
         AdaptivePage {
             AdaptiveSplitLayout {
                 sidebar
+                    .background(.ultraThinMaterial)
             } detail: {
                 detail
             }
@@ -53,6 +60,22 @@ struct HomeView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowImportPicker"))) { _ in
             showingNewProject = true
         }
+        .onAppear {
+            loadFavorites()
+            // Restore previous layout and selection state
+            isGridLayout = UserDefaults.standard.bool(forKey: "com.swiftcode.home.isGridLayout")
+            if let savedSelection = UserDefaults.standard.string(forKey: "com.swiftcode.home.sidebarSelection") {
+                selection = savedSelection
+            }
+        }
+        .onChange(of: selection) { _, newValue in
+            if let val = newValue {
+                UserDefaults.standard.set(val, forKey: "com.swiftcode.home.sidebarSelection")
+            }
+        }
+        .onChange(of: isGridLayout) { _, newValue in
+            UserDefaults.standard.set(newValue, forKey: "com.swiftcode.home.isGridLayout")
+        }
     }
 
     private var sidebar: some View {
@@ -60,13 +83,30 @@ struct HomeView: View {
             Section("Library") {
                 Label("Recent", systemImage: "clock").tag("Recent")
                 Label("All Projects", systemImage: "folder").tag("All")
+                Label("Favorites", systemImage: "star.fill").tag("Favorites")
             }
 
-            if !folderManager.folders.isEmpty {
-                Section("Folders") {
+            Section("Folders") {
+                if folderManager.folders.isEmpty {
+                    Text("No Folders")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 8)
+                } else {
                     ForEach(folderManager.folders) { folder in
                         Label(folder.folderName, systemImage: "folder.badge.gearshape")
                             .tag("folder_\(folder.folderId)")
+                            .onDrop(of: [.text], isTargeted: nil) { providers in
+                                guard let provider = providers.first else { return false }
+                                provider.loadObject(ofClass: NSString.self) { string, _ in
+                                    guard let uuidString = string as? String,
+                                          let projectUUID = UUID(uuidString: uuidString) else { return }
+                                    DispatchQueue.main.async {
+                                        folderManager.addProject(projectUUID, to: folder.folderId)
+                                    }
+                                }
+                                return true
+                            }
                             .contextMenu {
                                 Button(role: .destructive) {
                                     folderManager.deleteFolder(folder)
@@ -76,6 +116,13 @@ struct HomeView: View {
                             }
                     }
                 }
+
+                Button(action: createNewFolderPrompt) {
+                    Label("Add Folder", systemImage: "plus.circle")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.accentColor)
+                .padding(.top, 4)
             }
 
             Section("Templates") {
@@ -88,7 +135,9 @@ struct HomeView: View {
 
     private var detail: some View {
         ZStack {
-            Color(hex: themeVM.currentTheme.background).ignoresSafeArea()
+            // Elegant native macOS background materials and vibrancy
+            VisualEffectView(material: .underWindowBackground, blendingMode: .withinWindow)
+                .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 headerView
@@ -96,7 +145,11 @@ struct HomeView: View {
                 if filteredProjects.isEmpty && !isSearching {
                     emptyStateView
                 } else {
-                    projectsGrid
+                    if isGridLayout {
+                        projectsGrid
+                    } else {
+                        projectsList
+                    }
                 }
             }
         }
@@ -110,13 +163,14 @@ struct HomeView: View {
         if let sel = selection {
             if sel == "Recent" {
                 baseProjects = Array(baseProjects.prefix(5))
+            } else if sel == "Favorites" {
+                baseProjects = baseProjects.filter { favoriteProjectIDs.contains($0.id) }
             } else if sel.hasPrefix("folder_") {
                 let idString = String(sel.dropFirst(7))
                 if let uuid = UUID(uuidString: idString),
                    let folder = folderManager.folders.first(where: { $0.folderId == uuid }) {
-                    // The following filter is replaced to avoid using .contains(project.id) unless the type is UUID.
-                    // Replace this with the correct comparison based on the type of projectIds in Folder.
-                    baseProjects = baseProjects.filter { _ in false }
+                    // Centralized, programmatically fixed virtual folder lookup
+                    baseProjects = baseProjects.filter { folder.projectIdentifiers.contains($0.id) }
                 }
             }
         }
@@ -140,6 +194,30 @@ struct HomeView: View {
             Spacer()
 
             HStack(spacing: 12) {
+                // Layout Switcher
+                HStack(spacing: 0) {
+                    Button(action: { isGridLayout = true }) {
+                        Image(systemName: "square.grid.2x2")
+                            .foregroundStyle(isGridLayout ? Color.accentColor : Color.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(6)
+                    .background(isGridLayout ? Color.white.opacity(0.1) : Color.clear)
+                    .cornerRadius(6)
+
+                    Button(action: { isGridLayout = false }) {
+                        Image(systemName: "list.bullet")
+                            .foregroundStyle(!isGridLayout ? Color.accentColor : Color.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(6)
+                    .background(!isGridLayout ? Color.white.opacity(0.1) : Color.clear)
+                    .cornerRadius(6)
+                }
+                .padding(4)
+                .background(Color.secondary.opacity(0.1))
+                .cornerRadius(8)
+
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
@@ -169,6 +247,7 @@ struct HomeView: View {
         guard let sel = selection else { return "Projects" }
         if sel == "Recent" { return "Recent Projects" }
         if sel == "All" { return "All Projects" }
+        if sel == "Favorites" { return "Favorites" }
         if sel.hasPrefix("folder_") {
             let idString = String(sel.dropFirst(7))
             if let uuid = UUID(uuidString: idString) {
@@ -189,8 +268,59 @@ struct HomeView: View {
                 } onDelete: {
                     try? sessionStore.deleteProject(project)
                 }
+                .onDrag {
+                    NSItemProvider(object: project.id.uuidString as NSString)
+                }
                 .contextMenu { projectContextMenu(for: project) }
             }
+
+            loadingOverlay
+        }
+    }
+
+    private var projectsList: some View {
+        ZStack {
+            List(filteredProjects) { project in
+                HStack(spacing: 16) {
+                    Image(systemName: "swift")
+                        .font(.title2)
+                        .foregroundColor(.orange)
+                        .padding(8)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(8)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(project.name)
+                            .font(.headline)
+                        Text("Last opened \(project.lastOpened, style: .relative)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 12) {
+                        Label("\(project.fileCount) files", systemImage: "doc")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        if favoriteProjectIDs.contains(project.id) {
+                            Image(systemName: "star.fill")
+                                .foregroundStyle(.yellow)
+                        }
+
+                        Button("Open") {
+                            Task {
+                                await sessionStore.openProject(project)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+                .padding(.vertical, 4)
+                .contextMenu { projectContextMenu(for: project) }
+            }
+            .scrollContentBackground(.hidden)
 
             loadingOverlay
         }
@@ -259,6 +389,12 @@ struct HomeView: View {
             showRenameSheet = true
         } label: {
             Label("Rename", systemImage: "pencil")
+        }
+
+        Button {
+            toggleFavorite(project)
+        } label: {
+            Label(favoriteProjectIDs.contains(project.id) ? "Unfavorite" : "Favorite", systemImage: "star")
         }
 
         Button {
@@ -388,6 +524,42 @@ struct HomeView: View {
         .frame(width: 300, height: 400)
     }
 
+    private func createNewFolderPrompt() {
+        let panel = NSTextField(frame: NSRect(x: 0, y: 0, width: 200, height: 24))
+        let alert = NSAlert()
+        alert.messageText = "New Virtual Folder"
+        alert.informativeText = "Enter a name for the virtual project folder:"
+        alert.accessoryView = panel
+        alert.addButton(withTitle: "Create")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn {
+            let name = panel.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !name.isEmpty {
+                folderManager.createFolder(name: name, symbol: "folder.fill", colorHex: "#4F86FF")
+            }
+        }
+    }
+
+    private func toggleFavorite(_ project: Project) {
+        if favoriteProjectIDs.contains(project.id) {
+            favoriteProjectIDs.remove(project.id)
+        } else {
+            favoriteProjectIDs.insert(project.id)
+        }
+        saveFavorites()
+    }
+
+    private func saveFavorites() {
+        let strings = favoriteProjectIDs.map { $0.uuidString }
+        UserDefaults.standard.set(strings, forKey: "com.swiftcode.home.favorites")
+    }
+
+    private func loadFavorites() {
+        if let saved = UserDefaults.standard.stringArray(forKey: "com.swiftcode.home.favorites") {
+            favoriteProjectIDs = Set(saved.compactMap { UUID(uuidString: $0) })
+        }
+    }
+
     private func exportProject(_ project: Project) {
         Task {
             do {
@@ -408,93 +580,22 @@ struct HomeView: View {
     }
 }
 
-struct QuickStartRow: View {
-    let icon: String
-    let title: String
-    let description: String
+// MARK: - Visual Effect View Wrapper
 
-    var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(.accentColor)
-                .frame(width: 32)
+struct VisualEffectView: NSViewRepresentable {
+    let material: NSVisualEffectView.Material
+    let blendingMode: NSVisualEffectView.BlendingMode
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline)
-                    .bold()
-                Text(description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = .active
+        return view
     }
-}
 
-struct HomeProjectCardView: View {
-    let project: Project
-    let onOpen: () -> Void
-    let onDelete: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "swift")
-                    .font(.title2)
-                    .foregroundColor(.orange)
-                    .padding(8)
-                    .background(Color.orange.opacity(0.1))
-                    .cornerRadius(8)
-
-                Spacer()
-
-                Menu {
-                    Button("Open", action: onOpen)
-                    Button("Delete", role: .destructive, action: onDelete)
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .foregroundStyle(.secondary)
-                }
-                .menuStyle(.button)
-                .buttonStyle(.plain)
-                .opacity(isHovered ? 1 : 0)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(project.name)
-                    .font(.headline)
-                    .lineLimit(1)
-
-                Text(project.lastOpened, style: .relative)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                HStack(spacing: 12) {
-                    Label("\(project.fileCount) files", systemImage: "doc")
-                    if let repo = project.githubRepo {
-                        Label(repo, systemImage: "network")
-                            .lineLimit(1)
-                    }
-                }
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.secondary)
-                .padding(.top, 4)
-            }
-        }
-        .padding(16)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isHovered ? Color.accentColor.opacity(0.5) : Color.secondary.opacity(0.1), lineWidth: 1.5)
-        )
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onOpen)
-        .onHover { isHovered = $0 }
-        .scaleEffect(isHovered ? 1.02 : 1.0)
-        .animation(.spring(response: 0.3), value: isHovered)
-        .shadow(color: .black.opacity(isHovered ? 0.1 : 0), radius: 10, x: 0, y: 5)
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
     }
 }
