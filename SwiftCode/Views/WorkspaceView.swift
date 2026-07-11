@@ -50,29 +50,8 @@ struct WorkspaceView: View {
                     Menu {
                         Section("Project") {
                             Menu("Configuration Editors") {
-                                Button("Project Overview") { routeToProjectSection(.overview) }
-                                Button("General") { routeToProjectSection(.general) }
-                                Button("Identity") { routeToProjectSection(.identity) }
-                                Button("Targets") { routeToProjectSection(.targets) }
-                                Button("Build Settings") { routeToProjectSection(.buildSettings) }
-                                Button("Build Rules") { routeToProjectSection(.buildRules) }
-                                Button("Build Phases") { routeToProjectSection(.buildPhases) }
-                                Button("Build Configurations") { routeToProjectSection(.buildConfigurations) }
-                                Button("Packages") { routeToProjectSection(.packages) }
-                                Button("Frameworks") { routeToProjectSection(.frameworks) }
-                                Button("Dependencies") { routeToProjectSection(.dependencies) }
-                                Button("Signing & Capabilities") { routeToProjectSection(.signingCapabilities) }
-                                Button("Entitlements") { routeToProjectSection(.entitlements) }
-                                Button("Info.plist") { routeToProjectSection(.infoPlist) }
-                                Button("Resources") { routeToProjectSection(.resources) }
-                                Button("Assets") { routeToProjectSection(.assets) }
-                                Button("Localization") { routeToProjectSection(.localization) }
-                                Button("Products") { routeToProjectSection(.products) }
-                                Button("Warnings") { routeToProjectSection(.warnings) }
-                                Button("Diagnostics") { routeToProjectSection(.diagnostics) }
-                                Button("Statistics") { routeToProjectSection(.projectStatistics) }
-                                Button("Relationships") { routeToProjectSection(.relationships) }
-                                Button("Metadata") { routeToProjectSection(.metadata) }
+                                Button("Entitlements") { openEntitlements() }
+                                Button("Info.plist") { openInfoPlist() }
                             }
                             Button("Gists") { activeSheet = .gistManager }
                             Button("Deployments") { activeSheet = .deployments }
@@ -270,14 +249,56 @@ jobs:
         }
     }
 
-    private func routeToProjectSection(_ section: ProjectEditorCoordinator.ProjectSection) {
-        let coordinator = ProjectEditorCoordinator.shared
-        coordinator.selectedTab = section
+    private func openInfoPlist() {
+        let fm = FileManager.default
+        let possibleURLs = [
+            viewModel.projectURL.appendingPathComponent("SwiftCode/Info.plist"),
+            viewModel.projectURL.appendingPathComponent("Info.plist")
+        ]
 
-        // Find any active xcodeproj URL in our cached project dictionary
         if let firstProjURL = viewModel.parsedXcodeProjects.keys.first(where: { $0.pathExtension == "xcodeproj" }) {
-            Task {
-                await viewModel.editor.openFile(url: firstProjURL)
+            let plistURL = firstProjURL.deletingLastPathComponent().appendingPathComponent("Info.plist")
+            if fm.fileExists(atPath: plistURL.path) {
+                Task {
+                    await viewModel.editor.openFile(url: plistURL)
+                }
+                return
+            }
+        }
+
+        for url in possibleURLs {
+            if fm.fileExists(atPath: url.path) {
+                Task {
+                    await viewModel.editor.openFile(url: url)
+                }
+                return
+            }
+        }
+    }
+
+    private func openEntitlements() {
+        let fm = FileManager.default
+        let possibleURLs = [
+            viewModel.projectURL.appendingPathComponent("SwiftCode/Resources/SwiftCode.entitlements"),
+            viewModel.projectURL.appendingPathComponent("SwiftCode.entitlements")
+        ]
+
+        if let firstProjURL = viewModel.parsedXcodeProjects.keys.first(where: { $0.pathExtension == "xcodeproj" }) {
+            let entitlementsURL = firstProjURL.deletingLastPathComponent().appendingPathComponent("SwiftCode.entitlements")
+            if fm.fileExists(atPath: entitlementsURL.path) {
+                Task {
+                    await viewModel.editor.openFile(url: entitlementsURL)
+                }
+                return
+            }
+        }
+
+        for url in possibleURLs {
+            if fm.fileExists(atPath: url.path) {
+                Task {
+                    await viewModel.editor.openFile(url: url)
+                }
+                return
             }
         }
     }
