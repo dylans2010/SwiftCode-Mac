@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		AA110001BB220001CC330001 /* XcodeProjParse.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA110001BB220001CC330002 /* XcodeProjParse.swift */; };
 		AA110001BB220001CC330003 /* XcodeProjViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA110001BB220001CC330004 /* XcodeProjViewer.swift */; };
+		AA110001BB220001CC331003 /* XcodeProjTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA110001BB220001CC331004 /* XcodeProjTabs.swift */; };
 		F5F896D8201EC1D5A3B9A47F /* BSD-2-Clause.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F8901F45B5F4DAE7DD57DE /* BSD-2-Clause.md */; };
 		F5F89ABE69C494B4DFC71530 /* ISC-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F89DE7B7E50F831AF09D2E /* ISC-License.md */; };
 		F5F89902DB407353761F239A /* zlib-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F8982C52639A1347B8B5D2 /* zlib-License.md */; };
@@ -892,6 +893,7 @@
 /* Begin PBXFileReference section */
 		AA110001BB220001CC330002 /* XcodeProjParse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XcodeProjParse.swift; sourceTree = "<group>"; };
 		AA110001BB220001CC330004 /* XcodeProjViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XcodeProjViewer.swift; sourceTree = "<group>"; };
+		AA110001BB220001CC331004 /* XcodeProjTabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XcodeProjTabs.swift; sourceTree = "<group>"; };
 		F5F8901F45B5F4DAE7DD57DE /* BSD-2-Clause.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = BSD-2-Clause.md; sourceTree = "<group>"; };
 		F5F89DE7B7E50F831AF09D2E /* ISC-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ISC-License.md; sourceTree = "<group>"; };
 		F5F8982C52639A1347B8B5D2 /* zlib-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = zlib-License.md; sourceTree = "<group>"; };
@@ -2453,6 +2455,7 @@
 				8C063A51438D8C575DA58158 /* FileImporterRepresentableView.swift */,
 				265E9A5B2B28B39C005F9A10 /* ShareSheet.swift */,
 				AA110001BB220001CC330004 /* XcodeProjViewer.swift */,
+				AA110001BB220001CC331004 /* XcodeProjTabs.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -3851,6 +3854,7 @@
 			files = (
 				AA110001BB220001CC330001 /* XcodeProjParse.swift in Sources */,
 				AA110001BB220001CC330003 /* XcodeProjViewer.swift in Sources */,
+				AA110001BB220001CC331003 /* XcodeProjTabs.swift in Sources */,
 				A2B3C4D5E6F7012345678902 /* CodeRenderEngine.swift in Sources */,
 				694FB44AE58C6F9166959343 /* JSONToSwiftView.swift in Sources */,
 				16A5D30603089356A7F4CFD8 /* JSONToKotlinView.swift in Sources */,
