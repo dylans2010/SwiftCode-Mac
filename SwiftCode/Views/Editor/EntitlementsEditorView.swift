@@ -1,6 +1,7 @@
 import SwiftUI
 
 public struct EntitlementsEditorView: View {
+    private let fileURL: URL?
     @State private var manager: EntitlementsEditorManager
     @State private var entitlementsDict: [String: Any] = [:]
     @State private var searchQuery = ""
@@ -11,14 +12,20 @@ public struct EntitlementsEditorView: View {
     @State private var favorites: Set<String> = []
     @State private var showingAddPopover = false
 
-    public init(fileURL: URL) {
-        let m = EntitlementsEditorManager(fileURL: fileURL)
+    public init(fileURL: URL?) {
+        self.fileURL = fileURL
+        let m = EntitlementsEditorManager(fileURL: fileURL ?? URL(fileURLWithPath: "/dev/null"))
         _manager = State(initialValue: m)
-        _entitlementsDict = State(initialValue: (try? m.readEntitlements()) ?? [:])
+        if fileURL != nil {
+            _entitlementsDict = State(initialValue: (try? m.readEntitlements()) ?? [:])
+        } else {
+            _entitlementsDict = State(initialValue: [:])
+        }
     }
 
     private var activeKeys: [String] {
-        entitlementsDict.keys.sorted().filter { key in
+        guard fileURL != nil else { return [] }
+        return entitlementsDict.keys.sorted().filter { key in
             if searchQuery.isEmpty { return true }
             let lowerQuery = searchQuery.lowercased()
             let matchesKey = key.lowercased().contains(lowerQuery)
@@ -35,8 +42,18 @@ public struct EntitlementsEditorView: View {
     }
 
     public var body: some View {
-        HSplitView {
-            // Left Column: Main Entitlements Configurator & List
+        if fileURL == nil {
+            ContentUnavailableView {
+                Label("No Entitlements Configured", systemImage: "lock.shield")
+            } description: {
+                Text("The currently selected target does not contain an Entitlements configuration file.\n\nPlease configure one in your project target build settings or create a .entitlements file in your project.")
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.ultraThinMaterial)
+            .macDesktopOptimized()
+        } else {
+            HSplitView {
+                // Left Column: Main Entitlements Configurator & List
             VStack(spacing: 0) {
                 // Header / Toolbar
                 HStack(spacing: 12) {
@@ -207,7 +224,10 @@ public struct EntitlementsEditorView: View {
             }
         }
         .onAppear {
-            syncXMLText()
+            if fileURL != nil {
+                syncXMLText()
+            }
+        }
         }
     }
 

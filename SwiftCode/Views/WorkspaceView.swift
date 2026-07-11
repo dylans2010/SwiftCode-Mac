@@ -110,6 +110,12 @@ struct WorkspaceView: View {
                     activeSheet = destination
                 }
             }
+            .onChange(of: ProjectResolutionService.shared.selectedTargetID) { _, _ in
+                Task {
+                    let project = sessionStore.activeProject ?? Project(name: "Untitled")
+                    await viewModel.editor.updateActiveConfigurationURLs(for: project)
+                }
+            }
             .background(Color(hex: themeVM.currentTheme.background))
             .foregroundStyle(Color(hex: themeVM.currentTheme.foreground))
             .navigationBarBackButtonHidden(true)
@@ -250,55 +256,29 @@ jobs:
     }
 
     private func openInfoPlist() {
-        let fm = FileManager.default
-        let possibleURLs = [
-            viewModel.projectURL.appendingPathComponent("SwiftCode/Info.plist"),
-            viewModel.projectURL.appendingPathComponent("Info.plist")
-        ]
-
-        if let firstProjURL = viewModel.parsedXcodeProjects.keys.first(where: { $0.pathExtension == "xcodeproj" }) {
-            let plistURL = firstProjURL.deletingLastPathComponent().appendingPathComponent("Info.plist")
-            if fm.fileExists(atPath: plistURL.path) {
-                Task {
-                    await viewModel.editor.openFile(url: plistURL)
-                }
-                return
+        let project = sessionStore.activeProject ?? Project(name: "Untitled")
+        if let plistURL = ProjectResolutionService.shared.resolveInfoPlist(for: project) {
+            Task {
+                await viewModel.editor.openFile(url: plistURL)
             }
-        }
-
-        for url in possibleURLs {
-            if fm.fileExists(atPath: url.path) {
-                Task {
-                    await viewModel.editor.openFile(url: url)
-                }
-                return
+        } else {
+            let dummyURL = project.directoryURL.appendingPathComponent("Unresolved-Info.plist")
+            Task {
+                await viewModel.editor.openFile(url: dummyURL)
             }
         }
     }
 
     private func openEntitlements() {
-        let fm = FileManager.default
-        let possibleURLs = [
-            viewModel.projectURL.appendingPathComponent("SwiftCode/Resources/SwiftCode.entitlements"),
-            viewModel.projectURL.appendingPathComponent("SwiftCode.entitlements")
-        ]
-
-        if let firstProjURL = viewModel.parsedXcodeProjects.keys.first(where: { $0.pathExtension == "xcodeproj" }) {
-            let entitlementsURL = firstProjURL.deletingLastPathComponent().appendingPathComponent("SwiftCode.entitlements")
-            if fm.fileExists(atPath: entitlementsURL.path) {
-                Task {
-                    await viewModel.editor.openFile(url: entitlementsURL)
-                }
-                return
+        let project = sessionStore.activeProject ?? Project(name: "Untitled")
+        if let entitlementsURL = ProjectResolutionService.shared.resolveEntitlements(for: project) {
+            Task {
+                await viewModel.editor.openFile(url: entitlementsURL)
             }
-        }
-
-        for url in possibleURLs {
-            if fm.fileExists(atPath: url.path) {
-                Task {
-                    await viewModel.editor.openFile(url: url)
-                }
-                return
+        } else {
+            let dummyURL = project.directoryURL.appendingPathComponent("Unresolved.entitlements")
+            Task {
+                await viewModel.editor.openFile(url: dummyURL)
             }
         }
     }

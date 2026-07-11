@@ -62,6 +62,7 @@ public class WorkspaceViewModel: Sendable {
                 logger.error("Failed to parse scanned xcodeproj at \(url.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
         }
+        ProjectResolutionService.shared.updateParsedProjects(with: parsedXcodeProjects)
     }
 
     public func handleFileSelectionChange(nodeID: String?) {

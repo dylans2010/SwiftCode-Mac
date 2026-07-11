@@ -493,17 +493,9 @@ public struct EntitlementsTabView: View {
     }
 
     public var body: some View {
-        let fm = FileManager.default
-        let baseDir = model.projectURL.deletingLastPathComponent()
-        let entitlementsURL: URL
-        if fm.fileExists(atPath: baseDir.appendingPathComponent("SwiftCode/Resources/SwiftCode.entitlements").path) {
-            entitlementsURL = baseDir.appendingPathComponent("SwiftCode/Resources/SwiftCode.entitlements")
-        } else if fm.fileExists(atPath: baseDir.appendingPathComponent("SwiftCode.entitlements").path) {
-            entitlementsURL = baseDir.appendingPathComponent("SwiftCode.entitlements")
-        } else {
-            entitlementsURL = baseDir.appendingPathComponent("SwiftCode.entitlements") // fallback
-        }
-        return EntitlementsEditorView(fileURL: entitlementsURL)
+        let project = ProjectSessionStore.shared.activeProject ?? Project(name: model.projectURL.deletingPathExtension().lastPathComponent)
+        let resolvedURL = ProjectResolutionService.shared.resolveEntitlements(for: project)
+        return EntitlementsEditorView(fileURL: resolvedURL)
     }
 }
 
@@ -516,17 +508,9 @@ public struct InfoPlistTabView: View {
     }
 
     public var body: some View {
-        let fm = FileManager.default
-        let baseDir = model.projectURL.deletingLastPathComponent()
-        let plistURL: URL
-        if fm.fileExists(atPath: baseDir.appendingPathComponent("SwiftCode/Info.plist").path) {
-            plistURL = baseDir.appendingPathComponent("SwiftCode/Info.plist")
-        } else if fm.fileExists(atPath: baseDir.appendingPathComponent("Info.plist").path) {
-            plistURL = baseDir.appendingPathComponent("Info.plist")
-        } else {
-            plistURL = baseDir.appendingPathComponent("Info.plist") // fallback
-        }
-        return InfoPlistView(fileURL: plistURL)
+        let project = ProjectSessionStore.shared.activeProject ?? Project(name: model.projectURL.deletingPathExtension().lastPathComponent)
+        let resolvedURL = ProjectResolutionService.shared.resolveInfoPlist(for: project)
+        return InfoPlistView(fileURL: resolvedURL)
     }
 }
 

@@ -95,7 +95,10 @@ public final class ProjectEditorCoordinator: Sendable {
         }
     }
 
-    public var selectedTargetID: String?
+    public var selectedTargetID: String? {
+        get { ProjectResolutionService.shared.selectedTargetID }
+        set { ProjectResolutionService.shared.selectedTargetID = newValue }
+    }
     public var selectedFileID: String?
     public var selectedBuildPhaseID: String?
     public var selectedBuildRuleID: String?
