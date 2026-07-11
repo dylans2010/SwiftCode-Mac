@@ -4,8 +4,15 @@ struct AppleSignInView: View {
     @State private var appleID = ""
     @State private var teamName = ""
     @State private var teamID = ""
+    @State private var keyID = ""
+    @State private var issuerID = ""
     @State private var privateKey = ""
-    @State private var mfaCode = ""
+
+    // Codesign tool fields
+    @State private var targetAppPath = ""
+    @State private var selectedCertificateName = ""
+    @State private var codesignStatusMessage = ""
+    @State private var isCodesigning = false
 
     @Environment(\.dismiss) private var dismiss
 
@@ -16,94 +23,68 @@ struct AppleSignInView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if manager.sessionState == .requiresTwoFactor {
-                    Section("Verification Code Sent") {
-                        Text("A 6-digit verification code has been sent to your Apple devices. Please enter it below to complete sign-in.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.bottom, 4)
+                Section("Add Apple Developer Account") {
+                    Text("Connect your App Store Connect API Key to load and manage certificates, and codesign apps natively.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.bottom, 4)
 
+                    TextField("Apple ID (Email)", text: $appleID)
+                        .autocorrectionDisabled()
+
+                    TextField("Team Name", text: $teamName)
+
+                    TextField("Team ID (e.g. 10-char Team ID)", text: $teamID)
+                        .autocorrectionDisabled()
+
+                    TextField("API Key ID (e.g. 2X9R4HXF34)", text: $keyID)
+                        .autocorrectionDisabled()
+
+                    TextField("Issuer ID (UUID)", text: $issuerID)
+                        .autocorrectionDisabled()
+
+                    SecureField("Private Key (.p8 file content)", text: $privateKey)
+                }
+
+                Section {
+                    Button {
+                        Task {
+                            await manager.addAccount(
+                                appleID: appleID,
+                                teamName: teamName,
+                                teamID: teamID,
+                                keyID: keyID,
+                                issuerID: issuerID,
+                                privateKey: privateKey
+                            )
+                            if manager.sessionState == .signedIn {
+                                // Clear input fields on successful connection
+                                appleID = ""
+                                teamName = ""
+                                teamID = ""
+                                keyID = ""
+                                issuerID = ""
+                                privateKey = ""
+                            }
+                        }
+                    } label: {
                         HStack {
-                            Image(systemName: "key.fill")
-                                .foregroundStyle(.orange)
-                            TextField("6-Digit Code", text: $mfaCode)
-                                .font(.system(.body, design: .monospaced))
-                                .multilineTextAlignment(.center)
-                                .autocorrectionDisabled()
-                        }
-                    }
-
-                    Section {
-                        Button {
-                            Task {
-                                await manager.verifyTwoFactorCode(mfaCode)
+                            if manager.sessionState == .loading {
+                                ProgressView().controlSize(.small)
+                                    .padding(.trailing, 4)
                             }
-                        } label: {
-                            HStack {
-                                if manager.sessionState == .loading {
-                                    ProgressView().controlSize(.small)
-                                        .padding(.trailing, 4)
-                                }
-                                Text("Verify & Connect")
-                                    .fontWeight(.bold)
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.orange)
-                        .disabled(mfaCode.count != 6 || manager.sessionState == .loading)
-
-                        Button("Cancel / Go Back") {
-                            manager.sessionState = .signedOut
-                            mfaCode = ""
+                            Text("Sign In / Connect")
+                                .fontWeight(.semibold)
                         }
                         .frame(maxWidth: .infinity)
                     }
-                } else {
-                    Section("Add Apple Developer Account") {
-                        TextField("Apple ID (Email)", text: $appleID)
-                            .autocorrectionDisabled()
-
-                        TextField("Team Name", text: $teamName)
-
-                        TextField("Team ID", text: $teamID)
-                            .autocorrectionDisabled()
-
-                        SecureField("App Store Connect API Key / Private Key", text: $privateKey)
-                    }
-
-                    Section {
-                        Button {
-                            Task {
-                                await manager.sendTwoFactorCode(
-                                    appleID: appleID,
-                                    teamName: teamName,
-                                    teamID: teamID,
-                                    privateKey: privateKey
-                                )
-                                if manager.sessionState == .requiresTwoFactor {
-                                    // Successfully went to 2FA phase, keep credentials
-                                }
-                            }
-                        } label: {
-                            HStack {
-                                if manager.sessionState == .loading {
-                                    ProgressView().controlSize(.small)
-                                        .padding(.trailing, 4)
-                                }
-                                Text("Sign In / Connect")
-                                    .fontWeight(.semibold)
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(appleID.isEmpty || teamID.isEmpty || privateKey.isEmpty || manager.sessionState == .loading)
-                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(appleID.isEmpty || teamID.isEmpty || keyID.isEmpty || issuerID.isEmpty || privateKey.isEmpty || manager.sessionState == .loading)
                 }
 
-                Section("Privacy & Secure Storage") {
+                Section("Security & Storage") {
                     Label {
-                        Text("All credentials and private keys are stored securely using macOS native Keychain Services. They are never logged or exposed externally.")
+                        Text("All private keys and API credentials are kept locally on your Mac inside the native secure Keychain Services. They are never sent to external servers other than Apple.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } icon: {
@@ -116,22 +97,115 @@ struct AppleSignInView: View {
                     Section("Connected Accounts") {
                         List {
                             ForEach(manager.developerAccounts) { account in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(account.teamName)
-                                            .font(.body.bold())
-                                        Text("\(account.appleID) (\(account.teamID))")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(account.teamName)
+                                                .font(.body.bold())
+                                            Text("\(account.appleID) (Team ID: \(account.teamID))")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(.green)
                                     }
-                                    Spacer()
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(.green)
+
+                                    if let certificates = account.certificates, !certificates.isEmpty {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("Active Signing Certificates:")
+                                                .font(.caption.bold())
+                                                .foregroundStyle(.secondary)
+                                                .padding(.top, 4)
+
+                                            ForEach(certificates) { cert in
+                                                HStack {
+                                                    Image(systemName: "key.fill")
+                                                        .foregroundStyle(.orange)
+                                                        .imageScale(.small)
+                                                    Text("\(cert.name) (\(cert.type))")
+                                                        .font(.caption)
+                                                        .foregroundStyle(.secondary)
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        Text("No active certificates found in this account.")
+                                            .font(.caption.italic())
+                                            .foregroundStyle(.secondary)
+                                            .padding(.top, 2)
+                                    }
                                 }
+                                .padding(.vertical, 4)
                             }
                             .onDelete { indexSet in
                                 manager.removeAccount(at: indexSet)
                             }
+                        }
+                    }
+
+                    Section("Real App Codesign Utility") {
+                        Text("Sign any macOS app bundle or binary file on this Mac using the certificates retrieved above.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Text("Note: The corresponding private key for the selected signing certificate must already be installed in your macOS Keychain for codesigning to succeed.")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+
+                        TextField("App Bundle or Binary Path (e.g. /path/to/MyApp.app)", text: $targetAppPath)
+                            .autocorrectionDisabled()
+
+                        Picker("Select Signing Identity", selection: $selectedCertificateName) {
+                            Text("Select an identity").tag("")
+                            ForEach(manager.developerAccounts) { account in
+                                if let certificates = account.certificates {
+                                    ForEach(certificates) { cert in
+                                        Text("\(cert.name) (\(account.teamName))").tag(cert.name)
+                                    }
+                                }
+                            }
+                        }
+
+                        Button {
+                            Task {
+                                isCodesigning = true
+                                codesignStatusMessage = "Signing..."
+                                do {
+                                    let success = try await manager.codesign(
+                                        appPath: targetAppPath,
+                                        withCertificateName: selectedCertificateName
+                                    )
+                                    if success {
+                                        codesignStatusMessage = "Successfully codesigned!"
+                                    } else {
+                                        codesignStatusMessage = "Codesign failed."
+                                    }
+                                } catch {
+                                    codesignStatusMessage = "Error: \(error.localizedDescription)"
+                                }
+                                isCodesigning = false
+                            }
+                        } label: {
+                            HStack {
+                                if isCodesigning {
+                                    ProgressView().controlSize(.small)
+                                        .padding(.trailing, 4)
+                                }
+                                Text("Codesign App")
+                                    .fontWeight(.bold)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+                        .disabled(targetAppPath.isEmpty || selectedCertificateName.isEmpty || isCodesigning)
+
+                        if !codesignStatusMessage.isEmpty {
+                            Text(codesignStatusMessage)
+                                .font(.caption.bold())
+                                .foregroundStyle(codesignStatusMessage.contains("Successfully") ? .green : .red)
+                                .padding(.top, 2)
                         }
                     }
                 }
@@ -152,6 +226,6 @@ struct AppleSignInView: View {
                 }
             }
         }
-        .frame(width: 500, height: 450)
+        .frame(width: 550, height: 600)
     }
 }
