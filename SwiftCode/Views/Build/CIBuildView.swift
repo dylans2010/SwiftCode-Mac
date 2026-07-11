@@ -88,12 +88,12 @@ struct CIBuildView: View {
                                 GroupBox(label: Label("Main Configuration", systemImage: "slider.horizontal.3")) {
                                     configurationCard
                                 }
-                                .groupBoxStyle(PreferencesGroupBoxStyle())
+                                .groupBoxStyle(ModernGroupBoxStyle())
 
                                 GroupBox(label: Label("Outputs", systemImage: "folder")) {
                                     outputCard
                                 }
-                                .groupBoxStyle(PreferencesGroupBoxStyle())
+                                .groupBoxStyle(ModernGroupBoxStyle())
                             }
                             .frame(maxWidth: .infinity)
 
@@ -101,7 +101,7 @@ struct CIBuildView: View {
                                 GroupBox(label: Label("Build Options", systemImage: "checkmark.square")) {
                                     optionsCard
                                 }
-                                .groupBoxStyle(PreferencesGroupBoxStyle())
+                                .groupBoxStyle(ModernGroupBoxStyle())
 
                                 actionCard
                             }

@@ -34,32 +34,32 @@ struct AdvancedPlugin {
                     GroupBox(label: Label("Plugin Metadata", systemImage: "doc.text")) {
                         metadataSection
                     }
-                    .groupBoxStyle(PreferencesGroupBoxStyle())
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
                     GroupBox(label: Label("Capabilities", systemImage: "bolt.fill")) {
                         capabilitiesSection
                     }
-                    .groupBoxStyle(PreferencesGroupBoxStyle())
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
                     GroupBox(label: Label("Tool Interop", systemImage: "wrench.and.screwdriver")) {
                         toolInteropSection
                     }
-                    .groupBoxStyle(PreferencesGroupBoxStyle())
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
                     GroupBox(label: Label("Automation Steps", systemImage: "play.circle")) {
                         automationSection
                     }
-                    .groupBoxStyle(PreferencesGroupBoxStyle())
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
                     GroupBox(label: Label("Config Schema", systemImage: "slider.horizontal.3")) {
                         configSchemaSection
                     }
-                    .groupBoxStyle(PreferencesGroupBoxStyle())
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
                     GroupBox(label: Label("Implementation (main.swift)", systemImage: "curlybraces")) {
                         implementationSection
                     }
-                    .groupBoxStyle(PreferencesGroupBoxStyle())
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
                 .padding(24)
             }
