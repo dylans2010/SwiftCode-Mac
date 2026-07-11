@@ -62,7 +62,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .frame(width: 850, height: 600)
+        .frame(width: 1050, height: 750)
     }
 
     @ViewBuilder

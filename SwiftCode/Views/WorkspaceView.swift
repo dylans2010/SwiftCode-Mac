@@ -15,6 +15,13 @@ struct WorkspaceView: View {
     @State private var workflowFileName = "main.yml"
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "WorkspaceView")
 
+    // App Details States
+    @State private var appName = ""
+    @State private var bundleIdentifier = ""
+    @State private var marketingVersion = "1.0"
+    @State private var buildVersion = "1"
+    @State private var supportedDevices = "iPhone + iPad"
+
     var body: some View {
         AdaptivePage {
             HSplitView {
@@ -64,6 +71,7 @@ struct WorkspaceView: View {
                             Button("Deployments") { activeSheet = .deployments }
                             Button("Collaboration") { activeSheet = .collaboration }
                             Button("Licenses") { activeSheet = .licensesAdd }
+                            Button("App Details") { activeSheet = .appDetailsInfo }
                             Button("Export (.scproj)") { showingExportSheet = true }
                         }
 
@@ -202,6 +210,9 @@ struct WorkspaceView: View {
                                 activeSheet = .extensionMarketplace
                             case .customizeToolbar:
                                 activeSheet = .toolbarCustomization
+
+                            case .devHTTPStatus, .devJSONFormatter, .devBase64, .devJWTDecoder, .devPasswordGen, .devRegExTester, .devUUIDGen, .devURLEncoder, .devMarkdownPreview, .devDeviceInfo:
+                                activeSheet = .devTools
                             }
                         }
                     }
@@ -268,6 +279,23 @@ struct WorkspaceView: View {
                 case .xcodeBuildSettings: XcodeBuildConfigurationView()
                 case .xcodeBuildLogs: XcodeBuildLogView()
                 case .appleDeveloperAccount: AppleSignInView()
+                case .appDetailsInfo:
+                    AppDetailsInfo(
+                        appName: $appName,
+                        bundleIdentifier: $bundleIdentifier,
+                        marketingVersion: $marketingVersion,
+                        buildVersion: $buildVersion,
+                        supportedDevices: $supportedDevices,
+                        onSkip: { activeSheet = nil },
+                        onContinue: { activeSheet = nil }
+                    )
+                    .onAppear {
+                        let project = sessionStore.activeProject ?? Project(name: "Untitled")
+                        appName = project.name
+                        let ciConfig = project.ciBuildConfiguration
+                        bundleIdentifier = ciConfig?.bundleIdentifier ?? "com.example.\(project.name.lowercased())"
+                    }
+                    .frame(width: 500, height: 600)
 
                 default:
                     ContentUnavailableView {

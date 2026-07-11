@@ -1,5 +1,9 @@
 import SwiftUI
+import os.log
 
+private let logger = Logger(subsystem: "com.swiftcode.CommandPalette", category: "CommandPaletteView")
+
+@MainActor
 struct CommandPaletteView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
@@ -7,14 +11,22 @@ struct CommandPaletteView: View {
     @State private var searchText = ""
     @State private var selectedCategory: CommandCategory = .all
 
+    // "Ask" AI feature states
+    @State private var askQuestionText = ""
+    @State private var aiResponseText = ""
+    @State private var isAsking = false
+    @State private var askError: String? = nil
+
     let onAction: (CommandAction) -> Void
 
     enum CommandCategory: String, CaseIterable, Identifiable {
         case all = "All"
+        case ask = "Ask AI"
         case files = "Files & Nav"
         case git = "Git"
-        case ai = "AI"
+        case ai = "AI Tools"
         case build = "Build / Sign"
+        case devTools = "Developer Tools"
         case settings = "Settings"
 
         var id: String { rawValue }
@@ -38,7 +50,7 @@ struct CommandPaletteView: View {
         case gitNewBranch = "Git Create New Branch"
         case openDiffViewer = "Diff Viewer"
 
-        // AI
+        // AI Tools
         case runAgent = "Run AI Agent"
         case aiCodeReview = "AI Code Review"
         case aiComplexity = "AI Complexity Analyzer"
@@ -48,6 +60,18 @@ struct CommandPaletteView: View {
         case openXcodeBuildSettings = "Xcode Build Settings"
         case openXcodeBuildLogs = "Xcode Build Logs"
         case appleSigning = "Apple Developer Account & Signing"
+
+        // Developer Tools (Newly Added)
+        case devHTTPStatus = "HTTP Status Code Lookup"
+        case devJSONFormatter = "JSON Formatter"
+        case devBase64 = "Base64 Converter"
+        case devJWTDecoder = "JWT Decoder"
+        case devPasswordGen = "Password Generator"
+        case devRegExTester = "RegEx Tester"
+        case devUUIDGen = "UUID Generator"
+        case devURLEncoder = "URL/Percent Encoder"
+        case devMarkdownPreview = "Markdown Previewer"
+        case devDeviceInfo = "Developer Device Info"
 
         // Settings / Tools
         case openSettings = "Open App Settings"
@@ -69,6 +93,8 @@ struct CommandPaletteView: View {
                 return .ai
             case .runBuild, .openXcodeBuildSettings, .openXcodeBuildLogs, .appleSigning:
                 return .build
+            case .devHTTPStatus, .devJSONFormatter, .devBase64, .devJWTDecoder, .devPasswordGen, .devRegExTester, .devUUIDGen, .devURLEncoder, .devMarkdownPreview, .devDeviceInfo:
+                return .devTools
             case .openSettings, .openProjectSettings, .installDependency, .openPluginManager, .openExtensionMarketplace, .customizeToolbar:
                 return .settings
             }
@@ -100,6 +126,17 @@ struct CommandPaletteView: View {
             case .openXcodeBuildLogs: return "doc.text.magnifyingglass"
             case .appleSigning: return "key"
 
+            case .devHTTPStatus: return "network"
+            case .devJSONFormatter: return "curlybraces"
+            case .devBase64: return "arrow.left.and.right.square"
+            case .devJWTDecoder: return "lock.shield"
+            case .devPasswordGen: return "key"
+            case .devRegExTester: return "checklist"
+            case .devUUIDGen: return "barcode"
+            case .devURLEncoder: return "link.badge.plus"
+            case .devMarkdownPreview: return "doc.richtext"
+            case .devDeviceInfo: return "desktopcomputer"
+
             case .openSettings: return "gearshape.fill"
             case .openProjectSettings: return "gearshape"
             case .installDependency: return "shippingbox.fill"
@@ -125,7 +162,7 @@ struct CommandPaletteView: View {
     var filteredCommands: [CommandAction] {
         var cmds = CommandAction.allCases
 
-        if selectedCategory != .all {
+        if selectedCategory != .all && selectedCategory != .ask {
             cmds = cmds.filter { $0.category == selectedCategory }
         }
 
@@ -142,9 +179,9 @@ struct CommandPaletteView: View {
                 // Search & Filter Category Bar
                 VStack(spacing: 8) {
                     HStack(spacing: 8) {
-                        Image(systemName: "terminal.fill")
+                        Image(systemName: selectedCategory == .ask ? "sparkles" : "terminal.fill")
                             .foregroundStyle(.orange)
-                        TextField("Type a command...", text: $searchText)
+                        TextField(selectedCategory == .ask ? "Ask the AI a coding question..." : "Type a command...", text: $searchText)
                             .autocorrectionDisabled()
                             .textFieldStyle(.plain)
 
@@ -171,34 +208,11 @@ struct CommandPaletteView: View {
 
                 Divider().opacity(0.3)
 
-                // Commands list
-                List(filteredCommands) { command in
-                    Button {
-                        dismiss()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            onAction(command)
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: command.icon)
-                                .foregroundStyle(.orange)
-                                .frame(width: 24)
-                            Text(command.rawValue)
-                                .font(.subheadline)
-                                .foregroundStyle(.white)
-                            Spacer()
-                            if !command.shortcut.isEmpty {
-                                Text(command.shortcut)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
-                            }
-                        }
-                    }
+                if selectedCategory == .ask {
+                    askAIPane
+                } else {
+                    commandsListPane
                 }
-                .scrollContentBackground(.hidden)
             }
             .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle("Command Palette")
@@ -207,6 +221,170 @@ struct CommandPaletteView: View {
                     Button("Done") { dismiss() }
                 }
             }
+        }
+    }
+
+    // MARK: - Ask AI Pane
+
+    private var askAIPane: some View {
+        VStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Ask AI")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Text("Inquire about Swift, Apple SDKs, algorithms, or refactoring strategies using the default AI model.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal)
+            .padding(.top)
+
+            VStack(spacing: 12) {
+                TextEditor(text: $askQuestionText)
+                    .font(.system(.body, design: .monospaced))
+                    .frame(height: 100)
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+                    .placeholder(when: askQuestionText.isEmpty) {
+                        Text("Type your question here (e.g. 'How do I center a div in SwiftUI?')")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .padding(.all, 8)
+                    }
+
+                HStack {
+                    if isAsking {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Thinking...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        performAskRequest()
+                    } label: {
+                        Text("Submit Question")
+                            .fontWeight(.semibold)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .disabled(askQuestionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isAsking)
+                }
+            }
+            .padding(.horizontal)
+
+            Divider().opacity(0.2)
+
+            if let error = askError {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                .padding()
+            }
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if aiResponseText.isEmpty {
+                        Text("No response yet. Ask a question to see the result streamed here.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.top, 40)
+                    } else {
+                        Text(aiResponseText)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding()
+            }
+            .background(Color.black.opacity(0.2))
+            .cornerRadius(8)
+            .padding([.horizontal, .bottom])
+        }
+    }
+
+    private var commandsListPane: some View {
+        List(filteredCommands) { command in
+            Button {
+                dismiss()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    onAction(command)
+                }
+            } label: {
+                HStack {
+                    Image(systemName: command.icon)
+                        .foregroundStyle(.orange)
+                        .frame(width: 24)
+                    Text(command.rawValue)
+                        .font(.subheadline)
+                        .foregroundStyle(.white)
+                    Spacer()
+                    if !command.shortcut.isEmpty {
+                        Text(command.shortcut)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
+                    }
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+    }
+
+    // MARK: - AI Action
+
+    private func performAskRequest() {
+        guard !askQuestionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+        isAsking = true
+        askError = nil
+        aiResponseText = ""
+
+        let query = askQuestionText
+        let model = AppSettings.shared.selectedModel
+
+        Task {
+            do {
+                let userMsg = AIMessage(role: .user, content: query)
+                let request = AIAssistantRequest(model: model, messages: [userMsg])
+                let stream = try await OpenRouterClient.shared.streamChatCompletion(request: request)
+
+                for try await chunk in stream {
+                    aiResponseText += chunk
+                }
+            } catch {
+                logger.error("Command palette Ask failure: \(error.localizedDescription)")
+                askError = "Error: \(error.localizedDescription)"
+            }
+            isAsking = false
+        }
+    }
+}
+
+extension View {
+    func placeholder<Content: View>(
+        when shouldShow: Bool,
+        alignment: Alignment = .topLeading,
+        @ViewBuilder placeholder: () -> Content
+    ) -> some View {
+        ZStack(alignment: alignment) {
+            placeholder().opacity(shouldShow ? 1 : 0)
+            self
         }
     }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct AssistSettingsView: View {
     @EnvironmentObject private var settings: AppSettings
 
@@ -26,6 +27,7 @@ struct AssistSettingsView: View {
                 Text("About Assist")
             }
         }
+        .formStyle(.grouped)
         .navigationTitle("Assist Settings")
     }
 }
