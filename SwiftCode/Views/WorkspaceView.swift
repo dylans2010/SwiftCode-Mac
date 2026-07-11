@@ -110,6 +110,7 @@ struct WorkspaceView: View {
                         }
 
                         Section("Tools") {
+                            Button("Simulators & Previews") { viewModel.activeSheet = .simulatorMain }
                             Button("Documentation") { viewModel.activeSheet = .documentationBrowser }
                             Button("Extensions") { viewModel.activeSheet = .extensionMarketplace }
                             Button("Debug Tools") { viewModel.activeSheet = .debugTools }
@@ -318,6 +319,9 @@ struct WorkspaceView: View {
                 case .terminal: TerminalView()
                 case .xcodeBuildSettings: XcodeBuildConfigurationView()
                 case .xcodeBuildLogs: XcodeBuildLogView()
+                case .simulatorMain:
+                    SimulatorMainView()
+                        .frame(minWidth: 900, minHeight: 650)
                 case .appleDeveloperAccount: AppleSignInView()
                 case .appDetailsInfo:
                     AppDetailsInfo(

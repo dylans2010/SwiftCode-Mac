@@ -7,6 +7,49 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9E6B08A2ADBF4838AD017B5C /* SimulatorDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A667331974A4BE39215C497 /* SimulatorDevice.swift */; };
+		3FC87A219B634EED8DFB89DC /* SimulatorRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5EF429F6E42461FAF9F7667 /* SimulatorRuntime.swift */; };
+		EBEB71290F5B43A3AE5FF3F1 /* SimulatorApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12627507F5704BCDB4883379 /* SimulatorApplication.swift */; };
+		976E82ECA7C24DC68EC58C5A /* SimulatorState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E3347D4CA445FD8511BEBC /* SimulatorState.swift */; };
+		4BDC65A1EC024DEAA5E85BF3 /* SimulatorError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28D909146216423694BB9EAC /* SimulatorError.swift */; };
+		ED0CCD56CCB8405FAAFDEDF5 /* SimulatorConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20E25A4BA304E32BC17E736 /* SimulatorConfiguration.swift */; };
+		D8B63B48AD2E4EC58B3B56A5 /* SimulatorCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DF52D45181D4805939C6000 /* SimulatorCommand.swift */; };
+		50F216AA792A452088CFFCB4 /* SimulatorCommandExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA40C627BA4B4E8EAE244F18 /* SimulatorCommandExecutor.swift */; };
+		F4C8891DE82944FCAA61FD79 /* SimctlService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8E244D34FE943B7B3D4D1D1 /* SimctlService.swift */; };
+		D3113BD8C09E4C91BDF045DF /* SimulatorDiscoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46DA010FABCA493F98DAB474 /* SimulatorDiscoveryService.swift */; };
+		8FBDA38808E340618468C86A /* SimulatorInstallationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2DFC982E05F4916A2CE83A1 /* SimulatorInstallationService.swift */; };
+		60E7A81C90184E2BB636D368 /* SimulatorLoggingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 947B0A762A294F1AA84E248E /* SimulatorLoggingService.swift */; };
+		D17582A8D77D4290BE13C8FE /* SimulatorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C5937407EBC4D84A6AC339D /* SimulatorManager.swift */; };
+		F2075D8703C448959FD3F4F0 /* PreviewConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB5A477391014B31A217458C /* PreviewConfiguration.swift */; };
+		F4238CBC5CDC45A8B3901B04 /* PreviewError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B969487ACB9482B8E7467C2 /* PreviewError.swift */; };
+		0E11D423F2134298A9FD15C9 /* PreviewSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C7E670DC0B4491DBE8E7B3E /* PreviewSession.swift */; };
+		F7F15A38E30A470B95C92877 /* PreviewDiscoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A0E1EA640F847C194181676 /* PreviewDiscoveryService.swift */; };
+		94DE141FB8144E149F646D2F /* PreviewBuildService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC325AADDD704929ACFDA3D7 /* PreviewBuildService.swift */; };
+		C07F4F70E3FF4D60BF2243FC /* PreviewCommunicationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63B3FF8B19034B44A7BBAFDE /* PreviewCommunicationService.swift */; };
+		7C738B0E31134349B0C3F2FA /* PreviewHostManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC71AB2707947CFA390B4EC /* PreviewHostManager.swift */; };
+		41D5DD7E3E4148FD9A8D3F25 /* PreviewRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82CDC48E270A4C3C9BE6856A /* PreviewRenderer.swift */; };
+		6093E5A155194D6DAF15F939 /* PreviewEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7703EDB2CBDF4A16938AB170 /* PreviewEngine.swift */; };
+		5E109D020EAC48C194C36D13 /* PreviewManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99C1E1A1C0B448AA18AE410 /* PreviewManager.swift */; };
+		B8F08EA862F64B76A7076C47 /* SimulatorMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE70344F6C884F01B0EF3EE3 /* SimulatorMainView.swift */; };
+		335535C5C16340588E55CC7E /* SimulatorSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C2E29BC186A4BF09A314975 /* SimulatorSidebar.swift */; };
+		6854C089C3FC4E1596DB97AB /* SimulatorToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C9C115AACED49E19ED7170C /* SimulatorToolbar.swift */; };
+		CC35DFCE097D4D53B3F5ADDD /* SimulatorDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 778FBF55FFF34159AA732935 /* SimulatorDetailView.swift */; };
+		CDA88602AD3F4BE18D5611FB /* SimulatorDeviceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2833B29E3B834E8580C9F5C5 /* SimulatorDeviceCard.swift */; };
+		1A12EA5E65A04598B1298F43 /* SimulatorDeviceInformationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C72256823C6A4F7D89801022 /* SimulatorDeviceInformationView.swift */; };
+		794D7BA8C2164664919FE53E /* SimulatorAppsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E29EC183E2A4503897C8018 /* SimulatorAppsView.swift */; };
+		EC5742FBD59548E880139FDC /* SimulatorRuntimeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2BE620079DF4D81A2CC9145 /* SimulatorRuntimeView.swift */; };
+		4684A4ACE4A04743988B8A43 /* SimulatorConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43AD42C5BF4F4FD98859C70F /* SimulatorConsoleView.swift */; };
+		FFECE2AC3073466BB0D8DE24 /* SimulatorActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C519394CF47439C99DB8C2B /* SimulatorActionsView.swift */; };
+		528C9CDB8B054057A9674773 /* SimulatorSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30C5131DBFF4D8F8921560E /* SimulatorSettingsView.swift */; };
+		F7C52D03AC974D4FABB17CB0 /* SimulatorCreationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06F59E9C8DD24ACBBE3FB487 /* SimulatorCreationView.swift */; };
+		95F90C95CC6C48A08722061D /* SimulatorPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA909C10B1FE4D9BBA31B348 /* SimulatorPreviewView.swift */; };
+		872474E2A2D649AFB5362BAD /* PreviewCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A806EFC8535048669E37E111 /* PreviewCanvasView.swift */; };
+		8C6E6FB044FA4FA3A70588F2 /* PreviewDeviceFrameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21547BAA6BCD4299B3E1D5BA /* PreviewDeviceFrameView.swift */; };
+		BE6FFFDFEEE244A4917B96D7 /* PreviewConfigurationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D50D27712CEA4D1FA9F45546 /* PreviewConfigurationView.swift */; };
+		8EF2FD6C7DD94F97A9A963EC /* PreviewConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE8589654AA5461B9631978C /* PreviewConsoleView.swift */; };
+		AF9EDF4B178D4350A522A0E7 /* RuntimeManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40AACF2F271474A854CE6C2 /* RuntimeManagementView.swift */; };
+		94AD8895C80B413FA8241249 /* DeviceManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC025E7EE49146109F363E60 /* DeviceManagementView.swift */; };
+		B416C08663F0495586C1DC73 /* ApplicationDeploymentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34124E19EE474E45891B02B4 /* ApplicationDeploymentView.swift */; };
 		004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = BBB818A276304EA881DBF6E6 /* MLXOptimizers */; };
 		0205BA60DB99F20AD6385182 /* TextLineRemoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA47DBD02C0AECE609708638 /* TextLineRemoverView.swift */; };
 		028210A2C2DF33D15EF2B37A /* ProjectTemplateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E98EC5E61489CE7CE6AB854 /* ProjectTemplateView.swift */; };
@@ -899,6 +942,49 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2A667331974A4BE39215C497 /* SimulatorDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorDevice.swift"; path = "SimulatorDevice.swift"; sourceTree = "<group>"; };
+		F5EF429F6E42461FAF9F7667 /* SimulatorRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorRuntime.swift"; path = "SimulatorRuntime.swift"; sourceTree = "<group>"; };
+		12627507F5704BCDB4883379 /* SimulatorApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorApplication.swift"; path = "SimulatorApplication.swift"; sourceTree = "<group>"; };
+		D1E3347D4CA445FD8511BEBC /* SimulatorState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorState.swift"; path = "SimulatorState.swift"; sourceTree = "<group>"; };
+		28D909146216423694BB9EAC /* SimulatorError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorError.swift"; path = "SimulatorError.swift"; sourceTree = "<group>"; };
+		E20E25A4BA304E32BC17E736 /* SimulatorConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorConfiguration.swift"; path = "SimulatorConfiguration.swift"; sourceTree = "<group>"; };
+		8DF52D45181D4805939C6000 /* SimulatorCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorCommand.swift"; path = "SimulatorCommand.swift"; sourceTree = "<group>"; };
+		AA40C627BA4B4E8EAE244F18 /* SimulatorCommandExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorCommandExecutor.swift"; path = "SimulatorCommandExecutor.swift"; sourceTree = "<group>"; };
+		D8E244D34FE943B7B3D4D1D1 /* SimctlService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimctlService.swift"; path = "SimctlService.swift"; sourceTree = "<group>"; };
+		46DA010FABCA493F98DAB474 /* SimulatorDiscoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorDiscoveryService.swift"; path = "SimulatorDiscoveryService.swift"; sourceTree = "<group>"; };
+		E2DFC982E05F4916A2CE83A1 /* SimulatorInstallationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorInstallationService.swift"; path = "SimulatorInstallationService.swift"; sourceTree = "<group>"; };
+		947B0A762A294F1AA84E248E /* SimulatorLoggingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorLoggingService.swift"; path = "SimulatorLoggingService.swift"; sourceTree = "<group>"; };
+		4C5937407EBC4D84A6AC339D /* SimulatorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorManager.swift"; path = "SimulatorManager.swift"; sourceTree = "<group>"; };
+		CB5A477391014B31A217458C /* PreviewConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PreviewConfiguration.swift"; path = "PreviewConfiguration.swift"; sourceTree = "<group>"; };
+		1B969487ACB9482B8E7467C2 /* PreviewError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PreviewError.swift"; path = "PreviewError.swift"; sourceTree = "<group>"; };
+		5C7E670DC0B4491DBE8E7B3E /* PreviewSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PreviewSession.swift"; path = "PreviewSession.swift"; sourceTree = "<group>"; };
+		3A0E1EA640F847C194181676 /* PreviewDiscoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PreviewDiscoveryService.swift"; path = "PreviewDiscoveryService.swift"; sourceTree = "<group>"; };
+		EC325AADDD704929ACFDA3D7 /* PreviewBuildService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PreviewBuildService.swift"; path = "PreviewBuildService.swift"; sourceTree = "<group>"; };
+		63B3FF8B19034B44A7BBAFDE /* PreviewCommunicationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PreviewCommunicationService.swift"; path = "PreviewCommunicationService.swift"; sourceTree = "<group>"; };
+		EFC71AB2707947CFA390B4EC /* PreviewHostManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PreviewHostManager.swift"; path = "PreviewHostManager.swift"; sourceTree = "<group>"; };
+		82CDC48E270A4C3C9BE6856A /* PreviewRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PreviewRenderer.swift"; path = "PreviewRenderer.swift"; sourceTree = "<group>"; };
+		7703EDB2CBDF4A16938AB170 /* PreviewEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PreviewEngine.swift"; path = "PreviewEngine.swift"; sourceTree = "<group>"; };
+		C99C1E1A1C0B448AA18AE410 /* PreviewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PreviewManager.swift"; path = "PreviewManager.swift"; sourceTree = "<group>"; };
+		CE70344F6C884F01B0EF3EE3 /* SimulatorMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorMainView.swift"; path = "SimulatorMainView.swift"; sourceTree = "<group>"; };
+		5C2E29BC186A4BF09A314975 /* SimulatorSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorSidebar.swift"; path = "SimulatorSidebar.swift"; sourceTree = "<group>"; };
+		0C9C115AACED49E19ED7170C /* SimulatorToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorToolbar.swift"; path = "SimulatorToolbar.swift"; sourceTree = "<group>"; };
+		778FBF55FFF34159AA732935 /* SimulatorDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorDetailView.swift"; path = "SimulatorDetailView.swift"; sourceTree = "<group>"; };
+		2833B29E3B834E8580C9F5C5 /* SimulatorDeviceCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorDeviceCard.swift"; path = "SimulatorDeviceCard.swift"; sourceTree = "<group>"; };
+		C72256823C6A4F7D89801022 /* SimulatorDeviceInformationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorDeviceInformationView.swift"; path = "SimulatorDeviceInformationView.swift"; sourceTree = "<group>"; };
+		4E29EC183E2A4503897C8018 /* SimulatorAppsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorAppsView.swift"; path = "SimulatorAppsView.swift"; sourceTree = "<group>"; };
+		F2BE620079DF4D81A2CC9145 /* SimulatorRuntimeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorRuntimeView.swift"; path = "SimulatorRuntimeView.swift"; sourceTree = "<group>"; };
+		43AD42C5BF4F4FD98859C70F /* SimulatorConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorConsoleView.swift"; path = "SimulatorConsoleView.swift"; sourceTree = "<group>"; };
+		2C519394CF47439C99DB8C2B /* SimulatorActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorActionsView.swift"; path = "SimulatorActionsView.swift"; sourceTree = "<group>"; };
+		C30C5131DBFF4D8F8921560E /* SimulatorSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorSettingsView.swift"; path = "SimulatorSettingsView.swift"; sourceTree = "<group>"; };
+		06F59E9C8DD24ACBBE3FB487 /* SimulatorCreationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorCreationView.swift"; path = "SimulatorCreationView.swift"; sourceTree = "<group>"; };
+		DA909C10B1FE4D9BBA31B348 /* SimulatorPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SimulatorPreviewView.swift"; path = "SimulatorPreviewView.swift"; sourceTree = "<group>"; };
+		A806EFC8535048669E37E111 /* PreviewCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PreviewCanvasView.swift"; path = "PreviewCanvasView.swift"; sourceTree = "<group>"; };
+		21547BAA6BCD4299B3E1D5BA /* PreviewDeviceFrameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PreviewDeviceFrameView.swift"; path = "PreviewDeviceFrameView.swift"; sourceTree = "<group>"; };
+		D50D27712CEA4D1FA9F45546 /* PreviewConfigurationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PreviewConfigurationView.swift"; path = "PreviewConfigurationView.swift"; sourceTree = "<group>"; };
+		DE8589654AA5461B9631978C /* PreviewConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "PreviewConsoleView.swift"; path = "PreviewConsoleView.swift"; sourceTree = "<group>"; };
+		A40AACF2F271474A854CE6C2 /* RuntimeManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "RuntimeManagementView.swift"; path = "RuntimeManagementView.swift"; sourceTree = "<group>"; };
+		DC025E7EE49146109F363E60 /* DeviceManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "DeviceManagementView.swift"; path = "DeviceManagementView.swift"; sourceTree = "<group>"; };
+		34124E19EE474E45891B02B4 /* ApplicationDeploymentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ApplicationDeploymentView.swift"; path = "ApplicationDeploymentView.swift"; sourceTree = "<group>"; };
 		00048987BBB25A712D49051C /* NordThemeExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NordThemeExtensionView.swift; sourceTree = "<group>"; };
 		0076F070FA7E4422B0FBAAB8 /* ParseMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseMarkdown.swift; sourceTree = "<group>"; };
 		00A96C0BE03E4321AB3DEAFB /* KubernetesApply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KubernetesApply.swift; sourceTree = "<group>"; };
@@ -1804,6 +1890,70 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		047D6EAFB6B0436E87D61878 /* Simulator */ = {
+			isa = PBXGroup;
+			children = (
+				2A667331974A4BE39215C497 /* SimulatorDevice.swift */,
+				F5EF429F6E42461FAF9F7667 /* SimulatorRuntime.swift */,
+				12627507F5704BCDB4883379 /* SimulatorApplication.swift */,
+				D1E3347D4CA445FD8511BEBC /* SimulatorState.swift */,
+				28D909146216423694BB9EAC /* SimulatorError.swift */,
+				E20E25A4BA304E32BC17E736 /* SimulatorConfiguration.swift */,
+				8DF52D45181D4805939C6000 /* SimulatorCommand.swift */,
+				AA40C627BA4B4E8EAE244F18 /* SimulatorCommandExecutor.swift */,
+				D8E244D34FE943B7B3D4D1D1 /* SimctlService.swift */,
+				46DA010FABCA493F98DAB474 /* SimulatorDiscoveryService.swift */,
+				E2DFC982E05F4916A2CE83A1 /* SimulatorInstallationService.swift */,
+				947B0A762A294F1AA84E248E /* SimulatorLoggingService.swift */,
+				4C5937407EBC4D84A6AC339D /* SimulatorManager.swift */,
+			);
+			path = Simulator;
+			sourceTree = "<group>";
+		};
+		3719BC4EB3574D829128193D /* Preview */ = {
+			isa = PBXGroup;
+			children = (
+				CB5A477391014B31A217458C /* PreviewConfiguration.swift */,
+				1B969487ACB9482B8E7467C2 /* PreviewError.swift */,
+				5C7E670DC0B4491DBE8E7B3E /* PreviewSession.swift */,
+				3A0E1EA640F847C194181676 /* PreviewDiscoveryService.swift */,
+				EC325AADDD704929ACFDA3D7 /* PreviewBuildService.swift */,
+				63B3FF8B19034B44A7BBAFDE /* PreviewCommunicationService.swift */,
+				EFC71AB2707947CFA390B4EC /* PreviewHostManager.swift */,
+				82CDC48E270A4C3C9BE6856A /* PreviewRenderer.swift */,
+				7703EDB2CBDF4A16938AB170 /* PreviewEngine.swift */,
+				C99C1E1A1C0B448AA18AE410 /* PreviewManager.swift */,
+			);
+			path = Preview;
+			sourceTree = "<group>";
+		};
+		5C0C7FED810D4595B9502D7F /* Sims */ = {
+			isa = PBXGroup;
+			children = (
+				CE70344F6C884F01B0EF3EE3 /* SimulatorMainView.swift */,
+				5C2E29BC186A4BF09A314975 /* SimulatorSidebar.swift */,
+				0C9C115AACED49E19ED7170C /* SimulatorToolbar.swift */,
+				778FBF55FFF34159AA732935 /* SimulatorDetailView.swift */,
+				2833B29E3B834E8580C9F5C5 /* SimulatorDeviceCard.swift */,
+				C72256823C6A4F7D89801022 /* SimulatorDeviceInformationView.swift */,
+				4E29EC183E2A4503897C8018 /* SimulatorAppsView.swift */,
+				F2BE620079DF4D81A2CC9145 /* SimulatorRuntimeView.swift */,
+				43AD42C5BF4F4FD98859C70F /* SimulatorConsoleView.swift */,
+				2C519394CF47439C99DB8C2B /* SimulatorActionsView.swift */,
+				C30C5131DBFF4D8F8921560E /* SimulatorSettingsView.swift */,
+				06F59E9C8DD24ACBBE3FB487 /* SimulatorCreationView.swift */,
+				DA909C10B1FE4D9BBA31B348 /* SimulatorPreviewView.swift */,
+				A806EFC8535048669E37E111 /* PreviewCanvasView.swift */,
+				21547BAA6BCD4299B3E1D5BA /* PreviewDeviceFrameView.swift */,
+				D50D27712CEA4D1FA9F45546 /* PreviewConfigurationView.swift */,
+				DE8589654AA5461B9631978C /* PreviewConsoleView.swift */,
+				A40AACF2F271474A854CE6C2 /* RuntimeManagementView.swift */,
+				DC025E7EE49146109F363E60 /* DeviceManagementView.swift */,
+				34124E19EE474E45891B02B4 /* ApplicationDeploymentView.swift */,
+			);
+			path = Sims;
+			sourceTree = "<group>";
+		};
 		001BFD647D5F8303B39B8C64 /* Backend */ = {
 			isa = PBXGroup;
 			children = (
@@ -2287,6 +2437,8 @@
 		377F61A927EA6F662D8AE0DD /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				047D6EAFB6B0436E87D61878 /* Simulator */,
+				3719BC4EB3574D829128193D /* Preview */,
 				0801FE77C016F8F6DAA035C0 /* BuildSystem */,
 				A941C4224B2EB40B83D69DD8 /* Binaries */,
 				9364A4B6A9071BA261504D70 /* CodingManager.swift */,
@@ -2447,6 +2599,7 @@
 		576E45E47FC5098A3A96ECB8 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				5C0C7FED810D4595B9502D7F /* Sims */,
 				E5E9A1260294B0DD1562EA23 /* FilePreviewView.swift */,
 				8C063A51438D8C575DA58158 /* FileImporterRepresentableView.swift */,
 				265E9A5B2B28B39C005F9A10 /* ShareSheet.swift */,
@@ -3897,6 +4050,49 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9E6B08A2ADBF4838AD017B5C /* SimulatorDevice.swift in Sources */,
+				3FC87A219B634EED8DFB89DC /* SimulatorRuntime.swift in Sources */,
+				EBEB71290F5B43A3AE5FF3F1 /* SimulatorApplication.swift in Sources */,
+				976E82ECA7C24DC68EC58C5A /* SimulatorState.swift in Sources */,
+				4BDC65A1EC024DEAA5E85BF3 /* SimulatorError.swift in Sources */,
+				ED0CCD56CCB8405FAAFDEDF5 /* SimulatorConfiguration.swift in Sources */,
+				D8B63B48AD2E4EC58B3B56A5 /* SimulatorCommand.swift in Sources */,
+				50F216AA792A452088CFFCB4 /* SimulatorCommandExecutor.swift in Sources */,
+				F4C8891DE82944FCAA61FD79 /* SimctlService.swift in Sources */,
+				D3113BD8C09E4C91BDF045DF /* SimulatorDiscoveryService.swift in Sources */,
+				8FBDA38808E340618468C86A /* SimulatorInstallationService.swift in Sources */,
+				60E7A81C90184E2BB636D368 /* SimulatorLoggingService.swift in Sources */,
+				D17582A8D77D4290BE13C8FE /* SimulatorManager.swift in Sources */,
+				F2075D8703C448959FD3F4F0 /* PreviewConfiguration.swift in Sources */,
+				F4238CBC5CDC45A8B3901B04 /* PreviewError.swift in Sources */,
+				0E11D423F2134298A9FD15C9 /* PreviewSession.swift in Sources */,
+				F7F15A38E30A470B95C92877 /* PreviewDiscoveryService.swift in Sources */,
+				94DE141FB8144E149F646D2F /* PreviewBuildService.swift in Sources */,
+				C07F4F70E3FF4D60BF2243FC /* PreviewCommunicationService.swift in Sources */,
+				7C738B0E31134349B0C3F2FA /* PreviewHostManager.swift in Sources */,
+				41D5DD7E3E4148FD9A8D3F25 /* PreviewRenderer.swift in Sources */,
+				6093E5A155194D6DAF15F939 /* PreviewEngine.swift in Sources */,
+				5E109D020EAC48C194C36D13 /* PreviewManager.swift in Sources */,
+				B8F08EA862F64B76A7076C47 /* SimulatorMainView.swift in Sources */,
+				335535C5C16340588E55CC7E /* SimulatorSidebar.swift in Sources */,
+				6854C089C3FC4E1596DB97AB /* SimulatorToolbar.swift in Sources */,
+				CC35DFCE097D4D53B3F5ADDD /* SimulatorDetailView.swift in Sources */,
+				CDA88602AD3F4BE18D5611FB /* SimulatorDeviceCard.swift in Sources */,
+				1A12EA5E65A04598B1298F43 /* SimulatorDeviceInformationView.swift in Sources */,
+				794D7BA8C2164664919FE53E /* SimulatorAppsView.swift in Sources */,
+				EC5742FBD59548E880139FDC /* SimulatorRuntimeView.swift in Sources */,
+				4684A4ACE4A04743988B8A43 /* SimulatorConsoleView.swift in Sources */,
+				FFECE2AC3073466BB0D8DE24 /* SimulatorActionsView.swift in Sources */,
+				528C9CDB8B054057A9674773 /* SimulatorSettingsView.swift in Sources */,
+				F7C52D03AC974D4FABB17CB0 /* SimulatorCreationView.swift in Sources */,
+				95F90C95CC6C48A08722061D /* SimulatorPreviewView.swift in Sources */,
+				872474E2A2D649AFB5362BAD /* PreviewCanvasView.swift in Sources */,
+				8C6E6FB044FA4FA3A70588F2 /* PreviewDeviceFrameView.swift in Sources */,
+				BE6FFFDFEEE244A4917B96D7 /* PreviewConfigurationView.swift in Sources */,
+				8EF2FD6C7DD94F97A9A963EC /* PreviewConsoleView.swift in Sources */,
+				AF9EDF4B178D4350A522A0E7 /* RuntimeManagementView.swift in Sources */,
+				94AD8895C80B413FA8241249 /* DeviceManagementView.swift in Sources */,
+				B416C08663F0495586C1DC73 /* ApplicationDeploymentView.swift in Sources */,
 				AA110001BB220001CC330001 /* XcodeProjParse.swift in Sources */,
 				AA110001BB220001CC330003 /* XcodeProjViewer.swift in Sources */,
 				AA110001BB220001CC331003 /* XcodeProjTabs.swift in Sources */,
