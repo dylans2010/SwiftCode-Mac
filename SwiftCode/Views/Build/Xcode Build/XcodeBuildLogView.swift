@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct XcodeBuildLogView: View {
     @State private var searchLogQuery = ""
     @State private var autoScrollToBottom = true
@@ -149,6 +150,7 @@ struct XcodeBuildLogView: View {
                 }
             }
         }
+        .frame(minWidth: 700, idealWidth: 850, maxWidth: .infinity, minHeight: 500, idealHeight: 600, maxHeight: .infinity)
     }
 
     private var buildStatusHeader: some View {

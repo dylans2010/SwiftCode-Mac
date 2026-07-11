@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct XcodeBuildConfigurationView: View {
     @State private var xcodeBuildPath = ""
     @State private var toolchainPath = "Loading..."
@@ -13,7 +14,7 @@ struct XcodeBuildConfigurationView: View {
             Form {
                 Section("Toolchain Configuration") {
                     HStack {
-                        TextField("xcodebuild executable path", text: $xcodeBuildPath)
+                        TextField("xcodebuild executable path:", text: $xcodeBuildPath)
                             .textFieldStyle(.roundedBorder)
 
                         Button("Detect Default") {
@@ -40,6 +41,7 @@ struct XcodeBuildConfigurationView: View {
                     }
                 }
             }
+            .formStyle(.grouped)
             .navigationTitle("Build Configuration Settings")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -66,7 +68,7 @@ struct XcodeBuildConfigurationView: View {
                 validate()
             }
         }
-        .frame(width: 450, height: 280)
+        .frame(minWidth: 400, idealWidth: 450, maxWidth: 600, minHeight: 250, idealHeight: 280, maxHeight: 400)
     }
 
     private func validate() {
