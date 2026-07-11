@@ -274,7 +274,8 @@ struct ExtensionsView: View {
                             dismiss()
                         } label: {
                             Text("Close")
-                                .font(.subheadline.semibold())
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 4)
                                 .background(Color.orange.opacity(0.2), in: Capsule())
@@ -295,7 +296,8 @@ struct ExtensionsView: View {
                             dismiss()
                         } label: {
                             Text("Close")
-                                .font(.subheadline.semibold())
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 4)
                                 .background(Color.orange.opacity(0.2), in: Capsule())
