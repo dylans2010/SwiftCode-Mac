@@ -1,3 +1,80 @@
+# SwiftCode macOS View Rules
+
+This section defines the permanent native macOS desktop UI specification for SwiftCode. Every SwiftUI view inside SwiftCode must satisfy these criteria.
+
+### 1. Layout
+- **Desktop-First Design:** Optimize layout architectures primarily for large horizontal monitors and advanced keyboard-centric productivity. Do not use iOS-specific layout abstractions.
+- **Window Resizing & Sizing Constraints:** Views must cleanly scale horizontally and vertically when the host window is resized. Define appropriate `.frame(minWidth: ..., minHeight: ..., maxWidth: ..., maxHeight: ...)` constraints where needed.
+- **Adaptive Layouts:** Support flexible adaptive grid structures and flow layouts that dynamically arrange content based on window metrics.
+- **Split View Compatibility:** Use native `HSplitView` and `VSplitView` rather than nested `NavigationSplitView` setups to prevent visual layout loops or UI freezing.
+- **Geometry Awareness:** Utilize `GeometryReader` specifically to calculate dynamic panel sizes, while managing safety bounds so that geometry recalculations do not cause layout loops.
+- **Multi-Monitor & Scale Support:** Ensure visual assets, rendering paths, and text layouts scale cleanly across standard and Retina Displays (@1x, @2x, @3x, multi-monitor dragging).
+- **Control Alignment & Spacing:** Use consistent native spacing (typically 8pt, 12pt, or 16pt). Align items perfectly to avoid clipped text or overlapping controls. No hidden or out-of-bounds controls.
+- **Safe Area Correctness:** Avoid overriding macOS safe area boundaries unless implementing true edge-to-edge content.
+- **Sidebars & Inspectors:** Sidebars must use a standard native sidebar list style (`.listStyle(.sidebar)`), respect system accent colors, and remain collapse-resistant in primary configurations. Detailed view panels should be cleanly structured inside inspectors or right detail sheets.
+
+### 2. Navigation
+- **Native Sidebar Navigation:** Use `.listStyle(.sidebar)` for top-level navigation lists. Selection states must be preserved and high-visibility marked.
+- **Toolbar Design:** Keep toolbars clean and standard macOS style. Do not use iOS-specific placements (e.g., `.topBarTrailing`, `.navigationBarTrailing`). Standardize placement to `.primaryAction` or `.secondaryAction`.
+- **Navigation Split View & Stack Best Practices:** Use standard `NavigationStack` for detail drilling. Selection states must be fully persisted.
+- **Keyboard Navigation:** Support navigation between lists, menus, and sidebars via arrow keys, Tab keys, and standard shortcuts.
+- **Navigation & Selection Persistence:** User's selected tab, target, list selection, and scroll positions must survive view switches and tab changes via persistent coordinators.
+- **Breadcrumbs:** Provide path breadcrumbs for multi-level or file-based navigation tree drilling.
+
+### 3. Visual Design
+- **Native macOS Appearance:** Mimic Apple's native design aesthetics, utilizing system colors (`.secondary`, `.tertiary`, `.background`) and vibrancy.
+- **Liquid Glass Integration:** Implement glassmorphism and subtle gradient materials using native materials (`.ultraThinMaterial`, `.regularMaterial`) with fallback behaviors for older macOS versions.
+- **Corner Radii & Shadows:** Use native Apple corner radii (typically 4pt to 8pt for smaller controls, 10pt to 12pt for panels) and standard soft shadow drop layers (`.shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)`).
+- **Typography Hierarchy:** Establish clean visual weight hierarchies (bold titles, regular subheadlines, monospaced captions). Adjust font sizes appropriately for desktop viewing (typically 11pt-13pt body size).
+- **Accent Color Consistency:** Use system accent colors for interactive highlights, active buttons, or primary selection checks.
+- **Interaction States:** Make hover, pressed, disabled, and active selection states highly visible. Apply subtle `.hoverEffect` or transition animations.
+- **Empty, Loading, Success, & Error States:** Use standard `ContentUnavailableView` or structured placeholders with symbolic iconography (SF Symbols) and descriptive headers for zero-state, loading progress, and error recoveries.
+- **SF Symbol Conventions:** Always choose modern, descriptive, and correct SF Symbols matching Apple’s guidelines.
+
+### 4. Lists
+- **Native Row Heights & Spacing:** Use compact row heights appropriate for desktop lists (typically 20pt to 28pt) and ensure stable identity for rendering performance.
+- **Native Selection & Highlights:** Support multi-selection where appropriate and standard context-highlight selection styles.
+- **Scrolling Mechanics:** Ensure smooth scrolling under heavy list item numbers. Implement virtualized/lazy cells where appropriate.
+- **Context & Right-click Menus:** Every critical list row should support right-click `.contextMenu` actions.
+- **Drag and Drop:** Support standard native file/folder or item reordering through standard SwiftUI Drag & Drop bindings (`.onDrag`, `.onDrop`).
+
+### 5. Forms
+- **Native Alignment & Styling:** Use macOS-native `.formStyle(.grouped)` or `.formStyle(.columns)` architectures. Align labels and fields cleanly.
+- **Validation & Focus Handling:** Display inline validation error messages dynamically. Keep focus rings active for standard input fields and support Tab-key navigation between inputs.
+- **Submit/Cancel Actions:** Ensure standard keyboard triggers (e.g., Return to submit, Escape to cancel) are supported in dialog forms.
+
+### 6. Buttons
+- **Style Consistency:** Match button styles to action intent (e.g., `.buttonStyle(.borderedProminent)` for primary, `.buttonStyle(.bordered)` or `.buttonStyle(.plain)` for secondary/contextual).
+- **Target Sizes & Keyboard Shortcuts:** Buttons should support standard mouse hit-targets (min 20x20 for toolbars) and register keyboard shortcuts where applicable (e.g., Command+S to save).
+
+### 7. Windows & Modals
+- **Escape & Close Behaviors:** Sheets and popovers must support pressing the Escape key to close.
+- **Sheet/Popover/Inspector Sizing:** Explicitly set minimum/ideal bounds for modals. Popovers should track standard anchor nodes.
+- **State & Dimension Restoration:** Window sizes and view structures must be saved/restored across sessions where appropriate.
+
+### 8. Performance
+- **Lazy Rendering & Redraw Minimization:** Use `LazyVStack`, `LazyHStack`, or `List` for scrollable arrays. Prevent continuous view redraw loops.
+- **State Isolation:** Ensure business logic is outside views. Use `@Observable` with `@MainActor` isolation. Separately offload background computations.
+- **Decomposition:** Keep views decomposed into smaller, modular subviews to avoid compiler slowdowns and unnecessary recalculation of large view bodies.
+
+### 9. Accessibility
+- **VoiceOver & Accessibility Elements:** Ensure every non-text interface has proper `.accessibilityLabel` and `.accessibilityHint` declarations.
+- **Keyboard Traversal & Focus Flow:** Focus order must follow standard logical column-by-row patterns.
+- **Contrast Compliance:** Ensure visual designs maintain AA or AAA color contrast ratios against background layers.
+
+### 10. macOS Specific Behaviors
+- **Context Menus:** Support context-sensitive actions upon right-click.
+- **Double-click Actions:** Standardize double-click triggers on file/folder lists (e.g., double-click to rename or open in workflow).
+- **Pointer & Hover Interactions:** Trigger subtle color or highlight changes when the cursor hovers over buttons, cards, or list entries.
+- **Command Menus:** Ensure application commands map to system menu bar shortcuts.
+
+### 11. Code Quality & State Management
+- **View Isolation:** Keep SwiftUI views presentation-only. Do not mix business logic, file I/O, or remote API logic inside view bodies.
+- **Observable State:** Use central, MainActor-isolated `@Observable` models for state. Avoid legacy `ObservableObject` and `@Published` inside views where possible.
+- **Single Source of Truth:** No duplicated state variables. Inject dependencies via environment objects or standard bindings.
+
+---
+
 # SwiftCode View Mapping
 
 | Relative Path | View Name | Directory | Parent Folder |
