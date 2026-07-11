@@ -125,7 +125,7 @@ actor ProjectOpeningCoordinator {
         return project
     }
 
-    private func buildFileTree(at url: URL, relativeTo base: URL) throws -> [FileNode] {
+    nonisolated private func buildFileTree(at url: URL, relativeTo base: URL) throws -> [FileNode] {
         let contents = try FileManager.default.contentsOfDirectory(
             at: url,
             includingPropertiesForKeys: Array(FileTreeDefaults.directoryReadKeys),
