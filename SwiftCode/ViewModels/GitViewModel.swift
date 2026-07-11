@@ -41,4 +41,16 @@ public class GitViewModel {
         try? await GitService.shared.unstage(path: file.path, repositoryURL: url)
         await refreshStatus()
     }
+
+    public func discardChanges(_ file: GitFileStatus) async {
+        guard let url = repositoryURL else { return }
+        try? await GitService.shared.discardChanges(path: file.path, repositoryURL: url)
+        await refreshStatus()
+    }
+
+    public func commit(message: String) async {
+        guard let url = repositoryURL else { return }
+        try? await GitService.shared.commit(message: message, repositoryURL: url)
+        await refreshStatus()
+    }
 }

@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B82F81D22C00E00100000001 /* MarkdownFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B82F81D12C00E00100000001 /* MarkdownFileView.swift */; };
+		B82F81D42C00E00100000002 /* XcodeBuildManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B82F81D32C00E00100000002 /* XcodeBuildManager.swift */; };
+		B82F81D62C00E00100000003 /* XcodeBuildConfigurationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B82F81D52C00E00100000003 /* XcodeBuildConfigurationView.swift */; };
+		B82F81D82C00E00100000004 /* XcodeBuildLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B82F81D72C00E00100000004 /* XcodeBuildLogView.swift */; };
+		B82F81DA2C00E00100000005 /* AppleSignInManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B82F81D92C00E00100000005 /* AppleSignInManager.swift */; };
+		B82F81DC2C00E00100000006 /* AppleSignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B82F81DB2C00E00100000006 /* AppleSignInView.swift */; };
 		AA110001BB220001CC330001 /* XcodeProjParse.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA110001BB220001CC330002 /* XcodeProjParse.swift */; };
 		AA110001BB220001CC330003 /* XcodeProjViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA110001BB220001CC330004 /* XcodeProjViewer.swift */; };
 		AA110001BB220001CC331003 /* XcodeProjTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA110001BB220001CC331004 /* XcodeProjTabs.swift */; };
@@ -893,6 +899,12 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		B82F81D12C00E00100000001 /* MarkdownFileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownFileView.swift; sourceTree = "<group>"; };
+		B82F81D32C00E00100000002 /* XcodeBuildManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = XcodeBuildManager.swift; path = "Xcode Build/XcodeBuildManager.swift"; sourceTree = "<group>"; };
+		B82F81D52C00E00100000003 /* XcodeBuildConfigurationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = XcodeBuildConfigurationView.swift; path = "Xcode Build/XcodeBuildConfigurationView.swift"; sourceTree = "<group>"; };
+		B82F81D72C00E00100000004 /* XcodeBuildLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = XcodeBuildLogView.swift; path = "Xcode Build/XcodeBuildLogView.swift"; sourceTree = "<group>"; };
+		B82F81D92C00E00100000005 /* AppleSignInManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppleSignInManager.swift; path = "Xcode Build/AppleSignInManager.swift"; sourceTree = "<group>"; };
+		B82F81DB2C00E00100000006 /* AppleSignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppleSignInView.swift; path = "Xcode Build/AppleSignInView.swift"; sourceTree = "<group>"; };
 		AA110001BB220001CC330002 /* XcodeProjParse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XcodeProjParse.swift; sourceTree = "<group>"; };
 		AA110001BB220001CC330004 /* XcodeProjViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XcodeProjViewer.swift; sourceTree = "<group>"; };
 		AA110001BB220001CC331004 /* XcodeProjTabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XcodeProjTabs.swift; sourceTree = "<group>"; };
@@ -2425,6 +2437,11 @@
 		50449986FA13E01B106DB1E2 /* Build */ = {
 			isa = PBXGroup;
 			children = (
+				B82F81D32C00E00100000002 /* XcodeBuildManager.swift */,
+				B82F81D52C00E00100000003 /* XcodeBuildConfigurationView.swift */,
+				B82F81D72C00E00100000004 /* XcodeBuildLogView.swift */,
+				B82F81D92C00E00100000005 /* AppleSignInManager.swift */,
+				B82F81DB2C00E00100000006 /* AppleSignInView.swift */,
 				070568FDFE009D932399AA92 /* AppDetailsInfo.swift */,
 				520E553F89642C2F5E118C85 /* BuildLogsView.swift */,
 				677867FB275018155CE87ED1 /* PrepareCompileWaitingView.swift */,
@@ -3072,6 +3089,7 @@
 		ABBC8A11E8527DDF62152F7F /* Editor */ = {
 			isa = PBXGroup;
 			children = (
+				B82F81D12C00E00100000001 /* MarkdownFileView.swift */,
 				CE101009E34BBDA370490001 /* EntitlementsEditorView.swift */,
 				CE101007E34BBDA370490001 /* InfoPlistView.swift */,
 				2AEB32651A4E4F7B561D7B81 /* SymbolOutlineView.swift */,
@@ -3969,6 +3987,12 @@
 				06EBA81D7C4D10B24D7A085B /* AIDocGenExtensionView.swift in Sources */,
 				C2613EE0C658D412F48C0B15 /* AIModelDebuggerView.swift in Sources */,
 				30DAE9262B23957FBD0850E8 /* AppDetailsInfo.swift in Sources */,
+				B82F81D22C00E00100000001 /* MarkdownFileView.swift in Sources */,
+				B82F81D42C00E00100000002 /* XcodeBuildManager.swift in Sources */,
+				B82F81D62C00E00100000003 /* XcodeBuildConfigurationView.swift in Sources */,
+				B82F81D82C00E00100000004 /* XcodeBuildLogView.swift in Sources */,
+				B82F81DA2C00E00100000005 /* AppleSignInManager.swift in Sources */,
+				B82F81DC2C00E00100000006 /* AppleSignInView.swift in Sources */,
 				B1C10CF2FDE12F18EB6CF980 /* PrepareCompileWaitingView.swift in Sources */,
 				792ED704397F071D5181C47C /* AISuggestionEngine.swift in Sources */,
 				66D0CBEBDB8D87760FF9A84A /* CodeChangesView.swift in Sources */,

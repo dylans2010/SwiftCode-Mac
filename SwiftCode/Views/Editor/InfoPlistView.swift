@@ -14,6 +14,9 @@ public struct InfoPlistView: View {
     @State private var newCustomType: InfoPlistNSString.ValueType = .string
 
     @Environment(\.undoManager) private var undoManager
+    @Environment(WorkspaceViewModel.self) private var workspaceViewModel
+    @State private var isCreating = false
+    @State private var creationError: String? = nil
 
     public init(fileURL: URL?) {
         self.fileURL = fileURL
@@ -21,6 +24,55 @@ public struct InfoPlistView: View {
             _editor = State(initialValue: InfoPlistEditor(fileURL: url))
         } else {
             _editor = State(initialValue: InfoPlistEditor(fileURL: URL(fileURLWithPath: "/dev/null")))
+        }
+    }
+
+    private func createInfoPlist() {
+        guard let project = ProjectSessionStore.shared.activeProject else {
+            creationError = "No active project found in session."
+            return
+        }
+
+        isCreating = true
+        creationError = nil
+
+        let targetURL = project.directoryURL.appendingPathComponent("Info.plist")
+        let defaultContent = """
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+</dict>
+</plist>
+"""
+
+        Task {
+            do {
+                try defaultContent.write(to: targetURL, atomically: true, encoding: .utf8)
+                ProjectSessionStore.shared.refreshFileTree(for: project)
+                await workspaceViewModel.editor.openFile(url: targetURL)
+                await workspaceViewModel.editor.updateActiveConfigurationURLs(for: project)
+                isCreating = false
+            } catch {
+                isCreating = false
+                creationError = "Failed to create Info.plist: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -40,10 +92,34 @@ public struct InfoPlistView: View {
 
     public var body: some View {
         if fileURL == nil {
-            ContentUnavailableView {
-                Label("No Info.plist Configured", systemImage: "info.circle")
-            } description: {
-                Text("The currently selected target does not contain an Info.plist configuration file.\n\nPlease configure one in your project target build settings or create a file named Info.plist in your project.")
+            VStack(spacing: 20) {
+                ContentUnavailableView {
+                    Label("No Info.plist Configured", systemImage: "info.circle")
+                } description: {
+                    Text("The currently selected target does not contain an Info.plist configuration file.\n\nYou can create a standard Info.plist file in your project workspace.")
+                }
+
+                if let error = creationError {
+                    Text(error)
+                        .foregroundColor(.red)
+                        .font(.callout)
+                }
+
+                Button {
+                    createInfoPlist()
+                } label: {
+                    if isCreating {
+                        ProgressView()
+                            .controlSize(.small)
+                            .padding(.horizontal)
+                    } else {
+                        Text("Create Info.plist")
+                            .font(.headline)
+                            .padding(.horizontal)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isCreating)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.ultraThinMaterial)

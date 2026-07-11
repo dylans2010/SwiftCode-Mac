@@ -11,6 +11,9 @@ public struct EntitlementsEditorView: View {
     @State private var showXMLSplit = true
     @State private var favorites: Set<String> = []
     @State private var showingAddPopover = false
+    @Environment(WorkspaceViewModel.self) private var workspaceViewModel
+    @State private var isCreating = false
+    @State private var creationError: String? = nil
 
     public init(fileURL: URL?) {
         self.fileURL = fileURL
@@ -20,6 +23,43 @@ public struct EntitlementsEditorView: View {
             _entitlementsDict = State(initialValue: (try? m.readEntitlements()) ?? [:])
         } else {
             _entitlementsDict = State(initialValue: [:])
+        }
+    }
+
+    private func createEntitlements() {
+        guard let project = ProjectSessionStore.shared.activeProject else {
+            creationError = "No active project found in session."
+            return
+        }
+
+        isCreating = true
+        creationError = nil
+
+        let targetURL = project.directoryURL.appendingPathComponent("\(project.name).entitlements")
+        let defaultContent = """
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+</dict>
+</plist>
+"""
+
+        Task {
+            do {
+                try defaultContent.write(to: targetURL, atomically: true, encoding: .utf8)
+                ProjectSessionStore.shared.refreshFileTree(for: project)
+                await workspaceViewModel.editor.openFile(url: targetURL)
+                await workspaceViewModel.editor.updateActiveConfigurationURLs(for: project)
+                isCreating = false
+            } catch {
+                isCreating = false
+                creationError = "Failed to create Entitlements: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -43,10 +83,34 @@ public struct EntitlementsEditorView: View {
 
     public var body: some View {
         if fileURL == nil {
-            ContentUnavailableView {
-                Label("No Entitlements Configured", systemImage: "lock.shield")
-            } description: {
-                Text("The currently selected target does not contain an Entitlements configuration file.\n\nPlease configure one in your project target build settings or create a .entitlements file in your project.")
+            VStack(spacing: 20) {
+                ContentUnavailableView {
+                    Label("No Entitlements Configured", systemImage: "lock.shield")
+                } description: {
+                    Text("The currently selected target does not contain an Entitlements configuration file.\n\nYou can create a standard entitlements file in your project workspace.")
+                }
+
+                if let error = creationError {
+                    Text(error)
+                        .foregroundColor(.red)
+                        .font(.callout)
+                }
+
+                Button {
+                    createEntitlements()
+                } label: {
+                    if isCreating {
+                        ProgressView()
+                            .controlSize(.small)
+                            .padding(.horizontal)
+                    } else {
+                        Text("Create Entitlements File")
+                            .font(.headline)
+                            .padding(.horizontal)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isCreating)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.ultraThinMaterial)

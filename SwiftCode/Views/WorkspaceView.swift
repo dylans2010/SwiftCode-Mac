@@ -69,6 +69,9 @@ struct WorkspaceView: View {
                             Button("Source Control") { activeSheet = .sourceControl }
                             Button("CI Build") { activeSheet = .ciBuild }
                             Button("Dependency Manager") { activeSheet = .dependencyManager }
+                            Button("Xcode Build Settings") { activeSheet = .xcodeBuildSettings }
+                            Button("Xcode Build Logs") { activeSheet = .xcodeBuildLogs }
+                            Button("Apple Signing") { activeSheet = .appleDeveloperAccount }
                         }
 
                         Section("Analysis") {
@@ -191,6 +194,9 @@ struct WorkspaceView: View {
                 case .minimapSettings: MinimapSettingsView()
                 case .codeMetrics: CodeMetricsDashboardView()
                 case .terminal: TerminalView()
+                case .xcodeBuildSettings: XcodeBuildConfigurationView()
+                case .xcodeBuildLogs: XcodeBuildLogView()
+                case .appleDeveloperAccount: AppleSignInView()
 
                 default:
                     ContentUnavailableView {
