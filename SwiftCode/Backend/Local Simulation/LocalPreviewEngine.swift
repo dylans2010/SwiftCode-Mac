@@ -3,9 +3,9 @@ import Foundation
 /// Prepares the runtime environment for the local simulation preview.
 /// Validates project files, simulates build steps, and prepares the detected root view for rendering.
 @MainActor
-final class PreviewEngine {
+final class LocalPreviewEngine {
 
-    enum PreviewEngineError: LocalizedError {
+    enum LocalPreviewEngineError: LocalizedError {
         case noSwiftFilesFound
         case noAppEntryFound
         case noRootViewFound
@@ -50,21 +50,21 @@ final class PreviewEngine {
         try await Task.sleep(nanoseconds: SimulatedDelay.resolveFiles)
 
         guard !analysisResult.swiftFiles.isEmpty else {
-            throw PreviewEngineError.noSwiftFilesFound
+            throw LocalPreviewEngineError.noSwiftFilesFound
         }
 
         logHandler("Parsing \(analysisResult.swiftFiles.count) Swift file(s)...")
         try await Task.sleep(nanoseconds: SimulatedDelay.parseFiles)
 
         guard let appEntryFile = analysisResult.appEntryFile else {
-            throw PreviewEngineError.noAppEntryFound
+            throw LocalPreviewEngineError.noAppEntryFound
         }
 
         logHandler("Found app entry: \(appEntryFile.lastPathComponent)")
         try await Task.sleep(nanoseconds: SimulatedDelay.foundEntry)
 
         guard let rootViewName = analysisResult.rootViewName else {
-            throw PreviewEngineError.noRootViewFound
+            throw LocalPreviewEngineError.noRootViewFound
         }
 
         logHandler("Detected root view: \(rootViewName)")
