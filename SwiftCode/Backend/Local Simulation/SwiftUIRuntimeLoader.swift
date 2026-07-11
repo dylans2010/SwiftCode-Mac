@@ -15,7 +15,7 @@ final class SwiftUIRuntimeLoader {
     }
 
     /// Builds a runtime container from the prepared preview context.
-    func load(from context: PreviewEngine.PreviewContext) -> RuntimeContainer {
+    func load(from context: LocalPreviewEngine.PreviewContext) -> RuntimeContainer {
         let projectName = context.projectDirectory.lastPathComponent
 
         // Attempt to read the source of the root view file for display

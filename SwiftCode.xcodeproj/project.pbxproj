@@ -760,7 +760,7 @@
 		D00450E4D38F40638B3F22B2 /* ParseMarkdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0076F070FA7E4422B0FBAAB8 /* ParseMarkdown.swift */; };
 		D0082E7BCF42432CAE41C74D /* DebugConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127F78BDF2258DE13EE0B4F6 /* DebugConsoleView.swift */; };
 		D0421FADC76B4158A9849AB0 /* LoggingTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AB334BB0700193F8677F53B /* LoggingTool.swift */; };
-		D14C10541393E5CE94558D41 /* PreviewEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F8356003713E2825682FD92 /* PreviewEngine.swift */; };
+		D14C10541393E5CE94558D41 /* LocalPreviewEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F8356003713E2825682FD92 /* LocalPreviewEngine.swift */; };
 		D1CF3393DC724A53710E64CE /* SyntaxHighlightingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0122F265953CCBF00E0194B /* SyntaxHighlightingEngine.swift */; };
 		D1D1D1D1D1D1D1D1D1D1D1D1 /* PackageDependency.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D2D2D2D2D2D2D2D2D2D2D2 /* PackageDependency.swift */; };
 		D1D1FF9BF3FD430BB6F4BF2B /* URLEncoderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51358F9C2A2A4CBE83FA7421 /* URLEncoderView.swift */; };
@@ -1383,7 +1383,7 @@
 		7E57429B3584DC81ED57CAE0 /* WorkspaceViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceViewModel.swift; sourceTree = "<group>"; };
 		7E796ACFB49B458BAFDDB3FA /* AssistModelOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistModelOption.swift; sourceTree = "<group>"; };
 		7E98EC5E61489CE7CE6AB854 /* ProjectTemplateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectTemplateView.swift; sourceTree = "<group>"; };
-		7F8356003713E2825682FD92 /* PreviewEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewEngine.swift; sourceTree = "<group>"; };
+		7F8356003713E2825682FD92 /* LocalPreviewEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalPreviewEngine.swift; sourceTree = "<group>"; };
 		7F8463771960A3AC1C3E0E8B /* JSONToKotlinView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONToKotlinView.swift; sourceTree = "<group>"; };
 		7FFEDA7C82F5408BAAAABFCD /* ReadBuildLogs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadBuildLogs.swift; sourceTree = "<group>"; };
 		8006C0E358CBE55622B23B6E /* DebugSessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugSessionViewModel.swift; sourceTree = "<group>"; };
@@ -2037,7 +2037,7 @@
 				E1AC4D461542816C259D6271 /* SwiftUIEntryResolver.swift */,
 				ED6DC53C52E92FC6F6CB02E0 /* SwiftUIViewRenderer.swift */,
 				802706CC382CE08E325F5A42 /* SwiftRuntimeCompiler.swift */,
-				7F8356003713E2825682FD92 /* PreviewEngine.swift */,
+				7F8356003713E2825682FD92 /* LocalPreviewEngine.swift */,
 				54792A364538E5DFCDC395E8 /* ProjectScanner.swift */,
 				EEE638E2C3014679A4C838F0 /* SwiftDynamicLoader.swift */,
 				F41A81CC51FF53E005DD1132 /* LocalSimulationView.swift */,
@@ -4328,7 +4328,7 @@
 				BE99DECC09AB87F3180CB68D /* SwiftUIEntryResolver.swift in Sources */,
 				4BE7EA7B76406B31D0E1F3B4 /* SwiftUIViewRenderer.swift in Sources */,
 				0AED8B51A98259F6620A98A5 /* SwiftRuntimeCompiler.swift in Sources */,
-				D14C10541393E5CE94558D41 /* PreviewEngine.swift in Sources */,
+				D14C10541393E5CE94558D41 /* LocalPreviewEngine.swift in Sources */,
 				77D8B2B2DE3DDB0268EF2387 /* ProjectScanner.swift in Sources */,
 				E8FE9A7D03879C56E32DA3DB /* SwiftDynamicLoader.swift in Sources */,
 				8C80F1B57D230806F10D1CAB /* LocalSimulationView.swift in Sources */,
