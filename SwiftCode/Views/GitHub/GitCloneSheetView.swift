@@ -131,7 +131,8 @@ struct GitCloneSheetView: View {
 
                     let token = try? await KeychainService.shared.get(account: "github-pat")
                     try await GitService.shared.clone(remoteURL: remote, destinationURL: destination, token: token)
-                    _ = try await ProjectSessionStore.shared.importProject(from: destination)
+                    let project = try await ProjectSessionStore.shared.importProject(from: destination)
+                    await ProjectSessionStore.shared.openProject(project)
                     dismiss()
                 } catch {
                     errorMessage = "Clone failed: \(error.localizedDescription)"

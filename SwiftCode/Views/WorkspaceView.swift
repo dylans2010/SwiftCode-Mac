@@ -6,6 +6,11 @@ struct WorkspaceView: View {
     @Environment(ThemeViewModel.self) var themeVM
     @Environment(ProjectSessionStore.self) private var sessionStore
 
+    // Collapsible Agent Inspector
+    @AppStorage("com.swiftcode.workspace.showAgentInspector") private var showAgentInspector = false
+    @AppStorage("com.swiftcode.workspace.agentInspectorWidth") private var agentInspectorWidth = 320.0
+    @State private var dragStartWidth: CGFloat? = nil
+
     // Feature sheet states
     @State private var activeSheet: ToolbarActionManager.SheetDestination?
     @State private var showingExportSheet = false
@@ -24,11 +29,47 @@ struct WorkspaceView: View {
 
     var body: some View {
         AdaptivePage {
-            HSplitView {
-                FileNavigatorSidebarView(viewModel: viewModel.projectTree)
-                    .frame(minWidth: 200, idealWidth: 260, maxWidth: 500)
+            HStack(spacing: 0) {
+                HSplitView {
+                    FileNavigatorSidebarView(viewModel: viewModel.projectTree)
+                        .frame(minWidth: 200, idealWidth: 260, maxWidth: 500)
 
-                EditorTextView(workspaceViewModel: viewModel)
+                    EditorTextView(workspaceViewModel: viewModel)
+                }
+
+                if showAgentInspector {
+                    // Custom drag handle divider
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.2))
+                        .frame(width: 4)
+                        .contentShape(Rectangle())
+                        .onHover { isHovered in
+                            if isHovered {
+                                NSCursor.resizeLeftRight.push()
+                            } else {
+                                NSCursor.pop()
+                            }
+                        }
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    if dragStartWidth == nil {
+                                        dragStartWidth = agentInspectorWidth
+                                    }
+                                    let delta = value.translation.width
+                                    let newWidth = (dragStartWidth ?? 320.0) - delta
+                                    agentInspectorWidth = max(280, min(600, newWidth))
+                                }
+                                .onEnded { _ in
+                                    dragStartWidth = nil
+                                }
+                        )
+
+                    AgentChatView()
+                        .environment(viewModel.ai)
+                        .frame(width: agentInspectorWidth)
+                        .transition(.move(edge: .trailing))
+                }
             }
         }
         .environment(viewModel)
@@ -47,6 +88,16 @@ struct WorkspaceView: View {
                         Label("Build Status", systemImage: "gauge.with.needle")
                     }
                     .help("Open Build Status")
+
+                    Button {
+                        withAnimation(.spring()) {
+                            showAgentInspector.toggle()
+                        }
+                    } label: {
+                        Image(systemName: "sparkles")
+                            .foregroundColor(showAgentInspector ? .accentColor : .secondary)
+                    }
+                    .help("Toggle AI Agent Inspector")
 
                     BuildToolbarView(viewModel: viewModel.build, projectURL: viewModel.projectURL)
                 }
@@ -123,9 +174,14 @@ struct WorkspaceView: View {
                 showingExportSheet = true
             }
             .onReceive(NotificationCenter.default.publisher(for: .toolbarToolActivated)) { notification in
-                if let toolId = notification.userInfo?["toolID"] as? String,
-                   let destination = ToolbarActionManager.shared.destination(for: toolId) {
-                    activeSheet = destination
+                if let toolId = notification.userInfo?["toolID"] as? String {
+                    if toolId == "ai_code_gen" || toolId == "assist_view" || toolId == "runAgent" || toolId == "ai_agent" {
+                        withAnimation(.spring()) {
+                            showAgentInspector = true
+                        }
+                    } else if let destination = ToolbarActionManager.shared.destination(for: toolId) {
+                        activeSheet = destination
+                    }
                 }
             }
             .onChange(of: ProjectResolutionService.shared.selectedTargetID) { _, _ in

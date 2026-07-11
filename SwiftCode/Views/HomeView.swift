@@ -4,10 +4,21 @@ struct HomeView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @EnvironmentObject private var folderManager: FolderManager
     @Environment(ThemeViewModel.self) private var themeVM
+
     @State private var showingNewProject = false
     @State private var showingSettings = false
     @State private var selection: String? = "Recent"
     @State private var searchText = ""
+
+    // Sorting and view mode
+    @AppStorage("com.swiftcode.home.viewMode") private var viewModeRaw = "grid" // "grid" or "list"
+    @State private var sortBy: SortMode = .lastOpened
+    @AppStorage("com.swiftcode.home.favoriteProjects") private var favoriteProjectIDs: String = ""
+
+    // Folder Creation Sheet
+    @State private var showCreateFolderSheet = false
+    @State private var newFolderName = ""
+    @State private var newFolderColor = "#FF5733"
 
     // Project management states
     @State private var showRenameSheet = false
@@ -19,6 +30,22 @@ struct HomeView: View {
     @State private var showShareSheet = false
     @State private var errorMessage: String?
     @State private var showError = false
+
+    enum ViewMode: String {
+        case grid, list
+    }
+
+    enum SortMode: String, CaseIterable, Identifiable {
+        case lastOpened = "Last Opened"
+        case name = "Name"
+        case dateCreated = "Date Created"
+
+        var id: String { rawValue }
+    }
+
+    private var favorites: Set<String> {
+        Set(favoriteProjectIDs.split(separator: ",").map(String.init))
+    }
 
     var body: some View {
         AdaptivePage {
@@ -35,6 +62,9 @@ struct HomeView: View {
             AdaptiveSheet {
                 SettingsView()
             }
+        }
+        .sheet(isPresented: $showCreateFolderSheet) {
+            createFolderSheet
         }
         .sheet(isPresented: $showRenameSheet) {
             renameSheet
@@ -56,14 +86,26 @@ struct HomeView: View {
     }
 
     private var sidebar: some View {
-        List(selection: $selection) {
-            Section("Library") {
-                Label("Recent", systemImage: "clock").tag("Recent")
-                Label("All Projects", systemImage: "folder").tag("All")
-            }
+        VStack(spacing: 0) {
+            List(selection: $selection) {
+                Section("Library") {
+                    Label("Recent Projects", systemImage: "clock").tag("Recent")
+                    Label("All Projects", systemImage: "folder").tag("All")
+                    Label("Favorites", systemImage: "star.fill").tag("Favorites")
+                }
 
-            if !folderManager.folders.isEmpty {
-                Section("Folders") {
+                Section(header: HStack {
+                    Text("Folders")
+                    Spacer()
+                    Button {
+                        newFolderName = ""
+                        showCreateFolderSheet = true
+                    } label: {
+                        Image(systemName: "plus.circle")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Create Organization Folder")
+                }) {
                     ForEach(folderManager.folders) { folder in
                         Label(folder.folderName, systemImage: "folder.badge.gearshape")
                             .tag("folder_\(folder.folderId)")
@@ -76,19 +118,24 @@ struct HomeView: View {
                             }
                     }
                 }
-            }
 
-            Section("Templates") {
-                Label("Browse Templates", systemImage: "square.grid.2x2").tag("Templates")
+                Section("Templates") {
+                    Label("Browse Templates", systemImage: "square.grid.2x2").tag("Templates")
+                }
             }
+            .listStyle(.sidebar)
+            .background(.ultraThinMaterial)
         }
-        .listStyle(.sidebar)
         .navigationTitle("SwiftCode")
     }
 
     private var detail: some View {
         ZStack {
-            Color(hex: themeVM.currentTheme.background).ignoresSafeArea()
+            // Vibant translucent layout
+            Color(hex: themeVM.currentTheme.background)
+                .opacity(0.85)
+                .ignoresSafeArea()
+                .background(.ultraThinMaterial)
 
             VStack(spacing: 0) {
                 headerView
@@ -96,7 +143,11 @@ struct HomeView: View {
                 if filteredProjects.isEmpty && !isSearching {
                     emptyStateView
                 } else {
-                    projectsGrid
+                    if viewModeRaw == "grid" {
+                        projectsGrid
+                    } else {
+                        projectsList
+                    }
                 }
             }
         }
@@ -107,23 +158,36 @@ struct HomeView: View {
     private var filteredProjects: [Project] {
         var baseProjects = sessionStore.projects
 
+        // Filter based on library/sidebar selection
         if let sel = selection {
             if sel == "Recent" {
                 baseProjects = Array(baseProjects.prefix(5))
+            } else if sel == "Favorites" {
+                baseProjects = baseProjects.filter { favorites.contains($0.id.uuidString) }
             } else if sel.hasPrefix("folder_") {
                 let idString = String(sel.dropFirst(7))
                 if let uuid = UUID(uuidString: idString),
                    let folder = folderManager.folders.first(where: { $0.folderId == uuid }) {
-                    // The following filter is replaced to avoid using .contains(project.id) unless the type is UUID.
-                    // Replace this with the correct comparison based on the type of projectIds in Folder.
-                    baseProjects = baseProjects.filter { _ in false }
+                    baseProjects = folderManager.projects(in: folder, allProjects: baseProjects)
                 }
             }
         }
 
+        // Apply text search
         if isSearching {
-            return baseProjects.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+            baseProjects = baseProjects.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
         }
+
+        // Apply sort mode
+        switch sortBy {
+        case .lastOpened:
+            baseProjects.sort { $0.lastOpened > $1.lastOpened }
+        case .name:
+            baseProjects.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        case .dateCreated:
+            baseProjects.sort { $0.createdAt > $1.lastOpened }
+        }
+
         return baseProjects
     }
 
@@ -140,6 +204,24 @@ struct HomeView: View {
             Spacer()
 
             HStack(spacing: 12) {
+                // View Mode Toggle
+                Picker("View", selection: $viewModeRaw) {
+                    Image(systemName: "square.grid.2x2").tag("grid")
+                    Image(systemName: "list.bullet").tag("list")
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 80)
+                .help("Toggle Grid/List layout")
+
+                // Sort selection
+                Picker("Sort", selection: $sortBy) {
+                    ForEach(SortMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(width: 130)
+
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
@@ -147,9 +229,9 @@ struct HomeView: View {
                         .textFieldStyle(.plain)
                 }
                 .padding(8)
-                .background(Color.secondary.opacity(0.1))
+                .background(Color.secondary.opacity(0.12))
                 .cornerRadius(8)
-                .frame(width: 250)
+                .frame(width: 200)
 
                 Button(action: { showingNewProject = true }) {
                     Label("New Project", systemImage: "plus")
@@ -169,6 +251,7 @@ struct HomeView: View {
         guard let sel = selection else { return "Projects" }
         if sel == "Recent" { return "Recent Projects" }
         if sel == "All" { return "All Projects" }
+        if sel == "Favorites" { return "Favorites" }
         if sel.hasPrefix("folder_") {
             let idString = String(sel.dropFirst(7))
             if let uuid = UUID(uuidString: idString) {
@@ -190,6 +273,58 @@ struct HomeView: View {
                     try? sessionStore.deleteProject(project)
                 }
                 .contextMenu { projectContextMenu(for: project) }
+            }
+
+            loadingOverlay
+        }
+    }
+
+    private var projectsList: some View {
+        ZStack {
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(filteredProjects) { project in
+                        HStack {
+                            Image(systemName: "swift")
+                                .font(.title3)
+                                .foregroundColor(.orange)
+                                .padding(8)
+                                .background(Color.orange.opacity(0.12))
+                                .cornerRadius(6)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(project.name)
+                                    .font(.headline)
+                                Text(project.description.isEmpty ? "No description" : project.description)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            HStack(spacing: 16) {
+                                if favorites.contains(project.id.uuidString) {
+                                    Image(systemName: "star.fill")
+                                        .foregroundColor(.orange)
+                                }
+                                Text(project.lastOpened, style: .relative)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor).opacity(0.6))
+                        .cornerRadius(10)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            Task {
+                                await sessionStore.openProject(project)
+                            }
+                        }
+                        .contextMenu { projectContextMenu(for: project) }
+                    }
+                }
+                .padding(.horizontal, 32)
             }
 
             loadingOverlay
@@ -253,6 +388,20 @@ struct HomeView: View {
 
     @ViewBuilder
     private func projectContextMenu(for project: Project) -> some View {
+        Button {
+            Task {
+                await sessionStore.openProject(project)
+            }
+        } label: {
+            Label("Open Project", systemImage: "play.fill")
+        }
+
+        Button {
+            toggleFavorite(project)
+        } label: {
+            Label(favorites.contains(project.id.uuidString) ? "Remove Favorite" : "Add to Favorites", systemImage: "star")
+        }
+
         Button {
             projectToRename = project
             renameText = project.name
@@ -342,6 +491,39 @@ struct HomeView: View {
         .frame(maxHeight: .infinity)
     }
 
+    private var createFolderSheet: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                TextField("Folder Name", text: $newFolderName)
+                    .textFieldStyle(.roundedBorder)
+
+                HStack {
+                    Text("Folder Theme Color")
+                    Spacer()
+                    ColorPicker("", selection: Binding(
+                        get: { Color(hex: newFolderColor) },
+                        set: { newFolderColor = $0.toHex() ?? "#FF5733" }
+                    ))
+                }
+            }
+            .padding()
+            .navigationTitle("Create Folder")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showCreateFolderSheet = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        folderManager.createFolder(name: newFolderName, symbol: "folder.badge.gearshape", colorHex: newFolderColor)
+                        showCreateFolderSheet = false
+                    }
+                    .disabled(newFolderName.isEmpty)
+                }
+            }
+        }
+        .frame(width: 320, height: 180)
+    }
+
     private var renameSheet: some View {
         NavigationStack {
             VStack {
@@ -402,99 +584,31 @@ struct HomeView: View {
         }
     }
 
+    private func toggleFavorite(_ project: Project) {
+        var favs = favorites
+        let uuidStr = project.id.uuidString
+        if favs.contains(uuidStr) {
+            favs.remove(uuidStr)
+        } else {
+            favs.insert(uuidStr)
+        }
+        favoriteProjectIDs = favs.joined(separator: ",")
+    }
+
     private func showError(_ error: Error) {
         errorMessage = error.localizedDescription
         showError = true
     }
 }
 
-struct QuickStartRow: View {
-    let icon: String
-    let title: String
-    let description: String
-
-    var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(.accentColor)
-                .frame(width: 32)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline)
-                    .bold()
-                Text(description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
-struct HomeProjectCardView: View {
-    let project: Project
-    let onOpen: () -> Void
-    let onDelete: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "swift")
-                    .font(.title2)
-                    .foregroundColor(.orange)
-                    .padding(8)
-                    .background(Color.orange.opacity(0.1))
-                    .cornerRadius(8)
-
-                Spacer()
-
-                Menu {
-                    Button("Open", action: onOpen)
-                    Button("Delete", role: .destructive, action: onDelete)
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .foregroundStyle(.secondary)
-                }
-                .menuStyle(.button)
-                .buttonStyle(.plain)
-                .opacity(isHovered ? 1 : 0)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(project.name)
-                    .font(.headline)
-                    .lineLimit(1)
-
-                Text(project.lastOpened, style: .relative)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                HStack(spacing: 12) {
-                    Label("\(project.fileCount) files", systemImage: "doc")
-                    if let repo = project.githubRepo {
-                        Label(repo, systemImage: "network")
-                            .lineLimit(1)
-                    }
-                }
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.secondary)
-                .padding(.top, 4)
-            }
-        }
-        .padding(16)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isHovered ? Color.accentColor.opacity(0.5) : Color.secondary.opacity(0.1), lineWidth: 1.5)
-        )
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onOpen)
-        .onHover { isHovered = $0 }
-        .scaleEffect(isHovered ? 1.02 : 1.0)
-        .animation(.spring(response: 0.3), value: isHovered)
-        .shadow(color: .black.opacity(isHovered ? 0.1 : 0), radius: 10, x: 0, y: 5)
+// Color conversion helpers for saving selected theme HEX string
+private extension Color {
+    func toHex() -> String? {
+        let uic = NSColor(self)
+        guard let rgb = uic.usingColorSpace(.deviceRGB) else { return nil }
+        let r = Int(rgb.redComponent * 255)
+        let g = Int(rgb.greenComponent * 255)
+        let b = Int(rgb.blueComponent * 255)
+        return String(format: "#%02X%02X%02X", r, g, b)
     }
 }

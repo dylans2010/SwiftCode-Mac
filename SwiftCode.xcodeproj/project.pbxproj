@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2B4CEE870D734A23837F5302 /* ExpandedDevTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B4CEE880D734A23837F5302 /* ExpandedDevTools.swift */; };
 		004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = BBB818A276304EA881DBF6E6 /* MLXOptimizers */; };
 		0205BA60DB99F20AD6385182 /* TextLineRemoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA47DBD02C0AECE609708638 /* TextLineRemoverView.swift */; };
 		028210A2C2DF33D15EF2B37A /* ProjectTemplateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E98EC5E61489CE7CE6AB854 /* ProjectTemplateView.swift */; };
@@ -899,6 +900,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2B4CEE880D734A23837F5302 /* ExpandedDevTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpandedDevTools.swift; sourceTree = "<group>"; };
 		00048987BBB25A712D49051C /* NordThemeExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NordThemeExtensionView.swift; sourceTree = "<group>"; };
 		0076F070FA7E4422B0FBAAB8 /* ParseMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseMarkdown.swift; sourceTree = "<group>"; };
 		00A96C0BE03E4321AB3DEAFB /* KubernetesApply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KubernetesApply.swift; sourceTree = "<group>"; };
@@ -2105,6 +2107,7 @@
 		2B4CEE860D734A23837F5302 /* Dev Tools */ = {
 			isa = PBXGroup;
 			children = (
+				2B4CEE880D734A23837F5302 /* ExpandedDevTools.swift */,
 				F65A3FDC991F7D91CA5531EE /* JSONToSwiftView.swift */,
 				7F8463771960A3AC1C3E0E8B /* JSONToKotlinView.swift */,
 				8CEA8F39726DF498FCCD5D17 /* JSONToTSView.swift */,
@@ -3897,6 +3900,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2B4CEE870D734A23837F5302 /* ExpandedDevTools.swift in Sources */,
 				AA110001BB220001CC330001 /* XcodeProjParse.swift in Sources */,
 				AA110001BB220001CC330003 /* XcodeProjViewer.swift in Sources */,
 				AA110001BB220001CC331003 /* XcodeProjTabs.swift in Sources */,

@@ -50,87 +50,101 @@ struct XcodeBuildLogView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Header Status Hub
-                buildStatusHeader
-                    .padding()
-                    .background(Color.secondary.opacity(0.04))
-
-                Divider()
-
-                // Filter / Search Toolbar
-                HStack(spacing: 12) {
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.secondary)
-                        TextField("Search build logs...", text: $searchLogQuery)
-                            .textFieldStyle(.plain)
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Card 1: Build Status Hub
+                    GroupBox {
+                        buildStatusHeader
+                            .padding()
                     }
-                    .padding(6)
-                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                    Picker("Filter", selection: $filterMode) {
-                        ForEach(LogFilterMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 320)
+                    // Card 2: Filter / Search Toolbar
+                    GroupBox {
+                        HStack(spacing: 12) {
+                            HStack {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundStyle(.secondary)
+                                TextField("Search build logs...", text: $searchLogQuery)
+                                    .textFieldStyle(.plain)
+                            }
+                            .padding(8)
+                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
 
-                    Toggle("Auto-scroll", isOn: $autoScrollToBottom)
-                        .toggleStyle(.checkbox)
-
-                    Button(action: {
-                        let text = buildManager.buildLogs.joined(separator: "\n")
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(text, forType: .string)
-                    }) {
-                        Label("Copy Logs", systemImage: "doc.on.doc")
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial)
-
-                Divider()
-
-                // Logs Display Area
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 4) {
-                            if filteredLogs.isEmpty {
-                                VStack(spacing: 12) {
-                                    Spacer()
-                                    Image(systemName: "doc.text.magnifyingglass")
-                                        .font(.system(size: 32))
-                                        .foregroundStyle(.secondary)
-                                    Text("No matching logs found")
-                                        .font(.headline)
-                                        .foregroundStyle(.secondary)
-                                    Spacer()
+                            Picker("Filter", selection: $filterMode) {
+                                ForEach(LogFilterMode.allCases) { mode in
+                                    Text(mode.rawValue).tag(mode)
                                 }
-                                .frame(maxWidth: .infinity, minHeight: 300)
-                            } else {
-                                ForEach(Array(filteredLogs.enumerated()), id: \.offset) { index, log in
-                                    Text(log)
-                                        .font(.system(.caption, design: .monospaced))
-                                        .foregroundStyle(logColor(for: log))
-                                        .textSelection(.enabled)
-                                        .id(index)
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(width: 320)
+
+                            Toggle("Auto-scroll", isOn: $autoScrollToBottom)
+                                .toggleStyle(.checkbox)
+
+                            Button(action: {
+                                let text = buildManager.buildLogs.joined(separator: "\n")
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(text, forType: .string)
+                            }) {
+                                Label("Copy Logs", systemImage: "doc.on.doc")
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Card 3: Logs Display Area
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Build Console Output", systemImage: "terminal.fill")
+                                .font(.headline)
+                                .foregroundColor(.gray)
+
+                            ScrollViewReader { proxy in
+                                ScrollView {
+                                    LazyVStack(alignment: .leading, spacing: 4) {
+                                        if filteredLogs.isEmpty {
+                                            VStack(spacing: 12) {
+                                                Spacer()
+                                                Image(systemName: "doc.text.magnifyingglass")
+                                                    .font(.system(size: 32))
+                                                    .foregroundStyle(.secondary)
+                                                Text("No matching logs found")
+                                                    .font(.headline)
+                                                    .foregroundStyle(.secondary)
+                                                Spacer()
+                                            }
+                                            .frame(maxWidth: .infinity, minHeight: 200)
+                                        } else {
+                                            ForEach(Array(filteredLogs.enumerated()), id: \.offset) { index, log in
+                                                Text(log)
+                                                    .font(.system(.caption, design: .monospaced))
+                                                    .foregroundStyle(logColor(for: log))
+                                                    .textSelection(.enabled)
+                                                    .id(index)
+                                            }
+                                        }
+                                    }
+                                    .padding()
+                                }
+                                .frame(height: 380)
+                                .background(Color.black)
+                                .cornerRadius(8)
+                                .onChange(of: filteredLogs.count) { _, newCount in
+                                    if autoScrollToBottom && newCount > 0 {
+                                        withAnimation {
+                                            proxy.scrollTo(newCount - 1, anchor: .bottom)
+                                        }
+                                    }
                                 }
                             }
                         }
                         .padding()
                     }
-                    .background(Color.black)
-                    .onChange(of: filteredLogs.count) { _, newCount in
-                        if autoScrollToBottom && newCount > 0 {
-                            withAnimation {
-                                proxy.scrollTo(newCount - 1, anchor: .bottom)
-                            }
-                        }
-                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
+                .padding(24)
             }
             .navigationTitle("Xcode Build Center")
             .toolbar {

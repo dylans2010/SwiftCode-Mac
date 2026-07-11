@@ -16,6 +16,18 @@ public final class XcodeBuildManager: Sendable {
     public var warningsCount = 0
     public var errorsCount = 0
 
+    public var discoveredSchemes: [String] = []
+    public var selectedScheme: String? = nil
+    public var selectedConfiguration: String = "Debug"
+    public var selectedDestination: String = "generic/platform=macOS"
+
+    public let availableConfigurations = ["Debug", "Release"]
+    public let availableDestinations = [
+        "generic/platform=macOS",
+        "generic/platform=iOS Simulator",
+        "generic/platform=iOS"
+    ]
+
     @ObservationIgnored
     private var activeProcess: Process?
     @ObservationIgnored
@@ -49,6 +61,47 @@ public final class XcodeBuildManager: Sendable {
         return fm.fileExists(atPath: path) && fm.isExecutableFile(atPath: path)
     }
 
+    public func discoverSchemes(at url: URL) {
+        let fm = FileManager.default
+        var schemes = Set<String>()
+
+        if let enumerator = fm.enumerator(
+            at: url,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) {
+            while let fileURL = enumerator.nextObject() as? URL {
+                let path = fileURL.path
+                if path.contains(".build") || path.contains(".git") || path.contains("DerivedData") || path.contains("node_modules") || path.contains("Pods") || path.contains("build") {
+                    enumerator.skipDescendants()
+                    continue
+                }
+
+                if fileURL.pathExtension == "xcscheme" {
+                    let name = fileURL.deletingPathExtension().lastPathComponent
+                    schemes.insert(name)
+                }
+            }
+        }
+
+        if schemes.isEmpty {
+            for (_, model) in ProjectResolutionService.shared.parsedProjects {
+                for target in model.targets {
+                    schemes.insert(target.name)
+                }
+            }
+        }
+
+        if schemes.isEmpty {
+            schemes.insert(url.lastPathComponent)
+        }
+
+        self.discoveredSchemes = Array(schemes).sorted()
+        if self.selectedScheme == nil || !self.discoveredSchemes.contains(self.selectedScheme!) {
+            self.selectedScheme = self.discoveredSchemes.first
+        }
+    }
+
     public func getActiveToolchain() async -> String {
         do {
             let result = try await ProcessRunnerTool.shared.run(
@@ -70,7 +123,7 @@ public final class XcodeBuildManager: Sendable {
         appendLog("[SYSTEM] Build cancelled by user.")
     }
 
-    public func runBuild(projectURL: URL, scheme: String?, configuration: String = "Debug", destination: String? = nil) async {
+    public func runBuild(projectURL: URL, scheme: String? = nil, configuration: String? = nil, destination: String? = nil) async {
         guard !isBuilding else {
             appendLog("[SYSTEM] Warning: A build is already in progress.")
             return
@@ -82,6 +135,10 @@ public final class XcodeBuildManager: Sendable {
             appendLog("[ERROR] xcodebuild tool not found at path: \(buildPath). Please configure the correct path in Settings.")
             return
         }
+
+        let finalScheme = scheme ?? selectedScheme
+        let finalConfig = configuration ?? selectedConfiguration
+        let finalDest = destination ?? selectedDestination
 
         isBuilding = true
         currentStatus = .building
@@ -98,12 +155,12 @@ public final class XcodeBuildManager: Sendable {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: buildPath)
 
-        var arguments = ["-configuration", configuration]
-        if let scheme = scheme, !scheme.isEmpty {
-            arguments.append(contentsOf: ["-scheme", scheme])
+        var arguments = ["-configuration", finalConfig]
+        if let actualScheme = finalScheme, !actualScheme.isEmpty {
+            arguments.append(contentsOf: ["-scheme", actualScheme])
         }
-        if let destination = destination, !destination.isEmpty {
-            arguments.append(contentsOf: ["-destination", destination])
+        if let actualDest = finalDest, !actualDest.isEmpty {
+            arguments.append(contentsOf: ["-destination", actualDest])
         }
 
         // Avoid shell interpolation by passing pure argument arrays
