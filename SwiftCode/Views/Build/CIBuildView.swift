@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct CIBuildView: View {
     let project: Project
     @Environment(\.dismiss) private var dismiss
@@ -75,44 +76,122 @@ struct CIBuildView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color(NSColor.windowBackgroundColor).ignoresSafeArea()
+            Form {
+                Section {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Advanced CI Configuration")
+                            .font(.headline)
+                        Text("Customize triggers, runner image, artifacts, metadata, and compile behavior.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        headerCard
+                Section("Project Identification") {
+                    TextField("Project Name", text: $projectName)
+                    TextField("Scheme", text: $schemeName)
+                    TextField("Trigger Branch", text: $triggerBranch)
+                }
 
-                        // Adaptive Grid for macOS layouts
-                        HStack(alignment: .top, spacing: 20) {
-                            VStack(spacing: 16) {
-                                GroupBox(label: Label("Main Configuration", systemImage: "slider.horizontal.3")) {
-                                    configurationCard
-                                }
-                                .groupBoxStyle(ModernGroupBoxStyle())
-
-                                GroupBox(label: Label("Outputs", systemImage: "folder")) {
-                                    outputCard
-                                }
-                                .groupBoxStyle(ModernGroupBoxStyle())
-                            }
-                            .frame(maxWidth: .infinity)
-
-                            VStack(spacing: 16) {
-                                GroupBox(label: Label("Build Options", systemImage: "checkmark.square")) {
-                                    optionsCard
-                                }
-                                .groupBoxStyle(ModernGroupBoxStyle())
-
-                                actionCard
-                            }
-                            .frame(maxWidth: .infinity)
+                Section("Trigger & Environment") {
+                    Picker("Trigger Mode", selection: $triggerMode) {
+                        ForEach(AssistCIFunctions.BuildYMLConfig.TriggerMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue).tag(mode)
                         }
                     }
-                    .padding(24)
+
+                    Picker("macOS Runner", selection: $runnerImage) {
+                        ForEach(AssistCIFunctions.BuildYMLConfig.RunnerImage.allCases, id: \.self) { image in
+                            Text(image.rawValue).tag(image)
+                        }
+                    }
+
+                    Picker("Xcode Version", selection: $xcodeVersion) {
+                        Text("16.2").tag("16.2")
+                        Text("16.1").tag("16.1")
+                        Text("16.0").tag("16.0")
+                        Text("15.4").tag("15.4")
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Timeout Limit: \(Int(timeoutMinutes)) min")
+                        Slider(value: $timeoutMinutes, in: 5...180, step: 5)
+                    }
+                }
+
+                Section("Compilation Settings") {
+                    Picker("Build Configuration", selection: $buildConfiguration) {
+                        ForEach(AssistCIFunctions.BuildYMLConfig.BuildConfiguration.allCases, id: \.self) { config in
+                            Text(config.rawValue).tag(config)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Picker("Destination Target", selection: $destinationType) {
+                        Text("Device").tag(AssistCIFunctions.BuildYMLConfig.DestinationType.device)
+                        Text("Simulator").tag(AssistCIFunctions.BuildYMLConfig.DestinationType.simulator)
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                Section("Outputs & Artifacts") {
+                    TextField("Output Directory", text: $outputDirectory)
+                    TextField("Output Name", text: $outputName)
+
+                    Picker("Export Format", selection: $exportFormat) {
+                        ForEach(AssistCIFunctions.BuildYMLConfig.ExportFormat.allCases, id: \.self) { format in
+                            Text(format.rawValue).tag(format)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                Section("CI Options") {
+                    Toggle("Run Unit Tests", isOn: $includeTests)
+                    Toggle("Run Linter Step", isOn: $includeLint)
+                    Toggle("Clean Before Archive", isOn: $cleanBuild)
+                    Toggle("Fail Fast (set -e)", isOn: $failFast)
+                    Toggle("Enable DerivedData Caching", isOn: $includeCaching)
+                    Toggle("Upload Build Logs Artifact", isOn: $uploadLogsArtifact)
+                    Toggle("Concurrency Control (Cancel Old Runs)", isOn: $includeConcurrencyControl)
+                }
+
+                Section("Actions") {
+                    Button {
+                        generatedYAMLText = AssistCIFunctions.generateBuildYML(config: buildConfig)
+                        showYAMLPreview = true
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Label("Preview build.yml", systemImage: "doc.text.magnifyingglass")
+                            Spacer()
+                        }
+                    }
+
+                    Button {
+                        showAppDetailsSheet = true
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if isBuilding {
+                                ProgressView().scaleEffect(0.8).padding(.trailing, 4)
+                            }
+                            Text(isBuilding ? "Building..." : "Continue to App Details")
+                                .bold()
+                            Spacer()
+                        }
+                    }
+                    .tint(.purple)
+                    .disabled(isBuilding)
                 }
             }
+            .formStyle(.grouped)
             .navigationTitle("CI Builder")
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
             .sheet(isPresented: $showYAMLPreview) { yamlPreviewSheet }
             .sheet(isPresented: $showAppDetailsSheet) {
                 AppDetailsInfo(
@@ -121,7 +200,10 @@ struct CIBuildView: View {
                     marketingVersion: $marketingVersion,
                     buildVersion: $buildVersion,
                     supportedDevices: $supportedDevices,
-                    onSkip: { showAppDetailsSheet = false; showPrepareCompile = true },
+                    onSkip: {
+                        showAppDetailsSheet = false
+                        showPrepareCompile = true
+                    },
                     onContinue: {
                         showAppDetailsSheet = false
                         startBuild()
@@ -153,125 +235,6 @@ struct CIBuildView: View {
         }
     }
 
-    private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Advanced CI Configuration")
-                .font(.title2.bold())
-                .foregroundStyle(.primary)
-            Text("Customize workflow triggers, runner image, artifacts, app metadata, and compile behavior.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(12)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.secondary.opacity(0.15)))
-    }
-
-    private var configurationCard: some View {
-        VStack(spacing: 12) {
-            labeledField("Project Name", text: $projectName)
-            labeledField("Scheme", text: $schemeName)
-            labeledField("Branch", text: $triggerBranch)
-
-            Picker("Trigger", selection: $triggerMode) {
-                ForEach(AssistCIFunctions.BuildYMLConfig.TriggerMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-
-            Picker("Runner", selection: $runnerImage) {
-                ForEach(AssistCIFunctions.BuildYMLConfig.RunnerImage.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Timeout: \(Int(timeoutMinutes)) min").font(.caption).foregroundStyle(.secondary)
-                Slider(value: $timeoutMinutes, in: 5...180, step: 5)
-            }
-
-            Picker("Xcode", selection: $xcodeVersion) {
-                Text("16.2").tag("16.2")
-                Text("16.1").tag("16.1")
-                Text("16.0").tag("16.0")
-                Text("15.4").tag("15.4")
-            }
-            .pickerStyle(.segmented)
-
-            Picker("Build Configuration", selection: $buildConfiguration) {
-                ForEach(AssistCIFunctions.BuildYMLConfig.BuildConfiguration.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-
-            Picker("Target", selection: $destinationType) {
-                Text("Device").tag(AssistCIFunctions.BuildYMLConfig.DestinationType.device)
-                Text("Simulator").tag(AssistCIFunctions.BuildYMLConfig.DestinationType.simulator)
-            }
-            .pickerStyle(.segmented)
-        }
-        .padding(.vertical, 8)
-    }
-
-    private var outputCard: some View {
-        VStack(spacing: 12) {
-            labeledField("Output Directory", text: $outputDirectory)
-            labeledField("Output Name", text: $outputName)
-
-            Picker("Artifact Export", selection: $exportFormat) {
-                ForEach(AssistCIFunctions.BuildYMLConfig.ExportFormat.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-        }
-        .padding(.vertical, 8)
-    }
-
-    private var optionsCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Toggle("Run tests", isOn: $includeTests)
-            Toggle("Run lint step", isOn: $includeLint)
-            Toggle("Clean before archive", isOn: $cleanBuild)
-            Toggle("Fail fast (set -e)", isOn: $failFast)
-            Toggle("Cache DerivedData", isOn: $includeCaching)
-            Toggle("Upload build logs artifact", isOn: $uploadLogsArtifact)
-            Toggle("Cancel old runs on same branch", isOn: $includeConcurrencyControl)
-        }
-        .padding(.vertical, 8)
-    }
-
-    private var actionCard: some View {
-        VStack(spacing: 12) {
-            Button {
-                generatedYAMLText = AssistCIFunctions.generateBuildYML(config: buildConfig)
-                showYAMLPreview = true
-            } label: {
-                Label("Preview build.yml", systemImage: "doc.text.magnifyingglass")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
-
-            Button { showAppDetailsSheet = true } label: {
-                HStack {
-                    if isBuilding { ProgressView().scaleEffect(0.8).padding(.trailing, 4) }
-                    Text(isBuilding ? "Building..." : "Continue to App Details")
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.purple)
-            .controlSize(.large)
-            .disabled(isBuilding)
-        }
-    }
-
-    private func labeledField(_ label: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundStyle(.secondary)
-            TextField(label, text: text)
-                .textFieldStyle(.roundedBorder)
-                .autocorrectionDisabled()
-        }
-    }
-
     private var yamlPreviewSheet: some View {
         NavigationStack {
             ScrollView {
@@ -282,7 +245,11 @@ struct CIBuildView: View {
             }
             .background(Color.black)
             .navigationTitle("build.yml")
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { showYAMLPreview = false } } }
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Close") { showYAMLPreview = false }
+                }
+            }
         }
         .frame(width: 600, height: 500)
     }
@@ -322,21 +289,17 @@ struct CIBuildView: View {
                     bundleIdentifier: buildConfig.bundleIdentifier
                 )
 
-                await MainActor.run {
-                    sessionStore.updateCIBuildConfiguration(ciConfig, for: project)
-                    sessionStore.refreshFileTree(for: project)
-                    isSuccess = true
-                    statusMessage = "Generated .github/workflows/build.yml in your project."
-                    isBuilding = false
-                    showStatusAlert = true
-                }
+                sessionStore.updateCIBuildConfiguration(ciConfig, for: project)
+                sessionStore.refreshFileTree(for: project)
+                isSuccess = true
+                statusMessage = "Generated .github/workflows/build.yml in your project."
+                isBuilding = false
+                showStatusAlert = true
             } catch {
-                await MainActor.run {
-                    isSuccess = false
-                    statusMessage = error.localizedDescription
-                    isBuilding = false
-                    showStatusAlert = true
-                }
+                isSuccess = false
+                statusMessage = error.localizedDescription
+                isBuilding = false
+                showStatusAlert = true
             }
         }
     }

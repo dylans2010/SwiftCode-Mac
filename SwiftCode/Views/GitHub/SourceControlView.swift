@@ -1,5 +1,9 @@
 import SwiftUI
+import os.log
 
+private let logger = Logger(subsystem: "com.swiftcode.SourceControl", category: "SourceControlView")
+
+@MainActor
 struct SourceControlView: View {
     var gitViewModel: GitViewModel
     @EnvironmentObject private var settings: AppSettings
@@ -16,18 +20,39 @@ struct SourceControlView: View {
     @State private var errorMessage: String?
     @State private var showError = false
 
-    // Local status view state
-    @State private var activeTab: DashboardTab = .localStatus
+    // Detail Pane Selection state
+    @State private var selectedTab: SourceControlTab = .localWorkspace
     @State private var commitMessage = ""
     @State private var selectedFileForDiscard: GitFileStatus?
     @State private var showingDiscardConfirmation = false
     @State private var isPerformingGitAction = false
 
-    private enum DashboardTab: String, CaseIterable, Identifiable {
-        case localStatus = "Local Status"
+    enum SourceControlTab: String, CaseIterable, Identifiable {
+        case localWorkspace = "Local Workspace"
+        case branches = "Branches"
+        case commitHistory = "Commit History"
+        case unstagedChanges = "Unstaged Changes"
+        case gitTerminal = "Terminal Git CLI"
         case remoteRepos = "Remote Repositories"
+        case manageRepo = "Manage Repository"
+        case issues = "Issues Tracker"
+        case gists = "Personal Gists"
 
         var id: String { rawValue }
+
+        var icon: String {
+            switch self {
+            case .localWorkspace: return "macbook"
+            case .branches: return "arrow.triangle.branch"
+            case .commitHistory: return "clock.arrow.circlepath"
+            case .unstagedChanges: return "plus.minus.circle"
+            case .gitTerminal: return "terminal"
+            case .remoteRepos: return "globe"
+            case .manageRepo: return "folder.badge.gearshape"
+            case .issues: return "exclamationmark.circle"
+            case .gists: return "doc.on.doc"
+            }
+        }
     }
 
     private var isSetupRequired: Bool {
@@ -63,114 +88,81 @@ struct SourceControlView: View {
 
     var body: some View {
         NavigationSplitView {
-            // Left Sidebar: Connection & Local Git Actions
-            VStack(alignment: .leading, spacing: 0) {
-                // Header
-                HStack(spacing: 12) {
-                    Image(systemName: "arrow.triangle.branch")
-                        .font(.system(size: 28))
-                        .foregroundStyle(.orange)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Source Control")
-                            .font(.headline)
-                        Text("Git & GitHub Control")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            // Native macOS Sidebar Navigation
+            List(selection: $selectedTab) {
+                Section("Workspace") {
+                    NavigationLink(value: SourceControlTab.localWorkspace) {
+                        Label("Local Workspace", systemImage: SourceControlTab.localWorkspace.icon)
+                    }
+
+                    if sessionStore.activeProject != nil {
+                        NavigationLink(value: SourceControlTab.unstagedChanges) {
+                            Label("Unstaged Changes", systemImage: SourceControlTab.unstagedChanges.icon)
+                        }
+                        NavigationLink(value: SourceControlTab.branches) {
+                            Label("Branches", systemImage: SourceControlTab.branches.icon)
+                        }
+                        NavigationLink(value: SourceControlTab.commitHistory) {
+                            Label("Commit History", systemImage: SourceControlTab.commitHistory.icon)
+                        }
+                        NavigationLink(value: SourceControlTab.gitTerminal) {
+                            Label("Terminal Git CLI", systemImage: SourceControlTab.gitTerminal.icon)
+                        }
                     }
                 }
-                .padding()
 
-                Divider()
-
-                List {
-                    Section("Views") {
-                        Button {
-                            activeTab = .localStatus
-                        } label: {
-                            Label("Local Workspace", systemImage: "macbook")
-                        }
-
-                        Button {
-                            activeTab = .remoteRepos
-                            fetchUserReposSilently()
-                        } label: {
-                            Label("Remote Repositories", systemImage: "globe")
-                        }
-                    }
-
-                    Section("Repository Settings") {
-                        Button {
-                            fetchUserRepos()
-                        } label: {
-                            Label("Connect Repository", systemImage: "link.circle.fill")
-                        }
-
-                        Button {
-                            showSetup = true
-                        } label: {
-                            Label("Configure Git Token", systemImage: "key.fill")
-                        }
+                Section("GitHub Integration") {
+                    NavigationLink(value: SourceControlTab.remoteRepos) {
+                        Label("Remote Repositories", systemImage: SourceControlTab.remoteRepos.icon)
                     }
 
                     if let project = sessionStore.activeProject {
-                        Section("GitHub Integration") {
-                            NavigationLink(destination: GitHubIntegrationView(project: project)) {
-                                Label("Manage Repository", systemImage: "folder.badge.gearshape")
-                            }
-                            NavigationLink(destination: GitHubIssuesView()) {
-                                Label("Issues Tracker", systemImage: "exclamationmark.circle")
-                            }
-                            NavigationLink(destination: GistsView()) {
-                                Label("Personal Gists", systemImage: "doc.on.doc")
-                            }
+                        NavigationLink(value: SourceControlTab.manageRepo) {
+                            Label("Manage Repository", systemImage: SourceControlTab.manageRepo.icon)
                         }
-
-                        Section("Local Git Utilities") {
-                            NavigationLink(destination: GitChangesView(viewModel: gitViewModel)) {
-                                Label("Unstaged Changes", systemImage: "plus.minus.circle")
-                            }
-                            NavigationLink(destination: GitBranchesView(branches: gitViewModel.branches)) {
-                                Label("Branches", systemImage: "arrow.triangle.branch")
-                            }
-                            NavigationLink(destination: GitHistoryView(commits: gitViewModel.history)) {
-                                Label("Commit History", systemImage: "clock.arrow.circlepath")
-                            }
-                            NavigationLink(destination: GitCLIView(project: project)) {
-                                Label("Terminal Git CLI", systemImage: "terminal")
-                            }
+                        NavigationLink(value: SourceControlTab.issues) {
+                            Label("Issues Tracker", systemImage: SourceControlTab.issues.icon)
+                        }
+                        NavigationLink(value: SourceControlTab.gists) {
+                            Label("Personal Gists", systemImage: SourceControlTab.gists.icon)
                         }
                     }
                 }
-                .listStyle(.sidebar)
+
+                Section("Settings") {
+                    Button {
+                        showSetup = true
+                    } label: {
+                        Label("Configure Git Token", systemImage: "key.fill")
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            .navigationSplitViewColumnWidth(min: 240, ideal: 260, max: 320)
+            .listStyle(.sidebar)
+            .navigationTitle("Source Control")
+            .frame(minWidth: 220, idealWidth: 240, maxWidth: 300)
         } detail: {
-            // Right Detail: Repository Connection Dashboard or onboarding
             VStack(spacing: 0) {
-                // Toolbar in detail header
+                // Header with active project status
                 HStack {
-                    if let project = sessionStore.activeProject, let linkedRepo = project.githubRepo, !linkedRepo.isEmpty {
+                    if let project = sessionStore.activeProject {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Linked Repository")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
-                            Text(linkedRepo)
-                                .font(.title3.bold())
+                            Text(project.name)
+                                .font(.headline)
+                            if let linkedRepo = project.githubRepo, !linkedRepo.isEmpty {
+                                Text("Linked to: \(linkedRepo)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("No linked GitHub repository")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     } else {
-                        Text("Repository Dashboard")
-                            .font(.title3.bold())
+                        Text("No Active Project")
+                            .font(.headline)
                     }
-
-                    Spacer()
-
-                    Picker("Dashboard Tab", selection: $activeTab) {
-                        ForEach(DashboardTab.allCases) { tab in
-                            Text(tab.rawValue).tag(tab)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 280)
 
                     Spacer()
 
@@ -178,33 +170,24 @@ struct SourceControlView: View {
                         dismiss()
                     } label: {
                         Text("Close")
-                            .font(.subheadline)
                             .fontWeight(.semibold)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 4)
-                            .background(Color.orange.opacity(0.2), in: Capsule())
-                            .foregroundStyle(.orange)
                     }
-                    .buttonStyle(.plain)
+                    .keyboardShortcut(.cancelAction)
                 }
                 .padding()
-                .background(.background.opacity(0.4))
+                .background(Color(NSColor.controlBackgroundColor))
 
                 Divider()
 
                 if isSetupRequired {
                     setupRequiredView
                 } else {
-                    switch activeTab {
-                    case .localStatus:
-                        localStatusView
-                    case .remoteRepos:
-                        mainDashboardView
-                    }
+                    detailPaneView(for: selectedTab)
                 }
             }
+            .background(Color(NSColor.windowBackgroundColor))
         }
-        .frame(minWidth: 850, minHeight: 550)
+        .frame(minWidth: 950, minHeight: 600)
         .sheet(isPresented: $showSetup) {
             SCSetupOnboard()
         }
@@ -235,33 +218,58 @@ struct SourceControlView: View {
         }
     }
 
-    // MARK: - Local Status View
+    // MARK: - Detail Switcher
 
-    private var localStatusView: some View {
+    @ViewBuilder
+    private func detailPaneView(for tab: SourceControlTab) -> some View {
+        let project = sessionStore.activeProject ?? Project(name: "Untitled")
+
+        switch tab {
+        case .localWorkspace:
+            localWorkspacePane
+        case .unstagedChanges:
+            GitChangesView(viewModel: gitViewModel)
+        case .branches:
+            GitBranchesView(branches: gitViewModel.branches)
+        case .commitHistory:
+            GitHistoryView(commits: gitViewModel.history)
+        case .gitTerminal:
+            GitCLIView(project: project)
+        case .remoteRepos:
+            remoteRepositoriesPane
+        case .manageRepo:
+            GitHubIntegrationView(project: project)
+        case .issues:
+            GitHubIssuesView()
+        case .gists:
+            GistsView()
+        }
+    }
+
+    // MARK: - Local Workspace Detail Pane
+
+    private var localWorkspacePane: some View {
         VStack(spacing: 0) {
-            // Local Repo Info Header
             HStack {
                 if let status = gitViewModel.status {
-                    HStack(spacing: 16) {
-                        Label(status.branchName, systemImage: "arrow.triangle.branch")
-                            .font(.headline)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    HStack(spacing: 12) {
+                        Image(systemName: "arrow.triangle.branch")
                             .foregroundStyle(.blue)
+                        Text(status.branchName)
+                            .fontWeight(.semibold)
 
-                        HStack(spacing: 12) {
+                        HStack(spacing: 8) {
                             Label("\(status.ahead)", systemImage: "arrow.up.circle.fill")
                                 .help("Ahead of remote")
                             Label("\(status.behind)", systemImage: "arrow.down.circle.fill")
                                 .help("Behind remote")
                         }
-                        .font(.subheadline)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                     }
                 } else {
-                    Text("No Git Repository Initialized")
-                        .font(.headline)
+                    Text("Not Initialized")
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
@@ -282,92 +290,62 @@ struct SourceControlView: View {
 
             if let status = gitViewModel.status {
                 HSplitView {
-                    // Left Column: Changed Files Groups
+                    // Left column: Changed Files lists
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
-                            // Conflicts Section
                             let conflicts = status.files.filter { $0.status == .conflicted }
                             if !conflicts.isEmpty {
-                                SectionHeader(title: "Conflicts", count: conflicts.count, color: .red)
-                                ForEach(conflicts) { file in
-                                    fileRow(for: file)
-                                }
+                                fileGroupSection(title: "Conflicts", files: conflicts, badgeColor: .red)
                             }
 
-                            // Staged Changes
                             let staged = status.files.filter { $0.isStaged }
-                            SectionHeader(title: "Staged Changes", count: staged.count, color: .green)
-                            if staged.isEmpty {
-                                Text("No staged changes.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal)
-                            } else {
-                                ForEach(staged) { file in
-                                    fileRow(for: file)
-                                }
-                            }
+                            fileGroupSection(title: "Staged Changes", files: staged, badgeColor: .green)
 
-                            // Unstaged Changes
                             let unstaged = status.files.filter { !$0.isStaged && $0.status != .conflicted }
-                            SectionHeader(title: "Unstaged / Untracked Changes", count: unstaged.count, color: .orange)
-                            if unstaged.isEmpty {
-                                Text("No unstaged changes.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal)
-                            } else {
-                                ForEach(unstaged) { file in
-                                    fileRow(for: file)
-                                }
-                            }
+                            fileGroupSection(title: "Unstaged / Untracked", files: unstaged, badgeColor: .orange)
                         }
                         .padding()
                     }
-                    .frame(minWidth: 350)
+                    .frame(minWidth: 400, maxWidth: .infinity)
 
-                    // Right Column: Commit Composer
+                    // Right column: Commit Composer Form
                     VStack(spacing: 16) {
                         Text("Commit Composer")
                             .font(.headline)
                             .frame(maxWidth: .infinity, alignment: .leading)
 
-                        TextEditor(text: $commitMessage)
-                            .font(.system(.body, design: .monospaced))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                            )
-                            .frame(height: 120)
-                            .placeholder(when: commitMessage.isEmpty) {
-                                Text("Enter commit message...")
-                                    .foregroundStyle(.secondary)
-                                    .padding(.all, 8)
+                        Form {
+                            Section {
+                                TextEditor(text: $commitMessage)
+                                    .font(.system(.body, design: .monospaced))
+                                    .frame(minHeight: 120, maxHeight: 200)
+                                    .cornerRadius(6)
+                            } header: {
+                                Text("Commit Message")
                             }
 
-                        Button {
-                            performAction {
-                                await gitViewModel.commit(message: commitMessage)
-                                commitMessage = ""
-                            }
-                        } label: {
-                            if isPerformingGitAction {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Text("Commit to Local Branch")
-                                    .frame(maxWidth: .infinity)
+                            Section {
+                                Button {
+                                    performAction {
+                                        await gitViewModel.commit(message: commitMessage)
+                                        commitMessage = ""
+                                    }
+                                } label: {
+                                    if isPerformingGitAction {
+                                        ProgressView().controlSize(.small)
+                                    } else {
+                                        Text("Commit to Local Branch")
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.orange)
+                                .disabled(commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isPerformingGitAction)
                             }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.orange)
-                        .controlSize(.large)
-                        .disabled(commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isPerformingGitAction)
-
-                        Spacer()
+                        .formStyle(.grouped)
+                        .frame(width: 320)
                     }
-                    .padding()
-                    .frame(width: 300)
                     .background(Color.secondary.opacity(0.02))
                 }
             } else {
@@ -376,83 +354,86 @@ struct SourceControlView: View {
         }
     }
 
-    private var noGitRepoPlaceholder: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "folder.badge.plus")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text("Git Is Not Initialized")
-                .font(.title3.bold())
-            Text("Initialize a local repository to start staging, committing, and tracking changes.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-
-            Button("Initialize Git Repository") {
-                initializeGitRepo()
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.orange)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func fileRow(for file: GitFileStatus) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(file.path.lastPathComponent)
+    private func fileGroupSection(title: String, files: [GitFileStatus], badgeColor: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
                     .font(.subheadline.bold())
-                Text(file.path.path)
-                    .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                Spacer()
+                Text("\(files.count)")
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(badgeColor.opacity(0.12))
+                    .foregroundStyle(badgeColor)
+                    .clipShape(Capsule())
             }
 
-            Spacer()
+            if files.isEmpty {
+                Text("No changes in this group.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 4)
+            } else {
+                ForEach(files) { file in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(file.path.lastPathComponent)
+                                .font(.subheadline.bold())
+                            Text(file.path.path)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
 
-            // Status Badge
-            Text(file.status.rawValue)
-                .font(.caption2.bold())
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(badgeColor(for: file.status).opacity(0.15))
-                .foregroundStyle(badgeColor(for: file.status))
-                .cornerRadius(4)
+                        Spacer()
 
-            // Actions
-            HStack(spacing: 8) {
-                if file.isStaged {
-                    Button("Unstage") {
-                        performAction {
-                            await gitViewModel.unstage(file)
+                        // Badge
+                        Text(file.status.rawValue.uppercased())
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(badgeColor(for: file.status).opacity(0.15))
+                            .foregroundStyle(badgeColor(for: file.status))
+                            .cornerRadius(4)
+
+                        // Actions
+                        HStack(spacing: 8) {
+                            if file.isStaged {
+                                Button("Unstage") {
+                                    performAction {
+                                        await gitViewModel.unstage(file)
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            } else {
+                                Button("Stage") {
+                                    performAction {
+                                        await gitViewModel.stage(file)
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.blue)
+                                .controlSize(.small)
+
+                                Button("Discard") {
+                                    selectedFileForDiscard = file
+                                    showingDiscardConfirmation = true
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .foregroundColor(.red)
+                            }
                         }
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                } else {
-                    Button("Stage") {
-                        performAction {
-                            await gitViewModel.stage(file)
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.blue)
-                    .controlSize(.small)
-
-                    Button("Discard") {
-                        selectedFileForDiscard = file
-                        showingDiscardConfirmation = true
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .foregroundColor(.red)
+                    .padding(8)
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .cornerRadius(8)
                 }
             }
         }
-        .padding(8)
-        .background(Color.secondary.opacity(0.03))
-        .cornerRadius(8)
     }
 
     private func badgeColor(for status: GitFileStatus.Status) -> Color {
@@ -466,28 +447,129 @@ struct SourceControlView: View {
         }
     }
 
-    private func initializeGitRepo() {
-        guard let project = sessionStore.activeProject else { return }
-        performAction {
-            let gitBinary = URL(fileURLWithPath: settings.gitPath.isEmpty ? "/usr/bin/git" : settings.gitPath)
-            _ = try? await ProcessRunnerTool.shared.run(
-                executableURL: gitBinary,
-                arguments: ["init"],
-                workingDirectory: project.directoryURL
-            )
-            await gitViewModel.refreshStatus()
+    private var noGitRepoPlaceholder: some View {
+        ContentUnavailableView {
+            Label("Git Is Not Initialized", systemImage: "folder.badge.plus")
+        } description: {
+            Text("Initialize a local repository to start tracking and staging file changes.")
+        } actions: {
+            Button("Initialize Git Repository") {
+                initializeGitRepo()
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.orange)
         }
     }
 
-    private func performAction(_ action: @escaping () async -> Void) {
-        isPerformingGitAction = true
-        Task {
-            await action()
-            isPerformingGitAction = false
+    // MARK: - Remote Repositories detail Pane
+
+    private var remoteRepositoriesPane: some View {
+        VStack(spacing: 0) {
+            // Search / Filter and Fetch row
+            HStack(spacing: 12) {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search remote repositories...", text: $repoSearchQuery)
+                        .textFieldStyle(.plain)
+                }
+                .padding(6)
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+
+                Button {
+                    fetchUserRepos()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(isFetchingRepos)
+            }
+            .padding()
+            .background(Color.secondary.opacity(0.03))
+
+            Divider()
+
+            if isFetchingRepos {
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("Retrieving your remote repositories from GitHub...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let fetchError = repoFetchError {
+                ContentUnavailableView {
+                    Label("Fetch Failed", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                } description: {
+                    Text(fetchError)
+                } actions: {
+                    Button("Retry Fetch") {
+                        fetchUserRepos()
+                    }
+                    .buttonStyle(.bordered)
+                }
+            } else if userRepos.isEmpty {
+                ContentUnavailableView {
+                    Label("No Repositories", systemImage: "folder.badge.questionmark")
+                } description: {
+                    Text("Check your personal token scope on GitHub to make sure repos are accessible.")
+                }
+            } else {
+                let filtered = repoSearchQuery.isEmpty ? userRepos : userRepos.filter {
+                    $0.fullName.localizedCaseInsensitiveContains(repoSearchQuery) ||
+                    ($0.description ?? "").localizedCaseInsensitiveContains(repoSearchQuery)
+                }
+
+                if filtered.isEmpty {
+                    ContentUnavailableView.search(text: repoSearchQuery)
+                } else {
+                    List(filtered) { repo in
+                        HStack(spacing: 16) {
+                            Image(systemName: repo.isPrivate ? "lock.fill" : "globe")
+                                .foregroundStyle(repo.isPrivate ? .yellow : .green)
+                                .font(.title3)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(repo.fullName)
+                                    .font(.subheadline.bold())
+                                if let desc = repo.description, !desc.isEmpty {
+                                    Text(desc)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+
+                            Spacer()
+
+                            Button("Connect") {
+                                connectRepository(repo)
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                        .padding(.vertical, 6)
+                    }
+                }
+            }
         }
     }
 
-    // MARK: - Setup Check & Required View
+    private var setupRequiredView: some View {
+        ContentUnavailableView {
+            Label("Git Token Required", systemImage: "lock.shield")
+                .foregroundStyle(.orange)
+        } description: {
+            Text("Please provide your GitHub Personal Access Token to explore and connect to your remote repositories.")
+        } actions: {
+            Button("Configure Git & Token") {
+                showSetup = true
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.orange)
+        }
+    }
+
+    // MARK: - Actions Helper
 
     private func checkSetup() {
         if isSetupRequired {
@@ -500,165 +582,14 @@ struct SourceControlView: View {
         }
     }
 
-    private var setupRequiredView: some View {
-        VStack(spacing: 24) {
-            ZStack {
-                Circle()
-                    .fill(Color.orange.opacity(0.1))
-                    .frame(width: 80, height: 80)
-                Image(systemName: "lock.shield")
-                    .font(.system(size: 40))
-                    .foregroundStyle(.orange)
-            }
-
-            VStack(spacing: 8) {
-                Text("Git Token Required")
-                    .font(.title2.bold())
-                Text("You must provide your GitHub Personal Access Token to explore and connect remote repositories.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 48)
-            }
-
-            Button("Configure Git & Token") {
-                showSetup = true
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .tint(.orange)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Main Dashboard View (Remote Connection)
-
-    private var mainDashboardView: some View {
-        VStack(spacing: 0) {
-            HStack {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("Search your remote repositories...", text: $repoSearchQuery)
-                        .textFieldStyle(.plain)
-                }
-                .padding(6)
-                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                )
-
-                Button {
-                    fetchUserRepos()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .help("Refresh Repositories")
-                }
-                .disabled(isFetchingRepos)
-            }
-            .padding()
-
-            Divider()
-
-            Group {
-                if isFetchingRepos {
-                    VStack(spacing: 16) {
-                        ProgressView()
-                        Text("Fetching your repositories from GitHub…")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let fetchError = repoFetchError {
-                    VStack(spacing: 16) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.largeTitle)
-                            .foregroundStyle(.red)
-                        Text("Could Not Load Repositories")
-                            .font(.headline)
-                        Text(fetchError)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
-
-                        Button("Retry Fetch") {
-                            fetchUserRepos()
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if userRepos.isEmpty {
-                    ContentUnavailableView(
-                        "No Repositories Found",
-                        systemImage: "folder.badge.questionmark",
-                        description: Text("Verify your token scopes include repo accessibility on GitHub.")
-                    )
-                } else {
-                    let filtered = repoSearchQuery.isEmpty ? userRepos : userRepos.filter {
-                        $0.fullName.localizedCaseInsensitiveContains(repoSearchQuery) ||
-                        ($0.description ?? "").localizedCaseInsensitiveContains(repoSearchQuery)
-                    }
-
-                    if filtered.isEmpty {
-                        ContentUnavailableView.search(text: repoSearchQuery)
-                    } else {
-                        List(filtered) { repo in
-                            HStack(spacing: 16) {
-                                Image(systemName: repo.isPrivate ? "lock.fill" : "globe")
-                                    .foregroundStyle(repo.isPrivate ? .yellow : .green)
-                                    .font(.title3)
-                                    .frame(width: 24)
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(repo.fullName)
-                                        .font(.subheadline.bold())
-                                    if let desc = repo.description, !desc.isEmpty {
-                                        Text(desc)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                    }
-                                }
-
-                                Spacer()
-
-                                Button {
-                                    connectRepository(repo)
-                                } label: {
-                                    Text("Connect")
-                                        .font(.caption.bold())
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 6)
-                                        .background(Color.orange, in: Capsule())
-                                        .foregroundStyle(.white)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 8)
-                            .background(Color.white.opacity(0.01))
-                            .cornerRadius(8)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Actions
-
     private func fetchUserReposSilently() {
         Task {
             do {
                 let repos = try await GitHubService.shared.listUserRepositories()
-                await MainActor.run {
-                    self.userRepos = repos
-                    self.repoFetchError = nil
-                }
+                self.userRepos = repos
+                self.repoFetchError = nil
             } catch {
-                // Ignore silent fetch failures
+                // Silent fetch fail is ignored
             }
         }
     }
@@ -669,16 +600,11 @@ struct SourceControlView: View {
         Task {
             do {
                 let repos = try await GitHubService.shared.listUserRepositories()
-                await MainActor.run {
-                    self.userRepos = repos
-                    self.isFetchingRepos = false
-                    self.repoFetchError = nil
-                }
+                self.userRepos = repos
+                self.isFetchingRepos = false
             } catch {
-                await MainActor.run {
-                    self.isFetchingRepos = false
-                    self.repoFetchError = error.localizedDescription
-                }
+                self.isFetchingRepos = false
+                self.repoFetchError = error.localizedDescription
             }
         }
     }
@@ -725,59 +651,37 @@ struct SourceControlView: View {
                     workingDirectory: dirURL
                 )
 
-                await MainActor.run {
-                    if result.exitCode == 0 {
-                        successMessage = "Successfully connected project to \(repo.fullName) and configured local Git remote."
-                    } else {
-                        successMessage = "Connected project to \(repo.fullName). remote set but notice: \(result.stderr)"
-                    }
-                    showSuccess = true
+                if result.exitCode == 0 {
+                    successMessage = "Successfully connected project to \(repo.fullName) and configured local Git remote."
+                } else {
+                    successMessage = "Connected project to \(repo.fullName). remote set but notice: \(result.stderr)"
                 }
+                showSuccess = true
             } catch {
-                await MainActor.run {
-                    errorMessage = "Failed to configure local git: \(error.localizedDescription)"
-                    showError = true
-                }
+                errorMessage = "Failed to configure local git: \(error.localizedDescription)"
+                showError = true
             }
         }
     }
-}
 
-// MARK: - Local Helpers
-
-private struct SectionHeader: View {
-    let title: String
-    let count: Int
-    let color: Color
-
-    var body: some View {
-        HStack {
-            Text(title)
-                .font(.subheadline.bold())
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text("\(count)")
-                .font(.caption2.bold())
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(color.opacity(0.12))
-                .foregroundStyle(color)
-                .clipShape(Capsule())
+    private func initializeGitRepo() {
+        guard let project = sessionStore.activeProject else { return }
+        performAction {
+            let gitBinary = URL(fileURLWithPath: settings.gitPath.isEmpty ? "/usr/bin/git" : settings.gitPath)
+            _ = try? await ProcessRunnerTool.shared.run(
+                executableURL: gitBinary,
+                arguments: ["init"],
+                workingDirectory: project.directoryURL
+            )
+            await gitViewModel.refreshStatus()
         }
-        .padding(.top, 8)
     }
-}
 
-// Extension to provide placeholder to TextEditor in SwiftUI
-extension View {
-    func placeholder<Content: View>(
-        when shouldShow: Bool,
-        alignment: Alignment = .topLeading,
-        @ViewBuilder placeholder: () -> Content
-    ) -> some View {
-        ZStack(alignment: alignment) {
-            placeholder().opacity(shouldShow ? 1 : 0)
-            self
+    private func performAction(_ action: @escaping () async -> Void) {
+        isPerformingGitAction = true
+        Task {
+            await action()
+            isPerformingGitAction = false
         }
     }
 }

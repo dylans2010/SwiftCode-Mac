@@ -458,6 +458,7 @@ final class CustomToolRegistry: ObservableObject {
 
 // MARK: - GeneralSettingsView
 
+@MainActor
 struct GeneralSettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
@@ -534,6 +535,7 @@ struct GeneralSettingsView: View {
                 appManagementSection
                 aboutSection
             }
+                .formStyle(.grouped)
                 .navigationTitle("Settings")
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
@@ -1280,6 +1282,7 @@ struct GeneralSettingsView: View {
 
 // MARK: - API Keys Management View
 
+@MainActor
 struct APIKeysManagementView: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
@@ -1394,6 +1397,7 @@ struct APIKeysManagementView: View {
 
 // MARK: - API Keys Help View
 
+@MainActor
 struct APIKeysHelpView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -1447,6 +1451,7 @@ struct APIKeysHelpView: View {
     }
 }
 
+@MainActor
 struct APIKeyRowView: View {
     let entry: APIKeyEntry
     @StateObject private var manager = APIKeyManager.shared
@@ -1485,6 +1490,7 @@ struct APIKeyRowView: View {
 
 // MARK: - Add / Edit API Key View
 
+@MainActor
 struct AddEditAPIKeyView: View {
     let entry: APIKeyEntry?
     let initialProvider: APIKeyProvider?
@@ -1655,6 +1661,7 @@ struct AddEditAPIKeyView: View {
 
 // MARK: - Theme Management View
 
+@MainActor
 struct ThemeManagementView: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
@@ -1727,6 +1734,7 @@ struct ThemeManagementView: View {
     }
 }
 
+@MainActor
 struct ThemeRowView: View {
     let theme: AppTheme
     let isSelected: Bool
@@ -1770,6 +1778,7 @@ struct ThemeRowView: View {
 
 // MARK: - Custom Theme Editor View
 
+@MainActor
 struct CustomThemeEditorView: View {
     let theme: AppTheme?
     @EnvironmentObject private var settings: AppSettings
@@ -1904,6 +1913,7 @@ struct CustomThemeEditorView: View {
 
 // MARK: - GitHub Configuration View
 
+@MainActor
 struct GitHubConfigView: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
@@ -2070,6 +2080,7 @@ struct GitHubConfigView: View {
 
 // MARK: - Agent Connections View
 
+@MainActor
 struct AgentConnectionsView: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
@@ -2158,6 +2169,7 @@ struct AgentConnectionsView: View {
 
 // MARK: - Custom Tool Editor View
 
+@MainActor
 struct CustomToolEditorView: View {
     let connection: CustomAgentConnection?
     @Environment(\.dismiss) private var dismiss
@@ -2320,6 +2332,7 @@ struct CustomToolEditorView: View {
 
 // MARK: - CoreML Settings View
 
+@MainActor
 struct CoreMLSettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss

@@ -1,9 +1,10 @@
 import SwiftUI
 
+@MainActor
 struct CodeSearchView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var indexService = CodeIndexService.shared
+    @State private var indexService = CodeIndexService.shared
 
     @State private var searchQuery = ""
     @State private var replaceQuery = ""
@@ -27,9 +28,8 @@ struct CodeSearchView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Search & Replace Fields Panel
+                // Native macOS Panel for Inputs
                 VStack(spacing: 12) {
-                    // Search Row
                     HStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
                             .foregroundStyle(.secondary)
@@ -41,66 +41,88 @@ struct CodeSearchView: View {
                                 if newValue.isEmpty {
                                     results = []
                                 } else {
-                                    performSearch() // Live-filtering / Live search as they type!
+                                    performSearch() // Live search/filtering
                                 }
                             }
+                            .textFieldStyle(.roundedBorder)
 
                         if isSearching {
-                            ProgressView()
-                                .scaleEffect(0.8)
+                            ProgressView().controlSize(.small)
                         }
 
                         if !searchQuery.isEmpty {
-                            Button { searchQuery = ""; results = [] } label: {
+                            Button {
+                                searchQuery = ""
+                                results = []
+                            } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .foregroundStyle(.secondary)
                             }
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(10)
-                    .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
 
-                    // Replace Row
                     HStack(spacing: 8) {
                         Image(systemName: "arrow.right.arrow.left.circle")
                             .foregroundStyle(.secondary)
                         TextField("Replace With...", text: $replaceQuery)
                             .autocorrectionDisabled()
+                            .textFieldStyle(.roundedBorder)
 
                         if !replaceQuery.isEmpty && !results.isEmpty {
-                            Button {
+                            Button("Replace All") {
                                 performReplaceAll()
-                            } label: {
-                                if isReplacing {
-                                    ProgressView().scaleEffect(0.8)
-                                } else {
-                                    Text("Replace All")
-                                        .bold()
-                                }
                             }
                             .buttonStyle(.borderedProminent)
                             .tint(.red)
                             .disabled(isReplacing)
                         }
                     }
-                    .padding(10)
-                    .background(Color.black.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
                 }
                 .padding()
-                .background(Color(nsColor: .windowBackgroundColor))
+                .background(Color(NSColor.controlBackgroundColor))
 
                 Divider()
 
-                // Search options bar
-                searchOptionsBar
+                // Query Filters row using Native Button styling and ScrollView
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        Toggle("Match Case", isOn: $caseSensitive)
+                            .toggleStyle(.button)
+                            .onChange(of: caseSensitive) { _, _ in
+                                if !searchQuery.isEmpty { performSearch() }
+                            }
+
+                        Toggle("Regular Expression", isOn: $useRegex)
+                            .toggleStyle(.button)
+                            .onChange(of: useRegex) { _, _ in
+                                if !searchQuery.isEmpty { performSearch() }
+                            }
+
+                        Divider().frame(height: 16)
+
+                        ForEach(fileExtensions, id: \.self) { ext in
+                            let isSelected = (ext == "All" && selectedFileExtension == nil) ||
+                                             (ext != "All" && selectedFileExtension == ext)
+                            Button {
+                                selectedFileExtension = (ext == "All") ? nil : ext
+                                if !searchQuery.isEmpty { performSearch() }
+                            } label: {
+                                Text(ext == "All" ? "All Files" : ".\(ext)")
+                                    .font(.system(.caption, design: .monospaced))
+                            }
+                            .buttonStyle(isSelected ? .borderedProminent : .bordered)
+                            .tint(isSelected ? .orange : nil)
+                        }
+                    }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(Color(nsColor: .windowBackgroundColor))
+                }
+                .background(Color(NSColor.controlBackgroundColor))
 
-                Divider().opacity(0.3)
+                Divider()
 
-                // Results status header
+                // Matches Banner
                 if !results.isEmpty {
                     HStack {
                         Text("\(results.count) Match\(results.count == 1 ? "" : "es") Found")
@@ -115,46 +137,57 @@ struct CodeSearchView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(Color.white.opacity(0.02))
+                    .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
 
-                    Divider().opacity(0.15)
+                    Divider()
                 }
 
-                // Main Results List
+                // Native List view to display search results with standard hover effect and interaction states
                 Group {
                     if results.isEmpty && !searchQuery.isEmpty && !isSearching {
-                        VStack(spacing: 12) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 40))
-                                .foregroundStyle(.secondary.opacity(0.5))
-                            Text("No Matches Found")
-                                .font(.headline)
-                                .foregroundStyle(.secondary)
+                        ContentUnavailableView {
+                            Label("No Matches Found", systemImage: "magnifyingglass")
+                        } description: {
                             Text("No occurrences of '\(searchQuery)' found in the active project.")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if results.isEmpty {
-                        VStack(spacing: 16) {
-                            Image(systemName: "doc.text.magnifyingglass")
-                                .font(.system(size: 48))
-                                .foregroundStyle(.orange.opacity(0.6))
-                            Text("Search and Replace across Files")
-                                .font(.headline)
-                            Text("Search or live-replace text across your entire workspace codebase.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 32)
+                        ContentUnavailableView {
+                            Label("Search across Files", systemImage: "doc.text.magnifyingglass")
+                        } description: {
+                            Text("Search and live-replace text across your entire workspace codebase.")
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
-                        resultsList
+                        List(results) { result in
+                            Button {
+                                openResult(result)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Image(systemName: fileIcon(result.fileName))
+                                            .font(.caption2)
+                                            .foregroundStyle(.orange)
+                                        Text(result.fileName)
+                                            .font(.subheadline.bold())
+                                            .foregroundStyle(.orange)
+                                        Text(":\(result.lineNumber)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                        Text(result.filePath)
+                                            .font(.caption2)
+                                            .foregroundStyle(.tertiary)
+                                            .lineLimit(1)
+                                    }
+
+                                    highlightedSnippet(result.snippet, query: searchQuery)
+                                }
+                                .padding(.vertical, 4)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
             }
-            .background(Color(red: 0.08, green: 0.08, blue: 0.11))
             .navigationTitle("Global Search")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -170,88 +203,11 @@ struct CodeSearchView: View {
         }
     }
 
-    // MARK: - Search Options Bar
-
-    private var searchOptionsBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                optionChip(label: "Aa", selected: caseSensitive) {
-                    caseSensitive.toggle()
-                    if !searchQuery.isEmpty { performSearch() }
-                }
-                .help("Case Sensitive")
-
-                optionChip(label: ".*", selected: useRegex) {
-                    useRegex.toggle()
-                    if !searchQuery.isEmpty { performSearch() }
-                }
-                .help("Regular Expression")
-
-                Divider().frame(height: 16).opacity(0.4)
-
-                ForEach(fileExtensions, id: \.self) { ext in
-                    let isSelected = (ext == "All" && selectedFileExtension == nil) ||
-                                     (ext != "All" && selectedFileExtension == ext)
-                    optionChip(label: ext == "All" ? "All Files" : ".\(ext)", selected: isSelected) {
-                        selectedFileExtension = (ext == "All") ? nil : ext
-                        if !searchQuery.isEmpty { performSearch() }
-                    }
-                }
-            }
-        }
-    }
-
-    private func optionChip(label: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label)
-                .font(.caption.monospaced())
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(selected ? Color.orange.opacity(0.2) : Color.white.opacity(0.06), in: Capsule())
-                .foregroundStyle(selected ? .orange : .secondary)
-                .overlay(Capsule().stroke(selected ? Color.orange.opacity(0.4) : Color.clear, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Results List
-
-    private var resultsList: some View {
-        List(results) { result in
-            Button {
-                openResult(result)
-            } label: {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Image(systemName: fileIcon(result.fileName))
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                        Text(result.fileName)
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.orange)
-                        Text(":\(result.lineNumber)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(result.filePath)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                    }
-
-                    highlightedSnippet(result.snippet, query: searchQuery)
-                }
-                .padding(.vertical, 4)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    // Snippet highlighter using SwiftUI Text views
+    // Snippet highlighter using standard AttributedString
     private func highlightedSnippet(_ snippet: String, query: String) -> Text {
         if query.isEmpty {
             return Text(snippet)
-                .font(.caption.monospaced())
+                .font(.system(.caption, design: .monospaced))
                 .foregroundColor(.secondary)
         } else {
             let lowerSnippet = snippet.lowercased()
@@ -266,16 +222,16 @@ struct CodeSearchView: View {
                 let suffix = String(snippet.dropFirst(endIdx))
 
                 var prefixAttr = AttributedString(prefix)
-                prefixAttr.font = .caption.monospaced()
+                prefixAttr.font = .system(.caption, design: .monospaced)
                 prefixAttr.foregroundColor = .secondary
 
                 var matchAttr = AttributedString(match)
-                matchAttr.font = .caption.monospaced().bold()
+                matchAttr.font = .system(.caption, design: .monospaced).bold()
                 matchAttr.foregroundColor = .orange
                 matchAttr.backgroundColor = Color.orange.opacity(0.15)
 
                 var suffixAttr = AttributedString(suffix)
-                suffixAttr.font = .caption.monospaced()
+                suffixAttr.font = .system(.caption, design: .monospaced)
                 suffixAttr.foregroundColor = .secondary
 
                 var combined = prefixAttr
@@ -285,7 +241,7 @@ struct CodeSearchView: View {
                 return Text(combined)
             } else {
                 return Text(snippet)
-                    .font(.caption.monospaced())
+                    .font(.system(.caption, design: .monospaced))
                     .foregroundColor(.secondary)
             }
         }
@@ -310,10 +266,8 @@ struct CodeSearchView: View {
                 useRegex: regexFlag,
                 fileExtension: extFilter
             )
-            await MainActor.run {
-                results = searchResults
-                isSearching = false
-            }
+            self.results = searchResults
+            self.isSearching = false
         }
     }
 
@@ -332,10 +286,10 @@ struct CodeSearchView: View {
                 useRegex: useRegex,
                 fileExtension: fileExtension
             )
-            await MainActor.run { searchBackendHint = "ripgrep" }
+            self.searchBackendHint = "ripgrep"
             return parseRipgrep(output: ripgrepOutput.stdout, projectRoot: directoryURL)
         } catch {
-            await MainActor.run { searchBackendHint = "index fallback" }
+            self.searchBackendHint = "index fallback"
             return await indexService.searchProject(
                 query: query,
                 at: directoryURL,
@@ -397,7 +351,6 @@ struct CodeSearchView: View {
                     if caseFlag {
                         updatedContent = content.replacingOccurrences(of: targetQuery, with: replacement)
                     } else {
-                        // Case insensitive replacement
                         updatedContent = content.replacingOccurrences(of: targetQuery, with: replacement, options: .caseInsensitive)
                     }
                 }
@@ -413,19 +366,16 @@ struct CodeSearchView: View {
                 }
             }
 
-            await MainActor.run {
-                isReplacing = false
-                replaceQuery = ""
-                results = []
-                notificationMessage = "Successfully completed replace: modified \(filesModified.count) files across \(replacedCount) occurrences."
-                showNotification = true
-                sessionStore.refreshFileTree(for: project)
-            }
+            self.isReplacing = false
+            self.replaceQuery = ""
+            self.results = []
+            self.notificationMessage = "Successfully completed replace: modified \(filesModified.count) files across \(replacedCount) occurrences."
+            self.showNotification = true
+            self.sessionStore.refreshFileTree(for: project)
         }
     }
 
     private func openResult(_ result: SearchResult) {
-        guard sessionStore.activeProject != nil else { return }
         let node = FileNode(name: result.fileName, path: result.filePath, isDirectory: false)
         sessionStore.openFile(node)
         dismiss()
