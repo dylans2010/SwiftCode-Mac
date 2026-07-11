@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct AppleSignInView: View {
     @State private var appleID = ""
     @State private var teamName = ""
@@ -29,21 +30,21 @@ struct AppleSignInView: View {
                         .foregroundStyle(.secondary)
                         .padding(.bottom, 4)
 
-                    TextField("Apple ID (Email)", text: $appleID)
+                    TextField("Apple ID (Email):", text: $appleID)
                         .autocorrectionDisabled()
 
-                    TextField("Team Name", text: $teamName)
+                    TextField("Team Name:", text: $teamName)
 
-                    TextField("Team ID (e.g. 10-char Team ID)", text: $teamID)
+                    TextField("Team ID:", text: $teamID)
                         .autocorrectionDisabled()
 
-                    TextField("API Key ID (e.g. 2X9R4HXF34)", text: $keyID)
+                    TextField("API Key ID:", text: $keyID)
                         .autocorrectionDisabled()
 
-                    TextField("Issuer ID (UUID)", text: $issuerID)
+                    TextField("Issuer ID (UUID):", text: $issuerID)
                         .autocorrectionDisabled()
 
-                    SecureField("Private Key (.p8 file content)", text: $privateKey)
+                    SecureField("Private Key:", text: $privateKey)
                 }
 
                 Section {
@@ -95,52 +96,60 @@ struct AppleSignInView: View {
 
                 if !manager.developerAccounts.isEmpty {
                     Section("Connected Accounts") {
-                        List {
-                            ForEach(manager.developerAccounts) { account in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(account.teamName)
-                                                .font(.body.bold())
-                                            Text("\(account.appleID) (Team ID: \(account.teamID))")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        Spacer()
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundStyle(.green)
+                        ForEach(manager.developerAccounts) { account in
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(account.teamName)
+                                            .font(.body.bold())
+                                        Text("\(account.appleID) (Team ID: \(account.teamID))")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
                                     }
+                                    Spacer()
 
-                                    if let certificates = account.certificates, !certificates.isEmpty {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text("Active Signing Certificates:")
-                                                .font(.caption.bold())
-                                                .foregroundStyle(.secondary)
-                                                .padding(.top, 4)
+                                    Button(role: .destructive) {
+                                        if let index = manager.developerAccounts.firstIndex(where: { $0.id == account.id }) {
+                                            manager.removeAccount(at: IndexSet(integer: index))
+                                        }
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .foregroundStyle(.red)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Remove Account")
+                                    .padding(.trailing, 8)
 
-                                            ForEach(certificates) { cert in
-                                                HStack {
-                                                    Image(systemName: "key.fill")
-                                                        .foregroundStyle(.orange)
-                                                        .imageScale(.small)
-                                                    Text("\(cert.name) (\(cert.type))")
-                                                        .font(.caption)
-                                                        .foregroundStyle(.secondary)
-                                                }
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                }
+
+                                if let certificates = account.certificates, !certificates.isEmpty {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Active Signing Certificates:")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(.secondary)
+                                            .padding(.top, 4)
+
+                                        ForEach(certificates) { cert in
+                                            HStack {
+                                                Image(systemName: "key.fill")
+                                                    .foregroundStyle(.orange)
+                                                    .imageScale(.small)
+                                                Text("\(cert.name) (\(cert.type))")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
                                             }
                                         }
-                                    } else {
-                                        Text("No active certificates found in this account.")
-                                            .font(.caption.italic())
-                                            .foregroundStyle(.secondary)
-                                            .padding(.top, 2)
                                     }
+                                } else {
+                                    Text("No active certificates found in this account.")
+                                        .font(.caption.italic())
+                                        .foregroundStyle(.secondary)
+                                        .padding(.top, 2)
                                 }
-                                .padding(.vertical, 4)
                             }
-                            .onDelete { indexSet in
-                                manager.removeAccount(at: indexSet)
-                            }
+                            .padding(.vertical, 4)
                         }
                     }
 
@@ -217,6 +226,7 @@ struct AppleSignInView: View {
                     }
                 }
             }
+            .formStyle(.grouped)
             .navigationTitle("Apple Developer Account")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -226,6 +236,6 @@ struct AppleSignInView: View {
                 }
             }
         }
-        .frame(width: 550, height: 600)
+        .frame(minWidth: 500, idealWidth: 550, maxWidth: 800, minHeight: 500, idealHeight: 650, maxHeight: 900)
     }
 }
