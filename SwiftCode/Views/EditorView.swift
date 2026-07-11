@@ -66,9 +66,11 @@ struct EditorView: View {
             if isXcodeProj, let model = xcodeProjModel {
                 XcodeProjViewer(model: model)
             } else if isInfoPlist, let url = viewModel.activeDocument?.url, editorMode == .visual {
-                InfoPlistView(fileURL: url)
+                let resolvedURL = url.lastPathComponent.contains("Unresolved") ? nil : url
+                InfoPlistView(fileURL: resolvedURL)
             } else if isEntitlements, let url = viewModel.activeDocument?.url, editorMode == .visual {
-                EntitlementsEditorView(fileURL: url)
+                let resolvedURL = url.lastPathComponent.contains("Unresolved") ? nil : url
+                EntitlementsEditorView(fileURL: resolvedURL)
             } else {
                 NativeTextView(viewModel: viewModel)
             }

@@ -403,6 +403,7 @@
 		555B1BB59B8A43E81028B4B5 /* ProjectOpenError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 722FD53A2C6A67CFB5DBE973 /* ProjectOpenError.swift */; };
 		A46B0001E3914F789AA58201 /* ProjectOpeningCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A46B0002E3914F789AA58201 /* ProjectOpeningCoordinator.swift */; };
 		A46B0003E3914F789AA58201 /* ProjectSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A46B0004E3914F789AA58201 /* ProjectSessionStore.swift */; };
+		A46B0005E3914F789AA58201 /* ProjectResolutionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A46B0006E3914F789AA58201 /* ProjectResolutionService.swift */; };
 		557E9403BD12B2AE0D023378 /* CollaborationConflictResolverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C0893DD6303723C51721E5 /* CollaborationConflictResolverView.swift */; };
 		55869C849B7D454FA85F8EB6 /* ParseYAML.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0555CABBB96455C9E116172 /* ParseYAML.swift */; };
 		5593137037853747DB179FCA /* BuildLogDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60918861E595AC72A6C72F8 /* BuildLogDecoder.swift */; };
@@ -1368,6 +1369,7 @@
 		722FD53A2C6A67CFB5DBE973 /* ProjectOpenError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectOpenError.swift; sourceTree = "<group>"; };
 		A46B0002E3914F789AA58201 /* ProjectOpeningCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectOpeningCoordinator.swift; sourceTree = "<group>"; };
 		A46B0004E3914F789AA58201 /* ProjectSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSessionStore.swift; sourceTree = "<group>"; };
+		A46B0006E3914F789AA58201 /* ProjectResolutionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectResolutionService.swift; sourceTree = "<group>"; };
 		726DF8A6FC0C5A0CC4B7CEEC /* GitBranchesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitBranchesView.swift; sourceTree = "<group>"; };
 		72C0C80C785A06322885C35C /* EditExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditExtensionView.swift; sourceTree = "<group>"; };
 		72DBED34C08ECDE38C8E737F /* ModelLinkInstallGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelLinkInstallGuideView.swift; sourceTree = "<group>"; };
@@ -2473,6 +2475,7 @@
 				68981A4B255767A17FEDE087 /* LocalModelManager.swift */,
 				A46B0002E3914F789AA58201 /* ProjectOpeningCoordinator.swift */,
 				A46B0004E3914F789AA58201 /* ProjectSessionStore.swift */,
+				A46B0006E3914F789AA58201 /* ProjectResolutionService.swift */,
 				7B00B0DA94E357ECFD961BF7 /* CodeFormatter.swift */,
 				8549A5CCC7EA4F5D861B7D46 /* Color+Hex.swift */,
 				86122350693B256B489D0029 /* NotificationManager.swift */,
@@ -4288,6 +4291,7 @@
 				555B1BB59B8A43E81028B4B5 /* ProjectOpenError.swift in Sources */,
 				A46B0001E3914F789AA58201 /* ProjectOpeningCoordinator.swift in Sources */,
 				A46B0003E3914F789AA58201 /* ProjectSessionStore.swift in Sources */,
+				A46B0005E3914F789AA58201 /* ProjectResolutionService.swift in Sources */,
 				9B06D4BEBFA0B8929066D581 /* GitHubService.swift in Sources */,
 				AC77F68EB4931E8CED9A2D05 /* ProjectFilesExtracter.swift in Sources */,
 				E78B8F7BD24FDE793B229CB2 /* ProjectBuilderManager.swift in Sources */,

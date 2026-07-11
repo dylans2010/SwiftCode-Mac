@@ -1,6 +1,7 @@
 import SwiftUI
 
 public struct InfoPlistView: View {
+    private let fileURL: URL?
     @State private var editor: InfoPlistEditor
     @State private var searchQuery = ""
     @State private var selectedCategory: String? = nil
@@ -14,12 +15,18 @@ public struct InfoPlistView: View {
 
     @Environment(\.undoManager) private var undoManager
 
-    public init(fileURL: URL) {
-        _editor = State(initialValue: InfoPlistEditor(fileURL: fileURL))
+    public init(fileURL: URL?) {
+        self.fileURL = fileURL
+        if let url = fileURL {
+            _editor = State(initialValue: InfoPlistEditor(fileURL: url))
+        } else {
+            _editor = State(initialValue: InfoPlistEditor(fileURL: URL(fileURLWithPath: "/dev/null")))
+        }
     }
 
     private var filteredKeys: [String] {
-        editor.entries.keys.sorted().filter { key in
+        guard fileURL != nil else { return [] }
+        return editor.entries.keys.sorted().filter { key in
             if searchQuery.isEmpty { return true }
             let lowerQuery = searchQuery.lowercased()
             let matchesKey = key.lowercased().contains(lowerQuery)
@@ -32,8 +39,18 @@ public struct InfoPlistView: View {
     }
 
     public var body: some View {
-        HSplitView {
-            // Left Side: Visual Editor
+        if fileURL == nil {
+            ContentUnavailableView {
+                Label("No Info.plist Configured", systemImage: "info.circle")
+            } description: {
+                Text("The currently selected target does not contain an Info.plist configuration file.\n\nPlease configure one in your project target build settings or create a file named Info.plist in your project.")
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.ultraThinMaterial)
+            .macDesktopOptimized()
+        } else {
+            HSplitView {
+                // Left Side: Visual Editor
             VStack(spacing: 0) {
                 // Toolbar Area
                 HStack(spacing: 12) {
@@ -232,7 +249,10 @@ public struct InfoPlistView: View {
             }
         }
         .onAppear {
-            syncXMLPreview()
+            if fileURL != nil {
+                syncXMLPreview()
+            }
+        }
         }
     }
 
