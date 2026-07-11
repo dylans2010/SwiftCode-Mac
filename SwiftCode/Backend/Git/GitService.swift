@@ -66,6 +66,20 @@ public actor GitService {
         if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
     }
 
+    public func discardChanges(path: URL, repositoryURL: URL) async throws {
+        let relPath = path.path.replacingOccurrences(of: repositoryURL.path + "/", with: "")
+        _ = try? await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["restore", relPath],
+            workingDirectory: repositoryURL
+        )
+        _ = try? await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["clean", "-f", relPath],
+            workingDirectory: repositoryURL
+        )
+    }
+
     public func commit(message: String, repositoryURL: URL) async throws {
         let result = try await ProcessRunnerTool.shared.run(
             executableURL: await gitURL,

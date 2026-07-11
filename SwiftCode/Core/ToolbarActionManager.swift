@@ -65,6 +65,9 @@ final class ToolbarActionManager {
         case workflowsSidebar
         case testsSidebar
         case workflowEditor
+        case xcodeBuildSettings
+        case xcodeBuildLogs
+        case appleDeveloperAccount
 
         var id: String { rawValue }
 
@@ -196,6 +199,12 @@ final class ToolbarActionManager {
             return .testsSidebar
         case "workflow_editor":
             return .workflowEditor
+        case "xcode_build_settings":
+            return .xcodeBuildSettings
+        case "xcode_build_logs":
+            return .xcodeBuildLogs
+        case "apple_developer_account":
+            return .appleDeveloperAccount
 
         default:
             return nil

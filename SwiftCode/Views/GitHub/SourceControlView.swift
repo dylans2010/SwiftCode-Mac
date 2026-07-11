@@ -16,11 +16,23 @@ struct SourceControlView: View {
     @State private var errorMessage: String?
     @State private var showError = false
 
+    // Local status view state
+    @State private var activeTab: DashboardTab = .localStatus
+    @State private var commitMessage = ""
+    @State private var selectedFileForDiscard: GitFileStatus?
+    @State private var showingDiscardConfirmation = false
+    @State private var isPerformingGitAction = false
+
+    private enum DashboardTab: String, CaseIterable, Identifiable {
+        case localStatus = "Local Status"
+        case remoteRepos = "Remote Repositories"
+
+        var id: String { rawValue }
+    }
+
     private var isSetupRequired: Bool {
-        // Retrieve token from Keychain
         let token = KeychainService.shared.get(forKey: KeychainService.githubToken) ?? ""
         let hasToken = !token.isEmpty
-
         let hasGit = !settings.gitPath.isEmpty && FileManager.default.fileExists(atPath: settings.gitPath)
 
         if hasToken {
@@ -31,7 +43,6 @@ struct SourceControlView: View {
                 return false
             }
 
-            // Auto-detect standard git executable if empty or invalid
             for path in ["/usr/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git"] {
                 if FileManager.default.fileExists(atPath: path) {
                     settings.gitPath = path
@@ -72,6 +83,21 @@ struct SourceControlView: View {
                 Divider()
 
                 List {
+                    Section("Views") {
+                        Button {
+                            activeTab = .localStatus
+                        } label: {
+                            Label("Local Workspace", systemImage: "macbook")
+                        }
+
+                        Button {
+                            activeTab = .remoteRepos
+                            fetchUserReposSilently()
+                        } label: {
+                            Label("Remote Repositories", systemImage: "globe")
+                        }
+                    }
+
                     Section("Repository Settings") {
                         Button {
                             fetchUserRepos()
@@ -138,6 +164,16 @@ struct SourceControlView: View {
 
                     Spacer()
 
+                    Picker("Dashboard Tab", selection: $activeTab) {
+                        ForEach(DashboardTab.allCases) { tab in
+                            Text(tab.rawValue).tag(tab)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 280)
+
+                    Spacer()
+
                     Button {
                         dismiss()
                     } label: {
@@ -159,7 +195,12 @@ struct SourceControlView: View {
                 if isSetupRequired {
                     setupRequiredView
                 } else {
-                    mainDashboardView
+                    switch activeTab {
+                    case .localStatus:
+                        localStatusView
+                    case .remoteRepos:
+                        mainDashboardView
+                    }
                 }
             }
         }
@@ -173,8 +214,276 @@ struct SourceControlView: View {
         .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
             Button("OK") {}
         } message: { msg in Text(msg) }
+        .confirmationDialog(
+            "Discard Changes?",
+            isPresented: $showingDiscardConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Discard Changes Permanently", role: .destructive) {
+                if let file = selectedFileForDiscard {
+                    performAction {
+                        await gitViewModel.discardChanges(file)
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure you want to revert changes in \(selectedFileForDiscard?.path.lastPathComponent ?? "")? This action cannot be undone.")
+        }
         .onAppear {
             checkSetup()
+        }
+    }
+
+    // MARK: - Local Status View
+
+    private var localStatusView: some View {
+        VStack(spacing: 0) {
+            // Local Repo Info Header
+            HStack {
+                if let status = gitViewModel.status {
+                    HStack(spacing: 16) {
+                        Label(status.branchName, systemImage: "arrow.triangle.branch")
+                            .font(.headline)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                            .foregroundStyle(.blue)
+
+                        HStack(spacing: 12) {
+                            Label("\(status.ahead)", systemImage: "arrow.up.circle.fill")
+                                .help("Ahead of remote")
+                            Label("\(status.behind)", systemImage: "arrow.down.circle.fill")
+                                .help("Behind remote")
+                        }
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("No Git Repository Initialized")
+                        .font(.headline)
+                }
+
+                Spacer()
+
+                Button {
+                    performAction {
+                        await gitViewModel.refreshStatus()
+                    }
+                } label: {
+                    Label("Refresh Status", systemImage: "arrow.clockwise")
+                }
+                .disabled(gitViewModel.isScanning || isPerformingGitAction)
+            }
+            .padding()
+            .background(Color.secondary.opacity(0.04))
+
+            Divider()
+
+            if let status = gitViewModel.status {
+                HSplitView {
+                    // Left Column: Changed Files Groups
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            // Conflicts Section
+                            let conflicts = status.files.filter { $0.status == .conflicted }
+                            if !conflicts.isEmpty {
+                                SectionHeader(title: "Conflicts", count: conflicts.count, color: .red)
+                                ForEach(conflicts) { file in
+                                    fileRow(for: file)
+                                }
+                            }
+
+                            // Staged Changes
+                            let staged = status.files.filter { $0.isStaged }
+                            SectionHeader(title: "Staged Changes", count: staged.count, color: .green)
+                            if staged.isEmpty {
+                                Text("No staged changes.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal)
+                            } else {
+                                ForEach(staged) { file in
+                                    fileRow(for: file)
+                                }
+                            }
+
+                            // Unstaged Changes
+                            let unstaged = status.files.filter { !$0.isStaged && $0.status != .conflicted }
+                            SectionHeader(title: "Unstaged / Untracked Changes", count: unstaged.count, color: .orange)
+                            if unstaged.isEmpty {
+                                Text("No unstaged changes.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal)
+                            } else {
+                                ForEach(unstaged) { file in
+                                    fileRow(for: file)
+                                }
+                            }
+                        }
+                        .padding()
+                    }
+                    .frame(minWidth: 350)
+
+                    // Right Column: Commit Composer
+                    VStack(spacing: 16) {
+                        Text("Commit Composer")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        TextEditor(text: $commitMessage)
+                            .font(.system(.body, design: .monospaced))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                            )
+                            .frame(height: 120)
+                            .placeholder(when: commitMessage.isEmpty) {
+                                Text("Enter commit message...")
+                                    .foregroundStyle(.secondary)
+                                    .padding(.all, 8)
+                            }
+
+                        Button {
+                            performAction {
+                                await gitViewModel.commit(message: commitMessage)
+                                commitMessage = ""
+                            }
+                        } label: {
+                            if isPerformingGitAction {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Text("Commit to Local Branch")
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+                        .controlSize(.large)
+                        .disabled(commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isPerformingGitAction)
+
+                        Spacer()
+                    }
+                    .padding()
+                    .frame(width: 300)
+                    .background(Color.secondary.opacity(0.02))
+                }
+            } else {
+                noGitRepoPlaceholder
+            }
+        }
+    }
+
+    private var noGitRepoPlaceholder: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "folder.badge.plus")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            Text("Git Is Not Initialized")
+                .font(.title3.bold())
+            Text("Initialize a local repository to start staging, committing, and tracking changes.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+
+            Button("Initialize Git Repository") {
+                initializeGitRepo()
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.orange)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func fileRow(for file: GitFileStatus) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(file.path.lastPathComponent)
+                    .font(.subheadline.bold())
+                Text(file.path.path)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            // Status Badge
+            Text(file.status.rawValue)
+                .font(.caption2.bold())
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(badgeColor(for: file.status).opacity(0.15))
+                .foregroundStyle(badgeColor(for: file.status))
+                .cornerRadius(4)
+
+            // Actions
+            HStack(spacing: 8) {
+                if file.isStaged {
+                    Button("Unstage") {
+                        performAction {
+                            await gitViewModel.unstage(file)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                } else {
+                    Button("Stage") {
+                        performAction {
+                            await gitViewModel.stage(file)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                    .controlSize(.small)
+
+                    Button("Discard") {
+                        selectedFileForDiscard = file
+                        showingDiscardConfirmation = true
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .foregroundColor(.red)
+                }
+            }
+        }
+        .padding(8)
+        .background(Color.secondary.opacity(0.03))
+        .cornerRadius(8)
+    }
+
+    private func badgeColor(for status: GitFileStatus.Status) -> Color {
+        switch status {
+        case .modified: return .orange
+        case .added: return .green
+        case .deleted: return .red
+        case .renamed: return .purple
+        case .untracked: return .secondary
+        case .conflicted: return .red
+        }
+    }
+
+    private func initializeGitRepo() {
+        guard let project = sessionStore.activeProject else { return }
+        performAction {
+            let gitBinary = URL(fileURLWithPath: settings.gitPath.isEmpty ? "/usr/bin/git" : settings.gitPath)
+            _ = try? await ProcessRunnerTool.shared.run(
+                executableURL: gitBinary,
+                arguments: ["init"],
+                workingDirectory: project.directoryURL
+            )
+            await gitViewModel.refreshStatus()
+        }
+    }
+
+    private func performAction(_ action: @escaping () async -> Void) {
+        isPerformingGitAction = true
+        Task {
+            await action()
+            isPerformingGitAction = false
         }
     }
 
@@ -184,8 +493,10 @@ struct SourceControlView: View {
         if isSetupRequired {
             showSetup = true
         } else {
-            // Automatically pre-load repos if authenticated
             fetchUserReposSilently()
+            Task {
+                await gitViewModel.refreshStatus()
+            }
         }
     }
 
@@ -220,11 +531,10 @@ struct SourceControlView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Main Dashboard View
+    // MARK: - Main Dashboard View (Remote Connection)
 
     private var mainDashboardView: some View {
         VStack(spacing: 0) {
-            // Search & Filtering of GitHub repositories
             HStack {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass")
@@ -251,7 +561,6 @@ struct SourceControlView: View {
 
             Divider()
 
-            // Repositories List
             Group {
                 if isFetchingRepos {
                     VStack(spacing: 16) {
@@ -385,14 +694,12 @@ struct SourceControlView: View {
                 let gitBinary = URL(fileURLWithPath: settings.gitPath.isEmpty ? "/usr/bin/git" : settings.gitPath)
                 let token = settings.httpsAuthToken
 
-                // Initialize local git if not done yet
                 _ = try? await ProcessRunnerTool.shared.run(
                     executableURL: gitBinary,
                     arguments: ["init"],
                     workingDirectory: dirURL
                 )
 
-                // Configure credentials
                 _ = try? await ProcessRunnerTool.shared.run(
                     executableURL: gitBinary,
                     arguments: ["config", "user.name", settings.gitUserName.isEmpty ? "SwiftCode" : settings.gitUserName],
@@ -432,6 +739,45 @@ struct SourceControlView: View {
                     showError = true
                 }
             }
+        }
+    }
+}
+
+// MARK: - Local Helpers
+
+private struct SectionHeader: View {
+    let title: String
+    let count: Int
+    let color: Color
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.subheadline.bold())
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text("\(count)")
+                .font(.caption2.bold())
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(color.opacity(0.12))
+                .foregroundStyle(color)
+                .clipShape(Capsule())
+        }
+        .padding(.top, 8)
+    }
+}
+
+// Extension to provide placeholder to TextEditor in SwiftUI
+extension View {
+    func placeholder<Content: View>(
+        when shouldShow: Bool,
+        alignment: Alignment = .topLeading,
+        @ViewBuilder placeholder: () -> Content
+    ) -> some View {
+        ZStack(alignment: alignment) {
+            placeholder().opacity(shouldShow ? 1 : 0)
+            self
         }
     }
 }

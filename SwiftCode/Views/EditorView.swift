@@ -28,6 +28,11 @@ struct EditorView: View {
         return url.pathExtension == "entitlements"
     }
 
+    private var isMarkdown: Bool {
+        guard let url = viewModel.activeDocument?.url else { return false }
+        return url.pathExtension == "md"
+    }
+
     private var xcodeProjModel: XcodeProjModel? {
         guard let url = viewModel.activeDocument?.url else { return nil }
         if let cached = workspaceViewModel.parsedXcodeProjects[url] {
@@ -71,6 +76,8 @@ struct EditorView: View {
             } else if isEntitlements, let url = viewModel.activeDocument?.url, editorMode == .visual {
                 let resolvedURL = url.lastPathComponent.contains("Unresolved") ? nil : url
                 EntitlementsEditorView(fileURL: resolvedURL)
+            } else if isMarkdown, let url = viewModel.activeDocument?.url {
+                MarkdownFileView(viewModel: viewModel, fileURL: url)
             } else {
                 NativeTextView(viewModel: viewModel)
             }

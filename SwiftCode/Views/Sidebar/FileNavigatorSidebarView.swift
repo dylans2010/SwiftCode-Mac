@@ -296,11 +296,23 @@ struct ProjectTreeNodeView: View {
     let onRename: (ProjectNode) -> Void
     let onDelete: (ProjectNode) -> Void
     let onDoubleClick: (ProjectNode) -> Void
-    @State private var isExpanded: Bool = false
+
+    private var isExpanded: Binding<Bool> {
+        Binding(
+            get: { viewModel.expandedNodeIDs.contains(node.url.path) },
+            set: { newValue in
+                Task {
+                    if newValue != viewModel.expandedNodeIDs.contains(node.url.path) {
+                        await viewModel.toggleExpanded(node)
+                    }
+                }
+            }
+        )
+    }
 
     var body: some View {
         if node.kind == .folder {
-            DisclosureGroup(isExpanded: $isExpanded) {
+            DisclosureGroup(isExpanded: isExpanded) {
                 if let children = node.children {
                     ForEach(children) { child in
                         ProjectTreeNodeView(
@@ -311,20 +323,13 @@ struct ProjectTreeNodeView: View {
                             onDoubleClick: onDoubleClick
                         )
                     }
-                } else if isExpanded {
+                } else if viewModel.expandedNodeIDs.contains(node.url.path) {
                     ProgressView()
                         .scaleEffect(0.5)
                         .padding(.leading, 8)
                 }
             } label: {
                 nodeRowContent
-            }
-            .onChange(of: isExpanded) { oldValue, newValue in
-                if newValue && node.children == nil {
-                    Task {
-                        await viewModel.toggleExpanded(node)
-                    }
-                }
             }
         } else {
             nodeRowContent
@@ -333,10 +338,17 @@ struct ProjectTreeNodeView: View {
 
     private var nodeRowContent: some View {
         HStack(spacing: 8) {
-            Image(systemName: FileSymbolsShow.symbol(forPathExtension: node.url.pathExtension, isFolder: node.kind == .folder))
-                .foregroundStyle(node.kind == .folder ? .blue : .orange)
-                .font(.subheadline)
-                .frame(width: 16)
+            if viewModel.loadingNodeIDs.contains(node.url.path) {
+                ProgressView()
+                    .controlSize(.small)
+                    .scaleEffect(0.6)
+                    .frame(width: 16)
+            } else {
+                Image(systemName: FileSymbolsShow.symbol(forPathExtension: node.url.pathExtension, isFolder: node.kind == .folder))
+                    .foregroundStyle(node.kind == .folder ? .blue : .orange)
+                    .font(.subheadline)
+                    .frame(width: 16)
+            }
 
             Text(node.url.lastPathComponent)
                 .font(.subheadline)
