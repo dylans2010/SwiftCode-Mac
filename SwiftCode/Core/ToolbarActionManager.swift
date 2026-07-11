@@ -57,6 +57,7 @@ final class ToolbarActionManager {
         case ciBuild
         case licensesAdd
         case appDetailsInfo
+        case simulatorMain
 
         // Sidebar & Inspector additions
         case debugSessions
@@ -187,6 +188,8 @@ final class ToolbarActionManager {
             return .licensesAdd
         case "app_details_info", "app_details":
             return .appDetailsInfo
+        case "simulator_main", "simulators":
+            return .simulatorMain
 
         case "debug_sessions":
             return .debugSessions
