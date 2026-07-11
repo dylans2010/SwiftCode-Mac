@@ -44,7 +44,7 @@ struct DeploymentsView: View {
                         }
                         .padding()
                     }
-                    .groupBoxStyle(PreferencesGroupBoxStyle())
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
@@ -64,7 +64,7 @@ struct DeploymentsView: View {
                         }
                         .padding()
                     }
-                    .groupBoxStyle(PreferencesGroupBoxStyle())
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
@@ -99,7 +99,7 @@ struct DeploymentsView: View {
                         }
                         .padding()
                     }
-                    .groupBoxStyle(PreferencesGroupBoxStyle())
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
                     if let deploymentURL = deploymentURL {
                         GroupBox {
@@ -123,7 +123,7 @@ struct DeploymentsView: View {
                             }
                             .padding()
                         }
-                        .groupBoxStyle(PreferencesGroupBoxStyle())
+                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
 
                     if let errorMessage = errorMessage {
@@ -137,7 +137,7 @@ struct DeploymentsView: View {
                             }
                             .padding()
                         }
-                        .groupBoxStyle(PreferencesGroupBoxStyle())
+                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
 
                     if !logManager.deploymentLogs.isEmpty {
@@ -153,7 +153,7 @@ struct DeploymentsView: View {
                             }
                             .padding()
                         }
-                        .groupBoxStyle(PreferencesGroupBoxStyle())
+                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
                 }
                 .padding(24)
