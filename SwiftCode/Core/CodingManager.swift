@@ -3,6 +3,26 @@ import os.log
 
 private let logger = Logger(subsystem: "com.swiftcode.Core", category: "CodingManager")
 
+public enum CodingError: Error, LocalizedError {
+    case pathOutsideProject
+    case encodingError
+    case alreadyExists
+    case cannotDeleteRoot
+
+    public var errorDescription: String? {
+        switch self {
+        case .pathOutsideProject:
+            return "Path is outside of the project directory."
+        case .encodingError:
+            return "Failed to encode or decode the file."
+        case .alreadyExists:
+            return "A file or folder with this name already exists."
+        case .cannotDeleteRoot:
+            return "Cannot delete the root directory of the project."
+        }
+    }
+}
+
 @MainActor
 final class CodingManager: ObservableObject {
     static let shared = CodingManager()
@@ -13,7 +33,7 @@ final class CodingManager: ObservableObject {
     var modelsRoot: URL
 
     // Centralized Subsystem Directories
-    static var appSupportRoot: URL {
+    nonisolated static var appSupportRoot: URL {
         // SAFETY: applicationSupportDirectory is always available on macOS.
         let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
         let root = paths.first! // SAFETY: userDomainMask always has at least one directory
@@ -21,7 +41,7 @@ final class CodingManager: ObservableObject {
         return appSupport
     }
 
-    static func subdirectory(named name: String) -> URL {
+    nonisolated static func subdirectory(named name: String) -> URL {
         let dir = appSupportRoot.appendingPathComponent(name, isDirectory: true)
         if !FileManager.default.fileExists(atPath: dir.path) {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
