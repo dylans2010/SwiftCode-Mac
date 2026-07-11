@@ -104,15 +104,26 @@ struct CodeSearchView: View {
                         ForEach(fileExtensions, id: \.self) { ext in
                             let isSelected = (ext == "All" && selectedFileExtension == nil) ||
                                              (ext != "All" && selectedFileExtension == ext)
-                            Button {
-                                selectedFileExtension = (ext == "All") ? nil : ext
-                                if !searchQuery.isEmpty { performSearch() }
-                            } label: {
-                                Text(ext == "All" ? "All Files" : ".\(ext)")
-                                    .font(.system(.caption, design: .monospaced))
+                            if isSelected {
+                                Button {
+                                    selectedFileExtension = (ext == "All") ? nil : ext
+                                    if !searchQuery.isEmpty { performSearch() }
+                                } label: {
+                                    Text(ext == "All" ? "All Files" : ".\(ext)")
+                                        .font(.system(.caption, design: .monospaced))
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.orange)
+                            } else {
+                                Button {
+                                    selectedFileExtension = (ext == "All") ? nil : ext
+                                    if !searchQuery.isEmpty { performSearch() }
+                                } label: {
+                                    Text(ext == "All" ? "All Files" : ".\(ext)")
+                                        .font(.system(.caption, design: .monospaced))
+                                }
+                                .buttonStyle(.bordered)
                             }
-                            .buttonStyle(isSelected ? .borderedProminent : .bordered)
-                            .tint(isSelected ? .orange : nil)
                         }
                     }
                     .padding(.horizontal, 12)
