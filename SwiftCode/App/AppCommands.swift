@@ -16,6 +16,11 @@ struct AppCommands: Commands {
                 NotificationCenter.default.post(name: NSNotification.Name("ShowImportPicker"), object: nil)
             }
             .keyboardShortcut("o", modifiers: [.command])
+
+            Button("Command Palette...") {
+                NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "command_palette"])
+            }
+            .keyboardShortcut("p", modifiers: [.command, .shift])
         }
 
         CommandGroup(after: .saveItem) {
