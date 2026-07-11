@@ -318,28 +318,43 @@ struct CommandPaletteView: View {
 
     private var commandsListPane: some View {
         List(filteredCommands) { command in
-            Button {
+            HStack {
+                Image(systemName: command.icon)
+                    .foregroundStyle(.orange)
+                    .frame(width: 24)
+                Text(command.rawValue)
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+                Spacer()
+                if !command.shortcut.isEmpty {
+                    Text(command.shortcut)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
+                }
+
+                if ToolbarManager.shared.enabledTools.contains(where: {
+                    $0.id.lowercased() == command.id.lowercased().replacingOccurrences(of: " ", with: "_") ||
+                    $0.name.lowercased() == command.id.lowercased()
+                }) {
+                    Image(systemName: "pin.fill")
+                        .foregroundStyle(.orange)
+                        .font(.caption)
+                        .transition(.scale)
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) {
+                withAnimation {
+                    ToolbarManager.shared.toggleToolByNameOrID(command.rawValue)
+                }
+            }
+            .onTapGesture(count: 1) {
                 dismiss()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     onAction(command)
-                }
-            } label: {
-                HStack {
-                    Image(systemName: command.icon)
-                        .foregroundStyle(.orange)
-                        .frame(width: 24)
-                    Text(command.rawValue)
-                        .font(.subheadline)
-                        .foregroundStyle(.white)
-                    Spacer()
-                    if !command.shortcut.isEmpty {
-                        Text(command.shortcut)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
-                    }
                 }
             }
         }

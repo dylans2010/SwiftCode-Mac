@@ -40,6 +40,20 @@ final class ToolbarManager: ObservableObject {
         }
     }
 
+    func toggleToolByNameOrID(_ identifier: String) {
+        let clean = identifier.lowercased().replacingOccurrences(of: " ", with: "_").replacingOccurrences(of: "open_", with: "")
+        if let idx = tools.firstIndex(where: { $0.id.lowercased() == clean || $0.id == identifier }) {
+            tools[idx].isEnabled.toggle()
+            persist()
+            return
+        }
+        if let idx = tools.firstIndex(where: { $0.name.lowercased().contains(clean) || clean.contains($0.name.lowercased()) }) {
+            tools[idx].isEnabled.toggle()
+            persist()
+            return
+        }
+    }
+
     func moveTool(from source: IndexSet, to destination: Int) {
         var enabled = enabledTools
         enabled.move(fromOffsets: source, toOffset: destination)

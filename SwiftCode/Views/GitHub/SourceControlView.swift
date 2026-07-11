@@ -292,39 +292,52 @@ struct SourceControlView: View {
                 HSplitView {
                     // Left column: Changed Files lists
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 20) {
                             let conflicts = status.files.filter { $0.status == .conflicted }
                             if !conflicts.isEmpty {
-                                fileGroupSection(title: "Conflicts", files: conflicts, badgeColor: .red)
+                                GroupBox {
+                                    fileGroupSection(title: "Conflicts", files: conflicts, badgeColor: .red)
+                                }
+                                .groupBoxStyle(ModernGroupBoxStyle())
                             }
 
                             let staged = status.files.filter { $0.isStaged }
-                            fileGroupSection(title: "Staged Changes", files: staged, badgeColor: .green)
+                            GroupBox {
+                                fileGroupSection(title: "Staged Changes", files: staged, badgeColor: .green)
+                            }
+                            .groupBoxStyle(ModernGroupBoxStyle())
 
                             let unstaged = status.files.filter { !$0.isStaged && $0.status != .conflicted }
-                            fileGroupSection(title: "Unstaged / Untracked", files: unstaged, badgeColor: .orange)
+                            GroupBox {
+                                fileGroupSection(title: "Unstaged / Untracked", files: unstaged, badgeColor: .orange)
+                            }
+                            .groupBoxStyle(ModernGroupBoxStyle())
                         }
                         .padding()
                     }
                     .frame(minWidth: 400, maxWidth: .infinity)
 
                     // Right column: Commit Composer Form
-                    VStack(spacing: 16) {
-                        Text("Commit Composer")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(spacing: 20) {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                Label("Commit Composer", systemImage: "pencil.and.outline")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
 
-                        Form {
-                            Section {
+                                Text("Commit Message")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
                                 TextEditor(text: $commitMessage)
                                     .font(.system(.body, design: .monospaced))
-                                    .frame(minHeight: 120, maxHeight: 200)
+                                    .frame(minHeight: 100, maxHeight: 180)
                                     .cornerRadius(6)
-                            } header: {
-                                Text("Commit Message")
-                            }
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                                    )
 
-                            Section {
                                 Button {
                                     performAction {
                                         await gitViewModel.commit(message: commitMessage)
@@ -335,18 +348,23 @@ struct SourceControlView: View {
                                         ProgressView().controlSize(.small)
                                     } else {
                                         Text("Commit to Local Branch")
+                                            .fontWeight(.semibold)
                                             .frame(maxWidth: .infinity)
                                     }
                                 }
                                 .buttonStyle(.borderedProminent)
                                 .tint(.orange)
+                                .controlSize(.large)
                                 .disabled(commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isPerformingGitAction)
                             }
+                            .padding()
                         }
-                        .formStyle(.grouped)
+                        .groupBoxStyle(ModernGroupBoxStyle())
                         .frame(width: 320)
+
+                        Spacer()
                     }
-                    .background(Color.secondary.opacity(0.02))
+                    .padding()
                 }
             } else {
                 noGitRepoPlaceholder

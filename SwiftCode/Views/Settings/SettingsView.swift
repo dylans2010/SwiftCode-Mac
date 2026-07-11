@@ -5,7 +5,8 @@ struct SettingsView: View {
     @Environment(ThemeViewModel.self) var themeVM
     @Environment(\.dismiss) private var dismiss
 
-    @State private var selectedPane: SettingsPane = .general
+    @SceneStorage("com.swiftcode.settings.selectedPane") private var selectedPaneRaw: String = SettingsPane.general.rawValue
+    @State private var searchText = ""
 
     enum SettingsPane: String, CaseIterable, Identifiable {
         case general = "General"
@@ -35,22 +36,52 @@ struct SettingsView: View {
         }
     }
 
+    var selectedPane: SettingsPane {
+        SettingsPane(rawValue: selectedPaneRaw) ?? .general
+    }
+
+    var filteredPanes: [SettingsPane] {
+        if searchText.isEmpty {
+            return SettingsPane.allCases
+        } else {
+            return SettingsPane.allCases.filter { $0.rawValue.localizedCaseInsensitiveContains(searchText) }
+        }
+    }
+
     var body: some View {
         NavigationSplitView {
-            List(SettingsPane.allCases, selection: $selectedPane) { pane in
-                NavigationLink(value: pane) {
-                    Label(pane.rawValue, systemImage: pane.icon)
-                        .font(.headline)
+            VStack(spacing: 0) {
+                // Search bar for Preferences
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search settings...", text: $searchText)
+                        .textFieldStyle(.plain)
+                }
+                .padding(8)
+                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                .padding()
+
+                List(filteredPanes, selection: Binding(
+                    get: { selectedPane },
+                    set: { selectedPaneRaw = $0.rawValue }
+                )) { pane in
+                    NavigationLink(value: pane) {
+                        Label(pane.rawValue, systemImage: pane.icon)
+                            .font(.headline)
+                    }
+                    .accessibilityLabel("\(pane.rawValue) Preferences Pane")
                 }
             }
             .listStyle(.sidebar)
             .navigationTitle("Preferences")
-            .frame(minWidth: 200)
+            .frame(minWidth: 220)
         } detail: {
             VStack(spacing: 0) {
                 ScrollView {
                     paneView(for: selectedPane)
-                        .padding()
+                        .padding(24)
+                        .transition(.opacity)
                 }
             }
             .background(Color(NSColor.windowBackgroundColor))
