@@ -21,24 +21,43 @@ actor ProjectOpeningCoordinator {
     init() {}
 
     func loadProjectWithTimeout(url: URL, timeout: TimeInterval = defaultTimeout) async throws -> Project {
-        try await withThrowingTaskGroup(of: Project.self) { group in
+        let startTime = CFAbsoluteTimeGetCurrent()
+        logger.info("[BEGIN] loadProjectWithTimeout - Parent: None, Child: resolveAndLoad | Thread: \(Thread.isMainThread ? "Main" : "Background") | Actor: ProjectOpeningCoordinator")
+
+        return try await withThrowingTaskGroup(of: Project.self) { group in
             group.addTask {
                 try await self.resolveAndLoad(url: url)
             }
             group.addTask {
                 try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                self.logger.warning("[TIMEOUT] loadProjectWithTimeout - elapsed: \(timeout)s | Actor: ProjectOpeningCoordinator")
                 throw ProjectOpenError.timeout
             }
 
-            guard let result = try await group.next() else {
+            do {
+                guard let result = try await group.next() else {
+                    self.logger.error("[FAILED] loadProjectWithTimeout - group next returned nil | Actor: ProjectOpeningCoordinator")
+                    throw ProjectOpenError.cancelled
+                }
+                group.cancelAll()
+                let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+                self.logger.info("[END] loadProjectWithTimeout - Success | Elapsed: \(elapsed, format: .fixed(precision: 4))s | Actor: ProjectOpeningCoordinator")
+                return result
+            } catch is CancellationError {
+                let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+                self.logger.warning("[CANCELLED] loadProjectWithTimeout | Elapsed: \(elapsed, format: .fixed(precision: 4))s | Actor: ProjectOpeningCoordinator")
                 throw ProjectOpenError.cancelled
+            } catch {
+                let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+                self.logger.error("[FAILED] loadProjectWithTimeout - Error: \(error.localizedDescription) | Elapsed: \(elapsed, format: .fixed(precision: 4))s | Actor: ProjectOpeningCoordinator")
+                throw error
             }
-            group.cancelAll()
-            return result
         }
     }
 
     private func resolveAndLoad(url: URL) async throws -> Project {
+        let startTime = CFAbsoluteTimeGetCurrent()
+        logger.info("[BEGIN] resolveAndLoad - Parent: loadProjectWithTimeout, Child: buildFileTreeInternal | Thread: \(Thread.isMainThread ? "Main" : "Background") | Actor: ProjectOpeningCoordinator")
         logger.info("Starting load for project at: \(url.path)")
 
         // 1. Resolve security-scoped bookmark if necessary
@@ -50,14 +69,14 @@ actor ProjectOpeningCoordinator {
         // 2. Validate path
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else {
-            logger.error("Project path not found or not a directory: \(url.path)")
+            logger.error("[FAILED] resolveAndLoad - Project path not found: \(url.path) | Actor: ProjectOpeningCoordinator")
             throw ProjectOpenError.pathNotFound
         }
 
         // 3. Parse project.json
         let metaURL = url.appendingPathComponent("project.json")
         guard fm.fileExists(atPath: metaURL.path) else {
-            logger.error("Metadata missing at: \(metaURL.path)")
+            logger.error("[FAILED] resolveAndLoad - Metadata missing at: \(metaURL.path) | Actor: ProjectOpeningCoordinator")
             throw ProjectOpenError.corruptedProjectFile
         }
 
@@ -68,7 +87,7 @@ actor ProjectOpeningCoordinator {
         do {
             data = try Data(contentsOf: metaURL)
         } catch {
-            logger.error("Failed to read metadata: \(error.localizedDescription)")
+            logger.error("[FAILED] resolveAndLoad - Failed to read metadata: \(error.localizedDescription) | Actor: ProjectOpeningCoordinator")
             throw ProjectOpenError.underlyingIO(error)
         }
 
@@ -77,8 +96,9 @@ actor ProjectOpeningCoordinator {
         var project: Project
         do {
             project = try decoder.decode(Project.self, from: data)
+            logger.info("Project Metadata Loaded for: \(project.name)")
         } catch {
-            logger.error("Failed to decode metadata: \(error.localizedDescription)")
+            logger.error("[FAILED] resolveAndLoad - Failed to decode metadata: \(error.localizedDescription) | Actor: ProjectOpeningCoordinator")
             throw ProjectOpenError.corruptedProjectFile
         }
 
@@ -96,11 +116,16 @@ actor ProjectOpeningCoordinator {
         // which avoids recursive package traversal and oversized project metadata during open.
         project.files = try await buildFileTreeInternal(at: url, relativeTo: url)
 
+        let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+        logger.info("[END] resolveAndLoad - Success | Elapsed: \(elapsed, format: .fixed(precision: 4))s | Actor: ProjectOpeningCoordinator")
+        if elapsed > 1.0 {
+            logger.warning("[PERFORMANCE WARNING] resolveAndLoad took \(elapsed, format: .fixed(precision: 4))s which is over acceptable threshold of 1s.")
+        }
         logger.info("Successfully loaded project: \(project.name)")
         return project
     }
 
-    private nonisolated func buildFileTree(at url: URL, relativeTo base: URL) throws -> [FileNode] {
+    private func buildFileTree(at url: URL, relativeTo base: URL) throws -> [FileNode] {
         let contents = try FileManager.default.contentsOfDirectory(
             at: url,
             includingPropertiesForKeys: Array(FileTreeDefaults.directoryReadKeys),

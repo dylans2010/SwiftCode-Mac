@@ -155,18 +155,25 @@ final class ProjectSessionStore {
     private var openingTask: Task<Void, Never>?
 
     func openProject(_ project: Project) async {
+        let startTime = CFAbsoluteTimeGetCurrent()
+        logger.info("[BEGIN] Project Selected: \(project.name) | Actor: ProjectSessionStore | Thread: \(Thread.isMainThread ? "Main" : "Background")")
         openingTask?.cancel()
         openingTask = Task {
             guard !Task.isCancelled else { return }
 
             state = .resolving
-            logger.info("Opening project: \(project.name)")
+            logger.info("[BEGIN] Workspace Restored - Resolving project: \(project.name)")
 
             do {
                 let loadedProject = try await coordinator.loadProjectWithTimeout(url: project.directoryURL)
-                if Task.isCancelled { return }
+                if Task.isCancelled {
+                    let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+                    logger.warning("[CANCELLED] openProject: \(project.name) | Elapsed: \(elapsed, format: .fixed(precision: 4))s")
+                    return
+                }
 
                 state = .ready(loadedProject)
+                logger.info("[END] Workspace Restored - Project ready: \(project.name)")
 
                 // Update last opened date in library
                 if let idx = projects.firstIndex(where: { $0.id == project.id }) {
@@ -175,12 +182,24 @@ final class ProjectSessionStore {
                     projects[idx] = updated
                     saveMetadata(updated)
                 }
+
+                let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+                logger.info("[END] Project Open Completed: \(project.name) | Elapsed: \(elapsed, format: .fixed(precision: 4))s")
+                if elapsed > 2.0 {
+                    logger.warning("[PERFORMANCE WARNING] openProject took \(elapsed, format: .fixed(precision: 4))s which is over acceptable threshold of 2s.")
+                }
             } catch let error as ProjectOpenError {
                 state = .failed(error)
+                let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+                logger.error("[FAILED] openProject: \(project.name) - Error: \(error.localizedDescription) | Elapsed: \(elapsed, format: .fixed(precision: 4))s")
             } catch is CancellationError {
                 state = .cancelled
+                let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+                logger.warning("[CANCELLED] openProject: \(project.name) | Elapsed: \(elapsed, format: .fixed(precision: 4))s")
             } catch {
                 state = .failed(.underlyingIO(error))
+                let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+                logger.error("[FAILED] openProject: \(project.name) - Error: \(error.localizedDescription) | Elapsed: \(elapsed, format: .fixed(precision: 4))s")
             }
         }
     }

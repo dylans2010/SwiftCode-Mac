@@ -19,11 +19,16 @@ public final class ProjectResolutionService: Sendable {
         }
     }
 
+    private var cachedInfoPlistURLs: [UUID: URL] = [:]
+    private var cachedEntitlementsURLs: [UUID: URL] = [:]
+
     private init() {}
 
     /// Updates cached project models for the current active project path
     public func updateParsedProjects(with models: [URL: XcodeProjModel]) {
         self.parsedProjects = models
+        self.cachedInfoPlistURLs.removeAll()
+        self.cachedEntitlementsURLs.removeAll()
         if selectedTargetID == nil, let firstModel = models.values.first, let firstTarget = firstModel.targets.first {
             selectedTargetID = firstTarget.uuid
         }
@@ -32,30 +37,29 @@ public final class ProjectResolutionService: Sendable {
     /// Resolves the URL to the Info.plist file of the currently selected target.
     /// Never returns any internal SwiftCode bundle/source files.
     public func resolveInfoPlist(for project: Project) -> URL? {
+        if let cached = cachedInfoPlistURLs[project.id] {
+            return cached
+        }
+
         guard let targetID = selectedTargetID else {
             logger.info("No active target selected for plist resolution.")
             return nil
         }
 
         // Find the target inside any parsed project model
-        for (projectURL, model) in parsedProjects {
+        for (_, model) in parsedProjects {
             guard let target = model.targets.first(where: { $0.uuid == targetID }) else { continue }
 
             // Check target build settings in configurations
-            if let configListUUID = target.buildConfigurationListUUID {
-                // Find all matching configurations
-                let configs = model.buildConfigurations.filter { config in
-                    // In a standard pbxproj, the configuration is linked via build configuration list
-                    // or scanned directly.
-                    return true
-                }
-
+            if let _ = target.buildConfigurationListUUID {
+                let configs = model.buildConfigurations
                 for config in configs {
                     if let plistPath = config.buildSettings["INFOPLIST_FILE"] {
                         let cleanPath = plistPath.replacingOccurrences(of: "\"", with: "")
                         let resolvedURL = project.directoryURL.appendingPathComponent(cleanPath)
                         if FileManager.default.fileExists(atPath: resolvedURL.path) {
                             logger.info("Resolved Info.plist from build settings: \(cleanPath, privacy: .public)")
+                            cachedInfoPlistURLs[project.id] = resolvedURL
                             return resolvedURL
                         }
                     }
@@ -69,6 +73,7 @@ public final class ProjectResolutionService: Sendable {
                     let resolvedURL = project.directoryURL.appendingPathComponent(cleanPath)
                     if FileManager.default.fileExists(atPath: resolvedURL.path) {
                         logger.info("Resolved Info.plist from file references: \(cleanPath, privacy: .public)")
+                        cachedInfoPlistURLs[project.id] = resolvedURL
                         return resolvedURL
                     }
                 }
@@ -81,16 +86,31 @@ public final class ProjectResolutionService: Sendable {
         let fm = FileManager.default
         let projectDir = project.directoryURL
 
+        let deferredDirectoryNames: Set<String> = [
+            ".build", ".git", "DerivedData", "node_modules", "Pods", "build"
+        ]
+
         // Scan project files using local enumerator
-        if let enumerator = fm.enumerator(at: projectDir, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
+        if let enumerator = fm.enumerator(
+            at: projectDir,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) {
             while let fileURL = enumerator.nextObject() as? URL {
-                if fileURL.lastPathComponent == "Info.plist" {
+                let lastComponent = fileURL.lastPathComponent
+                if deferredDirectoryNames.contains(lastComponent) {
+                    enumerator.skipDescendants()
+                    continue
+                }
+
+                if lastComponent == "Info.plist" {
                     let pathString = fileURL.path
                     if !isOpeningSwiftCodeItself && (pathString.contains("/SwiftCode/Info.plist") || pathString.contains("SwiftCode.app")) {
                         // Exclude internal fallbacks
                         continue
                     }
                     logger.info("Resolved Info.plist from fallback directory scan: \(fileURL.lastPathComponent, privacy: .public)")
+                    cachedInfoPlistURLs[project.id] = fileURL
                     return fileURL
                 }
             }
@@ -103,16 +123,20 @@ public final class ProjectResolutionService: Sendable {
     /// Resolves the URL to the entitlements file of the currently selected target.
     /// Never returns any internal SwiftCode bundle/source files.
     public func resolveEntitlements(for project: Project) -> URL? {
+        if let cached = cachedEntitlementsURLs[project.id] {
+            return cached
+        }
+
         guard let targetID = selectedTargetID else {
             logger.info("No active target selected for entitlements resolution.")
             return nil
         }
 
-        for (projectURL, model) in parsedProjects {
+        for (_, model) in parsedProjects {
             guard let target = model.targets.first(where: { $0.uuid == targetID }) else { continue }
 
             // Check target build settings in configurations
-            if let configListUUID = target.buildConfigurationListUUID {
+            if let _ = target.buildConfigurationListUUID {
                 let configs = model.buildConfigurations
                 for config in configs {
                     if let entitlementsPath = config.buildSettings["CODE_SIGN_ENTITLEMENTS"] {
@@ -120,6 +144,7 @@ public final class ProjectResolutionService: Sendable {
                         let resolvedURL = project.directoryURL.appendingPathComponent(cleanPath)
                         if FileManager.default.fileExists(atPath: resolvedURL.path) {
                             logger.info("Resolved Entitlements from build settings: \(cleanPath, privacy: .public)")
+                            cachedEntitlementsURLs[project.id] = resolvedURL
                             return resolvedURL
                         }
                     }
@@ -133,6 +158,7 @@ public final class ProjectResolutionService: Sendable {
                     let resolvedURL = project.directoryURL.appendingPathComponent(cleanPath)
                     if FileManager.default.fileExists(atPath: resolvedURL.path) {
                         logger.info("Resolved Entitlements from file references: \(cleanPath, privacy: .public)")
+                        cachedEntitlementsURLs[project.id] = resolvedURL
                         return resolvedURL
                     }
                 }
@@ -145,8 +171,22 @@ public final class ProjectResolutionService: Sendable {
         let fm = FileManager.default
         let projectDir = project.directoryURL
 
-        if let enumerator = fm.enumerator(at: projectDir, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
+        let deferredDirectoryNames: Set<String> = [
+            ".build", ".git", "DerivedData", "node_modules", "Pods", "build"
+        ]
+
+        if let enumerator = fm.enumerator(
+            at: projectDir,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) {
             while let fileURL = enumerator.nextObject() as? URL {
+                let lastComponent = fileURL.lastPathComponent
+                if deferredDirectoryNames.contains(lastComponent) {
+                    enumerator.skipDescendants()
+                    continue
+                }
+
                 if fileURL.pathExtension == "entitlements" {
                     let pathString = fileURL.path
                     if !isOpeningSwiftCodeItself && (pathString.contains("/SwiftCode/Resources/") || pathString.contains("SwiftCode.entitlements")) {
@@ -154,6 +194,7 @@ public final class ProjectResolutionService: Sendable {
                         continue
                     }
                     logger.info("Resolved Entitlements from fallback directory scan: \(fileURL.lastPathComponent, privacy: .public)")
+                    cachedEntitlementsURLs[project.id] = fileURL
                     return fileURL
                 }
             }

@@ -53,12 +53,34 @@ public class WorkspaceViewModel: Sendable {
         self.agentChatWidth = savedWidth > 150 ? savedWidth : 320.0
 
         self.loadingTask = Task {
+            let totalStartTime = CFAbsoluteTimeGetCurrent()
+            logger.info("[BEGIN] Workspace Created - Init loading task | Thread: \(Thread.isMainThread ? "Main" : "Background") | Actor: WorkspaceViewModel")
+
+            let gitInstStart = CFAbsoluteTimeGetCurrent()
             await git.refreshInstallationStatus()
+            logger.info("Git Initialized - refreshInstallationStatus elapsed: \(CFAbsoluteTimeGetCurrent() - gitInstStart, format: .fixed(precision: 4))s")
             if Task.isCancelled { return }
+
+            let treeStart = CFAbsoluteTimeGetCurrent()
+            logger.info("[BEGIN] File Tree Generated")
             await projectTree.loadProject(url: projectURL)
+            logger.info("[END] File Tree Generated - elapsed: \(CFAbsoluteTimeGetCurrent() - treeStart, format: .fixed(precision: 4))s")
             if Task.isCancelled { return }
+
+            let gitStatusStart = CFAbsoluteTimeGetCurrent()
             await git.refreshStatus()
+            logger.info("Git Status Refreshed - elapsed: \(CFAbsoluteTimeGetCurrent() - gitStatusStart, format: .fixed(precision: 4))s")
+
+            let xcodeScanStart = CFAbsoluteTimeGetCurrent()
+            logger.info("[BEGIN] Package Resolution Started")
             await scanAndCacheXcodeProjects()
+            logger.info("[END] Package Resolution Finished - elapsed: \(CFAbsoluteTimeGetCurrent() - xcodeScanStart, format: .fixed(precision: 4))s")
+
+            let totalElapsed = CFAbsoluteTimeGetCurrent() - totalStartTime
+            logger.info("[END] Workspace Ready - All subsystems initialized | Total Elapsed: \(totalElapsed, format: .fixed(precision: 4))s")
+            if totalElapsed > 5.0 {
+                logger.warning("[PERFORMANCE WARNING] Workspace subsystems initialization took \(totalElapsed, format: .fixed(precision: 4))s which is over acceptable threshold of 5s.")
+            }
         }
     }
 

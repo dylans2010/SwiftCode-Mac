@@ -52,13 +52,23 @@ final class CodeIndexService: ObservableObject {
         let fm = FileManager.default
         var results: [IndexEntry] = []
 
+        let deferredDirectoryNames: Set<String> = [
+            ".build", ".git", "DerivedData", "node_modules", "Pods", "build"
+        ]
+
         guard let enumerator = fm.enumerator(
             at: url,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else { return [] }
 
         while let fileURL = enumerator.nextObject() as? URL {
+            let lastComponent = fileURL.lastPathComponent
+            if deferredDirectoryNames.contains(lastComponent) {
+                enumerator.skipDescendants()
+                continue
+            }
+
             guard fileURL.pathExtension == "swift" else { continue }
             guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else { continue }
             let relativePath = fileURL.path.replacingOccurrences(of: url.path + "/", with: "")
@@ -127,10 +137,14 @@ final class CodeIndexService: ObservableObject {
         let fm = FileManager.default
         var results: [SearchResult] = []
 
+        let deferredDirectoryNames: Set<String> = [
+            ".build", ".git", "DerivedData", "node_modules", "Pods", "build"
+        ]
+
         guard let enumerator = fm.enumerator(
             at: directoryURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else { return [] }
 
         // Comprehensive list of searchable text file extensions
@@ -162,6 +176,12 @@ final class CodeIndexService: ObservableObject {
         }
 
         while let fileURL = enumerator.nextObject() as? URL {
+            let lastComponent = fileURL.lastPathComponent
+            if deferredDirectoryNames.contains(lastComponent) {
+                enumerator.skipDescendants()
+                continue
+            }
+
             let ext = fileURL.pathExtension.lowercased()
             // Apply file extension filter if set
             if let filterExt = fileExtension {

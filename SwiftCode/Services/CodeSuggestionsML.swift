@@ -32,8 +32,11 @@ final class CodeSuggestionsML: ObservableObject {
         guard !isAnalyzing else { return }
         isAnalyzing = true
 
+        let projectURL = project.directoryURL
+        let projectName = project.name
+
         Task.detached(priority: .utility) {
-            let report = await self.generateSuggestions(for: project)
+            let report = await self.generateSuggestions(for: projectURL, projectName: projectName)
             await MainActor.run {
                 self.groupedSuggestions = report
                 self.isAnalyzing = false
@@ -42,7 +45,7 @@ final class CodeSuggestionsML: ObservableObject {
         }
     }
 
-    private func generateSuggestions(for project: Project) async -> [CodeSuggestionCategory: [CodeSuggestion]] {
+    private func generateSuggestions(for projectURL: URL, projectName: String) async -> [CodeSuggestionCategory: [CodeSuggestion]] {
         // CoreML placeholder entry point for future model integration.
         _ = MLModelConfiguration()
 
@@ -52,11 +55,25 @@ final class CodeSuggestionsML: ObservableObject {
         var longFiles: [String] = []
         var repeatedLines: [String: Int] = [:]
 
-        guard let enumerator = FileManager.default.enumerator(at: project.directoryURL, includingPropertiesForKeys: nil) else {
+        let deferredDirectoryNames: Set<String> = [
+            ".build", ".git", "DerivedData", "node_modules", "Pods", "build"
+        ]
+
+        guard let enumerator = FileManager.default.enumerator(
+            at: projectURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) else {
             return [:]
         }
 
         while let fileURL = enumerator.nextObject() as? URL {
+            let lastComponent = fileURL.lastPathComponent
+            if deferredDirectoryNames.contains(lastComponent) {
+                enumerator.skipDescendants()
+                continue
+            }
+
             guard fileURL.pathExtension == "swift" else { continue }
             guard let content = try? String(contentsOf: fileURL) else { continue }
             let lines = content.components(separatedBy: .newlines)
