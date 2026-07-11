@@ -8,69 +8,14 @@ struct ExtensionDemoView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                switch ext.id {
-                case "swiftformatter":
-                    SwiftFormatterExtensionView()
-                case "swiftlintrunner":
-                    SwiftLintRunnerExtensionView()
-                case "gitblame":
-                    GitBlameExtensionView()
-                case "colorpicker":
-                    ColorPickerExtensionView()
-                case "snippetlibrary":
-                    SnippetLibraryExtensionView()
-                case "markdownpreview":
-                    MarkdownPreviewExtensionView()
-                case "jsonformatter":
-                    JSONFormatterExtensionView()
-                case "regextester":
-                    RegexTesterExtensionView()
-                case "darkprotheme":
-                    DarkProThemeExtensionView()
-                case "nordtheme":
-                    NordThemeExtensionView()
-                case "gruvboxtheme":
-                    GruvboxThemeExtensionView()
-                case "kotlinsupport":
-                    KotlinSupportExtensionView()
-                case "typescriptsupport":
-                    TypeScriptSupportExtensionView()
-                case "pythonsupport":
-                    PythonSupportExtensionView()
-                case "rustsupport":
-                    RustSupportExtensionView()
-                case "gosupport":
-                    GoSupportExtensionView()
-                case "aidocgen":
-                    AIDocGenExtensionView()
-                case "airefactor":
-                    AIRefactorExtensionView()
-                case "unittestgen":
-                    UnitTestGenExtensionView()
-                case "xcodebuildtool":
-                    XcodeBuildToolExtensionView()
-                case "swiftpackagemanager":
-                    SwiftPackageManagerExtensionView()
-                case "doccgenerator":
-                    DocCGeneratorExtensionView()
-                case "todohighlighter":
-                    TodoHighlighterExtensionView()
-                case "multicursor":
-                    MultiCursorExtensionView()
-                case "codestats":
-                    CodeStatsExtensionView()
-                default:
-                    genericFallbackView
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
+            genericFallbackView
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") {
+                            dismiss()
+                        }
                     }
                 }
-            }
         }
         .frame(minWidth: 500, minHeight: 400)
     }

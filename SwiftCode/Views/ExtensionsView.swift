@@ -235,15 +235,6 @@ struct ExtensionsView: View {
                                 .font(.headline)
 
                             HStack(spacing: 12) {
-                                Button {
-                                    extensionForDemo = ext
-                                    showDemoSheet = true
-                                } label: {
-                                    Label("Launch Interactive Demo", systemImage: "play.circle")
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.large)
-
                                 if ext.isUserCreated {
                                     Button {
                                         extensionToEdit = ext
@@ -313,9 +304,6 @@ struct ExtensionsView: View {
         }
         .sheet(item: $extensionToEdit) { ext in
             EditExtensionView(extension: ext)
-        }
-        .sheet(item: $extensionForDemo) { ext in
-            ExtensionDemoView(ext: ext)
         }
         .confirmationDialog(
             "Delete \(extensionToDelete?.name ?? "")?",
