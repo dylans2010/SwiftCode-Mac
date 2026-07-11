@@ -79,15 +79,15 @@ public class EditorViewModel {
             if isPlist {
                 let targetURL = newPlist ?? project.directoryURL.appendingPathComponent("Unresolved-Info.plist")
                 if doc.url != targetURL {
-                    var newDoc = doc
-                    newDoc.url = targetURL
+                    let resolvedContent: String
                     if newPlist != nil {
-                        if let content = try? await TextBufferEngine.shared.load(url: targetURL) {
-                            newDoc.content = content
-                        }
+                        resolvedContent = (try? await TextBufferEngine.shared.load(url: targetURL)) ?? doc.content
                     } else {
-                        newDoc.content = ""
+                        resolvedContent = ""
                     }
+                    // `url` is immutable on SourceFileDocument, so rebuild rather than mutate in place
+                    var newDoc = SourceFileDocument(url: targetURL, content: resolvedContent, lastDiskModificationDate: doc.lastDiskModificationDate)
+                    newDoc.isDirty = doc.isDirty
                     updatedDocuments.append(newDoc)
                 } else {
                     updatedDocuments.append(doc)
@@ -95,15 +95,15 @@ public class EditorViewModel {
             } else if isEnt {
                 let targetURL = newEntitlements ?? project.directoryURL.appendingPathComponent("Unresolved.entitlements")
                 if doc.url != targetURL {
-                    var newDoc = doc
-                    newDoc.url = targetURL
+                    let resolvedContent: String
                     if newEntitlements != nil {
-                        if let content = try? await TextBufferEngine.shared.load(url: targetURL) {
-                            newDoc.content = content
-                        }
+                        resolvedContent = (try? await TextBufferEngine.shared.load(url: targetURL)) ?? doc.content
                     } else {
-                        newDoc.content = ""
+                        resolvedContent = ""
                     }
+                    // `url` is immutable on SourceFileDocument, so rebuild rather than mutate in place
+                    var newDoc = SourceFileDocument(url: targetURL, content: resolvedContent, lastDiskModificationDate: doc.lastDiskModificationDate)
+                    newDoc.isDirty = doc.isDirty
                     updatedDocuments.append(newDoc)
                 } else {
                     updatedDocuments.append(doc)
