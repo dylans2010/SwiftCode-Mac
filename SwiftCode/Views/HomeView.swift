@@ -318,6 +318,17 @@ struct HomeView: View {
                     }
                 }
                 .padding(.vertical, 4)
+                .contentShape(Rectangle())
+                .onTapGesture(count: 2) {
+                    Task {
+                        await sessionStore.openProject(project)
+                    }
+                }
+                .onTapGesture {
+                    Task {
+                        await sessionStore.openProject(project)
+                    }
+                }
                 .contextMenu { projectContextMenu(for: project) }
             }
             .scrollContentBackground(.hidden)
@@ -693,7 +704,12 @@ struct HomeProjectCardView: View {
                 .stroke(isHovered ? Color.orange.opacity(0.3) : Color.clear, lineWidth: 1.5)
         )
         .contentShape(Rectangle())
-        .onTapGesture(perform: onSelect)
+        .onTapGesture(count: 2) {
+            onSelect()
+        }
+        .onTapGesture {
+            onSelect()
+        }
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.2)) {
                 isHovered = hovering
