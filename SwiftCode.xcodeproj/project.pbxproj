@@ -249,6 +249,7 @@
 		1F81FB5D7A404CB5B3C6929C /* AISuggestionActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944E4AE4CFB27BC9214D0122 /* AISuggestionActionBar.swift */; };
 		1FCF4AC8AC8548B8AB893000 /* SwiftPackageBuildService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 174D928A1C6FD5BA57A38295 /* SwiftPackageBuildService.swift */; };
 		20622200EB1D073B2C361998 /* ExtensionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FB20F3A1D32EA04E382F67 /* ExtensionsView.swift */; };
+		E063E218D13ACDDD0B728FFB /* ExtensionDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E063E218D13ACDDD0B728FFA /* ExtensionDemoView.swift */; };
 		212C4E9B952F351D4DF18AE6 /* PRCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60D9562C914DDF4635B43D7C /* PRCreateView.swift */; };
 		214CE8E582E743579D2D47CC /* PreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF7A9B99B4125B85728B94A7 /* PreferencesStore.swift */; };
 		228C5A6A1ECF513F6BE95689 /* CodexDiffViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7473379BB1E72179201E07CA /* CodexDiffViewer.swift */; };
@@ -1133,6 +1134,7 @@
 		215CD2DE35D64BE386AD6E1E /* DebugInspectorSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugInspectorSidebarView.swift; sourceTree = "<group>"; };
 		21C1A8E702F0A8AAA97B345F /* BuildConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildConsoleView.swift; sourceTree = "<group>"; };
 		21FB20F3A1D32EA04E382F67 /* ExtensionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionsView.swift; sourceTree = "<group>"; };
+		E063E218D13ACDDD0B728FFA /* ExtensionDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionDemoView.swift; sourceTree = "<group>"; };
 		22AD5B3696D44606AC985028 /* GitHubWorkflowsSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubWorkflowsSidebarView.swift; sourceTree = "<group>"; };
 		238A76E16FFD615FD8AD543B /* LiveReloadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveReloadManager.swift; sourceTree = "<group>"; };
 		239F1E9D2E1945E1868B6780 /* SwiftCode/Views/Agent/Skills/SkillsLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Agent/Skills/SkillsLibraryView.swift; sourceTree = SOURCE_ROOT; };
@@ -2267,6 +2269,7 @@
 				6B2C6A450EA442997F49FC1A /* ColorPickerExtensionView.swift */,
 				71C341303B125990C097CEDA /* SnippetLibraryExtensionView.swift */,
 				72C0C80C785A06322885C35C /* EditExtensionView.swift */,
+				E063E218D13ACDDD0B728FFA /* ExtensionDemoView.swift */,
 				8526C47363D79394BD1A44D6 /* CodeStatsExtensionView.swift */,
 				93DBB344B70D93A88269B581 /* TypeScriptSupportExtensionView.swift */,
 				982D7FE460FD439B66834515 /* TodoHighlighterExtensionView.swift */,
@@ -3858,6 +3861,7 @@
 				AA110001BB220001CC330001 /* XcodeProjParse.swift in Sources */,
 				AA110001BB220001CC330003 /* XcodeProjViewer.swift in Sources */,
 				AA110001BB220001CC331003 /* XcodeProjTabs.swift in Sources */,
+				E063E218D13ACDDD0B728FFB /* ExtensionDemoView.swift in Sources */,
 				A2B3C4D5E6F7012345678902 /* CodeRenderEngine.swift in Sources */,
 				694FB44AE58C6F9166959343 /* JSONToSwiftView.swift in Sources */,
 				16A5D30603089356A7F4CFD8 /* JSONToKotlinView.swift in Sources */,

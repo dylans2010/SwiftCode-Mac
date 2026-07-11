@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Extension Manifest
 
 /// Represents the metadata and configuration for a SwiftCode Extension.
-struct ExtensionManifest: Identifiable, Codable, Equatable {
+struct ExtensionManifest: Identifiable, Codable, Hashable {
     var id: String                      // Unique identifier (folder name)
     var name: String
     var version: String
