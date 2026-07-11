@@ -394,8 +394,8 @@ struct SourceControlView: View {
                             .font(.system(size: 9, weight: .bold))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(badgeColor(for: file.status).opacity(0.15))
-                            .foregroundStyle(badgeColor(for: file.status))
+                            .background(colorForFileStatus(file.status).opacity(0.15))
+                            .foregroundStyle(colorForFileStatus(file.status))
                             .cornerRadius(4)
 
                         // Actions
@@ -436,7 +436,7 @@ struct SourceControlView: View {
         }
     }
 
-    private func badgeColor(for status: GitFileStatus.Status) -> Color {
+    private func colorForFileStatus(_ status: GitFileStatus.Status) -> Color {
         switch status {
         case .modified: return .orange
         case .added: return .green
