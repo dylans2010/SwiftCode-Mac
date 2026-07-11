@@ -3891,7 +3891,6 @@
 				9BF8BFB9B87ED46BDA700029 /* Sources */,
 				3A28CEECA038D3331DF426E2 /* Frameworks */,
 				1AC4AEE3EDE977A669292F07 /* Resources */,
-				FCF40D2C3002410B004C5BA1 /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -4024,26 +4023,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		FCF40D2C3002410B004C5BA1 /* ShellScript */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "#!/bin/bash\nset -euo pipefail\n\nAPP_DEST=\"/Applications/${WRAPPER_NAME}\"\n\necho \"Installing ${WRAPPER_NAME}...\"\n\nrm -rf \"$APP_DEST\"\nditto \"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\" \"$APP_DEST\"\n\necho \"Successfully installed to $APP_DEST\"\n";
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		9BF8BFB9B87ED46BDA700029 /* Sources */ = {
