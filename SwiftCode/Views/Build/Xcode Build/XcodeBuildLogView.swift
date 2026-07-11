@@ -3,6 +3,7 @@ import SwiftUI
 struct XcodeBuildLogView: View {
     @State private var searchLogQuery = ""
     @State private var autoScrollToBottom = true
+    @State private var filterMode: LogFilterMode = .all
 
     @Environment(\.dismiss) private var dismiss
 
@@ -10,42 +11,80 @@ struct XcodeBuildLogView: View {
         XcodeBuildManager.shared
     }
 
+    enum LogFilterMode: String, CaseIterable, Identifiable {
+        case all = "All Logs"
+        case errors = "Errors"
+        case warnings = "Warnings"
+        case system = "System"
+
+        var id: String { rawValue }
+    }
+
     private var filteredLogs: [String] {
-        if searchLogQuery.isEmpty {
-            return buildManager.buildLogs
-        } else {
-            return buildManager.buildLogs.filter { $0.localizedCaseInsensitiveContains(searchLogQuery) }
+        var logs = buildManager.buildLogs
+
+        // Apply raw text search if any
+        if !searchLogQuery.isEmpty {
+            logs = logs.filter { $0.localizedCaseInsensitiveContains(searchLogQuery) }
+        }
+
+        // Apply filters
+        switch filterMode {
+        case .all:
+            return logs
+        case .errors:
+            return logs.filter {
+                let lower = $0.lowercased()
+                return lower.contains("error:") || lower.hasPrefix("error:") || lower.hasPrefix("[error]")
+            }
+        case .warnings:
+            return logs.filter {
+                let lower = $0.lowercased()
+                return lower.contains("warning:") || lower.hasPrefix("warning:")
+            }
+        case .system:
+            return logs.filter { $0.hasPrefix("[system]") }
         }
     }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Header Status Bar
-                buildStatusBar
+                // Header Status Hub
+                buildStatusHeader
                     .padding()
-                    .background(Color.secondary.opacity(0.05))
+                    .background(Color.secondary.opacity(0.04))
 
                 Divider()
 
                 // Filter / Search Toolbar
-                HStack {
+                HStack(spacing: 12) {
                     HStack {
                         Image(systemName: "magnifyingglass")
                             .foregroundStyle(.secondary)
-                        TextField("Search logs...", text: $searchLogQuery)
+                        TextField("Search build logs...", text: $searchLogQuery)
                             .textFieldStyle(.plain)
                     }
                     .padding(6)
                     .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
 
+                    Picker("Filter", selection: $filterMode) {
+                        ForEach(LogFilterMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 320)
+
                     Toggle("Auto-scroll", isOn: $autoScrollToBottom)
                         .toggleStyle(.checkbox)
 
-                    Button("Copy All") {
+                    Button(action: {
                         let text = buildManager.buildLogs.joined(separator: "\n")
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(text, forType: .string)
+                    }) {
+                        Label("Copy Logs", systemImage: "doc.on.doc")
                     }
                 }
                 .padding(.horizontal)
@@ -58,12 +97,26 @@ struct XcodeBuildLogView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 4) {
-                            ForEach(Array(filteredLogs.enumerated()), id: \.offset) { index, log in
-                                Text(log)
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(logColor(for: log))
-                                    .textSelection(.enabled)
-                                    .id(index)
+                            if filteredLogs.isEmpty {
+                                VStack(spacing: 12) {
+                                    Spacer()
+                                    Image(systemName: "doc.text.magnifyingglass")
+                                        .font(.system(size: 32))
+                                        .foregroundStyle(.secondary)
+                                    Text("No matching logs found")
+                                        .font(.headline)
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 300)
+                            } else {
+                                ForEach(Array(filteredLogs.enumerated()), id: \.offset) { index, log in
+                                    Text(log)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(logColor(for: log))
+                                        .textSelection(.enabled)
+                                        .id(index)
+                                }
                             }
                         }
                         .padding()
@@ -78,10 +131,10 @@ struct XcodeBuildLogView: View {
                     }
                 }
             }
-            .navigationTitle("Live Build Logs")
+            .navigationTitle("Xcode Build Center")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close Logs") {
+                    Button("Close Build Center") {
                         dismiss()
                     }
                 }
@@ -98,64 +151,109 @@ struct XcodeBuildLogView: View {
         }
     }
 
-    private var buildStatusBar: some View {
+    private var buildStatusHeader: some View {
         HStack(spacing: 24) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Build Status")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 8) {
+            // Visual Status Badge
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(statusColor(buildManager.currentStatus).opacity(0.15))
+                        .frame(width: 52, height: 52)
+
                     if buildManager.isBuilding {
                         ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: statusIcon(buildManager.currentStatus))
+                            .font(.title2)
+                            .foregroundStyle(statusColor(buildManager.currentStatus))
                     }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("BUILD STATUS")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
                     Text(buildManager.currentStatus.rawValue)
-                        .font(.headline)
+                        .font(.title3.bold())
                         .foregroundStyle(statusColor(buildManager.currentStatus))
                 }
             }
+            .frame(width: 220, alignment: .leading)
 
+            Divider().frame(height: 40)
+
+            // Duration Metric
             VStack(alignment: .leading, spacing: 4) {
-                Text("Duration")
-                    .font(.caption)
+                Text("DURATION")
+                    .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.secondary)
                 Text(String(format: "%.1f s", buildManager.buildDuration))
-                    .font(.headline)
+                    .font(.title3.bold())
             }
+            .frame(width: 100, alignment: .leading)
 
+            Divider().frame(height: 40)
+
+            // Error Metric
             VStack(alignment: .leading, spacing: 4) {
-                Text("Errors")
-                    .font(.caption)
+                Text("ERRORS")
+                    .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.secondary)
                 Text("\(buildManager.errorsCount)")
-                    .font(.headline)
+                    .font(.title3.bold())
                     .foregroundStyle(buildManager.errorsCount > 0 ? .red : .primary)
             }
+            .frame(width: 80, alignment: .leading)
 
+            Divider().frame(height: 40)
+
+            // Warning Metric
             VStack(alignment: .leading, spacing: 4) {
-                Text("Warnings")
-                    .font(.caption)
+                Text("WARNINGS")
+                    .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.secondary)
                 Text("\(buildManager.warningsCount)")
-                    .font(.headline)
+                    .font(.title3.bold())
                     .foregroundStyle(buildManager.warningsCount > 0 ? .yellow : .primary)
             }
+            .frame(width: 80, alignment: .leading)
 
             Spacer()
+
+            // Toolchain Details
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("XCODEBUILD TOOLCHAIN")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.secondary)
+                Text(buildManager.getXcodeBuildPath())
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
     }
 
     private func logColor(for line: String) -> Color {
         let lower = line.lowercased()
-        if lower.contains("error:") || lower.hasPrefix("error:") {
+        if lower.contains("error:") || lower.hasPrefix("error:") || lower.hasPrefix("[error]") {
             return .red
         } else if lower.contains("warning:") || lower.hasPrefix("warning:") {
             return .yellow
         } else if lower.hasPrefix("[system]") {
             return .cyan
-        } else if lower.hasPrefix("[error]") {
-            return .red
         } else {
             return .white.opacity(0.85)
+        }
+    }
+
+    private func statusIcon(_ status: XcodeBuildManager.BuildStatus) -> String {
+        switch status {
+        case .idle: return "play.circle"
+        case .building: return "arrow.triangle.2.circlepath"
+        case .succeeded: return "checkmark.circle.fill"
+        case .failed: return "exclamationmark.triangle.fill"
+        case .cancelled: return "multiply.circle.fill"
+        default: return "exclamationmark.circle.fill"
         }
     }
 

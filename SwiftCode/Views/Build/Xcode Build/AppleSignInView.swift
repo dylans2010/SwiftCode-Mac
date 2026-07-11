@@ -5,6 +5,7 @@ struct AppleSignInView: View {
     @State private var teamName = ""
     @State private var teamID = ""
     @State private var privateKey = ""
+    @State private var mfaCode = ""
 
     @Environment(\.dismiss) private var dismiss
 
@@ -15,16 +16,89 @@ struct AppleSignInView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Add Apple Developer Account") {
-                    TextField("Apple ID (Email)", text: $appleID)
-                        .autocorrectionDisabled()
+                if manager.sessionState == .requiresTwoFactor {
+                    Section("Verification Code Sent") {
+                        Text("A 6-digit verification code has been sent to your Apple devices. Please enter it below to complete sign-in.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.bottom, 4)
 
-                    TextField("Team Name", text: $teamName)
+                        HStack {
+                            Image(systemName: "key.fill")
+                                .foregroundStyle(.orange)
+                            TextField("6-Digit Code", text: $mfaCode)
+                                .font(.system(.body, design: .monospaced))
+                                .multilineTextAlignment(.center)
+                                .autocorrectionDisabled()
+                        }
+                    }
 
-                    TextField("Team ID", text: $teamID)
-                        .autocorrectionDisabled()
+                    Section {
+                        Button {
+                            Task {
+                                await manager.verifyTwoFactorCode(mfaCode)
+                            }
+                        } label: {
+                            HStack {
+                                if manager.sessionState == .loading {
+                                    ProgressView().controlSize(.small)
+                                        .padding(.trailing, 4)
+                                }
+                                Text("Verify & Connect")
+                                    .fontWeight(.bold)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+                        .disabled(mfaCode.count != 6 || manager.sessionState == .loading)
 
-                    SecureField("App Store Connect API Key / Private Key", text: $privateKey)
+                        Button("Cancel / Go Back") {
+                            manager.sessionState = .signedOut
+                            mfaCode = ""
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                } else {
+                    Section("Add Apple Developer Account") {
+                        TextField("Apple ID (Email)", text: $appleID)
+                            .autocorrectionDisabled()
+
+                        TextField("Team Name", text: $teamName)
+
+                        TextField("Team ID", text: $teamID)
+                            .autocorrectionDisabled()
+
+                        SecureField("App Store Connect API Key / Private Key", text: $privateKey)
+                    }
+
+                    Section {
+                        Button {
+                            Task {
+                                await manager.sendTwoFactorCode(
+                                    appleID: appleID,
+                                    teamName: teamName,
+                                    teamID: teamID,
+                                    privateKey: privateKey
+                                )
+                                if manager.sessionState == .requiresTwoFactor {
+                                    // Successfully went to 2FA phase, keep credentials
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                if manager.sessionState == .loading {
+                                    ProgressView().controlSize(.small)
+                                        .padding(.trailing, 4)
+                                }
+                                Text("Sign In / Connect")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(appleID.isEmpty || teamID.isEmpty || privateKey.isEmpty || manager.sessionState == .loading)
+                    }
                 }
 
                 Section("Privacy & Secure Storage") {
@@ -71,25 +145,6 @@ struct AppleSignInView: View {
             }
             .navigationTitle("Apple Developer Account")
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Sign In / Connect") {
-                        Task {
-                            await manager.addAccount(
-                                appleID: appleID,
-                                teamName: teamName,
-                                teamID: teamID,
-                                privateKey: privateKey
-                            )
-                            if manager.lastError == nil {
-                                appleID = ""
-                                teamName = ""
-                                teamID = ""
-                                privateKey = ""
-                            }
-                        }
-                    }
-                    .disabled(appleID.isEmpty || teamID.isEmpty || privateKey.isEmpty)
-                }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") {
                         dismiss()

@@ -34,6 +34,13 @@ struct WorkspaceView: View {
                     }
                     .help("Close current project")
 
+                    Button {
+                        activeSheet = .buildStatus
+                    } label: {
+                        Label("Build Status", systemImage: "gauge.with.needle")
+                    }
+                    .help("Open Build Status")
+
                     BuildToolbarView(viewModel: viewModel.build, projectURL: viewModel.projectURL)
                 }
 
@@ -134,6 +141,70 @@ struct WorkspaceView: View {
             NavigationStack {
                 Group {
                     switch destination {
+                case .commandPalette:
+                    CommandPaletteView { action in
+                        activeSheet = nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            switch action {
+                            case .createFile:
+                                NotificationCenter.default.post(name: NSNotification.Name("CreateNewFile"), object: nil)
+                            case .createFolder:
+                                NotificationCenter.default.post(name: NSNotification.Name("CreateNewFolder"), object: nil)
+                            case .searchProject:
+                                activeSheet = .codeSearch
+                            case .goToLine:
+                                activeSheet = .goToLine
+                            case .openSymbolNav:
+                                activeSheet = .symbolNavigator
+                            case .openSystemOutline:
+                                activeSheet = .symbolOutline
+                            case .openMinimap:
+                                activeSheet = .minimapSettings
+
+                            case .gitCommit:
+                                NotificationCenter.default.post(name: NSNotification.Name("GitCommitAction"), object: nil)
+                            case .gitPull:
+                                NotificationCenter.default.post(name: NSNotification.Name("GitPullAction"), object: nil)
+                            case .gitPush:
+                                NotificationCenter.default.post(name: NSNotification.Name("GitPushAction"), object: nil)
+                            case .gitCheckout:
+                                activeSheet = .sourceControl
+                            case .gitNewBranch:
+                                activeSheet = .sourceControl
+                            case .openDiffViewer:
+                                activeSheet = .diffViewer
+
+                            case .runAgent:
+                                activeSheet = .aiAgent
+                            case .aiCodeReview:
+                                activeSheet = .codeReview
+                            case .aiComplexity:
+                                activeSheet = .complexityAnalyzer
+
+                            case .runBuild:
+                                activeSheet = .buildStatus
+                            case .openXcodeBuildSettings:
+                                activeSheet = .xcodeBuildSettings
+                            case .openXcodeBuildLogs:
+                                activeSheet = .xcodeBuildLogs
+                            case .appleSigning:
+                                activeSheet = .appleDeveloperAccount
+
+                            case .openSettings:
+                                activeSheet = .settings
+                            case .openProjectSettings:
+                                activeSheet = .projectSettings
+                            case .installDependency:
+                                activeSheet = .dependencyManager
+                            case .openPluginManager:
+                                activeSheet = .pluginManager
+                            case .openExtensionMarketplace:
+                                activeSheet = .extensionMarketplace
+                            case .customizeToolbar:
+                                activeSheet = .toolbarCustomization
+                            }
+                        }
+                    }
                 case .codeSearch: CodeSearchView()
                 case .goToLine: GoToLineView { _ in activeSheet = nil }
                 case .buildStatus: BuildStatusView(project: project, owner: owner, repo: repo)
