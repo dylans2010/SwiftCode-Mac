@@ -71,7 +71,7 @@ public struct SimulatorToolbar: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
-                    .menuStyle(.pullDown)
+                    .menuStyle(.borderlessButton)
                     .frame(width: 40)
                 }
             } else {

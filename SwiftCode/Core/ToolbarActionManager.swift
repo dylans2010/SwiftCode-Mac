@@ -2,11 +2,11 @@ import Foundation
 
 /// Central manager that maps toolbar button IDs to their correct destination.
 @MainActor
-final class ToolbarActionManager {
-    static let shared = ToolbarActionManager()
+public final class ToolbarActionManager {
+    public static let shared = ToolbarActionManager()
     private init() {}
 
-    enum SheetDestination: String, Identifiable {
+    public enum SheetDestination: String, Identifiable {
         case fileNavigator
         case gistManager
         case aiAgent
@@ -71,9 +71,9 @@ final class ToolbarActionManager {
         case xcodeBuildLogs
         case appleDeveloperAccount
 
-        var id: String { rawValue }
+        public var id: String { rawValue }
 
-        var isPro: Bool {
+        public var isPro: Bool {
             switch self {
             case .deployments, .documentationBrowser, .debugTools, .extensionMarketplace:
                 return true
@@ -83,7 +83,7 @@ final class ToolbarActionManager {
         }
     }
 
-    func destination(for toolId: String) -> SheetDestination? {
+    public func destination(for toolId: String) -> SheetDestination? {
         switch toolId {
         case "file_navigator":
             return .fileNavigator

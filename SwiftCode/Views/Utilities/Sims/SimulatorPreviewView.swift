@@ -96,7 +96,9 @@ public struct SimulatorPreviewView: View {
         .onAppear {
             logger.info("SimulatorPreviewView opened.")
             // Scan current active file for previews
-            if let activeURL = ProjectSessionStore.shared.activeFileNode?.url {
+            if let activeProject = ProjectSessionStore.shared.activeProject,
+               let activeNode = ProjectSessionStore.shared.activeFileNode {
+                let activeURL = activeProject.directoryURL.appendingPathComponent(activeNode.path)
                 Task {
                     await previewManager.scanFile(url: activeURL)
                 }

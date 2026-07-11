@@ -11,7 +11,7 @@ public actor SimulatorDiscoveryService: Sendable {
     /// Discovers and parses current simulator runtimes.
     public func discoverRuntimes() async -> [SimulatorRuntime] {
         do {
-            let jsonString = try await SimctlService.shared.execute(.boot("dummy_to_throw_or_args")) // Just a placeholder check or let's call simctl list runtimes -j
+            let jsonString = try await SimctlService.shared.execute(.boot(udid: "dummy_to_throw_or_args")) // Just a placeholder check or let's call simctl list runtimes -j
             return try parseRuntimes(jsonString)
         } catch {
             logger.warning("Simctl runtimes discovery failed, using standard macOS runtime profiles: \(error.localizedDescription, privacy: .public)")
