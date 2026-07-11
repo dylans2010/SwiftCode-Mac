@@ -324,11 +324,6 @@ struct HomeView: View {
                         await sessionStore.openProject(project)
                     }
                 }
-                .onTapGesture {
-                    Task {
-                        await sessionStore.openProject(project)
-                    }
-                }
                 .contextMenu { projectContextMenu(for: project) }
             }
             .scrollContentBackground(.hidden)
@@ -705,9 +700,6 @@ struct HomeProjectCardView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {
-            onSelect()
-        }
-        .onTapGesture {
             onSelect()
         }
         .onHover { hovering in

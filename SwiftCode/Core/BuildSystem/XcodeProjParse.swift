@@ -224,7 +224,13 @@ public final class XcodeProjParse: Sendable {
         for match in groupMatches {
             if let uuidRange = Range(match.range(at: 1), in: text) {
                 let uuid = String(text[uuidRange])
-                let name = match.range(at: 2).location != NSNotFound ? String(text[Range(match.range(at: 2), in: text)!]) : nil
+                let name: String?
+                if match.range(at: 2).location != NSNotFound,
+                   let nameRange = Range(match.range(at: 2), in: text) {
+                    name = String(text[nameRange])
+                } else {
+                    name = nil
+                }
                 groups.append(PBXGroup(
                     uuid: uuid,
                     name: name,
