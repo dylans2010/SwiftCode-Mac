@@ -16,6 +16,10 @@ public final class XcodeBuildManager: Sendable {
     public var warningsCount = 0
     public var errorsCount = 0
 
+    // Dynamic Scheme Discovery
+    public var availableSchemes: [String] = []
+    public var selectedScheme: String?
+
     @ObservationIgnored
     private var activeProcess: Process?
     @ObservationIgnored
@@ -70,6 +74,96 @@ public final class XcodeBuildManager: Sendable {
         appendLog("[SYSTEM] Build cancelled by user.")
     }
 
+    // Dynamic Scheme & Target Discovery
+    public func discoverSchemes(in projectURL: URL) async -> [String] {
+        var schemes: Set<String> = []
+        let fm = FileManager.default
+
+        // 1. Filesystem Scan for .xcscheme files
+        if let enumerator = fm.enumerator(at: projectURL, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) {
+            while let fileURL = enumerator.nextObject() as? URL {
+                let ext = fileURL.pathExtension
+                if ext == "xcodeproj" || ext == "xcworkspace" {
+                    // Shared schemes
+                    let sharedSchemesURL = fileURL.appendingPathComponent("xcshareddata/xcschemes")
+                    if let files = try? fm.contentsOfDirectory(at: sharedSchemesURL, includingPropertiesForKeys: nil, options: .skipsHiddenFiles) {
+                        for file in files where file.pathExtension == "xcscheme" {
+                            schemes.insert(file.deletingPathExtension().lastPathComponent)
+                        }
+                    }
+                    // User schemes
+                    let xcuserDataURL = fileURL.appendingPathComponent("xcuserdata")
+                    if let userContents = try? fm.contentsOfDirectory(at: xcuserDataURL, includingPropertiesForKeys: [.isDirectoryKey], options: .skipsHiddenFiles) {
+                        for userDir in userContents {
+                            let userSchemesURL = userDir.appendingPathComponent("xcschemes")
+                            if let files = try? fm.contentsOfDirectory(at: userSchemesURL, includingPropertiesForKeys: nil, options: .skipsHiddenFiles) {
+                                for file in files where file.pathExtension == "xcscheme" {
+                                    schemes.insert(file.deletingPathExtension().lastPathComponent)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Fallback: Parse target names from cached XcodeProjModel
+        let cachedModels = await ProjectResolutionService.shared.parsedProjects
+        for model in cachedModels.values {
+            for target in model.targets {
+                schemes.insert(target.name)
+            }
+        }
+
+        // 3. Fallback: Run xcodebuild -list
+        let xcodebuildPath = getXcodeBuildPath()
+        if validatePath(xcodebuildPath) {
+            do {
+                let listResult = try await ProcessRunnerTool.shared.run(
+                    executableURL: URL(fileURLWithPath: xcodebuildPath),
+                    arguments: ["-list"],
+                    workingDirectory: projectURL
+                )
+                if listResult.exitCode == 0 {
+                    let lines = listResult.stdout.components(separatedBy: .newlines)
+                    var isParsingSchemes = false
+                    for line in lines {
+                        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if trimmed.hasSuffix("Schemes:") {
+                            isParsingSchemes = true
+                            continue
+                        } else if trimmed.isEmpty && isParsingSchemes {
+                            // Empty line after schemes start
+                        }
+                        if isParsingSchemes {
+                            if trimmed.hasSuffix("Targets:") || trimmed.hasSuffix("Build Configurations:") {
+                                isParsingSchemes = false
+                            } else if !trimmed.isEmpty {
+                                schemes.insert(trimmed)
+                            }
+                        }
+                    }
+                }
+            } catch {
+                logger.error("xcodebuild -list failed: \(error.localizedDescription)")
+            }
+        }
+
+        // 4. Default Fallback
+        if schemes.isEmpty {
+            schemes.insert("App")
+        }
+
+        let sortedSchemes = schemes.sorted()
+        self.availableSchemes = sortedSchemes
+        if self.selectedScheme == nil || !sortedSchemes.contains(self.selectedScheme ?? "") {
+            self.selectedScheme = sortedSchemes.first
+        }
+
+        logger.info("Discovered schemes in \(projectURL.path): \(sortedSchemes)")
+        return sortedSchemes
+    }
+
     public func runBuild(projectURL: URL, scheme: String?, configuration: String = "Debug", destination: String? = nil) async {
         guard !isBuilding else {
             appendLog("[SYSTEM] Warning: A build is already in progress.")
@@ -83,6 +177,13 @@ public final class XcodeBuildManager: Sendable {
             return
         }
 
+        // Auto-discover schemes if none exist
+        if availableSchemes.isEmpty {
+            _ = await discoverSchemes(in: projectURL)
+        }
+
+        let activeScheme = scheme ?? selectedScheme ?? availableSchemes.first ?? "App"
+
         isBuilding = true
         currentStatus = .building
         buildLogs.removeAll()
@@ -94,19 +195,33 @@ public final class XcodeBuildManager: Sendable {
 
         appendLog("[SYSTEM] Starting xcodebuild in directory: \(projectURL.path)")
         appendLog("[SYSTEM] Using toolchain path: \(buildPath)")
+        appendLog("[SYSTEM] Active build scheme: \(activeScheme)")
+        appendLog("[SYSTEM] Active build configuration: \(configuration)")
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: buildPath)
 
-        var arguments = ["-configuration", configuration]
-        if let scheme = scheme, !scheme.isEmpty {
-            arguments.append(contentsOf: ["-scheme", scheme])
-        }
-        if let destination = destination, !destination.isEmpty {
-            arguments.append(contentsOf: ["-destination", destination])
+        // Dynamically find workspace or xcodeproj
+        var arguments: [String] = []
+        let fm = FileManager.default
+        if let contents = try? fm.contentsOfDirectory(at: projectURL, includingPropertiesForKeys: nil, options: .skipsHiddenFiles) {
+            if let workspace = contents.first(where: { $0.pathExtension == "xcworkspace" }) {
+                arguments.append(contentsOf: ["-workspace", workspace.lastPathComponent])
+            } else if let project = contents.first(where: { $0.pathExtension == "xcodeproj" }) {
+                arguments.append(contentsOf: ["-project", project.lastPathComponent])
+            }
         }
 
-        // Avoid shell interpolation by passing pure argument arrays
+        arguments.append(contentsOf: ["-scheme", activeScheme])
+        arguments.append(contentsOf: ["-configuration", configuration])
+
+        if let destination = destination, !destination.isEmpty {
+            arguments.append(contentsOf: ["-destination", destination])
+        } else {
+            // Automatic destination resolution: build for macOS if target supports it, fallback to generic simulator
+            arguments.append(contentsOf: ["-destination", "generic/platform=iOS Simulator"])
+        }
+
         process.arguments = arguments
         process.currentDirectoryURL = projectURL
 
@@ -117,7 +232,6 @@ public final class XcodeBuildManager: Sendable {
 
         activeProcess = process
 
-        // Async read from standard output & error
         let outputHandle = outputPipe.fileHandleForReading
         let errorHandle = errorPipe.fileHandleForReading
 
@@ -133,7 +247,6 @@ public final class XcodeBuildManager: Sendable {
             }
         }
 
-        // Configure termination handler prior to running the process to handle instantaneous terminations safely
         let terminationStatusTask = Task<Int32, Error> {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
                 process.terminationHandler = { p in
@@ -145,7 +258,6 @@ public final class XcodeBuildManager: Sendable {
         do {
             try process.run()
 
-            // Wait for process completion asynchronously without blocking
             let status = try await terminationStatusTask.value
 
             stopTimer()

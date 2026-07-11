@@ -316,6 +316,36 @@ struct CommandPaletteView: View {
         }
     }
 
+    private func mapCommandToToolID(_ cmd: CommandAction) -> String? {
+        switch cmd {
+        case .searchProject: return "code_search"
+        case .goToLine: return "go_to_line"
+        case .openSymbolNav: return "symbol_navigator"
+        case .openSystemOutline: return "symbol_outline"
+        case .openMinimap: return "minimap_settings"
+        case .openXcodeBuildSettings: return "xcode_build_settings"
+        case .openXcodeBuildLogs: return "xcode_build_logs"
+        case .appleSigning: return "apple_developer_account"
+        case .openSettings: return "settings"
+        case .openProjectSettings: return "project_settings"
+        case .installDependency: return "dependency_manager"
+        case .openPluginManager: return "plugin_manager"
+        case .openExtensionMarketplace: return "extension_marketplace"
+        case .customizeToolbar: return "toolbar_customization"
+        case .runAgent: return "ai_code_gen"
+        case .aiCodeReview: return "code_review"
+        case .aiComplexity: return "complexity_analyzer"
+        case .runBuild: return "build_status"
+        case .gitCommit: return "source_control"
+        case .gitPull: return "source_control"
+        case .gitPush: return "source_control"
+        case .gitCheckout: return "source_control"
+        case .gitNewBranch: return "source_control"
+        case .openDiffViewer: return "diff_viewer"
+        default: return nil
+        }
+    }
+
     private var commandsListPane: some View {
         List(filteredCommands) { command in
             Button {
@@ -342,6 +372,12 @@ struct CommandPaletteView: View {
                     }
                 }
             }
+            .simultaneousGesture(TapGesture(count: 2).onEnded {
+                if let toolID = mapCommandToToolID(command) {
+                    ToolbarSettings.shared.togglePin(id: toolID)
+                    logger.info("Toggled pin for tool: \(toolID)")
+                }
+            })
         }
         .scrollContentBackground(.hidden)
     }

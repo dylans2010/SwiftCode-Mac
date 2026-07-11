@@ -74,10 +74,6 @@ public actor SkillsRuntime {
     }
 
     public func getBaseSkillsDirectory() -> URL {
-        let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        let appSupport = paths[0].appendingPathComponent("SwiftCode", isDirectory: true)
-        let skillsDir = appSupport.appendingPathComponent("Skills", isDirectory: true)
-        try? FileManager.default.createDirectory(at: skillsDir, withIntermediateDirectories: true)
-        return skillsDir
+        return CodingManager.subdirectory(named: "Skills")
     }
 }

@@ -6,10 +6,6 @@ struct WorkspaceView: View {
     @Environment(ThemeViewModel.self) var themeVM
     @Environment(ProjectSessionStore.self) private var sessionStore
 
-    // Feature sheet states
-    @State private var activeSheet: ToolbarActionManager.SheetDestination?
-    @State private var showingExportSheet = false
-
     // Workflow Editor States
     @State private var workflowContent = ""
     @State private var workflowFileName = "main.yml"
@@ -29,6 +25,35 @@ struct WorkspaceView: View {
                     .frame(minWidth: 200, idealWidth: 260, maxWidth: 500)
 
                 EditorTextView(workspaceViewModel: viewModel)
+
+                // Docked right-side AI Agent Inspector
+                if viewModel.isAgentChatVisible {
+                    VStack(spacing: 0) {
+                        HStack {
+                            Label("SwiftCode Agent", systemImage: "sparkles")
+                                .font(.headline)
+                            Spacer()
+                            Button(action: {
+                                withAnimation {
+                                    viewModel.isAgentChatVisible = false
+                                }
+                            }) {
+                                Image(systemName: "xmark")
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+
+                        Divider()
+
+                        AgentChatView()
+                            .environment(viewModel.ai)
+                    }
+                    .frame(minWidth: 280, idealWidth: viewModel.agentChatWidth, maxWidth: 600)
+                    .background(Color(NSColor.windowBackgroundColor))
+                    .transition(.move(edge: .trailing))
+                }
             }
         }
         .environment(viewModel)
@@ -42,7 +67,7 @@ struct WorkspaceView: View {
                     .help("Close current project")
 
                     Button {
-                        activeSheet = .buildStatus
+                        viewModel.activeSheet = .buildStatus
                     } label: {
                         Label("Build Status", systemImage: "gauge.with.needle")
                     }
@@ -54,11 +79,20 @@ struct WorkspaceView: View {
                 ToolbarItemGroup(placement: .secondaryAction) {
                     ControlGroup {
                         Button {
-                            activeSheet = .codeSearch
+                            viewModel.activeSheet = .codeSearch
                         } label: {
                             Label("Search", systemImage: "magnifyingglass")
                         }
                         .help("Global Search")
+
+                        Button {
+                            withAnimation {
+                                viewModel.isAgentChatVisible.toggle()
+                            }
+                        } label: {
+                            Label("AI Agent", systemImage: "sparkles")
+                        }
+                        .help("Toggle AI Agent Inspector")
                     }
 
                     Menu {
@@ -67,65 +101,70 @@ struct WorkspaceView: View {
                                 Button("Entitlements") { openEntitlements() }
                                 Button("Info.plist") { openInfoPlist() }
                             }
-                            Button("Gists") { activeSheet = .gistManager }
-                            Button("Deployments") { activeSheet = .deployments }
-                            Button("Collaboration") { activeSheet = .collaboration }
-                            Button("Licenses") { activeSheet = .licensesAdd }
-                            Button("App Details") { activeSheet = .appDetailsInfo }
-                            Button("Export (.scproj)") { showingExportSheet = true }
+                            Button("Gists") { viewModel.activeSheet = .gistManager }
+                            Button("Deployments") { viewModel.activeSheet = .deployments }
+                            Button("Collaboration") { viewModel.activeSheet = .collaboration }
+                            Button("Licenses") { viewModel.activeSheet = .licensesAdd }
+                            Button("App Details") { viewModel.activeSheet = .appDetailsInfo }
+                            Button("Export (.scproj)") { viewModel.showingExportSheet = true }
                         }
 
                         Section("Tools") {
-                            Button("Documentation") { activeSheet = .documentationBrowser }
-                            Button("Extensions") { activeSheet = .extensionMarketplace }
-                            Button("Debug Tools") { activeSheet = .debugTools }
-                            Button("Plugin Manager") { activeSheet = .pluginManager }
-                            Button("Dev Tools") { activeSheet = .devTools }
-                            Button("Source Control") { activeSheet = .sourceControl }
-                            Button("CI Build") { activeSheet = .ciBuild }
-                            Button("Dependency Manager") { activeSheet = .dependencyManager }
-                            Button("Xcode Build Settings") { activeSheet = .xcodeBuildSettings }
-                            Button("Xcode Build Logs") { activeSheet = .xcodeBuildLogs }
-                            Button("Apple Signing") { activeSheet = .appleDeveloperAccount }
+                            Button("Documentation") { viewModel.activeSheet = .documentationBrowser }
+                            Button("Extensions") { viewModel.activeSheet = .extensionMarketplace }
+                            Button("Debug Tools") { viewModel.activeSheet = .debugTools }
+                            Button("Plugin Manager") { viewModel.activeSheet = .pluginManager }
+                            Button("Dev Tools") { viewModel.activeSheet = .devTools }
+                            Button("Source Control") { viewModel.activeSheet = .sourceControl }
+                            Button("CI Build") { viewModel.activeSheet = .ciBuild }
+                            Button("Dependency Manager") { viewModel.activeSheet = .dependencyManager }
+                            Button("Xcode Build Settings") { viewModel.activeSheet = .xcodeBuildSettings }
+                            Button("Xcode Build Logs") { viewModel.activeSheet = .xcodeBuildLogs }
+                            Button("Apple Signing") { viewModel.activeSheet = .appleDeveloperAccount }
                         }
 
                         Section("Analysis") {
-                            Button("Crash Logs") { activeSheet = .crashLogAnalyzer }
-                            Button("Dependency Graph") { activeSheet = .projectDependencyGraph }
+                            Button("Crash Logs") { viewModel.activeSheet = .crashLogAnalyzer }
+                            Button("Dependency Graph") { viewModel.activeSheet = .projectDependencyGraph }
                         }
 
                         Section("Additional Views") {
-                            Button("Search") { activeSheet = .codeSearch }
-                            Button("Terminal") { activeSheet = .terminal }
-                            Button("Debug Sessions") { activeSheet = .debugSessions }
-                            Button("Bookmarks") { activeSheet = .bookmarksSidebar }
-                            Button("Breakpoints") { activeSheet = .breakpointsSidebar }
-                            Button("Debug Inspector") { activeSheet = .debugInspectorSidebar }
-                            Button("Workflows") { activeSheet = .workflowsSidebar }
-                            Button("Tests") { activeSheet = .testsSidebar }
-                            Button("Workflow Editor") { activeSheet = .workflowEditor }
-                            Button("System Outline") { activeSheet = .symbolOutline }
-                            Button("Minimap Settings") { activeSheet = .minimapSettings }
-                            Button("Code Metrics Dashboard") { activeSheet = .codeMetrics }
+                            Button("Search") { viewModel.activeSheet = .codeSearch }
+                            Button("Terminal") { viewModel.activeSheet = .terminal }
+                            Button("Debug Sessions") { viewModel.activeSheet = .debugSessions }
+                            Button("Bookmarks") { viewModel.activeSheet = .bookmarksSidebar }
+                            Button("Breakpoints") { viewModel.activeSheet = .breakpointsSidebar }
+                            Button("Debug Inspector") { viewModel.activeSheet = .debugInspectorSidebar }
+                            Button("Workflows") { viewModel.activeSheet = .workflowsSidebar }
+                            Button("Tests") { viewModel.activeSheet = .testsSidebar }
+                            Button("Workflow Editor") { viewModel.activeSheet = .workflowEditor }
+                            Button("System Outline") { viewModel.activeSheet = .symbolOutline }
+                            Button("Minimap Settings") { viewModel.activeSheet = .minimapSettings }
+                            Button("Code Metrics Dashboard") { viewModel.activeSheet = .codeMetrics }
                         }
                     } label: {
                         Label("More", systemImage: "ellipsis.circle")
                     }
                 }
             }
-            .sheet(item: $activeSheet) { destination in
+            .sheet(item: Bindable(viewModel).activeSheet) { destination in
                 sheetView(for: destination)
             }
-            .sheet(isPresented: $showingExportSheet) {
+            .sheet(isPresented: Bindable(viewModel).showingExportSheet) {
                 ExportProjView()
             }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowExportSheet"))) { _ in
-                showingExportSheet = true
+                viewModel.showingExportSheet = true
             }
             .onReceive(NotificationCenter.default.publisher(for: .toolbarToolActivated)) { notification in
-                if let toolId = notification.userInfo?["toolID"] as? String,
-                   let destination = ToolbarActionManager.shared.destination(for: toolId) {
-                    activeSheet = destination
+                if let toolId = notification.userInfo?["toolID"] as? String {
+                    if toolId == "ai_code_gen" {
+                        withAnimation {
+                            viewModel.isAgentChatVisible.toggle()
+                        }
+                    } else if let destination = ToolbarActionManager.shared.destination(for: toolId) {
+                        viewModel.activeSheet = destination
+                    }
                 }
             }
             .onChange(of: ProjectResolutionService.shared.selectedTargetID) { _, _ in
@@ -151,7 +190,7 @@ struct WorkspaceView: View {
                     switch destination {
                 case .commandPalette:
                     CommandPaletteView { action in
-                        activeSheet = nil
+                        viewModel.activeSheet = nil
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                             switch action {
                             case .createFile:
@@ -159,15 +198,15 @@ struct WorkspaceView: View {
                             case .createFolder:
                                 NotificationCenter.default.post(name: NSNotification.Name("CreateNewFolder"), object: nil)
                             case .searchProject:
-                                activeSheet = .codeSearch
+                                viewModel.activeSheet = .codeSearch
                             case .goToLine:
-                                activeSheet = .goToLine
+                                viewModel.activeSheet = .goToLine
                             case .openSymbolNav:
-                                activeSheet = .symbolNavigator
+                                viewModel.activeSheet = .symbolNavigator
                             case .openSystemOutline:
-                                activeSheet = .symbolOutline
+                                viewModel.activeSheet = .symbolOutline
                             case .openMinimap:
-                                activeSheet = .minimapSettings
+                                viewModel.activeSheet = .minimapSettings
 
                             case .gitCommit:
                                 NotificationCenter.default.post(name: NSNotification.Name("GitCommitAction"), object: nil)
@@ -176,48 +215,50 @@ struct WorkspaceView: View {
                             case .gitPush:
                                 NotificationCenter.default.post(name: NSNotification.Name("GitPushAction"), object: nil)
                             case .gitCheckout:
-                                activeSheet = .sourceControl
+                                viewModel.activeSheet = .sourceControl
                             case .gitNewBranch:
-                                activeSheet = .sourceControl
+                                viewModel.activeSheet = .sourceControl
                             case .openDiffViewer:
-                                activeSheet = .diffViewer
+                                viewModel.activeSheet = .diffViewer
 
                             case .runAgent:
-                                activeSheet = .aiAgent
+                                withAnimation {
+                                    viewModel.isAgentChatVisible = true
+                                }
                             case .aiCodeReview:
-                                activeSheet = .codeReview
+                                viewModel.activeSheet = .codeReview
                             case .aiComplexity:
-                                activeSheet = .complexityAnalyzer
+                                viewModel.activeSheet = .complexityAnalyzer
 
                             case .runBuild:
-                                activeSheet = .buildStatus
+                                viewModel.activeSheet = .buildStatus
                             case .openXcodeBuildSettings:
-                                activeSheet = .xcodeBuildSettings
+                                viewModel.activeSheet = .xcodeBuildSettings
                             case .openXcodeBuildLogs:
-                                activeSheet = .xcodeBuildLogs
+                                viewModel.activeSheet = .xcodeBuildLogs
                             case .appleSigning:
-                                activeSheet = .appleDeveloperAccount
+                                viewModel.activeSheet = .appleDeveloperAccount
 
                             case .openSettings:
-                                activeSheet = .settings
+                                viewModel.activeSheet = .settings
                             case .openProjectSettings:
-                                activeSheet = .projectSettings
+                                viewModel.activeSheet = .projectSettings
                             case .installDependency:
-                                activeSheet = .dependencyManager
+                                viewModel.activeSheet = .dependencyManager
                             case .openPluginManager:
-                                activeSheet = .pluginManager
+                                viewModel.activeSheet = .pluginManager
                             case .openExtensionMarketplace:
-                                activeSheet = .extensionMarketplace
+                                viewModel.activeSheet = .extensionMarketplace
                             case .customizeToolbar:
-                                activeSheet = .toolbarCustomization
+                                viewModel.activeSheet = .toolbarCustomization
 
                             case .devHTTPStatus, .devJSONFormatter, .devBase64, .devJWTDecoder, .devPasswordGen, .devRegExTester, .devUUIDGen, .devURLEncoder, .devMarkdownPreview, .devDeviceInfo:
-                                activeSheet = .devTools
+                                viewModel.activeSheet = .devTools
                             }
                         }
                     }
                 case .codeSearch: CodeSearchView()
-                case .goToLine: GoToLineView { _ in activeSheet = nil }
+                case .goToLine: GoToLineView { _ in viewModel.activeSheet = nil }
                 case .buildStatus: BuildStatusView(project: project, owner: owner, repo: repo)
                 case .buildLogs: BuildLogsView(owner: owner, repo: repo)
                 case .gistManager: GistsView()
@@ -249,7 +290,6 @@ struct WorkspaceView: View {
                 case .devTools: DevToolsMainView()
                 case .sourceControl: SourceControlView(gitViewModel: viewModel.git)
                 case .ciBuild: CIBuildView(project: project)
-                case .dependencyManager: DependencyManagerView()
                 case .licensesAdd: LicencesAddView(project: project)
 
                 // Relocated Sidebar & Inspector cases
@@ -266,7 +306,7 @@ struct WorkspaceView: View {
                         fileName: workflowFileName,
                         onSave: { newContent in
                             saveWorkflow(content: newContent)
-                            activeSheet = nil
+                            viewModel.activeSheet = nil
                         }
                     )
                     .onAppear {
@@ -286,8 +326,8 @@ struct WorkspaceView: View {
                         marketingVersion: $marketingVersion,
                         buildVersion: $buildVersion,
                         supportedDevices: $supportedDevices,
-                        onSkip: { activeSheet = nil },
-                        onContinue: { activeSheet = nil }
+                        onSkip: { viewModel.activeSheet = nil },
+                        onContinue: { viewModel.activeSheet = nil }
                     )
                     .onAppear {
                         let project = sessionStore.activeProject ?? Project(name: "Untitled")
@@ -307,7 +347,7 @@ struct WorkspaceView: View {
             }
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { activeSheet = nil }
+                        Button("Done") { viewModel.activeSheet = nil }
                     }
                 }
             }
@@ -388,4 +428,3 @@ jobs:
         }
     }
 }
-

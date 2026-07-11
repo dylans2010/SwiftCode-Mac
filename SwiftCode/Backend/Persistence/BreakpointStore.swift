@@ -10,8 +10,7 @@ public class BreakpointStore {
     private let saveURL: URL
 
     init() {
-        let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        let supportDir = paths[0].appendingPathComponent("SwiftCode", isDirectory: true)
+        let supportDir = CodingManager.appSupportRoot
         try? FileManager.default.createDirectory(at: supportDir, withIntermediateDirectories: true)
         self.saveURL = supportDir.appendingPathComponent("breakpoints.json")
         load()

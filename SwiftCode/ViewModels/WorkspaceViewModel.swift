@@ -18,11 +18,40 @@ public class WorkspaceViewModel: Sendable {
 
     public var parsedXcodeProjects: [URL: XcodeProjModel] = [:]
 
+    // Centralized Navigation State
+    public var activeSheet: ToolbarActionManager.SheetDestination? = nil {
+        didSet {
+            logger.info("Centralized Navigation activeSheet changed to: \(self.activeSheet?.rawValue ?? "None", privacy: .public)")
+        }
+    }
+    public var showingExportSheet = false
+
+    // Docked AI Agent Inspector state
+    public var isAgentChatVisible = false {
+        didSet {
+            UserDefaults.standard.set(isAgentChatVisible, forKey: "com.swiftcode.agentChatVisible")
+        }
+    }
+    public var agentChatWidth: Double = 320.0 {
+        didSet {
+            if agentChatWidth > 150 {
+                UserDefaults.standard.set(agentChatWidth, forKey: "com.swiftcode.agentChatWidth")
+            }
+        }
+    }
+
     @ObservationIgnored nonisolated(unsafe) private var loadingTask: Task<Void, Never>?
+    @ObservationIgnored private var lastSelectedFileID: String?
 
     public init(projectURL: URL) {
         self.projectURL = projectURL
         self.git.repositoryURL = projectURL
+
+        // Restore agent chat inspector state
+        self.isAgentChatVisible = UserDefaults.standard.bool(forKey: "com.swiftcode.agentChatVisible")
+        let savedWidth = UserDefaults.standard.double(forKey: "com.swiftcode.agentChatWidth")
+        self.agentChatWidth = savedWidth > 150 ? savedWidth : 320.0
+
         self.loadingTask = Task {
             await git.refreshInstallationStatus()
             if Task.isCancelled { return }
@@ -66,11 +95,11 @@ public class WorkspaceViewModel: Sendable {
     }
 
     public func handleFileSelectionChange(nodeID: String?) {
-        guard let nodeID = nodeID else { return }
-        // The ID is the full path of the file
+        guard let nodeID = nodeID, nodeID != lastSelectedFileID else { return }
+        lastSelectedFileID = nodeID
+
         let url = URL(fileURLWithPath: nodeID)
 
-        // Ensure it's not a directory (IDs for folders also come through here)
         var isDir: ObjCBool = false
         if FileManager.default.fileExists(atPath: nodeID, isDirectory: &isDir), isDir.boolValue {
             if url.pathExtension != "xcodeproj" {

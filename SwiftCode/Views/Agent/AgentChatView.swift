@@ -7,35 +7,52 @@ public struct AgentChatView: View {
     public init() {}
 
     public var body: some View {
-        HSplitView {
-            VStack(spacing: 0) {
-                AgentMessageListView(messages: viewModel.session.messages, viewModel: viewModel)
+        VStack(spacing: 0) {
+            // Local Header Bar inside the docked panel
+            HStack {
+                Button(action: {
+                    withAnimation {
+                        showChecklist.toggle()
+                    }
+                }) {
+                    Label(showChecklist ? "Hide Plan" : "Show Plan", systemImage: "checklist")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
 
-                Divider()
-
-                AgentInputBarView(viewModel: viewModel)
+                Spacer()
             }
-            .frame(minWidth: 300)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(NSColor.controlBackgroundColor))
 
-            if showChecklist {
+            Divider()
+
+            HSplitView {
                 VStack(spacing: 0) {
-                    Text("Plan & Tasks")
-                        .font(.headline)
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    AgentMessageListView(messages: viewModel.session.messages, viewModel: viewModel)
 
                     Divider()
 
-                    AgentChecklistView(state: viewModel.session.checklist)
+                    AgentInputBarView(viewModel: viewModel)
                 }
-                .frame(width: 250)
-                .background(Color(NSColor.controlBackgroundColor))
-            }
-        }
-        .toolbar {
-            ToolbarItem {
-                Button(action: { showChecklist.toggle() }) {
-                    Label("Checklist", systemImage: "checklist")
+                .frame(minWidth: 200)
+
+                if showChecklist {
+                    VStack(spacing: 0) {
+                        Text("Plan & Tasks")
+                            .font(.headline)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Divider()
+
+                        AgentChecklistView(state: viewModel.session.checklist)
+                    }
+                    .frame(minWidth: 180, idealWidth: 220, maxWidth: 350)
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .transition(.move(edge: .trailing))
                 }
             }
         }
