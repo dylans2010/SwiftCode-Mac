@@ -21,28 +21,20 @@ actor ProjectOpeningCoordinator {
     init() {}
 
     func loadProjectWithTimeout(url: URL, timeout: TimeInterval = defaultTimeout) async throws -> Project {
-        let loadTask = Task {
-            try await self.resolveAndLoad(url: url)
-        }
-
-        let timeoutTask = Task {
-            try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-            loadTask.cancel()
-        }
-
-        do {
-            let project = try await loadTask.value
-            timeoutTask.cancel()
-            return project
-        } catch {
-            timeoutTask.cancel()
-            if Task.isCancelled {
-                throw ProjectOpenError.cancelled
-            } else if loadTask.isCancelled {
-                self.logger.error("Project load timed out after \(timeout)s")
+        try await withThrowingTaskGroup(of: Project.self) { group in
+            group.addTask {
+                try await self.resolveAndLoad(url: url)
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
                 throw ProjectOpenError.timeout
             }
-            throw error
+
+            guard let result = try await group.next() else {
+                throw ProjectOpenError.cancelled
+            }
+            group.cancelAll()
+            return result
         }
     }
 

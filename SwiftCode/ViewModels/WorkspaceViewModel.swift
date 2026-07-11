@@ -71,27 +71,49 @@ public class WorkspaceViewModel: Sendable {
 
     public func scanAndCacheXcodeProjects() async {
         logger.info("Scanning for xcodeproj in workspace: \(self.projectURL.path, privacy: .public)")
-        let fm = FileManager.default
-        guard let enumerator = fm.enumerator(at: projectURL, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else { return }
+        let projectURL = self.projectURL
 
-        var xcodeProjURLs: [URL] = []
-        while let fileURL = enumerator.nextObject() as? URL {
-            if fileURL.pathExtension == "xcodeproj" {
-                xcodeProjURLs.append(fileURL)
-            }
-        }
+        let result = await Task.detached(priority: .userInitiated) { () -> [URL: XcodeProjModel] in
+            let fm = FileManager.default
+            let deferredDirectoryNames: Set<String> = [
+                ".build", ".git", "DerivedData", "node_modules", "Pods", "build"
+            ]
 
-        for url in xcodeProjURLs {
-            do {
-                let model = try XcodeProjParse.shared.parse(projectURL: url)
-                parsedXcodeProjects[url] = model
-                parsedXcodeProjects[url.appendingPathComponent("project.pbxproj")] = model
-                logger.info("Successfully scanned and cached: \(url.lastPathComponent, privacy: .public)")
-            } catch {
-                logger.error("Failed to parse scanned xcodeproj at \(url.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            guard let enumerator = fm.enumerator(
+                at: projectURL,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            ) else { return [:] }
+
+            var xcodeProjURLs: [URL] = []
+            while let fileURL = enumerator.nextObject() as? URL {
+                let lastComponent = fileURL.lastPathComponent
+                if deferredDirectoryNames.contains(lastComponent) {
+                    enumerator.skipDescendants()
+                    continue
+                }
+                if fileURL.pathExtension == "xcodeproj" {
+                    xcodeProjURLs.append(fileURL)
+                    enumerator.skipDescendants()
+                }
             }
-        }
-        ProjectResolutionService.shared.updateParsedProjects(with: parsedXcodeProjects)
+
+            var cached: [URL: XcodeProjModel] = [:]
+            for url in xcodeProjURLs {
+                do {
+                    let model = try XcodeProjParse.shared.parse(projectURL: url)
+                    cached[url] = model
+                    cached[url.appendingPathComponent("project.pbxproj")] = model
+                } catch {
+                    // Fail gracefully in background thread
+                }
+            }
+            return cached
+        }.value
+
+        self.parsedXcodeProjects = result
+        ProjectResolutionService.shared.updateParsedProjects(with: result)
+        logger.info("Successfully scanned and cached \(result.count / 2) xcodeproj(s).")
     }
 
     public func handleFileSelectionChange(nodeID: String?) {
