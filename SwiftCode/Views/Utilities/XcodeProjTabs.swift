@@ -493,8 +493,17 @@ public struct EntitlementsTabView: View {
     }
 
     public var body: some View {
-        let fileURL = model.projectURL.deletingLastPathComponent().appendingPathComponent("SwiftCode.entitlements")
-        return EntitlementsEditorView(fileURL: fileURL)
+        let fm = FileManager.default
+        let baseDir = model.projectURL.deletingLastPathComponent()
+        let entitlementsURL: URL
+        if fm.fileExists(atPath: baseDir.appendingPathComponent("SwiftCode/Resources/SwiftCode.entitlements").path) {
+            entitlementsURL = baseDir.appendingPathComponent("SwiftCode/Resources/SwiftCode.entitlements")
+        } else if fm.fileExists(atPath: baseDir.appendingPathComponent("SwiftCode.entitlements").path) {
+            entitlementsURL = baseDir.appendingPathComponent("SwiftCode.entitlements")
+        } else {
+            entitlementsURL = baseDir.appendingPathComponent("SwiftCode.entitlements") // fallback
+        }
+        return EntitlementsEditorView(fileURL: entitlementsURL)
     }
 }
 
@@ -507,8 +516,17 @@ public struct InfoPlistTabView: View {
     }
 
     public var body: some View {
-        let fileURL = model.projectURL.deletingLastPathComponent().appendingPathComponent("Info.plist")
-        return InfoPlistView(fileURL: fileURL)
+        let fm = FileManager.default
+        let baseDir = model.projectURL.deletingLastPathComponent()
+        let plistURL: URL
+        if fm.fileExists(atPath: baseDir.appendingPathComponent("SwiftCode/Info.plist").path) {
+            plistURL = baseDir.appendingPathComponent("SwiftCode/Info.plist")
+        } else if fm.fileExists(atPath: baseDir.appendingPathComponent("Info.plist").path) {
+            plistURL = baseDir.appendingPathComponent("Info.plist")
+        } else {
+            plistURL = baseDir.appendingPathComponent("Info.plist") // fallback
+        }
+        return InfoPlistView(fileURL: plistURL)
     }
 }
 

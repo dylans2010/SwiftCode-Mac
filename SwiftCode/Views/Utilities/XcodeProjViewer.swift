@@ -64,6 +64,8 @@ public struct XcodeProjViewer: View {
 
                     Section("Project Info") {
                         SidebarButton(section: .overview, current: coordinator.selectedTab)
+                        SidebarButton(section: .targets, current: coordinator.selectedTab)
+                        SidebarButton(section: .buildConfigurations, current: coordinator.selectedTab)
                         SidebarButton(section: .metadata, current: coordinator.selectedTab)
                         SidebarButton(section: .projectStatistics, current: coordinator.selectedTab)
                         SidebarButton(section: .relationships, current: coordinator.selectedTab)
@@ -108,6 +110,8 @@ public struct XcodeProjViewer: View {
                     }
 
                     Section("Resources") {
+                        SidebarButton(section: .resources, current: coordinator.selectedTab)
+                        SidebarButton(section: .sourceFiles, current: coordinator.selectedTab)
                         SidebarButton(section: .assets, current: coordinator.selectedTab)
                         SidebarButton(section: .localization, current: coordinator.selectedTab)
                         SidebarButton(section: .products, current: coordinator.selectedTab)
@@ -124,6 +128,7 @@ public struct XcodeProjViewer: View {
                     }
 
                     Section("Packages") {
+                        SidebarButton(section: .packages, current: coordinator.selectedTab)
                         SidebarButton(section: .swiftPackages, current: coordinator.selectedTab)
                         SidebarButton(section: .packageDependencies, current: coordinator.selectedTab)
                         SidebarButton(section: .frameworks, current: coordinator.selectedTab)
