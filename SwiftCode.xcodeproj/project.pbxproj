@@ -547,25 +547,25 @@
 		A10DE9AB75E3E283785DD550 /* FileNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6291F6B2323D40008CF052F5 /* FileNode.swift */; };
 		A16E4873A0CC4CEB920D3533 /* ThemeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63152C961326313A6F362DAE /* ThemeViewModel.swift */; };
 		A19664D5E4EB2DF06D4E67C3 /* ChatAIInterfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63C750DFD4A611E4F3DD27D8 /* ChatAIInterfaceView.swift */; };
-		A19M001B0010001B0010001 /* ExportProjManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM001 /* ExportProjManager.swift */; };
-		A19M002B0010001B0010001 /* ImportProjManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM002 /* ImportProjManager.swift */; };
-		A19M003B0010001B0010001 /* ManifestProjManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM003 /* ManifestProjManager.swift */; };
-		A19M004B0010001B0010001 /* ProjectCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM004 /* ProjectCoordinator.swift */; };
-		A19M005B0010001B0010001 /* ProjectDeserializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM005 /* ProjectDeserializer.swift */; };
-		A19M006B0010001B0010001 /* ProjectErrorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM006 /* ProjectErrorManager.swift */; };
-		A19M007B0010001B0010001 /* ProjectFileManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM007 /* ProjectFileManager.swift */; };
-		A19M008B0010001B0010001 /* ProjectHashManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM008 /* ProjectHashManager.swift */; };
-		A19M009B0010001B0010001 /* ProjectIntegrityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM009 /* ProjectIntegrityManager.swift */; };
-		A19M010B0010001B0010001 /* ProjectJSONManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM010 /* ProjectJSONManager.swift */; };
-		A19M011B0010001B0010001 /* ProjectManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM011 /* ProjectManifest.swift */; };
-		A19M012B0010001B0010001 /* ProjectMetadataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM012 /* ProjectMetadataManager.swift */; };
-		A19M013B0010001B0010001 /* ProjectPackageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM013 /* ProjectPackageManager.swift */; };
-		A19M014B0010001B0010001 /* ProjectPlistManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM014 /* ProjectPlistManager.swift */; };
-		A19M015B0010001B0010001 /* ProjectResourceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM015 /* ProjectResourceManager.swift */; };
-		A19M016B0010001B0010001 /* ProjectSerializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM016 /* ProjectSerializer.swift */; };
-		A19M017B0010001B0010001 /* ProjectValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM017 /* ProjectValidator.swift */; };
-		A19M018B0010001B0010001 /* ProjectVersionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM018 /* ProjectVersionManager.swift */; };
-		A19M019B0010001B0010001 /* ProjectXMLManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = REFFM019 /* ProjectXMLManager.swift */; };
+		A19000000000000000000001 /* ExportProjManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF000000000000000000001 /* ExportProjManager.swift */; };
+		A19000000000000000000002 /* ImportProjManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF000000000000000000002 /* ImportProjManager.swift */; };
+		A19000000000000000000003 /* ManifestProjManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF000000000000000000003 /* ManifestProjManager.swift */; };
+		A19000000000000000000004 /* ProjectCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF000000000000000000004 /* ProjectCoordinator.swift */; };
+		A19000000000000000000005 /* ProjectDeserializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF000000000000000000005 /* ProjectDeserializer.swift */; };
+		A19000000000000000000006 /* ProjectErrorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF000000000000000000006 /* ProjectErrorManager.swift */; };
+		A19000000000000000000007 /* ProjectFileManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF000000000000000000007 /* ProjectFileManager.swift */; };
+		A19000000000000000000008 /* ProjectHashManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF000000000000000000008 /* ProjectHashManager.swift */; };
+		A19000000000000000000009 /* ProjectIntegrityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF000000000000000000009 /* ProjectIntegrityManager.swift */; };
+		A1900000000000000000000A /* ProjectJSONManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF00000000000000000000A /* ProjectJSONManager.swift */; };
+		A1900000000000000000000B /* ProjectManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF00000000000000000000B /* ProjectManifest.swift */; };
+		A1900000000000000000000C /* ProjectMetadataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF00000000000000000000C /* ProjectMetadataManager.swift */; };
+		A1900000000000000000000D /* ProjectPackageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF00000000000000000000D /* ProjectPackageManager.swift */; };
+		A1900000000000000000000E /* ProjectPlistManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF00000000000000000000E /* ProjectPlistManager.swift */; };
+		A1900000000000000000000F /* ProjectResourceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF00000000000000000000F /* ProjectResourceManager.swift */; };
+		A19000000000000000000010 /* ProjectSerializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF000000000000000000010 /* ProjectSerializer.swift */; };
+		A19000000000000000000011 /* ProjectValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF000000000000000000011 /* ProjectValidator.swift */; };
+		A19000000000000000000012 /* ProjectVersionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF000000000000000000012 /* ProjectVersionManager.swift */; };
+		A19000000000000000000013 /* ProjectXMLManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF000000000000000000013 /* ProjectXMLManager.swift */; };
 		A1B2C3D4E5F60123456789AD /* Splash in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60123456789AC /* Splash */; };
 		A1B2C3D4E5F6478901234568 /* AgentModelCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6478901234569 /* AgentModelCheck.swift */; };
 		A2103D2D2FE14A308D2C1C30 /* GitViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82399C8198EFED7554056D89 /* GitViewModel.swift */; };
@@ -956,14 +956,14 @@
 		FEFC87DC8083410D9A030894 /* ManageSecrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AE11BAA8BF4AA791C4B03B /* ManageSecrets.swift */; };
 		FF52F891987748E884AFFD15 /* JSMinifierView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F97765BE6AC4E869BDE597A /* JSMinifierView.swift */; };
 		FF9CAC60CA0CBCF5791DE39B /* SimulatorDeviceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3832577F2F7AF231BCD96229 /* SimulatorDeviceCard.swift */; };
-		SC5E70B001D001D001D00102 /* SCSetupOnboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = SC5E70B001D001D001D00101 /* SCSetupOnboard.swift */; };
-		SC5E70B001D001D001D00104 /* SourceControlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SC5E70B001D001D001D00103 /* SourceControlView.swift */; };
+		5C5E70000000000000000002 /* SCSetupOnboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000001 /* SCSetupOnboard.swift */; };
+		5C5E70000000000000000004 /* SourceControlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000003 /* SourceControlView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		F3A4B5C6D7E8F90100000002 /* RuntimeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeManager.swift; sourceTree = "<group>"; };
 		F3A4B5C6D7E8F90100000004 /* RuntimeDiscoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeDiscoveryView.swift; sourceTree = "<group>"; };
-		C010F1111111111111111119 /* Logger+Simulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger+Simulator.swift; sourceTree = "<group>"; };
+		C010F1111111111111111119 /* Logger+Simulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Logger+Simulator.swift"; sourceTree = "<group>"; };
 		C010F1111111111111111112 /* CommandExecutionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandExecutionRecord.swift; sourceTree = "<group>"; };
 		C010F1111111111111111111 /* CommandExecutionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandExecutionEngine.swift; sourceTree = "<group>"; };
 		C010F1111111111111111113 /* DeveloperEnvironmentProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperEnvironmentProbe.swift; sourceTree = "<group>"; };
@@ -1888,27 +1888,27 @@
 		FE266D10FFA543278D1B02A3 /* ReviewCode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewCode.swift; sourceTree = "<group>"; };
 		FE4A7939BD82F2676EA4854A /* CodexErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexErrorView.swift; sourceTree = "<group>"; };
 		FECDF3B19AFE35EDD3CC54A0 /* ZipImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZipImporter.swift; sourceTree = "<group>"; };
-		REFFM001 /* ExportProjManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExportProjManager.swift; sourceTree = "<group>"; };
-		REFFM002 /* ImportProjManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImportProjManager.swift; sourceTree = "<group>"; };
-		REFFM003 /* ManifestProjManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ManifestProjManager.swift; sourceTree = "<group>"; };
-		REFFM004 /* ProjectCoordinator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectCoordinator.swift; sourceTree = "<group>"; };
-		REFFM005 /* ProjectDeserializer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectDeserializer.swift; sourceTree = "<group>"; };
-		REFFM006 /* ProjectErrorManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectErrorManager.swift; sourceTree = "<group>"; };
-		REFFM007 /* ProjectFileManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectFileManager.swift; sourceTree = "<group>"; };
-		REFFM008 /* ProjectHashManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectHashManager.swift; sourceTree = "<group>"; };
-		REFFM009 /* ProjectIntegrityManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectIntegrityManager.swift; sourceTree = "<group>"; };
-		REFFM010 /* ProjectJSONManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectJSONManager.swift; sourceTree = "<group>"; };
-		REFFM011 /* ProjectManifest.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectManifest.swift; sourceTree = "<group>"; };
-		REFFM012 /* ProjectMetadataManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectMetadataManager.swift; sourceTree = "<group>"; };
-		REFFM013 /* ProjectPackageManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectPackageManager.swift; sourceTree = "<group>"; };
-		REFFM014 /* ProjectPlistManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectPlistManager.swift; sourceTree = "<group>"; };
-		REFFM015 /* ProjectResourceManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectResourceManager.swift; sourceTree = "<group>"; };
-		REFFM016 /* ProjectSerializer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectSerializer.swift; sourceTree = "<group>"; };
-		REFFM017 /* ProjectValidator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectValidator.swift; sourceTree = "<group>"; };
-		REFFM018 /* ProjectVersionManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectVersionManager.swift; sourceTree = "<group>"; };
-		REFFM019 /* ProjectXMLManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectXMLManager.swift; sourceTree = "<group>"; };
-		SC5E70B001D001D001D00101 /* SCSetupOnboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SCSetupOnboard.swift; sourceTree = "<group>"; };
-		SC5E70B001D001D001D00103 /* SourceControlView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceControlView.swift; sourceTree = "<group>"; };
+		EFF000000000000000000001 /* ExportProjManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExportProjManager.swift; sourceTree = "<group>"; };
+		EFF000000000000000000002 /* ImportProjManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImportProjManager.swift; sourceTree = "<group>"; };
+		EFF000000000000000000003 /* ManifestProjManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ManifestProjManager.swift; sourceTree = "<group>"; };
+		EFF000000000000000000004 /* ProjectCoordinator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectCoordinator.swift; sourceTree = "<group>"; };
+		EFF000000000000000000005 /* ProjectDeserializer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectDeserializer.swift; sourceTree = "<group>"; };
+		EFF000000000000000000006 /* ProjectErrorManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectErrorManager.swift; sourceTree = "<group>"; };
+		EFF000000000000000000007 /* ProjectFileManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectFileManager.swift; sourceTree = "<group>"; };
+		EFF000000000000000000008 /* ProjectHashManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectHashManager.swift; sourceTree = "<group>"; };
+		EFF000000000000000000009 /* ProjectIntegrityManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectIntegrityManager.swift; sourceTree = "<group>"; };
+		EFF00000000000000000000A /* ProjectJSONManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectJSONManager.swift; sourceTree = "<group>"; };
+		EFF00000000000000000000B /* ProjectManifest.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectManifest.swift; sourceTree = "<group>"; };
+		EFF00000000000000000000C /* ProjectMetadataManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectMetadataManager.swift; sourceTree = "<group>"; };
+		EFF00000000000000000000D /* ProjectPackageManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectPackageManager.swift; sourceTree = "<group>"; };
+		EFF00000000000000000000E /* ProjectPlistManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectPlistManager.swift; sourceTree = "<group>"; };
+		EFF00000000000000000000F /* ProjectResourceManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectResourceManager.swift; sourceTree = "<group>"; };
+		EFF000000000000000000010 /* ProjectSerializer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectSerializer.swift; sourceTree = "<group>"; };
+		EFF000000000000000000011 /* ProjectValidator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectValidator.swift; sourceTree = "<group>"; };
+		EFF000000000000000000012 /* ProjectVersionManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectVersionManager.swift; sourceTree = "<group>"; };
+		EFF000000000000000000013 /* ProjectXMLManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProjectXMLManager.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000001 /* SCSetupOnboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SCSetupOnboard.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000003 /* SourceControlView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceControlView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2796,8 +2796,8 @@
 				4B59EE8372BC441A82461C7C /* SwiftCode/Views/Agent/AgentInputBarView.swift */,
 				4CAE27B62C18DFF02AF12C27 /* GitDiffView.swift */,
 				5430117ECBE9C74EB302DE61 /* GitHubIntegrationView.swift */,
-				SC5E70B001D001D001D00101 /* SCSetupOnboard.swift */,
-				SC5E70B001D001D001D00103 /* SourceControlView.swift */,
+				5C5E70000000000000000001 /* SCSetupOnboard.swift */,
+				5C5E70000000000000000003 /* SourceControlView.swift */,
 				58C22324AECE138382A52873 /* GitCloneSheetView.swift */,
 				5A64BC744609FB58156F0EC8 /* GitCLIView.swift */,
 				68051EEABE634E58A0F15236 /* SwiftCode/Views/Agent/AgentChatView.swift */,
@@ -3331,25 +3331,25 @@
 		B0010001B0010001B0010005 /* Internal */ = {
 			isa = PBXGroup;
 			children = (
-				REFFM001 /* ExportProjManager.swift */,
-				REFFM002 /* ImportProjManager.swift */,
-				REFFM003 /* ManifestProjManager.swift */,
-				REFFM004 /* ProjectCoordinator.swift */,
-				REFFM005 /* ProjectDeserializer.swift */,
-				REFFM006 /* ProjectErrorManager.swift */,
-				REFFM007 /* ProjectFileManager.swift */,
-				REFFM008 /* ProjectHashManager.swift */,
-				REFFM009 /* ProjectIntegrityManager.swift */,
-				REFFM010 /* ProjectJSONManager.swift */,
-				REFFM011 /* ProjectManifest.swift */,
-				REFFM012 /* ProjectMetadataManager.swift */,
-				REFFM013 /* ProjectPackageManager.swift */,
-				REFFM014 /* ProjectPlistManager.swift */,
-				REFFM015 /* ProjectResourceManager.swift */,
-				REFFM016 /* ProjectSerializer.swift */,
-				REFFM017 /* ProjectValidator.swift */,
-				REFFM018 /* ProjectVersionManager.swift */,
-				REFFM019 /* ProjectXMLManager.swift */,
+				EFF000000000000000000001 /* ExportProjManager.swift */,
+				EFF000000000000000000002 /* ImportProjManager.swift */,
+				EFF000000000000000000003 /* ManifestProjManager.swift */,
+				EFF000000000000000000004 /* ProjectCoordinator.swift */,
+				EFF000000000000000000005 /* ProjectDeserializer.swift */,
+				EFF000000000000000000006 /* ProjectErrorManager.swift */,
+				EFF000000000000000000007 /* ProjectFileManager.swift */,
+				EFF000000000000000000008 /* ProjectHashManager.swift */,
+				EFF000000000000000000009 /* ProjectIntegrityManager.swift */,
+				EFF00000000000000000000A /* ProjectJSONManager.swift */,
+				EFF00000000000000000000B /* ProjectManifest.swift */,
+				EFF00000000000000000000C /* ProjectMetadataManager.swift */,
+				EFF00000000000000000000D /* ProjectPackageManager.swift */,
+				EFF00000000000000000000E /* ProjectPlistManager.swift */,
+				EFF00000000000000000000F /* ProjectResourceManager.swift */,
+				EFF000000000000000000010 /* ProjectSerializer.swift */,
+				EFF000000000000000000011 /* ProjectValidator.swift */,
+				EFF000000000000000000012 /* ProjectVersionManager.swift */,
+				EFF000000000000000000013 /* ProjectXMLManager.swift */,
 			);
 			path = Internal;
 			sourceTree = "<group>";
@@ -4501,8 +4501,8 @@
 				3E752BE39CBD767C338A64F8 /* PullRequestView.swift in Sources */,
 				8ECFC5DDA35B8EF05C27459E /* GitCLIView.swift in Sources */,
 				FD2931D13CF16B1DA1ED14BB /* GitHubIntegrationView.swift in Sources */,
-				SC5E70B001D001D001D00102 /* SCSetupOnboard.swift in Sources */,
-				SC5E70B001D001D001D00104 /* SourceControlView.swift in Sources */,
+				5C5E70000000000000000002 /* SCSetupOnboard.swift in Sources */,
+				5C5E70000000000000000004 /* SourceControlView.swift in Sources */,
 				0E909856E84D0C6AB23FF4EF /* GitCommandView.swift in Sources */,
 				8BC23BC9FB495E53B90D4CD1 /* DeploymentLogsView.swift in Sources */,
 				6AB5481D6D10457E2CDBA0AB /* DeploymentsView.swift in Sources */,
@@ -4756,25 +4756,25 @@
 				E6AC3A19AA984745806404B2 /* ThemeEditorView.swift in Sources */,
 				FCE346B6A8594C599371747B /* ThemeGalleryView.swift in Sources */,
 				4C8FC348DC244A6B8BFEC16B /* WorkspaceView.swift in Sources */,
-				A19M001B0010001B0010001 /* ExportProjManager.swift in Sources */,
-				A19M002B0010001B0010001 /* ImportProjManager.swift in Sources */,
-				A19M003B0010001B0010001 /* ManifestProjManager.swift in Sources */,
-				A19M004B0010001B0010001 /* ProjectCoordinator.swift in Sources */,
-				A19M005B0010001B0010001 /* ProjectDeserializer.swift in Sources */,
-				A19M006B0010001B0010001 /* ProjectErrorManager.swift in Sources */,
-				A19M007B0010001B0010001 /* ProjectFileManager.swift in Sources */,
-				A19M008B0010001B0010001 /* ProjectHashManager.swift in Sources */,
-				A19M009B0010001B0010001 /* ProjectIntegrityManager.swift in Sources */,
-				A19M010B0010001B0010001 /* ProjectJSONManager.swift in Sources */,
-				A19M011B0010001B0010001 /* ProjectManifest.swift in Sources */,
-				A19M012B0010001B0010001 /* ProjectMetadataManager.swift in Sources */,
-				A19M013B0010001B0010001 /* ProjectPackageManager.swift in Sources */,
-				A19M014B0010001B0010001 /* ProjectPlistManager.swift in Sources */,
-				A19M015B0010001B0010001 /* ProjectResourceManager.swift in Sources */,
-				A19M016B0010001B0010001 /* ProjectSerializer.swift in Sources */,
-				A19M017B0010001B0010001 /* ProjectValidator.swift in Sources */,
-				A19M018B0010001B0010001 /* ProjectVersionManager.swift in Sources */,
-				A19M019B0010001B0010001 /* ProjectXMLManager.swift in Sources */,
+				A19000000000000000000001 /* ExportProjManager.swift in Sources */,
+				A19000000000000000000002 /* ImportProjManager.swift in Sources */,
+				A19000000000000000000003 /* ManifestProjManager.swift in Sources */,
+				A19000000000000000000004 /* ProjectCoordinator.swift in Sources */,
+				A19000000000000000000005 /* ProjectDeserializer.swift in Sources */,
+				A19000000000000000000006 /* ProjectErrorManager.swift in Sources */,
+				A19000000000000000000007 /* ProjectFileManager.swift in Sources */,
+				A19000000000000000000008 /* ProjectHashManager.swift in Sources */,
+				A19000000000000000000009 /* ProjectIntegrityManager.swift in Sources */,
+				A1900000000000000000000A /* ProjectJSONManager.swift in Sources */,
+				A1900000000000000000000B /* ProjectManifest.swift in Sources */,
+				A1900000000000000000000C /* ProjectMetadataManager.swift in Sources */,
+				A1900000000000000000000D /* ProjectPackageManager.swift in Sources */,
+				A1900000000000000000000E /* ProjectPlistManager.swift in Sources */,
+				A1900000000000000000000F /* ProjectResourceManager.swift in Sources */,
+				A19000000000000000000010 /* ProjectSerializer.swift in Sources */,
+				A19000000000000000000011 /* ProjectValidator.swift in Sources */,
+				A19000000000000000000012 /* ProjectVersionManager.swift in Sources */,
+				A19000000000000000000013 /* ProjectXMLManager.swift in Sources */,
 				B0010001B0010001B0010007 /* InfoProjView.swift in Sources */,
 				B0010001B0010001B0010008 /* ExportProjView.swift in Sources */,
 				B0010001B0010001B0010009 /* ImportProjView.swift in Sources */,
