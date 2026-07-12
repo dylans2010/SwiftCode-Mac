@@ -508,23 +508,31 @@ struct SFSymbolDetailSheet: View {
             .font(.system(size: 64, weight: symbolWeight.fontWeight))
             .imageScale(symbolScale.imageScale)
 
-        let styledImg: some View = {
+        let styledImg: AnyView = {
             switch renderingMode {
             case .monochrome:
-                return baseImg
-                    .symbolRenderingMode(.monochrome)
-                    .foregroundStyle(primaryColor)
+                return AnyView(
+                    baseImg
+                        .symbolRenderingMode(.monochrome)
+                        .foregroundStyle(primaryColor)
+                )
             case .hierarchical:
-                return baseImg
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(primaryColor)
+                return AnyView(
+                    baseImg
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(primaryColor)
+                )
             case .palette:
-                return baseImg
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(primaryColor, secondaryColor)
+                return AnyView(
+                    baseImg
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(primaryColor, secondaryColor)
+                )
             case .multicolor:
-                return baseImg
-                    .symbolRenderingMode(.multicolor)
+                return AnyView(
+                    baseImg
+                        .symbolRenderingMode(.multicolor)
+                )
             }
         }()
 
