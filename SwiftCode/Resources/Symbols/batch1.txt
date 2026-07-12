@@ -1,1 +1,0 @@
-https://github.com/timi2506/SymbolPicker/blob/main/Sources/SymbolPicker/Resources/Symbols/sfsymbol5.txt
