@@ -85,9 +85,9 @@ struct CommitHistoryView: View {
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
                 }
-                .padding(24)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 8)
             }
-            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Commit History")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

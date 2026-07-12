@@ -147,9 +147,9 @@ struct GitHubIssuesView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
-                .padding(24)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 8)
             }
-            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("GitHub Issues")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -497,9 +497,9 @@ struct IssueDetailView: View {
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
                 }
-                .padding(24)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 8)
             }
-            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Issue #\(issue.number)")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

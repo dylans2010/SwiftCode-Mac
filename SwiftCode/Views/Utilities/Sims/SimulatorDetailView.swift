@@ -5,7 +5,7 @@ struct SimulatorDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: 16) {
                 // Actions card
                 SimulatorActionsView(device: device)
 
@@ -18,7 +18,8 @@ struct SimulatorDetailView: View {
                 // Console logging card
                 SimulatorConsoleView()
             }
-            .padding(24)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 8)
         }
     }
 }

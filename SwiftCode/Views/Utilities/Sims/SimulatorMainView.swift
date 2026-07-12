@@ -94,13 +94,13 @@ public struct SimulatorMainView: View {
         switch activeTab {
         case .simulator:
             HSplitView {
-                // High fidelity sidebar grouping device state
                 SimulatorSidebar()
+                    .simulatorWorkspaceEmbedded()
                     .frame(minWidth: 240, idealWidth: 280, maxWidth: 350)
 
-                // Main Device Panel
                 if let selected = manager.selectedDevice {
                     SimulatorDetailView(device: selected)
+                        .simulatorWorkspaceEmbedded()
                         .frame(minWidth: 400, idealWidth: 600, maxWidth: .infinity)
                 } else {
                     ContentUnavailableView {
@@ -108,12 +108,13 @@ public struct SimulatorMainView: View {
                     } description: {
                         Text("Select a simulator from the left sidebar to start booting, deploying, and tracing logs.")
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .simulatorWorkspaceEmbedded()
                 }
             }
 
         case .previewCanvas:
             SimulatorPreviewView()
+                .simulatorWorkspaceEmbedded()
 
         case .deviceManager:
             ScrollView {
@@ -123,6 +124,7 @@ public struct SimulatorMainView: View {
                 }
                 .padding(24)
             }
+            .simulatorWorkspaceEmbedded()
 
         case .runtimes:
             ScrollView {
@@ -132,6 +134,7 @@ public struct SimulatorMainView: View {
                 }
                 .padding(24)
             }
+            .simulatorWorkspaceEmbedded()
 
         case .dragDropDeploy:
             ScrollView {
@@ -140,6 +143,7 @@ public struct SimulatorMainView: View {
                 }
                 .padding(24)
             }
+            .simulatorWorkspaceEmbedded()
         }
     }
 }

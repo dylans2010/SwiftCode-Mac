@@ -2,7 +2,7 @@ import SwiftUI
 
 struct GitNotInstalledView: View {
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 16) {
             GroupBox {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
@@ -26,7 +26,7 @@ struct GitNotInstalledView: View {
             }
             .groupBoxStyle(ModernGroupBoxStyle())
         }
-        .padding(24)
-        .background(Color(NSColor.windowBackgroundColor))
+        .padding(.horizontal, 4)
+        .padding(.vertical, 8)
     }
 }

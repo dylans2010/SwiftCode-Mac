@@ -191,26 +191,29 @@ struct SourceControlView: View {
     private func detailPaneView(for tab: SourceControlTab) -> some View {
         let project = sessionStore.activeProject ?? Project(name: "Untitled")
 
-        switch tab {
-        case .localWorkspace:
-            localWorkspacePane
-        case .unstagedChanges:
-            GitChangesView(viewModel: gitViewModel)
-        case .branches:
-            GitBranchesView(branches: gitViewModel.branches)
-        case .commitHistory:
-            GitHistoryView(commits: gitViewModel.history)
-        case .gitTerminal:
-            GitCLIView(project: project)
-        case .remoteRepos:
-            remoteRepositoriesPane
-        case .manageRepo:
-            GitHubIntegrationView(project: project)
-        case .issues:
-            GitHubIssuesView()
-        case .gists:
-            GistsView()
+        Group {
+            switch tab {
+            case .localWorkspace:
+                localWorkspacePane
+            case .unstagedChanges:
+                GitChangesView(viewModel: gitViewModel)
+            case .branches:
+                GitBranchesView(branches: gitViewModel.branches)
+            case .commitHistory:
+                GitHistoryView(commits: gitViewModel.history)
+            case .gitTerminal:
+                GitCLIView(project: project)
+            case .remoteRepos:
+                remoteRepositoriesPane
+            case .manageRepo:
+                GitHubIntegrationView(project: project)
+            case .issues:
+                GitHubIssuesView()
+            case .gists:
+                GistsView()
+            }
         }
+        .sourceControlEmbedded()
     }
 
     // MARK: - Local Workspace Detail Pane

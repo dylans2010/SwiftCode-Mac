@@ -37,7 +37,7 @@ struct PullRequestView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 16) {
                     // Card 1: Branch Target Selection
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
@@ -225,9 +225,9 @@ struct PullRequestView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
-                .padding(24)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 8)
             }
-            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("New Pull Request")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

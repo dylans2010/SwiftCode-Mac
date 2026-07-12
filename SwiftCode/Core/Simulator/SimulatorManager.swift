@@ -159,27 +159,66 @@ public final class SimulatorManager {
     // Adjacent simulator control operations preserved with high-fidelity logging
 
     public func bootSelectedDevice() async {
-        guard let udid = selectedDeviceID else { return }
+        guard let udid = selectedDeviceID, let device = selectedDevice else { return }
+
+        // 1. Verify runtime exists
+        let runtimeID = device.runtimeIdentifier
+        let runtimeExists = runtimes.contains { $0.identifier == runtimeID }
+        guard runtimeExists else {
+            updateDeviceState(udid: udid, to: .failed)
+            log("Failed to boot: The SDK runtime '\(runtimeID)' for this simulator does not exist.", isError: true)
+            return
+        }
+
         log("Booting device '\(udid)'...")
         updateDeviceState(udid: udid, to: .booting)
 
         do {
+            // 2. Boot the simulator if necessary
             try await simctlService.bootDevice(udid: udid)
             updateDeviceState(udid: udid, to: .booted)
-            log("Device booted successfully.")
+            log("Device booted successfully in simctl.")
+
+            // 3. Wait until boot completes
+            log("Waiting for simulator boot completion...")
+            let bootstatusSpec = CommandSpec(
+                executableURL: URL(fileURLWithPath: "/usr/bin/xcrun"),
+                arguments: ["simctl", "bootstatus", udid]
+            )
+            _ = try? await CommandExecutionEngine.shared.execute(bootstatusSpec)
+
+            // 4. Launch Apple's Simulator application if not running, open and bring to foreground
+            updateDeviceState(udid: udid, to: .launchingSimulator)
+            log("Launching Apple's native Simulator application...")
 
             #if os(macOS)
             let workspace = NSWorkspace.shared
-            if let simulatorAppURL = workspace.urlForApplication(withBundleIdentifier: "com.apple.CoreSimulator.SimulatorTrampoline") {
+            let bundleID = "com.apple.iphonesimulator"
+            if let simulatorAppURL = workspace.urlForApplication(withBundleIdentifier: bundleID) {
                 let config = NSWorkspace.OpenConfiguration()
+                config.promotesToFrontmost = true
                 try await workspace.openApplication(at: simulatorAppURL, configuration: config)
+            } else if let fallbackURL = workspace.urlForApplication(withBundleIdentifier: "com.apple.CoreSimulator.SimulatorTrampoline") {
+                let config = NSWorkspace.OpenConfiguration()
+                config.promotesToFrontmost = true
+                try await workspace.openApplication(at: fallbackURL, configuration: config)
+            } else {
+                let openSpec = CommandSpec(
+                    executableURL: URL(fileURLWithPath: "/usr/bin/open"),
+                    arguments: ["-a", "Simulator"]
+                )
+                _ = try? await CommandExecutionEngine.shared.execute(openSpec)
             }
             #endif
 
+            // 5. Bring to ready state
+            updateDeviceState(udid: udid, to: .ready)
+            log("Simulator is ready and frontmost.")
+
             await refreshAll()
         } catch {
-            updateDeviceState(udid: udid, to: .shutdown)
-            log("Failed to boot: \(error.localizedDescription)", isError: true)
+            updateDeviceState(udid: udid, to: .failed)
+            log("Failed to boot/launch simulator: \(error.localizedDescription)", isError: true)
         }
     }
 
