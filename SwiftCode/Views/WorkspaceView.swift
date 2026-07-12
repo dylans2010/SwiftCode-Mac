@@ -131,6 +131,7 @@ struct WorkspaceView: View {
                             Button("Extensions") { activeSheet = .extensionMarketplace }
                             Button("Debug Tools") { activeSheet = .debugTools }
                             Button("Plugin Manager") { activeSheet = .pluginManager }
+                            Button("Simulator & Previews") { activeSheet = .simulatorMain }
                             Button("Dev Tools") { activeSheet = .devTools }
                             Button("Source Control") { activeSheet = .sourceControl }
                             Button("CI Build") { activeSheet = .ciBuild }
@@ -295,6 +296,7 @@ struct WorkspaceView: View {
                 case .gitHubIssues: GitHubIssuesView()
                 case .complexityAnalyzer: ComplexityAnalyzerView()
                 case .localSimulation: LocalSimulationView()
+                case .simulatorMain: SimulatorMainView()
                 case .searchDocumentation: SearchDocumentationView()
                 case .snippetsLibrary: SnippetsLibraryView()
                 case .codeRefactoring: CodeRefactoringView()

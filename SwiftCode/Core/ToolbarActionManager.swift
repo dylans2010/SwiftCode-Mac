@@ -33,6 +33,7 @@ final class ToolbarActionManager {
         case complexityAnalyzer
         case symbolOutline
         case localSimulation
+        case simulatorMain
         case pluginManager
         case searchDocumentation
         case snippetsLibrary
@@ -139,6 +140,8 @@ final class ToolbarActionManager {
             return .symbolOutline
         case "local_simulation":
             return .localSimulation
+        case "simulator", "simulator_main":
+            return .simulatorMain
         case "plugin_manager":
             return .pluginManager
         case "search_documentation":
