@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2B4CEE870D734A23837F5302 /* ExpandedDevTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B4CEE880D734A23837F5302 /* ExpandedDevTools.swift */; };
 		004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = BBB818A276304EA881DBF6E6 /* MLXOptimizers */; };
 		0205BA60DB99F20AD6385182 /* TextLineRemoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA47DBD02C0AECE609708638 /* TextLineRemoverView.swift */; };
 		028210A2C2DF33D15EF2B37A /* ProjectTemplateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E98EC5E61489CE7CE6AB854 /* ProjectTemplateView.swift */; };
@@ -161,6 +160,7 @@
 		29838114E66C4C0CA9A7BBE5 /* TaskPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7783E4BFD8A437286C1E429 /* TaskPlanner.swift */; };
 		2A235046727B0BDA1FDDAD9B /* ProjectTemplateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFA7CBE035FA31B4DD1118D6 /* ProjectTemplateManager.swift */; };
 		2B4203A14BD29BC579C968DC /* CodexMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E202909F6D69F108C6F9ADB /* CodexMainView.swift */; };
+		2B4CEE870D734A23837F5302 /* ExpandedDevTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B4CEE880D734A23837F5302 /* ExpandedDevTools.swift */; };
 		2BCFCB46CC4B46658DCB42A9 /* ReadFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C80EDC913A541259B2E4D0D /* ReadFile.swift */; };
 		2BE9F6EA8DCE585DE150469F /* JSONFormatterExtensionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 212E996D0D662F7D03CFB91D /* JSONFormatterExtensionView.swift */; };
 		2C480CA68AA2BB6227503D10 /* AdvancedToolsSharedDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05507D123E0B0E10C1BEBFC0 /* AdvancedToolsSharedDesignSystem.swift */; };
@@ -900,7 +900,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		2B4CEE880D734A23837F5302 /* ExpandedDevTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpandedDevTools.swift; sourceTree = "<group>"; };
 		00048987BBB25A712D49051C /* NordThemeExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NordThemeExtensionView.swift; sourceTree = "<group>"; };
 		0076F070FA7E4422B0FBAAB8 /* ParseMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseMarkdown.swift; sourceTree = "<group>"; };
 		00A96C0BE03E4321AB3DEAFB /* KubernetesApply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KubernetesApply.swift; sourceTree = "<group>"; };
@@ -1049,6 +1048,7 @@
 		2A4929A3150C49399013561C /* SymbolicateCrashLogs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SymbolicateCrashLogs.swift; sourceTree = "<group>"; };
 		2AEB32651A4E4F7B561D7B81 /* SymbolOutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SymbolOutlineView.swift; sourceTree = "<group>"; };
 		2B0757CC6635DACECA598706 /* PermissionConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionConfigView.swift; sourceTree = "<group>"; };
+		2B4CEE880D734A23837F5302 /* ExpandedDevTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpandedDevTools.swift; sourceTree = "<group>"; };
 		2B4E02E0765F74EF375F126E /* ActivityLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLogView.swift; sourceTree = "<group>"; };
 		2B7DE79CF3E249F885CA3B3B /* GenerateIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerateIntegrationTests.swift; sourceTree = "<group>"; };
 		2BBD505DDB534D1996088E96 /* UploadFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadFile.swift; sourceTree = "<group>"; };
@@ -3891,7 +3891,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n#!/bin/bash\nset -euo pipefail\n\nif [ \"$CONFIGURATION\" != \"Release\" ]; then\n    echo \"Skipping install for $CONFIGURATION build.\"\n    exit 0\nfi\n\nAPP_DEST=\"/Applications/${WRAPPER_NAME}\"\n\nrm -rf \"$APP_DEST\"\ncp -R \"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\" \"$APP_DEST\"\n\nopen \"$APP_DEST\"\n";
+			shellScript = "#!/bin/bash\nset -euo pipefail\n\nAPP_DEST=\"/Applications/${WRAPPER_NAME}\"\n\necho \"Installing ${WRAPPER_NAME}...\"\n\nrm -rf \"$APP_DEST\"\nditto \"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\" \"$APP_DEST\"\n\necho \"Successfully installed to $APP_DEST\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
