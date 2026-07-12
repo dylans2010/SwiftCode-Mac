@@ -25,7 +25,7 @@ public actor SimulatorLoggingService {
         case .info, .debug:
             logger.info("\(message)")
         default:
-            logger.log(level: type, "\(message)")
+            logger.log("\(message)")
         }
     }
 
