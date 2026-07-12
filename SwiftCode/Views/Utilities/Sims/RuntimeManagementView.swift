@@ -139,3 +139,47 @@ struct RuntimeManagementView: View {
         .groupBoxStyle(ModernGroupBoxStyle())
     }
 }
+
+public struct PipelineDiagnostics: Sendable {
+    public let xcodePath: String
+    public let xcodeVersion: String
+    public let xcrunVersion: String
+    public let isSimctlAvailable: Bool
+    public let runtimeCount: Int
+    public let deviceCount: Int
+    public let runningCount: Int
+    public let lastRefreshTime: Date
+    public let discoveryDuration: Double
+    public let latestStderr: String
+    public let latestExitCode: Int32
+}
+
+extension SimulatorManager {
+    public var pipelineDiagnostics: PipelineDiagnostics? {
+        guard let lastRefreshDate = diagnostics.lastRefreshDate else {
+            return nil
+        }
+
+        let lastCmd = diagnostics.recentCommands.last
+        let durationInSeconds: Double
+        if let duration = diagnostics.lastDiscoveryDuration {
+            durationInSeconds = Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1.0e18
+        } else {
+            durationInSeconds = 0.0
+        }
+
+        return PipelineDiagnostics(
+            xcodePath: diagnostics.developerDirectory ?? "Unknown",
+            xcodeVersion: diagnostics.xcodeVersion ?? "Unknown",
+            xcrunVersion: diagnostics.xcrunLocation != nil ? "xcrun version 1" : "Not Found",
+            isSimctlAvailable: diagnostics.simctlAvailable,
+            runtimeCount: diagnostics.runtimeCount,
+            deviceCount: diagnostics.deviceCount,
+            runningCount: diagnostics.runningSimulatorCount,
+            lastRefreshTime: lastRefreshDate,
+            discoveryDuration: durationInSeconds,
+            latestStderr: lastCmd?.stderrString ?? "",
+            latestExitCode: lastCmd?.exitCode ?? 0
+        )
+    }
+}

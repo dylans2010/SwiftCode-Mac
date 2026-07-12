@@ -36,42 +36,47 @@ struct GitCommandView: View {
         !ownerFromRepo.isEmpty && !repoNameFromURL.isEmpty
     }
 
+    @ViewBuilder
+    private var repositoryAssociationView: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Label("Repository Association", systemImage: "arrow.branch")
+                        .font(.headline)
+                        .foregroundColor(.green)
+                    Spacer()
+                }
+
+                if isRepoConnected {
+                    HStack {
+                        Text("Current Linked Branch:")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text(currentBranch)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.green)
+                        Spacer()
+                        if isLoading {
+                            ProgressView().scaleEffect(0.8)
+                        }
+                    }
+                } else {
+                    Text("Connect a GitHub repository first to run remote commands.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding()
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
                     // Branch indicator
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Repository Association", systemImage: "arrow.branch")
-                                    .font(.headline)
-                                    .foregroundColor(.green)
-                                Spacer()
-                            }
-
-                            if isRepoConnected {
-                                HStack {
-                                    Text("Current Linked Branch:")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                    Text(currentBranch)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.green)
-                                    Spacer()
-                                    if isLoading {
-                                        ProgressView().scaleEffect(0.8)
-                                    }
-                                }
-                            } else {
-                                Text("Connect a GitHub repository first to run remote commands.")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding()
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                    repositoryAssociationView
 
                     // Command groups
                     GroupBox {
@@ -611,5 +616,62 @@ struct GitCommandView: View {
         isSuccess = true
         statusMessage = msg
         showStatus = true
+    }
+}
+
+// MARK: - Git Command Card Model
+
+struct GitCommandCard: Identifiable {
+    let id = UUID()
+    let command: String
+    let description: String
+    let icon: String
+    let color: Color
+    let isEnabled: Bool
+    let action: () -> Void
+}
+
+// MARK: - Git Command Row
+
+struct GitCommandRow: View {
+    let card: GitCommandCard
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: card.icon)
+                .foregroundStyle(card.isEnabled ? card.color : .secondary)
+                .font(.title3)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(card.command)
+                    .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+                    .foregroundStyle(card.isEnabled ? .white : .secondary)
+                Text(card.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+
+            if card.isEnabled {
+                Button(action: card.action) {
+                    Image(systemName: "play.fill")
+                        .font(.caption)
+                        .padding(8)
+                        .background(card.color.opacity(0.25), in: Circle())
+                        .foregroundStyle(card.color)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Image(systemName: "minus.circle")
+                    .foregroundStyle(.tertiary)
+                    .font(.caption)
+            }
+        }
+        .padding(10)
+        .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+        .opacity(card.isEnabled ? 1 : 0.6)
     }
 }

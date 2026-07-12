@@ -989,3 +989,83 @@ struct GitHubIntegrationView: View {
         }
     }
 }
+
+// MARK: - Branch Row
+
+struct BranchRow: View {
+    let branch: GitHubBranch
+    let isActive: Bool
+    let onSwitch: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isActive ? .green : .secondary)
+                .font(.caption)
+
+            Text(branch.name)
+                .font(.caption)
+                .foregroundStyle(isActive ? .white : .primary)
+                .lineLimit(1)
+
+            if branch.protected {
+                Image(systemName: "lock.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.yellow)
+            }
+
+            Spacer()
+
+            if !isActive {
+                Button("Switch") {
+                    onSwitch()
+                }
+                .font(.caption2)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.green.opacity(0.2), in: Capsule())
+                .foregroundStyle(.green)
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Workflow Run Row
+
+struct WorkflowRunRow: View {
+    let run: WorkflowRun
+
+    var statusColor: Color {
+        switch run.conclusion ?? run.status {
+        case "success": return .green
+        case "failure": return .red
+        case "cancelled": return .gray
+        case "in_progress": return .yellow
+        default: return .secondary
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: run.statusBadge)
+                .foregroundStyle(statusColor)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(run.name ?? "Run #\(run.runNumber)")
+                    .font(.caption)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                Text(run.createdAt, style: .relative)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if run.isRunning {
+                ProgressView()
+                    .scaleEffect(0.7)
+                    .tint(.yellow)
+            }
+        }
+    }
+}
