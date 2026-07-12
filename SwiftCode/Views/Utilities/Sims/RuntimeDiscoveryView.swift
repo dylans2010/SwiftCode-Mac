@@ -236,7 +236,7 @@ struct RuntimeRow: View {
 
                     if let path = runtime.path {
                         Text(path)
-                            .font(.system(.ultraLight, size: 9))
+                            .font(.system(size: 9, weight: .ultraLight))
                             .lineLimit(1)
                             .truncationMode(.middle)
                             .foregroundStyle(.tertiary)
