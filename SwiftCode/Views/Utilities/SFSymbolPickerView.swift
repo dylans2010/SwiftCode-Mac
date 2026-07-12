@@ -21,7 +21,7 @@ enum CustomSymbolRenderingMode: String, CaseIterable, Identifiable {
     }
 }
 
-enum SymbolWeightOption: String, CaseIterable, Identifiable {
+enum PickerSymbolWeightOption: String, CaseIterable, Identifiable {
     case ultraLight = "Ultra Light"
     case thin = "Thin"
     case light = "Light"
@@ -49,7 +49,7 @@ enum SymbolWeightOption: String, CaseIterable, Identifiable {
     }
 }
 
-enum SymbolScaleOption: String, CaseIterable, Identifiable {
+enum PickerSymbolScaleOption: String, CaseIterable, Identifiable {
     case small = "Small"
     case medium = "Medium"
     case large = "Large"
@@ -331,8 +331,8 @@ struct SFSymbolDetailSheet: View {
 
     // Configuration controls
     @State private var renderingMode: CustomSymbolRenderingMode = .monochrome
-    @State private var symbolWeight: SymbolWeightOption = .regular
-    @State private var symbolScale: SymbolScaleOption = .large
+    @State private var symbolWeight: PickerSymbolWeightOption = .regular
+    @State private var symbolScale: PickerSymbolScaleOption = .large
     @State private var primaryColor: Color = .orange
     @State private var secondaryColor: Color = .blue
     @State private var effectTrigger = false
@@ -457,7 +457,7 @@ struct SFSymbolDetailSheet: View {
                                     .font(.caption.bold())
                                     .foregroundStyle(.secondary)
                                 Picker("Weight", selection: $symbolWeight) {
-                                    ForEach(SymbolWeightOption.allCases) { weight in
+                                    ForEach(PickerSymbolWeightOption.allCases) { weight in
                                         Text(weight.rawValue).tag(weight)
                                     }
                                 }
@@ -469,7 +469,7 @@ struct SFSymbolDetailSheet: View {
                                     .font(.caption.bold())
                                     .foregroundStyle(.secondary)
                                 Picker("Scale", selection: $symbolScale) {
-                                    ForEach(SymbolScaleOption.allCases) { scale in
+                                    ForEach(PickerSymbolScaleOption.allCases) { scale in
                                         Text(scale.rawValue).tag(scale)
                                     }
                                 }

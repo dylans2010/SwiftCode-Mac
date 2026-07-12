@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 struct BuildToolbarView: View {
@@ -11,10 +12,11 @@ struct BuildToolbarView: View {
     }
 
     var body: some View {
+        @Bindable var buildManager = self.buildManager
         HStack(spacing: 12) {
             // ESSENTIAL ACTIONS: Scheme selector
             if !buildManager.discoveredSchemes.isEmpty {
-                Picker("Scheme", selection: Bindable(buildManager).selectedScheme) {
+                Picker("Scheme", selection: $buildManager.selectedScheme) {
                     ForEach(buildManager.discoveredSchemes, id: \.self) { scheme in
                         Text(scheme).tag(scheme as String?)
                     }
@@ -31,7 +33,7 @@ struct BuildToolbarView: View {
                 ForEach(toolbarManager.enabledTools) { tool in
                     Group {
                         if tool.id == "config_selector" {
-                            Picker("Config", selection: Bindable(buildManager).selectedConfiguration) {
+                            Picker("Config", selection: $buildManager.selectedConfiguration) {
                                 ForEach(buildManager.availableConfigurations, id: \.self) { config in
                                     Text(config).tag(config)
                                 }
@@ -42,7 +44,7 @@ struct BuildToolbarView: View {
                             .help("Select Build Configuration")
                             .accessibilityLabel("Build Configuration Selector")
                         } else if tool.id == "destination_selector" {
-                            Picker("Destination", selection: Bindable(buildManager).selectedDestination) {
+                            Picker("Destination", selection: $buildManager.selectedDestination) {
                                 ForEach(buildManager.availableDestinations, id: \.self) { dest in
                                     Text(dest.replacingOccurrences(of: "generic/platform=", with: "")).tag(dest)
                                 }
@@ -143,5 +145,34 @@ struct BuildToolbarView: View {
         .onChange(of: projectURL) { _, newURL in
             buildManager.discoverSchemes(at: newURL)
         }
+    }
+}
+
+// MARK: - Pinned Tool Drop Delegate
+
+struct PinnedToolDropDelegate: DropDelegate {
+    let tool: ToolbarTool
+    let manager: ToolbarManager
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let itemProvider = info.itemProviders(for: [.text]).first else { return false }
+        itemProvider.loadObject(ofClass: NSString.self) { nsString, error in
+            guard let sourceID = nsString as? String else { return }
+            Task { @MainActor in
+                let enabled = manager.enabledTools
+                guard let sourceIndex = enabled.firstIndex(where: { $0.id == sourceID }),
+                      let destinationIndex = enabled.firstIndex(where: { $0.id == tool.id }) else { return }
+
+                if sourceIndex != destinationIndex {
+                    withAnimation {
+                        manager.moveTool(
+                            from: IndexSet(integer: sourceIndex),
+                            to: destinationIndex > sourceIndex ? destinationIndex + 1 : destinationIndex
+                        )
+                    }
+                }
+            }
+        }
+        return true
     }
 }
