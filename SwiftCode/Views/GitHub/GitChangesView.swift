@@ -6,7 +6,7 @@ struct GitChangesView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: 16) {
                 // Card 1: Action Controls Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
@@ -147,8 +147,8 @@ struct GitChangesView: View {
                     }
                 }
             }
-            .padding(24)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 8)
         }
-        .background(Color(NSColor.windowBackgroundColor))
     }
 }

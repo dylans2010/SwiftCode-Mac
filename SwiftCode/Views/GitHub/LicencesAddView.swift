@@ -225,9 +225,9 @@ struct LicencesAddView: View {
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
-                    .padding(24)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 8)
                 }
-                .background(Color(NSColor.windowBackgroundColor))
             } else {
                 ContentUnavailableView(
                     "Select a License",

@@ -34,7 +34,7 @@ struct SCSetupOnboard: View {
             Divider()
 
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 16) {
                     switch activeSection {
                     case .overview:
                         overviewSectionView
@@ -47,7 +47,8 @@ struct SCSetupOnboard: View {
                             .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
                     }
                 }
-                .padding(24)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 8)
             }
 
             Divider()

@@ -130,9 +130,9 @@ struct GitCloneSheetView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
             }
-            .padding(24)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 8)
         }
-        .background(Color(NSColor.windowBackgroundColor))
         .frame(width: 550, height: 600)
         .onAppear {
             fetchUserRepositories()

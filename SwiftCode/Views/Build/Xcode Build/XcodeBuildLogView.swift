@@ -1,11 +1,51 @@
-// Card-based visual structure matching DeploymentsView.swift
 import SwiftUI
+import AppKit
+
+@MainActor
+struct StructuredBuildLog: Identifiable, Sendable {
+    let id = UUID()
+    let timestamp = Date()
+    let message: String
+    let severity: Severity
+
+    enum Severity: String, Sendable, CaseIterable, Identifiable {
+        case error = "Error"
+        case warning = "Warning"
+        case system = "System"
+        case info = "Info"
+
+        var id: String { rawValue }
+
+        var icon: String {
+            switch self {
+            case .error: return "exclamationmark.octagon.fill"
+            case .warning: return "exclamationmark.triangle.fill"
+            case .system: return "cpu.fill"
+            case .info: return "info.circle.fill"
+            }
+        }
+
+        var color: Color {
+            switch self {
+            case .error: return .red
+            case .warning: return .yellow
+            case .system: return .cyan
+            case .info: return .secondary
+            }
+        }
+    }
+}
 
 @MainActor
 struct XcodeBuildLogView: View {
     @State private var searchLogQuery = ""
     @State private var autoScrollToBottom = true
     @State private var filterMode: LogFilterMode = .all
+
+    // Collapsible section states
+    @State private var showErrorsGroup = true
+    @State private var showWarningsGroup = true
+    @State private var showFullConsole = true
 
     @Environment(\.dismiss) private var dismiss
 
@@ -22,204 +62,331 @@ struct XcodeBuildLogView: View {
         var id: String { rawValue }
     }
 
-    private var filteredLogs: [String] {
-        var logs = buildManager.buildLogs
+    private var structuredLogs: [StructuredBuildLog] {
+        buildManager.buildLogs.map { line in
+            let lower = line.lowercased()
+            let severity: StructuredBuildLog.Severity
+            if lower.contains("error:") || lower.hasPrefix("error:") || lower.hasPrefix("[error]") {
+                severity = .error
+            } else if lower.contains("warning:") || lower.hasPrefix("warning:") {
+                severity = .warning
+            } else if lower.hasPrefix("[system]") {
+                severity = .system
+            } else {
+                severity = .info
+            }
+            return StructuredBuildLog(message: line, severity: severity)
+        }
+    }
 
-        // Apply raw text search if any
+    private var filteredStructuredLogs: [StructuredBuildLog] {
+        var logs = structuredLogs
+
         if !searchLogQuery.isEmpty {
-            logs = logs.filter { $0.localizedCaseInsensitiveContains(searchLogQuery) }
+            logs = logs.filter { $0.message.localizedCaseInsensitiveContains(searchLogQuery) }
         }
 
-        // Apply filters
         switch filterMode {
         case .all:
             return logs
         case .errors:
-            return logs.filter {
-                let lower = $0.lowercased()
-                return lower.contains("error:") || lower.hasPrefix("error:") || lower.hasPrefix("[error]")
-            }
+            return logs.filter { $0.severity == .error }
         case .warnings:
-            return logs.filter {
-                let lower = $0.lowercased()
-                return lower.contains("warning:") || lower.hasPrefix("warning:")
-            }
+            return logs.filter { $0.severity == .warning }
         case .system:
-            return logs.filter { $0.hasPrefix("[system]") }
+            return logs.filter { $0.severity == .system }
         }
+    }
+
+    private var errorLogs: [StructuredBuildLog] {
+        structuredLogs.filter { $0.severity == .error }
+    }
+
+    private var warningLogs: [StructuredBuildLog] {
+        structuredLogs.filter { $0.severity == .warning }
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Card 1: Build Status Hub (Visual Status & Metrics)
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Xcode Build Status", systemImage: "hammer.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.orange)
-                                Spacer()
-                            }
+            VStack(spacing: 0) {
+                // Sticky Header / Toolbar Panel
+                stickyToolbarView
 
-                            buildStatusHeader
-                        }
-                        .padding()
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                Divider()
 
-                    // Card: Build Target Configuration
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Build Configuration", systemImage: "gearshape.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.purple)
-                                Spacer()
-                            }
-
-                            HStack {
-                                Text("Active Build Scheme")
-                                Spacer()
-                                Text("Primary Target Scheme").bold().foregroundColor(.secondary)
-                            }
-
-                            HStack {
-                                Text("Build SDK")
-                                Spacer()
-                                Text("macOS / iOS (Simulator)").bold().foregroundColor(.secondary)
-                            }
-
-                            HStack {
-                                Text("Optimization Level")
-                                Spacer()
-                                Text("-Onone (Debug)").bold().foregroundColor(.secondary)
-                            }
-                        }
-                        .padding()
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Card 2: Filter / Search Toolbar
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Search & Filters", systemImage: "line.3.horizontal.decrease.circle.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.blue)
-                                Spacer()
-                            }
-
-                            HStack(spacing: 12) {
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Card 1: Build Status Metrics
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
                                 HStack {
-                                    Image(systemName: "magnifyingglass")
-                                        .foregroundStyle(.secondary)
-                                    TextField("Search build logs...", text: $searchLogQuery)
-                                        .textFieldStyle(.plain)
+                                    Label("Xcode Build Summary", systemImage: "hammer.fill")
+                                        .font(.headline)
+                                        .foregroundColor(.orange)
+                                    Spacer()
                                 }
-                                .padding(8)
-                                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
 
-                                Picker("Filter", selection: $filterMode) {
-                                    ForEach(LogFilterMode.allCases) { mode in
-                                        Text(mode.rawValue).tag(mode)
+                                buildStatusHeader
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+
+                        // Card 2: Build Configurations (Adaptive Desktop Layout)
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Label("Target Specifications", systemImage: "gearshape.fill")
+                                        .font(.headline)
+                                        .foregroundColor(.purple)
+                                    Spacer()
+                                }
+
+                                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 10) {
+                                    GridRow {
+                                        Text("Active Build Scheme")
+                                            .foregroundColor(.secondary)
+                                        Text("Primary Target Scheme")
+                                            .fontWeight(.semibold)
+
+                                        Text("Build SDK")
+                                            .foregroundColor(.secondary)
+                                        Text("macOS / iOS (Simulator)")
+                                            .fontWeight(.semibold)
+                                    }
+
+                                    GridRow {
+                                        Text("Optimization Level")
+                                            .foregroundColor(.secondary)
+                                        Text("-Onone (Debug)")
+                                            .fontWeight(.semibold)
+
+                                        Text("Toolchain Location")
+                                            .foregroundColor(.secondary)
+                                        Text(buildManager.getXcodeBuildPath())
+                                            .font(.system(.body, design: .monospaced))
+                                            .lineLimit(1)
                                     }
                                 }
-                                .pickerStyle(.segmented)
-                                .frame(width: 320)
-
-                                Toggle("Auto-scroll", isOn: $autoScrollToBottom)
-                                    .toggleStyle(.checkbox)
-
-                                Button(action: {
-                                    let text = buildManager.buildLogs.joined(separator: "\n")
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.setString(text, forType: .string)
-                                }) {
-                                    Label("Copy Logs", systemImage: "doc.on.doc")
-                                }
                             }
+                            .padding()
                         }
-                        .padding()
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                        .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 3: Logs Display Area
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Build Console Output", systemImage: "terminal.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.gray)
-                                Spacer()
-                            }
+                        // Card 3: Collapsible Errors Group
+                        if !errorLogs.isEmpty {
+                            GroupBox {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Button {
+                                        withAnimation { showErrorsGroup.toggle() }
+                                    } label: {
+                                        HStack {
+                                            Label("Errors Detected (\(errorLogs.count))", systemImage: "exclamationmark.octagon.fill")
+                                                .font(.headline)
+                                                .foregroundColor(.red)
+                                            Spacer()
+                                            Image(systemName: showErrorsGroup ? "chevron.up" : "chevron.down")
+                                                .foregroundStyle(.red)
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
 
-                            ScrollViewReader { proxy in
-                                ScrollView {
-                                    LazyVStack(alignment: .leading, spacing: 4) {
-                                        if filteredLogs.isEmpty {
-                                            VStack(spacing: 12) {
-                                                Spacer()
-                                                Image(systemName: "doc.text.magnifyingglass")
-                                                    .font(.system(size: 32))
-                                                    .foregroundStyle(.secondary)
-                                                Text("No matching logs found")
-                                                    .font(.headline)
-                                                    .foregroundStyle(.secondary)
-                                                Spacer()
-                                            }
-                                            .frame(maxWidth: .infinity, minHeight: 200)
-                                        } else {
-                                            ForEach(Array(filteredLogs.enumerated()), id: \.offset) { index, log in
-                                                Text(log)
-                                                    .font(.system(.caption, design: .monospaced))
-                                                    .foregroundStyle(logColor(for: log))
-                                                    .textSelection(.enabled)
-                                                    .id(index)
+                                    if showErrorsGroup {
+                                        Divider()
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            ForEach(errorLogs) { log in
+                                                HStack(alignment: .top, spacing: 10) {
+                                                    Text(log.timestamp.formatted(date: .omitted, time: .standard))
+                                                        .font(.system(.caption, design: .monospaced))
+                                                        .foregroundColor(.secondary)
+
+                                                    Text(log.message)
+                                                        .font(.system(.body, design: .monospaced))
+                                                        .foregroundColor(.red)
+                                                        .textSelection(.enabled)
+                                                }
+                                                .padding(6)
+                                                .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
                                             }
                                         }
                                     }
-                                    .padding()
                                 }
-                                .frame(height: 380)
-                                .background(Color.black.opacity(0.85))
-                                .cornerRadius(8)
-                                .onChange(of: filteredLogs.count) { _, newCount in
-                                    if autoScrollToBottom && newCount > 0 {
-                                        withAnimation {
-                                            proxy.scrollTo(newCount - 1, anchor: .bottom)
+                                .padding()
+                            }
+                            .groupBoxStyle(ModernGroupBoxStyle())
+                        }
+
+                        // Card 4: Collapsible Warnings Group
+                        if !warningLogs.isEmpty {
+                            GroupBox {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Button {
+                                        withAnimation { showWarningsGroup.toggle() }
+                                    } label: {
+                                        HStack {
+                                            Label("Warnings Detected (\(warningLogs.count))", systemImage: "exclamationmark.triangle.fill")
+                                                .font(.headline)
+                                                .foregroundColor(.yellow)
+                                            Spacer()
+                                            Image(systemName: showWarningsGroup ? "chevron.up" : "chevron.down")
+                                                .foregroundStyle(.yellow)
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    if showWarningsGroup {
+                                        Divider()
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            ForEach(warningLogs) { log in
+                                                HStack(alignment: .top, spacing: 10) {
+                                                    Text(log.timestamp.formatted(date: .omitted, time: .standard))
+                                                        .font(.system(.caption, design: .monospaced))
+                                                        .foregroundColor(.secondary)
+
+                                                    Text(log.message)
+                                                        .font(.system(.body, design: .monospaced))
+                                                        .foregroundColor(.yellow)
+                                                        .textSelection(.enabled)
+                                                }
+                                                .padding(6)
+                                                .background(Color.yellow.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding()
+                            }
+                            .groupBoxStyle(ModernGroupBoxStyle())
+                        }
+
+                        // Card 5: Full Console Outputs Group
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Button {
+                                    withAnimation { showFullConsole.toggle() }
+                                } label: {
+                                    HStack {
+                                        Label("Console Outputs Log Trace", systemImage: "terminal.fill")
+                                            .font(.headline)
+                                            .foregroundColor(.blue)
+                                        Spacer()
+                                        Image(systemName: showFullConsole ? "chevron.up" : "chevron.down")
+                                            .foregroundStyle(.blue)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+
+                                if showFullConsole {
+                                    Divider()
+
+                                    ScrollViewReader { proxy in
+                                        ScrollView {
+                                            LazyVStack(alignment: .leading, spacing: 4) {
+                                                if filteredStructuredLogs.isEmpty {
+                                                    VStack(spacing: 12) {
+                                                        Spacer()
+                                                        Image(systemName: "doc.text.magnifyingglass")
+                                                            .font(.system(size: 32))
+                                                            .foregroundStyle(.secondary)
+                                                        Text("No matching build logs")
+                                                            .font(.headline)
+                                                            .foregroundStyle(.secondary)
+                                                        Spacer()
+                                                    }
+                                                    .frame(maxWidth: .infinity, minHeight: 200)
+                                                } else {
+                                                    ForEach(Array(filteredStructuredLogs.enumerated()), id: \.offset) { index, log in
+                                                        HStack(alignment: .top, spacing: 8) {
+                                                            Text(log.timestamp.formatted(date: .omitted, time: .standard))
+                                                                .font(.system(.caption2, design: .monospaced))
+                                                                .foregroundColor(.secondary.opacity(0.7))
+
+                                                            Text(log.message)
+                                                                .font(.system(.caption, design: .monospaced))
+                                                                .foregroundStyle(log.severity.color)
+                                                                .textSelection(.enabled)
+                                                        }
+                                                        .id(index)
+                                                    }
+                                                }
+                                            }
+                                            .padding()
+                                        }
+                                        .frame(height: 380)
+                                        .background(Color.black.opacity(0.85))
+                                        .cornerRadius(8)
+                                        .onChange(of: filteredStructuredLogs.count) { _, newCount in
+                                            if autoScrollToBottom && newCount > 0 {
+                                                withAnimation {
+                                                    proxy.scrollTo(newCount - 1, anchor: .bottom)
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
+                            .padding()
                         }
-                        .padding()
+                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                    .padding(24)
                 }
-                .padding(24)
             }
             .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Xcode Build Center")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close Build Center") {
-                        dismiss()
-                    }
-                }
+        }
+        .frame(minWidth: 800, idealWidth: 950, maxWidth: .infinity, minHeight: 600, idealHeight: 750, maxHeight: .infinity)
+    }
 
-                if buildManager.isBuilding {
-                    ToolbarItem(placement: .destructiveAction) {
-                        Button("Cancel Build") {
-                            buildManager.cancelBuild()
-                        }
-                        .foregroundColor(.red)
-                    }
+    private var stickyToolbarView: some View {
+        HStack(spacing: 16) {
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search build logs...", text: $searchLogQuery)
+                    .textFieldStyle(.plain)
+            }
+            .padding(8)
+            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+            .frame(width: 250)
+
+            Picker("Filter Logs", selection: $filterMode) {
+                ForEach(LogFilterMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
                 }
             }
+            .pickerStyle(.segmented)
+            .frame(width: 320)
+
+            Toggle("Auto-scroll", isOn: $autoScrollToBottom)
+                .toggleStyle(.checkbox)
+
+            Spacer()
+
+            Button(action: {
+                let text = buildManager.buildLogs.joined(separator: "\n")
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+            }) {
+                Label("Copy Raw Logs", systemImage: "doc.on.doc")
+            }
+            .buttonStyle(.bordered)
+
+            if buildManager.isBuilding {
+                Button("Cancel Build") {
+                    buildManager.cancelBuild()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+            }
+
+            Button("Close") {
+                dismiss()
+            }
+            .buttonStyle(.bordered)
         }
-        .frame(minWidth: 700, idealWidth: 850, maxWidth: .infinity, minHeight: 500, idealHeight: 600, maxHeight: .infinity)
+        .padding()
+        .background(.ultraThinMaterial)
     }
 
     private var buildStatusHeader: some View {
@@ -288,32 +455,6 @@ struct XcodeBuildLogView: View {
                     .foregroundStyle(buildManager.warningsCount > 0 ? .yellow : .primary)
             }
             .frame(width: 80, alignment: .leading)
-
-            Spacer()
-
-            // Toolchain Details
-            VStack(alignment: .trailing, spacing: 4) {
-                Text("XCODEBUILD TOOLCHAIN")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.secondary)
-                Text(buildManager.getXcodeBuildPath())
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-        }
-    }
-
-    private func logColor(for line: String) -> Color {
-        let lower = line.lowercased()
-        if lower.contains("error:") || lower.hasPrefix("error:") || lower.hasPrefix("[error]") {
-            return .red
-        } else if lower.contains("warning:") || lower.hasPrefix("warning:") {
-            return .yellow
-        } else if lower.hasPrefix("[system]") {
-            return .cyan
-        } else {
-            return .white.opacity(0.85)
         }
     }
 

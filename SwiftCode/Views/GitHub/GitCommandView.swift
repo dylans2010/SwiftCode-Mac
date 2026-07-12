@@ -74,7 +74,7 @@ struct GitCommandView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 16) {
                     // Branch indicator
                     repositoryAssociationView
 
@@ -119,9 +119,9 @@ struct GitCommandView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
-                .padding(24)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 8)
             }
-            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Git Guided Commands")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

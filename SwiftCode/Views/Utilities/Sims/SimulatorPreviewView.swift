@@ -57,10 +57,10 @@ struct SimulatorPreviewView: View {
                     // Console logging for previews
                     PreviewConsoleView()
                 }
-                .padding(24)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 8)
             }
             .frame(minWidth: 260, idealWidth: 320, maxWidth: 400)
-            .background(Color(NSColor.windowBackgroundColor))
 
             // Right canvas rendering
             PreviewCanvasView()

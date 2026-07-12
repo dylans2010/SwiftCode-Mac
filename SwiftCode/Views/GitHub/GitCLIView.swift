@@ -46,7 +46,7 @@ struct GitCLIView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 16) {
                     // Card 1: Preset Command Panel
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
@@ -203,9 +203,9 @@ struct GitCLIView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
-                .padding(24)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 8)
             }
-            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Git CLI")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
