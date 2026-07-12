@@ -51,6 +51,20 @@ public struct SimulatorMainView: View {
 
             Spacer()
 
+            if manager.isRefreshing {
+                ProgressView().controlSize(.small)
+            }
+
+            Button(action: {
+                Task {
+                    await manager.refreshAll()
+                }
+            }) {
+                Label("Refresh", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.bordered)
+            .disabled(manager.isRefreshing)
+
             Button {
                 dismiss()
             } label: {

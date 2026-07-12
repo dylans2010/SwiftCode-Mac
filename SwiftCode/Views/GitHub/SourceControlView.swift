@@ -87,64 +87,10 @@ struct SourceControlView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            // Native macOS Sidebar Navigation
-            List(selection: $selectedTab) {
-                Section("Workspace") {
-                    NavigationLink(value: SourceControlTab.localWorkspace) {
-                        Label("Local Workspace", systemImage: SourceControlTab.localWorkspace.icon)
-                    }
-
-                    if sessionStore.activeProject != nil {
-                        NavigationLink(value: SourceControlTab.unstagedChanges) {
-                            Label("Unstaged Changes", systemImage: SourceControlTab.unstagedChanges.icon)
-                        }
-                        NavigationLink(value: SourceControlTab.branches) {
-                            Label("Branches", systemImage: SourceControlTab.branches.icon)
-                        }
-                        NavigationLink(value: SourceControlTab.commitHistory) {
-                            Label("Commit History", systemImage: SourceControlTab.commitHistory.icon)
-                        }
-                        NavigationLink(value: SourceControlTab.gitTerminal) {
-                            Label("Terminal Git CLI", systemImage: SourceControlTab.gitTerminal.icon)
-                        }
-                    }
-                }
-
-                Section("GitHub Integration") {
-                    NavigationLink(value: SourceControlTab.remoteRepos) {
-                        Label("Remote Repositories", systemImage: SourceControlTab.remoteRepos.icon)
-                    }
-
-                    if let project = sessionStore.activeProject {
-                        NavigationLink(value: SourceControlTab.manageRepo) {
-                            Label("Manage Repository", systemImage: SourceControlTab.manageRepo.icon)
-                        }
-                        NavigationLink(value: SourceControlTab.issues) {
-                            Label("Issues Tracker", systemImage: SourceControlTab.issues.icon)
-                        }
-                        NavigationLink(value: SourceControlTab.gists) {
-                            Label("Personal Gists", systemImage: SourceControlTab.gists.icon)
-                        }
-                    }
-                }
-
-                Section("Settings") {
-                    Button {
-                        showSetup = true
-                    } label: {
-                        Label("Configure Git Token", systemImage: "key.fill")
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .listStyle(.sidebar)
-            .navigationTitle("Source Control")
-            .frame(minWidth: 220, idealWidth: 240, maxWidth: 300)
-        } detail: {
+        NavigationStack {
             VStack(spacing: 0) {
-                // Header with active project status
-                HStack {
+                // Header Panel with Title, Active Project Status, and Section Picker
+                HStack(spacing: 16) {
                     if let project = sessionStore.activeProject {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(project.name)
@@ -160,11 +106,32 @@ struct SourceControlView: View {
                             }
                         }
                     } else {
-                        Text("No Active Project")
+                        Text("Source Control Center")
                             .font(.headline)
                     }
 
                     Spacer()
+
+                    // Section Selection Dropdown Picker (Replacing Sidebar)
+                    Picker("Navigate Section", selection: $selectedTab) {
+                        ForEach(SourceControlTab.allCases) { tab in
+                            HStack {
+                                Image(systemName: tab.icon)
+                                Text(tab.rawValue)
+                            }
+                            .tag(tab)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 250)
+                    .accessibilityLabel("Source Control Section Navigation Picker")
+
+                    Button {
+                        showSetup = true
+                    } label: {
+                        Label("Configure Token", systemImage: "key.fill")
+                    }
+                    .buttonStyle(.bordered)
 
                     Button {
                         dismiss()
@@ -175,7 +142,7 @@ struct SourceControlView: View {
                     .keyboardShortcut(.cancelAction)
                 }
                 .padding()
-                .background(Color(NSColor.controlBackgroundColor))
+                .background(.ultraThinMaterial)
 
                 Divider()
 

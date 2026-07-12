@@ -1,3 +1,4 @@
+// Card-based visual structure matching DeploymentsView.swift
 import SwiftUI
 
 @MainActor

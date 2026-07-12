@@ -12,6 +12,7 @@ public final class SimulatorManager {
     public private(set) var runtimes: [SimulatorRuntime] = []
     public private(set) var installedApps: [SimulatorApplication] = []
     public private(set) var consoleLogs: [String] = []
+    public private(set) var pipelineDiagnostics: SimctlService.PipelineDiagnostics?
 
     public var selectedDeviceID: String? {
         didSet {
@@ -31,6 +32,9 @@ public final class SimulatorManager {
     public var isRefreshing = false
     public var configuration = SimulatorConfiguration()
 
+    // Concurrency control to prevent race conditions and duplicate operations
+    private var activeRefreshTask: Task<Void, Never>?
+
     // Core underlying services
     private let discoveryService = SimulatorDiscoveryService()
     private let simctlService = SimctlService()
@@ -45,26 +49,43 @@ public final class SimulatorManager {
     }
 
     public func refreshAll() async {
-        isRefreshing = true
-        log("Refreshing available simulators and runtimes...")
-        do {
-            let result = try await discoveryService.discoverActiveSimulators()
-            self.devices = result.devices
-            self.runtimes = result.runtimes
+        // Cancel any existing discovery job to prevent overlapping runs
+        activeRefreshTask?.cancel()
 
-            if selectedDeviceID == nil, let firstBooted = devices.first(where: { $0.state == .booted }) ?? devices.first {
-                selectedDeviceID = firstBooted.udid
-            }
-            if selectedRuntimeID == nil, let firstRuntime = runtimes.first {
-                selectedRuntimeID = firstRuntime.identifier
-            }
+        let task = Task {
+            isRefreshing = true
+            log("Refreshing available simulators and runtimes...")
+            do {
+                // 1. Run pipeline diagnostics asynchronously
+                let diagnostics = await discoveryService.runDiagnostics()
+                self.pipelineDiagnostics = diagnostics
 
-            refreshInstalledApplications()
-            log("Refresh complete. Discovered \(devices.count) simulators.")
-        } catch {
-            log("Discovery failed: \(error.localizedDescription)", isError: true)
+                // 2. Load active devices and runtimes
+                let result = try await discoveryService.discoverActiveSimulators()
+
+                // Safety check: only apply results if this task was not cancelled
+                if !Task.isCancelled {
+                    self.devices = result.devices
+                    self.runtimes = result.runtimes
+
+                    if selectedDeviceID == nil, let firstBooted = devices.first(where: { $0.state == .booted }) ?? devices.first {
+                        selectedDeviceID = firstBooted.udid
+                    }
+                    if selectedRuntimeID == nil, let firstRuntime = runtimes.first {
+                        selectedRuntimeID = firstRuntime.identifier
+                    }
+
+                    refreshInstalledApplications()
+                    log("Refresh complete. Discovered \(devices.count) simulators and \(runtimes.count) runtimes.")
+                }
+            } catch {
+                log("Discovery failed: \(error.localizedDescription)", isError: true)
+            }
+            isRefreshing = false
         }
-        isRefreshing = false
+
+        activeRefreshTask = task
+        await task.value
     }
 
     public func bootSelectedDevice() async {
