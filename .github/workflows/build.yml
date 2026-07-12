@@ -1,0 +1,106 @@
+name: Create New Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+env:
+  CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+  SECRET_ID: ${{ secrets.SECRET_ID }}
+  SCHEME: SwiftCode
+  PROJECT: SwiftCode.xcodeproj
+  CONFIGURATION: Release
+  DERIVED_DATA_PATH: ${{ github.workspace }}/build/DerivedData
+  SPM_CLONE_DIR: ${{ github.workspace }}/build/SourcePackages
+
+jobs:
+  build:
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.0'
+
+      - name: Verify Xcode
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Clean DerivedData and SwiftPM caches
+        run: |
+          rm -rf "$DERIVED_DATA_PATH" "$SPM_CLONE_DIR"
+          rm -rf ~/Library/Developer/Xcode/DerivedData
+          rm -rf ~/Library/Caches/org.swift.swiftpm
+
+      - name: Verify CI secrets
+        run: |
+          [ -n "$CLIENT_SECRET" ] && echo "CLIENT_SECRET OK" || echo "CLIENT_SECRET missing"
+          [ -n "$SECRET_ID" ] && echo "SECRET_ID OK" || echo "SECRET_ID missing"
+
+      - name: Resolve Swift Packages
+        run: |
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            -clonedSourcePackagesDirPath "$SPM_CLONE_DIR" \
+            -skipMacroValidation \
+            -skipPackagePluginValidation \
+            -resolvePackageDependencies
+
+      - name: Archive (iOS only)
+        run: |
+          mkdir -p build
+
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -destination 'generic/platform=macOS' \
+            -sdk iphoneos \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            -clonedSourcePackagesDirPath "$SPM_CLONE_DIR" \
+            -archivePath build/SwiftCode.xcarchive \
+            -skipMacroValidation \
+            -skipPackagePluginValidation \
+            archive \
+            SWIFT_COMPILATION_MODE=singlefile \
+            SWIFT_OPTIMIZATION_LEVEL=-O \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            SKIP_INSTALL=NO
+
+      - name: Package IPA
+        run: |
+          mkdir -p build/Payload
+          cp -R build/SwiftCode.xcarchive/Products/Applications/*.app build/Payload/
+          cd build
+          zip -r SwiftCode.app Payload
+
+      - name: Verify IPA
+        run: |
+          ls -la build/
+          test -f build/SwiftCode.app && echo "App created"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: SwiftCode Build ${{ github.run_number }}
+          files: build/SwiftCode.app
+          generate_release_notes: true
