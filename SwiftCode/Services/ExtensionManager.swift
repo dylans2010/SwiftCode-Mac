@@ -438,27 +438,33 @@ final class ExtensionManager: ObservableObject {
     // MARK: - Enable / Disable
 
     func toggleExtension(_ ext: ExtensionManifest) {
-        guard let idx = extensions.firstIndex(where: { $0.id == ext.id }) else { return }
-        extensions[idx].isEnabled.toggle()
-        saveEnabledState(for: extensions[idx].id, enabled: extensions[idx].isEnabled)
+        guard let idx = self.extensions.firstIndex(where: { $0.id == ext.id }) else { return }
+        self.extensions[idx].isEnabled.toggle()
+        self.saveEnabledState(for: self.extensions[idx].id, enabled: self.extensions[idx].isEnabled)
+
+        let extensionID = self.extensions[idx].id
+        let useTestTools = self.extensions[idx].use_test_tools
+        let isEnabled = self.extensions[idx].isEnabled
+        let extensionName = self.extensions[idx].name
+        let identificationTags = self.extensions[idx].identificationTags
 
         // Handle use_test_tools if enabled for this extension
-        if extensions[idx].isEnabled && extensions[idx].use_test_tools {
+        if isEnabled && useTestTools {
             Task {
-                await TestToolsManager.shared.runExtensionTests(extensionID: extensions[idx].id)
+                await TestToolsManager.shared.runExtensionTests(extensionID: extensionID)
             }
         }
 
         // PLACEHOLDER: Notify the IDE to load or unload this extension's entry point.
-        // IDEExtensionLoader.shared.reload(extensions[idx])
+        // IDEExtensionLoader.shared.reload(self.extensions[idx])
 
         AssistCapabilityExecutor.executeIfNeeded(
             kind: AssistCapabilityKind.`extension`,
-            name: extensions[idx].name,
-            identifiers: extensions[idx].identificationTags,
+            name: extensionName,
+            identifiers: identificationTags,
             payload: [
-                "extensionID": extensions[idx].id,
-                "enabled": "\(extensions[idx].isEnabled)"
+                "extensionID": extensionID,
+                "enabled": "\(isEnabled)"
             ]
         )
     }
