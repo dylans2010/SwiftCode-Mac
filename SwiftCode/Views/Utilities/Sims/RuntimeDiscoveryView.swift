@@ -92,55 +92,7 @@ struct RuntimeDiscoveryView: View {
 
                     VStack(spacing: 6) {
                         ForEach(runtimes) { runtime in
-                            Button(action: {
-                                selectedRuntimeIdentifier = runtime.identifier
-                            }) {
-                                HStack(spacing: 10) {
-                                    Image(systemName: selectedRuntimeIdentifier == runtime.identifier ? "largecircle.fill.circle" : "circle")
-                                        .foregroundColor(selectedRuntimeIdentifier == runtime.identifier ? .cyan : .secondary)
-                                        .font(.system(size: 14))
-
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        HStack {
-                                            Text(runtime.name)
-                                                .font(.body.bold())
-                                                .foregroundColor(.primary)
-                                            Spacer()
-                                            Text(runtime.platform)
-                                                .font(.caption2.bold())
-                                                .padding(.horizontal, 6)
-                                                .padding(.vertical, 2)
-                                                .background(platformBackgroundColor(for: runtime.platform))
-                                                .cornerRadius(4)
-                                                .foregroundColor(.white)
-                                        }
-
-                                        Text("Version: \(runtime.version) | \(runtime.identifier)")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-
-                                        if let path = runtime.path {
-                                            Text(path)
-                                                .font(.system(.ultraLight, size: 9))
-                                                .lineLimit(1)
-                                                .truncationMode(.middle)
-                                                .foregroundStyle(.tertiary)
-                                        }
-                                    }
-                                    .multilineTextAlignment(.leading)
-                                }
-                                .padding(10)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(selectedRuntimeIdentifier == runtime.identifier ? Color.cyan.opacity(0.12) : Color(NSColor.controlBackgroundColor))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(selectedRuntimeIdentifier == runtime.identifier ? Color.cyan : Color.clear, lineWidth: 1)
-                                )
-                            }
-                            .buttonStyle(.plain)
+                            RuntimeRow(runtime: runtime, selectedRuntimeIdentifier: $selectedRuntimeIdentifier)
                         }
                     }
                 }
@@ -231,6 +183,79 @@ struct RuntimeDiscoveryView: View {
                 selectedRuntimeIdentifier = first.identifier
             }
         }
+    }
+
+    private func platformBackgroundColor(for platform: String) -> Color {
+        switch platform.lowercased() {
+        case "ios": return .blue
+        case "watchos": return .orange
+        case "tvos": return .purple
+        case "visionos": return .teal
+        case "macos": return .green
+        default: return .gray
+        }
+    }
+}
+
+@MainActor
+struct RuntimeRow: View {
+    let runtime: SimulatorRuntime
+    @Binding var selectedRuntimeIdentifier: String
+
+    private var isSelected: Bool {
+        selectedRuntimeIdentifier == runtime.identifier
+    }
+
+    var body: some View {
+        Button(action: {
+            selectedRuntimeIdentifier = runtime.identifier
+        }) {
+            HStack(spacing: 10) {
+                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                    .foregroundColor(isSelected ? .cyan : .secondary)
+                    .font(.system(size: 14))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack {
+                        Text(runtime.name)
+                            .font(.body.bold())
+                            .foregroundColor(.primary)
+                        Spacer()
+                        Text(runtime.platform)
+                            .font(.caption2.bold())
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(platformBackgroundColor(for: runtime.platform))
+                            .cornerRadius(4)
+                            .foregroundColor(.white)
+                    }
+
+                    Text("Version: \(runtime.version) | \(runtime.identifier)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+
+                    if let path = runtime.path {
+                        Text(path)
+                            .font(.system(.ultraLight, size: 9))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .multilineTextAlignment(.leading)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? Color.cyan.opacity(0.12) : Color(NSColor.controlBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? Color.cyan : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func platformBackgroundColor(for platform: String) -> Color {
