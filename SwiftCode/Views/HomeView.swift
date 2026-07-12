@@ -502,7 +502,7 @@ struct HomeView: View {
                     Spacer()
                     ColorPicker("", selection: Binding(
                         get: { Color(hex: newFolderColor) },
-                        set: { newFolderColor = $0.toHex() ?? "#FF5733" }
+                        set: { newFolderColor = $0.toHex }
                     ))
                 }
             }
@@ -601,14 +601,106 @@ struct HomeView: View {
     }
 }
 
-// Color conversion helpers for saving selected theme HEX string
-private extension Color {
-    func toHex() -> String? {
-        let uic = NSColor(self)
-        guard let rgb = uic.usingColorSpace(.deviceRGB) else { return nil }
-        let r = Int(rgb.redComponent * 255)
-        let g = Int(rgb.greenComponent * 255)
-        let b = Int(rgb.blueComponent * 255)
-        return String(format: "#%02X%02X%02X", r, g, b)
+// MARK: - Reusable Dashboard/Home Components
+
+struct QuickStartRow: View {
+    let icon: String
+    let title: String
+    let description: String
+
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(.orange)
+                .frame(width: 32, height: 32)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(8)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 8)
+    }
+}
+
+struct HomeProjectCardView: View {
+    let project: Project
+    let onSelect: () -> Void
+    let onDelete: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "swift")
+                    .font(.title)
+                    .foregroundColor(.orange)
+                    .padding(10)
+                    .background(Color.orange.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                Spacer()
+
+                Button(role: .destructive, action: onDelete) {
+                    Image(systemName: "trash")
+                        .foregroundStyle(.red)
+                }
+                .buttonStyle(.plain)
+                .opacity(isHovered ? 1.0 : 0.0)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(project.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .foregroundStyle(.primary)
+
+                Text(project.description.isEmpty ? "No description" : project.description)
+                    .font(.caption)
+                    .lineLimit(2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            HStack {
+                Label("\(project.fileCount) files", systemImage: "doc")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text("Opened \(project.lastOpened, style: .relative) ago")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding()
+        .frame(minHeight: 140)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.secondary.opacity(0.1))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isHovered ? Color.orange.opacity(0.3) : Color.clear, lineWidth: 1.5)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            onSelect()
+        }
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+            }
+        }
     }
 }
