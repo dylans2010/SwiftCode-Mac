@@ -76,6 +76,11 @@ struct SimulatorCreationView: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 runtimePickerStateView
                             }
+
+                            Divider()
+                                .padding(.vertical, 4)
+
+                            RuntimeDiscoveryView(selectedRuntimeIdentifier: $selectedRuntime)
                         }
                         .padding()
                     }
@@ -104,7 +109,7 @@ struct SimulatorCreationView: View {
                 SimulatorDiagnosticsView()
             }
         }
-        .frame(width: 500, height: 450)
+        .frame(width: 500, height: 600)
         .onAppear {
             initializeRuntimeSelection()
         }
