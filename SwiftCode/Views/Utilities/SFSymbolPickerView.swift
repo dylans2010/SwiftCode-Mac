@@ -541,11 +541,11 @@ struct SFSymbolDetailSheet: View {
         } else if activeEffect == "Pulse" {
             styledImg.symbolEffect(.pulse, value: effectTrigger)
         } else if activeEffect == "Scale" {
-            styledImg.symbolEffect(.scale, value: effectTrigger)
+            styledImg.symbolEffect(.scale, isActive: effectTrigger)
         } else if activeEffect == "Appear" {
-            styledImg.symbolEffect(.appear, value: effectTrigger)
+            styledImg.symbolEffect(.appear, isActive: effectTrigger)
         } else {
-            styledImg.symbolEffect(.disappear, value: effectTrigger)
+            styledImg.symbolEffect(.disappear, isActive: effectTrigger)
         }
     }
 }
