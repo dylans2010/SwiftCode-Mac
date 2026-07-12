@@ -16,76 +16,100 @@ struct DependencyManagerView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                if dependencies.isEmpty {
-                    VStack(spacing: 16) {
-                        Image(systemName: "shippingbox")
-                            .font(.system(size: 48))
-                            .foregroundStyle(.secondary.opacity(0.6))
-                        Text("No Dependencies Yet")
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                        Text("Add Swift Package dependencies to this project.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+            ScrollView {
+                VStack(spacing: 24) {
+                    if dependencies.isEmpty {
+                        GroupBox {
+                            VStack(spacing: 16) {
+                                Image(systemName: "shippingbox")
+                                    .font(.system(size: 48))
+                                    .foregroundStyle(.secondary.opacity(0.6))
+                                Text("No Dependencies Yet")
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Text("Add Swift Package dependencies to this project.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
 
-                        Button("Add Dependency") {
-                            resetAddForm()
-                            showAddSheet = true
+                                Button("Add Dependency") {
+                                    resetAddForm()
+                                    showAddSheet = true
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.orange)
+                                .controlSize(.large)
+                            }
+                            .padding(32)
+                            .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    List {
-                        ForEach(dependencies) { dep in
-                            HStack(alignment: .center, spacing: 16) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(dep.name)
+                        .groupBoxStyle(ModernGroupBoxStyle())
+                    } else {
+                        // Card: Pinned Dependencies
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Label("Swift Package Dependencies", systemImage: "shippingbox.fill")
                                         .font(.headline)
-                                        .foregroundStyle(.primary)
-                                    Text(dep.url)
-                                        .font(.caption)
-                                        .foregroundStyle(.blue)
-                                        .lineLimit(1)
-                                    HStack {
-                                        Text("v\(dep.version)")
-                                            .font(.caption2)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
-                                            .foregroundStyle(.orange)
-                                        Text(dep.source.rawValue)
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
+                                        .foregroundColor(.orange)
+                                    Spacer()
                                 }
 
-                                Spacer()
+                                ForEach(dependencies) { dep in
+                                    HStack(alignment: .center, spacing: 16) {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(dep.name)
+                                                .font(.headline)
+                                                .foregroundStyle(.primary)
+                                            Text(dep.url)
+                                                .font(.caption)
+                                                .foregroundStyle(.blue)
+                                                .lineLimit(1)
+                                            HStack {
+                                                Text("v\(dep.version)")
+                                                    .font(.caption2.bold())
+                                                    .padding(.horizontal, 6)
+                                                    .padding(.vertical, 2)
+                                                    .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+                                                    .foregroundStyle(.orange)
+                                                Text(dep.source.rawValue)
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
 
-                                HStack(spacing: 8) {
-                                    Button {
-                                        beginEdit(dep)
-                                    } label: {
-                                        Image(systemName: "pencil")
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .help("Edit Dependency")
+                                        Spacer()
 
-                                    Button(role: .destructive) {
-                                        removeDependency(dep)
-                                    } label: {
-                                        Image(systemName: "trash")
+                                        HStack(spacing: 8) {
+                                            Button {
+                                                beginEdit(dep)
+                                            } label: {
+                                                Image(systemName: "pencil")
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .help("Edit Dependency")
+
+                                            Button(role: .destructive) {
+                                                removeDependency(dep)
+                                            } label: {
+                                                Image(systemName: "trash")
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .help("Delete Dependency")
+                                        }
                                     }
-                                    .buttonStyle(.bordered)
-                                    .help("Delete Dependency")
+                                    .padding(.vertical, 8)
+
+                                    if dep.id != dependencies.last?.id {
+                                        Divider()
+                                    }
                                 }
                             }
-                            .padding(.vertical, 6)
+                            .padding()
                         }
+                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
                 }
+                .padding(24)
             }
             .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Dependencies")
@@ -116,36 +140,96 @@ struct DependencyManagerView: View {
 
     private var addDependencySheet: some View {
         NavigationStack {
-            Form {
-                Section("Package Info") {
-                    TextField("Package Name", text: $newName)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-                    TextField("Repository URL", text: $newURL)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-                    TextField("Version", text: $newVersion)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-                }
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Card 1: Dependency Fields
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Package Specifications", systemImage: "puzzlepiece.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
 
-                Section("Source") {
-                    Picker("Source", selection: $newSource) {
-                        ForEach(PackageDependency.DependencySource.allCases, id: \.self) { source in
-                            Text(source.rawValue).tag(source)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Package Name")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+                                TextField("e.g. Alamofire", text: $newName)
+                                    .textFieldStyle(.roundedBorder)
+                                    .autocorrectionDisabled()
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Repository URL")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+                                TextField("e.g. https://github.com/Alamofire/Alamofire.git", text: $newURL)
+                                    .textFieldStyle(.roundedBorder)
+                                    .autocorrectionDisabled()
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Version Requirement")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+                                TextField("e.g. 5.8.0", text: $newVersion)
+                                    .textFieldStyle(.roundedBorder)
+                                    .autocorrectionDisabled()
+                            }
                         }
+                        .padding()
                     }
-                    .pickerStyle(.segmented)
-                }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                Section("Preview") {
-                    Text(previewEntry)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.green)
-                        .padding(.vertical, 4)
+                    // Card 2: Source Type
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Package Registry Source", systemImage: "network")
+                                        .font(.headline)
+                                        .foregroundColor(.orange)
+                                Spacer()
+                            }
+
+                            Picker("Source", selection: $newSource) {
+                                ForEach(PackageDependency.DependencySource.allCases, id: \.self) { source in
+                                    Text(source.rawValue).tag(source)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Card 3: Code Preview
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Label("Package.swift Declaration", systemImage: "doc.text.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.green)
+                                Spacer()
+                            }
+
+                            Text(previewEntry)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.green)
+                                .textSelection(.enabled)
+                                .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.black.opacity(0.15))
+                                .cornerRadius(8)
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
+                .padding(24)
             }
-            .padding()
+            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle(editingDependency != nil ? "Edit Dependency" : "Add Dependency")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -159,7 +243,7 @@ struct DependencyManagerView: View {
                 }
             }
         }
-        .frame(width: 500, height: 400)
+        .frame(width: 550, height: 500)
     }
 
     private var previewEntry: String {

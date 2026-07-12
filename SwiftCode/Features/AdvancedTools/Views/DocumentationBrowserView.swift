@@ -2,9 +2,13 @@ import SwiftUI
 import WebKit
 import AppKit
 
+extension Notification.Name {
+    static let loadDocURL = Notification.Name("com.swiftcode.loadDocURL")
+}
+
 struct DocumentationBrowserView: View {
-    @State private var query = ""
-    @State private var currentURL: URL? = URL(string: "https://developer.apple.com/documentation/swiftui")
+    @State private var searchQuery = ""
+    @State private var currentURL: URL? = URL(string: "https://developer.apple.com/documentation")
     @State private var isLoading = false
     @State private var canGoBack = false
     @State private var canGoForward = false
@@ -16,124 +20,125 @@ struct DocumentationBrowserView: View {
     @State private var showingAIInsights = false
     @State private var showingPaywall = false
     @State private var extractedContent: String?
+    @State private var loadURLTrigger: URL? = nil
 
     let frameworks = [
-        "SwiftUI", "UIKit", "Combine", "CoreML", "AVFoundation", "CloudKit", "Metal"
+        "SwiftUI", "Swift", "AppKit", "Foundation", "Combine", "CoreML", "Metal"
     ]
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Loading Indicator
-                if isLoading {
-                    HStack {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                        Text("Loading Apple Developer Documentation…")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 4)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.accentColor.opacity(0.05))
-                }
-
-                // Header Search & Platform bar
-                HStack(spacing: 12) {
-                    TextField("Search documentation or enter URL...", text: $query)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { performSearch() }
-
-                    Button {
-                        performSearch()
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
-
-                    Divider().frame(height: 20)
-
+                // Dynamic Header Bar (Clean & Professional macOS Appearance)
+                HStack(spacing: 16) {
                     // Back & Forward Controls
-                    HStack(spacing: 4) {
+                    HStack(spacing: 6) {
                         Button {
                             backTrigger.toggle()
                         } label: {
                             Image(systemName: "chevron.left")
+                                .font(.system(size: 12, weight: .bold))
                         }
                         .buttonStyle(.bordered)
                         .disabled(!canGoBack)
+                        .help("Go Back")
 
                         Button {
                             forwardTrigger.toggle()
                         } label: {
                             Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .bold))
                         }
                         .buttonStyle(.bordered)
                         .disabled(!canGoForward)
+                        .help("Go Forward")
 
                         Button {
                             reloadTrigger.toggle()
                         } label: {
                             Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 12, weight: .semibold))
                         }
                         .buttonStyle(.bordered)
+                        .help("Reload")
+                    }
+
+                    // Native Search Integration
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        TextField("Search Apple Developer Documentation...", text: $searchQuery)
+                            .textFieldStyle(.plain)
+                            .onSubmit { performAppleSearch() }
+                    }
+                    .padding(8)
+                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+
+                    Button("Search") {
+                        performAppleSearch()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+
+                    if isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                            .transition(.opacity)
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                .padding(.vertical, 12)
                 .background(Color(NSColor.windowBackgroundColor))
 
                 Divider()
 
-                // Framework Chips
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(frameworks, id: \.self) { framework in
-                            Button(action: {
-                                loadFramework(framework)
-                            }) {
-                                Text(framework)
-                                    .font(.subheadline.weight(.medium))
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 6)
-                                    .background(query == framework ? Color.orange.opacity(0.2) : Color.accentColor.opacity(0.1))
-                                    .clipShape(Capsule())
-                                    .foregroundColor(query == framework ? .orange : .accentColor)
+                // Framework Shortcuts (Beautiful Interactive Chips)
+                HStack(spacing: 10) {
+                    Text("Shortcut frameworks:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(frameworks, id: \.self) { framework in
+                                Button(action: {
+                                    loadFramework(framework)
+                                }) {
+                                    Text(framework)
+                                        .font(.caption.bold())
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 4)
+                                        .background(Color.orange.opacity(0.15), in: Capsule())
+                                        .foregroundColor(.orange)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
                 .background(Color(NSColor.controlBackgroundColor))
 
                 Divider()
 
-                // Documentation Content
-                if let currentURL {
+                // Main Web Frame
+                ZStack {
                     DocsWebView(
-                        url: currentURL,
+                        url: currentURL ?? URL(string: "https://developer.apple.com/documentation")!,
                         isLoading: $isLoading,
                         canGoBack: $canGoBack,
                         canGoForward: $canGoForward,
                         reloadTrigger: $reloadTrigger,
                         backTrigger: $backTrigger,
                         forwardTrigger: $forwardTrigger,
-                        extractedContent: $extractedContent
+                        extractedContent: $extractedContent,
+                        loadURLTrigger: $loadURLTrigger
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    ContentUnavailableView(
-                        "No URL Loaded",
-                        systemImage: "book.closed",
-                        description: Text("Search for documentation or select a framework shortcut to begin.")
-                    )
-                    .frame(maxHeight: .infinity)
                 }
             }
-            .navigationTitle("Documentation")
+            .navigationTitle("Apple Developer Documentation")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
@@ -142,7 +147,7 @@ struct DocumentationBrowserView: View {
                                 showingPaywall = true
                                 return
                             }
-                            if let url = currentURL {
+                            if let url = loadURLTrigger ?? currentURL {
                                 Task {
                                     await DocumentationAnalyzer.shared.analyze(url: url, documentationContent: extractedContent)
                                 }
@@ -167,43 +172,41 @@ struct DocumentationBrowserView: View {
             .sheet(isPresented: $showingPaywall) {
                 PaywallView()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .loadDocURL)) { notification in
+                if let url = notification.userInfo?["url"] as? URL {
+                    loadURLTrigger = url
+                    currentURL = url
+                }
+            }
         }
     }
 
     private func openInSafari() {
-        if let currentURL {
-            NSWorkspace.shared.open(currentURL)
+        if let url = loadURLTrigger ?? currentURL {
+            NSWorkspace.shared.open(url)
         }
     }
 
     private func loadFramework(_ name: String) {
-        query = name
-        performSearch()
+        searchQuery = name
+        let path = name.lowercased()
+        if let url = URL(string: "https://developer.apple.com/documentation/\(path)") {
+            loadURLTrigger = url
+        }
     }
 
-    private func performSearch() {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            currentURL = nil
-            return
-        }
+    private func performAppleSearch() {
+        let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
 
-        if trimmed.lowercased().hasPrefix("http"),
-           let url = URL(string: trimmed),
-           ["http", "https"].contains(url.scheme?.lowercased()) {
-            currentURL = url
-            return
+        let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        if let url = URL(string: "https://developer.apple.com/search/?q=\(encoded)") {
+            loadURLTrigger = url
         }
-
-        let safePath = trimmed
-            .replacingOccurrences(of: " ", with: "-")
-            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            .lowercased()
-        currentURL = URL(string: "https://developer.apple.com/documentation/\(safePath)")
     }
 }
 
-private struct DocsWebView: PlatformViewRepresentable {
+private struct DocsWebView: NSViewRepresentable {
     let url: URL
     @Binding var isLoading: Bool
     @Binding var canGoBack: Bool
@@ -213,26 +216,27 @@ private struct DocsWebView: PlatformViewRepresentable {
     @Binding var backTrigger: Bool
     @Binding var forwardTrigger: Bool
     @Binding var extractedContent: String?
+    @Binding var loadURLTrigger: URL?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
 
-    func makePlatformView(context: Context) -> WKWebView {
+    func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
-        configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
 
-        loadIfValid(on: webView, url: url)
+        webView.load(URLRequest(url: url))
         return webView
     }
 
-    func updatePlatformView(_ webView: WKWebView, context: Context) {
-        if webView.url != url {
-            loadIfValid(on: webView, url: url)
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        if let targetURL = loadURLTrigger {
+            loadURLTrigger = nil
+            webView.load(URLRequest(url: targetURL))
         }
 
         if reloadTrigger != context.coordinator.lastReloadTrigger {
@@ -251,11 +255,6 @@ private struct DocsWebView: PlatformViewRepresentable {
         }
     }
 
-    private func loadIfValid(on webView: WKWebView, url: URL) {
-        guard ["http", "https"].contains(url.scheme?.lowercased()) else { return }
-        webView.load(URLRequest(url: url))
-    }
-
     class Coordinator: NSObject, WKNavigationDelegate {
         var parent: DocsWebView
         var lastReloadTrigger = false
@@ -264,6 +263,20 @@ private struct DocsWebView: PlatformViewRepresentable {
 
         init(_ parent: DocsWebView) {
             self.parent = parent
+        }
+
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            if let url = navigationAction.request.url {
+                let host = url.host?.lowercased() ?? ""
+                // Exclusively restrict navigation to Apple sites to safeguard the user context
+                if host.contains("apple.com") {
+                    decisionHandler(.allow)
+                } else {
+                    decisionHandler(.cancel)
+                }
+            } else {
+                decisionHandler(.allow)
+            }
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -292,17 +305,5 @@ private struct DocsWebView: PlatformViewRepresentable {
                 self.parent.isLoading = false
             }
         }
-    }
-}
-
-private typealias PlatformViewRepresentable = NSViewRepresentable
-
-private extension DocsWebView {
-    func makeNSView(context: Context) -> WKWebView {
-        makePlatformView(context: context)
-    }
-
-    func updateNSView(_ webView: WKWebView, context: Context) {
-        updatePlatformView(webView, context: context)
     }
 }

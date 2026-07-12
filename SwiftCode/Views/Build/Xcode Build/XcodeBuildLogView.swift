@@ -52,42 +52,60 @@ struct XcodeBuildLogView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Card 1: Build Status Hub
+                    // Card 1: Build Status Hub (Visual Status & Metrics)
                     GroupBox {
-                        buildStatusHeader
-                            .padding()
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Xcode Build Status", systemImage: "hammer.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
+                            }
+
+                            buildStatusHeader
+                        }
+                        .padding()
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
                     // Card 2: Filter / Search Toolbar
                     GroupBox {
-                        HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 14) {
                             HStack {
-                                Image(systemName: "magnifyingglass")
-                                    .foregroundStyle(.secondary)
-                                TextField("Search build logs...", text: $searchLogQuery)
-                                    .textFieldStyle(.plain)
+                                Label("Search & Filters", systemImage: "line.3.horizontal.decrease.circle.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
                             }
-                            .padding(8)
-                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
 
-                            Picker("Filter", selection: $filterMode) {
-                                ForEach(LogFilterMode.allCases) { mode in
-                                    Text(mode.rawValue).tag(mode)
+                            HStack(spacing: 12) {
+                                HStack {
+                                    Image(systemName: "magnifyingglass")
+                                        .foregroundStyle(.secondary)
+                                    TextField("Search build logs...", text: $searchLogQuery)
+                                        .textFieldStyle(.plain)
                                 }
-                            }
-                            .pickerStyle(.segmented)
-                            .frame(width: 320)
+                                .padding(8)
+                                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
 
-                            Toggle("Auto-scroll", isOn: $autoScrollToBottom)
-                                .toggleStyle(.checkbox)
+                                Picker("Filter", selection: $filterMode) {
+                                    ForEach(LogFilterMode.allCases) { mode in
+                                        Text(mode.rawValue).tag(mode)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+                                .frame(width: 320)
 
-                            Button(action: {
-                                let text = buildManager.buildLogs.joined(separator: "\n")
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(text, forType: .string)
-                            }) {
-                                Label("Copy Logs", systemImage: "doc.on.doc")
+                                Toggle("Auto-scroll", isOn: $autoScrollToBottom)
+                                    .toggleStyle(.checkbox)
+
+                                Button(action: {
+                                    let text = buildManager.buildLogs.joined(separator: "\n")
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(text, forType: .string)
+                                }) {
+                                    Label("Copy Logs", systemImage: "doc.on.doc")
+                                }
                             }
                         }
                         .padding()
@@ -96,10 +114,13 @@ struct XcodeBuildLogView: View {
 
                     // Card 3: Logs Display Area
                     GroupBox {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Label("Build Console Output", systemImage: "terminal.fill")
-                                .font(.headline)
-                                .foregroundColor(.gray)
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Build Console Output", systemImage: "terminal.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.gray)
+                                Spacer()
+                            }
 
                             ScrollViewReader { proxy in
                                 ScrollView {
@@ -129,7 +150,7 @@ struct XcodeBuildLogView: View {
                                     .padding()
                                 }
                                 .frame(height: 380)
-                                .background(Color.black)
+                                .background(Color.black.opacity(0.85))
                                 .cornerRadius(8)
                                 .onChange(of: filteredLogs.count) { _, newCount in
                                     if autoScrollToBottom && newCount > 0 {
@@ -146,6 +167,7 @@ struct XcodeBuildLogView: View {
                 }
                 .padding(24)
             }
+            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Xcode Build Center")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
