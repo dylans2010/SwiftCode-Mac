@@ -44,7 +44,7 @@ struct DependencyManagerView: View {
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
                     } else {
-                        // Card: Pinned Dependencies
+                        // Card 1: Pinned Dependencies (Modern Card Styling matching DeploymentsView)
                         GroupBox {
                             VStack(alignment: .leading, spacing: 14) {
                                 HStack {
@@ -52,55 +52,69 @@ struct DependencyManagerView: View {
                                         .font(.headline)
                                         .foregroundColor(.orange)
                                     Spacer()
+                                    Text("\(dependencies.count) Packages")
+                                        .font(.caption2.bold())
+                                        .foregroundStyle(.secondary)
                                 }
 
-                                ForEach(dependencies) { dep in
-                                    HStack(alignment: .center, spacing: 16) {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(dep.name)
-                                                .font(.headline)
-                                                .foregroundStyle(.primary)
-                                            Text(dep.url)
-                                                .font(.caption)
-                                                .foregroundStyle(.blue)
-                                                .lineLimit(1)
-                                            HStack {
-                                                Text("v\(dep.version)")
-                                                    .font(.caption2.bold())
-                                                    .padding(.horizontal, 6)
-                                                    .padding(.vertical, 2)
-                                                    .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
-                                                    .foregroundStyle(.orange)
-                                                Text(dep.source.rawValue)
+                                Divider()
+
+                                VStack(spacing: 12) {
+                                    ForEach(dependencies) { dep in
+                                        HStack(alignment: .center, spacing: 16) {
+                                            ZStack {
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .fill(Color.orange.opacity(0.12))
+                                                    .frame(width: 44, height: 44)
+                                                Image(systemName: "shippingbox")
+                                                    .font(.title3)
+                                                    .foregroundColor(.orange)
+                                            }
+
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(dep.name)
+                                                    .font(.subheadline.bold())
+                                                    .foregroundStyle(.primary)
+                                                Text(dep.url)
                                                     .font(.caption2)
-                                                    .foregroundStyle(.secondary)
+                                                    .foregroundStyle(.blue)
+                                                    .lineLimit(1)
+                                                HStack {
+                                                    Text("v\(dep.version)")
+                                                        .font(.caption2.bold())
+                                                        .padding(.horizontal, 6)
+                                                        .padding(.vertical, 2)
+                                                        .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+                                                        .foregroundStyle(.orange)
+                                                    Text(dep.source.rawValue.uppercased())
+                                                        .font(.system(size: 8, weight: .bold))
+                                                        .foregroundStyle(.secondary)
+                                                }
+                                            }
+
+                                            Spacer()
+
+                                            HStack(spacing: 8) {
+                                                Button {
+                                                    beginEdit(dep)
+                                                } label: {
+                                                    Image(systemName: "pencil")
+                                                }
+                                                .buttonStyle(.bordered)
+                                                .help("Edit Dependency")
+
+                                                Button(role: .destructive) {
+                                                    removeDependency(dep)
+                                                } label: {
+                                                    Image(systemName: "trash")
+                                                }
+                                                .buttonStyle(.bordered)
+                                                .help("Delete Dependency")
                                             }
                                         }
-
-                                        Spacer()
-
-                                        HStack(spacing: 8) {
-                                            Button {
-                                                beginEdit(dep)
-                                            } label: {
-                                                Image(systemName: "pencil")
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .help("Edit Dependency")
-
-                                            Button(role: .destructive) {
-                                                removeDependency(dep)
-                                            } label: {
-                                                Image(systemName: "trash")
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .help("Delete Dependency")
-                                        }
-                                    }
-                                    .padding(.vertical, 8)
-
-                                    if dep.id != dependencies.last?.id {
-                                        Divider()
+                                        .padding(10)
+                                        .background(Color.secondary.opacity(0.04))
+                                        .cornerRadius(8)
                                     }
                                 }
                             }

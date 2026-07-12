@@ -222,62 +222,85 @@ struct SFSymbolPickerView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Version & Search Category Bar
-                HStack(spacing: 16) {
-                    Picker("SF Symbols Version", selection: $viewModel.selectedVersion) {
-                        Text("SF Symbols 6").tag(6)
-                        Text("SF Symbols 5").tag(5)
-                        Text("SF Symbols 4").tag(4)
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: viewModel.selectedVersion) { _, _ in
-                        viewModel.loadSymbols()
-                    }
-                    .frame(width: 320)
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Card 1: Configuration & Search Hub
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Search & Filters", systemImage: "sparkles")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
+                            }
 
-                    // Search field
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.secondary)
-                        TextField("Search \(viewModel.symbols.count) symbols...", text: $viewModel.searchQuery)
-                            .textFieldStyle(.plain)
-                    }
-                    .padding(8)
-                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                }
-                .padding(16)
-                .background(.ultraThinMaterial)
+                            HStack(spacing: 16) {
+                                Picker("SF Symbols Version", selection: $viewModel.selectedVersion) {
+                                    Text("SF Symbols 6").tag(6)
+                                    Text("SF Symbols 5").tag(5)
+                                    Text("SF Symbols 4").tag(4)
+                                }
+                                .pickerStyle(.segmented)
+                                .onChange(of: viewModel.selectedVersion) { _, _ in
+                                    viewModel.loadSymbols()
+                                }
+                                .frame(width: 320)
 
-                Divider()
-
-                if viewModel.isSearching {
-                    VStack {
-                        ProgressView()
-                            .controlSize(.large)
-                        Text("Loading symbols from source file...")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 8)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if viewModel.filteredSymbols.isEmpty {
-                    ContentUnavailableView(
-                        "No Symbols Found",
-                        systemImage: "doc.text.magnifyingglass",
-                        description: Text("Try adjusting your query or filter.")
-                    )
-                    .frame(maxHeight: .infinity)
-                } else {
-                    ScrollView {
-                        LazyVGrid(columns: columns, spacing: 12) {
-                            ForEach(viewModel.filteredSymbols) { symbol in
-                                symbolCell(symbol)
+                                HStack {
+                                    Image(systemName: "magnifyingglass")
+                                        .foregroundStyle(.secondary)
+                                    TextField("Search \(viewModel.symbols.count) symbols...", text: $viewModel.searchQuery)
+                                        .textFieldStyle(.plain)
+                                }
+                                .padding(8)
+                                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
                             }
                         }
-                        .padding(16)
+                        .padding()
                     }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Card 2: Symbols Display Grid Card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Symbol Directory", systemImage: "square.grid.2x2.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
+
+                            if viewModel.isSearching {
+                                VStack {
+                                    ProgressView()
+                                        .controlSize(.large)
+                                    Text("Loading symbols from source file...")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.top, 8)
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 200)
+                            } else if viewModel.filteredSymbols.isEmpty {
+                                ContentUnavailableView(
+                                    "No Symbols Found",
+                                    systemImage: "doc.text.magnifyingglass",
+                                    description: Text("Try adjusting your query or filter.")
+                                )
+                                .frame(maxWidth: .infinity, minHeight: 200)
+                            } else {
+                                LazyVGrid(columns: columns, spacing: 12) {
+                                    ForEach(viewModel.filteredSymbols) { symbol in
+                                        symbolCell(symbol)
+                                    }
+                                }
+                                .padding(.vertical, 8)
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
+                .padding(24)
             }
             .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("SF Symbols Browser")

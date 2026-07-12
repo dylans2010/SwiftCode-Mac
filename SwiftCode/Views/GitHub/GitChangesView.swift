@@ -5,54 +5,162 @@ struct GitChangesView: View {
     @State private var commitMessage = ""
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Button(action: { Task { await viewModel.refreshStatus() } }) {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                Spacer()
-                Button("Stage All") {
-                     // Stage all logic
-                }
-                Button("Unstage All") {
-                    // Unstage all logic
-                }
-            }
-            .padding(8)
-            .buttonStyle(.plain)
+        ScrollView {
+            VStack(spacing: 24) {
+                // Card 1: Action Controls Card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Git Workspace Actions", systemImage: "arrow.clockwise")
+                                .font(.headline)
+                                .foregroundColor(.orange)
+                            Spacer()
+                        }
 
-            List {
+                        HStack(spacing: 12) {
+                            Button(action: { Task { await viewModel.refreshStatus() } }) {
+                                Label("Refresh Status", systemImage: "arrow.clockwise")
+                            }
+                            .buttonStyle(.bordered)
+
+                            Spacer()
+
+                            Button("Stage All Files") {
+                                if let status = viewModel.status {
+                                    let unstaged = status.files.filter { !$0.isStaged }
+                                    for file in unstaged {
+                                        Task { await viewModel.stage(file) }
+                                    }
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.blue)
+
+                            Button("Unstage All Files") {
+                                if let status = viewModel.status {
+                                    let staged = status.files.filter { $0.isStaged }
+                                    for file in staged {
+                                        Task { await viewModel.unstage(file) }
+                                    }
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
                 if let status = viewModel.status {
-                    Section("Staged Changes") {
-                        ForEach(status.files.filter { $0.isStaged }) { file in
-                            GitFileRowView(file: file)
-                                .contextMenu {
-                                    Button("Unstage") { Task { await viewModel.unstage(file) } }
-                                    Button("Discard Changes") { /* Discard */ }
-                                }
-                        }
-                    }
-                    Section("Unstaged Changes") {
-                        ForEach(status.files.filter { !$0.isStaged }) { file in
-                            GitFileRowView(file: file)
-                                .contextMenu {
-                                    Button("Stage") { Task { await viewModel.stage(file) } }
-                                    Button("Stage Individual Hunks") { /* Hunk staging */ }
-                                    Button("Discard Changes") { /* Discard */ }
-                                }
-                        }
-                    }
-                }
-            }
+                    // Card 2: Staged Changes Card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Staged Changes", systemImage: "checkmark.circle.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.green)
+                                Spacer()
+                                Text("\(status.files.filter { $0.isStaged }.count) files")
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(.secondary)
+                            }
 
-            GitCommitComposerView(message: $commitMessage) {
-                Task {
-                    guard let url = viewModel.repositoryURL else { return }
-                    try? await GitService.shared.commit(message: commitMessage, repositoryURL: url)
-                    commitMessage = ""
-                    await viewModel.refreshStatus()
+                            let staged = status.files.filter { $0.isStaged }
+                            if staged.isEmpty {
+                                Text("No staged changes. Stage files below to prepare for commit.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .padding(.vertical, 8)
+                            } else {
+                                VStack(spacing: 8) {
+                                    ForEach(staged) { file in
+                                        HStack {
+                                            GitFileRowView(file: file)
+                                            Spacer()
+                                            Button("Unstage") {
+                                                Task { await viewModel.unstage(file) }
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+                                        }
+                                        .padding(8)
+                                        .background(Color.secondary.opacity(0.04))
+                                        .cornerRadius(8)
+                                    }
+                                }
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Card 3: Unstaged Changes Card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Unstaged Changes", systemImage: "exclamationmark.circle.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
+                                Text("\(status.files.filter { !$0.isStaged }.count) files")
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            let unstaged = status.files.filter { !$0.isStaged }
+                            if unstaged.isEmpty {
+                                Text("No unstaged changes in the working tree.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .padding(.vertical, 8)
+                            } else {
+                                VStack(spacing: 8) {
+                                    ForEach(unstaged) { file in
+                                        HStack {
+                                            GitFileRowView(file: file)
+                                            Spacer()
+                                            Button("Stage") {
+                                                Task { await viewModel.stage(file) }
+                                            }
+                                            .buttonStyle(.borderedProminent)
+                                            .controlSize(.small)
+                                        }
+                                        .padding(8)
+                                        .background(Color.secondary.opacity(0.04))
+                                        .cornerRadius(8)
+                                    }
+                                }
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
+
+                // Card 4: Commit Composer Card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Commit Composer", systemImage: "pencil.and.outline")
+                                .font(.headline)
+                                .foregroundColor(.purple)
+                            Spacer()
+                        }
+
+                        GitCommitComposerView(message: $commitMessage) {
+                            Task {
+                                guard let url = viewModel.repositoryURL else { return }
+                                try? await GitService.shared.commit(message: commitMessage, repositoryURL: url)
+                                commitMessage = ""
+                                await viewModel.refreshStatus()
+                            }
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
             }
+            .padding(24)
         }
     }
 }

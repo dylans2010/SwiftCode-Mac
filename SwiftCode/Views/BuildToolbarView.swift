@@ -28,7 +28,7 @@ struct BuildToolbarView: View {
                 .accessibilityLabel("Build Scheme Selector")
             }
 
-            // Pinned & Optional Tools
+            // Pinned & Optional Tools: Only show options that are explicitly pinned (enabled)
             HStack(spacing: 8) {
                 ForEach(toolbarManager.enabledTools) { tool in
                     Group {
@@ -145,34 +145,5 @@ struct BuildToolbarView: View {
         .onChange(of: projectURL) { _, newURL in
             buildManager.discoverSchemes(at: newURL)
         }
-    }
-}
-
-// MARK: - Pinned Tool Drop Delegate
-
-struct PinnedToolDropDelegate: DropDelegate {
-    let tool: ToolbarTool
-    let manager: ToolbarManager
-
-    func performDrop(info: DropInfo) -> Bool {
-        guard let itemProvider = info.itemProviders(for: [.text]).first else { return false }
-        itemProvider.loadObject(ofClass: NSString.self) { nsString, error in
-            guard let sourceID = nsString as? String else { return }
-            Task { @MainActor in
-                let enabled = manager.enabledTools
-                guard let sourceIndex = enabled.firstIndex(where: { $0.id == sourceID }),
-                      let destinationIndex = enabled.firstIndex(where: { $0.id == tool.id }) else { return }
-
-                if sourceIndex != destinationIndex {
-                    withAnimation {
-                        manager.moveTool(
-                            from: IndexSet(integer: sourceIndex),
-                            to: destinationIndex > sourceIndex ? destinationIndex + 1 : destinationIndex
-                        )
-                    }
-                }
-            }
-        }
-        return true
     }
 }

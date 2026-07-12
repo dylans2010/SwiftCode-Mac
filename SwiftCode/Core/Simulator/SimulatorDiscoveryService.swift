@@ -21,4 +21,9 @@ public actor SimulatorDiscoveryService {
             throw error
         }
     }
+
+    public func runDiagnostics() async -> SimctlService.PipelineDiagnostics {
+        logger.info("[BEGIN] Running discovery pipeline diagnostics")
+        return await simctlService.runDiagnostics()
+    }
 }

@@ -1,3 +1,4 @@
+// Card-based visual structure matching DeploymentsView.swift
 import SwiftUI
 
 struct LicencesAddView: View {
@@ -55,34 +56,37 @@ struct LicencesAddView: View {
             // Sidebar List of Licenses
             VStack(spacing: 0) {
                 // Filters Header Card inside a modern styled background
-                VStack(spacing: 12) {
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.secondary)
-                        TextField("Search licenses...", text: $searchText)
-                            .textFieldStyle(.plain)
-                    }
-                    .padding(8)
-                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-
-                    HStack(spacing: 8) {
-                        Picker("Category", selection: $selectedCategory) {
-                            ForEach(categories, id: \.self) { Text($0).tag($0) }
+                GroupBox {
+                    VStack(spacing: 12) {
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundStyle(.secondary)
+                            TextField("Search licenses...", text: $searchText)
+                                .textFieldStyle(.plain)
                         }
-                        .pickerStyle(.menu)
-                        .controlSize(.small)
+                        .padding(8)
+                        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
 
-                        Spacer()
+                        HStack(spacing: 8) {
+                            Picker("Category", selection: $selectedCategory) {
+                                ForEach(categories, id: \.self) { Text($0).tag($0) }
+                            }
+                            .pickerStyle(.menu)
+                            .controlSize(.small)
 
-                        Picker("Sort", selection: $sortMode) {
-                            ForEach(SortMode.allCases) { Text($0.rawValue).tag($0) }
+                            Spacer()
+
+                            Picker("Sort", selection: $sortMode) {
+                                ForEach(SortMode.allCases) { Text($0.rawValue).tag($0) }
+                            }
+                            .pickerStyle(.menu)
+                            .controlSize(.small)
                         }
-                        .pickerStyle(.menu)
-                        .controlSize(.small)
                     }
+                    .padding(4)
                 }
-                .padding(14)
-                .background(.ultraThinMaterial)
+                .groupBoxStyle(ModernGroupBoxStyle())
+                .padding(10)
 
                 Divider()
 

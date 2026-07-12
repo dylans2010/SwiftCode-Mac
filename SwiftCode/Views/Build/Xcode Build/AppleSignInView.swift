@@ -3,11 +3,15 @@ import SwiftUI
 @MainActor
 struct AppleSignInView: View {
     @State private var appleID = ""
+    @State private var password = "" // Password field
     @State private var teamName = ""
     @State private var teamID = ""
     @State private var keyID = ""
     @State private var issuerID = ""
     @State private var privateKey = ""
+
+    // 2FA Fields
+    @State private var twoFactorCode = ""
 
     // Codesign tool fields
     @State private var targetAppPath = ""
@@ -36,99 +40,150 @@ struct AppleSignInView: View {
                                 Spacer()
                             }
 
-                            Text("Connect your App Store Connect API Key to load and manage certificates, and codesign apps natively.")
+                            Text("Connect your Apple ID to sign apps. For free accounts, only Apple ID and Password are required. Paid App Store Connect API keys are optional.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
 
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Apple ID (Email)")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
-                                TextField("e.g. developer@apple.com", text: $appleID)
-                                    .textFieldStyle(.roundedBorder)
-                                    .autocorrectionDisabled()
-                            }
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Team Name")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
-                                TextField("e.g. Acme Corp", text: $teamName)
-                                    .textFieldStyle(.roundedBorder)
-                            }
-
-                            HStack(spacing: 16) {
+                            if !manager.is2FARequired {
                                 VStack(alignment: .leading, spacing: 6) {
-                                    Text("Team ID")
+                                    Text("Apple ID (Email) *")
                                         .font(.caption.bold())
                                         .foregroundStyle(.secondary)
-                                    TextField("e.g. 10-char alphanumeric", text: $teamID)
+                                    TextField("e.g. developer@apple.com", text: $appleID)
                                         .textFieldStyle(.roundedBorder)
                                         .autocorrectionDisabled()
                                 }
 
                                 VStack(alignment: .leading, spacing: 6) {
-                                    Text("API Key ID")
+                                    Text("Password *")
                                         .font(.caption.bold())
                                         .foregroundStyle(.secondary)
-                                    TextField("e.g. ABC123XYZ", text: $keyID)
+                                    SecureField("Enter Apple Password or App-Specific Password", text: $password)
+                                        .textFieldStyle(.roundedBorder)
+                                }
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Team Name (Optional)")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.secondary)
+                                    TextField("e.g. Personal Team", text: $teamName)
+                                        .textFieldStyle(.roundedBorder)
+                                }
+
+                                HStack(spacing: 16) {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text("Team ID (Optional)")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(.secondary)
+                                        TextField("e.g. 10-char alphanumeric", text: $teamID)
+                                            .textFieldStyle(.roundedBorder)
+                                            .autocorrectionDisabled()
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text("API Key ID (Optional)")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(.secondary)
+                                        TextField("e.g. ABC123XYZ", text: $keyID)
+                                            .textFieldStyle(.roundedBorder)
+                                            .autocorrectionDisabled()
+                                    }
+                                }
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Issuer ID (UUID - Optional)")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.secondary)
+                                    TextField("e.g. e55f462a-...", text: $issuerID)
                                         .textFieldStyle(.roundedBorder)
                                         .autocorrectionDisabled()
                                 }
-                            }
 
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Issuer ID (UUID)")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
-                                TextField("e.g. e55f462a-...", text: $issuerID)
-                                    .textFieldStyle(.roundedBorder)
-                                    .autocorrectionDisabled()
-                            }
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Private Key (.p8 Content)")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
-                                SecureField("Paste entire Private Key content here", text: $privateKey)
-                                    .textFieldStyle(.roundedBorder)
-                            }
-
-                            Button {
-                                Task {
-                                    await manager.addAccount(
-                                        appleID: appleID,
-                                        teamName: teamName,
-                                        teamID: teamID,
-                                        keyID: keyID,
-                                        issuerID: issuerID,
-                                        privateKey: privateKey
-                                    )
-                                    if manager.sessionState == .signedIn {
-                                        // Clear fields
-                                        appleID = ""
-                                        teamName = ""
-                                        teamID = ""
-                                        keyID = ""
-                                        issuerID = ""
-                                        privateKey = ""
-                                    }
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Private Key (.p8 Content - Optional)")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.secondary)
+                                    SecureField("Paste entire Private Key content here", text: $privateKey)
+                                        .textFieldStyle(.roundedBorder)
                                 }
-                            } label: {
-                                HStack {
-                                    if manager.sessionState == .loading {
-                                        ProgressView().controlSize(.small)
-                                            .padding(.trailing, 4)
+
+                                Button {
+                                    Task {
+                                        await manager.addAccount(
+                                            appleID: appleID,
+                                            password: password,
+                                            teamName: teamName,
+                                            teamID: teamID,
+                                            keyID: keyID,
+                                            issuerID: issuerID,
+                                            privateKey: privateKey
+                                        )
+                                        if manager.sessionState == .signedIn {
+                                            // Clear fields
+                                            appleID = ""
+                                            password = ""
+                                            teamName = ""
+                                            teamID = ""
+                                            keyID = ""
+                                            issuerID = ""
+                                            privateKey = ""
+                                        }
                                     }
-                                    Text("Sign In / Connect API")
-                                        .fontWeight(.semibold)
+                                } label: {
+                                    HStack {
+                                        if manager.sessionState == .loading {
+                                            ProgressView().controlSize(.small)
+                                                .padding(.trailing, 4)
+                                        }
+                                        Text("Sign In / Connect Developer Account")
+                                            .fontWeight(.semibold)
+                                    }
+                                    .frame(maxWidth: .infinity)
                                 }
-                                .frame(maxWidth: .infinity)
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
+                                .tint(.orange)
+                                .disabled(appleID.isEmpty || password.isEmpty || manager.sessionState == .loading)
+                            } else {
+                                // 2FA Verification Entry
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Text("Two-Factor Verification Code")
+                                        .font(.subheadline.bold())
+                                        .foregroundColor(.orange)
+
+                                    TextField("Enter 6-digit verification code", text: $twoFactorCode)
+                                        .textFieldStyle(.roundedBorder)
+                                        .font(.title2.monospaced())
+                                        .multilineTextAlignment(.center)
+                                        .frame(width: 250)
+                                        .autocorrectionDisabled()
+
+                                    Button {
+                                        Task {
+                                            await manager.verifyTwoFactorCode(twoFactorCode)
+                                            if manager.sessionState == .signedIn {
+                                                twoFactorCode = ""
+                                            }
+                                        }
+                                    } label: {
+                                        HStack {
+                                            if manager.sessionState == .loading {
+                                                ProgressView().controlSize(.small)
+                                                    .padding(.trailing, 4)
+                                            }
+                                            Text("Verify Security Code")
+                                                .fontWeight(.bold)
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.orange)
+                                    .disabled(twoFactorCode.count < 6 || manager.sessionState == .loading)
+                                }
+                                .padding()
+                                .background(Color.orange.opacity(0.06))
+                                .cornerRadius(8)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.large)
-                            .tint(.orange)
-                            .disabled(appleID.isEmpty || teamID.isEmpty || keyID.isEmpty || issuerID.isEmpty || privateKey.isEmpty || manager.sessionState == .loading)
                         }
                         .padding()
                     }
@@ -144,7 +199,7 @@ struct AppleSignInView: View {
                                 Spacer()
                             }
 
-                            Text("All private keys and API credentials are kept locally on your Mac inside the native secure Keychain Services. They are never sent to external servers other than Apple.")
+                            Text("All passwords, keys, and credentials are kept locally on your Mac inside secure Keychain Services. They are never sent to external servers other than Apple.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }

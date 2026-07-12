@@ -7,11 +7,26 @@ public actor SimctlService {
 
     public init() {}
 
+    public struct PipelineDiagnostics: Sendable, Codable {
+        public let xcodePath: String
+        public let xcodeVersion: String
+        public let xcrunVersion: String
+        public let isSimctlAvailable: Bool
+        public let runtimeCount: Int
+        public let deviceCount: Int
+        public let runningCount: Int
+        public let lastRefreshTime: Date
+        public let discoveryDuration: TimeInterval
+        public let latestStderr: String
+        public let latestExitCode: Int32
+    }
+
     public func fetchDevicesAndRuntimes() async throws -> (devices: [SimulatorDevice], runtimes: [SimulatorRuntime]) {
-        let command = SimulatorCommand.listDevices()
+        let command = SimulatorCommand.listEverything()
         let result = try await executor.execute(command)
 
         guard result.exitCode == 0 else {
+            logger.error("List everything command returned non-zero code \(result.exitCode): \(result.errorOutput)")
             throw SimulatorError.simctlFailed(reason: "List command returned non-zero code. Output: \(result.errorOutput)")
         }
 
@@ -19,7 +34,10 @@ public actor SimctlService {
             throw SimulatorError.simctlFailed(reason: "Invalid list response encoding")
         }
 
-        // Parsing the simctl JSON format
+        return try parseDevicesAndRuntimes(data: data)
+    }
+
+    public func parseDevicesAndRuntimes(data: Data) throws -> (devices: [SimulatorDevice], runtimes: [SimulatorRuntime]) {
         do {
             let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
 
@@ -30,17 +48,25 @@ public actor SimctlService {
                     let identifier = r["identifier"] as? String ?? ""
                     let name = r["name"] as? String ?? ""
                     let version = r["version"] as? String ?? ""
-                    let platform = r["platform"] as? String ?? (name.contains("iOS") ? "iOS" : name.contains("watchOS") ? "watchOS" : name.contains("tvOS") ? "tvOS" : "visionOS")
+                    let platform = r["platform"] as? String ?? (name.contains("iOS") ? "iOS" : name.contains("watchOS") ? "watchOS" : name.contains("tvOS") ? "tvOS" : name.contains("visionOS") ? "visionOS" : "macOS")
                     let isAvailable = r["isAvailable"] as? Bool ?? true
 
-                    parsedRuntimes.append(SimulatorRuntime(
-                        identifier: identifier,
-                        name: name,
-                        version: version,
-                        platform: platform,
-                        isAvailable: isAvailable
-                    ))
+                    // Filter out unavailable runtimes
+                    if isAvailable {
+                        parsedRuntimes.append(SimulatorRuntime(
+                            identifier: identifier,
+                            name: name,
+                            version: version,
+                            platform: platform,
+                            isAvailable: isAvailable
+                        ))
+                    }
                 }
+            }
+
+            // Sort newest first
+            parsedRuntimes.sort { r1, r2 in
+                r1.version.compare(r2.version, options: .numeric) == .orderedDescending
             }
 
             // 2. Parse devices
@@ -75,7 +101,7 @@ public actor SimctlService {
                             runtimeIdentifier: runtimeKey,
                             platform: platform,
                             osVersion: version,
-                            architecture: "arm64", // Default simulator architecture
+                            architecture: "arm64",
                             state: state,
                             isAvailable: isAvailable
                         ))
@@ -90,6 +116,57 @@ public actor SimctlService {
             throw SimulatorError.simctlFailed(reason: "JSON decoding failed: \(error.localizedDescription)")
         }
     }
+
+    // Core diagnostics checks
+    public func runDiagnostics() async -> PipelineDiagnostics {
+        let startTime = Date()
+
+        let pathResult = try? await executor.execute(SimulatorCommand.determineDeveloperDirectory())
+        let path = pathResult?.output.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unavailable"
+
+        let versionResult = try? await executor.execute(SimulatorCommand.determineXcodeVersion())
+        let xcodeVer = versionResult?.output.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unavailable"
+
+        let xcrunResult = try? await executor.execute(SimulatorCommand.verifyXcrun())
+        let xcrunVer = xcrunResult?.output.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unavailable"
+
+        let listResult = try? await executor.execute(SimulatorCommand.listEverything())
+        let isAvailable = listResult?.exitCode == 0
+
+        var rCount = 0
+        var dCount = 0
+        var bCount = 0
+        var latestErr = ""
+        var latestExit: Int32 = 0
+
+        if let data = listResult?.output.data(using: .utf8),
+           let parsed = try? parseDevicesAndRuntimes(data: data) {
+            rCount = parsed.runtimes.count
+            dCount = parsed.devices.count
+            bCount = parsed.devices.filter { $0.state == .booted }.count
+        } else {
+            latestErr = listResult?.errorOutput ?? "Failed to run list command"
+            latestExit = listResult?.exitCode ?? -1
+        }
+
+        let duration = Date().timeIntervalSince(startTime)
+
+        return PipelineDiagnostics(
+            xcodePath: path,
+            xcodeVersion: xcodeVer,
+            xcrunVersion: xcrunVer,
+            isSimctlAvailable: isAvailable,
+            runtimeCount: rCount,
+            deviceCount: dCount,
+            runningCount: bCount,
+            lastRefreshTime: Date(),
+            discoveryDuration: duration,
+            latestStderr: latestErr,
+            latestExitCode: latestExit
+        )
+    }
+
+    // Core simctl command utilities
 
     public func bootDevice(udid: String) async throws {
         let command = SimulatorCommand.boot(udid: udid)
