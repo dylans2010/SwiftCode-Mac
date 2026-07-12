@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct SimulatorCreationView: View {
     @Environment(\.dismiss) private var dismiss
@@ -8,6 +9,7 @@ struct SimulatorCreationView: View {
     @State private var selectedDeviceType = "com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro"
     @State private var selectedRuntime = ""
     @State private var isCreating = false
+    @State private var showingDiagnostics = false
 
     private let deviceTypes = [
         ("iPhone 16 Pro", "com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro"),
@@ -25,7 +27,7 @@ struct SimulatorCreationView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Card 1: Configuration Fields
+                    // Card 1: Device Configuration
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -61,7 +63,7 @@ struct SimulatorCreationView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 2: Runtime SDK Picker with multiple states
+                    // Card 2: Target SDK Runtime Picker (The 4-State UI)
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -72,86 +74,7 @@ struct SimulatorCreationView: View {
                             }
 
                             VStack(alignment: .leading, spacing: 6) {
-                                if manager.isRefreshing {
-                                    // Loading State
-                                    HStack(spacing: 12) {
-                                        ProgressView().controlSize(.small)
-                                        Text("Discovering installed runtimes...")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .padding(.vertical, 8)
-                                } else if let diag = manager.pipelineDiagnostics, !diag.isSimctlAvailable {
-                                    // Failure State
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Label("Unable to discover simulator runtimes.", systemImage: "exclamationmark.triangle.fill")
-                                            .font(.caption.bold())
-                                            .foregroundColor(.red)
-
-                                        HStack(spacing: 8) {
-                                            Button("Retry") {
-                                                Task { await manager.refreshAll() }
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-
-                                            Button("Show Diagnostics") {
-                                                // Handle diagnostics presentation
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-
-                                            Button("Copy Error") {
-                                                NSPasteboard.general.clearContents()
-                                                NSPasteboard.general.setString(diag.latestStderr, forType: .string)
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-                                        }
-                                    }
-                                    .padding(10)
-                                    .background(Color.red.opacity(0.1))
-                                    .cornerRadius(8)
-                                } else if manager.runtimes.isEmpty {
-                                    // Empty State
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Label("No simulator runtimes are installed.", systemImage: "opticaldisc.fill")
-                                            .font(.caption.bold())
-                                            .foregroundColor(.orange)
-
-                                        HStack(spacing: 8) {
-                                            Button("Refresh") {
-                                                Task { await manager.refreshAll() }
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-
-                                            Button("Open Xcode Settings") {
-                                                #if os(macOS)
-                                                NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Xcode.app"))
-                                                #endif
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-                                        }
-                                    }
-                                    .padding(10)
-                                    .background(Color.orange.opacity(0.1))
-                                    .cornerRadius(8)
-                                } else {
-                                    // Loaded State
-                                    Picker("Target SDK Runtime OS", selection: $selectedRuntime) {
-                                        ForEach(Array(groupedRuntimes.keys).sorted(), id: \.self) { platform in
-                                            Section(header: Text(platform)) {
-                                                ForEach(groupedRuntimes[platform] ?? []) { runtime in
-                                                    Text(runtime.name).tag(runtime.identifier)
-                                                }
-                                            }
-                                        }
-                                    }
-                                    .pickerStyle(.menu)
-                                    .labelsHidden()
-                                }
+                                runtimePickerStateView
                             }
                         }
                         .padding()
@@ -177,17 +100,142 @@ struct SimulatorCreationView: View {
                     .disabled(deviceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedRuntime.isEmpty || isCreating)
                 }
             }
-        }
-        .frame(width: 500, height: 420)
-        .onAppear {
-            if let firstRuntime = manager.runtimes.first {
-                selectedRuntime = firstRuntime.identifier
+            .sheet(isPresented: $showingDiagnostics) {
+                SimulatorDiagnosticsView()
             }
+        }
+        .frame(width: 500, height: 450)
+        .onAppear {
+            initializeRuntimeSelection()
         }
         .onChange(of: manager.runtimes) { _, runtimes in
             if selectedRuntime.isEmpty, let first = runtimes.first {
                 selectedRuntime = first.identifier
             }
+        }
+    }
+
+    @ViewBuilder
+    private var runtimePickerStateView: some View {
+        switch manager.state {
+        case .idle:
+            Text("Subsystem idle...")
+                .foregroundColor(.secondary)
+
+        case .discovering(let stage):
+            // State 1: Loading
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 12) {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel("Loading simulator runtimes")
+                    Text(stage.rawValue)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.vertical, 8)
+
+        case .loaded:
+            // State 2: Loaded
+            Picker("Target SDK Runtime OS", selection: $selectedRuntime) {
+                ForEach(Array(groupedRuntimes.keys).sorted(), id: \.self) { platform in
+                    Section(header: Text(platform)) {
+                        ForEach(groupedRuntimes[platform] ?? []) { runtime in
+                            Text(runtime.name).tag(runtime.identifier)
+                        }
+                    }
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+
+        case .empty(let reason):
+            // State 3: Empty
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text("No simulator runtimes available.")
+                        .font(.subheadline.bold())
+                }
+
+                Text(reason.rawValue)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                HStack(spacing: 12) {
+                    Button("Refresh") {
+                        Task { await manager.refreshAll() }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Button("Open Xcode Settings") {
+                        #if os(macOS)
+                        NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Xcode.app"))
+                        #endif
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Button("Diagnostics") {
+                        showingDiagnostics = true
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                .padding(.top, 4)
+            }
+            .padding(10)
+            .background(Color.orange.opacity(0.08))
+            .cornerRadius(8)
+
+        case .failed(let error):
+            // State 4: Failed
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "xmark.octagon.fill")
+                        .foregroundColor(.red)
+                    Text("Discovery Failed")
+                        .font(.subheadline.bold())
+                }
+
+                Text(error.localizedDescription)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                HStack(spacing: 12) {
+                    Button("Retry") {
+                        Task { await manager.refreshAll() }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Button("Show Diagnostics") {
+                        showingDiagnostics = true
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Button("Copy Error") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(error.localizedDescription, forType: .string)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                .padding(.top, 4)
+            }
+            .padding(10)
+            .background(Color.red.opacity(0.08))
+            .cornerRadius(8)
+        }
+    }
+
+    private func initializeRuntimeSelection() {
+        if let firstRuntime = manager.runtimes.first {
+            selectedRuntime = firstRuntime.identifier
         }
     }
 

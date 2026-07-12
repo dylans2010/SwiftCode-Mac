@@ -3,6 +3,7 @@ import SwiftUI
 public struct SimulatorMainView: View {
     @State private var manager = SimulatorManager.shared
     @State private var activeTab: Tab = .simulator
+    @State private var showingDiagnostics = false
     @Environment(\.dismiss) private var dismiss
 
     public init() {}
@@ -29,6 +30,9 @@ public struct SimulatorMainView: View {
                 }
             }
             .navigationTitle("Simulator & SwiftUI Previews Workspace")
+            .sheet(isPresented: $showingDiagnostics) {
+                SimulatorDiagnosticsView()
+            }
         }
     }
 
@@ -52,7 +56,9 @@ public struct SimulatorMainView: View {
             Spacer()
 
             if manager.isRefreshing {
-                ProgressView().controlSize(.small)
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel("Loading simulator runtimes")
             }
 
             Button(action: {
@@ -64,6 +70,13 @@ public struct SimulatorMainView: View {
             }
             .buttonStyle(.bordered)
             .disabled(manager.isRefreshing)
+
+            Button {
+                showingDiagnostics = true
+            } label: {
+                Label("Diagnostics", systemImage: "stethoscope")
+            }
+            .buttonStyle(.bordered)
 
             Button {
                 dismiss()

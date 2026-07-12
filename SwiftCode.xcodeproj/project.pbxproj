@@ -7,6 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C010B2222222222222222229 /* Logger+Simulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C010F1111111111111111119 /* Logger+Simulator.swift */; };
+		C010B2222222222222222222 /* CommandExecutionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = C010F1111111111111111112 /* CommandExecutionRecord.swift */; };
+		C010B2222222222222222221 /* CommandExecutionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C010F1111111111111111111 /* CommandExecutionEngine.swift */; };
+		C010B2222222222222222223 /* DeveloperEnvironmentProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = C010F1111111111111111113 /* DeveloperEnvironmentProbe.swift */; };
+		C010B2222222222222222224 /* SimctlJSONModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C010F1111111111111111114 /* SimctlJSONModels.swift */; };
+		C010B2222222222222222225 /* SimctlDiscoveryClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C010F1111111111111111115 /* SimctlDiscoveryClient.swift */; };
+		C010B2222222222222222226 /* SimulatorSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = C010F1111111111111111116 /* SimulatorSnapshot.swift */; };
+		C010B2222222222222222227 /* SimulatorDiscoveryState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C010F1111111111111111117 /* SimulatorDiscoveryState.swift */; };
+		C010B2222222222222222228 /* SimulatorDiscoveryError.swift in Sources */ = {isa = PBXBuildFile; fileRef = C010F1111111111111111118 /* SimulatorDiscoveryError.swift */; };
+		C010B222222222222222222A /* SimulatorDiagnosticsSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = C010F111111111111111111A /* SimulatorDiagnosticsSnapshot.swift */; };
+		C010B222222222222222222B /* SimulatorDiscoveryPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = C010F111111111111111111B /* SimulatorDiscoveryPipeline.swift */; };
+		C010B222222222222222222C /* SimulatorDiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C010F111111111111111111C /* SimulatorDiagnosticsView.swift */; };
 		004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = BBB818A276304EA881DBF6E6 /* MLXOptimizers */; };
 		016298C4F533D83B2A4FB1B0 /* ApplicationDeploymentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF38596E6CBBF00108C7D98 /* ApplicationDeploymentView.swift */; };
 		0205BA60DB99F20AD6385182 /* TextLineRemoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA47DBD02C0AECE609708638 /* TextLineRemoverView.swift */; };
@@ -947,6 +959,18 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		C010F1111111111111111119 /* Logger+Simulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger+Simulator.swift; sourceTree = "<group>"; };
+		C010F1111111111111111112 /* CommandExecutionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandExecutionRecord.swift; sourceTree = "<group>"; };
+		C010F1111111111111111111 /* CommandExecutionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandExecutionEngine.swift; sourceTree = "<group>"; };
+		C010F1111111111111111113 /* DeveloperEnvironmentProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperEnvironmentProbe.swift; sourceTree = "<group>"; };
+		C010F1111111111111111114 /* SimctlJSONModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimctlJSONModels.swift; sourceTree = "<group>"; };
+		C010F1111111111111111115 /* SimctlDiscoveryClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimctlDiscoveryClient.swift; sourceTree = "<group>"; };
+		C010F1111111111111111116 /* SimulatorSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorSnapshot.swift; sourceTree = "<group>"; };
+		C010F1111111111111111117 /* SimulatorDiscoveryState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorDiscoveryState.swift; sourceTree = "<group>"; };
+		C010F1111111111111111118 /* SimulatorDiscoveryError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorDiscoveryError.swift; sourceTree = "<group>"; };
+		C010F111111111111111111A /* SimulatorDiagnosticsSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorDiagnosticsSnapshot.swift; sourceTree = "<group>"; };
+		C010F111111111111111111B /* SimulatorDiscoveryPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorDiscoveryPipeline.swift; sourceTree = "<group>"; };
+		C010F111111111111111111C /* SimulatorDiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorDiagnosticsView.swift; sourceTree = "<group>"; };
 		00048987BBB25A712D49051C /* NordThemeExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NordThemeExtensionView.swift; sourceTree = "<group>"; };
 		0076F070FA7E4422B0FBAAB8 /* ParseMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseMarkdown.swift; sourceTree = "<group>"; };
 		00A96C0BE03E4321AB3DEAFB /* KubernetesApply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KubernetesApply.swift; sourceTree = "<group>"; };
@@ -2495,6 +2519,7 @@
 		4A27AF985BA20ABA3FE4EE35 /* Sims */ = {
 			isa = PBXGroup;
 			children = (
+				C010F111111111111111111C /* SimulatorDiagnosticsView.swift */,
 				45ED4CFCDFDAED75055E8082 /* SimulatorMainView.swift */,
 				9AC87E03E32F06B8801E206B /* SimulatorSidebar.swift */,
 				2D3ED03728A02EB9442A7426 /* SimulatorToolbar.swift */,
@@ -3149,6 +3174,17 @@
 		A561C2FD0D6BFAB77C085A60 /* Simulator */ = {
 			isa = PBXGroup;
 			children = (
+				C010F1111111111111111119 /* Logger+Simulator.swift */,
+				C010F1111111111111111112 /* CommandExecutionRecord.swift */,
+				C010F1111111111111111111 /* CommandExecutionEngine.swift */,
+				C010F1111111111111111113 /* DeveloperEnvironmentProbe.swift */,
+				C010F1111111111111111114 /* SimctlJSONModels.swift */,
+				C010F1111111111111111115 /* SimctlDiscoveryClient.swift */,
+				C010F1111111111111111116 /* SimulatorSnapshot.swift */,
+				C010F1111111111111111117 /* SimulatorDiscoveryState.swift */,
+				C010F1111111111111111118 /* SimulatorDiscoveryError.swift */,
+				C010F111111111111111111A /* SimulatorDiagnosticsSnapshot.swift */,
+				C010F111111111111111111B /* SimulatorDiscoveryPipeline.swift */,
 				819BE9346FD05E17DA5AC065 /* SimulatorManager.swift */,
 				CB083E7BD35996CD024AD6A0 /* SimulatorDevice.swift */,
 				AFDCBFD964F43CACA6675E49 /* SimulatorRuntime.swift */,
@@ -4068,6 +4104,18 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C010B2222222222222222229 /* Logger+Simulator.swift in Sources */,
+				C010B2222222222222222222 /* CommandExecutionRecord.swift in Sources */,
+				C010B2222222222222222221 /* CommandExecutionEngine.swift in Sources */,
+				C010B2222222222222222223 /* DeveloperEnvironmentProbe.swift in Sources */,
+				C010B2222222222222222224 /* SimctlJSONModels.swift in Sources */,
+				C010B2222222222222222225 /* SimctlDiscoveryClient.swift in Sources */,
+				C010B2222222222222222226 /* SimulatorSnapshot.swift in Sources */,
+				C010B2222222222222222227 /* SimulatorDiscoveryState.swift in Sources */,
+				C010B2222222222222222228 /* SimulatorDiscoveryError.swift in Sources */,
+				C010B222222222222222222A /* SimulatorDiagnosticsSnapshot.swift in Sources */,
+				C010B222222222222222222B /* SimulatorDiscoveryPipeline.swift in Sources */,
+				C010B222222222222222222C /* SimulatorDiagnosticsView.swift in Sources */,
 				2B4CEE870D734A23837F5302 /* ExpandedDevTools.swift in Sources */,
 				AA110001BB220001CC330001 /* XcodeProjParse.swift in Sources */,
 				AA110001BB220001CC330003 /* XcodeProjViewer.swift in Sources */,
