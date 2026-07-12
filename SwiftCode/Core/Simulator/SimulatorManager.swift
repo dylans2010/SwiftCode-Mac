@@ -1,18 +1,22 @@
-import SwiftUI
+import Foundation
 import Observation
 import os
+import AppKit
 
 @Observable
 @MainActor
 public final class SimulatorManager {
     public static let shared = SimulatorManager()
 
-    // Observed collections
+    // Expose modern pipeline-driven state and diagnostics
+    public private(set) var state: SimulatorDiscoveryState = .idle
+    public private(set) var diagnostics: SimulatorDiagnosticsSnapshot = .initial
+
+    // Retain observed legacy and adjacent collections for backward compatibility with existing views
     public private(set) var devices: [SimulatorDevice] = []
     public private(set) var runtimes: [SimulatorRuntime] = []
     public private(set) var installedApps: [SimulatorApplication] = []
     public private(set) var consoleLogs: [String] = []
-    public private(set) var pipelineDiagnostics: SimctlService.PipelineDiagnostics?
 
     public var selectedDeviceID: String? {
         didSet {
@@ -29,64 +33,130 @@ public final class SimulatorManager {
         runtimes.first { $0.identifier == selectedRuntimeID }
     }
 
-    public var isRefreshing = false
+    public var isRefreshing: Bool {
+        switch state {
+        case .discovering:
+            return true
+        default:
+            return false
+        }
+    }
+
     public var configuration = SimulatorConfiguration()
 
-    // Concurrency control to prevent race conditions and duplicate operations
+    // Concurrency control to prevent overlapping runs
     private var activeRefreshTask: Task<Void, Never>?
 
-    // Core underlying services
-    private let discoveryService = SimulatorDiscoveryService()
+    // Underlying legacy adjacent services
     private let simctlService = SimctlService()
     private let installationService = SimulatorInstallationService()
     private let loggingService = SimulatorLoggingService()
-    private let logger = Logger(subsystem: "com.swiftcode.simulator", category: "SimulatorManager")
 
     private init() {
+        // Synchronously set to discovering initializing state to prevent visual flashes of undefined state
+        self.state = .discovering(stage: .initializing)
         Task {
             await refreshAll()
         }
     }
 
+    public func refresh() async {
+        await refreshAll()
+    }
+
     public func refreshAll() async {
-        // Cancel any existing discovery job to prevent overlapping runs
+        // Cancel any active refresh job to ensure single-flight execution
         activeRefreshTask?.cancel()
 
         let task = Task {
-            isRefreshing = true
-            log("Refreshing available simulators and runtimes...")
+            let refreshStartedAt = Date()
+            Logger.discovery.info("[MANAGER] Kicking off unified discovery refresh...")
+
             do {
-                // 1. Run pipeline diagnostics asynchronously
-                let diagnostics = await discoveryService.runDiagnostics()
-                self.pipelineDiagnostics = diagnostics
+                // Execute the 10-stage pipeline with progress publishing
+                let snapshot = try await SimulatorDiscoveryPipeline.shared.runPipeline { [weak self] stage in
+                    guard let self = self else { return }
+                    Task { @MainActor in
+                        self.state = .discovering(stage: stage)
+                        // Progressively feed intermediate logs and diagnostics
+                        self.updateDiagnostics(stage: stage, snapshot: nil, error: nil)
+                    }
+                }
 
-                // 2. Load active devices and runtimes
-                let result = try await discoveryService.discoverActiveSimulators()
-
-                // Safety check: only apply results if this task was not cancelled
                 if !Task.isCancelled {
-                    self.devices = result.devices
-                    self.runtimes = result.runtimes
+                    self.devices = snapshot.devices
+                    self.runtimes = snapshot.runtimes
 
-                    if selectedDeviceID == nil, let firstBooted = devices.first(where: { $0.state == .booted }) ?? devices.first {
-                        selectedDeviceID = firstBooted.udid
+                    // Maintain selected device and runtime defaults
+                    if self.selectedDeviceID == nil, let firstBooted = snapshot.devices.first(where: { $0.state == .booted }) ?? snapshot.devices.first {
+                        self.selectedDeviceID = firstBooted.udid
                     }
-                    if selectedRuntimeID == nil, let firstRuntime = runtimes.first {
-                        selectedRuntimeID = firstRuntime.identifier
+                    if self.selectedRuntimeID == nil, let firstRuntime = snapshot.runtimes.first {
+                        self.selectedRuntimeID = firstRuntime.identifier
                     }
 
-                    refreshInstalledApplications()
-                    log("Refresh complete. Discovered \(devices.count) simulators and \(runtimes.count) runtimes.")
+                    self.refreshInstalledApplications()
+
+                    // Classify final terminal state
+                    if snapshot.runtimes.isEmpty {
+                        self.state = .empty(reason: .noRuntimesInstalled)
+                        self.log("No simulator runtimes discovered on this developer workstation.")
+                    } else {
+                        self.state = .loaded(snapshot)
+                        self.log("Discovery complete. Resolved \(snapshot.devices.count) devices and \(snapshot.runtimes.count) runtimes.")
+                    }
+
+                    // Update final diagnostic snapshot
+                    self.updateDiagnostics(stage: .complete, snapshot: snapshot, error: nil)
+                }
+
+            } catch let error as SimulatorDiscoveryError {
+                if !Task.isCancelled {
+                    self.state = .failed(error: error)
+                    self.log("Discovery pipeline failed at stage '\(error.stage.rawValue)': \(error.underlyingMessage)", isError: true)
+                    self.updateDiagnostics(stage: error.stage, snapshot: nil, error: error)
                 }
             } catch {
-                log("Discovery failed: \(error.localizedDescription)", isError: true)
+                if !Task.isCancelled {
+                    let wrappedError = SimulatorDiscoveryError(stage: .initializing, underlyingMessage: error.localizedDescription)
+                    self.state = .failed(error: wrappedError)
+                    self.log("Unexpected pipeline error: \(error.localizedDescription)", isError: true)
+                    self.updateDiagnostics(stage: .initializing, snapshot: nil, error: wrappedError)
+                }
             }
-            isRefreshing = false
         }
 
         activeRefreshTask = task
         await task.value
     }
+
+    private func updateDiagnostics(stage: DiscoveryStage, snapshot: SimulatorSnapshot?, error: SimulatorDiscoveryError?) {
+        Task {
+            let envProbe = await DeveloperEnvironmentProbe.shared.runProbe()
+            let history = await CommandExecutionEngine.shared.getHistory()
+
+            await MainActor.run {
+                let rCount = snapshot?.runtimes.count ?? self.runtimes.count
+                let dCount = snapshot?.devices.count ?? self.devices.count
+                let bCount = snapshot?.bootedDeviceIDs.count ?? self.devices.filter({ $0.state == .booted }).count
+
+                self.diagnostics = SimulatorDiagnosticsSnapshot(
+                    developerDirectory: envProbe.developerDirectory,
+                    xcodeVersion: envProbe.xcodeVersion,
+                    xcrunLocation: envProbe.xcrunVersion != nil ? "/usr/bin/xcrun" : nil,
+                    simctlAvailable: envProbe.xcrunVersion != nil,
+                    runtimeCount: rCount,
+                    deviceCount: dCount,
+                    runningSimulatorCount: bCount,
+                    lastRefreshDate: snapshot?.generatedAt ?? Date(),
+                    lastDiscoveryDuration: snapshot?.discoveryDuration ?? .zero,
+                    recentCommands: history
+                )
+            }
+        }
+    }
+
+    // Adjacent simulator control operations preserved with high-fidelity logging
 
     public func bootSelectedDevice() async {
         guard let udid = selectedDeviceID else { return }
@@ -98,7 +168,6 @@ public final class SimulatorManager {
             updateDeviceState(udid: udid, to: .booted)
             log("Device booted successfully.")
 
-            // Trigger opening the Simulator application on macOS if possible
             #if os(macOS)
             let workspace = NSWorkspace.shared
             if let simulatorAppURL = workspace.urlForApplication(withBundleIdentifier: "com.apple.CoreSimulator.SimulatorTrampoline") {
@@ -132,7 +201,7 @@ public final class SimulatorManager {
 
     public func restartSelectedDevice() async {
         await shutdownSelectedDevice()
-        try? await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1 second
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
         await bootSelectedDevice()
     }
 
@@ -231,7 +300,6 @@ public final class SimulatorManager {
         }
     }
 
-    // Helper functions
     private func log(_ message: String, isError: Bool = false) {
         Task {
             await loggingService.log(message, type: isError ? .error : .default)
@@ -256,7 +324,6 @@ public final class SimulatorManager {
             return
         }
 
-        // Return structured, simulated/discovered installed application records on the active device
         self.installedApps = [
             SimulatorApplication(bundleIdentifier: "com.swiftcode.demoapp", name: "DemoApp", path: "/Users/developer/Library/Developer/CoreSimulator/Devices/\(device.udid)/data/Containers/Bundle/Application/DemoApp.app", version: "1.0.0", targetPlatform: device.platform),
             SimulatorApplication(bundleIdentifier: "com.example.swiftuipreview", name: "SwiftUI Preview Host", path: "/Users/developer/Library/Developer/CoreSimulator/Devices/\(device.udid)/data/Containers/Bundle/Application/SwiftUIHost.app", version: "2.4.1", targetPlatform: device.platform)

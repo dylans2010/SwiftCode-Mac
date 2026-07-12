@@ -3,6 +3,7 @@ import SwiftUI
 struct DeviceManagementView: View {
     @State private var manager = SimulatorManager.shared
     @State private var showingCreationSheet = false
+    @State private var showingDiagnosticsSheet = false
 
     var body: some View {
         GroupBox {
@@ -19,6 +20,14 @@ struct DeviceManagementView: View {
                         Label("Add Simulator", systemImage: "plus")
                     }
                     .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+
+                    Button {
+                        showingDiagnosticsSheet = true
+                    } label: {
+                        Label("Diagnostics", systemImage: "stethoscope")
+                    }
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
 
                     Button {
@@ -109,6 +118,9 @@ struct DeviceManagementView: View {
         .groupBoxStyle(ModernGroupBoxStyle())
         .sheet(isPresented: $showingCreationSheet) {
             SimulatorCreationView()
+        }
+        .sheet(isPresented: $showingDiagnosticsSheet) {
+            SimulatorDiagnosticsView()
         }
     }
 }

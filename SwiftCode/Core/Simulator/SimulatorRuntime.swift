@@ -7,12 +7,14 @@ public struct SimulatorRuntime: Identifiable, Hashable, Codable, Sendable {
     public let version: String
     public let platform: String // iOS, watchOS, tvOS, visionOS, macOS
     public let isAvailable: Bool
+    public let path: String?
 
-    public init(identifier: String, name: String, version: String, platform: String, isAvailable: Bool = true) {
+    public init(identifier: String, name: String, version: String, platform: String, isAvailable: Bool = true, path: String? = nil) {
         self.identifier = identifier
         self.name = name
         self.version = version
         self.platform = platform
         self.isAvailable = isAvailable
+        self.path = path
     }
 }
