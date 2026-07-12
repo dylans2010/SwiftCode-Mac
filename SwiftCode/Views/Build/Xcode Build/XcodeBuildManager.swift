@@ -159,8 +159,8 @@ public final class XcodeBuildManager: Sendable {
         if let actualScheme = finalScheme, !actualScheme.isEmpty {
             arguments.append(contentsOf: ["-scheme", actualScheme])
         }
-        if let actualDest = finalDest, !actualDest.isEmpty {
-            arguments.append(contentsOf: ["-destination", actualDest])
+        if !finalDest.isEmpty {
+            arguments.append(contentsOf: ["-destination", finalDest])
         }
 
         // Avoid shell interpolation by passing pure argument arrays
