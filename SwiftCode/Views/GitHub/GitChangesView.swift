@@ -137,30 +137,18 @@ struct GitChangesView: View {
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
 
-                // Card 4: Commit Composer Card
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack {
-                            Label("Commit Composer", systemImage: "pencil.and.outline")
-                                .font(.headline)
-                                .foregroundColor(.purple)
-                            Spacer()
-                        }
-
-                        GitCommitComposerView(message: $commitMessage) {
-                            Task {
-                                guard let url = viewModel.repositoryURL else { return }
-                                try? await GitService.shared.commit(message: commitMessage, repositoryURL: url)
-                                commitMessage = ""
-                                await viewModel.refreshStatus()
-                            }
-                        }
+                // Directly embed GitCommitComposerView without outer double nesting
+                GitCommitComposerView(message: $commitMessage) {
+                    Task {
+                        guard let url = viewModel.repositoryURL else { return }
+                        try? await GitService.shared.commit(message: commitMessage, repositoryURL: url)
+                        commitMessage = ""
+                        await viewModel.refreshStatus()
                     }
-                    .padding()
                 }
-                .groupBoxStyle(ModernGroupBoxStyle())
             }
             .padding(24)
         }
+        .background(Color(NSColor.windowBackgroundColor))
     }
 }

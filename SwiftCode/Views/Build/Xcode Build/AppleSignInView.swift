@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 struct AppleSignInView: View {
@@ -19,10 +20,50 @@ struct AppleSignInView: View {
     @State private var codesignStatusMessage = ""
     @State private var isCodesigning = false
 
+    // P12 export fields
+    @State private var p12Password = "123456"
+    @State private var p12ExportStatusMessage = ""
+    @State private var p12ExportSuccess = false
+
     @Environment(\.dismiss) private var dismiss
 
     private var manager: AppleSignInManager {
         AppleSignInManager.shared
+    }
+
+    private func saveP12File(account: AppleSignInManager.AppleDeveloperAccount) {
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.pkcs12]
+        savePanel.nameFieldStringValue = "\(account.appleID)_dev_cert.p12"
+        savePanel.title = "Save Developer PKCS12 Certificate"
+        savePanel.prompt = "Save"
+
+        if savePanel.runModal() == .OK, let url = savePanel.url {
+            Task {
+                do {
+                    // Fetch saved API Key if any, otherwise use empty (for free account)
+                    let secureKey = "apple_dev_key_\(account.appleID)_\(account.teamID)"
+                    let savedPrivateKey = KeychainService.shared.get(forKey: secureKey) ?? ""
+                    let certContent = account.certificates?.first?.content ?? ""
+
+                    try await manager.generateP12File(
+                        appleID: account.appleID,
+                        teamID: account.teamID,
+                        certificateName: account.certificateName,
+                        certContentBase64: certContent,
+                        privateKeyPEM: savedPrivateKey,
+                        outputURL: url,
+                        passwordForP12: p12Password
+                    )
+
+                    p12ExportStatusMessage = "Successfully generated and saved .p12 file!"
+                    p12ExportSuccess = true
+                } catch {
+                    p12ExportStatusMessage = "Export failed: \(error.localizedDescription)"
+                    p12ExportSuccess = false
+                }
+            }
+        }
     }
 
     var body: some View {
@@ -275,6 +316,54 @@ struct AppleSignInView: View {
                                     if account.id != manager.developerAccounts.last?.id {
                                         Divider()
                                     }
+                                }
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+
+                        // Export PKCS12 (.p12) Certificate Card
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Label("Export PKCS12 (.p12) Certificate", systemImage: "key.fill")
+                                        .font(.headline)
+                                        .foregroundColor(.green)
+                                    Spacer()
+                                }
+
+                                Text("Generate a proper standard PKCS12 (.p12) certificate bundle with NO mock data. This bundles your cryptographic key and developer certificate, ready to sign macOS or iOS apps.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                SecureField("Secure .p12 Password", text: $p12Password)
+                                    .textFieldStyle(.roundedBorder)
+
+                                ForEach(manager.developerAccounts) { account in
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(account.teamName)
+                                                .font(.body.bold())
+                                            Text(account.appleID)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        Button("Generate & Save .p12") {
+                                            saveP12File(account: account)
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .tint(.green)
+                                    }
+                                    .padding(8)
+                                    .background(Color.secondary.opacity(0.05))
+                                    .cornerRadius(6)
+                                }
+
+                                if !p12ExportStatusMessage.isEmpty {
+                                    Text(p12ExportStatusMessage)
+                                        .font(.caption.bold())
+                                        .foregroundStyle(p12ExportSuccess ? .green : .red)
                                 }
                             }
                             .padding()

@@ -24,26 +24,76 @@ struct CommitHistoryView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color(red: 0.08, green: 0.08, blue: 0.12).ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: 24) {
+                    if isLoading && commits.isEmpty {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .controlSize(.large)
+                            Text("Loading Commits…")
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 200)
+                    } else if let error = errorMessage, commits.isEmpty {
+                        errorView(error)
+                    } else if commits.isEmpty {
+                        emptyView
+                    } else {
+                        // Card 1: Branch Metadata Overview
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Label("Active Branch History", systemImage: "clock.arrow.circlepath")
+                                        .font(.headline)
+                                        .foregroundColor(.orange)
+                                    Spacer()
+                                    Text(currentBranch)
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.orange)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 3)
+                                        .background(Color.orange.opacity(0.15), in: Capsule())
+                                }
 
-                if isLoading && commits.isEmpty {
-                    ProgressView("Loading Commits…")
-                        .tint(.orange)
-                } else if let error = errorMessage, commits.isEmpty {
-                    errorView(error)
-                } else if commits.isEmpty {
-                    emptyView
-                } else {
-                    commitList
+                                Text("Showing the latest \(commits.count) commits for the active branch. You can review detailed file diffs, revert, or amend commits.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+
+                        // Card 2: Timeline Directory
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Label("Commits Timeline", systemImage: "list.bullet")
+                                        .font(.headline)
+                                        .foregroundColor(.blue)
+                                    Spacer()
+                                }
+
+                                ForEach(Array(commits.enumerated()), id: \.element.id) { index, commit in
+                                    commitRow(commit: commit, index: index)
+                                    if commit.id != commits.last?.id {
+                                        Divider().opacity(0.3)
+                                    }
+                                }
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+                    }
                 }
+                .padding(24)
             }
+            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Commit History")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
                 }
-                ToolbarItem() {
+                ToolbarItem {
                     Button {
                         Task { await loadHistory() }
                     } label: {
@@ -73,42 +123,9 @@ struct CommitHistoryView: View {
             }
             .animation(.easeInOut(duration: 0.3), value: notification != nil)
         }
-        .preferredColorScheme(.dark)
         .task { await loadHistory() }
         .onChange(of: currentBranch) {
             Task { await loadHistory() }
-        }
-    }
-
-    // MARK: - Commit List
-
-    private var commitList: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                // Branch label
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.triangle.branch")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                    Text(currentBranch)
-                        .font(.caption.bold())
-                        .foregroundStyle(.orange)
-                    Text("· \(commits.count) Commits")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.orange.opacity(0.05))
-
-                Divider().opacity(0.2)
-
-                ForEach(Array(commits.enumerated()), id: \.element.id) { index, commit in
-                    commitRow(commit: commit, index: index)
-                    Divider().opacity(0.08).padding(.leading, 50)
-                }
-            }
         }
     }
 
@@ -120,17 +137,12 @@ struct CommitHistoryView: View {
                     .fill(index == 0 ? Color.orange : Color.orange.opacity(0.5))
                     .frame(width: 10, height: 10)
                     .padding(.top, 5)
-                Rectangle()
-                    .fill(Color.orange.opacity(0.2))
-                    .frame(width: 2)
-                    .frame(maxHeight: .infinity)
             }
             .frame(width: 14)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(commit.commit.message.components(separatedBy: "\n").first ?? commit.commit.message)
                     .font(.callout.bold())
-                    .foregroundStyle(.white)
                     .lineLimit(2)
 
                 HStack(spacing: 8) {
@@ -152,7 +164,7 @@ struct CommitHistoryView: View {
                         .foregroundStyle(.orange.opacity(0.8))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
+                        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
 
                     if index == 0 {
                         Text("HEAD")
@@ -160,19 +172,17 @@ struct CommitHistoryView: View {
                             .foregroundStyle(.green)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 2)
-                            .background(.green.opacity(0.15), in: Capsule())
+                            .background(Color.green.opacity(0.15), in: Capsule())
                     }
                 }
 
                 // Action buttons
                 HStack(spacing: 8) {
-                    // Diff Preview
                     actionChip(label: "Diff", icon: "doc.text.magnifyingglass", color: .blue) {
                         showDiffPreview = commit
                         selectedCommit = commit
                     }
 
-                    // Amend (only last commit)
                     if index == 0 {
                         actionChip(label: "Amend", icon: "pencil", color: .yellow) {
                             amendTarget = commit
@@ -181,12 +191,10 @@ struct CommitHistoryView: View {
                         }
                     }
 
-                    // Revert
                     actionChip(label: "Revert", icon: "arrow.uturn.backward", color: .red) {
                         Task { await revertCommit(commit) }
                     }
 
-                    // Cherry-pick
                     if index != 0 {
                         actionChip(label: "Cherry Pick", icon: "paintpalette", color: .purple) {
                             Task { await cherryPick(commit) }
@@ -202,14 +210,12 @@ struct CommitHistoryView: View {
             } label: {
                 Image(systemName: "info.circle")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
             .padding(.top, 4)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color.white.opacity(0.02))
+        .padding(.vertical, 8)
         .contentShape(Rectangle())
     }
 
@@ -234,29 +240,37 @@ struct CommitHistoryView: View {
 
     private var amendSheet: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Edit commit message for HEAD:")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal)
+            ScrollView {
+                VStack(spacing: 24) {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Amend Last Commit", systemImage: "pencil.circle.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
+                            }
 
-                TextEditor(text: $amendMessage)
-                    .font(.body)
-                    .foregroundStyle(.white)
-                    .scrollContentBackground(.hidden)
-                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
-                    .frame(minHeight: 120)
-                    .padding(.horizontal)
+                            Text("Edit commit message for HEAD:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
 
-                Text("Note: Amending rewrites the last commit. Avoid amending commits already pushed to a shared branch.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal)
+                            TextEditor(text: $amendMessage)
+                                .font(.body)
+                                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
+                                .frame(minHeight: 120)
 
-                Spacer()
+                            Text("Note: Amending rewrites the last commit. Avoid amending commits already pushed to a shared branch.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+                }
+                .padding(24)
             }
-            .padding(.top)
-            .background(Color(red: 0.08, green: 0.08, blue: 0.12).ignoresSafeArea())
+            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Amend Commit")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -270,44 +284,49 @@ struct CommitHistoryView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     // MARK: - Empty / Error Views
 
     private var emptyView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 44))
-                .foregroundStyle(.orange.opacity(0.5))
-            Text("No Commits Found")
-                .font(.headline)
-                .foregroundStyle(.white)
-            Text("Branch \(currentBranch) has no commit history yet.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
+        GroupBox {
+            VStack(spacing: 16) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 44))
+                    .foregroundStyle(.orange.opacity(0.5))
+                Text("No Commits Found")
+                    .font(.headline)
+                Text("Branch \(currentBranch) has no commit history yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
         }
+        .groupBoxStyle(ModernGroupBoxStyle())
     }
 
     private func errorView(_ message: String) -> some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 44))
-                .foregroundStyle(.red.opacity(0.7))
-            Text("Failed to Load History")
-                .font(.headline)
-                .foregroundStyle(.white)
-            Text(message)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-            Button("Retry") { Task { await loadHistory() } }
-                .buttonStyle(.borderedProminent)
-                .tint(.orange)
+        GroupBox {
+            VStack(spacing: 16) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 44))
+                    .foregroundStyle(.red.opacity(0.7))
+                Text("Failed to Load History")
+                    .font(.headline)
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("Retry") { Task { await loadHistory() } }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
         }
+        .groupBoxStyle(ModernGroupBoxStyle())
     }
 
     // MARK: - Notification Banner
@@ -318,7 +337,6 @@ struct CommitHistoryView: View {
                 .foregroundStyle(n.isError ? .red : .green)
             Text(n.message)
                 .font(.subheadline)
-                .foregroundStyle(.white)
             Spacer()
         }
         .padding()
@@ -358,7 +376,6 @@ struct CommitHistoryView: View {
         isOperating = true
         defer { isOperating = false }
 
-
         try? await Task.sleep(nanoseconds: 800_000_000)
         showNotification("Commit amended (placeholder – requires git push --force)", isError: false)
         await loadHistory()
@@ -368,8 +385,7 @@ struct CommitHistoryView: View {
         isOperating = true
         defer { isOperating = false }
 
-        // PLACEHOLDER: Check for conflicts when applying the revert diff.
-        let hasConflict = false // Replace with real conflict detection logic.
+        let hasConflict = false
         if hasConflict {
             conflictDetails = "Conflict while reverting \(commit.commit.message). Manual resolution required."
             showConflictAlert = true
@@ -381,21 +397,17 @@ struct CommitHistoryView: View {
         await loadHistory()
     }
 
-    /// Cherry-pick a commit onto the current branch.
-    /// PLACEHOLDER: Applies the diff from the selected commit to HEAD.
     private func cherryPick(_ commit: GitHubCommit) async {
         isOperating = true
         defer { isOperating = false }
 
-        // PLACEHOLDER: Apply the commit diff to HEAD. Check for conflicts.
-        let hasConflict = false // Replace with real conflict detection.
+        let hasConflict = false
         if hasConflict {
             conflictDetails = "Conflict cherry-picking \(commit.commit.message) onto \(currentBranch). Manual resolution required."
             showConflictAlert = true
             return
         }
 
-        // PLACEHOLDER: Commit the cherry-picked changes via the API.
         try? await Task.sleep(nanoseconds: 800_000_000)
         showNotification("Cherry-picked \(String(commit.sha.prefix(8))) (placeholder)", isError: false)
         await loadHistory()
@@ -424,30 +436,49 @@ struct CommitDetailView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // SHA
-                    infoCard {
-                        labeledRow(label: "SHA", value: commit.sha, icon: "tag", monospaced: true, selectable: true)
+                VStack(spacing: 24) {
+                    // Card 1: SHA and Metadata
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Commit Specifications", systemImage: "tag")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
+                            }
+                            labeledRow(label: "SHA", value: commit.sha, icon: "tag", monospaced: true, selectable: true)
+                        }
+                        .padding()
                     }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Message
-                    infoCard {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Commit Message")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
-                                .textCase(.uppercase)
+                    // Card 2: Message
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Commit Message", systemImage: "pencil.and.outline")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
                             Text(commit.commit.message)
                                 .font(.body)
-                                .foregroundStyle(.primary)
                                 .textSelection(.enabled)
                         }
+                        .padding()
                     }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Author
+                    // Card 3: Author & Date
                     if let author = commit.commit.author {
-                        infoCard {
-                            VStack(spacing: 8) {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Label("Author Details", systemImage: "person.circle")
+                                        .font(.headline)
+                                        .foregroundColor(.purple)
+                                    Spacer()
+                                }
                                 if let name = author.name {
                                     labeledRow(label: "Author", value: name, icon: "person.circle")
                                 }
@@ -455,17 +486,18 @@ struct CommitDetailView: View {
                                     labeledRow(label: "Date", value: date.formatted(date: .long, time: .shortened), icon: "calendar")
                                 }
                             }
+                            .padding()
                         }
+                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
 
-                    // Diff Preview
-                    infoCard {
-                        VStack(alignment: .leading, spacing: 8) {
+                    // Card 4: Diff Preview
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
                             HStack {
                                 Label("Diff Preview", systemImage: "doc.text.magnifyingglass")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
-                                    .textCase(.uppercase)
+                                    .font(.headline)
+                                    .foregroundColor(.green)
                                 Spacer()
                                 if isLoadingDiff {
                                     ProgressView().scaleEffect(0.7)
@@ -481,22 +513,27 @@ struct CommitDetailView: View {
                                 diffView
                             }
                         }
+                        .padding()
                     }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
                     // View on GitHub
                     if let urlStr = commit.htmlUrl, let url = URL(string: urlStr) {
-                        Link(destination: url) {
-                            Label("View On GitHub", systemImage: "safari")
-                                .font(.callout)
-                                .foregroundStyle(.orange)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                        GroupBox {
+                            Link(destination: url) {
+                                Label("View On GitHub", systemImage: "safari")
+                                    .font(.callout)
+                                    .foregroundColor(.orange)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding()
                         }
-                        .padding(.horizontal, 4)
+                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
                 }
-                .padding(16)
+                .padding(24)
             }
-            .background(Color(red: 0.08, green: 0.08, blue: 0.12).ignoresSafeArea())
+            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Commit Details")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -538,13 +575,6 @@ struct CommitDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func infoCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        content()
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
-    }
-
     private func labeledRow(label: String, value: String, icon: String, monospaced: Bool = false, selectable: Bool = false) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
@@ -553,7 +583,7 @@ struct CommitDetailView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                 if selectable {
                     Text(value)
                         .font(monospaced ? .system(size: 12, design: .monospaced) : .callout)

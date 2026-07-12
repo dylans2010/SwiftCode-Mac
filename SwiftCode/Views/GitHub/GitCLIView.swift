@@ -45,144 +45,167 @@ struct GitCLIView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Preset Command Panel
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Preset Git Commands")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(presets, id: \.self) { preset in
-                                Button {
-                                    commandPreset = preset
-                                    runCommand(preset: preset)
-                                } label: {
-                                    Text("git \(preset)")
-                                        .font(.system(.body, design: .monospaced))
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 6)
-                                        .background(commandPreset == preset ? Color.orange.opacity(0.2) : Color.white.opacity(0.05), in: Capsule())
-                                        .foregroundStyle(commandPreset == preset ? .orange : .primary)
-                                        .overlay(Capsule().stroke(commandPreset == preset ? Color.orange.opacity(0.5) : Color.clear, lineWidth: 1))
-                                }
-                                .buttonStyle(.plain)
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Card 1: Preset Command Panel
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Preset Git Commands", systemImage: "terminal.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
                             }
-                        }
-                    }
-                }
-                .padding()
-                .background(Color(nsColor: .windowBackgroundColor))
 
-                Divider()
-
-                // Custom options & Custom execution
-                HStack(spacing: 12) {
-                    Text("git")
-                        .font(.system(.body, design: .monospaced).weight(.bold))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.green.opacity(0.2), in: Capsule())
-                        .foregroundColor(.green)
-
-                    TextField("Type options e.g. status --short, checkout main...", text: $customArgs)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.body, design: .monospaced))
-                        .onSubmit {
-                            runCustomCommand()
-                        }
-
-                    // Blue Chevron for Advanced Presets popover
-                    Button {
-                        showPresetsPopover = true
-                    } label: {
-                        Image(systemName: "chevron.right.circle.fill")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.blue)
-                    }
-                    .buttonStyle(.plain)
-                    .popover(isPresented: $showPresetsPopover, arrowEdge: .top) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Advanced Presets")
-                                .font(.headline)
-
-                            ForEach(advancedPresets, id: \.self) { adv in
-                                Button {
-                                    showPresetsPopover = false
-                                    customArgs = adv
-                                    executeGit(arguments: adv.split(separator: " ").map(String.init))
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "terminal.fill")
-                                            .foregroundStyle(.orange)
-                                        Text("git \(adv)")
-                                            .font(.system(.caption, design: .monospaced))
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(presets, id: \.self) { preset in
+                                        Button {
+                                            commandPreset = preset
+                                            runCommand(preset: preset)
+                                        } label: {
+                                            Text("git \(preset)")
+                                                .font(.system(.body, design: .monospaced))
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(commandPreset == preset ? Color.orange.opacity(0.2) : Color.secondary.opacity(0.1), in: Capsule())
+                                                .foregroundStyle(commandPreset == preset ? .orange : .primary)
+                                        }
+                                        .buttonStyle(.plain)
                                     }
-                                    .padding(.vertical, 4)
                                 }
-                                .buttonStyle(.plain)
-                                Divider()
                             }
                         }
                         .padding()
-                        .frame(width: 280)
                     }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                    Button {
-                        runCustomCommand()
-                    } label: {
-                        if isRunning {
-                            ProgressView().scaleEffect(0.8)
-                        } else {
-                            Text("Execute")
+                    // Card 2: Custom Execute Command Card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Custom Git Executor", systemImage: "terminal")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
+
+                            HStack(spacing: 12) {
+                                Text("git")
+                                    .font(.system(.body, design: .monospaced).weight(.bold))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.green.opacity(0.15), in: Capsule())
+                                    .foregroundColor(.green)
+
+                                TextField("Type options e.g. status --short, checkout main...", text: $customArgs)
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.system(.body, design: .monospaced))
+                                    .onSubmit {
+                                        runCustomCommand()
+                                    }
+
+                                // Advanced Presets popover
+                                Button {
+                                    showPresetsPopover = true
+                                } label: {
+                                    Image(systemName: "chevron.right.circle.fill")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundStyle(.blue)
+                                }
+                                .buttonStyle(.plain)
+                                .popover(isPresented: $showPresetsPopover, arrowEdge: .top) {
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        Text("Advanced Presets")
+                                            .font(.headline)
+
+                                        ForEach(advancedPresets, id: \.self) { adv in
+                                            Button {
+                                                showPresetsPopover = false
+                                                customArgs = adv
+                                                executeGit(arguments: adv.split(separator: " ").map(String.init))
+                                            } label: {
+                                                HStack {
+                                                    Image(systemName: "terminal.fill")
+                                                        .foregroundStyle(.orange)
+                                                    Text("git \(adv)")
+                                                        .font(.system(.caption, design: .monospaced))
+                                                }
+                                                .padding(.vertical, 4)
+                                            }
+                                            .buttonStyle(.plain)
+                                            Divider()
+                                        }
+                                    }
+                                    .padding()
+                                    .frame(width: 280)
+                                }
+
+                                Button {
+                                    runCustomCommand()
+                                } label: {
+                                    if isRunning {
+                                        ProgressView().scaleEffect(0.8)
+                                    } else {
+                                        Text("Execute")
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.orange)
+                                .disabled(isRunning)
+                            }
                         }
+                        .padding()
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
-                    .disabled(isRunning)
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Card 3: Console Terminal Output
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Console Terminal Output", systemImage: "text.alignleft")
+                                    .font(.headline)
+                                    .foregroundColor(.gray)
+                                Spacer()
+                            }
+
+                            ScrollView {
+                                Text(output)
+                                    .font(.system(.body, design: .monospaced))
+                                    .foregroundColor(selectedTheme.textColor)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .textSelection(.enabled)
+                                    .padding()
+                            }
+                            .frame(height: 300)
+                            .background(selectedTheme.backgroundColor)
+                            .cornerRadius(8)
+
+                            HStack {
+                                Button("Clear Console") {
+                                    output = "Console cleared."
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.secondary)
+
+                                Spacer()
+
+                                Button("Copy Output") {
+                                    let pasteboard = NSPasteboard.general
+                                    pasteboard.clearContents()
+                                    pasteboard.setString(output, forType: .string)
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.orange)
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
-                .padding()
-                .background(Color(nsColor: .windowBackgroundColor))
-
-                Divider()
-
-                // Console Output styled with selectedTheme
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(output)
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundColor(selectedTheme.textColor)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                    }
-                    .padding()
-                }
-                .background(selectedTheme.backgroundColor)
-
-                Divider()
-
-                // Console Control Toolbar
-                HStack {
-                    Button("Clear Console") {
-                        output = "Console cleared."
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-
-                    Spacer()
-
-                    Button("Copy Output") {
-                        let pasteboard = NSPasteboard.general
-                        pasteboard.clearContents()
-                        pasteboard.setString(output, forType: .string)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.orange)
-                }
-                .padding()
-                .background(Color(nsColor: .windowBackgroundColor))
+                .padding(24)
             }
+            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Git CLI")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

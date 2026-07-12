@@ -4,14 +4,29 @@ struct GitConflictBannerView: View {
     let count: Int
 
     var body: some View {
-        HStack {
-            Image(systemName: "exclamationmark.triangle.fill")
-            Text("\(count) merge conflicts")
-            Spacer()
-            Button("Resolve") { }
+        GroupBox {
+            HStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.red)
+                    .font(.title2)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(count) Merge Conflicts Detected")
+                        .font(.headline)
+                        .foregroundColor(.red)
+                    Text("Resolve these conflicts before committing your changes.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button("Resolve Manual") { }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+            }
+            .padding()
         }
-        .padding(8)
-        .background(Color.red.opacity(0.1))
-        .foregroundStyle(.red)
+        .groupBoxStyle(ModernGroupBoxStyle())
     }
 }

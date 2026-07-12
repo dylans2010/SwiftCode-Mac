@@ -42,7 +42,7 @@ struct SimulatorAppsView: View {
                     }
                     .frame(height: 180)
                 } else {
-                    List {
+                    VStack(spacing: 8) {
                         ForEach(apps) { app in
                             HStack {
                                 Image(systemName: "app")
@@ -88,11 +88,11 @@ struct SimulatorAppsView: View {
                                     .controlSize(.small)
                                 }
                             }
-                            .padding(.vertical, 4)
+                            .padding(8)
+                            .background(Color.secondary.opacity(0.04))
+                            .cornerRadius(8)
                         }
                     }
-                    .listStyle(.plain)
-                    .frame(height: 200)
                 }
             }
             .padding()
@@ -111,7 +111,6 @@ struct SimulatorAppsView: View {
             apps = []
             return
         }
-        // Grab simulated apps list matching our device model
         apps = [
             SimulatorApplication(bundleIdentifier: "com.swiftcode.demoapp", name: "DemoApp", path: "/Users/developer/Library/Developer/CoreSimulator/Devices/\(device.udid)/data/Containers/Bundle/Application/DemoApp.app", version: "1.0.0", targetPlatform: device.platform),
             SimulatorApplication(bundleIdentifier: "com.example.swiftuipreview", name: "SwiftUI Preview Host", path: "/Users/developer/Library/Developer/CoreSimulator/Devices/\(device.udid)/data/Containers/Bundle/Application/SwiftUIHost.app", version: "2.4.1", targetPlatform: device.platform)

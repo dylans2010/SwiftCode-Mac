@@ -256,11 +256,14 @@ public final class AppleSignInManager: Sendable {
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.setValue("application/json", forHTTPHeaderField: "Accept")
                 request.setValue("21822830f2f51f47f259b67b1b369c0d1e3458bf", forHTTPHeaderField: "X-Apple-Widget-Key")
+                request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
 
                 let body: [String: Any] = [
                     "appleId": appleID,
-                    "password": password
+                    "password": password,
+                    "rememberMe": true
                 ]
                 request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
@@ -270,8 +273,8 @@ public final class AppleSignInManager: Sendable {
                     self.tempSessionID = httpResponse.value(forHTTPHeaderField: "x-apple-id-session-id") ?? ""
                     self.tempScnt = httpResponse.value(forHTTPHeaderField: "scnt") ?? ""
 
-                    // Standard Apple ID auth returns 409 Conflict when 2FA is needed
-                    if httpResponse.statusCode == 409 || httpResponse.statusCode == 200 {
+                    // Standard Apple ID auth returns 409 Conflict or 200 when 2FA is needed or code sent
+                    if httpResponse.statusCode == 409 || httpResponse.statusCode == 200 || httpResponse.statusCode == 412 {
                         self.is2FARequired = true
                         self.sessionState = .signedOut
                         self.lastError = "Verification code sent to your Apple devices. Please enter it below."
@@ -279,7 +282,7 @@ public final class AppleSignInManager: Sendable {
                     }
                 }
             } catch {
-                logger.info("Apple server verification code push notice: \(error.localizedDescription)")
+                logger.error("Apple server verification code push notice error: \(error.localizedDescription, privacy: .public)")
             }
 
             // Free account fallback (registers locally for app-signing if offline/mocked)
@@ -347,7 +350,9 @@ public final class AppleSignInManager: Sendable {
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
             request.setValue("21822830f2f51f47f259b67b1b369c0d1e3458bf", forHTTPHeaderField: "X-Apple-Widget-Key")
+            request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, Gecko) Version/17.0 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
             request.setValue(self.tempSessionID, forHTTPHeaderField: "x-apple-id-session-id")
             request.setValue(self.tempScnt, forHTTPHeaderField: "scnt")
 
@@ -363,11 +368,99 @@ public final class AppleSignInManager: Sendable {
                 logger.info("2FA Code verified successfully by Apple servers.")
             }
         } catch {
-            logger.info("2FA Verification verification push notice: \(error.localizedDescription)")
+            logger.error("2FA Verification verification push notice error: \(error.localizedDescription, privacy: .public)")
         }
 
         // Complete the sign-in successfully
         await finalizeFreeAccountRegistration()
+    }
+
+    /// Generates a real .p12 (PKCS12) file on disk using the certificate content and the private key.
+    /// Supports both paid accounts (PEM private key + DER certificate) and free accounts (generating a real, custom keypair & self-signed certificate).
+    public func generateP12File(
+        appleID: String,
+        teamID: String,
+        certificateName: String,
+        certContentBase64: String,
+        privateKeyPEM: String,
+        outputURL: URL,
+        passwordForP12: String
+    ) async throws {
+        // Create secure temporary directory
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let keyURL = tempDir.appendingPathComponent("key.pem")
+        let certURL = tempDir.appendingPathComponent("cert.pem")
+
+        if certContentBase64.isEmpty {
+            // For free developer accounts, let's generate a real 100% cryptographic RSA-2048 private key and self-signed certificate using OpenSSL
+            let subj = "/CN=Apple Development: \(appleID)/OU=\(teamID)/O=Personal/C=US"
+            let opensslPath = URL(fileURLWithPath: "/usr/bin/openssl")
+
+            let genResult = try await ProcessRunnerTool.shared.run(
+                executableURL: opensslPath,
+                arguments: [
+                    "req", "-newkey", "rsa:2048", "-nodes",
+                    "-keyout", keyURL.path,
+                    "-x509", "-days", "365",
+                    "-out", certURL.path,
+                    "-subj", subj
+                ]
+            )
+            guard genResult.exitCode == 0 else {
+                throw NSError(domain: "AppleSignInManager", code: Int(genResult.exitCode), userInfo: [NSLocalizedDescriptionKey: "OpenSSL key/cert generation failed: \(genResult.stderr)"])
+            }
+        } else {
+            // For paid developer accounts:
+            // Write private key PEM to file
+            var pem = privateKeyPEM.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !pem.contains("-----BEGIN PRIVATE KEY-----") {
+                pem = "-----BEGIN PRIVATE KEY-----\n\(pem)\n-----END PRIVATE KEY-----"
+            }
+            try pem.write(to: keyURL, atomically: true, encoding: .utf8)
+
+            // Convert Base64 DER certificate to PEM format
+            guard let certData = Data(base64Encoded: certContentBase64) else {
+                throw NSError(domain: "AppleSignInManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid base64 certificate content"])
+            }
+            let derURL = tempDir.appendingPathComponent("cert.der")
+            try certData.write(to: derURL)
+
+            let opensslPath = URL(fileURLWithPath: "/usr/bin/openssl")
+            let convResult = try await ProcessRunnerTool.shared.run(
+                executableURL: opensslPath,
+                arguments: [
+                    "x509", "-inform", "der",
+                    "-in", derURL.path,
+                    "-out", certURL.path
+                ]
+            )
+            guard convResult.exitCode == 0 else {
+                throw NSError(domain: "AppleSignInManager", code: Int(convResult.exitCode), userInfo: [NSLocalizedDescriptionKey: "OpenSSL certificate conversion failed: \(convResult.stderr)"])
+            }
+        }
+
+        // Export private key and PEM certificate as .p12 (PKCS12)
+        let opensslPath = URL(fileURLWithPath: "/usr/bin/openssl")
+        let p12Result = try await ProcessRunnerTool.shared.run(
+            executableURL: opensslPath,
+            arguments: [
+                "pkcs12", "-export",
+                "-out", outputURL.path,
+                "-inkey", keyURL.path,
+                "-in", certURL.path,
+                "-passout", "pass:\(passwordForP12)",
+                "-name", certificateName
+            ]
+        )
+
+        guard p12Result.exitCode == 0 else {
+            throw NSError(domain: "AppleSignInManager", code: Int(p12Result.exitCode), userInfo: [NSLocalizedDescriptionKey: "OpenSSL P12 package generation failed: \(p12Result.stderr)"])
+        }
     }
 
     private func finalizeFreeAccountRegistration() async {
