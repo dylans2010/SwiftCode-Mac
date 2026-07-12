@@ -196,11 +196,11 @@ public final class SimulatorManager {
             let bundleID = "com.apple.iphonesimulator"
             if let simulatorAppURL = workspace.urlForApplication(withBundleIdentifier: bundleID) {
                 let config = NSWorkspace.OpenConfiguration()
-                config.promotesToFrontmost = true
+                config.activates = true
                 try await workspace.openApplication(at: simulatorAppURL, configuration: config)
             } else if let fallbackURL = workspace.urlForApplication(withBundleIdentifier: "com.apple.CoreSimulator.SimulatorTrampoline") {
                 let config = NSWorkspace.OpenConfiguration()
-                config.promotesToFrontmost = true
+                config.activates = true
                 try await workspace.openApplication(at: fallbackURL, configuration: config)
             } else {
                 let openSpec = CommandSpec(
