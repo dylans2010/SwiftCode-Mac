@@ -139,6 +139,7 @@ struct WorkspaceView: View {
                             Button("Xcode Build Settings") { activeSheet = .xcodeBuildSettings }
                             Button("Xcode Build Logs") { activeSheet = .xcodeBuildLogs }
                             Button("Apple Signing") { activeSheet = .appleDeveloperAccount }
+                            Button("SF Symbols Browser") { activeSheet = .sfSymbolsBrowser }
                         }
 
                         Section("Analysis") {
@@ -298,6 +299,7 @@ struct WorkspaceView: View {
                 case .localSimulation: LocalSimulationView()
                 case .simulatorMain: SimulatorMainView()
                 case .searchDocumentation: SearchDocumentationView()
+                case .sfSymbolsBrowser: SFSymbolPickerView()
                 case .snippetsLibrary: SnippetsLibraryView()
                 case .codeRefactoring: CodeRefactoringView()
                 case .errorDiagnostics: ErrorDiagnosticsView()
