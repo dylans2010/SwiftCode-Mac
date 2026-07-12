@@ -1,544 +1,386 @@
 import SwiftUI
-import ZIPFoundation
 
-struct SearchDocumentationView: View {
-    @Environment(ProjectSessionStore.self) private var sessionStore
-    @StateObject private var viewModel = RepositoryAnalysisViewModel()
-    @State private var repositoryURL = ""
-    @State private var prompt = ""
+// MARK: - Models
 
-    @AppStorage("search_docs_history") private var searchHistoryData: Data = Data()
+struct AppleDocSymbol: Identifiable, Hashable, Sendable {
+    let id: UUID = UUID()
+    let name: String
+    let framework: String
+    let type: String // "Class", "Struct", "Method", "Property", "Protocol"
+    let summary: String
+    let urlString: String
+}
 
-    private var searchHistory: [String] {
-        (try? JSONDecoder().decode([String].self, from: searchHistoryData)) ?? []
+enum AppleDocFilter: String, CaseIterable, Identifiable {
+    case all = "All"
+    case frameworks = "Frameworks"
+    case symbols = "Symbols"
+    case apis = "APIs"
+
+    var id: String { rawValue }
+}
+
+// MARK: - ViewModel
+
+@MainActor
+final class AppleDocSearchViewModel: ObservableObject {
+    @Published var query = ""
+    @Published var selectedFilter: AppleDocFilter = .all
+    @Published var isSearching = false
+    @Published var selectedSymbol: AppleDocSymbol? = nil
+
+    // Persistent storage
+    @Published var favorites: Set<String> = []
+    @Published var recentSearches: [String] = []
+    @Published var recentViewed: [String] = []
+
+    private static let favoritesKey = "com.swiftcode.docs.favorites"
+    private static let recentsKey = "com.swiftcode.docs.recents"
+    private static let viewedKey = "com.swiftcode.docs.viewed"
+
+    init() {
+        loadPersistence()
     }
 
+    func toggleFavorite(_ symbolName: String) {
+        if favorites.contains(symbolName) {
+            favorites.remove(symbolName)
+        } else {
+            favorites.insert(symbolName)
+        }
+        savePersistence()
+    }
+
+    func addToRecentSearches(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        recentSearches.removeAll { $0.lowercased() == trimmed.lowercased() }
+        recentSearches.insert(trimmed, at: 0)
+        recentSearches = Array(recentSearches.prefix(8))
+        savePersistence()
+    }
+
+    func addToRecentViewed(_ symbolName: String) {
+        recentViewed.removeAll { $0 == symbolName }
+        recentViewed.insert(symbolName, at: 0)
+        recentViewed = Array(recentViewed.prefix(8))
+        savePersistence()
+    }
+
+    func clearRecents() {
+        recentSearches.removeAll()
+        savePersistence()
+    }
+
+    private func loadPersistence() {
+        if let favs = UserDefaults.standard.stringArray(forKey: Self.favoritesKey) {
+            favorites = Set(favs)
+        }
+        recentSearches = UserDefaults.standard.stringArray(forKey: Self.recentsKey) ?? []
+        recentViewed = UserDefaults.standard.stringArray(forKey: Self.viewedKey) ?? []
+    }
+
+    private func savePersistence() {
+        UserDefaults.standard.set(Array(favorites), forKey: Self.favoritesKey)
+        UserDefaults.standard.set(recentSearches, forKey: Self.recentsKey)
+        UserDefaults.standard.set(recentViewed, forKey: Self.viewedKey)
+    }
+
+    // High fidelity offline database of key symbols
+    var offlineDatabase: [AppleDocSymbol] {
+        [
+            // SwiftUI
+            AppleDocSymbol(name: "View", framework: "SwiftUI", type: "Protocol", summary: "A type that represents part of the user interface of an app and provides generators.", urlString: "https://developer.apple.com/documentation/swiftui/view"),
+            AppleDocSymbol(name: "State", framework: "SwiftUI", type: "Struct", summary: "A property wrapper type that can read and write a value managed by SwiftUI.", urlString: "https://developer.apple.com/documentation/swiftui/state"),
+            AppleDocSymbol(name: "Binding", framework: "SwiftUI", type: "Struct", summary: "A property wrapper type that can read and write a value owned by a source of truth.", urlString: "https://developer.apple.com/documentation/swiftui/binding"),
+            AppleDocSymbol(name: "ScrollView", framework: "SwiftUI", type: "Struct", summary: "A scrollable view that displays its content within a customizable scroll container.", urlString: "https://developer.apple.com/documentation/swiftui/scrollview"),
+            AppleDocSymbol(name: "VStack", framework: "SwiftUI", type: "Struct", summary: "A view that arranges its subviews in a vertical line.", urlString: "https://developer.apple.com/documentation/swiftui/vstack"),
+            AppleDocSymbol(name: "HStack", framework: "SwiftUI", type: "Struct", summary: "A view that arranges its subviews in a horizontal line.", urlString: "https://developer.apple.com/documentation/swiftui/hstack"),
+            AppleDocSymbol(name: "NavigationStack", framework: "SwiftUI", type: "Struct", summary: "A view that displays a root view and enables you to push additional views over the root.", urlString: "https://developer.apple.com/documentation/swiftui/navigationstack"),
+            AppleDocSymbol(name: "Button", framework: "SwiftUI", type: "Struct", summary: "A control that initiates an action when clicked or tapped.", urlString: "https://developer.apple.com/documentation/swiftui/button"),
+
+            // Swift
+            AppleDocSymbol(name: "Task", framework: "Swift", type: "Struct", summary: "A unit of asynchronous work that runs in the background concurrently.", urlString: "https://developer.apple.com/documentation/swift/task"),
+            AppleDocSymbol(name: "Actor", framework: "Swift", type: "Protocol", summary: "A reference type that isolates its state to prevent concurrent data races.", urlString: "https://developer.apple.com/documentation/swift/actor"),
+            AppleDocSymbol(name: "Sendable", framework: "Swift", type: "Protocol", summary: "A type whose values can be safely transferred across concurrent boundaries.", urlString: "https://developer.apple.com/documentation/swift/sendable"),
+            AppleDocSymbol(name: "AsyncSequence", framework: "Swift", type: "Protocol", summary: "A sequence that provides asynchronous, sequential, read-only access to its elements.", urlString: "https://developer.apple.com/documentation/swift/asyncsequence"),
+
+            // Foundation
+            AppleDocSymbol(name: "URLSession", framework: "Foundation", type: "Class", summary: "An object that coordinates a group of related, network data-transfer tasks.", urlString: "https://developer.apple.com/documentation/foundation/urlsession"),
+            AppleDocSymbol(name: "JSONDecoder", framework: "Foundation", type: "Class", summary: "An object that decodes instances of a data type from JSON objects.", urlString: "https://developer.apple.com/documentation/foundation/jsondecoder"),
+            AppleDocSymbol(name: "NSRegularExpression", framework: "Foundation", type: "Class", summary: "An immutable representation of a compiled regular expression pattern.", urlString: "https://developer.apple.com/documentation/foundation/nsregularexpression"),
+
+            // AppKit
+            AppleDocSymbol(name: "NSWorkspace", framework: "AppKit", type: "Class", summary: "A workspace that lets you open URLs, apps, and manage finder elements.", urlString: "https://developer.apple.com/documentation/appkit/nsworkspace"),
+            AppleDocSymbol(name: "NSPasteboard", framework: "AppKit", type: "Class", summary: "An object that transfers data to and from the system clipboard.", urlString: "https://developer.apple.com/documentation/appkit/nspasteboard"),
+
+            // CoreML
+            AppleDocSymbol(name: "MLModel", framework: "CoreML", type: "Class", summary: "An encapsulated machine learning model used for real-time local classification.", urlString: "https://developer.apple.com/documentation/coreml/mlmodel")
+        ]
+    }
+
+    var filteredResults: [AppleDocSymbol] {
+        let lower = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        var items = offlineDatabase
+
+        if !lower.isEmpty {
+            items = items.filter {
+                $0.name.lowercased().contains(lower) ||
+                $0.framework.lowercased().contains(lower) ||
+                $0.summary.lowercased().contains(lower)
+            }
+        }
+
+        switch selectedFilter {
+        case .all:
+            return items
+        case .frameworks:
+            return items.filter { $0.type == "Protocol" || $0.type == "Class" }
+        case .symbols:
+            return items.filter { $0.type == "Struct" || $0.type == "Protocol" }
+        case .apis:
+            return items.filter { $0.type == "Method" || $0.type == "Property" }
+        }
+    }
+}
+
+// MARK: - SearchDocumentationView
+
+struct SearchDocumentationView: View {
+    @StateObject private var viewModel = AppleDocSearchViewModel()
+
     var body: some View {
-        AdvancedToolScreen(title: "Repository Search") {
-            VStack(spacing: 20) {
-                // Input Section
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("Source Repository", systemImage: "server.rack")
-                        .font(.headline)
+        NavigationSplitView {
+            // Left Search sidebar with filter and lists
+            VStack(spacing: 0) {
 
-                    TextField("GitHub Repository URL", text: $repositoryURL)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-
-                    HStack(spacing: 10) {
-                        Button {
-                            viewModel.runScan(source: .github(repositoryURL))
-                        } label: {
-                            Text("Analyze URL")
-                                .font(.subheadline.bold())
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-
-                        Button {
-                            viewModel.runScan(source: .folder(sessionStore.activeProject?.directoryURL))
-                        } label: {
-                            Text("Current Project")
-                                .font(.subheadline.bold())
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
+                // Filters Header Card
+                VStack(spacing: 12) {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        TextField("Search Apple developer documentation...", text: $viewModel.query)
+                            .textFieldStyle(.plain)
+                            .onSubmit {
+                                viewModel.addToRecentSearches(viewModel.query)
+                            }
                     }
+                    .padding(8)
+                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
 
-                    if viewModel.isScanning {
-                        VStack(alignment: .leading, spacing: 6) {
-                            ProgressView(value: viewModel.progress)
-                                .tint(.orange)
-                            Text(viewModel.statusMessage)
+                    Picker("Type Filter", selection: $viewModel.selectedFilter) {
+                        ForEach(AppleDocFilter.allCases) { filter in
+                            Text(filter.rawValue).tag(filter)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                .padding(14)
+                .background(.ultraThinMaterial)
+
+                Divider()
+
+                // Recent Viewed & Recent Searches conditional overview
+                if viewModel.query.isEmpty && !viewModel.recentSearches.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Recent Searches")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Clear") { viewModel.clearRecents() }
+                                .font(.caption2)
+                                .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.top, 8)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(viewModel.recentSearches, id: \.self) { search in
+                                    Button(search) {
+                                        viewModel.query = search
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+                            }
+                            .padding(.horizontal, 14)
+                        }
+                    }
+                    .padding(.bottom, 8)
+                    Divider()
+                }
+
+                // Symbols List View
+                if viewModel.filteredResults.isEmpty {
+                    ContentUnavailableView(
+                        "No Matches Found",
+                        systemImage: "doc.text.magnifyingglass",
+                        description: Text("No documentation matches for \"\(viewModel.query)\". Try a broader query.")
+                    )
+                    .frame(maxHeight: .infinity)
+                } else {
+                    List(viewModel.filteredResults, selection: $viewModel.selectedSymbol) { symbol in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(symbol.name)
+                                    .font(.subheadline.bold())
+                                Spacer()
+                                Text(symbol.framework)
+                                    .font(.system(size: 8, weight: .bold))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.orange.opacity(0.15), in: Capsule())
+                                    .foregroundStyle(.orange)
+                            }
+
+                            Text(symbol.summary)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
-                        .padding(.top, 4)
-                    }
+                        .padding(.vertical, 4)
+                        .tag(symbol)
+                        .contextMenu {
+                            Button {
+                                viewModel.toggleFavorite(symbol.name)
+                            } label: {
+                                Label(viewModel.favorites.contains(symbol.name) ? "Unfavorite" : "Favorite", systemImage: "star.fill")
+                            }
 
-                    if let reportError = viewModel.reportError {
-                        Text(reportError)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                }
-                .padding()
-                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
-
-                // Analysis Sections
-                if !viewModel.report.projectSummary.isEmpty {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Label("Analysis Report", systemImage: "doc.text.magnifyingglass")
-                            .font(.headline)
-
-                        DisclosureGroup("Project Summary") {
-                            Text(viewModel.report.projectSummary)
-                                .font(.caption)
-                                .padding(.top, 4)
-                        }
-
-                        DisclosureGroup("Architecture") {
-                            Text(viewModel.report.architectureOverview)
-                                .font(.caption)
-                                .padding(.top, 4)
-                        }
-
-                        DisclosureGroup("Key Files") {
-                            Text(viewModel.report.importantFiles)
-                                .font(.caption)
-                                .padding(.top, 4)
-                        }
-                    }
-                    .padding()
-                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
-                }
-
-                // AI Chat Section
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("Ask AI about Repo", systemImage: "sparkles")
-                        .font(.headline)
-
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 10) {
-                            if viewModel.chatHistory.isEmpty {
-                                Text("Ask a question about the indexed code to see AI answers.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .frame(maxWidth: .infinity, alignment: .center)
-                                    .padding(.vertical, 20)
-                            } else {
-                                ForEach(viewModel.chatHistory) { message in
-                                    chatBubble(for: message)
-                                }
+                            Button {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(symbol.urlString, forType: .string)
+                            } label: {
+                                Label("Copy Link", systemImage: "doc.on.doc")
                             }
                         }
                     }
-                    .frame(maxHeight: 300)
-
-                    HStack {
-                        TextField("How do I use...", text: $prompt)
-                            .textFieldStyle(.roundedBorder)
-                        Button {
-                            addToHistory(prompt)
-                            viewModel.askQuestion(prompt)
-                            prompt = ""
-                        } label: {
-                            Image(systemName: "paperplane.fill")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(prompt.isEmpty || viewModel.isScanning)
-                    }
+                    .listStyle(.sidebar)
                 }
-                .padding()
-                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+            }
+            .navigationTitle("Documentation Search")
+            .frame(minWidth: 260)
+        } detail: {
+            // Detailed Documentation Preview Pane Card Layout
+            if let symbol = viewModel.selectedSymbol {
+                ScrollView {
+                    VStack(spacing: 24) {
 
-                // History Section
-                if !searchHistory.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            Label("Recent Searches", systemImage: "clock.arrow.circlepath")
-                                .font(.headline)
-                            Spacer()
-                            Button("Clear") { clearHistory() }
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                        }
-
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack {
-                                ForEach(searchHistory, id: \.self) { item in
-                                    Button {
-                                        prompt = item
-                                    } label: {
-                                        Text(item)
+                        // Card 1: Symbol Header
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(symbol.type.uppercased())
+                                            .font(.system(size: 9, weight: .bold))
+                                            .foregroundStyle(.orange)
+                                        Text(symbol.name)
+                                            .font(.title2.bold())
+                                        Text("Framework: \(symbol.framework)")
                                             .font(.caption)
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 6)
-                                            .background(Color.white.opacity(0.1), in: Capsule())
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+
+                                    // Favorite Toggle Button
+                                    Button {
+                                        viewModel.toggleFavorite(symbol.name)
+                                    } label: {
+                                        Image(systemName: viewModel.favorites.contains(symbol.name) ? "star.fill" : "star")
+                                            .font(.title2)
+                                            .foregroundStyle(.yellow)
                                     }
                                     .buttonStyle(.plain)
                                 }
+
+                                Divider()
+
+                                HStack(spacing: 12) {
+                                    Button {
+                                        if let url = URL(string: symbol.urlString) {
+                                            viewModel.addToRecentViewed(symbol.name)
+                                            // Open inside DocumentationBrowserView by posting the notification!
+                                            NotificationCenter.default.post(
+                                                name: .toolbarToolActivated,
+                                                object: nil,
+                                                userInfo: ["toolID": "documentation_browser"]
+                                            )
+                                            // Delay slightly to allow sheet to load and listen
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                                NotificationCenter.default.post(
+                                                    name: .loadDocURL,
+                                                    object: nil,
+                                                    userInfo: ["url": url]
+                                                )
+                                            }
+                                        }
+                                    } label: {
+                                        Label("Open in Documentation Browser", systemImage: "book.fill")
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.orange)
+
+                                    Button {
+                                        NSPasteboard.general.clearContents()
+                                        NSPasteboard.general.setString(symbol.urlString, forType: .string)
+                                    } label: {
+                                        Label("Copy Link", systemImage: "link")
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
                             }
+                            .padding()
                         }
-                    }
-                    .padding()
-                    .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
-                }
-            }
-        }
-    }
+                        .groupBoxStyle(ModernGroupBoxStyle())
 
-    private func chatBubble(for message: SearchDocChatMessage) -> some View {
-        HStack {
-            if message.role == "You" { Spacer() }
+                        // Card 2: Summary Description
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label("Overview & Purpose", systemImage: "doc.text.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
 
-            VStack(alignment: message.role == "You" ? .trailing : .leading, spacing: 4) {
-                Text(message.role)
-                    .font(.caption2.bold())
-                    .foregroundStyle(.secondary)
-                Text(message.text)
-                    .font(.caption)
-                    .padding(10)
-                    .background(message.role == "You" ? Color.orange.opacity(0.2) : Color.white.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-            }
-
-            if message.role != "You" { Spacer() }
-        }
-    }
-
-    private func addToHistory(_ query: String) {
-        var current = searchHistory
-        if let index = current.firstIndex(of: query) { current.remove(at: index) }
-        current.insert(query, at: 0)
-        let limited = Array(current.prefix(10))
-        if let data = try? JSONEncoder().encode(limited) {
-            searchHistoryData = data
-        }
-    }
-
-    private func clearHistory() {
-        searchHistoryData = Data()
-    }
-}
-
-@MainActor
-private final class RepositoryAnalysisViewModel: ObservableObject {
-    @Published var isScanning = false
-    @Published var progress = 0.0
-    @Published var statusMessage = "Idle"
-    @Published var reportError: String?
-    @Published var report = RepositoryKnowledgeReport.empty
-    @Published var chatHistory: [SearchDocChatMessage] = []
-
-    private var scanTask: Task<Void, Never>?
-
-    func runScan(source: RepositorySource) {
-        scanTask?.cancel()
-        isScanning = true
-        progress = 0
-        statusMessage = "Preparing Analysis..."
-        reportError = nil
-
-        scanTask = Task {
-            do {
-                let result = try await RepositoryKnowledgeReport.from(source: source) { [weak self] update in
-                    await MainActor.run {
-                        self?.progress = update.progress
-                        self?.statusMessage = update.message
-                    }
-                }
-                await MainActor.run {
-                    self.report = result
-                    self.chatHistory = []
-                    self.isScanning = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.report = .empty
-                    self.reportError = error.localizedDescription
-                    self.isScanning = false
-                }
-            }
-        }
-    }
-
-    func askQuestion(_ rawPrompt: String) {
-        let query = rawPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return }
-        chatHistory.append(.init(role: "You", text: query))
-        chatHistory.append(.init(role: "AI", text: report.answer(for: query)))
-    }
-}
-
-private enum RepositorySource: Sendable {
-    case github(String)
-    case zip(URL?)
-    case folder(URL?)
-}
-
-private struct SearchDocChatMessage: Identifiable, Sendable {
-    let id: UUID = UUID()
-    let role: String
-    let text: String
-}
-
-private struct RepositoryProgressUpdate: Sendable {
-    let progress: Double
-    let message: String
-}
-
-private enum RepositoryScanError: LocalizedError {
-    case invalidLocalFolder
-    case missingZipPath
-    case invalidGitHubURL
-    case unsupportedGitHubURL
-    case githubListingFailed
-    case corruptedArchive
-    case emptyRepository
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidLocalFolder: return "No local folder available."
-        case .missingZipPath: return "ZIP file path is missing."
-        case .invalidGitHubURL: return "Invalid GitHub URL."
-        case .unsupportedGitHubURL: return "Only github.com repository URLs are supported."
-        case .githubListingFailed: return "Failed to list repository contents from GitHub."
-        case .corruptedArchive: return "The ZIP archive appears invalid or corrupted."
-        case .emptyRepository: return "No supported documentation/source files were found."
-        }
-    }
-}
-
-private struct RepositoryKnowledgeReport: Sendable {
-    var projectSummary: String
-    var architectureOverview: String
-    var importantFiles: String
-    var dependencies: String
-    var integrationGuide: String
-    var searchableSnippets: [String]
-
-    static let empty = Self(projectSummary: "", architectureOverview: "", importantFiles: "", dependencies: "", integrationGuide: "", searchableSnippets: [])
-
-    static func from(source: RepositorySource, progress: @escaping @Sendable (RepositoryProgressUpdate) async -> Void) async throws -> Self {
-        switch source {
-        case .folder(let url):
-            guard let root = url else { throw RepositoryScanError.invalidLocalFolder }
-            await progress(.init(progress: 0.05, message: "Scanning local repository..."))
-            return try await analyzeLocalRepository(rootURL: root, progress: progress)
-        case .zip(let url):
-            guard let zipURL = url else { throw RepositoryScanError.missingZipPath }
-            await progress(.init(progress: 0.1, message: "Extracting archive..."))
-            let rootURL = try extractZip(at: zipURL)
-            return try await analyzeLocalRepository(rootURL: rootURL, progress: progress)
-        case .github(let value):
-            return try await analyzeGitHubRepository(input: value, progress: progress)
-        }
-    }
-
-    private static func analyzeGitHubRepository(input: String, progress: @escaping @Sendable (RepositoryProgressUpdate) async -> Void) async throws -> Self {
-        await progress(.init(progress: 0.05, message: "Validating GitHub URL..."))
-        guard let parsed = GitHubRepoReference(urlString: input) else { throw RepositoryScanError.invalidGitHubURL }
-        guard parsed.host == "github.com" else { throw RepositoryScanError.unsupportedGitHubURL }
-
-        await progress(.init(progress: 0.15, message: "Listing repository tree from GitHub API..."))
-        let (manifestFiles, dependencyFiles, readmeFile) = try await fetchGitHubFileManifests(for: parsed)
-
-        await progress(.init(progress: 0.35, message: "Fetching targeted files..."))
-        let lightweight = try await buildLightweightReportFromGitHub(parsed: parsed, manifests: manifestFiles, dependencyPaths: dependencyFiles, readmePath: readmeFile, progress: progress)
-        return lightweight
-    }
-
-    private static func extractZip(at url: URL) throws -> URL {
-        let dest = FileManager.default.temporaryDirectory.appendingPathComponent("repo-unzip-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
-        do {
-            try FileManager.default.unzipItem(at: url, to: dest)
-        } catch {
-            throw RepositoryScanError.corruptedArchive
-        }
-
-        if let first = try? FileManager.default.contentsOfDirectory(at: dest, includingPropertiesForKeys: nil).first {
-            return first
-        }
-        return dest
-    }
-
-    private static func analyzeLocalRepository(rootURL: URL, progress: @escaping @Sendable (RepositoryProgressUpdate) async -> Void) async throws -> Self {
-        // Perform the synchronous enumeration in a detached task to avoid blocking the main thread
-        // and to satisfy Sendability by avoiding the mixing of DispatchQueue and Task.
-        try await Task.detached(priority: .userInitiated) {
-            let fm = FileManager.default
-            let allowed = Set(["swift", "md", "txt", "json", "yaml", "yml", "plist"])
-            let enumerator = fm.enumerator(at: rootURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles, .skipsPackageDescendants])
-
-            var files: [URL] = []
-            var scanned = 0
-            while let item = enumerator?.nextObject() as? URL {
-                scanned += 1
-                if scanned % 250 == 0 {
-                    await progress(.init(progress: min(0.2 + Double(scanned) / 50000.0, 0.7), message: "Indexed \(scanned) paths..."))
-                }
-                if allowed.contains(item.pathExtension.lowercased()) { files.append(item) }
-            }
-
-            guard !files.isEmpty else { throw RepositoryScanError.emptyRepository }
-            await progress(.init(progress: 0.78, message: "Analyzing code structure..."))
-            return try buildReport(rootURL: rootURL, files: files)
-        }.value
-    }
-
-    private static func buildReport(rootURL: URL, files: [URL]) throws -> Self {
-        let snippetLines = files.prefix(80).compactMap { url -> String? in
-            guard let handle = try? FileHandle(forReadingFrom: url),
-                  let data = try? handle.read(upToCount: 1600),
-                  let content = String(data: data, encoding: .utf8)
-            else { return nil }
-            let first = content.split(separator: "\n").prefix(2).joined(separator: " ")
-            return "\(url.lastPathComponent): \(first)"
-        }
-
-        let readme = files.first(where: { $0.lastPathComponent.lowercased().contains("readme") })
-        let readmeText = readme.flatMap { try? String(contentsOf: $0) } ?? ""
-
-        let dependenciesText = files.filter { ["package.swift", "podfile", "cartfile"].contains($0.lastPathComponent.lowercased()) }
-            .compactMap { try? String(contentsOf: $0) }
-            .joined(separator: "\n")
-
-        let swiftFiles = files.filter { $0.pathExtension.lowercased() == "swift" }
-        let importSet = Set(swiftFiles.compactMap { try? String(contentsOf: $0) }
-            .flatMap { text in
-                text.split(separator: "\n").compactMap { line -> String? in
-                    let trimmed = line.trimmingCharacters(in: .whitespaces)
-                    guard trimmed.hasPrefix("import ") else { return nil }
-                    return String(trimmed.dropFirst("import ".count))
-                }
-            })
-
-        let important = files.sorted { $0.path.count < $1.path.count }
-            .prefix(10)
-            .map { "- " + $0.path.replacingOccurrences(of: rootURL.path + "/", with: "") }
-            .joined(separator: "\n")
-
-        return .init(
-            projectSummary: "Repository root: \(rootURL.lastPathComponent)\nFiles scanned: \(files.count)\n\(readmeText.prefix(600))",
-            architectureOverview: "Swift files: \(swiftFiles.count). Imported modules: \(importSet.sorted().joined(separator: ", ")).",
-            importantFiles: important,
-            dependencies: dependenciesText.isEmpty ? "No dependency manifests found." : String(dependenciesText.prefix(1000)),
-            integrationGuide: "1. Start from README and manifest files.\n2. Inspect the key files listed above.\n3. Follow imported modules to locate boundaries and extension points.\n4. Validate integration with project tests/build.",
-            searchableSnippets: snippetLines
-        )
-    }
-
-    private static func fetchGitHubFileManifests(for ref: GitHubRepoReference) async throws -> ([String], [String], String?) {
-        let treeURL = URL(string: "https://api.github.com/repos/\(ref.owner)/\(ref.repo)/git/trees/\(ref.branch)?recursive=1")!
-        let (data, response) = try await URLSession.shared.data(from: treeURL)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw RepositoryScanError.githubListingFailed }
-
-        let decoded = try JSONDecoder().decode(SearchGitHubTreeResponse.self, from: data)
-        let allowed = Set(["swift", "md", "txt", "json", "yaml", "yml", "plist"])
-        let manifests = decoded.tree
-            .filter { $0.type == "blob" }
-            .map(\.path)
-            .filter { path in
-                let ext = URL(fileURLWithPath: path).pathExtension.lowercased()
-                return allowed.contains(ext)
-            }
-            .prefix(250)
-            .map { String($0) }
-
-        let dependency = decoded.tree
-            .filter { ["package.swift", "podfile", "cartfile"].contains($0.path.lowercased()) }
-            .map(\.path)
-        let readme = decoded.tree.first(where: { $0.path.lowercased().contains("readme") })?.path
-
-        return (Array(manifests), dependency, readme)
-    }
-
-    private static func buildLightweightReportFromGitHub(parsed: GitHubRepoReference, manifests: [String], dependencyPaths: [String], readmePath: String?, progress: @escaping @Sendable (RepositoryProgressUpdate) async -> Void) async throws -> Self {
-        let swiftFiles = manifests.filter { $0.lowercased().hasSuffix(".swift") }
-        var snippetLines: [String] = []
-        var imports = Set<String>()
-        var readmeText = ""
-        var dependencyText = ""
-
-        let sampleFiles = manifests.prefix(60)
-        for (index, path) in sampleFiles.enumerated() {
-            if index % 8 == 0 {
-                await progress(.init(progress: 0.35 + (Double(index) / Double(max(sampleFiles.count, 1))) * 0.45, message: "Downloading indexed files (\(index + 1)/\(sampleFiles.count))..."))
-            }
-
-            if let content = try await fetchGitHubFileContent(parsed: parsed, path: path) {
-                let head = content.split(separator: "\n").prefix(2).joined(separator: " ")
-                snippetLines.append("\(URL(fileURLWithPath: path).lastPathComponent): \(head)")
-
-                if path.lowercased().hasSuffix(".swift") {
-                    content.split(separator: "\n").forEach { line in
-                        let trimmed = line.trimmingCharacters(in: .whitespaces)
-                        if trimmed.hasPrefix("import ") {
-                            imports.insert(String(trimmed.dropFirst(7)))
+                                Text(symbol.summary)
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+
+                        // Card 3: Live Preview / Declaration
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label("Developer API Declaration", systemImage: "signature")
+                                    .font(.headline)
+                                    .foregroundColor(.green)
+
+                                Text("import \(symbol.framework)\n\n// Native declaration link:\n\(symbol.urlString)")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.green)
+                                    .padding()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.black.opacity(0.15))
+                                    .cornerRadius(8)
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
+                    .padding(24)
                 }
+                .background(Color(NSColor.windowBackgroundColor))
+            } else {
+                ContentUnavailableView(
+                    "Search Apple Docs",
+                    systemImage: "book.pages",
+                    description: Text("Search for frameworks, classes, structs, and methods above to view rich documentation details.")
+                )
             }
         }
-
-        if let readmePath, let readme = try await fetchGitHubFileContent(parsed: parsed, path: readmePath) {
-            readmeText = String(readme.prefix(600))
-        }
-
-        if !dependencyPaths.isEmpty {
-            for path in dependencyPaths.prefix(4) {
-                if let body = try await fetchGitHubFileContent(parsed: parsed, path: path) {
-                    dependencyText += "\n\n# \(path)\n\(body.prefix(500))"
-                }
-            }
-        }
-
-        await progress(.init(progress: 0.9, message: "Compiling report..."))
-        let important = manifests.prefix(10).map { "- \($0)" }.joined(separator: "\n")
-
-        return .init(
-            projectSummary: "Repository: \(parsed.owner)/\(parsed.repo)\nIndexed files: \(manifests.count)\n\(readmeText)",
-            architectureOverview: "Swift files discovered: \(swiftFiles.count). Imported modules found in sampled files: \(imports.sorted().joined(separator: ", ")).",
-            importantFiles: important,
-            dependencies: dependencyText.isEmpty ? "No dependency manifests found." : dependencyText,
-            integrationGuide: "1. Review README and dependency manifests.\n2. Start integration from important files list.\n3. Follow imports to identify boundaries.\n4. Validate with project build/test steps.",
-            searchableSnippets: snippetLines
-        )
+        .frame(minWidth: 700, minHeight: 500)
     }
-
-    private static func fetchGitHubFileContent(parsed: GitHubRepoReference, path: String) async throws -> String? {
-        let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
-        let contentsURL = URL(string: "https://raw.githubusercontent.com/\(parsed.owner)/\(parsed.repo)/\(parsed.branch)/\(encodedPath)")!
-        let (data, response) = try await URLSession.shared.data(from: contentsURL)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
-
-    func answer(for query: String) -> String {
-        let terms = query.lowercased().split(separator: " ").map(String.init)
-        let matches = searchableSnippets.filter { snippet in
-            let lower = snippet.lowercased()
-            return terms.contains(where: { lower.contains($0) })
-        }.prefix(5)
-
-        if matches.isEmpty {
-            return "No direct text match found. Try asking with specific filenames, symbols, or module names."
-        }
-
-        return "Top relevant snippets:\n" + matches.joined(separator: "\n")
-    }
-}
-
-private struct GitHubRepoReference: Sendable {
-    let host: String
-    let owner: String
-    let repo: String
-    let branch: String
-
-    init?(urlString: String) {
-        guard let url = URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)),
-              let host = url.host else { return nil }
-        let parts = url.path.split(separator: "/").map(String.init)
-        guard parts.count >= 2 else { return nil }
-        self.host = host
-        owner = parts[0]
-        repo = parts[1].replacingOccurrences(of: ".git", with: "")
-
-        if let branchIndex = parts.firstIndex(of: "tree"), parts.indices.contains(branchIndex + 1) {
-            branch = parts[branchIndex + 1]
-        } else {
-            branch = "main"
-        }
-    }
-}
-
-private struct SearchGitHubTreeResponse: Decodable, Sendable {
-    let tree: [SearchGitHubTreeNode]
-}
-
-private struct SearchGitHubTreeNode: Decodable, Sendable {
-    let path: String
-    let type: String
 }

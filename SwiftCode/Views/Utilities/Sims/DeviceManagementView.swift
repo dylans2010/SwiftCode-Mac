@@ -41,11 +41,11 @@ struct DeviceManagementView: View {
                         Text("Verify Xcode command line tools are installed or create a virtual device.")
                     }
                 } else {
-                    List {
+                    VStack(spacing: 12) {
                         ForEach(manager.devices) { device in
                             HStack {
                                 Image(systemName: "iphone")
-                                    .font(.title2)
+                                    .font(.title3)
                                     .foregroundColor(device.state == .booted ? .green : .secondary)
 
                                 VStack(alignment: .leading, spacing: 2) {
@@ -91,14 +91,17 @@ struct DeviceManagementView: View {
                                     }
                                 } label: {
                                     Image(systemName: "ellipsis")
+                                        .font(.caption)
                                 }
                                 .buttonStyle(.plain)
                             }
                             .padding(.vertical, 4)
+
+                            if device.id != manager.devices.last?.id {
+                                Divider()
+                            }
                         }
                     }
-                    .listStyle(.plain)
-                    .frame(height: 250)
                 }
             }
             .padding()

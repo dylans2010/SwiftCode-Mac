@@ -479,6 +479,7 @@
 		992A465796E7EFFAB25C2017 /* PushPullView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDB0E8E843E3C57FACDD1B98 /* PushPullView.swift */; };
 		99BB60AA22D54033BA3C9C75 /* SwiftCode/Views/Agent/AskUserPromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D187869D5B13477E85420015 /* SwiftCode/Views/Agent/AskUserPromptView.swift */; };
 		99EA6FAB7EB0BFF127A3B8FB /* FilePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5E9A1260294B0DD1562EA23 /* FilePreviewView.swift */; };
+		ECAAA1260294B0DD15620001 /* SFSymbolPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECAAA1260294B0DD15620002 /* SFSymbolPickerView.swift */; };
 		9A0A64C7535F423D9ACD5590 /* ProjectTreeRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6E31F24089DAC97BEE9EBFA /* ProjectTreeRowView.swift */; };
 		9A4D4A0FE3FB456CB7C0BA16 /* ReadEnvironmentVariables.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30722E99D3604B50A47AB4C6 /* ReadEnvironmentVariables.swift */; };
 		9B06D4BEBFA0B8929066D581 /* GitHubService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B68DA3FF74B9ED80BC76F30C /* GitHubService.swift */; };
@@ -1698,6 +1699,7 @@
 		E5D47536944D9D21484D6F8E /* AIDocGenExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIDocGenExtensionView.swift; sourceTree = "<group>"; };
 		E5D64F9FF65A0ED54E33742B /* StateInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateInspectorView.swift; sourceTree = "<group>"; };
 		E5E9A1260294B0DD1562EA23 /* FilePreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePreviewView.swift; sourceTree = "<group>"; };
+		ECAAA1260294B0DD15620002 /* SFSymbolPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SFSymbolPickerView.swift; sourceTree = "<group>"; };
 		E5F5D572C8434836889B0F20 /* CreateIssue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateIssue.swift; sourceTree = "<group>"; };
 		E6667D90FCA317DE3700C420 /* MultiCursorExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiCursorExtensionView.swift; sourceTree = "<group>"; };
 		E704370DAC1017831EE73E4E /* WorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceView.swift; sourceTree = "<group>"; };
@@ -2539,6 +2541,7 @@
 			isa = PBXGroup;
 			children = (
 				E5E9A1260294B0DD1562EA23 /* FilePreviewView.swift */,
+				ECAAA1260294B0DD15620002 /* SFSymbolPickerView.swift */,
 				8C063A51438D8C575DA58158 /* FileImporterRepresentableView.swift */,
 				265E9A5B2B28B39C005F9A10 /* ShareSheet.swift */,
 				AA110001BB220001CC330004 /* XcodeProjViewer.swift */,
@@ -4404,6 +4407,7 @@
 				B14D25F2D0D6ACC4CE3394FA /* DependencyManagerView.swift in Sources */,
 				D701F8900415B97CE1FA320B /* CodeSearchView.swift in Sources */,
 				99EA6FAB7EB0BFF127A3B8FB /* FilePreviewView.swift in Sources */,
+				ECAAA1260294B0DD15620001 /* SFSymbolPickerView.swift in Sources */,
 				F971B8D1B5723CBC44B97000 /* FileImporterRepresentableView.swift in Sources */,
 				5E7C7A7B1D5B03E0443DFD64 /* GitHubRemoteSetupView.swift in Sources */,
 				5DA7F836C41712F75E484195 /* FolderCreateView.swift in Sources */,

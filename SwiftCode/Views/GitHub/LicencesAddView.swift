@@ -54,7 +54,7 @@ struct LicencesAddView: View {
         NavigationSplitView {
             // Sidebar List of Licenses
             VStack(spacing: 0) {
-                // Filters Header Card
+                // Filters Header Card inside a modern styled background
                 VStack(spacing: 12) {
                     HStack {
                         Image(systemName: "magnifyingglass")
@@ -81,7 +81,7 @@ struct LicencesAddView: View {
                         .controlSize(.small)
                     }
                 }
-                .padding()
+                .padding(14)
                 .background(.ultraThinMaterial)
 
                 Divider()

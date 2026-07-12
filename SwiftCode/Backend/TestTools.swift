@@ -37,139 +37,131 @@ public final class TestToolsManager: ObservableObject {
     public static let shared = TestToolsManager()
 
     @Published public var isRunning = false
+    @Published public var consoleOutput = ""
     @Published public var results: [TestResult] = []
-    @Published public var testHistory: [TestResult] = []
+    @Published public var duration: TimeInterval = 0.0
+    @Published public var passedCount = 0
+    @Published public var failedCount = 0
+    @Published public var skippedCount = 0
 
-    private var customTestModules: [String: (String) -> TestResult] = [:]
+    private var process: Process?
+    private var startTime: Date?
+    private var timer: Timer?
 
     private init() {}
 
-    public func runTests(forProject project: Project, category: TestCategory? = nil) async {
+    public func runSwiftTests(forProject project: Project) async {
+        guard !isRunning else { return }
+
         isRunning = true
+        consoleOutput = "Starting swift test...\n"
         results.removeAll()
+        passedCount = 0
+        failedCount = 0
+        skippedCount = 0
+        duration = 0.0
+        startTime = Date()
 
-        // Filter tests by category if requested
-        let categoriesToRun = category != nil ? [category!] : TestCategory.allCases
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let self, let start = self.startTime else { return }
+            self.duration = Date().timeIntervalSince(start)
+        }
 
-        for cat in categoriesToRun {
-            switch cat {
-            case .unit:
-                results.append(validateFileStructure(for: project))
-                results.append(validateConfiguration(for: project))
-            case .integration:
-                results.append(checkProjectDependencies(for: project))
-            case .ui:
-                results.append(TestResult(name: "UI Element Accessibility", status: .success, executionTime: 0.8, category: .ui))
-                results.append(TestResult(name: "Navigation Flow Test", status: .success, executionTime: 1.5, category: .ui))
+        let process = Process()
+        self.process = process
+        process.currentDirectoryURL = project.directoryURL
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["swift", "test"]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+
+        let fileHandle = pipe.fileHandleForReading
+        fileHandle.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            if let output = String(data: data, encoding: .utf8), !output.isEmpty {
+                DispatchQueue.main.async {
+                    self?.consoleOutput.append(output)
+                    self?.parseTestLogs(output)
+                }
             }
         }
 
-        // Run custom modules
-        for (_, handler) in customTestModules {
-            results.append(handler(project.name))
+        do {
+            try process.run()
+
+            // Run on a cooperative detached task to wait without blocking
+            try await Task.detached { [process] in
+                process.waitUntilExit()
+            }.value
+
+            fileHandle.readabilityHandler = nil
+            timer?.invalidate()
+            timer = nil
+
+            let exitCode = process.terminationStatus
+            consoleOutput.append("\nProcess finished with exit code: \(exitCode)\n")
+
+            if exitCode == 0 {
+                consoleOutput.append("Tests completed successfully!\n")
+            } else {
+                consoleOutput.append("Tests failed.\n")
+            }
+        } catch {
+            fileHandle.readabilityHandler = nil
+            timer?.invalidate()
+            timer = nil
+            consoleOutput.append("\nError starting process: \(error.localizedDescription)\n")
         }
 
-        testHistory.append(contentsOf: results)
         isRunning = false
+        self.process = nil
     }
 
-
-
-    public func runAgentToolTests(toolID: String) async {
-        isRunning = true
-        defer { isRunning = false }
-
-        let result = TestResult(
-            name: "Agent Tool Validation (\(toolID))",
-            status: .success,
-            executionTime: 0.1,
-            category: .integration
-        )
-
-        results = [result]
-        testHistory.append(result)
+    public func cancelTests() {
+        process?.terminate()
+        timer?.invalidate()
+        timer = nil
+        isRunning = false
+        consoleOutput.append("\nTest execution cancelled by user.\n")
+        self.process = nil
     }
 
-    public func runExtensionTests(extensionID: String) async {
-        isRunning = true
-        defer { isRunning = false }
-
-        let result = TestResult(
-            name: "Extension Smoke Test (\(extensionID))",
-            status: .success,
-            executionTime: 0.1,
-            category: .integration
-        )
-
-        results = [result]
-        testHistory.append(result)
-    }
-
-    public func runParallelTests(forProject project: Project) async {
-        isRunning = true
+    public func clearResults() {
+        consoleOutput = ""
         results.removeAll()
+        passedCount = 0
+        failedCount = 0
+        skippedCount = 0
+        duration = 0.0
+    }
 
-        await withTaskGroup(of: TestResult.self) { group in
-            group.addTask { await self.simulateTestRun(name: "Logic Test 1", category: .unit) }
-            group.addTask { await self.simulateTestRun(name: "Logic Test 2", category: .unit) }
-            group.addTask { await self.simulateTestRun(name: "API Integration", category: .integration) }
-            group.addTask { await self.simulateTestRun(name: "Main View UI", category: .ui) }
-
-            for await result in group {
-                self.results.append(result)
+    private func parseTestLogs(_ text: String) {
+        let lines = text.split(separator: "\n")
+        for line in lines {
+            let lineStr = String(line)
+            if lineStr.contains("passed") && lineStr.contains("Test Case") {
+                passedCount += 1
+                if let name = extractTestCaseName(lineStr) {
+                    results.append(TestResult(name: name, status: .success, executionTime: 0.1, category: .unit))
+                }
+            } else if lineStr.contains("failed") && lineStr.contains("Test Case") {
+                failedCount += 1
+                if let name = extractTestCaseName(lineStr) {
+                    results.append(TestResult(name: name, status: .failed, executionTime: 0.1, category: .unit, errorMessage: "Assertion failed"))
+                }
             }
         }
-
-        testHistory.append(contentsOf: results)
-        isRunning = false
     }
 
-    private func simulateTestRun(name: String, category: TestCategory) async -> TestResult {
-        try? await Task.sleep(nanoseconds: UInt64.random(in: 100_000_000...500_000_000))
-        return TestResult(name: name, status: .success, executionTime: 0.3, category: category)
-    }
-
-    // MARK: - Internal Test Modules
-
-    private func validateSyntax(for path: String, in project: Project) -> TestResult {
-        let start = Date()
-        let success = !path.contains("error")
-        return TestResult(
-            name: "Syntax Validation",
-            status: success ? .success : .failed,
-            executionTime: Date().timeIntervalSince(start),
-            category: .unit,
-            errorMessage: success ? nil : "Syntax error detected in \(path)"
-        )
-    }
-
-    private func checkProjectDependencies(for project: Project) -> TestResult {
-        let start = Date()
-        return TestResult(
-            name: "Dependency Check",
-            status: .success,
-            executionTime: Date().timeIntervalSince(start),
-            category: .integration
-        )
-    }
-
-    private func validateFileStructure(for project: Project) -> TestResult {
-        let start = Date()
-        return TestResult(
-            name: "File Structure Validation",
-            status: .success,
-            executionTime: Date().timeIntervalSince(start),
-            category: .unit
-        )
-    }
-
-    private func validateConfiguration(for project: Project) -> TestResult {
-        let start = Date()
-        return TestResult(
-            name: "Configuration Validation",
-            status: .success,
-            executionTime: Date().timeIntervalSince(start),
-            category: .unit
-        )
+    private func extractTestCaseName(_ line: String) -> String? {
+        let pattern = #"Test Case '-\[(.+)\]'"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
+        let nsString = line as NSString
+        if let match = regex.firstMatch(in: line, options: [], range: NSRange(location: 0, length: nsString.length)) {
+            return nsString.substring(with: match.range(at: 1))
+        }
+        return nil
     }
 }
