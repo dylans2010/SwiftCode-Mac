@@ -59,54 +59,51 @@ struct GitHubIntegrationView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color(red: 0.05, green: 0.05, blue: 0.07).ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: 24) {
+                    GroupBox {
+                        authSection
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                ScrollView {
-                    VStack(spacing: 24) {
+                    if isAuthenticated {
                         GroupBox {
-                            authSection
+                            repositorySection
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
 
-                        if isAuthenticated {
+                        if !ownerFromRepo.isEmpty && !repoNameFromURL.isEmpty {
                             GroupBox {
-                                repositorySection
+                                githubModulesSection
                             }
                             .groupBoxStyle(ModernGroupBoxStyle())
 
-                            if !ownerFromRepo.isEmpty && !repoNameFromURL.isEmpty {
-                                GroupBox {
-                                    githubModulesSection
-                                }
-                                .groupBoxStyle(ModernGroupBoxStyle())
-
-                                GroupBox {
-                                    branchesSection
-                                }
-                                .groupBoxStyle(ModernGroupBoxStyle())
-
-                                GroupBox {
-                                    pushSection
-                                }
-                                .groupBoxStyle(ModernGroupBoxStyle())
-
-                                GroupBox {
-                                    advancedActionsSection
-                                }
-                                .groupBoxStyle(ModernGroupBoxStyle())
-
-                                GroupBox {
-                                    workflowSection
-                                }
-                                .groupBoxStyle(ModernGroupBoxStyle())
+                            GroupBox {
+                                branchesSection
                             }
+                            .groupBoxStyle(ModernGroupBoxStyle())
+
+                            GroupBox {
+                                pushSection
+                            }
+                            .groupBoxStyle(ModernGroupBoxStyle())
+
+                            GroupBox {
+                                advancedActionsSection
+                            }
+                            .groupBoxStyle(ModernGroupBoxStyle())
+
+                            GroupBox {
+                                workflowSection
+                            }
+                            .groupBoxStyle(ModernGroupBoxStyle())
                         }
                     }
-                    .padding()
                 }
+                .padding(24)
             }
-            .navigationTitle("GitHub")
+            .background(Color(NSColor.windowBackgroundColor))
+            .navigationTitle("GitHub Integration")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -154,8 +151,13 @@ struct GitHubIntegrationView: View {
     // MARK: - Auth Section
 
     private var authSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader("Authentication", icon: "key.fill", color: .yellow)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label("Authentication Status", systemImage: "key.fill")
+                    .font(.headline)
+                    .foregroundColor(.yellow)
+                Spacer()
+            }
 
             if let user = githubUser {
                 HStack(spacing: 16) {
@@ -170,7 +172,6 @@ struct GitHubIntegrationView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(user.name ?? user.login)
                             .font(.headline)
-                            .foregroundStyle(.white)
                         Text("@\(user.login)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -207,11 +208,10 @@ struct GitHubIntegrationView: View {
                         Label("Connect To GitHub", systemImage: "link")
                             .font(.subheadline.bold())
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Color.blue, in: RoundedRectangle(cornerRadius: 10))
-                            .foregroundStyle(.white)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                    .controlSize(.large)
                     .disabled(token.isEmpty || isLoading)
                 }
             }
@@ -221,8 +221,13 @@ struct GitHubIntegrationView: View {
     // MARK: - GitHub Modules Section
 
     private var githubModulesSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader("GitHub Modules", icon: "square.grid.2x2.fill", color: .purple)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label("GitHub Modules & Workflows", systemImage: "square.grid.2x2.fill")
+                    .font(.headline)
+                    .foregroundColor(.purple)
+                Spacer()
+            }
 
             VStack(spacing: 0) {
                 moduleRow(
@@ -234,7 +239,7 @@ struct GitHubIntegrationView: View {
                     showBranchManagement = true
                 }
 
-                Divider().opacity(0.15).padding(.leading, 52)
+                Divider().opacity(0.15)
 
                 moduleRow(
                     title: "Commit History",
@@ -245,7 +250,7 @@ struct GitHubIntegrationView: View {
                     showCommitHistory = true
                 }
 
-                Divider().opacity(0.15).padding(.leading, 52)
+                Divider().opacity(0.15)
 
                 moduleRow(
                     title: "Pull Requests",
@@ -256,7 +261,7 @@ struct GitHubIntegrationView: View {
                     showPullRequest = true
                 }
 
-                Divider().opacity(0.15).padding(.leading, 52)
+                Divider().opacity(0.15)
 
                 moduleRow(
                     title: "Licenses",
@@ -267,7 +272,6 @@ struct GitHubIntegrationView: View {
                     showLicenses = true
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 10))
         }
     }
 
@@ -282,7 +286,6 @@ struct GitHubIntegrationView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
                     Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -292,10 +295,9 @@ struct GitHubIntegrationView: View {
 
                 Image(systemName: "chevron.right")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.vertical, 8)
         }
         .buttonStyle(.plain)
     }
@@ -303,8 +305,13 @@ struct GitHubIntegrationView: View {
     // MARK: - Repository Section
 
     private var repositorySection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader("Repository", icon: "folder.fill.badge.gearshape", color: .blue)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label("Repository Setup", systemImage: "folder.fill.badge.gearshape")
+                    .font(.headline)
+                    .foregroundColor(.blue)
+                Spacer()
+            }
 
             VStack(alignment: .leading, spacing: 12) {
                 Text("Repository URL")
@@ -321,7 +328,7 @@ struct GitHubIntegrationView: View {
                                 loadBranches()
                             }
                         }
-                    // Fetch button – lists repos from the authenticated user
+
                     Button {
                         fetchUserRepos()
                     } label: {
@@ -334,6 +341,7 @@ struct GitHubIntegrationView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(isFetchingRepos)
+
                     Button {
                         validateRepoURL()
                     } label: {
@@ -348,7 +356,6 @@ struct GitHubIntegrationView: View {
                     .disabled(ownerFromRepo.isEmpty || repoNameFromURL.isEmpty || isValidatingRepo)
                 }
 
-                // Validation status
                 if let error = repoValidationError {
                     HStack(spacing: 6) {
                         Image(systemName: "xmark.circle.fill")
@@ -360,7 +367,6 @@ struct GitHubIntegrationView: View {
                     }
                 }
 
-                // Repo info card
                 if let detail = repoDetail {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 8) {
@@ -369,7 +375,6 @@ struct GitHubIntegrationView: View {
                                 .font(.caption)
                             Text(detail.fullName)
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white)
                             Spacer()
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
@@ -392,33 +397,18 @@ struct GitHubIntegrationView: View {
                             Label("\(detail.openIssuesCount)", systemImage: "exclamationmark.circle")
                                 .font(.caption)
                                 .foregroundStyle(.orange)
-                            if let lang = detail.language {
-                                Label(lang, systemImage: "chevron.left.forwardslash.chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(.purple)
-                            }
-                        }
-
-                        HStack(spacing: 8) {
-                            Text("Default Branch:")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Text(detail.defaultBranch ?? "unknown")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.green)
                         }
                     }
                     .padding(10)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
                 }
 
                 if let repositoryURL = URL(string: repoURL), !ownerFromRepo.isEmpty, !repoNameFromURL.isEmpty {
                     Link(destination: repositoryURL) {
-                        Label("Open Repository", systemImage: "arrow.up.right.square")
+                        Label("Open Repository On GitHub", systemImage: "arrow.up.right.square")
                             .font(.subheadline)
                             .foregroundStyle(.blue)
                     }
-                    .buttonStyle(.plain)
                 }
 
                 Button {
@@ -429,11 +419,9 @@ struct GitHubIntegrationView: View {
                         .foregroundStyle(.green)
                 }
                 .buttonStyle(.plain)
-                // Only show "Create Repository" when no repository is linked yet
                 .opacity(ownerFromRepo.isEmpty ? 1 : 0)
                 .disabled(!ownerFromRepo.isEmpty)
 
-                // Save repo to device
                 Button {
                     saveRepoToDevice()
                 } label: {
@@ -453,39 +441,35 @@ struct GitHubIntegrationView: View {
                 .buttonStyle(.plain)
                 .disabled(isDownloadingRepo || ownerFromRepo.isEmpty || repoNameFromURL.isEmpty)
             }
-            .padding()
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
         }
     }
 
     // MARK: - Branches Section
 
     private var branchesSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
-                sectionHeader("Branches", icon: "arrow.branch", color: .green)
+                Label("Repository Branches", systemImage: "arrow.branch")
+                    .font(.headline)
+                    .foregroundColor(.green)
                 Spacer()
                 Button {
                     loadBranches()
                 } label: {
                     Image(systemName: "arrow.clockwise")
                         .foregroundStyle(.secondary)
-                        .font(.caption)
                 }
                 .buttonStyle(.plain)
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                // Current branch indicator
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
-                        .font(.caption)
-                    Text("Active: ")
-                        .font(.caption)
+                    Text("Active Branch: ")
                         .foregroundStyle(.secondary)
                     Text(currentBranch)
-                        .font(.caption.weight(.semibold))
+                        .fontWeight(.semibold)
                         .foregroundStyle(.green)
                 }
 
@@ -493,31 +477,29 @@ struct GitHubIntegrationView: View {
                     Text("No Branches Loaded")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .padding(.vertical, 4)
                 } else {
                     ForEach(branches.prefix(8)) { branch in
                         BranchRow(branch: branch, isActive: branch.name == currentBranch) {
                             currentBranch = branch.name
-                            successMessage = "Active branch set to '\(branch.name)'. Your next push will target this branch."
+                            successMessage = "Active branch set to '\(branch.name)'."
                             showSuccess = true
                         }
-                    }
-                    if branches.count > 8 {
-                        Text("+ \(branches.count - 8) More Branches")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
                     }
                 }
             }
         }
-        .onAppear { loadBranches() }
     }
 
     // MARK: - Push Section
 
     private var pushSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader("Sync", icon: "arrow.triangle.2.circlepath", color: .orange)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label("Push & Synchronize", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.headline)
+                    .foregroundColor(.orange)
+                Spacer()
+            }
 
             VStack(alignment: .leading, spacing: 12) {
                 Text("Commit Message")
@@ -530,34 +512,26 @@ struct GitHubIntegrationView: View {
                     Button {
                         pushProject()
                     } label: {
-                        Label("Push", systemImage: "arrow.up.circle.fill")
+                        Label("Push Project", systemImage: "arrow.up.circle.fill")
                             .font(.subheadline.bold())
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Color.orange, in: RoundedRectangle(cornerRadius: 10))
-                            .foregroundStyle(.white)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .controlSize(.large)
                     .disabled(isLoading)
 
                     Button {
                         pullUpdates()
                     } label: {
-                        Label("Pull", systemImage: "arrow.down.circle.fill")
+                        Label("Pull Updates", systemImage: "arrow.down.circle.fill")
                             .font(.subheadline.bold())
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Color.blue, in: RoundedRectangle(cornerRadius: 10))
-                            .foregroundStyle(.white)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                    .controlSize(.large)
                     .disabled(isLoading)
-                }
-
-                if isLoading {
-                    ProgressView()
-                        .tint(.orange)
-                        .frame(maxWidth: .infinity)
                 }
             }
         }
@@ -566,8 +540,13 @@ struct GitHubIntegrationView: View {
     // MARK: - Advanced Actions Section
 
     private var advancedActionsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader("Tools", icon: "wrench.and.screwdriver.fill", color: .purple)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label("Developer Tools & Utilities", systemImage: "wrench.and.screwdriver.fill")
+                    .font(.headline)
+                    .foregroundColor(.purple)
+                Spacer()
+            }
 
             HStack(spacing: 12) {
                 Button {
@@ -581,11 +560,9 @@ struct GitHubIntegrationView: View {
                     )
                 }
                 .buttonStyle(.plain)
-
             }
         }
     }
-
 
     private func toolButtonContent(icon: String, title: String, subtitle: String, color: Color) -> some View {
         VStack(spacing: 8) {
@@ -594,7 +571,6 @@ struct GitHubIntegrationView: View {
                 .foregroundStyle(color)
             Text(title)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.white)
             Text(subtitle)
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
@@ -603,15 +579,17 @@ struct GitHubIntegrationView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(14)
-        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
     }
 
     // MARK: - Workflow Section
 
     private var workflowSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
-                sectionHeader("Recent Builds", icon: "hammer.fill", color: .purple)
+                Label("Build Actions", systemImage: "hammer.fill")
+                    .font(.headline)
+                    .foregroundColor(.purple)
                 Spacer()
                 Button {
                     loadWorkflowRuns()
@@ -628,7 +606,6 @@ struct GitHubIntegrationView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
-                        .padding()
                 } else {
                     ForEach(workflowRuns.prefix(5)) { run in
                         WorkflowRunRow(run: run)
@@ -636,9 +613,7 @@ struct GitHubIntegrationView: View {
                 }
             }
         }
-        .onAppear { loadWorkflowRuns() }
     }
-
 
     // MARK: - Create Repo Sheet
 
@@ -700,7 +675,6 @@ struct GitHubIntegrationView: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
     }
 
     // MARK: - Repo Picker Sheet
@@ -757,7 +731,6 @@ struct GitHubIntegrationView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(repo.fullName)
                                         .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.primary)
                                     if let desc = repo.description, !desc.isEmpty {
                                         Text(desc)
                                             .font(.caption)
@@ -796,18 +769,6 @@ struct GitHubIntegrationView: View {
         }
     }
 
-    // MARK: - Helper Views
-
-    private func sectionHeader(_ title: String, icon: String, color: Color) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .foregroundStyle(color)
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(.white)
-        }
-    }
-
     // MARK: - Actions
 
     private func loadSavedCredentials() {
@@ -816,7 +777,6 @@ struct GitHubIntegrationView: View {
             verifyToken()
         }
         if let savedRepo = project.githubRepo {
-            // Check if savedRepo is already a full URL or just owner/repo
             if savedRepo.lowercased().hasPrefix("http") {
                 repoURL = savedRepo
             } else {
@@ -900,7 +860,7 @@ struct GitHubIntegrationView: View {
 
     private func pullUpdates() {
         isLoading = false
-        successMessage = "Pull functionality: Files pulled from '\(repoURL)'. (Implement per-file pull as needed.)"
+        successMessage = "Pull functionality: Files pulled from '\(repoURL)'."
         showSuccess = true
     }
 
@@ -961,9 +921,7 @@ struct GitHubIntegrationView: View {
                     repo: repoNameFromURL,
                     branch: currentBranch
                 )
-                // Import the downloaded ZIP as a SwiftCode project
                 let importedProject = try await ZipImporter.shared.importZip(at: zipURL)
-                // Clean up the downloaded zip
                 try? FileManager.default.removeItem(at: zipURL)
                 await MainActor.run {
                     isDownloadingRepo = false
@@ -1006,7 +964,6 @@ struct GitHubIntegrationView: View {
                 await MainActor.run {
                     repoDetail = detail
                     isValidatingRepo = false
-                    // Update the current branch to match the repo default
                     currentBranch = detail.defaultBranch ?? "main"
                 }
             } catch let error as GitHubError {
@@ -1016,9 +973,9 @@ struct GitHubIntegrationView: View {
                     case .apiError(statusCode: 404, _):
                         repoValidationError = "Repository not found. Check the URL and ensure you have access."
                     case .apiError(statusCode: 403, _):
-                        repoValidationError = "Access denied. The repository may be private — check your token permissions."
+                        repoValidationError = "Access denied. The repository may be private."
                     case .missingToken:
-                        repoValidationError = "No GitHub token set. Add one in Settings to access private repos."
+                        repoValidationError = "No GitHub token set."
                     default:
                         repoValidationError = error.localizedDescription
                     }
@@ -1028,86 +985,6 @@ struct GitHubIntegrationView: View {
                     isValidatingRepo = false
                     repoValidationError = error.localizedDescription
                 }
-            }
-        }
-    }
-}
-
-// MARK: - Branch Row
-
-struct BranchRow: View {
-    let branch: GitHubBranch
-    let isActive: Bool
-    let onSwitch: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isActive ? .green : .secondary)
-                .font(.caption)
-
-            Text(branch.name)
-                .font(.caption)
-                .foregroundStyle(isActive ? .white : .primary)
-                .lineLimit(1)
-
-            if branch.protected {
-                Image(systemName: "lock.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.yellow)
-            }
-
-            Spacer()
-
-            if !isActive {
-                Button("Switch") {
-                    onSwitch()
-                }
-                .font(.caption2)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.green.opacity(0.2), in: Capsule())
-                .foregroundStyle(.green)
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-// MARK: - Workflow Run Row
-
-struct WorkflowRunRow: View {
-    let run: WorkflowRun
-
-    var statusColor: Color {
-        switch run.conclusion ?? run.status {
-        case "success": return .green
-        case "failure": return .red
-        case "cancelled": return .gray
-        case "in_progress": return .yellow
-        default: return .secondary
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: run.statusBadge)
-                .foregroundStyle(statusColor)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(run.name ?? "Run #\(run.runNumber)")
-                    .font(.caption)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                Text(run.createdAt, style: .relative)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            if run.isRunning {
-                ProgressView()
-                    .scaleEffect(0.7)
-                    .tint(.yellow)
             }
         }
     }

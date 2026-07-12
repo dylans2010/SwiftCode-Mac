@@ -509,6 +509,36 @@ struct SFSymbolDetailSheet: View {
                         .padding()
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Generated SwiftUI Code Card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Generated SwiftUI Code", systemImage: "doc.text.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.purple)
+                                Spacer()
+                                Button(action: {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(generateSwiftUICode(), forType: .string)
+                                }) {
+                                    Label("Copy Code", systemImage: "doc.on.doc")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+
+                            Text(generateSwiftUICode())
+                                .font(.system(.caption, design: .monospaced))
+                                .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.black.opacity(0.15))
+                                .cornerRadius(8)
+                                .textSelection(.enabled)
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
                 .padding(24)
             }
@@ -521,6 +551,51 @@ struct SFSymbolDetailSheet: View {
             }
         }
         .frame(width: 500, height: 600)
+    }
+
+    private func generateSwiftUICode() -> String {
+        var code = "Image(systemName: \"\(symbol.name)\")\n"
+
+        let weightStr: String = {
+            switch symbolWeight {
+            case .ultraLight: return ".ultraLight"
+            case .thin: return ".thin"
+            case .light: return ".light"
+            case .regular: return ".regular"
+            case .medium: return ".medium"
+            case .semibold: return ".semibold"
+            case .bold: return ".bold"
+            case .heavy: return ".heavy"
+            case .black: return ".black"
+            }
+        }()
+
+        let scaleStr: String = {
+            switch symbolScale {
+            case .small: return ".small"
+            case .medium: return ".medium"
+            case .large: return ".large"
+            }
+        }()
+
+        code += "    .font(.system(size: 64, weight: \(weightStr)))\n"
+        code += "    .imageScale(\(scaleStr))\n"
+
+        switch renderingMode {
+        case .monochrome:
+            code += "    .symbolRenderingMode(.monochrome)\n"
+            code += "    .foregroundStyle(Color.\(primaryColor.description))"
+        case .hierarchical:
+            code += "    .symbolRenderingMode(.hierarchical)\n"
+            code += "    .foregroundStyle(Color.\(primaryColor.description))"
+        case .palette:
+            code += "    .symbolRenderingMode(.palette)\n"
+            code += "    .foregroundStyle(Color.\(primaryColor.description), Color.\(secondaryColor.description))"
+        case .multicolor:
+            code += "    .symbolRenderingMode(.multicolor)"
+        }
+
+        return code
     }
 
     // MARK: - Animated Symbol Generator

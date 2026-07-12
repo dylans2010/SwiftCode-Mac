@@ -2,7 +2,6 @@ import SwiftUI
 
 // MARK: - Pull Request View
 
-
 struct PullRequestView: View {
     let owner: String
     let repo: String
@@ -37,20 +36,198 @@ struct PullRequestView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color(red: 0.08, green: 0.08, blue: 0.12).ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Card 1: Branch Target Selection
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Compare & Pull Branches", systemImage: "arrow.triangle.branch")
+                                    .font(.headline)
+                                    .foregroundColor(.purple)
+                                Spacer()
+                            }
 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        branchSelectionSection
-                        titleSection
-                        descriptionSection
-                        optionalSection
-                        submitSection
+                            VStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Compare (Source)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    branchPicker(selection: $headBranch)
+                                }
+
+                                HStack {
+                                    Spacer()
+                                    Image(systemName: "arrow.down")
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                }
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Base (Target)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    branchPicker(selection: $baseBranch)
+                                }
+
+                                if headBranch == baseBranch && !headBranch.isEmpty {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .foregroundStyle(.yellow)
+                                            .font(.caption)
+                                        Text("Source and target branches must be different.")
+                                            .font(.caption)
+                                            .foregroundStyle(.yellow)
+                                    }
+                                }
+                            }
+                        }
+                        .padding()
                     }
-                    .padding()
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Card 2: Pull Request Title
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Pull Request Title", systemImage: "textformat")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
+                            }
+
+                            TextField("Describe Changes concisely", text: $title)
+                                .textFieldStyle(.roundedBorder)
+                                .autocorrectionDisabled()
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Card 3: Description Body
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Pull Request Description", systemImage: "doc.text")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
+
+                            TextEditor(text: $bodyText)
+                                .frame(minHeight: 120)
+                                .font(.body)
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                                )
+                                .overlay(alignment: .topLeading) {
+                                    if bodyText.isEmpty {
+                                        Text("Add Description (Supports Markdown)")
+                                            .font(.body)
+                                            .foregroundStyle(.tertiary)
+                                            .padding(.top, 8)
+                                            .padding(.leading, 5)
+                                            .allowsHitTesting(false)
+                                    }
+                                }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Card 4: Reviewers & Tags Options
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Optional Configurations", systemImage: "slider.horizontal.3")
+                                    .font(.headline)
+                                    .foregroundColor(.green)
+                                Spacer()
+                            }
+
+                            VStack(spacing: 12) {
+                                optionalField(
+                                    label: "Reviewers",
+                                    placeholder: "username1, username2",
+                                    text: $reviewersInput,
+                                    icon: "person.2",
+                                    hint: "Comma-separated GitHub usernames"
+                                )
+
+                                optionalField(
+                                    label: "Labels",
+                                    placeholder: "bug, enhancement",
+                                    text: $labelsInput,
+                                    icon: "tag",
+                                    hint: "Comma-separated label names"
+                                )
+
+                                optionalField(
+                                    label: "Milestone",
+                                    placeholder: "v1.0.0",
+                                    text: $milestone,
+                                    icon: "flag",
+                                    hint: "Milestone Title (Optional)"
+                                )
+
+                                HStack {
+                                    Label("Draft Pull Request", systemImage: "doc.badge.clock")
+                                        .font(.subheadline)
+                                    Spacer()
+                                    Toggle("", isOn: $isDraft)
+                                        .labelsHidden()
+                                        .tint(.orange)
+                                }
+                                .padding(8)
+                                .background(Color.secondary.opacity(0.05))
+                                .cornerRadius(6)
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Action Submission Card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            if !canSubmit {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "info.circle")
+                                        .foregroundStyle(.secondary)
+                                    Text(validationMessage)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            Button {
+                                Task { await submitPullRequest() }
+                            } label: {
+                                HStack {
+                                    if isSubmitting {
+                                        ProgressView().scaleEffect(0.9)
+                                    } else {
+                                        Image(systemName: isDraft ? "doc.badge.clock" : "arrow.triangle.pull")
+                                    }
+                                    Text(isDraft ? "Create Draft PR" : "Create Pull Request")
+                                        .fontWeight(.semibold)
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                            .tint(.purple)
+                            .disabled(!canSubmit || isSubmitting)
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
+                .padding(24)
             }
+            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("New Pull Request")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -69,59 +246,12 @@ struct PullRequestView: View {
                 successSheet
             }
         }
-        .preferredColorScheme(.dark)
         .task { await loadBranches() }
         .onAppear {
             if let draftPayload {
                 title = draftPayload.title
                 bodyText = draftPayload.description
             }
-        }
-    }
-
-    // MARK: - Branch Selection
-
-    private var branchSelectionSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Branches", icon: "arrow.triangle.branch", color: .purple)
-
-            VStack(spacing: 12) {
-                // Compare (head) branch
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Compare (Source)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    branchPicker(selection: $headBranch)
-                }
-
-                HStack {
-                    Spacer()
-                    Image(systemName: "arrow.down")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-
-                // Base (target) branch
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Base (Target)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    branchPicker(selection: $baseBranch)
-                }
-
-                if headBranch == baseBranch && !headBranch.isEmpty {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.yellow)
-                            .font(.caption)
-                        Text("Source and target branches must be different.")
-                            .font(.caption)
-                            .foregroundStyle(.yellow)
-                    }
-                }
-            }
-            .padding()
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
         }
     }
 
@@ -143,106 +273,17 @@ struct PullRequestView: View {
             HStack {
                 Text(selection.wrappedValue.isEmpty ? "Select Branch" : selection.wrappedValue)
                     .font(.subheadline)
-                    .foregroundStyle(selection.wrappedValue.isEmpty ? Color.secondary : Color.white)
+                    .foregroundStyle(selection.wrappedValue.isEmpty ? Color.secondary : Color.primary)
                 Spacer()
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+            .padding(.vertical, 8)
+            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
         }
-    }
-
-    // MARK: - Title Section
-
-    private var titleSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Title", icon: "textformat", color: .orange)
-
-            TextField("Describe Changes", text: $title)
-                .textFieldStyle(.roundedBorder)
-                .autocorrectionDisabled()
-                .padding(.horizontal, 1)
-        }
-    }
-
-    // MARK: - Description Section
-
-    private var descriptionSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Description", icon: "doc.text", color: .blue)
-
-            TextEditor(text: $bodyText)
-                .frame(minHeight: 120)
-                .font(.body)
-                .foregroundStyle(.white)
-                .scrollContentBackground(.hidden)
-                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
-                .overlay(alignment: .topLeading) {
-                    if bodyText.isEmpty {
-                        Text("Add Description (Supports Markdown)")
-                            .font(.body)
-                            .foregroundStyle(.tertiary)
-                            .padding(.top, 8)
-                            .padding(.leading, 5)
-                            .allowsHitTesting(false)
-                    }
-                }
-        }
-    }
-
-    // MARK: - Optional Fields Section
-
-    private var optionalSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader("Options", icon: "slider.horizontal.3", color: .green)
-
-            VStack(spacing: 12) {
-                // Reviewers
-                optionalField(
-                    label: "Reviewers",
-                    placeholder: "username1, username2",
-                    text: $reviewersInput,
-                    icon: "person.2",
-                    hint: "Comma-separated GitHub usernames"
-                )
-
-                // Labels
-                optionalField(
-                    label: "Labels",
-                    placeholder: "bug, enhancement",
-                    text: $labelsInput,
-                    icon: "tag",
-                    hint: "Comma-separated label names"
-                )
-
-                // Milestone
-                optionalField(
-                    label: "Milestone",
-                    placeholder: "v1.0.0",
-                    text: $milestone,
-                    icon: "flag",
-                    hint: "Milestone Title (Optional)"
-                )
-
-                // Draft toggle
-                HStack {
-                    Label("Draft PR", systemImage: "doc.badge.clock")
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
-                    Spacer()
-                    Toggle("", isOn: $isDraft)
-                        .labelsHidden()
-                        .tint(.orange)
-                }
-                .padding(12)
-                .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
-            }
-            .padding()
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-        }
+        .buttonStyle(.plain)
     }
 
     private func optionalField(label: String, placeholder: String, text: Binding<String>, icon: String, hint: String) -> some View {
@@ -259,80 +300,40 @@ struct PullRequestView: View {
         }
     }
 
-    // MARK: - Submit Section
-
-    private var submitSection: some View {
-        VStack(spacing: 12) {
-            // Validation summary
-            if !canSubmit {
-                HStack(spacing: 8) {
-                    Image(systemName: "info.circle")
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                    Text(validationMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 4)
-            }
-
-            Button {
-                Task { await submitPullRequest() }
-            } label: {
-                HStack {
-                    if isSubmitting {
-                        ProgressView().scaleEffect(0.9).tint(.white)
-                    } else {
-                        Image(systemName: isDraft ? "doc.badge.clock" : "arrow.triangle.pull")
-                    }
-                    Text(isDraft ? "Create Draft PR" : "Create Pull Request")
-                        .font(.headline)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(canSubmit ? Color.purple : Color.secondary.opacity(0.3),
-                            in: RoundedRectangle(cornerRadius: 12))
-                .foregroundStyle(.white)
-            }
-            .buttonStyle(.plain)
-            .disabled(!canSubmit || isSubmitting)
-        }
-    }
-
     // MARK: - Success Sheet
 
     private var successSheet: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 64))
-                    .foregroundStyle(.green)
+            ScrollView {
+                VStack(spacing: 24) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 64))
+                        .foregroundStyle(.green)
 
-                Text("Pull Request Created!")
-                    .font(.title2.bold())
-                    .foregroundStyle(.white)
+                    Text("Pull Request Created!")
+                        .font(.title2.bold())
 
-                if let urlStr = createdPRURL, let url = URL(string: urlStr) {
-                    Link(destination: url) {
-                        Label("View On GitHub", systemImage: "safari")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(.orange, in: RoundedRectangle(cornerRadius: 12))
-                            .foregroundStyle(.white)
+                    if let urlStr = createdPRURL, let url = URL(string: urlStr) {
+                        Link(destination: url) {
+                            Label("View On GitHub", systemImage: "safari")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(Color.orange, in: RoundedRectangle(cornerRadius: 12))
+                                .foregroundStyle(.white)
+                        }
+                        .padding(.horizontal, 32)
                     }
-                    .padding(.horizontal, 32)
-                }
 
-                Button("Done") {
-                    showSuccessSheet = false
-                    dismiss()
+                    Button("Done") {
+                        showSuccessSheet = false
+                        dismiss()
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .foregroundStyle(.secondary)
+                .padding(24)
             }
-            .padding()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(red: 0.08, green: 0.08, blue: 0.12).ignoresSafeArea())
+            .background(Color(NSColor.windowBackgroundColor))
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
@@ -342,10 +343,9 @@ struct PullRequestView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 
-    // MARK: - Notification Banner
+    // MARK: - PR Notification Banner
 
     private func prNotificationBanner(_ n: PRNotification) -> some View {
         HStack(spacing: 10) {
@@ -353,7 +353,6 @@ struct PullRequestView: View {
                 .foregroundStyle(n.isError ? .red : .green)
             Text(n.message)
                 .font(.subheadline)
-                .foregroundStyle(.white)
             Spacer()
         }
         .padding()
@@ -366,18 +365,6 @@ struct PullRequestView: View {
                 ))
         )
         .padding(.horizontal, 16)
-    }
-
-    // MARK: - Helper Views
-
-    private func sectionHeader(_ title: String, icon: String, color: Color) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .foregroundStyle(color)
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(.white)
-        }
     }
 
     // MARK: - Validation
@@ -429,8 +416,6 @@ struct PullRequestView: View {
             .filter { !$0.isEmpty }
 
         do {
-            // PLACEHOLDER: POST /repos/{owner}/{repo}/pulls
-            // Returns the created PR object including its HTML URL.
             let pr = try await GitHubService.shared.createPullRequest(
                 owner: owner,
                 repo: repo,

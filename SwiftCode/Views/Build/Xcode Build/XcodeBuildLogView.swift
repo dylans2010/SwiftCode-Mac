@@ -69,6 +69,38 @@ struct XcodeBuildLogView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
+                    // Card: Build Target Configuration
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Build Configuration", systemImage: "gearshape.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.purple)
+                                Spacer()
+                            }
+
+                            HStack {
+                                Text("Active Build Scheme")
+                                Spacer()
+                                Text("Primary Target Scheme").bold().foregroundColor(.secondary)
+                            }
+
+                            HStack {
+                                Text("Build SDK")
+                                Spacer()
+                                Text("macOS / iOS (Simulator)").bold().foregroundColor(.secondary)
+                            }
+
+                            HStack {
+                                Text("Optimization Level")
+                                Spacer()
+                                Text("-Onone (Debug)").bold().foregroundColor(.secondary)
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
                     // Card 2: Filter / Search Toolbar
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {

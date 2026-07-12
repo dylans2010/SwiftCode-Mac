@@ -10,89 +10,130 @@ struct GitCloneSheetView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("Clone Repository")
-                    .font(.headline)
-                Spacer()
-                Button("Cancel") { dismiss() }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-            }
-            .padding()
+        ScrollView {
+            VStack(spacing: 24) {
+                // Card 1: Remote Repository URL
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Remote Repository Origin", systemImage: "globe")
+                                .font(.headline)
+                                .foregroundColor(.orange)
+                            Spacer()
+                        }
 
-            Divider()
-
-            VStack(spacing: 20) {
-                TextField("Remote URL (HTTPS)", text: $remoteURL)
-                    .textFieldStyle(.roundedBorder)
-                    .padding(.horizontal)
-
-                if isLoadingRepos {
-                    ProgressView("Fetching your repositories...")
-                        .padding()
-                } else if !repositories.isEmpty {
-                    VStack(alignment: .leading) {
-                        Text("Your GitHub Repositories")
+                        Text("Enter the HTTPS URL of the Git repository you wish to clone locally.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .padding(.horizontal)
 
-                        List(repositories) { repo in
-                            HStack {
-                                Image(systemName: repo.isPrivate ? "lock.fill" : "globe")
-                                    .foregroundStyle(repo.isPrivate ? .orange : .blue)
-                                    .frame(width: 20)
-
-                                VStack(alignment: .leading) {
-                                    Text(repo.name)
-                                        .font(.body)
-                                    if let desc = repo.description, !desc.isEmpty {
-                                        Text(desc)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                    }
-                                }
-                                Spacer()
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                remoteURL = repo.cloneUrl
-                            }
-                            .padding(.vertical, 4)
-                        }
-                        .listStyle(.inset)
-                        .frame(height: 200)
-                        .cornerRadius(8)
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.2)))
-                        .padding(.horizontal)
+                        TextField("Remote URL (HTTPS)", text: $remoteURL)
+                            .textFieldStyle(.roundedBorder)
                     }
+                    .padding()
                 }
+                .groupBoxStyle(ModernGroupBoxStyle())
 
-                if let error = errorMessage {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                        .padding(.horizontal)
-                }
+                // Card 2: Your GitHub Repositories
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Your GitHub Repositories", systemImage: "list.bullet")
+                                .font(.headline)
+                                .foregroundColor(.blue)
+                            Spacer()
+                        }
 
-                if isCloning {
-                    ProgressView("Cloning...")
-                }
+                        if isLoadingRepos {
+                            VStack {
+                                ProgressView()
+                                Text("Fetching your remote repositories...")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 150)
+                        } else if repositories.isEmpty {
+                            ContentUnavailableView(
+                                "No Remote Repositories Found",
+                                systemImage: "folder.badge.questionmark",
+                                description: Text("Make sure your personal access token is configured with repo permissions.")
+                            )
+                            .frame(height: 150)
+                        } else {
+                            VStack(spacing: 8) {
+                                ForEach(repositories) { repo in
+                                    Button {
+                                        remoteURL = repo.cloneUrl
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: repo.isPrivate ? "lock.fill" : "globe")
+                                                .foregroundStyle(repo.isPrivate ? .orange : .blue)
+                                                .frame(width: 20)
 
-                Button(action: clone) {
-                    Text(isCloning ? "Cloning..." : "Clone & Open")
-                        .frame(maxWidth: .infinity)
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(repo.name)
+                                                    .font(.body.bold())
+                                                    .foregroundStyle(.primary)
+                                                if let desc = repo.description, !desc.isEmpty {
+                                                    Text(desc)
+                                                        .font(.caption)
+                                                        .foregroundStyle(.secondary)
+                                                        .lineLimit(1)
+                                                }
+                                            }
+                                            Spacer()
+
+                                            if remoteURL == repo.cloneUrl {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .foregroundStyle(.green)
+                                            }
+                                        }
+                                        .padding(8)
+                                        .background(remoteURL == repo.cloneUrl ? Color.green.opacity(0.05) : Color.secondary.opacity(0.04))
+                                        .cornerRadius(6)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+                    .padding()
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(remoteURL.isEmpty || isCloning)
-                .padding()
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // Actions Card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        if let error = errorMessage {
+                            Text(error)
+                                .foregroundStyle(.red)
+                                .font(.caption)
+                        }
+
+                        Button(action: clone) {
+                            HStack {
+                                if isCloning {
+                                    ProgressView().scaleEffect(0.8).padding(.trailing, 8)
+                                } else {
+                                    Image(systemName: "arrow.triangle.pull")
+                                }
+                                Text(isCloning ? "Cloning..." : "Clone & Open Project")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .tint(.orange)
+                        .disabled(remoteURL.isEmpty || isCloning)
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
             }
-            .padding(.vertical)
+            .padding(24)
         }
-        .frame(width: 500)
+        .background(Color(NSColor.windowBackgroundColor))
+        .frame(width: 550, height: 600)
         .onAppear {
             fetchUserRepositories()
         }

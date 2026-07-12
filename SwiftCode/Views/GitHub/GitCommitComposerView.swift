@@ -5,16 +5,40 @@ struct GitCommitComposerView: View {
     let onCommit: () -> Void
 
     var body: some View {
-        VStack(spacing: 8) {
-            TextEditor(text: $message)
-                .frame(height: 80)
-                .border(Color.secondary.opacity(0.2))
-            Button("Commit", action: onCommit)
-                .disabled(message.isEmpty)
+        GroupBox {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Label("Commit Composer", systemImage: "pencil.and.outline")
+                        .font(.headline)
+                        .foregroundColor(.orange)
+                    Spacer()
+                }
+
+                Text("Commit Message")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                TextEditor(text: $message)
+                    .font(.system(.body, design: .monospaced))
+                    .frame(minHeight: 100, maxHeight: 180)
+                    .cornerRadius(6)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                    )
+
+                Button(action: onCommit) {
+                    Text("Commit to Local Branch")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                }
                 .buttonStyle(.borderedProminent)
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .tint(.orange)
+                .controlSize(.large)
+                .disabled(message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding()
         }
-        .padding()
-        .background(Color.secondary.opacity(0.05))
+        .groupBoxStyle(ModernGroupBoxStyle())
     }
 }

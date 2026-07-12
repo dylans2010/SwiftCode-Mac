@@ -4,30 +4,64 @@ struct GitBranchesView: View {
     let branches: [GitBranch]
 
     var body: some View {
-        List(branches) { branch in
-            HStack {
-                Image(systemName: "branch")
-                Text(branch.name)
-                if branch.isCurrent {
-                    Image(systemName: "checkmark")
-                        .foregroundStyle(.blue)
+        GroupBox {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Label("Git Branches Directory", systemImage: "arrow.triangle.branch")
+                        .font(.headline)
+                        .foregroundColor(.blue)
+                    Spacer()
+
+                    Button(action: {}) {
+                        Label("New Branch", systemImage: "plus")
+                    }
+                    .buttonStyle(.bordered)
                 }
-                Spacer()
-                if branch.isRemote {
-                    Text("remote").font(.caption).padding(2).background(Color.secondary.opacity(0.2))
+
+                if branches.isEmpty {
+                    ContentUnavailableView(
+                        "No Branches Found",
+                        systemImage: "arrow.triangle.branch",
+                        description: Text("No local branches tracked.")
+                    )
+                    .frame(height: 150)
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(branches) { branch in
+                            HStack {
+                                Image(systemName: "arrow.triangle.branch")
+                                    .foregroundStyle(branch.isCurrent ? .green : .secondary)
+                                Text(branch.name)
+                                    .fontWeight(branch.isCurrent ? .bold : .regular)
+                                if branch.isCurrent {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                }
+                                Spacer()
+                                if branch.isRemote {
+                                    Text("remote")
+                                        .font(.caption2)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.secondary.opacity(0.15))
+                                        .cornerRadius(4)
+                                }
+                            }
+                            .padding(8)
+                            .background(branch.isCurrent ? Color.green.opacity(0.05) : Color.secondary.opacity(0.04))
+                            .cornerRadius(6)
+                            .contextMenu {
+                                Button("Checkout") { /* Checkout */ }
+                                Button("Merge into current") { /* Merge */ }
+                                Divider()
+                                Button("Delete", role: .destructive) { /* Delete */ }
+                            }
+                        }
+                    }
                 }
             }
-            .contextMenu {
-                Button("Checkout") { /* Checkout */ }
-                Button("Merge into current") { /* Merge */ }
-                Divider()
-                Button("Delete", role: .destructive) { /* Delete */ }
-            }
+            .padding()
         }
-        .toolbar {
-            Button(action: {}) {
-                Label("New Branch", systemImage: "plus")
-            }
-        }
+        .groupBoxStyle(ModernGroupBoxStyle())
     }
 }

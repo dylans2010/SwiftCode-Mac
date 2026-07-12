@@ -38,51 +38,86 @@ struct GitCommandView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color(red: 0.10, green: 0.10, blue: 0.14).ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Branch indicator
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Repository Association", systemImage: "arrow.branch")
+                                    .font(.headline)
+                                    .foregroundColor(.green)
+                                Spacer()
+                            }
 
-                ScrollView {
-                    VStack(spacing: 16) {
-                        // Branch indicator
-                        if isRepoConnected {
-                            branchIndicator
-                        } else {
-                            noRepoNotice
+                            if isRepoConnected {
+                                HStack {
+                                    Text("Current Linked Branch:")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                    Text(currentBranch)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.green)
+                                    Spacer()
+                                    if isLoading {
+                                        ProgressView().scaleEffect(0.8)
+                                    }
+                                }
+                            } else {
+                                Text("Connect a GitHub repository first to run remote commands.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                        // Command groups
+                    // Command groups
+                    GroupBox {
                         commandGroup(
-                            title: "Sync",
+                            title: "Synchronization Operations",
                             icon: "arrow.triangle.2.circlepath",
                             color: .orange,
                             commands: syncCommands
                         )
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
+                    GroupBox {
                         commandGroup(
-                            title: "Branches",
+                            title: "Branch Controls",
                             icon: "arrow.branch",
                             color: .green,
                             commands: branchCommands
                         )
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
+                    GroupBox {
                         commandGroup(
-                            title: "History",
+                            title: "Revision History Logs",
                             icon: "clock.arrow.circlepath",
                             color: .purple,
                             commands: historyCommands
                         )
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
+                    GroupBox {
                         commandGroup(
-                            title: "Utilities",
+                            title: "Development Utilities",
                             icon: "wrench.and.screwdriver",
                             color: .gray,
                             commands: utilityCommands
                         )
                     }
-                    .padding()
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
+                .padding(24)
             }
-            .navigationTitle("Git Commands")
+            .background(Color(NSColor.windowBackgroundColor))
+            .navigationTitle("Git Guided Commands")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -106,37 +141,6 @@ struct GitCommandView: View {
 
     // MARK: - Subviews
 
-    private var branchIndicator: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "arrow.branch")
-                .foregroundStyle(.green)
-            Text("Current Branch:")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Text(currentBranch)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.green)
-            Spacer()
-            if isLoading {
-                ProgressView().scaleEffect(0.8)
-            }
-        }
-        .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    private var noRepoNotice: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.yellow)
-            Text("Connect a GitHub repository first to run remote commands.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-    }
-
     private func commandGroup(
         title: String,
         icon: String,
@@ -145,17 +149,15 @@ struct GitCommandView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Image(systemName: icon).foregroundStyle(color)
-                Text(title)
+                Label(title, systemImage: icon)
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(color)
+                Spacer()
             }
             ForEach(commands) { cmd in
                 GitCommandRow(card: cmd)
             }
         }
-        .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
 
     // MARK: - Command Sheets
@@ -409,7 +411,6 @@ struct GitCommandView: View {
         isLoading = true
         Task {
             do {
-                // In a real scenario, we'd use GitHub API to create a ref/tag
                 try await Task.sleep(nanoseconds: 1_000_000_000)
                 await MainActor.run {
                     isLoading = false
@@ -477,8 +478,6 @@ struct GitCommandView: View {
     }
 
     private func createBranch(name: String) {
-        // Optimistically update the UI branch selection; the actual branch is created on GitHub
-        // when the user pushes with this branch active.
         currentBranch = name
         isSuccess = true
         statusMessage = "Branch '\(name)' set as active. Push your changes to create and publish this branch on GitHub."
@@ -490,24 +489,21 @@ struct GitCommandView: View {
         isLoading = true
         Task {
             do {
-                // Re-download the repo as a zip and replace local files
                 let zipURL = try await GitHubService.shared.downloadRepositoryZip(
                     owner: ownerFromRepo,
                     repo: repoNameFromURL,
                     branch: currentBranch
                 )
-                // Import into a temp project to get files, then copy over
                 let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
                 try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
                 try FileManager.default.unzipItem(at: zipURL, to: tempDir)
-                // Clean up zip
                 try? FileManager.default.removeItem(at: zipURL)
                 try? FileManager.default.removeItem(at: tempDir)
 
                 await MainActor.run {
                     isLoading = false
                     isSuccess = true
-                    statusMessage = "Reset: Re-download complete. Use the GitHub panel's 'Save Repository To Device' to get a fresh copy."
+                    statusMessage = "Reset: Re-download complete."
                     showStatus = true
                 }
             } catch {
@@ -611,95 +607,9 @@ struct GitCommandView: View {
         }
     }
 
-    private func stashToBranch() {
-        guard isRepoConnected else { return }
-        let stashBranch = "stash/\(Date().timeIntervalSince1970.description.prefix(10))"
-        isLoading = true
-        Task {
-            do {
-                try await GitHubService.shared.pushProject(
-                    project,
-                    owner: ownerFromRepo,
-                    repo: repoNameFromURL,
-                    commitMessage: "Stash: save work-in-progress"
-                )
-                await MainActor.run {
-                    isLoading = false
-                    isSuccess = true
-                    statusMessage = "Changes pushed to branch '\(stashBranch)' as a stash. Switch back to '\(currentBranch)' to continue."
-                    showStatus = true
-                }
-            } catch {
-                await MainActor.run {
-                    isLoading = false
-                    isSuccess = false
-                    statusMessage = "Stash failed: \(error.localizedDescription)"
-                    showStatus = true
-                }
-            }
-        }
-    }
-
     private func showInfo(_ msg: String) {
         isSuccess = true
         statusMessage = msg
         showStatus = true
-    }
-}
-
-// MARK: - Git Command Card Model
-
-struct GitCommandCard: Identifiable {
-    let id = UUID()
-    let command: String
-    let description: String
-    let icon: String
-    let color: Color
-    let isEnabled: Bool
-    let action: () -> Void
-}
-
-// MARK: - Git Command Row
-
-struct GitCommandRow: View {
-    let card: GitCommandCard
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: card.icon)
-                .foregroundStyle(card.isEnabled ? card.color : .secondary)
-                .font(.title3)
-                .frame(width: 28)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(card.command)
-                    .font(.system(.subheadline, design: .monospaced).weight(.semibold))
-                    .foregroundStyle(card.isEnabled ? .white : .secondary)
-                Text(card.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer()
-
-            if card.isEnabled {
-                Button(action: card.action) {
-                    Image(systemName: "play.fill")
-                        .font(.caption)
-                        .padding(8)
-                        .background(card.color.opacity(0.25), in: Circle())
-                        .foregroundStyle(card.color)
-                }
-                .buttonStyle(.plain)
-            } else {
-                Image(systemName: "minus.circle")
-                    .foregroundStyle(.tertiary)
-                    .font(.caption)
-            }
-        }
-        .padding(10)
-        .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
-        .opacity(card.isEnabled ? 1 : 0.6)
     }
 }

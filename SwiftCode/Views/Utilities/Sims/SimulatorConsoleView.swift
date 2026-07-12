@@ -14,9 +14,9 @@ struct SimulatorConsoleView: View {
 
     var body: some View {
         GroupBox {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Label("Console Output", systemImage: "terminal.fill")
+                    Label("Console Output & Streaming", systemImage: "terminal.fill")
                         .font(.headline)
                         .foregroundColor(.green)
 
@@ -56,7 +56,7 @@ struct SimulatorConsoleView: View {
                                 ForEach(filteredLogs.indices, id: \.self) { idx in
                                     Text(filteredLogs[idx])
                                         .font(.system(.caption, design: .monospaced))
-                                        .foregroundColor(filteredLogs[idx].contains("FAILED") ? .red : .primary)
+                                        .foregroundColor(filteredLogs[idx].contains("FAILED") ? .red : .white.opacity(0.85))
                                         .textSelection(.enabled)
                                         .id(idx)
                                 }
@@ -64,7 +64,7 @@ struct SimulatorConsoleView: View {
                         }
                         .padding(8)
                     }
-                    .background(Color.black.opacity(0.15))
+                    .background(Color.black.opacity(0.85))
                     .cornerRadius(8)
                     .frame(height: 180)
                     .onChange(of: filteredLogs.count) { _, count in
