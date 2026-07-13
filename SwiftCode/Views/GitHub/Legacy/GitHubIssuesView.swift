@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - GitHub Issue Model
 
-struct GitHubIssue: Identifiable, Decodable {
+struct LegacyGitHubIssue: Identifiable, Decodable {
     let id: Int
     let number: Int
     let title: String
@@ -40,16 +40,16 @@ struct GitHubIssue: Identifiable, Decodable {
 // MARK: - GitHub Issues View
 
 @MainActor
-struct GitHubIssuesView: View {
+struct LegacyGitHubIssuesView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @EnvironmentObject private var settings: AppSettings
 
-    @State private var issues: [GitHubIssue] = []
+    @State private var issues: [LegacyGitHubIssue] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var filterState: String = "open"
     @State private var showCreateIssue = false
-    @State private var selectedIssue: GitHubIssue?
+    @State private var selectedIssue: LegacyGitHubIssue?
     @State private var newIssueTitle = ""
     @State private var newIssueBody = ""
     @State private var isCreating = false
@@ -153,11 +153,11 @@ struct GitHubIssuesView: View {
             createIssueSheet
         }
         .sheet(item: $selectedIssue) { issue in
-            IssueDetailView(issue: issue, owner: owner, repo: repoName)
+            LegacyIssueDetailView(issue: issue, owner: owner, repo: repoName)
         }
     }
 
-    private func issueRow(_ issue: GitHubIssue) -> some View {
+    private func issueRow(_ issue: LegacyGitHubIssue) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: issue.isOpen ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
                 .foregroundStyle(issue.isOpen ? .cyan : .green)
@@ -384,11 +384,11 @@ struct GitHubIssuesView: View {
     }
 }
 
-// MARK: - Issue Detail View
+// MARK: - Legacy Issue Detail View
 
 @MainActor
-struct IssueDetailView: View {
-    let issue: GitHubIssue
+struct LegacyIssueDetailView: View {
+    let issue: LegacyGitHubIssue
     let owner: String
     let repo: String
     @Environment(\.dismiss) var dismiss
