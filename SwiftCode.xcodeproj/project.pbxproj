@@ -7,6 +7,47 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		90A3B649CCD589077B6696ED /* DesignerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9566538F7BD55C7409795C89 /* DesignerDevToolView.swift */; };
+		4298CA3C089ACDD9752E896A /* AESEncryptionDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59BECEBFFFFD21DB1AEE9891 /* AESEncryptionDevToolView.swift */; };
+		EB97A52C99436E2B5BBF4B3A /* APIResponseViewerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C097EA749425723B6887F835 /* APIResponseViewerDevToolView.swift */; };
+		73AC248AD9E65484DC6DE332 /* ASCIIHexConverterDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4902B88FB7E0987003DE84F /* ASCIIHexConverterDevToolView.swift */; };
+		7CCB591DFB49C209F98B5C53 /* AccessibilityContrastGridDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31A115C8EB97B1463E9150AE /* AccessibilityContrastGridDevToolView.swift */; };
+		2E066257F678F9F74ED15026 /* AdvancedRegexDebuggerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37BF064D1F2B5D378D261440 /* AdvancedRegexDebuggerDevToolView.swift */; };
+		06F97839018367FEA4C74318 /* AppReceiptInspectorDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA805A4B1040EAA2D74F7A7E /* AppReceiptInspectorDevToolView.swift */; };
+		953E81C5D41E2FB50B8338CE /* AppSandboxExplorerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66CD257706C915B179B3604B /* AppSandboxExplorerDevToolView.swift */; };
+		24F41FC9EAF704950D36193D /* AppStateInspectorDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F8CE6A562F0D0874B2A1B7 /* AppStateInspectorDevToolView.swift */; };
+		9996C0C8DF37A606D8880227 /* BarcodeGeneratorDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AE728054B4A075E6F9C8580 /* BarcodeGeneratorDevToolView.swift */; };
+		FE9554BD72B4A86FBBD0CE14 /* Base32ConverterDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A05C213FA69F2FB3445C2ABD /* Base32ConverterDevToolView.swift */; };
+		0BA8F18F78D6B7AEC931616E /* Base64DecoderDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 550B64920AC9F441E95A2F1A /* Base64DecoderDevToolView.swift */; };
+		C7217CE3C0F094C91A34210A /* Base64EncoderDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 866A2E9887FCDA6CBEA8D680 /* Base64EncoderDevToolView.swift */; };
+		4DE8690161C9DC1E57063671 /* BatteryStatusDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8CBF3504E3D75E7C4ADD865 /* BatteryStatusDevToolView.swift */; };
+		B9BB2ADE86A92EC09AE38BE9 /* BezierCurveVisualizerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9C4D9BA9DBDDD55EE1DCD49 /* BezierCurveVisualizerDevToolView.swift */; };
+		4098238CFD734E3890694E5A /* BezierPathCodeDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7558D0B18F9B3D307E7E8166 /* BezierPathCodeDevToolView.swift */; };
+		10FFB5B4C51E510774824E65 /* BinaryHexConverterDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39313E00A9B145D5559F2E6A /* BinaryHexConverterDevToolView.swift */; };
+		7BE643DB39927C1262F9B9BD /* BiometricAuthSimDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEC1388D5DBC818D923BF0E /* BiometricAuthSimDevToolView.swift */; };
+		A6B59DED57C9A50C28717643 /* BreakpointManagerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F977B71A7FE01C394C172ED /* BreakpointManagerDevToolView.swift */; };
+		44EFE8C5112C22EF8CB38F09 /* BundleSizeAnalyzerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21BD7662721F72C96257292 /* BundleSizeAnalyzerDevToolView.swift */; };
+		3D19BA4589DBF1FA614E5839 /* CPUMonitorDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73996596A2AF339A46D69DCA /* CPUMonitorDevToolView.swift */; };
+		FE986BC7360C5F5130253CEE /* CSRFTokenDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 803DAC677BF4E7E8D53F15EC /* CSRFTokenDevToolView.swift */; };
+		22C95BEA949DB5A72AD12044 /* CSVParserDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD69C80910306FD97E80CE82 /* CSVParserDevToolView.swift */; };
+		B6E3AD429075F3676B7A6013 /* CURLConverterDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B2BBF2AA3408ECA21E61619 /* CURLConverterDevToolView.swift */; };
+		C35872BB2DF249DB61E53703 /* CURLGeneratorDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3823935290B0B8C0CA4F976A /* CURLGeneratorDevToolView.swift */; };
+		FAF3AD19117A7A382B4B2F26 /* CacheViewerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DADA2D3C31BF48545AD8991 /* CacheViewerDevToolView.swift */; };
+		D90FF3777B3A3B3C18BC2823 /* CharacterEscaperDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7370D2FC4DD8416F197DFA5 /* CharacterEscaperDevToolView.swift */; };
+		7C049B3773562E939F627C99 /* ClipboardInspectorDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A738F6E5EC8C91EB1068B6D0 /* ClipboardInspectorDevToolView.swift */; };
+		C63D93411338918F0301D709 /* ColorBlendingDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ECCFA1BC785738F4EBA435A /* ColorBlendingDevToolView.swift */; };
+		4C88AEA1F964B70AB06E894A /* ColorMixerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 247A1A3A66D7B519163C94D4 /* ColorMixerDevToolView.swift */; };
+		06CE747B42895E15773DC559 /* ColorPaletteGeneratorDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09C7CDAAA5E4C20B1C257498 /* ColorPaletteGeneratorDevToolView.swift */; };
+		028CF46C548C908861BF12CA /* ContrastCheckerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15CF1ED7D038439B5B707464 /* ContrastCheckerDevToolView.swift */; };
+		7E6DBAFA4A2818FAD33B152C /* DatabaseCreateDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81A3546082D9CCCBEE9E015C /* DatabaseCreateDevToolView.swift */; };
+		1D2205238BA7D4201AE07219 /* DateFormatterDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B7C32868233D2B819772005 /* DateFormatterDevToolView.swift */; };
+		F0E9F8CE10904F8F2556419D /* DeepLinkTesterDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65BF1D16B4E69FB2865585B5 /* DeepLinkTesterDevToolView.swift */; };
+		511F21B043B88EE7C1CE71B5 /* DiskUsageAnalyzerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37BC644D5C1459878A3A9846 /* DiskUsageAnalyzerDevToolView.swift */; };
+		F30BB326FBFBDD80D7404125 /* EncryptionToolDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C8C85398B67959F38DA4EB6 /* EncryptionToolDevToolView.swift */; };
+		376448D30F1FDD28A3F0C48F /* EnergyImpactMonitorDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B6A5A7526F146F17DE72643 /* EnergyImpactMonitorDevToolView.swift */; };
+		D0E2734B54672BDCA0CBB342 /* EnvVarInspectorDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BAF031F4D8A9C5210F504DA /* EnvVarInspectorDevToolView.swift */; };
+		8F068F025F93FB6E0C27C3B6 /* EpochConverterDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F731721C207A7A789E7B4E /* EpochConverterDevToolView.swift */; };
+		540E4E5C22F41690BCAE5CC7 /* FPSMonitorDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69F726CD6BED95B3C32B1F04 /* FPSMonitorDevToolView.swift */; };
 		004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = BBB818A276304EA881DBF6E6 /* MLXOptimizers */; };
 		016298C4F533D83B2A4FB1B0 /* ApplicationDeploymentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF38596E6CBBF00108C7D98 /* ApplicationDeploymentView.swift */; };
 		0205BA60DB99F20AD6385182 /* TextLineRemoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA47DBD02C0AECE609708638 /* TextLineRemoverView.swift */; };
@@ -987,6 +1028,47 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9566538F7BD55C7409795C89 /* DesignerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignerDevToolView.swift; sourceTree = "<group>"; };
+		59BECEBFFFFD21DB1AEE9891 /* AESEncryptionDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AESEncryptionDevToolView.swift; sourceTree = "<group>"; };
+		C097EA749425723B6887F835 /* APIResponseViewerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIResponseViewerDevToolView.swift; sourceTree = "<group>"; };
+		E4902B88FB7E0987003DE84F /* ASCIIHexConverterDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASCIIHexConverterDevToolView.swift; sourceTree = "<group>"; };
+		31A115C8EB97B1463E9150AE /* AccessibilityContrastGridDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityContrastGridDevToolView.swift; sourceTree = "<group>"; };
+		37BF064D1F2B5D378D261440 /* AdvancedRegexDebuggerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedRegexDebuggerDevToolView.swift; sourceTree = "<group>"; };
+		DA805A4B1040EAA2D74F7A7E /* AppReceiptInspectorDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReceiptInspectorDevToolView.swift; sourceTree = "<group>"; };
+		66CD257706C915B179B3604B /* AppSandboxExplorerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSandboxExplorerDevToolView.swift; sourceTree = "<group>"; };
+		A4F8CE6A562F0D0874B2A1B7 /* AppStateInspectorDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateInspectorDevToolView.swift; sourceTree = "<group>"; };
+		2AE728054B4A075E6F9C8580 /* BarcodeGeneratorDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeGeneratorDevToolView.swift; sourceTree = "<group>"; };
+		A05C213FA69F2FB3445C2ABD /* Base32ConverterDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Base32ConverterDevToolView.swift; sourceTree = "<group>"; };
+		550B64920AC9F441E95A2F1A /* Base64DecoderDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Base64DecoderDevToolView.swift; sourceTree = "<group>"; };
+		866A2E9887FCDA6CBEA8D680 /* Base64EncoderDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Base64EncoderDevToolView.swift; sourceTree = "<group>"; };
+		A8CBF3504E3D75E7C4ADD865 /* BatteryStatusDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatteryStatusDevToolView.swift; sourceTree = "<group>"; };
+		C9C4D9BA9DBDDD55EE1DCD49 /* BezierCurveVisualizerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BezierCurveVisualizerDevToolView.swift; sourceTree = "<group>"; };
+		7558D0B18F9B3D307E7E8166 /* BezierPathCodeDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BezierPathCodeDevToolView.swift; sourceTree = "<group>"; };
+		39313E00A9B145D5559F2E6A /* BinaryHexConverterDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BinaryHexConverterDevToolView.swift; sourceTree = "<group>"; };
+		8CEC1388D5DBC818D923BF0E /* BiometricAuthSimDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricAuthSimDevToolView.swift; sourceTree = "<group>"; };
+		6F977B71A7FE01C394C172ED /* BreakpointManagerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakpointManagerDevToolView.swift; sourceTree = "<group>"; };
+		C21BD7662721F72C96257292 /* BundleSizeAnalyzerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundleSizeAnalyzerDevToolView.swift; sourceTree = "<group>"; };
+		73996596A2AF339A46D69DCA /* CPUMonitorDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUMonitorDevToolView.swift; sourceTree = "<group>"; };
+		803DAC677BF4E7E8D53F15EC /* CSRFTokenDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSRFTokenDevToolView.swift; sourceTree = "<group>"; };
+		AD69C80910306FD97E80CE82 /* CSVParserDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVParserDevToolView.swift; sourceTree = "<group>"; };
+		6B2BBF2AA3408ECA21E61619 /* CURLConverterDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CURLConverterDevToolView.swift; sourceTree = "<group>"; };
+		3823935290B0B8C0CA4F976A /* CURLGeneratorDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CURLGeneratorDevToolView.swift; sourceTree = "<group>"; };
+		6DADA2D3C31BF48545AD8991 /* CacheViewerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheViewerDevToolView.swift; sourceTree = "<group>"; };
+		C7370D2FC4DD8416F197DFA5 /* CharacterEscaperDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterEscaperDevToolView.swift; sourceTree = "<group>"; };
+		A738F6E5EC8C91EB1068B6D0 /* ClipboardInspectorDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardInspectorDevToolView.swift; sourceTree = "<group>"; };
+		5ECCFA1BC785738F4EBA435A /* ColorBlendingDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorBlendingDevToolView.swift; sourceTree = "<group>"; };
+		247A1A3A66D7B519163C94D4 /* ColorMixerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorMixerDevToolView.swift; sourceTree = "<group>"; };
+		09C7CDAAA5E4C20B1C257498 /* ColorPaletteGeneratorDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPaletteGeneratorDevToolView.swift; sourceTree = "<group>"; };
+		15CF1ED7D038439B5B707464 /* ContrastCheckerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContrastCheckerDevToolView.swift; sourceTree = "<group>"; };
+		81A3546082D9CCCBEE9E015C /* DatabaseCreateDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseCreateDevToolView.swift; sourceTree = "<group>"; };
+		7B7C32868233D2B819772005 /* DateFormatterDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateFormatterDevToolView.swift; sourceTree = "<group>"; };
+		65BF1D16B4E69FB2865585B5 /* DeepLinkTesterDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkTesterDevToolView.swift; sourceTree = "<group>"; };
+		37BC644D5C1459878A3A9846 /* DiskUsageAnalyzerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskUsageAnalyzerDevToolView.swift; sourceTree = "<group>"; };
+		1C8C85398B67959F38DA4EB6 /* EncryptionToolDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptionToolDevToolView.swift; sourceTree = "<group>"; };
+		9B6A5A7526F146F17DE72643 /* EnergyImpactMonitorDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnergyImpactMonitorDevToolView.swift; sourceTree = "<group>"; };
+		4BAF031F4D8A9C5210F504DA /* EnvVarInspectorDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvVarInspectorDevToolView.swift; sourceTree = "<group>"; };
+		B3F731721C207A7A789E7B4E /* EpochConverterDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpochConverterDevToolView.swift; sourceTree = "<group>"; };
+		69F726CD6BED95B3C32B1F04 /* FPSMonitorDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FPSMonitorDevToolView.swift; sourceTree = "<group>"; };
 		00048987BBB25A712D49051C /* NordThemeExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NordThemeExtensionView.swift; sourceTree = "<group>"; };
 		0076F070FA7E4422B0FBAAB8 /* ParseMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseMarkdown.swift; sourceTree = "<group>"; };
 		00A96C0BE03E4321AB3DEAFB /* KubernetesApply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KubernetesApply.swift; sourceTree = "<group>"; };
@@ -2281,6 +2363,47 @@
 		2B4CEE860D734A23837F5302 /* Dev Tools */ = {
 			isa = PBXGroup;
 			children = (
+				9566538F7BD55C7409795C89 /* DesignerDevToolView.swift */,
+				59BECEBFFFFD21DB1AEE9891 /* AESEncryptionDevToolView.swift */,
+				C097EA749425723B6887F835 /* APIResponseViewerDevToolView.swift */,
+				E4902B88FB7E0987003DE84F /* ASCIIHexConverterDevToolView.swift */,
+				31A115C8EB97B1463E9150AE /* AccessibilityContrastGridDevToolView.swift */,
+				37BF064D1F2B5D378D261440 /* AdvancedRegexDebuggerDevToolView.swift */,
+				DA805A4B1040EAA2D74F7A7E /* AppReceiptInspectorDevToolView.swift */,
+				66CD257706C915B179B3604B /* AppSandboxExplorerDevToolView.swift */,
+				A4F8CE6A562F0D0874B2A1B7 /* AppStateInspectorDevToolView.swift */,
+				2AE728054B4A075E6F9C8580 /* BarcodeGeneratorDevToolView.swift */,
+				A05C213FA69F2FB3445C2ABD /* Base32ConverterDevToolView.swift */,
+				550B64920AC9F441E95A2F1A /* Base64DecoderDevToolView.swift */,
+				866A2E9887FCDA6CBEA8D680 /* Base64EncoderDevToolView.swift */,
+				A8CBF3504E3D75E7C4ADD865 /* BatteryStatusDevToolView.swift */,
+				C9C4D9BA9DBDDD55EE1DCD49 /* BezierCurveVisualizerDevToolView.swift */,
+				7558D0B18F9B3D307E7E8166 /* BezierPathCodeDevToolView.swift */,
+				39313E00A9B145D5559F2E6A /* BinaryHexConverterDevToolView.swift */,
+				8CEC1388D5DBC818D923BF0E /* BiometricAuthSimDevToolView.swift */,
+				6F977B71A7FE01C394C172ED /* BreakpointManagerDevToolView.swift */,
+				C21BD7662721F72C96257292 /* BundleSizeAnalyzerDevToolView.swift */,
+				73996596A2AF339A46D69DCA /* CPUMonitorDevToolView.swift */,
+				803DAC677BF4E7E8D53F15EC /* CSRFTokenDevToolView.swift */,
+				AD69C80910306FD97E80CE82 /* CSVParserDevToolView.swift */,
+				6B2BBF2AA3408ECA21E61619 /* CURLConverterDevToolView.swift */,
+				3823935290B0B8C0CA4F976A /* CURLGeneratorDevToolView.swift */,
+				6DADA2D3C31BF48545AD8991 /* CacheViewerDevToolView.swift */,
+				C7370D2FC4DD8416F197DFA5 /* CharacterEscaperDevToolView.swift */,
+				A738F6E5EC8C91EB1068B6D0 /* ClipboardInspectorDevToolView.swift */,
+				5ECCFA1BC785738F4EBA435A /* ColorBlendingDevToolView.swift */,
+				247A1A3A66D7B519163C94D4 /* ColorMixerDevToolView.swift */,
+				09C7CDAAA5E4C20B1C257498 /* ColorPaletteGeneratorDevToolView.swift */,
+				15CF1ED7D038439B5B707464 /* ContrastCheckerDevToolView.swift */,
+				81A3546082D9CCCBEE9E015C /* DatabaseCreateDevToolView.swift */,
+				7B7C32868233D2B819772005 /* DateFormatterDevToolView.swift */,
+				65BF1D16B4E69FB2865585B5 /* DeepLinkTesterDevToolView.swift */,
+				37BC644D5C1459878A3A9846 /* DiskUsageAnalyzerDevToolView.swift */,
+				1C8C85398B67959F38DA4EB6 /* EncryptionToolDevToolView.swift */,
+				9B6A5A7526F146F17DE72643 /* EnergyImpactMonitorDevToolView.swift */,
+				4BAF031F4D8A9C5210F504DA /* EnvVarInspectorDevToolView.swift */,
+				B3F731721C207A7A789E7B4E /* EpochConverterDevToolView.swift */,
+				69F726CD6BED95B3C32B1F04 /* FPSMonitorDevToolView.swift */,
 				2B4CEE880D734A23837F5302 /* ExpandedDevTools.swift */,
 				F65A3FDC991F7D91CA5531EE /* JSONToSwiftView.swift */,
 				7F8463771960A3AC1C3E0E8B /* JSONToKotlinView.swift */,
@@ -4196,6 +4319,47 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				90A3B649CCD589077B6696ED /* DesignerDevToolView.swift in Sources */,
+				4298CA3C089ACDD9752E896A /* AESEncryptionDevToolView.swift in Sources */,
+				EB97A52C99436E2B5BBF4B3A /* APIResponseViewerDevToolView.swift in Sources */,
+				73AC248AD9E65484DC6DE332 /* ASCIIHexConverterDevToolView.swift in Sources */,
+				7CCB591DFB49C209F98B5C53 /* AccessibilityContrastGridDevToolView.swift in Sources */,
+				2E066257F678F9F74ED15026 /* AdvancedRegexDebuggerDevToolView.swift in Sources */,
+				06F97839018367FEA4C74318 /* AppReceiptInspectorDevToolView.swift in Sources */,
+				953E81C5D41E2FB50B8338CE /* AppSandboxExplorerDevToolView.swift in Sources */,
+				24F41FC9EAF704950D36193D /* AppStateInspectorDevToolView.swift in Sources */,
+				9996C0C8DF37A606D8880227 /* BarcodeGeneratorDevToolView.swift in Sources */,
+				FE9554BD72B4A86FBBD0CE14 /* Base32ConverterDevToolView.swift in Sources */,
+				0BA8F18F78D6B7AEC931616E /* Base64DecoderDevToolView.swift in Sources */,
+				C7217CE3C0F094C91A34210A /* Base64EncoderDevToolView.swift in Sources */,
+				4DE8690161C9DC1E57063671 /* BatteryStatusDevToolView.swift in Sources */,
+				B9BB2ADE86A92EC09AE38BE9 /* BezierCurveVisualizerDevToolView.swift in Sources */,
+				4098238CFD734E3890694E5A /* BezierPathCodeDevToolView.swift in Sources */,
+				10FFB5B4C51E510774824E65 /* BinaryHexConverterDevToolView.swift in Sources */,
+				7BE643DB39927C1262F9B9BD /* BiometricAuthSimDevToolView.swift in Sources */,
+				A6B59DED57C9A50C28717643 /* BreakpointManagerDevToolView.swift in Sources */,
+				44EFE8C5112C22EF8CB38F09 /* BundleSizeAnalyzerDevToolView.swift in Sources */,
+				3D19BA4589DBF1FA614E5839 /* CPUMonitorDevToolView.swift in Sources */,
+				FE986BC7360C5F5130253CEE /* CSRFTokenDevToolView.swift in Sources */,
+				22C95BEA949DB5A72AD12044 /* CSVParserDevToolView.swift in Sources */,
+				B6E3AD429075F3676B7A6013 /* CURLConverterDevToolView.swift in Sources */,
+				C35872BB2DF249DB61E53703 /* CURLGeneratorDevToolView.swift in Sources */,
+				FAF3AD19117A7A382B4B2F26 /* CacheViewerDevToolView.swift in Sources */,
+				D90FF3777B3A3B3C18BC2823 /* CharacterEscaperDevToolView.swift in Sources */,
+				7C049B3773562E939F627C99 /* ClipboardInspectorDevToolView.swift in Sources */,
+				C63D93411338918F0301D709 /* ColorBlendingDevToolView.swift in Sources */,
+				4C88AEA1F964B70AB06E894A /* ColorMixerDevToolView.swift in Sources */,
+				06CE747B42895E15773DC559 /* ColorPaletteGeneratorDevToolView.swift in Sources */,
+				028CF46C548C908861BF12CA /* ContrastCheckerDevToolView.swift in Sources */,
+				7E6DBAFA4A2818FAD33B152C /* DatabaseCreateDevToolView.swift in Sources */,
+				1D2205238BA7D4201AE07219 /* DateFormatterDevToolView.swift in Sources */,
+				F0E9F8CE10904F8F2556419D /* DeepLinkTesterDevToolView.swift in Sources */,
+				511F21B043B88EE7C1CE71B5 /* DiskUsageAnalyzerDevToolView.swift in Sources */,
+				F30BB326FBFBDD80D7404125 /* EncryptionToolDevToolView.swift in Sources */,
+				376448D30F1FDD28A3F0C48F /* EnergyImpactMonitorDevToolView.swift in Sources */,
+				D0E2734B54672BDCA0CBB342 /* EnvVarInspectorDevToolView.swift in Sources */,
+				8F068F025F93FB6E0C27C3B6 /* EpochConverterDevToolView.swift in Sources */,
+				540E4E5C22F41690BCAE5CC7 /* FPSMonitorDevToolView.swift in Sources */,
 				F3A4B5C6D7E8F90100000001 /* RuntimeManager.swift in Sources */,
 				F3A4B5C6D7E8F90100000003 /* RuntimeDiscoveryView.swift in Sources */,
 				C010B2222222222222222229 /* Logger+Simulator.swift in Sources */,
