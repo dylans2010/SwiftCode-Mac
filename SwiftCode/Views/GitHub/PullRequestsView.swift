@@ -14,7 +14,55 @@ struct PullRequestsView: View {
     @State private var showCreatePR = false
     @State private var selectedPR: GitHubPullRequest? = nil
 
+    private var context: RepositoryContext {
+        RepositoryContext.shared
+    }
+
+    private var ownerAndRepo: (String, String)? {
+        guard let repoStr = context.connectedRepository, !repoStr.isEmpty else { return nil }
+        let parts = repoStr.split(separator: "/")
+        guard parts.count == 2 else { return nil }
+        return (String(parts[0]), String(parts[1]))
+    }
+
     var body: some View {
+        VStack(spacing: 0) {
+            if context.displayMode == .connectedRepository && context.connectedRepository == nil {
+                disconnectedPlaceholder
+            } else {
+                mainContent
+            }
+        }
+        .onAppear {
+            fetchPRs()
+        }
+        .onChange(of: context.displayMode) {
+            fetchPRs()
+        }
+        .onChange(of: context.syncEventsCount) {
+            fetchPRs()
+        }
+        .sheet(isPresented: $showCreatePR) {
+            if let repoStr = context.connectedRepository, !repoStr.isEmpty {
+                let parts = repoStr.split(separator: "/")
+                if parts.count == 2 {
+                    PullRequestView(
+                        owner: String(parts[0]),
+                        repo: String(parts[1]),
+                        currentBranch: "main"
+                    )
+                }
+            } else {
+                Text("No linked repository found to create PR.")
+                    .padding()
+            }
+        }
+        .sheet(item: $selectedPR) { pr in
+            PullRequestDetailView(pr: pr)
+        }
+    }
+
+    private var mainContent: some View {
         VStack(spacing: 0) {
             // Header actions row
             HStack(spacing: 12) {
@@ -41,6 +89,7 @@ struct PullRequestsView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
+                .disabled(context.connectedRepository == nil)
             }
             .padding()
             .background(Color.secondary.opacity(0.03))
@@ -52,13 +101,14 @@ struct PullRequestsView: View {
             } else if pullRequests.isEmpty {
                 GitHubEmptyStateView(
                     title: "No Pull Requests",
-                    description: "No pull requests open in this repository. Create one to share code changes.",
+                    description: "No pull requests open in this repository.",
                     systemImage: "arrow.triangle.pull",
                     accentColor: .green,
                     actionTitle: "Create New PR"
                 ) {
                     showCreatePR = true
                 }
+                .disabled(context.connectedRepository == nil)
             } else {
                 let filtered = searchPattern.isEmpty ? pullRequests : pullRequests.filter {
                     $0.title.localizedCaseInsensitiveContains(searchPattern) ||
@@ -103,39 +153,52 @@ struct PullRequestsView: View {
                 }
             }
         }
-        .onAppear {
-            fetchPRs()
-        }
-        .sheet(isPresented: $showCreatePR) {
-            if let repoStr = project?.githubRepo, !repoStr.isEmpty {
-                let parts = repoStr.split(separator: "/")
-                if parts.count == 2 {
-                    PullRequestView(
-                        owner: String(parts[0]),
-                        repo: String(parts[1]),
-                        currentBranch: "main"
-                    )
-                }
-            } else {
-                Text("No linked repository found to create PR.")
-                    .padding()
-            }
-        }
-        .sheet(item: $selectedPR) { pr in
-            PullRequestDetailView(pr: pr)
-        }
+    }
+
+    private var disconnectedPlaceholder: some View {
+        GitHubEmptyStateView(
+            title: "No Repository Connected",
+            description: "Connect a remote GitHub repository to this project to view and manage Pull Requests.",
+            systemImage: "arrow.triangle.pull",
+            accentColor: .orange
+        )
     }
 
     private func fetchPRs() {
-        guard let repoStr = project?.githubRepo, !repoStr.isEmpty else { return }
-        let parts = repoStr.split(separator: "/")
-        guard parts.count == 2 else { return }
+        guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else { return }
 
         isFetching = true
         Task {
             do {
-                let prs = try await GitHubService.shared.listPullRequests(owner: String(parts[0]), repo: String(parts[1]))
-                self.pullRequests = prs
+                let urlStr: String
+                if context.displayMode == .entireAccount {
+                    urlStr = "https://api.github.com/search/issues?q=is:pr+is:open"
+                } else if let (owner, repo) = ownerAndRepo {
+                    urlStr = "https://api.github.com/repos/\(owner)/\(repo)/pulls"
+                } else {
+                    pullRequests = []
+                    isFetching = false
+                    return
+                }
+
+                guard let url = URL(string: urlStr) else { return }
+                var request = URLRequest(url: url)
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+
+                let (data, _) = try await URLSession.shared.data(for: request)
+                let decoder = JSONDecoder()
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+                if context.displayMode == .entireAccount {
+                    struct SearchResponse: Decodable {
+                        let items: [GitHubPullRequest]
+                    }
+                    let response = try decoder.decode(SearchResponse.self, from: data)
+                    self.pullRequests = response.items
+                } else {
+                    self.pullRequests = try decoder.decode([GitHubPullRequest].self, from: data)
+                }
             } catch {
                 self.errorMessage = "Failed to list Pull Requests: \(error.localizedDescription)"
                 self.showError = true

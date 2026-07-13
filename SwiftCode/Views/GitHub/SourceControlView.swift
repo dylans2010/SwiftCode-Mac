@@ -3,6 +3,138 @@ import os.log
 
 private let logger = Logger(subsystem: "com.swiftcode.SourceControl", category: "SourceControlView")
 
+// ====================================================================
+// CENTRALIZED REPOSITORY CONTEXT
+// ====================================================================
+@Observable
+@MainActor
+public final class RepositoryContext {
+    public static let shared = RepositoryContext()
+
+    private init() {}
+
+    public enum DisplayMode: String, Codable, CaseIterable, Identifiable {
+        case connectedRepository = "Connected Repository"
+        case entireAccount = "Entire GitHub Account"
+
+        public var id: String { rawValue }
+    }
+
+    public var displayMode: DisplayMode = .connectedRepository {
+        didSet {
+            syncEventsCount += 1
+        }
+    }
+
+    public var syncEventsCount: Int = 0
+    public var cachedMetadata: GitHubRepoDetail?
+    public var isLoadingMetadata = false
+
+    public var activeProject: Project? {
+        ProjectSessionStore.shared.activeProject
+    }
+
+    public var connectedRepository: String? {
+        activeProject?.githubRepo
+    }
+
+    public var isAuthenticated: Bool {
+        let token = KeychainService.shared.get(forKey: KeychainService.githubToken) ?? ""
+        return !token.isEmpty
+    }
+
+    public func triggerSync() {
+        syncEventsCount += 1
+    }
+
+    public func disconnectRepository() {
+        guard let proj = activeProject else { return }
+        ProjectSessionStore.shared.updateProjectSettings(description: proj.description, githubRepo: nil, for: proj)
+        cachedMetadata = nil
+        triggerSync()
+    }
+
+    public func connectRepository(_ repoName: String) {
+        guard let proj = activeProject else { return }
+        ProjectSessionStore.shared.updateProjectSettings(description: proj.description, githubRepo: repoName, for: proj)
+        triggerSync()
+        Task {
+            await fetchMetadata()
+        }
+    }
+
+    public func fetchMetadata() async {
+        guard let repoStr = connectedRepository, !repoStr.isEmpty else {
+            cachedMetadata = nil
+            return
+        }
+        let parts = repoStr.split(separator: "/")
+        guard parts.count == 2 else {
+            cachedMetadata = nil
+            return
+        }
+        let owner = String(parts[0])
+        let repo = String(parts[1])
+
+        guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else {
+            cachedMetadata = nil
+            return
+        }
+
+        isLoadingMetadata = true
+        defer { isLoadingMetadata = false }
+
+        do {
+            guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)") else { return }
+            var request = URLRequest(url: url)
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+
+            let (data, _) = try await URLSession.shared.data(for: request)
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            self.cachedMetadata = try decoder.decode(GitHubRepoDetail.self, from: data)
+        } catch {
+            // silent catch
+        }
+    }
+}
+
+// ====================================================================
+// NAVIGATION SELECTIONS
+// ====================================================================
+enum SourceControlSelection: String, CaseIterable, Identifiable {
+    case localWorkspace = "Local Workspace"
+    case changes = "Changes"
+    case branches = "Branches"
+    case commitHistory = "Commit History"
+    case pullRequests = "Pull Requests"
+    case github = "GitHub"
+    case issues = "Issues"
+    case diffViewer = "Diff Viewer"
+    case cli = "CLI"
+    case repositorySettings = "Repository Settings"
+    case onboarding = "Onboarding"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .localWorkspace: return "laptopcomputer"
+        case .changes: return "doc.badge.plus"
+        case .branches: return "arrow.triangle.branch"
+        case .commitHistory: return "clock.arrow.circlepath"
+        case .pullRequests: return "arrow.triangle.pull"
+        case .github: return "square.grid.2x2.fill"
+        case .issues: return "exclamationmark.bubble.fill"
+        case .diffViewer: return "arrow.left.and.right.square"
+        case .cli: return "terminal.fill"
+        case .repositorySettings: return "gearshape.fill"
+        case .onboarding: return "person.badge.key.fill"
+        }
+    }
+}
+
 @MainActor
 struct SourceControlView: View {
     var gitViewModel: GitViewModel
@@ -10,9 +142,10 @@ struct SourceControlView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
 
+    @State private var selection: SourceControlSelection = .localWorkspace
     @State private var showSetup = false
-    @State private var sidebarSelection: GitHubSidebarItem = .dashboard
     @State private var isPerformingGitAction = false
+    @State private var showRepoDetails = false
 
     @State private var successMessage: String?
     @State private var showSuccess = false
@@ -50,98 +183,98 @@ struct SourceControlView: View {
         return true
     }
 
+    var availableSelections: [SourceControlSelection] {
+        if isSetupRequired {
+            return [.onboarding]
+        } else {
+            return SourceControlSelection.allCases.filter { $0 != .onboarding }
+        }
+    }
+
     var body: some View {
-        NavigationSplitView {
-            GitHubSidebar(selection: $sidebarSelection)
-                .toolbar {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            showSetup = true
-                        } label: {
-                            Label("Token Config", systemImage: "key.fill")
-                        }
-                        .help("Configure Token")
-                    }
-                    ToolbarItem(placement: .secondaryAction) {
-                        Button("Close") {
-                            dismiss()
-                        }
+        VStack(spacing: 0) {
+            // Unified Top Toolbar (Replacer for sidebars)
+            HStack(spacing: 16) {
+                // Logo & Section Title
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.triangle.branch")
+                        .font(.title2)
+                        .foregroundStyle(Color.accentColor)
+                    Text("Source Control")
+                        .font(.headline)
+                }
+
+                Spacer()
+
+                // Primary Navigation Picker in the Top Toolbar
+                Picker("Navigation", selection: $selection) {
+                    ForEach(availableSelections) { item in
+                        Label(item.rawValue, systemImage: item.icon)
+                            .tag(item)
                     }
                 }
-        } detail: {
-            HSplitView {
-                VStack(spacing: 0) {
-                    GitHubToolbar(
-                        currentSelection: sidebarSelection,
-                        isProjectConnected: sessionStore.activeProject?.githubRepo != nil && !(sessionStore.activeProject?.githubRepo ?? "").isEmpty,
-                        isPerformingAction: isPerformingGitAction,
-                        onRefresh: {
-                            performAction {
-                                await gitViewModel.refreshStatus()
-                            }
-                        },
-                        onClone: {
-                            // Handled by standard Clone trigger
-                        },
-                        onPull: {
-                            performAction {
-                                let gitBinary = URL(fileURLWithPath: settings.gitPath.isEmpty ? "/usr/bin/git" : settings.gitPath)
-                                if let dirURL = sessionStore.activeProject?.directoryURL {
-                                    _ = try? await ProcessRunnerTool.shared.run(
-                                        executableURL: gitBinary,
-                                        arguments: ["pull", "origin", "main"],
-                                        workingDirectory: dirURL
-                                    )
-                                }
-                                await gitViewModel.refreshStatus()
-                            }
-                        },
-                        onPush: {
-                            performAction {
-                                let gitBinary = URL(fileURLWithPath: settings.gitPath.isEmpty ? "/usr/bin/git" : settings.gitPath)
-                                if let dirURL = sessionStore.activeProject?.directoryURL {
-                                    _ = try? await ProcessRunnerTool.shared.run(
-                                        executableURL: gitBinary,
-                                        arguments: ["push", "origin", "main"],
-                                        workingDirectory: dirURL
-                                    )
-                                }
-                                await gitViewModel.refreshStatus()
-                            }
-                        },
-                        onFetch: {
-                            performAction {
-                                let gitBinary = URL(fileURLWithPath: settings.gitPath.isEmpty ? "/usr/bin/git" : settings.gitPath)
-                                if let dirURL = sessionStore.activeProject?.directoryURL {
-                                    _ = try? await ProcessRunnerTool.shared.run(
-                                        executableURL: gitBinary,
-                                        arguments: ["fetch"],
-                                        workingDirectory: dirURL
-                                    )
-                                }
-                                await gitViewModel.refreshStatus()
-                            }
-                        }
-                    )
+                .pickerStyle(.menu)
+                .frame(width: 250)
 
-                    Divider()
+                Spacer()
 
-                    if isSetupRequired {
-                        setupRequiredPlaceholder
-                    } else {
-                        detailPaneView(for: sidebarSelection)
-                            .transition(.opacity.animation(.easeInOut(duration: 0.15)))
+                // Repository Details Toggle and general actions
+                HStack(spacing: 12) {
+                    Button {
+                        showRepoDetails = true
+                    } label: {
+                        Label("Repository Details", systemImage: "info.circle")
+                    }
+                    .help("View repository connection details and metadata")
+
+                    Button("Close") {
+                        dismiss()
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                GitHubInspector(project: sessionStore.activeProject, gitViewModel: gitViewModel)
-                    .frame(width: 240)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color(NSColor.windowBackgroundColor))
+
+            Divider()
+
+            // Main Content Area
+            VStack(spacing: 0) {
+                if isSetupRequired {
+                    setupRequiredPlaceholder
+                } else {
+                    detailPaneView(for: selection)
+                        .transition(.opacity.animation(.easeInOut(duration: 0.15)))
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(minWidth: 1000, minHeight: 650)
         .sheet(isPresented: $showSetup) {
             SCSetupOnboard()
+        }
+        .sheet(isPresented: $showRepoDetails) {
+            VStack(spacing: 0) {
+                HStack {
+                    Text("Repository Details")
+                        .font(.headline)
+                    Spacer()
+                    Button("Done") {
+                        showRepoDetails = false
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding()
+
+                Divider()
+
+                RepositoryDetailView(
+                    project: sessionStore.activeProject,
+                    gitViewModel: gitViewModel,
+                    onDismiss: { showRepoDetails = false }
+                )
+                .frame(width: 550, height: 500)
+            }
         }
         .alert("Success", isPresented: $showSuccess, presenting: successMessage) { _ in
             Button("OK") {}
@@ -150,6 +283,9 @@ struct SourceControlView: View {
             Button("OK") {}
         } message: { msg in Text(msg) }
         .onAppear {
+            if gitViewModel.repositoryURL == nil {
+                gitViewModel.repositoryURL = sessionStore.activeProject?.directoryURL
+            }
             checkSetup()
         }
     }
@@ -157,46 +293,34 @@ struct SourceControlView: View {
     // MARK: - Detail Switcher
 
     @ViewBuilder
-    private func detailPaneView(for selection: GitHubSidebarItem) -> some View {
+    private func detailPaneView(for selection: SourceControlSelection) -> some View {
         let project = sessionStore.activeProject ?? Project(name: "Untitled")
 
         Group {
             switch selection {
-            case .dashboard:
+            case .localWorkspace:
                 RepositoryDashboardView(gitViewModel: gitViewModel, project: project) { item in
                     withAnimation {
-                        sidebarSelection = item
+                        switch item {
+                        case .dashboard: self.selection = .localWorkspace
+                        case .repositories: self.selection = .changes
+                        case .organizations: self.selection = .github
+                        case .pullRequests: self.selection = .pullRequests
+                        case .issues: self.selection = .issues
+                        case .actions: self.selection = .github
+                        case .branches: self.selection = .branches
+                        case .commits: self.selection = .commitHistory
+                        case .tags: self.selection = .github
+                        case .releases: self.selection = .github
+                        case .discussions: self.selection = .github
+                        case .notifications: self.selection = .github
+                        case .settings: self.selection = .repositorySettings
+                        }
                     }
                 }
-            case .repositories:
+            case .changes:
                 RepositoriesView(
                     gitViewModel: gitViewModel,
-                    project: project,
-                    showSuccess: $showSuccess,
-                    successMessage: $successMessage,
-                    showError: $showError,
-                    errorMessage: $errorMessage
-                )
-            case .organizations:
-                OrganizationsView()
-            case .pullRequests:
-                PullRequestsView(
-                    project: project,
-                    showSuccess: $showSuccess,
-                    successMessage: $successMessage,
-                    showError: $showError,
-                    errorMessage: $errorMessage
-                )
-            case .issues:
-                IssuesView(
-                    project: project,
-                    showSuccess: $showSuccess,
-                    successMessage: $successMessage,
-                    showError: $showError,
-                    errorMessage: $errorMessage
-                )
-            case .actions:
-                ActionsView(
                     project: project,
                     showSuccess: $showSuccess,
                     successMessage: $successMessage,
@@ -212,30 +336,34 @@ struct SourceControlView: View {
                     showError: $showError,
                     errorMessage: $errorMessage
                 )
-            case .commits:
+            case .commitHistory:
                 CommitsView(gitViewModel: gitViewModel)
-            case .tags:
-                TagsView(
+            case .pullRequests:
+                PullRequestsView(
                     project: project,
                     showSuccess: $showSuccess,
                     successMessage: $successMessage,
                     showError: $showError,
                     errorMessage: $errorMessage
                 )
-            case .releases:
-                ReleasesView(
+            case .github:
+                OrganizationsView()
+            case .issues:
+                IssuesView(
                     project: project,
                     showSuccess: $showSuccess,
                     successMessage: $successMessage,
                     showError: $showError,
                     errorMessage: $errorMessage
                 )
-            case .discussions:
-                DiscussionsView(project: project)
-            case .notifications:
-                NotificationsView()
-            case .settings:
+            case .diffViewer:
+                UnifiedDiffView(gitViewModel: gitViewModel)
+            case .cli:
+                GitCLIView(project: project)
+            case .repositorySettings:
                 GitHubSettingsView(project: project)
+            case .onboarding:
+                SCSetupOnboard()
             }
         }
         .sourceControlEmbedded()
@@ -257,19 +385,41 @@ struct SourceControlView: View {
 
     private func checkSetup() {
         if isSetupRequired {
+            selection = .onboarding
             showSetup = true
         } else {
+            if selection == .onboarding {
+                selection = .localWorkspace
+            }
             Task {
                 await gitViewModel.refreshStatus()
             }
         }
     }
+}
 
-    private func performAction(_ action: @escaping () async -> Void) {
-        isPerformingGitAction = true
-        Task {
-            await action()
-            isPerformingGitAction = false
+// ====================================================================
+// UNIFIED DIFF VIEW
+// ====================================================================
+struct UnifiedDiffView: View {
+    var gitViewModel: GitViewModel
+    @State private var hunks: [GitDiffHunk] = []
+    @State private var isLoading = false
+
+    var body: some View {
+        VStack {
+            if isLoading {
+                ProgressView("Loading unified diff...")
+            } else {
+                GitDiffView(hunks: hunks)
+            }
+        }
+        .onAppear {
+            isLoading = true
+            Task {
+                hunks = await gitViewModel.getDiff()
+                isLoading = false
+            }
         }
     }
 }

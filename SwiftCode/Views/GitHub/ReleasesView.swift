@@ -11,14 +11,37 @@ struct ReleasesView: View {
     @State private var releases: [GitHubReleaseInfo] = []
     @State private var isFetching = false
 
+    private var context: RepositoryContext {
+        RepositoryContext.shared
+    }
+
     private var ownerAndRepo: (String, String)? {
-        guard let repoStr = project?.githubRepo, !repoStr.isEmpty else { return nil }
+        guard let repoStr = context.connectedRepository, !repoStr.isEmpty else { return nil }
         let parts = repoStr.split(separator: "/")
         guard parts.count == 2 else { return nil }
         return (String(parts[0]), String(parts[1]))
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            if context.displayMode == .connectedRepository && context.connectedRepository == nil {
+                disconnectedPlaceholder
+            } else {
+                mainContent
+            }
+        }
+        .onAppear {
+            fetchReleases()
+        }
+        .onChange(of: context.displayMode) {
+            fetchReleases()
+        }
+        .onChange(of: context.syncEventsCount) {
+            fetchReleases()
+        }
+    }
+
+    private var mainContent: some View {
         VStack(spacing: 0) {
             // Header actions row
             HStack(spacing: 12) {
@@ -81,19 +104,39 @@ struct ReleasesView: View {
                 }
             }
         }
-        .onAppear {
-            fetchReleases()
-        }
+    }
+
+    private var disconnectedPlaceholder: some View {
+        GitHubEmptyStateView(
+            title: "No Repository Connected",
+            description: "Connect a remote GitHub repository to this project to view and manage Releases.",
+            systemImage: "shippingbox",
+            accentColor: .orange
+        )
     }
 
     private func fetchReleases() {
-        guard let (owner, repo) = ownerAndRepo else { return }
         guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else { return }
+
+        let urlStr: String
+        if context.displayMode == .entireAccount {
+            if let (owner, repo) = ownerAndRepo {
+                urlStr = "https://api.github.com/repos/\(owner)/\(repo)/releases?per_page=10"
+            } else {
+                releases = []
+                return
+            }
+        } else if let (owner, repo) = ownerAndRepo {
+            urlStr = "https://api.github.com/repos/\(owner)/\(repo)/releases?per_page=10"
+        } else {
+            releases = []
+            return
+        }
 
         isFetching = true
         Task {
             do {
-                guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/releases?per_page=10") else { return }
+                guard let url = URL(string: urlStr) else { return }
 
                 var request = URLRequest(url: url)
                 request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -107,19 +150,5 @@ struct ReleasesView: View {
             }
             isFetching = false
         }
-    }
-}
-
-struct GitHubReleaseInfo: Identifiable, Decodable {
-    let id: Int
-    let tagName: String
-    let name: String?
-    let body: String?
-    let createdAt: String
-
-    enum CodingKeys: String, CodingKey {
-        case id, name, body
-        case tagName = "tag_name"
-        case createdAt = "created_at"
     }
 }
