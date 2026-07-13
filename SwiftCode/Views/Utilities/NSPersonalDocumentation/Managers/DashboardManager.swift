@@ -10,7 +10,8 @@ public final class DashboardManager {
         self.documentManager = documentManager
     }
 
-    public struct DashboardSnapshot: Sendable {
+    // Safe because DashboardSnapshot is initialized and used entirely on the @MainActor-isolated thread/context.
+    public struct DashboardSnapshot: @unchecked Sendable {
         public let totalDocuments: Int
         public let totalTasks: Int
         public let completedTasks: Int

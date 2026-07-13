@@ -73,6 +73,8 @@
 		4098238CFD734E3890694E5A /* BezierPathCodeDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7558D0B18F9B3D307E7E8166 /* BezierPathCodeDevToolView.swift */; };
 		10FFB5B4C51E510774824E65 /* BinaryHexConverterDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39313E00A9B145D5559F2E6A /* BinaryHexConverterDevToolView.swift */; };
 		7BE643DB39927C1262F9B9BD /* BiometricAuthSimDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEC1388D5DBC818D923BF0E /* BiometricAuthSimDevToolView.swift */; };
+		2B4CEE860D734A23837F5303 /* HMACCalculatorDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B4CEE860D734A23837F5304 /* HMACCalculatorDevToolView.swift */; };
+		2B4CEE860D734A23837F5305 /* NetworkReachabilityDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B4CEE860D734A23837F5306 /* NetworkReachabilityDevToolView.swift */; };
 		A6B59DED57C9A50C28717643 /* BreakpointManagerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F977B71A7FE01C394C172ED /* BreakpointManagerDevToolView.swift */; };
 		44EFE8C5112C22EF8CB38F09 /* BundleSizeAnalyzerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21BD7662721F72C96257292 /* BundleSizeAnalyzerDevToolView.swift */; };
 		3D19BA4589DBF1FA614E5839 /* CPUMonitorDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73996596A2AF339A46D69DCA /* CPUMonitorDevToolView.swift */; };
@@ -1140,6 +1142,8 @@
 		7558D0B18F9B3D307E7E8166 /* BezierPathCodeDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BezierPathCodeDevToolView.swift; sourceTree = "<group>"; };
 		39313E00A9B145D5559F2E6A /* BinaryHexConverterDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BinaryHexConverterDevToolView.swift; sourceTree = "<group>"; };
 		8CEC1388D5DBC818D923BF0E /* BiometricAuthSimDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricAuthSimDevToolView.swift; sourceTree = "<group>"; };
+		2B4CEE860D734A23837F5304 /* HMACCalculatorDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HMACCalculatorDevToolView.swift; sourceTree = "<group>"; };
+		2B4CEE860D734A23837F5306 /* NetworkReachabilityDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkReachabilityDevToolView.swift; sourceTree = "<group>"; };
 		6F977B71A7FE01C394C172ED /* BreakpointManagerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakpointManagerDevToolView.swift; sourceTree = "<group>"; };
 		C21BD7662721F72C96257292 /* BundleSizeAnalyzerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundleSizeAnalyzerDevToolView.swift; sourceTree = "<group>"; };
 		73996596A2AF339A46D69DCA /* CPUMonitorDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUMonitorDevToolView.swift; sourceTree = "<group>"; };
@@ -2672,6 +2676,8 @@
 				A65C92D6B5114343A0E5C912 /* WhoisLookupView.swift */,
 				45BFAECB18754A7EA64858FA /* XMLFormatterView.swift */,
 				0431ABD8EA2248FB9116A745 /* YAMLConverterView.swift */,
+				2B4CEE860D734A23837F5304 /* HMACCalculatorDevToolView.swift */,
+				2B4CEE860D734A23837F5306 /* NetworkReachabilityDevToolView.swift */,
 			);
 			path = "Dev Tools";
 			sourceTree = "<group>";
@@ -4566,6 +4572,8 @@
 				4098238CFD734E3890694E5A /* BezierPathCodeDevToolView.swift in Sources */,
 				10FFB5B4C51E510774824E65 /* BinaryHexConverterDevToolView.swift in Sources */,
 				7BE643DB39927C1262F9B9BD /* BiometricAuthSimDevToolView.swift in Sources */,
+				2B4CEE860D734A23837F5303 /* HMACCalculatorDevToolView.swift in Sources */,
+				2B4CEE860D734A23837F5305 /* NetworkReachabilityDevToolView.swift in Sources */,
 				A6B59DED57C9A50C28717643 /* BreakpointManagerDevToolView.swift in Sources */,
 				44EFE8C5112C22EF8CB38F09 /* BundleSizeAnalyzerDevToolView.swift in Sources */,
 				3D19BA4589DBF1FA614E5839 /* CPUMonitorDevToolView.swift in Sources */,

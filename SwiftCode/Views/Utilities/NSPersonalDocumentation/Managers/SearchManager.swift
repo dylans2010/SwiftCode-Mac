@@ -10,7 +10,8 @@ public final class SearchManager {
         self.indexingManager = indexingManager
     }
 
-    public struct SearchResult: Sendable, Identifiable {
+    // Safe because SearchResult is initialized and used entirely on the @MainActor-isolated thread/context.
+    public struct SearchResult: @unchecked Sendable, Identifiable {
         public var id: UUID { document.id }
         public let document: Document
         public let score: Int

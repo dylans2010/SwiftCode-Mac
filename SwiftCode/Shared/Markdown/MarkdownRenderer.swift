@@ -38,7 +38,7 @@ public actor MarkdownRenderer {
             return cached
         }
 
-        let document = Document(parsing: markdown)
+        let document = Markdown.Document(parsing: markdown)
         var visitor = MarkdownASTVisitor()
         visitor.visit(document)
         let blocks = visitor.blocks
@@ -72,7 +72,7 @@ public actor MarkdownRenderer {
 
     @MainActor
     public func parse(_ markdown: String) -> [MarkdownBlock] {
-        let document = Document(parsing: markdown)
+        let document = Markdown.Document(parsing: markdown)
         var visitor = MarkdownASTVisitor()
         visitor.visit(document)
         return visitor.blocks
@@ -100,36 +100,36 @@ private struct MarkdownASTVisitor: MarkupVisitor {
         }
     }
 
-    mutating func visitHeading(_ heading: Heading) -> Any? {
+    mutating func visitHeading(_ heading: Markdown.Heading) -> Any? {
         let text = heading.plainText
         blocks.append(.heading(level: heading.level, text: text))
         return nil
     }
 
-    mutating func visitParagraph(_ paragraph: Paragraph) -> Any? {
+    mutating func visitParagraph(_ paragraph: Markdown.Paragraph) -> Any? {
         let text = paragraph.plainText
         blocks.append(.paragraph(text: text))
         return nil
     }
 
-    mutating func visitCodeBlock(_ codeBlock: CodeBlock) -> Any? {
+    mutating func visitCodeBlock(_ codeBlock: Markdown.CodeBlock) -> Any? {
         blocks.append(.codeBlock(language: codeBlock.language, code: codeBlock.code))
         return nil
     }
 
-    mutating func visitBlockQuote(_ blockQuote: BlockQuote) -> Any? {
+    mutating func visitBlockQuote(_ blockQuote: Markdown.BlockQuote) -> Any? {
         let text = blockQuote.plainText
         blocks.append(.blockQuote(text: text))
         return nil
     }
 
-    mutating func visitUnorderedList(_ unorderedList: UnorderedList) -> Any? {
+    mutating func visitUnorderedList(_ unorderedList: Markdown.UnorderedList) -> Any? {
         var bulletItems: [String] = []
         var taskItems: [(checked: Bool, text: String)] = []
         var isTaskList = false
 
         for child in unorderedList.children {
-            if let listItem = child as? ListItem {
+            if let listItem = child as? Markdown.ListItem {
                 if let checkbox = listItem.checkbox {
                     isTaskList = true
                     let checked = checkbox == .checked
@@ -148,10 +148,10 @@ private struct MarkdownASTVisitor: MarkupVisitor {
         return nil
     }
 
-    mutating func visitOrderedList(_ orderedList: OrderedList) -> Any? {
+    mutating func visitOrderedList(_ orderedList: Markdown.OrderedList) -> Any? {
         var items: [String] = []
         for child in orderedList.children {
-            if let listItem = child as? ListItem {
+            if let listItem = child as? Markdown.ListItem {
                 items.append(listItem.plainText)
             }
         }
@@ -159,26 +159,26 @@ private struct MarkdownASTVisitor: MarkupVisitor {
         return nil
     }
 
-    mutating func visitThematicBreak(_ thematicBreak: ThematicBreak) -> Any? {
+    mutating func visitThematicBreak(_ thematicBreak: Markdown.ThematicBreak) -> Any? {
         blocks.append(.horizontalRule)
         return nil
     }
 
-    mutating func visitTable(_ table: Table) -> Any? {
+    mutating func visitTable(_ table: Markdown.Table) -> Any? {
         var headers: [String] = []
         var rows: [[String]] = []
 
         for child in table.head.children {
-            if let cell = child as? Table.Cell {
+            if let cell = child as? Markdown.Table.Cell {
                 headers.append(cell.plainText)
             }
         }
 
         for child in table.body.children {
-            if let row = child as? Table.Row {
+            if let row = child as? Markdown.Table.Row {
                 var rowCells: [String] = []
                 for cellChild in row.children {
-                    if let cell = cellChild as? Table.Cell {
+                    if let cell = cellChild as? Markdown.Table.Cell {
                         rowCells.append(cell.plainText)
                     }
                 }

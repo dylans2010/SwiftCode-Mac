@@ -8,53 +8,53 @@ private let logger = Logger(subsystem: "com.swiftcode.SourceControl", category: 
 // ====================================================================
 @Observable
 @MainActor
-public final class RepositoryContext {
-    public static let shared = RepositoryContext()
+final class RepositoryContext {
+    static let shared = RepositoryContext()
 
     private init() {}
 
-    public enum DisplayMode: String, Codable, CaseIterable, Identifiable {
+    enum DisplayMode: String, Codable, CaseIterable, Identifiable {
         case connectedRepository = "Connected Repository"
         case entireAccount = "Entire GitHub Account"
 
-        public var id: String { rawValue }
+        var id: String { rawValue }
     }
 
-    public var displayMode: DisplayMode = .connectedRepository {
+    var displayMode: DisplayMode = .connectedRepository {
         didSet {
             syncEventsCount += 1
         }
     }
 
-    public var syncEventsCount: Int = 0
-    public var cachedMetadata: GitHubRepoDetail?
-    public var isLoadingMetadata = false
+    var syncEventsCount: Int = 0
+    var cachedMetadata: GitHubRepoDetail?
+    var isLoadingMetadata = false
 
-    public var activeProject: Project? {
+    var activeProject: Project? {
         ProjectSessionStore.shared.activeProject
     }
 
-    public var connectedRepository: String? {
+    var connectedRepository: String? {
         activeProject?.githubRepo
     }
 
-    public var isAuthenticated: Bool {
+    var isAuthenticated: Bool {
         let token = KeychainService.shared.get(forKey: KeychainService.githubToken) ?? ""
         return !token.isEmpty
     }
 
-    public func triggerSync() {
+    func triggerSync() {
         syncEventsCount += 1
     }
 
-    public func disconnectRepository() {
+    func disconnectRepository() {
         guard let proj = activeProject else { return }
         ProjectSessionStore.shared.updateProjectSettings(description: proj.description, githubRepo: nil, for: proj)
         cachedMetadata = nil
         triggerSync()
     }
 
-    public func connectRepository(_ repoName: String) {
+    func connectRepository(_ repoName: String) {
         guard let proj = activeProject else { return }
         ProjectSessionStore.shared.updateProjectSettings(description: proj.description, githubRepo: repoName, for: proj)
         triggerSync()
@@ -63,7 +63,7 @@ public final class RepositoryContext {
         }
     }
 
-    public func fetchMetadata() async {
+    func fetchMetadata() async {
         guard let repoStr = connectedRepository, !repoStr.isEmpty else {
             cachedMetadata = nil
             return

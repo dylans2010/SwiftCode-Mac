@@ -297,7 +297,7 @@ struct XcodeBuildLogView: View {
                                                     ForEach(Array(filteredStructuredLogs.enumerated()), id: \.offset) { index, log in
                                                         HStack(alignment: .top, spacing: 6) {
                                                             Text(log.timestamp.formatted(date: .omitted, time: .standard))
-                                                                .font(.system(.size(9), design: .monospaced))
+                                                                .font(.system(size: 9, design: .monospaced))
                                                                 .foregroundColor(.secondary.opacity(0.6))
 
                                                             // Severity indicator dot
@@ -307,7 +307,7 @@ struct XcodeBuildLogView: View {
                                                                 .padding(.top, 5)
 
                                                             Text(log.message)
-                                                                .font(.system(.size(10), design: .monospaced))
+                                                                .font(.system(size: 10, design: .monospaced))
                                                                 .foregroundStyle(log.severity.color)
                                                                 .textSelection(.enabled)
                                                         }

@@ -1,7 +1,7 @@
 import SwiftUI
 import os.log
 
-struct CacheItem: Identifiable {
+struct CacheViewerItem: Identifiable {
     let id = UUID()
     let key: String
     let size: String
@@ -11,10 +11,10 @@ struct CacheItem: Identifiable {
 @Observable
 @MainActor
 final class CacheViewerViewModel {
-    var caches: [CacheItem] = [
-        CacheItem(key: "com.swiftcode.cache.recent_files", size: "340 KB", valueType: "JSON String Array"),
-        CacheItem(key: "com.swiftcode.cache.syntax_highlight_buffer", size: "12.8 MB", valueType: "Syntax Token List"),
-        CacheItem(key: "com.swiftcode.cache.github_avatar_images", size: "4.5 MB", valueType: "Binary PNG")
+    var caches: [CacheViewerItem] = [
+        CacheViewerItem(key: "com.swiftcode.cache.recent_files", size: "340 KB", valueType: "JSON String Array"),
+        CacheViewerItem(key: "com.swiftcode.cache.syntax_highlight_buffer", size: "12.8 MB", valueType: "Syntax Token List"),
+        CacheViewerItem(key: "com.swiftcode.cache.github_avatar_images", size: "4.5 MB", valueType: "Binary PNG")
     ]
 
     private let logger = Logger(subsystem: "com.swiftcode.devtools", category: "CacheViewer")

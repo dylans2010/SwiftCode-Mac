@@ -321,7 +321,7 @@ struct RepositoryDashboardView: View {
                     .foregroundStyle(.secondary)
                 Text(subtitle)
                     .font(.subheadline.bold())
-                    .foregroundStyle(isHealthy ? .primary : .orange)
+                    .foregroundStyle(isHealthy ? Color.primary : Color.orange)
             }
             Spacer()
         }
