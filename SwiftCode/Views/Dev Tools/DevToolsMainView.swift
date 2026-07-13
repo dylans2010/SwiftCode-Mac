@@ -26,6 +26,9 @@ struct DevToolsMainView: View {
 
     private var tools: [DevTool] {
         [
+            // Productivity
+            DevTool(name: "Personal Documentation", description: "Project wiki, planning, whiteboards, snippets, & intelligence", icon: "doc.text.fill", category: "Productivity", destination: AnyView(NSPersonalDocumentationView())),
+
             // Diagnostics & Logs
             DevTool(name: "Entitlement Inspector", description: "Verify active app capability settings", icon: "shield", category: "Diagnostics", destination: AnyView(EntitlementInspectorView())),
             DevTool(name: "Provisioning Profile Viewer", description: "Inspect mobile provisioning profiles", icon: "key", category: "Diagnostics", destination: AnyView(ProvisioningProfileViewerView())),

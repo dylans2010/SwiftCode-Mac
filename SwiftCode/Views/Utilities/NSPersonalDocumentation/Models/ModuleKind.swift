@@ -60,6 +60,15 @@ public enum ModuleKind: String, Sendable, Codable, CaseIterable, Identifiable {
     case images = "Images"
     case referenceLibrary = "Reference Library"
 
+    // E. Advanced Ecosystem Extensions
+    case knowledgeGraph = "Knowledge Graph"
+    case timeline = "Project Timeline"
+    case analytics = "Project Analytics"
+    case intelligence = "Project Intelligence"
+    case whiteboards = "Advanced Whiteboards"
+    case snippets = "Snippet Workspace"
+    case snapshots = "Project Snapshots"
+
     public var id: String { rawValue }
 
     public var archetype: Archetype {
@@ -81,6 +90,9 @@ public enum ModuleKind: String, Sendable, Codable, CaseIterable, Identifiable {
         case .smartCollections, .favorites, .archivedDocuments, .templates, .bookmarks,
              .attachments, .images, .referenceLibrary:
             return .container
+
+        case .knowledgeGraph, .timeline, .analytics, .intelligence, .whiteboards, .snippets, .snapshots:
+            return .generated
         }
     }
 
@@ -132,15 +144,30 @@ public enum ModuleKind: String, Sendable, Codable, CaseIterable, Identifiable {
         case .attachments: return "paperclip"
         case .images: return "photo.fill"
         case .referenceLibrary: return "books.vertical.fill"
+
+        case .knowledgeGraph: return "circle.grid.3x3.fill"
+        case .timeline: return "calendar.day.timeline.left"
+        case .analytics: return "chart.bar.xaxis"
+        case .intelligence: return "brain.head.profile"
+        case .whiteboards: return "pencil.and.outline"
+        case .snippets: return "text.badge.plus"
+        case .snapshots: return "clock.arrow.trianglehead.counterclockwise.rotate.90"
         }
     }
 
     public var accentColor: Color {
-        switch self.archetype {
-        case .freeform: return .blue
-        case .structured: return .orange
-        case .generated: return .purple
-        case .container: return .green
+        switch self {
+        case .knowledgeGraph, .intelligence: return .purple
+        case .timeline, .whiteboards: return .blue
+        case .analytics, .snapshots: return .orange
+        case .snippets: return .green
+        default:
+            switch self.archetype {
+            case .freeform: return .blue
+            case .structured: return .orange
+            case .generated: return .purple
+            case .container: return .green
+            }
         }
     }
 }

@@ -357,6 +357,10 @@ struct WorkspaceView: View {
                     }
                     .frame(width: 820, height: 650)
 
+                case .personalDocumentation:
+                    NSPersonalDocumentationView()
+                        .frame(minWidth: 800, minHeight: 600)
+
                 default:
                     ContentUnavailableView {
                         Label("Feature Detail", systemImage: "hammer")
