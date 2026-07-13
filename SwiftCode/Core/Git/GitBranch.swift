@@ -5,10 +5,12 @@ public struct GitBranch: Identifiable, Sendable, Codable {
     public let name: String
     public let isCurrent: Bool
     public let isRemote: Bool
+    public let trackingRemote: String?
 
-    public init(name: String, isCurrent: Bool, isRemote: Bool) {
+    public init(name: String, isCurrent: Bool, isRemote: Bool, trackingRemote: String? = nil) {
         self.name = name
         self.isCurrent = isCurrent
         self.isRemote = isRemote
+        self.trackingRemote = trackingRemote
     }
 }
