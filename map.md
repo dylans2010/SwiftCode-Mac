@@ -376,6 +376,7 @@ This section defines the permanent native macOS desktop UI specification for Swi
 | `SwiftCode/Views/GitHub/GitDiffView.swift` | `GitDiffView` | `GitHub` | `Views` |
 | `SwiftCode/Views/GitHub/GitFileRowView.swift` | `GitFileRowView` | `GitHub` | `Views` |
 | `SwiftCode/Views/GitHub/GitHistoryView.swift` | `GitHistoryView` | `GitHub` | `Views` |
+| `SwiftCode/Views/GitHub/GitHubCodeSearchView.swift` | `GitHubCodeSearchView` | `GitHub` | `Views` |
 | `SwiftCode/Views/GitHub/GitHubIntegrationView.swift` | `GitHubIntegrationView` | `GitHub` | `Views` |
 | `SwiftCode/Views/GitHub/GitHubIntegrationView.swift` | `BranchRow` | `GitHub` | `Views` |
 | `SwiftCode/Views/GitHub/GitHubIntegrationView.swift` | `WorkflowRunRow` | `GitHub` | `Views` |

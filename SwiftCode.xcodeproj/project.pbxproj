@@ -456,7 +456,7 @@
 		85C762B78F883AAD659A621E /* OnDeviceCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10B50602823F86F52DE6384 /* OnDeviceCapabilities.swift */; };
 		85C7A8E9924537EE42C58E16 /* NetlifyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9FB8F45B5456444FEE6A487 /* NetlifyManager.swift */; };
 		86091109F96BAC5049E4E7CA /* SymbolIndexView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10AA8C53B2A2753122DDB3A0 /* SymbolIndexView.swift */; };
-		86870FD4D7B744E1B841AC72 /* CodeSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C49B63A0196A4493B843072E /* CodeSearchView.swift */; };
+		86870FD4D7B744E1B841AC72 /* GitHubCodeSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C49B63A0196A4493B843072E /* GitHubCodeSearchView.swift */; };
 		86BC4B8325985E0596472CE5 /* CollaborationCodeReviewManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BE3FC41B13119FD20865576 /* CollaborationCodeReviewManager.swift */; };
 		86C0FA006D76EFDFA44D55C6 /* VerboseLoggingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 317536B2A05D138315363381 /* VerboseLoggingView.swift */; };
 		86FDD1F5D666E2043D833826 /* CSSBorderRadiusGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AF1DE72C682B86FFF901B9E /* CSSBorderRadiusGeneratorView.swift */; };
@@ -1704,7 +1704,7 @@
 		C3F50E2D8EAA8A1562AA8756 /* GitHubAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubAPI.swift; sourceTree = "<group>"; };
 		C47ACC042411705FB3B2D05C /* OpenRouterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterService.swift; sourceTree = "<group>"; };
 		C47D05763F6CC4D3BFEC1DA8 /* BuildStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildStatusView.swift; sourceTree = "<group>"; };
-		C49B63A0196A4493B843072E /* CodeSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSearchView.swift; sourceTree = "<group>"; };
+		C49B63A0196A4493B843072E /* GitHubCodeSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubCodeSearchView.swift; sourceTree = "<group>"; };
 		C49DD80BC7AEE2F2483FD94E /* StringEscaperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StringEscaperView.swift; sourceTree = "<group>"; };
 		C4DEBE39E0A030A5F6D02495 /* TemperatureConverterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemperatureConverterView.swift; sourceTree = "<group>"; };
 		C50EDA7C4C77A2A248E49BFE /* Contents.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Contents.json; sourceTree = "<group>"; };
@@ -2856,7 +2856,7 @@
 				EB125956B2AD4F88AF7294CD /* ActionsView.swift */,
 				1BCB46BDADEB4598AD76D051 /* ActivityFeedView.swift */,
 				29E895D7418A4115BE9C794D /* BranchesView.swift */,
-				C49B63A0196A4493B843072E /* CodeSearchView.swift */,
+				C49B63A0196A4493B843072E /* GitHubCodeSearchView.swift */,
 				8CDFEB9BA85841CC811094AC /* CommitsView.swift */,
 				449BC9C8041847E68C283095 /* DiscussionsView.swift */,
 				042A71F7B36A453C8FE4BF53 /* GitHubAccountView.swift */,
@@ -5073,7 +5073,7 @@
 				5D53EC5D16D043FE82BEBEC4 /* ActionsView.swift in Sources */,
 				24260CA784AF44DFA98DE168 /* ActivityFeedView.swift in Sources */,
 				35661831F344477C9F37E909 /* BranchesView.swift in Sources */,
-				86870FD4D7B744E1B841AC72 /* CodeSearchView.swift in Sources */,
+				86870FD4D7B744E1B841AC72 /* GitHubCodeSearchView.swift in Sources */,
 				6A6668304FAE4B3095445BFB /* CommitsView.swift in Sources */,
 				8C7FA133EC2942E4BD151D77 /* DiscussionsView.swift in Sources */,
 				FBFC5862FED14D7C97A19AB0 /* GitHubAccountView.swift in Sources */,

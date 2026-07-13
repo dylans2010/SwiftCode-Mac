@@ -1,7 +1,7 @@
 import SwiftUI
 
 @MainActor
-struct CodeSearchView: View {
+struct GitHubCodeSearchView: View {
     let project: Project?
     @State private var query = ""
     @State private var results: [String] = []
