@@ -100,4 +100,16 @@ public class GitViewModel {
         guard let url = repositoryURL else { return [] }
         return (try? await GitService.shared.getDiff(repositoryURL: url)) ?? []
     }
+
+    public func rollback(to sha: String) async throws {
+        guard let url = repositoryURL else { return }
+        try await GitService.shared.rollback(to: sha, repositoryURL: url)
+        await refreshStatus()
+    }
+
+    public func forcePush(branch: String) async throws {
+        guard let url = repositoryURL else { return }
+        try await GitService.shared.forcePush(branch: branch, repositoryURL: url)
+        await refreshStatus()
+    }
 }

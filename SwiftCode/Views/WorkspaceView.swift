@@ -355,7 +355,7 @@ struct WorkspaceView: View {
                         let ciConfig = project.ciBuildConfiguration
                         bundleIdentifier = ciConfig?.bundleIdentifier ?? "com.example.\(project.name.lowercased())"
                     }
-                    .frame(width: 500, height: 600)
+                    .frame(width: 820, height: 650)
 
                 default:
                     ContentUnavailableView {

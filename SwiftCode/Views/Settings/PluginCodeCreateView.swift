@@ -27,42 +27,88 @@ struct AdvancedPlugin {
 
     private var availableTools: [any AgentTool] { Array(ListTools.shared.tools.values) }
 
+    // Desktop Tab Selection
+    enum CreateTab: String, CaseIterable, Identifiable {
+        case metadata = "Metadata"
+        case capabilities = "Capabilities"
+        case steps = "Steps & Config"
+        case code = "main.swift"
+
+        var id: String { rawValue }
+
+        var icon: String {
+            switch self {
+            case .metadata: return "doc.text.fill"
+            case .capabilities: return "wrench.and.screwdriver.fill"
+            case .steps: return "list.bullet.indent"
+            case .code: return "curlybraces"
+            }
+        }
+    }
+    @State private var activeTab: CreateTab = .metadata
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    GroupBox(label: Label("Plugin Metadata", systemImage: "doc.text")) {
-                        metadataSection
+            VStack(spacing: 0) {
+                // Compact Segmented Picker for fast navigation without tall scrolling
+                Picker("Section", selection: $activeTab) {
+                    ForEach(CreateTab.allCases) { tab in
+                        Label(tab.rawValue, systemImage: tab.icon).tag(tab)
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    GroupBox(label: Label("Capabilities", systemImage: "bolt.fill")) {
-                        capabilitiesSection
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    GroupBox(label: Label("Tool Interop", systemImage: "wrench.and.screwdriver")) {
-                        toolInteropSection
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    GroupBox(label: Label("Automation Steps", systemImage: "play.circle")) {
-                        automationSection
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    GroupBox(label: Label("Config Schema", systemImage: "slider.horizontal.3")) {
-                        configSchemaSection
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    GroupBox(label: Label("Implementation (main.swift)", systemImage: "curlybraces")) {
-                        implementationSection
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
-                .padding(24)
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
+                .background(.ultraThinMaterial)
+
+                Divider()
+
+                ScrollView {
+                    VStack(spacing: 16) {
+                        switch activeTab {
+                        case .metadata:
+                            GroupBox(label: Label("Plugin Metadata", systemImage: "doc.text")) {
+                                metadataSection
+                            }
+                            .groupBoxStyle(ModernGroupBoxStyle())
+
+                        case .capabilities:
+                            HStack(alignment: .top, spacing: 16) {
+                                GroupBox(label: Label("Capabilities", systemImage: "bolt.fill")) {
+                                    capabilitiesSection
+                                }
+                                .groupBoxStyle(ModernGroupBoxStyle())
+
+                                GroupBox(label: Label("Tool Interop", systemImage: "wrench.and.screwdriver")) {
+                                    toolInteropSection
+                                }
+                                .groupBoxStyle(ModernGroupBoxStyle())
+                            }
+
+                        case .steps:
+                            VStack(spacing: 16) {
+                                GroupBox(label: Label("Automation Steps", systemImage: "play.circle")) {
+                                    automationSection
+                                }
+                                .groupBoxStyle(ModernGroupBoxStyle())
+
+                                GroupBox(label: Label("Config Schema", systemImage: "slider.horizontal.3")) {
+                                    configSchemaSection
+                                }
+                                .groupBoxStyle(ModernGroupBoxStyle())
+                            }
+
+                        case .code:
+                            GroupBox(label: Label("Implementation (main.swift)", systemImage: "curlybraces")) {
+                                implementationSection
+                            }
+                            .groupBoxStyle(ModernGroupBoxStyle())
+                        }
+                    }
+                    .padding(24)
+                }
             }
+            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Create Plugin")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -74,10 +120,11 @@ struct AdvancedPlugin {
                 }
             }
         }
+        .frame(width: 700, height: 490) // Medium-sized desktop dialog frame
     }
 
     private var metadataSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             labeledField("Plugin Name", text: $pluginName)
             labeledField("Version", text: $pluginVersion)
             labeledField("Minimum SwiftCode Version", text: $minimumVersion)
@@ -87,59 +134,67 @@ struct AdvancedPlugin {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Description").font(.caption).foregroundStyle(.secondary)
                 TextEditor(text: $pluginDescription)
-                    .frame(height: 60)
+                    .frame(height: 50)
                     .cornerRadius(6)
                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.15)))
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
     }
 
     private var capabilitiesSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(PluginManifest.Capability.allCases, id: \.self) { capability in
-                Toggle(capability.rawValue, isOn: Binding(
-                    get: { selectedCapabilities.contains(capability) },
-                    set: { isSelected in
-                        if isSelected { selectedCapabilities.insert(capability) }
-                        else { selectedCapabilities.remove(capability) }
-                    }
-                ))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(PluginManifest.Capability.allCases, id: \.self) { capability in
+                    Toggle(capability.rawValue, isOn: Binding(
+                        get: { selectedCapabilities.contains(capability) },
+                        set: { isSelected in
+                            if isSelected { selectedCapabilities.insert(capability) }
+                            else { selectedCapabilities.remove(capability) }
+                        }
+                    ))
+                    .toggleStyle(.checkbox)
+                }
             }
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxHeight: 180)
     }
 
     private var toolInteropSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(availableTools, id: \.name) { tool in
-                Toggle(tool.name, isOn: Binding(
-                    get: { selectedToolNames.contains(tool.name) },
-                    set: { isSelected in
-                        if isSelected { selectedToolNames.insert(tool.name) }
-                        else { selectedToolNames.remove(tool.name) }
-                    }
-                ))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(availableTools, id: \.name) { tool in
+                    Toggle(tool.name, isOn: Binding(
+                        get: { selectedToolNames.contains(tool.name) },
+                        set: { isSelected in
+                            if isSelected { selectedToolNames.insert(tool.name) }
+                            else { selectedToolNames.remove(tool.name) }
+                        }
+                    ))
+                    .toggleStyle(.checkbox)
+                }
             }
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxHeight: 180)
     }
 
     private var automationSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             if automationSteps.isEmpty {
                 Text("No Steps Added Yet")
                     .foregroundStyle(.secondary)
                     .font(.subheadline)
             } else {
                 ForEach(automationSteps) { step in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(step.title).font(.subheadline.weight(.semibold))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(step.title).font(.subheadline.bold())
                         Text(step.instruction).font(.caption).foregroundStyle(.secondary)
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 2)
                 }
             }
 
@@ -155,13 +210,14 @@ struct AdvancedPlugin {
                 Label("Add Step", systemImage: "plus.circle.fill")
             }
             .buttonStyle(.bordered)
+            .controlSize(.small)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var configSchemaSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             if configFields.isEmpty {
                 Text("No Config Fields Yet")
                     .foregroundStyle(.secondary)
@@ -180,7 +236,7 @@ struct AdvancedPlugin {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 2)
                 }
             }
 
@@ -198,8 +254,9 @@ struct AdvancedPlugin {
                 Label("Add Config Field", systemImage: "slider.horizontal.3")
             }
             .buttonStyle(.bordered)
+            .controlSize(.small)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -207,17 +264,20 @@ struct AdvancedPlugin {
         VStack(alignment: .leading, spacing: 4) {
             TextEditor(text: $mainCode)
                 .font(.system(.body, design: .monospaced))
-                .frame(minHeight: 280)
+                .frame(height: 200)
                 .cornerRadius(6)
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.15)))
                 .autocorrectionDisabled()
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
     }
 
     private func labeledField(_ label: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundStyle(.secondary)
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(width: 180, alignment: .leading)
             TextField(label, text: text)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()

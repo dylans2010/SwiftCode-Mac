@@ -1,16 +1,40 @@
 import SwiftUI
 
+enum DependencyRequirementType: String, CaseIterable, Identifiable, Codable {
+    case from = "from"
+    case branch = "branch"
+    case revision = "revision"
+    case exact = "exact"
+
+    var id: String { rawValue }
+}
+
+struct ParsedDependency: Identifiable, Codable {
+    var id = UUID()
+    var url: String
+    var requirementType: DependencyRequirementType
+    var value: String
+
+    var name: String {
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let urlObj = URL(string: trimmed) {
+            let lastComponent = urlObj.deletingPathExtension().lastPathComponent
+            return lastComponent.isEmpty ? trimmed : lastComponent
+        }
+        return trimmed
+    }
+}
+
 struct DependencyManagerView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
 
-    @State private var dependencies: [PackageDependency] = []
+    @State private var dependencies: [ParsedDependency] = []
     @State private var showAddSheet = false
-    @State private var newName = ""
     @State private var newURL = ""
-    @State private var newVersion = "1.0.0"
-    @State private var newSource: PackageDependency.DependencySource = .github
-    @State private var editingDependency: PackageDependency?
+    @State private var newRequirementType: DependencyRequirementType = .from
+    @State private var newValue = "1.0.0"
+    @State private var editingDependency: ParsedDependency?
     @State private var errorMessage: String?
     @State private var showError = false
 
@@ -18,6 +42,30 @@ struct DependencyManagerView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
+                    // Header Status Info Card
+                    GroupBox {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Label("Package.swift Source of Truth", systemImage: "doc.text.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Text("This interface edits Package.swift directly. All modifications are synchronized immediately.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+
+                            Button {
+                                loadDependencies()
+                            } label: {
+                                Label("Reload", systemImage: "arrow.clockwise")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .padding(12)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
                     if dependencies.isEmpty {
                         GroupBox {
                             VStack(spacing: 16) {
@@ -44,7 +92,6 @@ struct DependencyManagerView: View {
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
                     } else {
-                        // Card 1: Pinned Dependencies (Modern Card Styling matching DeploymentsView)
                         GroupBox {
                             VStack(alignment: .leading, spacing: 14) {
                                 HStack {
@@ -80,15 +127,12 @@ struct DependencyManagerView: View {
                                                     .foregroundStyle(.blue)
                                                     .lineLimit(1)
                                                 HStack {
-                                                    Text("v\(dep.version)")
+                                                    Text("\(dep.requirementType.rawValue): \(dep.value)")
                                                         .font(.caption2.bold())
                                                         .padding(.horizontal, 6)
                                                         .padding(.vertical, 2)
                                                         .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
                                                         .foregroundStyle(.orange)
-                                                    Text(dep.source.rawValue.uppercased())
-                                                        .font(.system(size: 8, weight: .bold))
-                                                        .foregroundStyle(.secondary)
                                                 }
                                             }
 
@@ -117,6 +161,20 @@ struct DependencyManagerView: View {
                                         .cornerRadius(8)
                                     }
                                 }
+
+                                Divider()
+
+                                // The Add Dependency action button inside the card itself - ALWAYS accessible!
+                                Button {
+                                    resetAddForm()
+                                    showAddSheet = true
+                                } label: {
+                                    Label("Add New Package Dependency", systemImage: "plus.circle.fill")
+                                        .fontWeight(.semibold)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.orange)
+                                .padding(.top, 4)
                             }
                             .padding()
                         }
@@ -131,6 +189,7 @@ struct DependencyManagerView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
+                // Persistent toolbar plus button - ALWAYS available!
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         resetAddForm()
@@ -150,13 +209,12 @@ struct DependencyManagerView: View {
         }
     }
 
-    // MARK: - Add Dependency Sheet
+    // MARK: - Add/Edit Dependency Sheet
 
     private var addDependencySheet: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Card 1: Dependency Fields
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -164,15 +222,6 @@ struct DependencyManagerView: View {
                                     .font(.headline)
                                     .foregroundColor(.blue)
                                 Spacer()
-                            }
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Package Name")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
-                                TextField("e.g. Alamofire", text: $newName)
-                                    .textFieldStyle(.roundedBorder)
-                                    .autocorrectionDisabled()
                             }
 
                             VStack(alignment: .leading, spacing: 6) {
@@ -184,11 +233,19 @@ struct DependencyManagerView: View {
                                     .autocorrectionDisabled()
                             }
 
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Version Requirement")
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Requirement Specification")
                                     .font(.caption.bold())
                                     .foregroundStyle(.secondary)
-                                TextField("e.g. 5.8.0", text: $newVersion)
+
+                                Picker("Requirement Type", selection: $newRequirementType) {
+                                    ForEach(DependencyRequirementType.allCases) { type in
+                                        Text(type.rawValue).tag(type)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+
+                                TextField(placeholderText, text: $newValue)
                                     .textFieldStyle(.roundedBorder)
                                     .autocorrectionDisabled()
                             }
@@ -197,32 +254,11 @@ struct DependencyManagerView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 2: Source Type
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Package Registry Source", systemImage: "network")
-                                        .font(.headline)
-                                        .foregroundColor(.orange)
-                                Spacer()
-                            }
-
-                            Picker("Source", selection: $newSource) {
-                                ForEach(PackageDependency.DependencySource.allCases, id: \.self) { source in
-                                    Text(source.rawValue).tag(source)
-                                }
-                            }
-                            .pickerStyle(.segmented)
-                        }
-                        .padding()
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Card 3: Code Preview
+                    // Live Code Preview matching edits
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Label("Package.swift Declaration", systemImage: "doc.text.fill")
+                                Label("Package.swift Output Syntax", systemImage: "doc.text.fill")
                                     .font(.headline)
                                     .foregroundColor(.green)
                                 Spacer()
@@ -253,15 +289,24 @@ struct DependencyManagerView: View {
                     Button(editingDependency != nil ? "Save" : "Add") {
                         saveDependency()
                     }
-                    .disabled(newName.isEmpty || newURL.isEmpty)
+                    .disabled(newURL.isEmpty || newValue.isEmpty)
                 }
             }
         }
         .frame(width: 550, height: 500)
     }
 
+    private var placeholderText: String {
+        switch newRequirementType {
+        case .from: return "Version number (e.g. 5.8.0)"
+        case .branch: return "Branch name (e.g. main)"
+        case .revision: return "Revision SHA (e.g. 0ea8b21)"
+        case .exact: return "Exact version (e.g. 1.5.3)"
+        }
+    }
+
     private var previewEntry: String {
-        ".package(url: \"\(newURL)\", from: \"\(newVersion)\")"
+        ".package(url: \"\(newURL)\", \(newRequirementType.rawValue): \"\(newValue)\")"
     }
 
     // MARK: - Actions
@@ -269,33 +314,37 @@ struct DependencyManagerView: View {
     private func loadDependencies() {
         guard let project = sessionStore.activeProject else { return }
         let packageURL = project.directoryURL.appendingPathComponent("Package.swift")
-        // Parse simple dependencies from Package.swift if it exists
         guard let content = try? String(contentsOf: packageURL, encoding: .utf8) else { return }
-        // Simple regex parsing for .package entries
-        let pattern = #"\.package\(url:\s*"([^"]+)",\s*from:\s*"([^"]+)"\)"#
+
+        // Robust parsing of Package.swift dependencies block
+        let pattern = #"\.package\(url:\s*"([^"]+)",\s*(from|branch|revision|exact):\s*"([^"]+)"\)"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
         let nsContent = content as NSString
         let matches = regex.matches(in: content, range: NSRange(location: 0, length: nsContent.length))
-        dependencies = matches.map { match in
+
+        var parsedList: [ParsedDependency] = []
+        for match in matches {
             let url = nsContent.substring(with: match.range(at: 1))
-            let version = nsContent.substring(with: match.range(at: 2))
-            let name = URL(string: url)?.deletingPathExtension().lastPathComponent ?? url
-            return PackageDependency(name: name, url: url, version: version, source: .github)
+            let reqTypeRaw = nsContent.substring(with: match.range(at: 2))
+            let val = nsContent.substring(with: match.range(at: 3))
+
+            let reqType = DependencyRequirementType(rawValue: reqTypeRaw) ?? .from
+            parsedList.append(ParsedDependency(url: url, requirementType: reqType, value: val))
         }
+
+        self.dependencies = parsedList
     }
 
     private func saveDependency() {
-        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let url = newURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        let version = newVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+        let urlStr = newURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let valStr = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if let editing = editingDependency, let idx = dependencies.firstIndex(where: { $0.id == editing.id }) {
-            dependencies[idx].name = name
-            dependencies[idx].url = url
-            dependencies[idx].version = version
-            dependencies[idx].source = newSource
+            dependencies[idx].url = urlStr
+            dependencies[idx].requirementType = newRequirementType
+            dependencies[idx].value = valStr
         } else {
-            let dep = PackageDependency(name: name, url: url, version: version, source: newSource)
+            let dep = ParsedDependency(url: urlStr, requirementType: newRequirementType, value: valStr)
             dependencies.append(dep)
         }
 
@@ -304,32 +353,34 @@ struct DependencyManagerView: View {
         editingDependency = nil
     }
 
-    private func removeDependency(_ dep: PackageDependency) {
+    private func removeDependency(_ dep: ParsedDependency) {
         dependencies.removeAll { $0.id == dep.id }
         updatePackageSwift()
     }
 
-    private func beginEdit(_ dep: PackageDependency) {
+    private func beginEdit(_ dep: ParsedDependency) {
         editingDependency = dep
-        newName = dep.name
         newURL = dep.url
-        newVersion = dep.version
-        newSource = dep.source
+        newRequirementType = dep.requirementType
+        newValue = dep.value
         showAddSheet = true
     }
 
     private func resetAddForm() {
         editingDependency = nil
-        newName = ""
         newURL = ""
-        newVersion = "1.0.0"
-        newSource = .github
+        newRequirementType = .from
+        newValue = "1.0.0"
     }
 
     private func updatePackageSwift() {
         guard let project = sessionStore.activeProject else { return }
         let packageURL = project.directoryURL.appendingPathComponent("Package.swift")
-        let depsString = dependencies.map { "        \($0.packageSwiftEntry)" }.joined(separator: ",\n")
+
+        let depsString = dependencies.map { dep in
+            "        .package(url: \"\(dep.url)\", \(dep.requirementType.rawValue): \"\(dep.value)\")"
+        }.joined(separator: ",\n")
+
         let packageContent = """
 // swift-tools-version: 5.9
 import PackageDescription
@@ -348,7 +399,12 @@ let package = Package(
     ]
 )
 """
-        try? packageContent.write(to: packageURL, atomically: true, encoding: .utf8)
-        sessionStore.refreshFileTree(for: project)
+        do {
+            try packageContent.write(to: packageURL, atomically: true, encoding: .utf8)
+            sessionStore.refreshFileTree(for: project)
+        } catch {
+            errorMessage = "Failed to write Package.swift: \(error.localizedDescription)"
+            showError = true
+        }
     }
 }

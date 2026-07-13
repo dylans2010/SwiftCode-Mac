@@ -962,6 +962,9 @@ struct GitHubRepoDetail: Decodable, Identifiable {
     let size: Int?
     let createdAt: Date?
     let updatedAt: Date?
+    let topics: [String]?
+    let subscribersCount: Int?
+    let networkCount: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, language, size
@@ -976,6 +979,9 @@ struct GitHubRepoDetail: Decodable, Identifiable {
         case isPrivate = "private"
         case createdAt = "createdAt"
         case updatedAt = "updatedAt"
+        case topics = "topics"
+        case subscribersCount = "subscribersCount"
+        case networkCount = "networkCount"
     }
 }
 

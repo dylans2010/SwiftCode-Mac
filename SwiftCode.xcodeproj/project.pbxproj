@@ -901,7 +901,7 @@
 		F3EDBE8B82434A8EC5F2561E /* ColorGradientGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A221F69DA8500711D893C373 /* ColorGradientGeneratorView.swift */; };
 		F3F96F45CF5F9FC659ECD387 /* SimulatorDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB083E7BD35996CD024AD6A0 /* SimulatorDevice.swift */; };
 		F44967D1EE6640C7B7F1E709 /* GitMerge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5A20F0968594D0FBA005E72 /* GitMerge.swift */; };
-		F4BC87E89582B7A2D165FF34 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02BC29E58C19C690DD971DA0 /* SettingsView.swift */; };
+		F4BC87E89582B7A2D165FF34 /* NewSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02BC29E58C19C690DD971DA0 /* NewSettingsView.swift */; };
 		F5E45E0DFAE7E7651490A95E /* CollaborationChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8DB765C63820090AEFE6935 /* CollaborationChatView.swift */; };
 		F5F8905CBED3AD78C48DB2A8 /* EPL-1.0.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F894822099F37B1CF2FFBE /* EPL-1.0.md */; };
 		F5F890F6C7C8E8E842DF3B01 /* Beerware-License.md in Resources */ = {isa = PBXBuildFile; fileRef = F5F899F2A63F672784ED1E40 /* Beerware-License.md */; };
@@ -993,7 +993,7 @@
 		00DF7CEF6244E6020A7698DC /* JSONToGoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONToGoView.swift; sourceTree = "<group>"; };
 		01CD767380F7E9D1B4C793B8 /* CodexUndoRedoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexUndoRedoView.swift; sourceTree = "<group>"; };
 		01E1DE96116B708ED2628F57 /* BuildPipelineDebuggerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildPipelineDebuggerView.swift; sourceTree = "<group>"; };
-		02BC29E58C19C690DD971DA0 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		02BC29E58C19C690DD971DA0 /* NewSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewSettingsView.swift; sourceTree = "<group>"; };
 		02D0FDCF43197B775CCB4595 /* DebounceTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebounceTool.swift; sourceTree = "<group>"; };
 		02D2E64119CACAB33D540DC8 /* MIT.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = MIT.md; sourceTree = "<group>"; };
 		02E00B0D5F2DB68D7430C276 /* CodeRefactoringView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeRefactoringView.swift; sourceTree = "<group>"; };
@@ -3367,7 +3367,7 @@
 		ACCD78AD790D110C0A76E747 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
-				02BC29E58C19C690DD971DA0 /* SettingsView.swift */,
+				02BC29E58C19C690DD971DA0 /* NewSettingsView.swift */,
 				E5C09D1515DC441A8619FDB6 /* AssistSettingsView.swift */,
 				057EAE735A7C77DB1A01F4B0 /* PluginManagerView.swift */,
 				08968ED253EE45E40E03838E /* Custom Tools */,
@@ -4500,7 +4500,7 @@
 				C8890BE53BC3F23899F764AD /* InstalledOfflineModelsView.swift in Sources */,
 				E76C2824F043C7A2A559F102 /* OfflineModelsView.swift in Sources */,
 				629223FD0F715FE8C49B4A4E /* ModelLinkInstallGuideView.swift in Sources */,
-				F4BC87E89582B7A2D165FF34 /* SettingsView.swift in Sources */,
+				F4BC87E89582B7A2D165FF34 /* NewSettingsView.swift in Sources */,
 				0D89865848623B7552ADD981 /* CreditsView.swift in Sources */,
 				F2E4107B0D3FB3BD4E0B09F6 /* CodeSuggestionsView.swift in Sources */,
 				3688DF7599E770F39B508C0A /* CommandPaletteView.swift in Sources */,

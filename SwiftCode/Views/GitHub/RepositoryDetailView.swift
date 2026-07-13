@@ -19,13 +19,6 @@ struct RepositoryDetailView: View {
         RepositoryContext.shared
     }
 
-    private var ownerAndRepo: (String, String)? {
-        guard let repoStr = context.connectedRepository, !repoStr.isEmpty else { return nil }
-        let parts = repoStr.split(separator: "/")
-        guard parts.count == 2 else { return nil }
-        return (String(parts[0]), String(parts[1]))
-    }
-
     var body: some View {
         @Bindable var contextBindable = context
 
@@ -97,9 +90,9 @@ struct RepositoryDetailView: View {
                 .groupBoxStyle(ModernGroupBoxStyle())
 
                 if let details = context.cachedMetadata {
-                    // Connected Remote Details Card
+                    // Expanded Connected Remote Details Card
                     GroupBox {
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 14) {
                             HStack {
                                 Label("Connected Repository Details", systemImage: "link")
                                     .font(.headline)
@@ -117,38 +110,113 @@ struct RepositoryDetailView: View {
                                 .disabled(isLoading)
                             }
 
-                            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
+                            Divider()
+
+                            // Clone URLs
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Clone URLs")
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(.primary)
+
+                                HStack {
+                                    Text("HTTPS")
+                                        .font(.caption2.bold())
+                                        .frame(width: 50, alignment: .leading)
+                                    Text(details.cloneUrl)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .textSelection(.enabled)
+                                        .padding(6)
+                                        .background(Color.secondary.opacity(0.12))
+                                        .cornerRadius(4)
+                                }
+
+                                if let ssh = details.sshUrl {
+                                    HStack {
+                                        Text("SSH")
+                                            .font(.caption2.bold())
+                                            .frame(width: 50, alignment: .leading)
+                                        Text(ssh)
+                                            .font(.system(.caption, design: .monospaced))
+                                            .textSelection(.enabled)
+                                            .padding(6)
+                                            .background(Color.secondary.opacity(0.12))
+                                            .cornerRadius(4)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 4)
+
+                            Divider()
+
+                            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
                                 GridRow {
-                                    Text("Name:")
+                                    Text("Repository Name:")
                                         .fontWeight(.bold)
                                     Text(details.fullName)
-                                }
-                                GridRow {
-                                    Text("Remote URL:")
+
+                                    Text("Visibility:")
                                         .fontWeight(.bold)
-                                    Text(details.cloneUrl)
-                                        .font(.system(.body, design: .monospaced))
+                                    Text(details.isPrivate ? "Private" : "Public")
+                                        .foregroundColor(details.isPrivate ? .red : .green)
                                 }
+
                                 GridRow {
                                     Text("Default Branch:")
                                         .fontWeight(.bold)
-                                    Text(details.defaultBranch)
-                                }
-                                GridRow {
-                                    Text("Hosting Provider:")
+                                    Text(details.defaultBranch ?? "main")
+
+                                    Text("Primary Language:")
                                         .fontWeight(.bold)
-                                    Text("GitHub")
+                                    Text(details.language ?? "Swift")
                                 }
-                                GridRow {
-                                    Text("Statistics:")
-                                        .fontWeight(.bold)
-                                    Text("\(details.stargazersCount) Stars • \(details.forksCount) Forks • \(details.openIssuesCount) Open Issues")
+
+                                if let size = details.size {
+                                    GridRow {
+                                        Text("Repository Size:")
+                                            .fontWeight(.bold)
+                                        Text(String(format: "%.2f MB", Double(size) / 1024.0))
+
+                                        Text("Open Issues:")
+                                            .fontWeight(.bold)
+                                        Text("\(details.openIssuesCount)")
+                                    }
                                 }
                             }
                             .font(.subheadline)
 
+                            // Topics list
+                            if let topics = details.topics, !topics.isEmpty {
+                                Divider()
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Topics")
+                                        .font(.subheadline.bold())
+                                    HFlowLayout(spacing: 6) {
+                                        ForEach(topics, id: \.self) { topic in
+                                            Text(topic)
+                                                .font(.caption2)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(Color.blue.opacity(0.12))
+                                                .foregroundColor(.blue)
+                                                .cornerRadius(6)
+                                        }
+                                    }
+                                }
+                            }
+
                             Divider()
-                                .padding(.vertical, 8)
+
+                            // Key Statistics
+                            HStack(spacing: 20) {
+                                statIndicator(title: "Stars", value: "\(details.stargazersCount)", icon: "star.fill", color: .yellow)
+                                statIndicator(title: "Forks", value: "\(details.forksCount)", icon: "arrow.branch", color: .orange)
+                                statIndicator(title: "Subscribers", value: "\(details.subscribersCount ?? 0)", icon: "eye.fill", color: .purple)
+                                statIndicator(title: "Network", value: "\(details.networkCount ?? 0)", icon: "network", color: .blue)
+                            }
+                            .padding(.top, 4)
+
+                            Divider()
+                                .padding(.vertical, 4)
 
                             Button("Disconnect Repository") {
                                 context.disconnectRepository()
@@ -262,6 +330,25 @@ struct RepositoryDetailView: View {
         }
     }
 
+    private func statIndicator(title: String, value: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .foregroundColor(color)
+                .font(.subheadline)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.primary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
+    }
+
     // MARK: - Actions Helper
 
     private func connectRepository(_ repoName: String) {
@@ -354,6 +441,30 @@ struct RepositoryDetailView: View {
                 showError = true
             }
             isLoading = false
+        }
+    }
+}
+
+// Simple Helper for Horizontal Flow Layout of Topics
+struct HFlowLayout: View {
+    let spacing: CGFloat
+    let items: [AnyView]
+
+    init<Data: RandomAccessCollection, Content: View>(
+        _ data: Data,
+        spacing: CGFloat = 8,
+        @ViewBuilder content: @escaping (Data.Element) -> Content
+    ) {
+        self.spacing = spacing
+        self.items = data.map { AnyView(content($0)) }
+    }
+
+    var body: some View {
+        // Safe cross-platform fallback for dynamic grid topics display
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 110))], spacing: spacing) {
+            ForEach(0..<items.count, id: \.self) { index in
+                items[index]
+            }
         }
     }
 }
