@@ -182,6 +182,24 @@ public actor GitService {
         return parseDiff(result.stdout)
     }
 
+    public func rollback(to sha: String, repositoryURL: URL) async throws {
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["reset", "--hard", sha],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+    }
+
+    public func forcePush(branch: String, repositoryURL: URL) async throws {
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["push", "origin", branch, "--force"],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+    }
+
     private func parseDiff(_ output: String) -> [GitDiffHunk] {
         var hunks: [GitDiffHunk] = []
         let lines = output.components(separatedBy: .newlines)

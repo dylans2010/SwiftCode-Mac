@@ -60,7 +60,7 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showingSettings) {
             AdaptiveSheet {
-                SettingsView()
+                NewSettingsView()
             }
         }
         .sheet(isPresented: $showCreateFolderSheet) {
@@ -193,24 +193,25 @@ struct HomeView: View {
 
     private var headerView: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(titleForSelection)
-                    .font(.largeTitle)
-                    .bold()
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundStyle(.primary)
                 Text("\(filteredProjects.count) projects")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             Spacer()
 
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 // View Mode Toggle
                 Picker("View", selection: $viewModeRaw) {
                     Image(systemName: "square.grid.2x2").tag("grid")
                     Image(systemName: "list.bullet").tag("list")
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 80)
+                .frame(width: 64)
                 .help("Toggle Grid/List layout")
 
                 // Sort selection
@@ -220,31 +221,37 @@ struct HomeView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .frame(width: 130)
+                .frame(width: 120)
 
                 HStack {
                     Image(systemName: "magnifyingglass")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                     TextField("Search projects...", text: $searchText)
                         .textFieldStyle(.plain)
+                        .font(.caption)
                 }
-                .padding(8)
-                .background(Color.secondary.opacity(0.12))
-                .cornerRadius(8)
-                .frame(width: 200)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                .frame(width: 170)
 
                 Button(action: { showingNewProject = true }) {
                     Label("New Project", systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
 
                 Button(action: { showingSettings = true }) {
                     Image(systemName: "gear")
                 }
                 .buttonStyle(.bordered)
+                .controlSize(.regular)
             }
         }
-        .padding(32)
+        .padding(.horizontal, 24)
+        .padding(.top, 16)
+        .padding(.bottom, 12)
     }
 
     private var titleForSelection: String {

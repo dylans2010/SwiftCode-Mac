@@ -130,142 +130,112 @@ struct DevToolsMainView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-
-                    // Search Bar Dashboard Header
+            VStack(spacing: 0) {
+                // High-density Search Header Panel
+                HStack(spacing: 12) {
                     HStack {
                         Image(systemName: "magnifyingglass")
+                            .font(.caption)
                             .foregroundStyle(.secondary)
-                        TextField("Search developer tools, categories, diagnostics...", text: $searchText)
+                        TextField("Search developer tools, category, description...", text: $searchText)
                             .textFieldStyle(.plain)
+                            .font(.caption)
                     }
-                    .padding(10)
-                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
-                    .padding(.horizontal)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
 
-                    // Favorites Section
-                    if !favorites.isEmpty && searchText.isEmpty {
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 14) {
-                                HStack {
-                                    Label("Favorite Tools", systemImage: "star.fill")
-                                        .font(.headline)
-                                        .foregroundColor(.orange)
-                                    Spacer()
-                                }
-
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 180))], spacing: 12) {
-                                    ForEach(tools.filter { favorites.contains($0.name) }) { tool in
-                                        toolCard(for: tool)
-                                    }
-                                }
-                            }
-                            .padding()
-                        }
-                        .groupBoxStyle(ModernGroupBoxStyle())
-                        .padding(.horizontal)
-                    }
-
-                    // Recents Section
-                    if !recents.isEmpty && searchText.isEmpty {
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 14) {
-                                HStack {
-                                    Label("Recent Tools", systemImage: "clock.fill")
-                                        .font(.headline)
-                                        .foregroundColor(.blue)
-                                    Spacer()
-                                }
-
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 180))], spacing: 12) {
-                                    ForEach(recents.compactMap { name in tools.first(where: { $0.name == name }) }) { tool in
-                                        toolCard(for: tool)
-                                    }
-                                }
-                            }
-                            .padding()
-                        }
-                        .groupBoxStyle(ModernGroupBoxStyle())
-                        .padding(.horizontal)
-                    }
-
-                    // Categories Grid
-                    ForEach(categories, id: \.self) { category in
-                        let catTools = filteredTools.filter { $0.category == category }
-                        if !catTools.isEmpty {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text(category)
-                                    .font(.title3.bold())
-                                    .padding(.horizontal)
-
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 220))], spacing: 16) {
-                                    ForEach(catTools) { tool in
-                                        toolCard(for: tool)
-                                    }
-                                }
-                                .padding(.horizontal)
-                            }
-                        }
-                    }
-                }
-                .padding(.vertical)
-            }
-            .navigationTitle("Developer Tools Hub")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
                     Button("Close") {
                         dismiss()
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial)
+
+                Divider()
+
+                // Desktop compact list layout
+                List {
+                    // Favorites Group
+                    if !favorites.isEmpty && searchText.isEmpty {
+                        Section(header: Text("FAVORITE TOOLS").font(.system(size: 10, weight: .bold)).foregroundStyle(.orange)) {
+                            ForEach(tools.filter { favorites.contains($0.name) }) { tool in
+                                toolRow(for: tool)
+                            }
+                        }
+                    }
+
+                    // Recents Group
+                    if !recents.isEmpty && searchText.isEmpty {
+                        Section(header: Text("RECENTLY USED").font(.system(size: 10, weight: .bold)).foregroundStyle(.blue)) {
+                            ForEach(recents.compactMap { name in tools.first(where: { $0.name == name }) }) { tool in
+                                toolRow(for: tool)
+                            }
+                        }
+                    }
+
+                    // Collapsible Category Sections with Compact Rows
+                    ForEach(categories, id: \.self) { category in
+                        let catTools = filteredTools.filter { $0.category == category }
+                        if !catTools.isEmpty {
+                            Section(header: Text(category.uppercased()).font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)) {
+                                ForEach(catTools) { tool in
+                                    toolRow(for: tool)
+                                }
+                            }
+                        }
+                    }
+                }
+                .listStyle(.sidebar)
             }
+            .background(Color(NSColor.windowBackgroundColor))
+            .navigationTitle("Developer Tools Hub")
         }
+        .frame(minWidth: 450, idealWidth: 550, minHeight: 480, idealHeight: 650)
     }
 
     @ViewBuilder
-    private func toolCard(for tool: DevTool) -> some View {
+    private func toolRow(for tool: DevTool) -> some View {
         NavigationLink(destination: tool.destination.onAppear { recordRecent(tool.name) }) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
+            HStack(spacing: 12) {
+                // Colored SF Icon Background
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.orange.opacity(0.12))
+                        .frame(width: 24, height: 24)
                     Image(systemName: tool.icon)
-                        .font(.title2)
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.orange)
-                        .frame(width: 32, height: 32)
-                        .background(Color.orange.opacity(0.12))
-                        .cornerRadius(6)
-
-                    Spacer()
-
-                    Button {
-                        toggleFavorite(tool.name)
-                    } label: {
-                        Image(systemName: favorites.contains(tool.name) ? "star.fill" : "star")
-                            .foregroundColor(favorites.contains(tool.name) ? .orange : .secondary)
-                    }
-                    .buttonStyle(.plain)
                 }
 
-                Text(tool.name)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .foregroundColor(.primary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(tool.name)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.primary)
 
-                Text(tool.description)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                    .frame(height: 32, alignment: .top)
+                    Text(tool.description)
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                // Hover Favorite Button
+                Button {
+                    toggleFavorite(tool.name)
+                } label: {
+                    Image(systemName: favorites.contains(tool.name) ? "star.fill" : "star")
+                        .font(.system(size: 11))
+                        .foregroundColor(favorites.contains(tool.name) ? .orange : .secondary.opacity(0.5))
+                }
+                .buttonStyle(.plain)
             }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(10)
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
-            )
+            .padding(.vertical, 2)
         }
-        .buttonStyle(.plain)
     }
 
     private func toggleFavorite(_ name: String) {
@@ -281,7 +251,6 @@ struct DevToolsMainView: View {
     private func recordRecent(_ name: String) {
         var list = recents.filter { $0 != name }
         list.insert(name, at: 0)
-        // Keep up to 6 recents
         let trimmed = Array(list.prefix(6))
         recentToolNames = trimmed.joined(separator: ",")
     }

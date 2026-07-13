@@ -109,80 +109,79 @@ struct XcodeBuildLogView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Sticky Header / Toolbar Panel
+                // Compact Sticky Header / Toolbar Panel
                 stickyToolbarView
 
                 Divider()
 
                 ScrollView {
-                    VStack(spacing: 24) {
+                    VStack(spacing: 14) {
                         // Card 1: Build Status Metrics
                         GroupBox {
-                            VStack(alignment: .leading, spacing: 14) {
-                                HStack {
-                                    Label("Xcode Build Summary", systemImage: "hammer.fill")
-                                        .font(.headline)
-                                        .foregroundColor(.orange)
-                                    Spacer()
-                                }
-
+                            VStack(alignment: .leading, spacing: 8) {
                                 buildStatusHeader
                             }
-                            .padding()
+                            .padding(10)
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
 
                         // Card 2: Build Configurations (Adaptive Desktop Layout)
                         GroupBox {
-                            VStack(alignment: .leading, spacing: 14) {
+                            VStack(alignment: .leading, spacing: 8) {
                                 HStack {
                                     Label("Target Specifications", systemImage: "gearshape.fill")
-                                        .font(.headline)
+                                        .font(.subheadline.bold())
                                         .foregroundColor(.purple)
                                     Spacer()
                                 }
 
-                                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 10) {
+                                Divider()
+
+                                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
                                     GridRow {
                                         Text("Active Build Scheme")
+                                            .font(.caption)
                                             .foregroundColor(.secondary)
                                         Text("Primary Target Scheme")
-                                            .fontWeight(.semibold)
+                                            .font(.caption.bold())
 
                                         Text("Build SDK")
+                                            .font(.caption)
                                             .foregroundColor(.secondary)
                                         Text("macOS / iOS (Simulator)")
-                                            .fontWeight(.semibold)
+                                            .font(.caption.bold())
                                     }
 
                                     GridRow {
                                         Text("Optimization Level")
+                                            .font(.caption)
                                             .foregroundColor(.secondary)
                                         Text("-Onone (Debug)")
-                                            .fontWeight(.semibold)
+                                            .font(.caption.bold())
 
                                         Text("Toolchain Location")
+                                            .font(.caption)
                                             .foregroundColor(.secondary)
                                         Text(buildManager.getXcodeBuildPath())
-                                            .font(.system(.body, design: .monospaced))
+                                            .font(.system(.caption, design: .monospaced))
                                             .lineLimit(1)
                                     }
                                 }
                             }
-                            .padding()
+                            .padding(10)
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
 
                         // Card 3: Collapsible Errors Group
                         if !errorLogs.isEmpty {
                             GroupBox {
-                                VStack(alignment: .leading, spacing: 12) {
+                                VStack(alignment: .leading, spacing: 8) {
                                     Button {
                                         withAnimation { showErrorsGroup.toggle() }
                                     } label: {
                                         HStack {
                                             Label("Errors Detected (\(errorLogs.count))", systemImage: "exclamationmark.octagon.fill")
-                                                .font(.headline)
+                                                .font(.subheadline.bold())
                                                 .foregroundColor(.red)
                                             Spacer()
                                             Image(systemName: showErrorsGroup ? "chevron.up" : "chevron.down")
@@ -193,25 +192,25 @@ struct XcodeBuildLogView: View {
 
                                     if showErrorsGroup {
                                         Divider()
-                                        VStack(alignment: .leading, spacing: 8) {
+                                        VStack(alignment: .leading, spacing: 6) {
                                             ForEach(errorLogs) { log in
-                                                HStack(alignment: .top, spacing: 10) {
+                                                HStack(alignment: .top, spacing: 8) {
                                                     Text(log.timestamp.formatted(date: .omitted, time: .standard))
-                                                        .font(.system(.caption, design: .monospaced))
+                                                        .font(.system(.caption2, design: .monospaced))
                                                         .foregroundColor(.secondary)
 
                                                     Text(log.message)
-                                                        .font(.system(.body, design: .monospaced))
+                                                        .font(.system(.caption, design: .monospaced))
                                                         .foregroundColor(.red)
                                                         .textSelection(.enabled)
                                                 }
-                                                .padding(6)
-                                                .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                                                .padding(4)
+                                                .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
                                             }
                                         }
                                     }
                                 }
-                                .padding()
+                                .padding(10)
                             }
                             .groupBoxStyle(ModernGroupBoxStyle())
                         }
@@ -219,13 +218,13 @@ struct XcodeBuildLogView: View {
                         // Card 4: Collapsible Warnings Group
                         if !warningLogs.isEmpty {
                             GroupBox {
-                                VStack(alignment: .leading, spacing: 12) {
+                                VStack(alignment: .leading, spacing: 8) {
                                     Button {
                                         withAnimation { showWarningsGroup.toggle() }
                                     } label: {
                                         HStack {
                                             Label("Warnings Detected (\(warningLogs.count))", systemImage: "exclamationmark.triangle.fill")
-                                                .font(.headline)
+                                                .font(.subheadline.bold())
                                                 .foregroundColor(.yellow)
                                             Spacer()
                                             Image(systemName: showWarningsGroup ? "chevron.up" : "chevron.down")
@@ -236,38 +235,38 @@ struct XcodeBuildLogView: View {
 
                                     if showWarningsGroup {
                                         Divider()
-                                        VStack(alignment: .leading, spacing: 8) {
+                                        VStack(alignment: .leading, spacing: 6) {
                                             ForEach(warningLogs) { log in
-                                                HStack(alignment: .top, spacing: 10) {
+                                                HStack(alignment: .top, spacing: 8) {
                                                     Text(log.timestamp.formatted(date: .omitted, time: .standard))
-                                                        .font(.system(.caption, design: .monospaced))
+                                                        .font(.system(.caption2, design: .monospaced))
                                                         .foregroundColor(.secondary)
 
                                                     Text(log.message)
-                                                        .font(.system(.body, design: .monospaced))
+                                                        .font(.system(.caption, design: .monospaced))
                                                         .foregroundColor(.yellow)
                                                         .textSelection(.enabled)
                                                 }
-                                                .padding(6)
-                                                .background(Color.yellow.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                                                .padding(4)
+                                                .background(Color.yellow.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
                                             }
                                         }
                                     }
                                 }
-                                .padding()
+                                .padding(10)
                             }
                             .groupBoxStyle(ModernGroupBoxStyle())
                         }
 
                         // Card 5: Full Console Outputs Group
                         GroupBox {
-                            VStack(alignment: .leading, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 8) {
                                 Button {
                                     withAnimation { showFullConsole.toggle() }
                                 } label: {
                                     HStack {
                                         Label("Console Outputs Log Trace", systemImage: "terminal.fill")
-                                            .font(.headline)
+                                            .font(.subheadline.bold())
                                             .foregroundColor(.blue)
                                         Spacer()
                                         Image(systemName: showFullConsole ? "chevron.up" : "chevron.down")
@@ -281,28 +280,34 @@ struct XcodeBuildLogView: View {
 
                                     ScrollViewReader { proxy in
                                         ScrollView {
-                                            LazyVStack(alignment: .leading, spacing: 4) {
+                                            LazyVStack(alignment: .leading, spacing: 3) {
                                                 if filteredStructuredLogs.isEmpty {
-                                                    VStack(spacing: 12) {
+                                                    VStack(spacing: 10) {
                                                         Spacer()
                                                         Image(systemName: "doc.text.magnifyingglass")
-                                                            .font(.system(size: 32))
+                                                            .font(.system(size: 24))
                                                             .foregroundStyle(.secondary)
                                                         Text("No matching build logs")
-                                                            .font(.headline)
+                                                            .font(.subheadline.bold())
                                                             .foregroundStyle(.secondary)
                                                         Spacer()
                                                     }
-                                                    .frame(maxWidth: .infinity, minHeight: 200)
+                                                    .frame(maxWidth: .infinity, minHeight: 180)
                                                 } else {
                                                     ForEach(Array(filteredStructuredLogs.enumerated()), id: \.offset) { index, log in
-                                                        HStack(alignment: .top, spacing: 8) {
+                                                        HStack(alignment: .top, spacing: 6) {
                                                             Text(log.timestamp.formatted(date: .omitted, time: .standard))
-                                                                .font(.system(.caption2, design: .monospaced))
-                                                                .foregroundColor(.secondary.opacity(0.7))
+                                                                .font(.system(.size(9), design: .monospaced))
+                                                                .foregroundColor(.secondary.opacity(0.6))
+
+                                                            // Severity indicator dot
+                                                            Circle()
+                                                                .fill(log.severity.color)
+                                                                .frame(width: 5, height: 5)
+                                                                .padding(.top, 5)
 
                                                             Text(log.message)
-                                                                .font(.system(.caption, design: .monospaced))
+                                                                .font(.system(.size(10), design: .monospaced))
                                                                 .foregroundStyle(log.severity.color)
                                                                 .textSelection(.enabled)
                                                         }
@@ -310,11 +315,11 @@ struct XcodeBuildLogView: View {
                                                     }
                                                 }
                                             }
-                                            .padding()
+                                            .padding(8)
                                         }
-                                        .frame(height: 380)
+                                        .frame(height: 320)
                                         .background(Color.black.opacity(0.85))
-                                        .cornerRadius(8)
+                                        .cornerRadius(6)
                                         .onChange(of: filteredStructuredLogs.count) { _, newCount in
                                             if autoScrollToBottom && newCount > 0 {
                                                 withAnimation {
@@ -325,136 +330,151 @@ struct XcodeBuildLogView: View {
                                     }
                                 }
                             }
-                            .padding()
+                            .padding(10)
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
-                    .padding(24)
+                    .padding(16)
                 }
             }
             .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Xcode Build Center")
         }
-        .frame(minWidth: 800, idealWidth: 950, maxWidth: .infinity, minHeight: 600, idealHeight: 750, maxHeight: .infinity)
+        .frame(minWidth: 780, idealWidth: 880, maxWidth: .infinity, minHeight: 520, idealHeight: 650, maxHeight: .infinity)
     }
 
     private var stickyToolbarView: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
+            // Search field (compact)
             HStack {
                 Image(systemName: "magnifyingglass")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                TextField("Search build logs...", text: $searchLogQuery)
+                TextField("Search logs...", text: $searchLogQuery)
                     .textFieldStyle(.plain)
+                    .font(.caption)
             }
-            .padding(8)
-            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-            .frame(width: 250)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+            .frame(width: 180)
 
-            Picker("Filter Logs", selection: $filterMode) {
+            // Segmented filter (compact)
+            Picker("", selection: $filterMode) {
                 ForEach(LogFilterMode.allCases) { mode in
                     Text(mode.rawValue).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
-            .frame(width: 320)
+            .controlSize(.small)
+            .frame(width: 260)
 
             Toggle("Auto-scroll", isOn: $autoScrollToBottom)
+                .font(.caption)
                 .toggleStyle(.checkbox)
+                .controlSize(.small)
 
             Spacer()
 
-            Button(action: {
-                let text = buildManager.buildLogs.joined(separator: "\n")
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(text, forType: .string)
-            }) {
-                Label("Copy Raw Logs", systemImage: "doc.on.doc")
-            }
-            .buttonStyle(.bordered)
-
-            if buildManager.isBuilding {
-                Button("Cancel Build") {
-                    buildManager.cancelBuild()
+            // Action Buttons
+            HStack(spacing: 8) {
+                Button(action: {
+                    let text = buildManager.buildLogs.joined(separator: "\n")
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(text, forType: .string)
+                }) {
+                    Label("Copy Logs", systemImage: "doc.on.doc")
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.red)
-            }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
 
-            Button("Close") {
-                dismiss()
+                if buildManager.isBuilding {
+                    Button("Cancel Build") {
+                        buildManager.cancelBuild()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                    .controlSize(.small)
+                }
+
+                Button("Close") {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
-            .buttonStyle(.bordered)
         }
-        .padding()
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
         .background(.ultraThinMaterial)
     }
 
     private var buildStatusHeader: some View {
-        HStack(spacing: 24) {
-            // Visual Status Badge
-            HStack(spacing: 12) {
+        HStack(spacing: 16) {
+            // Status Badge (compact)
+            HStack(spacing: 8) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(statusColor(buildManager.currentStatus).opacity(0.15))
-                        .frame(width: 52, height: 52)
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(statusColor(buildManager.currentStatus).opacity(0.12))
+                        .frame(width: 32, height: 32)
 
                     if buildManager.isBuilding {
                         ProgressView().controlSize(.small)
                     } else {
                         Image(systemName: statusIcon(buildManager.currentStatus))
-                            .font(.title2)
+                            .font(.headline)
                             .foregroundStyle(statusColor(buildManager.currentStatus))
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("BUILD STATUS")
-                        .font(.system(size: 9, weight: .bold))
+                        .font(.system(size: 8, weight: .bold))
                         .foregroundStyle(.secondary)
                     Text(buildManager.currentStatus.rawValue)
-                        .font(.title3.bold())
+                        .font(.subheadline.bold())
                         .foregroundStyle(statusColor(buildManager.currentStatus))
                 }
             }
-            .frame(width: 220, alignment: .leading)
+            .frame(width: 160, alignment: .leading)
 
-            Divider().frame(height: 40)
+            Divider().frame(height: 24)
 
             // Duration Metric
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text("DURATION")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 8, weight: .bold))
                     .foregroundStyle(.secondary)
                 Text(String(format: "%.1f s", buildManager.buildDuration))
-                    .font(.title3.bold())
+                    .font(.subheadline.bold())
             }
-            .frame(width: 100, alignment: .leading)
+            .frame(width: 80, alignment: .leading)
 
-            Divider().frame(height: 40)
+            Divider().frame(height: 24)
 
             // Error Metric
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text("ERRORS")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 8, weight: .bold))
                     .foregroundStyle(.secondary)
                 Text("\(buildManager.errorsCount)")
-                    .font(.title3.bold())
+                    .font(.subheadline.bold())
                     .foregroundStyle(buildManager.errorsCount > 0 ? .red : .primary)
             }
-            .frame(width: 80, alignment: .leading)
+            .frame(width: 60, alignment: .leading)
 
-            Divider().frame(height: 40)
+            Divider().frame(height: 24)
 
             // Warning Metric
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text("WARNINGS")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 8, weight: .bold))
                     .foregroundStyle(.secondary)
                 Text("\(buildManager.warningsCount)")
-                    .font(.title3.bold())
+                    .font(.subheadline.bold())
                     .foregroundStyle(buildManager.warningsCount > 0 ? .yellow : .primary)
             }
-            .frame(width: 80, alignment: .leading)
+            .frame(width: 60, alignment: .leading)
         }
     }
 
