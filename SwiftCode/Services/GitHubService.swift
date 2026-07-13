@@ -951,6 +951,7 @@ struct GitHubRepoDetail: Decodable, Identifiable {
     let fullName: String
     let htmlUrl: String
     let cloneUrl: String
+    let sshUrl: String?
     let description: String?
     let language: String?
     let stargazersCount: Int
@@ -967,6 +968,7 @@ struct GitHubRepoDetail: Decodable, Identifiable {
         case fullName = "fullName"
         case htmlUrl = "htmlUrl"
         case cloneUrl = "cloneUrl"
+        case sshUrl = "sshUrl"
         case stargazersCount = "stargazersCount"
         case forksCount = "forksCount"
         case openIssuesCount = "openIssuesCount"
