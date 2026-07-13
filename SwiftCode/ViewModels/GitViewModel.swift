@@ -95,4 +95,9 @@ public class GitViewModel {
             }
         }
     }
+
+    public func getDiff() async -> [GitDiffHunk] {
+        guard let url = repositoryURL else { return [] }
+        return (try? await GitService.shared.getDiff(repositoryURL: url)) ?? []
+    }
 }

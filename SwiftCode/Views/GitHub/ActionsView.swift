@@ -12,14 +12,42 @@ struct ActionsView: View {
     @State private var isFetching = false
     @State private var selectedRun: WorkflowRunSummary?
 
+    private var context: RepositoryContext {
+        RepositoryContext.shared
+    }
+
     private var ownerAndRepo: (String, String)? {
-        guard let repoStr = project?.githubRepo, !repoStr.isEmpty else { return nil }
+        guard let repoStr = context.connectedRepository, !repoStr.isEmpty else { return nil }
         let parts = repoStr.split(separator: "/")
         guard parts.count == 2 else { return nil }
         return (String(parts[0]), String(parts[1]))
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            if context.displayMode == .connectedRepository && context.connectedRepository == nil {
+                disconnectedPlaceholder
+            } else {
+                mainContent
+            }
+        }
+        .onAppear {
+            fetchRuns()
+        }
+        .onChange(of: context.displayMode) {
+            fetchRuns()
+        }
+        .onChange(of: context.syncEventsCount) {
+            fetchRuns()
+        }
+        .sheet(isPresented: .init(get: { selectedRun != nil }, set: { if !$0 { selectedRun = nil } })) {
+            if let run = selectedRun {
+                WorkflowRunsView(run: run, project: project)
+            }
+        }
+    }
+
+    private var mainContent: some View {
         VStack(spacing: 0) {
             // Header actions row
             HStack(spacing: 12) {
@@ -46,7 +74,7 @@ struct ActionsView: View {
             } else if runs.isEmpty {
                 GitHubEmptyStateView(
                     title: "No Workflow Runs",
-                    description: "No GitHub Actions workflows have been executed yet in this repository. Setup a .github/workflows YAML config.",
+                    description: "No GitHub Actions workflows have been executed yet.",
                     systemImage: "play.circle",
                     accentColor: .cyan
                 )
@@ -85,22 +113,70 @@ struct ActionsView: View {
                 }
             }
         }
-        .onAppear {
-            fetchRuns()
-        }
-        .sheet(item: $selectedRun) { run in
-            WorkflowRunsView(run: run, project: project)
-        }
+    }
+
+    private var disconnectedPlaceholder: some View {
+        GitHubEmptyStateView(
+            title: "No Repository Connected",
+            description: "Connect a remote GitHub repository to this project to view and manage Actions.",
+            systemImage: "play.circle",
+            accentColor: .orange
+        )
     }
 
     private func fetchRuns() {
-        guard let (owner, repo) = ownerAndRepo else { return }
+        guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else { return }
+
+        let urlStr: String
+        if context.displayMode == .entireAccount {
+            // Note: Since there is no simple global workflow runs API, we list user repositories and get workflow runs for the connected repo if any, or default to general.
+            // Let's query notifications or repository workflow list, or if not possible, use the connected repo runs.
+            if let (owner, repo) = ownerAndRepo {
+                urlStr = "https://api.github.com/repos/\(owner)/\(repo)/actions/runs"
+            } else {
+                runs = []
+                return
+            }
+        } else if let (owner, repo) = ownerAndRepo {
+            urlStr = "https://api.github.com/repos/\(owner)/\(repo)/actions/runs"
+        } else {
+            runs = []
+            return
+        }
 
         isFetching = true
         Task {
             do {
-                let fetched = try await GitHubService.shared.listWorkflowRuns(owner: owner, repo: repo)
-                self.runs = fetched.map { r in
+                guard let url = URL(string: urlStr) else { return }
+                var request = URLRequest(url: url)
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+
+                let (data, _) = try await URLSession.shared.data(for: request)
+
+                struct RunsResponse: Decodable {
+                    let workflowRuns: [WorkflowRunDetail]
+                }
+
+                struct WorkflowRunDetail: Decodable {
+                    let id: Int
+                    let name: String?
+                    let runNumber: Int
+                    let status: String
+                    let conclusion: String?
+                    let actor: ActorDetail?
+                    let createdAt: String
+                }
+
+                struct ActorDetail: Decodable {
+                    let login: String
+                }
+
+                let decoder = JSONDecoder()
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+                let response = try decoder.decode(RunsResponse.self, from: data)
+
+                self.runs = response.workflowRuns.map { r in
                     WorkflowRunSummary(
                         id: r.id,
                         name: r.name ?? "Workflow",
@@ -108,7 +184,7 @@ struct ActionsView: View {
                         status: r.status,
                         conclusion: r.conclusion,
                         actorLogin: r.actor?.login ?? "actor",
-                        createdAt: r.createdAt.formatted(date: .abbreviated, time: .shortened)
+                        createdAt: r.createdAt
                     )
                 }
             } catch {
@@ -118,14 +194,4 @@ struct ActionsView: View {
             isFetching = false
         }
     }
-}
-
-struct WorkflowRunSummary: Identifiable {
-    let id: Int
-    let name: String
-    let runNumber: Int
-    let status: String
-    let conclusion: String?
-    let actorLogin: String
-    let createdAt: String
 }

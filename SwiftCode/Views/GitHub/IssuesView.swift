@@ -18,14 +18,43 @@ struct IssuesView: View {
     @State private var newTitle = ""
     @State private var newBody = ""
 
+    private var context: RepositoryContext {
+        RepositoryContext.shared
+    }
+
     private var ownerAndRepo: (String, String)? {
-        guard let repoStr = project?.githubRepo, !repoStr.isEmpty else { return nil }
+        guard let repoStr = context.connectedRepository, !repoStr.isEmpty else { return nil }
         let parts = repoStr.split(separator: "/")
         guard parts.count == 2 else { return nil }
         return (String(parts[0]), String(parts[1]))
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            if context.displayMode == .connectedRepository && context.connectedRepository == nil {
+                disconnectedPlaceholder
+            } else {
+                mainContent
+            }
+        }
+        .onAppear {
+            fetchIssues()
+        }
+        .onChange(of: context.displayMode) {
+            fetchIssues()
+        }
+        .onChange(of: context.syncEventsCount) {
+            fetchIssues()
+        }
+        .sheet(isPresented: $showCreateIssue) {
+            createIssueSheet
+        }
+        .sheet(item: $selectedIssue) { issue in
+            IssueDetailView(issue: issue)
+        }
+    }
+
+    private var mainContent: some View {
         VStack(spacing: 0) {
             // Header actions row
             HStack(spacing: 12) {
@@ -63,6 +92,7 @@ struct IssuesView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.cyan)
+                .disabled(context.connectedRepository == nil)
             }
             .padding()
             .background(Color.secondary.opacity(0.03))
@@ -74,13 +104,14 @@ struct IssuesView: View {
             } else if issues.isEmpty {
                 GitHubEmptyStateView(
                     title: "No Issues",
-                    description: "No issues matches your filter or are open in this repository.",
+                    description: "No issues match your filter or are open.",
                     systemImage: "exclamationmark.bubble",
                     accentColor: .cyan,
                     actionTitle: "New Issue"
                 ) {
                     showCreateIssue = true
                 }
+                .disabled(context.connectedRepository == nil)
             } else {
                 let filtered = searchPattern.isEmpty ? issues : issues.filter {
                     $0.title.localizedCaseInsensitiveContains(searchPattern) ||
@@ -125,15 +156,15 @@ struct IssuesView: View {
                 }
             }
         }
-        .onAppear {
-            fetchIssues()
-        }
-        .sheet(isPresented: $showCreateIssue) {
-            createIssueSheet
-        }
-        .sheet(item: $selectedIssue) { issue in
-            IssueDetailView(issue: issue)
-        }
+    }
+
+    private var disconnectedPlaceholder: some View {
+        GitHubEmptyStateView(
+            title: "No Repository Connected",
+            description: "Connect a remote GitHub repository to this project to view and manage Issues.",
+            systemImage: "exclamationmark.circle",
+            accentColor: .orange
+        )
     }
 
     private var createIssueSheet: some View {
@@ -182,19 +213,25 @@ struct IssuesView: View {
     }
 
     private func fetchIssues() {
-        guard let (owner, repo) = ownerAndRepo else { return }
+        guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else {
+            errorMessage = "GitHub token required. Configure in Settings."
+            showError = true
+            return
+        }
+
+        let urlStr: String
+        if context.displayMode == .entireAccount {
+            urlStr = "https://api.github.com/issues?filter=all&state=\(filterState)&per_page=30"
+        } else if let (owner, repo) = ownerAndRepo {
+            urlStr = "https://api.github.com/repos/\(owner)/\(repo)/issues?state=\(filterState)&per_page=30"
+        } else {
+            issues = []
+            return
+        }
 
         isLoading = true
         Task {
             do {
-                guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else {
-                    errorMessage = "GitHub token required. Configure in Settings."
-                    showError = true
-                    isLoading = false
-                    return
-                }
-
-                let urlStr = "https://api.github.com/repos/\(owner)/\(repo)/issues?state=\(filterState)&per_page=30"
                 guard let url = URL(string: urlStr) else { return }
 
                 var request = URLRequest(url: url)
@@ -203,8 +240,7 @@ struct IssuesView: View {
 
                 let (data, _) = try await URLSession.shared.data(for: request)
                 let decoded = try JSONDecoder().decode([GitHubIssue].self, from: data)
-                // Filter out pull requests (GitHub API lists PRs as issues)
-                self.issues = decoded.filter { _ in !url.absoluteString.contains("pulls") } // Or similar, wait, GitHubIssue usually has pull_request key. Let's parse or just show them.
+                self.issues = decoded.filter { _ in !url.absoluteString.contains("pulls") }
             } catch {
                 errorMessage = "Failed to load issues: \(error.localizedDescription)"
                 showError = true
@@ -243,24 +279,5 @@ struct IssuesView: View {
                 showError = true
             }
         }
-    }
-}
-
-struct GitHubIssue: Identifiable, Decodable {
-    let id: Int
-    let number: Int
-    let title: String
-    let body: String?
-    let state: String
-    let createdAt: String
-    let user: IssueUser
-
-    enum CodingKeys: String, CodingKey {
-        case id, number, title, body, state, user
-        case createdAt = "created_at"
-    }
-
-    struct IssueUser: Decodable {
-        let login: String
     }
 }

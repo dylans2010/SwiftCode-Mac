@@ -171,4 +171,37 @@ public actor GitService {
         )
         if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
     }
+
+    public func getDiff(repositoryURL: URL) async throws -> [GitDiffHunk] {
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["diff"],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+        return parseDiff(result.stdout)
+    }
+
+    private func parseDiff(_ output: String) -> [GitDiffHunk] {
+        var hunks: [GitDiffHunk] = []
+        let lines = output.components(separatedBy: .newlines)
+        var currentHeader: String?
+        var currentLines: [String] = []
+
+        for line in lines {
+            if line.hasPrefix("@@ ") {
+                if let header = currentHeader {
+                    hunks.append(GitDiffHunk(header: header, lines: currentLines))
+                }
+                currentHeader = line
+                currentLines = []
+            } else if currentHeader != nil {
+                currentLines.append(line)
+            }
+        }
+        if let header = currentHeader {
+            hunks.append(GitDiffHunk(header: header, lines: currentLines))
+        }
+        return hunks
+    }
 }
