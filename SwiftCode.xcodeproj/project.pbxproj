@@ -7,6 +7,50 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7A810247C000000000000000 /* MarkdownBlockRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000001 /* MarkdownBlockRenderer.swift */; };
+		7A810247C000000000000002 /* MarkdownRenderCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000003 /* MarkdownRenderCache.swift */; };
+		7A810247C000000000000004 /* MarkdownRenderOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000005 /* MarkdownRenderOptions.swift */; };
+		7A810247C000000000000006 /* MarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000007 /* MarkdownRenderer.swift */; };
+		7A810247C000000000000008 /* AIInsight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000009 /* AIInsight.swift */; };
+		7A810247C00000000000000A /* AnalyticsSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000000B /* AnalyticsSnapshot.swift */; };
+		7A810247C00000000000000C /* AttachmentRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000000D /* AttachmentRecord.swift */; };
+		7A810247C00000000000000E /* Document.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000000F /* Document.swift */; };
+		7A810247C000000000000010 /* DocumentVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000011 /* DocumentVersion.swift */; };
+		7A810247C000000000000012 /* ModuleFieldSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000013 /* ModuleFieldSchema.swift */; };
+		7A810247C000000000000014 /* ModuleKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000015 /* ModuleKind.swift */; };
+		7A810247C000000000000016 /* Relationship.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000017 /* Relationship.swift */; };
+		7A810247C000000000000018 /* SmartCollection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000019 /* SmartCollection.swift */; };
+		7A810247C00000000000001A /* Template.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000001B /* Template.swift */; };
+		7A810247C00000000000001C /* WikiPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000001D /* WikiPage.swift */; };
+		7A810247C00000000000001E /* RelationshipManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000001F /* RelationshipManager.swift */; };
+		7A810247C000000000000020 /* IndexingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000021 /* IndexingManager.swift */; };
+		7A810247C000000000000022 /* ExportManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000023 /* ExportManager.swift */; };
+		7A810247C000000000000024 /* ResearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000025 /* ResearchManager.swift */; };
+		7A810247C000000000000026 /* PlanningManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000027 /* PlanningManager.swift */; };
+		7A810247C000000000000028 /* AttachmentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000029 /* AttachmentManager.swift */; };
+		7A810247C00000000000002A /* AnalyticsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000002B /* AnalyticsManager.swift */; };
+		7A810247C00000000000002C /* DashboardManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000002D /* DashboardManager.swift */; };
+		7A810247C00000000000002E /* MetadataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000002F /* MetadataManager.swift */; };
+		7A810247C000000000000030 /* AIContextManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000031 /* AIContextManager.swift */; };
+		7A810247C000000000000032 /* AIAnalysisManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000033 /* AIAnalysisManager.swift */; };
+		7A810247C000000000000034 /* ImportManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000035 /* ImportManager.swift */; };
+		7A810247C000000000000036 /* SearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000037 /* SearchManager.swift */; };
+		7A810247C000000000000038 /* JournalManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000039 /* JournalManager.swift */; };
+		7A810247C00000000000003A /* VersionHistoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000003B /* VersionHistoryManager.swift */; };
+		7A810247C00000000000003C /* WikiManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000003D /* WikiManager.swift */; };
+		7A810247C00000000000003E /* DocumentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000003F /* DocumentManager.swift */; };
+		7A810247C000000000000040 /* StorageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000041 /* StorageManager.swift */; };
+		7A810247C000000000000042 /* TemplateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000043 /* TemplateManager.swift */; };
+		7A810247C000000000000044 /* PersonalDocumentationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000045 /* PersonalDocumentationCoordinator.swift */; };
+		7A810247C000000000000046 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000047 /* DashboardView.swift */; };
+		7A810247C000000000000048 /* GlobalSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000049 /* GlobalSearchView.swift */; };
+		7A810247C00000000000004A /* PersonalDocCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000004B /* PersonalDocCanvasView.swift */; };
+		7A810247C00000000000004C /* PlanningBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000004D /* PlanningBoardView.swift */; };
+		7A810247C00000000000004E /* RecordDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000004F /* RecordDetailView.swift */; };
+		7A810247C000000000000050 /* RecordListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000051 /* RecordListView.swift */; };
+		7A810247C000000000000052 /* WikiPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000053 /* WikiPageView.swift */; };
+		7A810247C000000000000054 /* NSPersonalDocumentationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000055 /* NSPersonalDocumentationView.swift */; };
+
 		90A3B649CCD589077B6696ED /* DesignerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9566538F7BD55C7409795C89 /* DesignerDevToolView.swift */; };
 		4298CA3C089ACDD9752E896A /* AESEncryptionDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59BECEBFFFFD21DB1AEE9891 /* AESEncryptionDevToolView.swift */; };
 		EB97A52C99436E2B5BBF4B3A /* APIResponseViewerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C097EA749425723B6887F835 /* APIResponseViewerDevToolView.swift */; };
@@ -1008,7 +1052,6 @@
 		F994DEDCB651DD99ED0DDB8D /* PasswordStrengthMeterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91A7A6282ED9E69DCBD1DFA4 /* PasswordStrengthMeterView.swift */; };
 		FA16774CE0D848459C8A17FE /* SearchSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12ED13433802457F9338945B /* SearchSidebarView.swift */; };
 		FA237962E5D2FC5025950B46 /* SwiftUIRuntimeLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 369918289793696D3A47B584 /* SwiftUIRuntimeLoader.swift */; };
-		FAAD4BDD073C483EB4F67211 /* MarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE93F6E9F8960DBC11BA8A2 /* MarkdownRenderer.swift */; };
 		FB32DC43E574B0E6196B4562 /* GitHubImportManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88AEE2956F5498AB9BFAD98A /* GitHubImportManager.swift */; };
 		FB4A6B1CB5F845948EB9E951 /* ReadBuildLogs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FFEDA7C82F5408BAAAABFCD /* ReadBuildLogs.swift */; };
 		FB7E26DBCF5817A602A7BB59 /* LLMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0193EDC1925FB3D998793E7 /* LLMService.swift */; };
@@ -1028,6 +1071,50 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		7A810247C000000000000001 /* MarkdownBlockRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../../Shared/Markdown/MarkdownBlockRenderer.swift; sourceTree = "<group>"; };
+		7A810247C000000000000003 /* MarkdownRenderCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../../Shared/Markdown/MarkdownRenderCache.swift; sourceTree = "<group>"; };
+		7A810247C000000000000005 /* MarkdownRenderOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../../Shared/Markdown/MarkdownRenderOptions.swift; sourceTree = "<group>"; };
+		7A810247C000000000000007 /* MarkdownRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../../Shared/Markdown/MarkdownRenderer.swift; sourceTree = "<group>"; };
+		7A810247C000000000000009 /* AIInsight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIInsight.swift; sourceTree = "<group>"; };
+		7A810247C00000000000000B /* AnalyticsSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsSnapshot.swift; sourceTree = "<group>"; };
+		7A810247C00000000000000D /* AttachmentRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentRecord.swift; sourceTree = "<group>"; };
+		7A810247C00000000000000F /* Document.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Document.swift; sourceTree = "<group>"; };
+		7A810247C000000000000011 /* DocumentVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentVersion.swift; sourceTree = "<group>"; };
+		7A810247C000000000000013 /* ModuleFieldSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleFieldSchema.swift; sourceTree = "<group>"; };
+		7A810247C000000000000015 /* ModuleKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleKind.swift; sourceTree = "<group>"; };
+		7A810247C000000000000017 /* Relationship.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Relationship.swift; sourceTree = "<group>"; };
+		7A810247C000000000000019 /* SmartCollection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartCollection.swift; sourceTree = "<group>"; };
+		7A810247C00000000000001B /* Template.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Template.swift; sourceTree = "<group>"; };
+		7A810247C00000000000001D /* WikiPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WikiPage.swift; sourceTree = "<group>"; };
+		7A810247C00000000000001F /* RelationshipManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipManager.swift; sourceTree = "<group>"; };
+		7A810247C000000000000021 /* IndexingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndexingManager.swift; sourceTree = "<group>"; };
+		7A810247C000000000000023 /* ExportManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportManager.swift; sourceTree = "<group>"; };
+		7A810247C000000000000025 /* ResearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResearchManager.swift; sourceTree = "<group>"; };
+		7A810247C000000000000027 /* PlanningManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanningManager.swift; sourceTree = "<group>"; };
+		7A810247C000000000000029 /* AttachmentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentManager.swift; sourceTree = "<group>"; };
+		7A810247C00000000000002B /* AnalyticsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsManager.swift; sourceTree = "<group>"; };
+		7A810247C00000000000002D /* DashboardManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardManager.swift; sourceTree = "<group>"; };
+		7A810247C00000000000002F /* MetadataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataManager.swift; sourceTree = "<group>"; };
+		7A810247C000000000000031 /* AIContextManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIContextManager.swift; sourceTree = "<group>"; };
+		7A810247C000000000000033 /* AIAnalysisManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAnalysisManager.swift; sourceTree = "<group>"; };
+		7A810247C000000000000035 /* ImportManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportManager.swift; sourceTree = "<group>"; };
+		7A810247C000000000000037 /* SearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchManager.swift; sourceTree = "<group>"; };
+		7A810247C000000000000039 /* JournalManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalManager.swift; sourceTree = "<group>"; };
+		7A810247C00000000000003B /* VersionHistoryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionHistoryManager.swift; sourceTree = "<group>"; };
+		7A810247C00000000000003D /* WikiManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WikiManager.swift; sourceTree = "<group>"; };
+		7A810247C00000000000003F /* DocumentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentManager.swift; sourceTree = "<group>"; };
+		7A810247C000000000000041 /* StorageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageManager.swift; sourceTree = "<group>"; };
+		7A810247C000000000000043 /* TemplateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateManager.swift; sourceTree = "<group>"; };
+		7A810247C000000000000045 /* PersonalDocumentationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalDocumentationCoordinator.swift; sourceTree = "<group>"; };
+		7A810247C000000000000047 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		7A810247C000000000000049 /* GlobalSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalSearchView.swift; sourceTree = "<group>"; };
+		7A810247C00000000000004B /* PersonalDocCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalDocCanvasView.swift; sourceTree = "<group>"; };
+		7A810247C00000000000004D /* PlanningBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanningBoardView.swift; sourceTree = "<group>"; };
+		7A810247C00000000000004F /* RecordDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordDetailView.swift; sourceTree = "<group>"; };
+		7A810247C000000000000051 /* RecordListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordListView.swift; sourceTree = "<group>"; };
+		7A810247C000000000000053 /* WikiPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WikiPageView.swift; sourceTree = "<group>"; };
+		7A810247C000000000000055 /* NSPersonalDocumentationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NSPersonalDocumentationView.swift; sourceTree = "<group>"; };
+
 		9566538F7BD55C7409795C89 /* DesignerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignerDevToolView.swift; sourceTree = "<group>"; };
 		59BECEBFFFFD21DB1AEE9891 /* AESEncryptionDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AESEncryptionDevToolView.swift; sourceTree = "<group>"; };
 		C097EA749425723B6887F835 /* APIResponseViewerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIResponseViewerDevToolView.swift; sourceTree = "<group>"; };
@@ -1823,7 +1910,6 @@
 		CEBB182A43396D637CB4B787 /* DependencyHealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyHealthView.swift; sourceTree = "<group>"; };
 		CF2467726ED0D3CC0B1CBC65 /* SimulatorAppsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorAppsView.swift; sourceTree = "<group>"; };
 		CFB2006A296C4563AFC5A29E /* HexDecimalConverterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HexDecimalConverterView.swift; sourceTree = "<group>"; };
-		CFE93F6E9F8960DBC11BA8A2 /* MarkdownRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRenderer.swift; sourceTree = "<group>"; };
 		D08E0CE211D28A208B2F3E0F /* GitHubImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubImport.swift; sourceTree = "<group>"; };
 		D08F6FB2233309318ED1924E /* DeploymentDebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentDebugView.swift; sourceTree = "<group>"; };
 		D14BC0A03960E4A4F9CEBD72 /* SimulatorPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorPreviewView.swift; sourceTree = "<group>"; };
@@ -2062,6 +2148,85 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		7A810247C000000000000056 /* NSPersonalDocumentation */ = {
+			isa = PBXGroup;
+			children = (
+				7A810247C000000000000057 /* Models */,
+				7A810247C000000000000058 /* Managers */,
+				7A810247C000000000000059 /* Coordinators */,
+				7A810247C00000000000005A /* Views */,
+			);
+			path = NSPersonalDocumentation;
+			sourceTree = "<group>";
+		};
+		7A810247C000000000000057 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				7A810247C000000000000009 /* AIInsight.swift */,
+				7A810247C00000000000000B /* AnalyticsSnapshot.swift */,
+				7A810247C00000000000000D /* AttachmentRecord.swift */,
+				7A810247C00000000000000F /* Document.swift */,
+				7A810247C000000000000011 /* DocumentVersion.swift */,
+				7A810247C000000000000013 /* ModuleFieldSchema.swift */,
+				7A810247C000000000000015 /* ModuleKind.swift */,
+				7A810247C000000000000017 /* Relationship.swift */,
+				7A810247C000000000000019 /* SmartCollection.swift */,
+				7A810247C00000000000001B /* Template.swift */,
+				7A810247C00000000000001D /* WikiPage.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		7A810247C000000000000058 /* Managers */ = {
+			isa = PBXGroup;
+			children = (
+				7A810247C00000000000001F /* RelationshipManager.swift */,
+				7A810247C000000000000021 /* IndexingManager.swift */,
+				7A810247C000000000000023 /* ExportManager.swift */,
+				7A810247C000000000000025 /* ResearchManager.swift */,
+				7A810247C000000000000027 /* PlanningManager.swift */,
+				7A810247C000000000000029 /* AttachmentManager.swift */,
+				7A810247C00000000000002B /* AnalyticsManager.swift */,
+				7A810247C00000000000002D /* DashboardManager.swift */,
+				7A810247C00000000000002F /* MetadataManager.swift */,
+				7A810247C000000000000031 /* AIContextManager.swift */,
+				7A810247C000000000000033 /* AIAnalysisManager.swift */,
+				7A810247C000000000000035 /* ImportManager.swift */,
+				7A810247C000000000000037 /* SearchManager.swift */,
+				7A810247C000000000000039 /* JournalManager.swift */,
+				7A810247C00000000000003B /* VersionHistoryManager.swift */,
+				7A810247C00000000000003D /* WikiManager.swift */,
+				7A810247C00000000000003F /* DocumentManager.swift */,
+				7A810247C000000000000041 /* StorageManager.swift */,
+				7A810247C000000000000043 /* TemplateManager.swift */,
+			);
+			path = Managers;
+			sourceTree = "<group>";
+		};
+		7A810247C000000000000059 /* Coordinators */ = {
+			isa = PBXGroup;
+			children = (
+				7A810247C000000000000045 /* PersonalDocumentationCoordinator.swift */,
+			);
+			path = Coordinators;
+			sourceTree = "<group>";
+		};
+		7A810247C00000000000005A /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				7A810247C000000000000047 /* DashboardView.swift */,
+				7A810247C000000000000049 /* GlobalSearchView.swift */,
+				7A810247C00000000000004B /* PersonalDocCanvasView.swift */,
+				7A810247C00000000000004D /* PlanningBoardView.swift */,
+				7A810247C00000000000004F /* RecordDetailView.swift */,
+				7A810247C000000000000051 /* RecordListView.swift */,
+				7A810247C000000000000053 /* WikiPageView.swift */,
+				7A810247C000000000000055 /* NSPersonalDocumentationView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+
 		001BFD647D5F8303B39B8C64 /* Backend */ = {
 			isa = PBXGroup;
 			children = (
@@ -2770,14 +2935,18 @@
 		550406F186F4791910811394 /* Markdown */ = {
 			isa = PBXGroup;
 			children = (
-				CFE93F6E9F8960DBC11BA8A2 /* MarkdownRenderer.swift */,
-			);
+				7A810247C000000000000001 /* MarkdownBlockRenderer.swift */,
+				7A810247C000000000000003 /* MarkdownRenderCache.swift */,
+				7A810247C000000000000005 /* MarkdownRenderOptions.swift */,
+				7A810247C000000000000007 /* MarkdownRenderer.swift */,
+);
 			path = Markdown;
 			sourceTree = "<group>";
 		};
 		576E45E47FC5098A3A96ECB8 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				7A810247C000000000000056 /* NSPersonalDocumentation */,
 				E5E9A1260294B0DD1562EA23 /* FilePreviewView.swift */,
 				ECAAA1260294B0DD15620002 /* SFSymbolPickerView.swift */,
 				8C063A51438D8C575DA58158 /* FileImporterRepresentableView.swift */,
@@ -4319,6 +4488,50 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7A810247C000000000000000 /* MarkdownBlockRenderer.swift in Sources */,
+				7A810247C000000000000002 /* MarkdownRenderCache.swift in Sources */,
+				7A810247C000000000000004 /* MarkdownRenderOptions.swift in Sources */,
+				7A810247C000000000000006 /* MarkdownRenderer.swift in Sources */,
+				7A810247C000000000000008 /* AIInsight.swift in Sources */,
+				7A810247C00000000000000A /* AnalyticsSnapshot.swift in Sources */,
+				7A810247C00000000000000C /* AttachmentRecord.swift in Sources */,
+				7A810247C00000000000000E /* Document.swift in Sources */,
+				7A810247C000000000000010 /* DocumentVersion.swift in Sources */,
+				7A810247C000000000000012 /* ModuleFieldSchema.swift in Sources */,
+				7A810247C000000000000014 /* ModuleKind.swift in Sources */,
+				7A810247C000000000000016 /* Relationship.swift in Sources */,
+				7A810247C000000000000018 /* SmartCollection.swift in Sources */,
+				7A810247C00000000000001A /* Template.swift in Sources */,
+				7A810247C00000000000001C /* WikiPage.swift in Sources */,
+				7A810247C00000000000001E /* RelationshipManager.swift in Sources */,
+				7A810247C000000000000020 /* IndexingManager.swift in Sources */,
+				7A810247C000000000000022 /* ExportManager.swift in Sources */,
+				7A810247C000000000000024 /* ResearchManager.swift in Sources */,
+				7A810247C000000000000026 /* PlanningManager.swift in Sources */,
+				7A810247C000000000000028 /* AttachmentManager.swift in Sources */,
+				7A810247C00000000000002A /* AnalyticsManager.swift in Sources */,
+				7A810247C00000000000002C /* DashboardManager.swift in Sources */,
+				7A810247C00000000000002E /* MetadataManager.swift in Sources */,
+				7A810247C000000000000030 /* AIContextManager.swift in Sources */,
+				7A810247C000000000000032 /* AIAnalysisManager.swift in Sources */,
+				7A810247C000000000000034 /* ImportManager.swift in Sources */,
+				7A810247C000000000000036 /* SearchManager.swift in Sources */,
+				7A810247C000000000000038 /* JournalManager.swift in Sources */,
+				7A810247C00000000000003A /* VersionHistoryManager.swift in Sources */,
+				7A810247C00000000000003C /* WikiManager.swift in Sources */,
+				7A810247C00000000000003E /* DocumentManager.swift in Sources */,
+				7A810247C000000000000040 /* StorageManager.swift in Sources */,
+				7A810247C000000000000042 /* TemplateManager.swift in Sources */,
+				7A810247C000000000000044 /* PersonalDocumentationCoordinator.swift in Sources */,
+				7A810247C000000000000046 /* DashboardView.swift in Sources */,
+				7A810247C000000000000048 /* GlobalSearchView.swift in Sources */,
+				7A810247C00000000000004A /* PersonalDocCanvasView.swift in Sources */,
+				7A810247C00000000000004C /* PlanningBoardView.swift in Sources */,
+				7A810247C00000000000004E /* RecordDetailView.swift in Sources */,
+				7A810247C000000000000050 /* RecordListView.swift in Sources */,
+				7A810247C000000000000052 /* WikiPageView.swift in Sources */,
+				7A810247C000000000000054 /* NSPersonalDocumentationView.swift in Sources */,
+
 				90A3B649CCD589077B6696ED /* DesignerDevToolView.swift in Sources */,
 				4298CA3C089ACDD9752E896A /* AESEncryptionDevToolView.swift in Sources */,
 				EB97A52C99436E2B5BBF4B3A /* APIResponseViewerDevToolView.swift in Sources */,
@@ -4934,7 +5147,6 @@
 				BB54434875A749E5805FF188 /* SyntaxTokenKind.swift in Sources */,
 				56A5B5C5ABDC4839AD670585 /* DiffEngine.swift in Sources */,
 				F6C779721EEC4090A0D7A477 /* MyersDiffAlgorithm.swift in Sources */,
-				FAAD4BDD073C483EB4F67211 /* MarkdownRenderer.swift in Sources */,
 				787B8E3F1A9C4E198E9534B6 /* ProjectTemplateEngine.swift in Sources */,
 				265E9A442B28B39C005F9A10 /* CommandLineToolTemplate.swift in Sources */,
 				265E9A452B28B39C005F9A10 /* DocumentAppTemplate.swift in Sources */,
