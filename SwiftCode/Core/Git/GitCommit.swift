@@ -14,6 +14,12 @@ public struct GitCommit: Identifiable, Sendable, Codable {
         message.components(separatedBy: .newlines).first ?? message
     }
 
+    public var body: String {
+        let lines = message.components(separatedBy: .newlines)
+        guard lines.count > 1 else { return "" }
+        return lines.dropFirst().joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     public var dateString: String {
         let formatter = DateFormatter()
         formatter.dateStyle = .short

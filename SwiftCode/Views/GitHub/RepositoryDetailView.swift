@@ -28,12 +28,12 @@ struct RepositoryDetailView: View {
 
                                 Spacer()
 
-                                Text(details.private ? "PRIVATE" : "PUBLIC")
+                                Text(details.isPrivate ? "PRIVATE" : "PUBLIC")
                                     .font(.caption2.bold())
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
-                                    .background(details.private ? Color.yellow.opacity(0.12) : Color.green.opacity(0.12))
-                                    .foregroundStyle(details.private ? .yellow : .green)
+                                    .background(details.isPrivate ? Color.yellow.opacity(0.12) : Color.green.opacity(0.12))
+                                    .foregroundStyle(details.isPrivate ? .yellow : .green)
                                     .cornerRadius(4)
                             }
 

@@ -129,17 +129,19 @@ public actor GitService {
     public func getBranches(repositoryURL: URL) async throws -> [GitBranch] {
         let result = try await ProcessRunnerTool.shared.run(
             executableURL: await gitURL,
-            arguments: ["branch", "-a", "--format=%(refname:short)|%(HEAD)"],
+            arguments: ["branch", "-a", "--format=%(refname:short)|%(HEAD)|%(upstream:short)"],
             workingDirectory: repositoryURL
         )
         if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
 
         return result.stdout.components(separatedBy: .newlines).compactMap { line in
             let parts = line.components(separatedBy: "|")
-            guard parts.count == 2 else { return nil }
+            guard parts.count == 3 else { return nil }
             let name = parts[0]
             let isCurrent = parts[1] == "*"
-            return GitBranch(name: name, isCurrent: isCurrent, isRemote: name.hasPrefix("origin/"))
+            let tracking = parts[2].trimmingCharacters(in: .whitespacesAndNewlines)
+            let trackingRemote = tracking.isEmpty ? nil : tracking
+            return GitBranch(name: name, isCurrent: isCurrent, isRemote: name.hasPrefix("origin/"), trackingRemote: trackingRemote)
         }
     }
 
