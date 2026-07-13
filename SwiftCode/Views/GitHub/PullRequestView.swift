@@ -1,7 +1,6 @@
 import SwiftUI
 
-// MARK: - Pull Request View
-
+@MainActor
 struct PullRequestView: View {
     let owner: String
     let repo: String
@@ -35,15 +34,27 @@ struct PullRequestView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Label("New Pull Request", systemImage: "arrow.triangle.pull")
+                    .font(.headline)
+                    .foregroundColor(.purple)
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .buttonStyle(.bordered)
+            }
+            .padding(.bottom, 16)
+
+            // Scrollable Content
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: 20) {
                     // Card 1: Branch Target Selection
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
                                 Label("Compare & Pull Branches", systemImage: "arrow.triangle.branch")
-                                    .font(.headline)
+                                    .font(.subheadline.bold())
                                     .foregroundColor(.purple)
                                 Spacer()
                             }
@@ -51,7 +62,7 @@ struct PullRequestView: View {
                             VStack(spacing: 12) {
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("Compare (Source)")
-                                        .font(.caption)
+                                        .font(.caption.bold())
                                         .foregroundStyle(.secondary)
                                     branchPicker(selection: $headBranch)
                                 }
@@ -65,7 +76,7 @@ struct PullRequestView: View {
 
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("Base (Target)")
-                                        .font(.caption)
+                                        .font(.caption.bold())
                                         .foregroundStyle(.secondary)
                                     branchPicker(selection: $baseBranch)
                                 }
@@ -91,7 +102,7 @@ struct PullRequestView: View {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
                                 Label("Pull Request Title", systemImage: "textformat")
-                                    .font(.headline)
+                                    .font(.subheadline.bold())
                                     .foregroundColor(.orange)
                                 Spacer()
                             }
@@ -109,7 +120,7 @@ struct PullRequestView: View {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
                                 Label("Pull Request Description", systemImage: "doc.text")
-                                    .font(.headline)
+                                    .font(.subheadline.bold())
                                     .foregroundColor(.blue)
                                 Spacer()
                             }
@@ -142,7 +153,7 @@ struct PullRequestView: View {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
                                 Label("Optional Configurations", systemImage: "slider.horizontal.3")
-                                    .font(.headline)
+                                    .font(.subheadline.bold())
                                     .foregroundColor(.green)
                                 Spacer()
                             }
@@ -225,34 +236,21 @@ struct PullRequestView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 8)
-            }
-            .navigationTitle("New Pull Request")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-            .overlay(alignment: .bottom) {
-                if let n = notification {
-                    prNotificationBanner(n)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .padding(.bottom, 16)
-                }
-            }
-            .animation(.easeInOut(duration: 0.3), value: notification != nil)
-            .sheet(isPresented: $showSuccessSheet) {
-                successSheet
             }
         }
+        .sourceControlEmbedded()
         .task { await loadBranches() }
-        .onAppear {
-            if let draftPayload {
-                title = draftPayload.title
-                bodyText = draftPayload.description
+        .sheet(isPresented: $showSuccessSheet) {
+            successSheet
+        }
+        .overlay(alignment: .bottom) {
+            if let n = notification {
+                prNotificationBanner(n)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.bottom, 16)
             }
         }
+        .animation(.easeInOut(duration: 0.3), value: notification != nil)
     }
 
     private func branchPicker(selection: Binding<String>) -> some View {
@@ -303,46 +301,34 @@ struct PullRequestView: View {
     // MARK: - Success Sheet
 
     private var successSheet: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 64))
-                        .foregroundStyle(.green)
+        VStack(spacing: 24) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(.green)
 
-                    Text("Pull Request Created!")
-                        .font(.title2.bold())
+            Text("Pull Request Created!")
+                .font(.title2.bold())
 
-                    if let urlStr = createdPRURL, let url = URL(string: urlStr) {
-                        Link(destination: url) {
-                            Label("View On GitHub", systemImage: "safari")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(Color.orange, in: RoundedRectangle(cornerRadius: 12))
-                                .foregroundStyle(.white)
-                        }
-                        .padding(.horizontal, 32)
-                    }
-
-                    Button("Done") {
-                        showSuccessSheet = false
-                        dismiss()
-                    }
-                    .buttonStyle(.bordered)
+            if let urlStr = createdPRURL, let url = URL(string: urlStr) {
+                Link(destination: url) {
+                    Label("View On GitHub", systemImage: "safari")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.orange, in: RoundedRectangle(cornerRadius: 12))
+                        .foregroundStyle(.white)
                 }
-                .padding(24)
+                .padding(.horizontal, 32)
             }
-            .background(Color(NSColor.windowBackgroundColor))
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        showSuccessSheet = false
-                        dismiss()
-                    }
-                }
+
+            Button("Done") {
+                showSuccessSheet = false
+                dismiss()
             }
+            .buttonStyle(.bordered)
         }
+        .padding(24)
+        .frame(width: 400)
     }
 
     // MARK: - PR Notification Banner
@@ -396,7 +382,7 @@ struct PullRequestView: View {
                 ?? fetched.first(where: { $0.name != currentBranch })?.name
                 ?? currentBranch
         } catch {
-            // Silently fall back to empty list; user can still type branch names
+            // Fallback
         }
     }
 
@@ -443,8 +429,6 @@ struct PullRequestView: View {
         }
     }
 }
-
-// MARK: - Supporting Types
 
 private struct PRNotification: Equatable {
     let message: String

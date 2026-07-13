@@ -1,11 +1,12 @@
 import SwiftUI
 
+@MainActor
 struct PreviewCanvasView: View {
     @State private var manager = PreviewManager.shared
     @State private var rotateValue = 0.0
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             PreviewConfigurationView()
 
             if manager.availablePreviews.isEmpty {
@@ -34,7 +35,6 @@ struct PreviewCanvasView: View {
                                 isDarkMode: manager.configuration.isDarkMode,
                                 scale: manager.scale
                             ) {
-                                // Dynamic rendering simulation layer showing active preview
                                 VStack(spacing: 20) {
                                     HStack {
                                         Image(systemName: "sparkles")
@@ -82,5 +82,6 @@ struct PreviewCanvasView: View {
                 .groupBoxStyle(ModernGroupBoxStyle())
             }
         }
+        .simulatorWorkspaceEmbedded()
     }
 }

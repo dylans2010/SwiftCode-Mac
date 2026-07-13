@@ -1,7 +1,6 @@
 import SwiftUI
 
-// MARK: - Branch Management View
-
+@MainActor
 struct BranchManagementView: View {
     let owner: String
     let repo: String
@@ -21,37 +20,69 @@ struct BranchManagementView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Label("Branch Directory", systemImage: "arrow.triangle.branch")
+                    .font(.headline)
+                    .foregroundStyle(.orange)
+
+                Spacer()
+
+                HStack(spacing: 12) {
+                    Button {
+                        Task { await loadBranches() }
+                    } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(isLoading)
+
+                    Button {
+                        baseBranch = currentBranch
+                        newBranchName = ""
+                        showCreateSheet = true
+                    } label: {
+                        Label("New Branch", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                }
+            }
+            .padding(.bottom, 16)
+
+            // Scrollable Content
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 20) {
                     if isLoading && branches.isEmpty {
-                        VStack(spacing: 12) {
-                            ProgressView()
-                                .controlSize(.large)
-                            Text("Loading branches...")
-                                .foregroundStyle(.secondary)
+                        GroupBox {
+                            VStack(spacing: 12) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Loading branches...")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 120)
+                            .padding()
                         }
-                        .frame(maxWidth: .infinity, minHeight: 200)
-                    } else if branches.isEmpty, let error = errorMessage {
+                        .groupBoxStyle(ModernGroupBoxStyle())
+                    } else if let error = errorMessage, branches.isEmpty {
                         emptyErrorView(error)
                     } else {
                         // Card 1: Active Branch Info
                         GroupBox {
-                            VStack(alignment: .leading, spacing: 14) {
+                            VStack(alignment: .leading, spacing: 10) {
                                 HStack {
-                                    Label("Active Branch Status", systemImage: "arrow.triangle.branch")
-                                        .font(.headline)
-                                        .foregroundColor(.orange)
+                                    Label("Active Branch Status", systemImage: "checkmark.circle.fill")
+                                        .font(.subheadline.bold())
+                                        .foregroundColor(.green)
                                     Spacer()
                                     Text(currentBranch)
-                                        .font(.caption.bold())
+                                        .font(.system(.body, design: .monospaced).bold())
                                         .foregroundStyle(.green)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 3)
-                                        .background(Color.green.opacity(0.15), in: Capsule())
                                 }
-
-                                Text("All local changes are committed relative to the active branch. Ensure you are on the correct branch before making edits or push operations.")
+                                Text("Ensure you are on the correct branch before making edits, committing, or pushing changes. All local work is relative to the active branch.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -61,14 +92,7 @@ struct BranchManagementView: View {
 
                         // Card 2: Branch Directory List
                         GroupBox {
-                            VStack(alignment: .leading, spacing: 14) {
-                                HStack {
-                                    Label("Branch Directory", systemImage: "list.bullet")
-                                        .font(.headline)
-                                        .foregroundColor(.blue)
-                                    Spacer()
-                                }
-
+                            VStack(alignment: .leading, spacing: 12) {
                                 ForEach(branches) { branch in
                                     BranchManagementRow(
                                         branch: branch,
@@ -91,123 +115,92 @@ struct BranchManagementView: View {
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 8)
             }
-            .navigationTitle("Branches")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                }
-                ToolbarItem {
-                    HStack(spacing: 12) {
-                        Button {
-                            Task { await loadBranches() }
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                                .foregroundStyle(.green)
-                        }
-                        .disabled(isLoading)
-
-                        Button {
-                            baseBranch = currentBranch
-                            newBranchName = ""
-                            showCreateSheet = true
-                        } label: {
-                            Image(systemName: "plus")
-                                .foregroundStyle(.green)
-                        }
-                    }
-                }
-            }
-            .sheet(isPresented: $showCreateSheet) {
-                createBranchSheet
-            }
-            .confirmationDialog(
-                "Delete Branch \(branchToDelete?.name ?? "")?",
-                isPresented: $showDeleteConfirm,
-                titleVisibility: .visible
-            ) {
-                Button("Delete", role: .destructive) {
-                    if let branch = branchToDelete {
-                        Task { await deleteBranch(branch) }
-                    }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Are you sure you want to delete this Branch? This action cannot be undone.")
-            }
-            .overlay(alignment: .bottom) {
-                if let n = notification {
-                    notificationBanner(n)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .padding(.bottom, 16)
-                }
-            }
-            .animation(.easeInOut(duration: 0.3), value: notification != nil)
         }
+        .sourceControlEmbedded()
         .task { await loadBranches() }
+        .sheet(isPresented: $showCreateSheet) {
+            createBranchSheet
+        }
+        .confirmationDialog(
+            "Delete Branch \(branchToDelete?.name ?? "")?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let branch = branchToDelete {
+                    Task { await deleteBranch(branch) }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure you want to delete this branch? This action cannot be undone.")
+        }
+        .overlay(alignment: .bottom) {
+            if let n = notification {
+                notificationBanner(n)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.bottom, 16)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: notification != nil)
     }
 
     // MARK: - Create Branch Sheet
 
     private var createBranchSheet: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("New Branch Metadata", systemImage: "plus.circle.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.green)
-                                Spacer()
-                            }
+        VStack(spacing: 20) {
+            HStack {
+                Label("Create New Branch", systemImage: "plus.circle.fill")
+                    .font(.headline)
+                    .foregroundColor(.orange)
+                Spacer()
+            }
+            .padding(.bottom, 8)
 
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Branch Name")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                TextField("e.g. feature/new-login", text: $newBranchName)
-                                    .textFieldStyle(.roundedBorder)
-                                    .autocorrectionDisabled()
-                            }
+            GroupBox {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Branch Name")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                        TextField("e.g. feature/new-login", text: $newBranchName)
+                            .textFieldStyle(.roundedBorder)
+                            .autocorrectionDisabled()
+                    }
 
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Base Branch")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Picker("Base", selection: $baseBranch) {
-                                    ForEach(branches) { b in
-                                        Text(b.name).tag(b.name)
-                                    }
-                                }
-                                .pickerStyle(.menu)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Base Branch")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                        Picker("Base Branch", selection: $baseBranch) {
+                            ForEach(branches) { b in
+                                Text(b.name).tag(b.name)
                             }
                         }
-                        .padding()
+                        .pickerStyle(.menu)
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
-                .padding(24)
+                .padding()
             }
-            .background(Color(NSColor.windowBackgroundColor))
-            .navigationTitle("Create Branch")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showCreateSheet = false }
+            .groupBoxStyle(ModernGroupBoxStyle())
+
+            HStack {
+                Button("Cancel") { showCreateSheet = false }
+                    .buttonStyle(.bordered)
+
+                Spacer()
+
+                Button("Create Branch") {
+                    Task { await createBranch() }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        Task { await createBranch() }
-                    }
-                    .disabled(newBranchName.trimmingCharacters(in: .whitespaces).isEmpty || isCreating)
-                    .overlay {
-                        if isCreating { ProgressView().scaleEffect(0.8) }
-                    }
-                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+                .disabled(newBranchName.trimmingCharacters(in: .whitespaces).isEmpty || isCreating)
             }
         }
+        .padding(24)
+        .frame(width: 400)
     }
 
     // MARK: - Empty / Error View
@@ -216,9 +209,9 @@ struct BranchManagementView: View {
         GroupBox {
             VStack(spacing: 16) {
                 Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 44))
-                    .foregroundStyle(.red.opacity(0.7))
-                Text("Failed To Load Branches")
+                    .font(.system(size: 36))
+                    .foregroundStyle(.red.opacity(0.8))
+                Text("Failed to Load Branches")
                     .font(.headline)
                 Text(error)
                     .font(.caption)
@@ -228,7 +221,7 @@ struct BranchManagementView: View {
                     Task { await loadBranches() }
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.green)
+                .tint(.orange)
             }
             .padding()
             .frame(maxWidth: .infinity)
@@ -348,7 +341,7 @@ private struct BranchManagementRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(branch.name)
-                        .font(.callout)
+                        .font(.callout.bold())
                         .foregroundStyle(isActive ? .green : .primary)
                     if branch.protected {
                         Image(systemName: "lock.fill")
@@ -357,10 +350,10 @@ private struct BranchManagementRow: View {
                     }
                     if isActive {
                         Text("Active")
-                            .font(.caption2)
+                            .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.green)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
                             .background(Color.green.opacity(0.15), in: Capsule())
                     }
                 }
@@ -370,32 +363,25 @@ private struct BranchManagementRow: View {
 
             if !isActive {
                 Button("Switch") { onSwitch() }
-                    .font(.caption)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.green.opacity(0.2), in: Capsule())
-                    .foregroundStyle(.green)
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
 
                 if !branch.protected {
-                    Button {
+                    Button(role: .destructive) {
                         onDelete()
                     } label: {
                         Image(systemName: "trash")
                             .font(.caption)
-                            .foregroundStyle(.red.opacity(0.8))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
             }
         }
-        .padding(.vertical, 8)
-        .background(isActive ? Color.green.opacity(0.05) : Color.clear)
+        .padding(.vertical, 4)
         .contentShape(Rectangle())
     }
 }
-
-// MARK: - Supporting Types
 
 private struct BranchNotification: Equatable {
     let message: String

@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct SCSetupOnboard: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
@@ -20,40 +21,40 @@ struct SCSetupOnboard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Segmented picker controls active onboarding section (No Sidebar)
-            Picker("Section", selection: $activeSection.animation(.easeInOut)) {
-                ForEach(OnboardingSection.allCases) { section in
-                    Text(section.rawValue).tag(section)
+            // Header Section Picker
+            HStack {
+                Picker("Section", selection: $activeSection.animation(.easeInOut)) {
+                    ForEach(OnboardingSection.allCases) { section in
+                        Text(section.rawValue).tag(section)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .frame(width: 320)
+
+                Spacer()
+
+                Button("Close") {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
-            .padding(.bottom, 10)
+            .padding(.bottom, 16)
 
-            Divider()
-
+            // Scrollable Content
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: 20) {
                     switch activeSection {
                     case .overview:
                         overviewSectionView
-                            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
                     case .git:
                         gitPathSectionView
-                            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
                     case .github:
                         githubTokenSectionView
-                            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
                     }
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 8)
             }
 
-            Divider()
-
-            // Navigation Controls & Progress Preserver
+            // Footer Navigation Actions
             HStack {
                 if activeSection != .overview {
                     Button("Previous") {
@@ -79,10 +80,9 @@ struct SCSetupOnboard: View {
                     .disabled(gitPath.isEmpty || githubToken.isEmpty)
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
-            .background(Color(NSColor.controlBackgroundColor))
+            .padding(.top, 16)
         }
+        .sourceControlEmbedded()
         .frame(width: 550, height: 480)
         .onAppear {
             gitPath = settings.gitPath

@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 
+@MainActor
 struct SimulatorCreationView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var manager = SimulatorManager.shared
@@ -24,15 +25,29 @@ struct SimulatorCreationView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Label("Create New Simulator", systemImage: "iphone.badge.play")
+                    .font(.headline)
+                    .foregroundColor(.orange)
+                Spacer()
+                Button("Cancel") {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(.bottom, 16)
+
+            // Scrollable Content
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 20) {
                     // Card 1: Device Configuration
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
                                 Label("Device Specifications", systemImage: "iphone.badge.play")
-                                    .font(.headline)
+                                    .font(.subheadline.bold())
                                     .foregroundColor(.orange)
                                 Spacer()
                             }
@@ -68,7 +83,7 @@ struct SimulatorCreationView: View {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
                                 Label("Target SDK Runtime", systemImage: "square.stack.3d.down.right.fill")
-                                    .font(.headline)
+                                    .font(.subheadline.bold())
                                     .foregroundColor(.blue)
                                 Spacer()
                             }
@@ -86,37 +101,33 @@ struct SimulatorCreationView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
-                .padding(24)
             }
-            .background(Color(NSColor.windowBackgroundColor))
-            .navigationTitle("Create New Simulator")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
+
+            // Footer Actions
+            HStack {
+                Spacer()
+                Button("Create Device") {
+                    createDevice()
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create Device") {
-                        createDevice()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
-                    .disabled(deviceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedRuntime.isEmpty || isCreating)
-                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+                .controlSize(.large)
+                .disabled(deviceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedRuntime.isEmpty || isCreating)
             }
-            .sheet(isPresented: $showingDiagnostics) {
-                SimulatorDiagnosticsView()
-            }
+            .padding(.top, 16)
         }
+        .simulatorWorkspaceEmbedded()
         .frame(width: 500, height: 600)
         .onAppear {
             initializeRuntimeSelection()
         }
-        .onChange(of: manager.runtimes) { _, runtimes in
-            if selectedRuntime.isEmpty, let first = runtimes.first {
+        .onChange(of: manager.runtimes) {
+            if selectedRuntime.isEmpty, let first = manager.runtimes.first {
                 selectedRuntime = first.identifier
             }
+        }
+        .sheet(isPresented: $showingDiagnostics) {
+            SimulatorDiagnosticsView()
         }
     }
 
@@ -128,7 +139,6 @@ struct SimulatorCreationView: View {
                 .foregroundColor(.secondary)
 
         case .discovering(let stage):
-            // State 1: Loading
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 12) {
                     ProgressView()
@@ -142,7 +152,6 @@ struct SimulatorCreationView: View {
             .padding(.vertical, 8)
 
         case .loaded:
-            // State 2: Loaded
             Picker("Target SDK Runtime OS", selection: $selectedRuntime) {
                 ForEach(Array(groupedRuntimes.keys).sorted(), id: \.self) { platform in
                     Section(header: Text(platform)) {
@@ -156,7 +165,6 @@ struct SimulatorCreationView: View {
             .labelsHidden()
 
         case .empty(let reason):
-            // State 3: Empty
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -197,7 +205,6 @@ struct SimulatorCreationView: View {
             .cornerRadius(8)
 
         case .failed(let error):
-            // State 4: Failed
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: "xmark.octagon.fill")

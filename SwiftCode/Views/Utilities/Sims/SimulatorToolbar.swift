@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct SimulatorToolbar: View {
     @State private var manager = SimulatorManager.shared
 
@@ -88,6 +89,7 @@ struct SimulatorToolbar: View {
         }
         .padding()
         .background(Color.secondary.opacity(0.05))
+        .simulatorWorkspaceEmbedded()
     }
 
     private func statusColor(for state: SimulatorState) -> Color {

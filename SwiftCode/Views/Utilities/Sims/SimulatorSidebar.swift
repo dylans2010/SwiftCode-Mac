@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct SimulatorSidebar: View {
     @State private var manager = SimulatorManager.shared
     @State private var showingCreationSheet = false
@@ -59,6 +60,7 @@ struct SimulatorSidebar: View {
             }
             .listStyle(.sidebar)
         }
+        .simulatorWorkspaceEmbedded()
         .sheet(isPresented: $showingCreationSheet) {
             SimulatorCreationView()
         }

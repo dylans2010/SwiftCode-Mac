@@ -1,6 +1,6 @@
-// Card-based visual structure matching DeploymentsView.swift
 import SwiftUI
 
+@MainActor
 struct LicencesAddView: View {
     let project: Project
 
@@ -52,191 +52,166 @@ struct LicencesAddView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            // Sidebar List of Licenses
-            VStack(spacing: 0) {
-                // Filters Header Card inside a modern styled background
-                GroupBox {
-                    VStack(spacing: 12) {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundStyle(.secondary)
-                            TextField("Search licenses...", text: $searchText)
-                                .textFieldStyle(.plain)
-                        }
-                        .padding(8)
-                        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-
-                        HStack(spacing: 8) {
-                            Picker("Category", selection: $selectedCategory) {
-                                ForEach(categories, id: \.self) { Text($0).tag($0) }
-                            }
-                            .pickerStyle(.menu)
-                            .controlSize(.small)
-
-                            Spacer()
-
-                            Picker("Sort", selection: $sortMode) {
-                                ForEach(SortMode.allCases) { Text($0.rawValue).tag($0) }
-                            }
-                            .pickerStyle(.menu)
-                            .controlSize(.small)
-                        }
-                    }
-                    .padding(4)
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Label("Project Licenses", systemImage: "doc.text.fill")
+                    .font(.headline)
+                    .foregroundColor(.orange)
+                Spacer()
+                Button("Close") {
+                    dismiss()
                 }
-                .groupBoxStyle(ModernGroupBoxStyle())
-                .padding(10)
+                .buttonStyle(.bordered)
+            }
+            .padding(.bottom, 16)
 
-                Divider()
-
-                if filteredLicenses.isEmpty {
-                    ContentUnavailableView(
-                        "No Licenses Found",
-                        systemImage: "doc.text.magnifyingglass",
-                        description: Text("Try adjusting your search filters.")
-                    )
-                    .frame(maxHeight: .infinity)
-                } else {
-                    List(filteredLicenses, selection: $previewLicense) { license in
-                        VStack(alignment: .leading, spacing: 4) {
+            HSplitView {
+                // Left Pane: Search and License Selection List
+                VStack(spacing: 12) {
+                    GroupBox {
+                        VStack(spacing: 8) {
                             HStack {
-                                Text(license.name)
-                                    .font(.subheadline.bold())
-                                    .lineLimit(1)
-                                Spacer()
-                                Text(license.category)
-                                    .font(.system(size: 8, weight: .bold))
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.blue.opacity(0.15), in: Capsule())
-                                    .foregroundStyle(.blue)
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundStyle(.secondary)
+                                TextField("Search licenses...", text: $searchText)
+                                    .textFieldStyle(.plain)
                             }
+                            .padding(6)
+                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
 
-                            Text(license.summary)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
+                            HStack(spacing: 6) {
+                                Picker("Category", selection: $selectedCategory) {
+                                    ForEach(categories, id: \.self) { Text($0).tag($0) }
+                                }
+                                .pickerStyle(.menu)
+                                .controlSize(.small)
+
+                                Picker("Sort", selection: $sortMode) {
+                                    ForEach(SortMode.allCases) { Text($0.rawValue).tag($0) }
+                                }
+                                .pickerStyle(.menu)
+                                .controlSize(.small)
+                            }
                         }
-                        .padding(.vertical, 6)
-                        .tag(license)
                     }
-                    .listStyle(.sidebar)
-                }
-            }
-            .navigationTitle("Add License")
-            .toolbar {
-                ToolbarItem(placement: .navigation) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Text("Close")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Color.orange.opacity(0.2), in: Capsule())
-                            .foregroundStyle(.orange)
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Scrollable List of Licenses
+                    ScrollView {
+                        VStack(spacing: 8) {
+                            if filteredLicenses.isEmpty {
+                                ContentUnavailableView(
+                                    "No Licenses Found",
+                                    systemImage: "doc.text.magnifyingglass",
+                                    description: Text("Try adjusting search or category filters.")
+                                )
+                                .padding()
+                            } else {
+                                ForEach(filteredLicenses) { license in
+                                    Button {
+                                        previewLicense = license
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            HStack {
+                                                Text(license.name)
+                                                    .font(.subheadline.bold())
+                                                    .foregroundColor(previewLicense?.id == license.id ? .orange : .primary)
+                                                Spacer()
+                                                Text(license.category)
+                                                    .font(.system(size: 8, weight: .bold))
+                                                    .padding(.horizontal, 6)
+                                                    .padding(.vertical, 2)
+                                                    .background(Color.blue.opacity(0.15), in: Capsule())
+                                                    .foregroundStyle(.blue)
+                                            }
+
+                                            Text(license.summary)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(2)
+                                                .multilineTextAlignment(.leading)
+                                        }
+                                        .padding(10)
+                                        .background(previewLicense?.id == license.id ? Color.orange.opacity(0.1) : Color.secondary.opacity(0.04))
+                                        .cornerRadius(8)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
                     }
-                    .buttonStyle(.plain)
                 }
-            }
-        } detail: {
-            // Detailed License Preview Card System
-            if let license = previewLicense {
+                .frame(minWidth: 260, idealWidth: 320, maxWidth: 400)
+                .padding(.trailing, 12)
+
+                // Right Pane: Detailed License Preview
                 ScrollView {
-                    VStack(spacing: 24) {
-                        // Card 1: Header / Title Card
-                        GroupBox {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text(license.name)
-                                        .font(.title2.bold())
-
-                                    HStack(spacing: 12) {
-                                        Text(license.category)
-                                            .font(.caption.bold())
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 3)
-                                            .background(Color.blue.opacity(0.15), in: Capsule())
-                                            .foregroundStyle(.blue)
-
-                                        Label("Offline Available", systemImage: "wifi.slash")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                    VStack(spacing: 20) {
+                        if let license = previewLicense {
+                            // Action & Description Card
+                            GroupBox {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack {
+                                        Text(license.name)
+                                            .font(.title3.bold())
+                                        Spacer()
+                                        Button {
+                                            Task { await addLicense(license) }
+                                        } label: {
+                                            if isWriting {
+                                                ProgressView().scaleEffect(0.8)
+                                            } else {
+                                                Label("Add to Project", systemImage: "plus.circle.fill")
+                                            }
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .tint(.orange)
+                                        .disabled(isWriting)
                                     }
+
+                                    Text(license.summary)
+                                        .font(.body)
+                                        .foregroundColor(.secondary)
                                 }
+                                .padding()
+                            }
+                            .groupBoxStyle(ModernGroupBoxStyle())
 
-                                Spacer()
+                            // Code Body Card
+                            GroupBox {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Label("License Template Body", systemImage: "scroll")
+                                        .font(.subheadline.bold())
+                                        .foregroundColor(.blue)
 
-                                Button {
-                                    Task { await addLicense(license) }
-                                } label: {
-                                    if isWriting {
-                                        ProgressView()
-                                            .controlSize(.small)
-                                    } else {
-                                        Label("Add to Project", systemImage: "plus.circle.fill")
-                                            .font(.headline)
-                                    }
+                                    Text(license.body)
+                                        .font(.system(.body, design: .monospaced))
+                                        .textSelection(.enabled)
+                                        .lineSpacing(4)
+                                        .padding()
+                                        .background(Color.black.opacity(0.15))
+                                        .cornerRadius(8)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                 }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.large)
-                                .tint(.orange)
-                                .disabled(isWriting)
+                                .padding()
                             }
-                            .padding()
+                            .groupBoxStyle(ModernGroupBoxStyle())
+                        } else {
+                            ContentUnavailableView(
+                                "Select a License",
+                                systemImage: "doc.text",
+                                description: Text("Choose a license template from the list on the left to preview.")
+                            )
+                            .padding(.top, 40)
                         }
-                        .groupBoxStyle(ModernGroupBoxStyle())
-
-                        // Card 2: Summary Card
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Label("Summary", systemImage: "doc.text.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.orange)
-
-                                Text(license.summary)
-                                    .font(.body)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .groupBoxStyle(ModernGroupBoxStyle())
-
-                        // Card 3: License Body Card
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Label("License Template Body", systemImage: "scroll.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.blue)
-
-                                Text(license.body)
-                                    .font(.system(.body, design: .monospaced))
-                                    .textSelection(.enabled)
-                                    .lineSpacing(6)
-                                    .padding()
-                                    .background(Color.black.opacity(0.15))
-                                    .cornerRadius(8)
-                            }
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 8)
                 }
-            } else {
-                ContentUnavailableView(
-                    "Select a License",
-                    systemImage: "doc.text",
-                    description: Text("Choose a license from the sidebar to preview and add it to your project.")
-                )
+                .frame(minWidth: 400, idealWidth: 600, maxWidth: .infinity)
+                .padding(.leading, 12)
             }
         }
-        .frame(minWidth: 800, minHeight: 550)
+        .sourceControlEmbedded()
         .alert("License Installation", isPresented: $showAlert) {
             Button("OK") {}
         } message: {

@@ -1,8 +1,7 @@
 import SwiftUI
 import ZIPFoundation
 
-// MARK: - Git Command View
-
+@MainActor
 struct GitCommandView: View {
     let project: Project
     @Environment(\.dismiss) private var dismiss
@@ -36,47 +35,54 @@ struct GitCommandView: View {
         !ownerFromRepo.isEmpty && !repoNameFromURL.isEmpty
     }
 
-    @ViewBuilder
-    private var repositoryAssociationView: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Label("Repository Association", systemImage: "arrow.branch")
-                        .font(.headline)
-                        .foregroundColor(.green)
-                    Spacer()
-                }
-
-                if isRepoConnected {
-                    HStack {
-                        Text("Current Linked Branch:")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Text(currentBranch)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.green)
-                        Spacer()
-                        if isLoading {
-                            ProgressView().scaleEffect(0.8)
-                        }
-                    }
-                } else {
-                    Text("Connect a GitHub repository first to run remote commands.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding()
-        }
-        .groupBoxStyle(ModernGroupBoxStyle())
-    }
-
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Label("Git Guided Commands", systemImage: "terminal.fill")
+                    .font(.headline)
+                    .foregroundColor(.orange)
+                Spacer()
+                Button("Done") { dismiss() }
+                    .buttonStyle(.bordered)
+            }
+            .padding(.bottom, 16)
+
+            // Scrollable Content
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: 20) {
                     // Branch indicator
-                    repositoryAssociationView
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Repository Association", systemImage: "arrow.branch")
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(.green)
+                                Spacer()
+                            }
+
+                            if isRepoConnected {
+                                HStack {
+                                    Text("Current Linked Branch:")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                    Text(currentBranch)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.green)
+                                    Spacer()
+                                    if isLoading {
+                                        ProgressView().scaleEffect(0.8)
+                                    }
+                                }
+                            } else {
+                                Text("Connect a GitHub repository first to run remote commands.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
                     // Command groups
                     GroupBox {
@@ -119,29 +125,22 @@ struct GitCommandView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 8)
             }
-            .navigationTitle("Git Guided Commands")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .alert(isSuccess ? "Success" : "Info", isPresented: $showStatus, presenting: statusMessage) { _ in
-                Button("OK") {}
-            } message: { msg in Text(msg) }
-            .sheet(isPresented: $showCommitInput) {
-                commitInputSheet
-            }
-            .sheet(isPresented: $showBranchInput) {
-                branchInputSheet
-            }
-            .sheet(isPresented: $showTagInput) {
-                tagInputSheet
-            }
-            .onAppear { fetchBranches() }
         }
+        .sourceControlEmbedded()
+        .alert(isSuccess ? "Success" : "Info", isPresented: $showStatus, presenting: statusMessage) { _ in
+            Button("OK") {}
+        } message: { msg in Text(msg) }
+        .sheet(isPresented: $showCommitInput) {
+            commitInputSheet
+        }
+        .sheet(isPresented: $showBranchInput) {
+            branchInputSheet
+        }
+        .sheet(isPresented: $showTagInput) {
+            tagInputSheet
+        }
+        .onAppear { fetchBranches() }
     }
 
     // MARK: - Subviews
@@ -155,7 +154,7 @@ struct GitCommandView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Label(title, systemImage: icon)
-                    .font(.headline)
+                    .font(.subheadline.bold())
                     .foregroundStyle(color)
                 Spacer()
             }
@@ -168,85 +167,154 @@ struct GitCommandView: View {
     // MARK: - Command Sheets
 
     private var commitInputSheet: some View {
-        NavigationStack {
-            Form {
-                Section("Commit Message") {
+        VStack(spacing: 20) {
+            HStack {
+                Label("Commit Message", systemImage: "pencil")
+                    .font(.headline)
+                    .foregroundColor(.orange)
+                Spacer()
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 10) {
                     TextField("Describe Your Changes", text: $commitMessage)
+                        .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
                 }
-                Section {
-                    Button("Commit & Push") {
-                        showCommitInput = false
-                        pushChanges()
-                    }
-                    .foregroundStyle(.orange)
-                    .disabled(commitMessage.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
+                .padding()
             }
-            .navigationTitle("git commit & push")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showCommitInput = false }
+            .groupBoxStyle(ModernGroupBoxStyle())
+
+            HStack {
+                Button("Cancel") { showCommitInput = false }
+                    .buttonStyle(.bordered)
+                Spacer()
+                Button("Commit & Push") {
+                    showCommitInput = false
+                    pushChanges()
                 }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+                .disabled(commitMessage.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
-        .presentationDetents([.medium])
+        .padding(24)
+        .frame(width: 400)
     }
 
     private var branchInputSheet: some View {
-        NavigationStack {
-            Form {
-                Section("New Branch Name") {
+        VStack(spacing: 20) {
+            HStack {
+                Label("Branch / Checkout", systemImage: "arrow.branch")
+                    .font(.headline)
+                    .foregroundColor(.green)
+                Spacer()
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("New Branch Name")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
                     TextField("feature/new-feature", text: $newBranchName)
+                        .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
-                }
-                if !branches.isEmpty {
-                    Section("Switch To Existing Branch") {
-                        ForEach(branches) { branch in
-                            Button {
-                                currentBranch = branch.name
-                                showBranchInput = false
-                                showInfo("Active branch set to '\(branch.name)'. Your next push will target this branch on GitHub.")
-                            } label: {
-                                HStack {
-                                    Image(systemName: "arrow.branch")
-                                        .foregroundStyle(.green)
-                                    Text(branch.name)
-                                        .foregroundStyle(.white)
-                                    Spacer()
-                                    if branch.name == currentBranch {
-                                        Image(systemName: "checkmark")
-                                            .foregroundStyle(.green)
+
+                    if !branches.isEmpty {
+                        Text("Switch To Existing Branch")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 8)
+
+                        ScrollView {
+                            VStack(spacing: 6) {
+                                ForEach(branches) { branch in
+                                    Button {
+                                        currentBranch = branch.name
+                                        showBranchInput = false
+                                        showInfo("Active branch set to '\(branch.name)'. Your next push will target this branch on GitHub.")
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: "arrow.branch")
+                                                .foregroundStyle(.green)
+                                            Text(branch.name)
+                                                .foregroundStyle(.primary)
+                                            Spacer()
+                                            if branch.name == currentBranch {
+                                                Image(systemName: "checkmark")
+                                                    .foregroundStyle(.green)
+                                            }
+                                        }
+                                        .padding(8)
+                                        .background(Color.secondary.opacity(0.04))
+                                        .cornerRadius(6)
                                     }
-                                    if branch.protected {
-                                        Image(systemName: "lock.fill")
-                                            .foregroundStyle(.yellow)
-                                            .font(.caption)
-                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
                         }
+                        .frame(maxHeight: 150)
                     }
                 }
-                if !newBranchName.trimmingCharacters(in: .whitespaces).isEmpty {
-                    Section {
-                        Button("Create Branch '\(newBranchName)'") {
-                            let name = newBranchName.trimmingCharacters(in: .whitespaces)
-                            showBranchInput = false
-                            createBranch(name: name)
-                        }
-                        .foregroundStyle(.green)
-                    }
-                }
+                .padding()
             }
-            .navigationTitle("git branch / checkout")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showBranchInput = false }
+            .groupBoxStyle(ModernGroupBoxStyle())
+
+            HStack {
+                Button("Cancel") { showBranchInput = false }
+                    .buttonStyle(.bordered)
+                Spacer()
+                if !newBranchName.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Button("Create Branch") {
+                        let name = newBranchName.trimmingCharacters(in: .whitespaces)
+                        showBranchInput = false
+                        createBranch(name: name)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green)
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .padding(24)
+        .frame(width: 400)
+    }
+
+    private var tagInputSheet: some View {
+        VStack(spacing: 20) {
+            HStack {
+                Label("git tag", systemImage: "tag.fill")
+                    .font(.headline)
+                    .foregroundColor(.purple)
+                Spacer()
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 10) {
+                    TextField("v1.0.0", text: $tagName)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                    TextField("Tag message (optional)", text: $tagMessage)
+                        .textFieldStyle(.roundedBorder)
+                }
+                .padding()
+            }
+            .groupBoxStyle(ModernGroupBoxStyle())
+
+            HStack {
+                Button("Cancel") { showTagInput = false }
+                    .buttonStyle(.bordered)
+                Spacer()
+                Button("Create Tag") {
+                    showTagInput = false
+                    createTag()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.purple)
+                .disabled(tagName.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(width: 400)
     }
 
     // MARK: - Command Definitions
@@ -365,34 +433,6 @@ struct GitCommandView: View {
                 action: { resetToRemote() }
             )
         ]
-    }
-
-    // MARK: - Command Sheets (Continued)
-
-    private var tagInputSheet: some View {
-        NavigationStack {
-            Form {
-                Section("Tag Details") {
-                    TextField("v1.0.0", text: $tagName)
-                        .autocorrectionDisabled()
-                    TextField("Tag message (optional)", text: $tagMessage)
-                }
-                Section {
-                    Button("Create Tag") {
-                        showTagInput = false
-                        createTag()
-                    }
-                    .disabled(tagName.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
-            .navigationTitle("git tag")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showTagInput = false }
-                }
-            }
-        }
-        .presentationDetents([.medium])
     }
 
     // MARK: - Actions
@@ -616,62 +656,5 @@ struct GitCommandView: View {
         isSuccess = true
         statusMessage = msg
         showStatus = true
-    }
-}
-
-// MARK: - Git Command Card Model
-
-struct GitCommandCard: Identifiable {
-    let id = UUID()
-    let command: String
-    let description: String
-    let icon: String
-    let color: Color
-    let isEnabled: Bool
-    let action: () -> Void
-}
-
-// MARK: - Git Command Row
-
-struct GitCommandRow: View {
-    let card: GitCommandCard
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: card.icon)
-                .foregroundStyle(card.isEnabled ? card.color : .secondary)
-                .font(.title3)
-                .frame(width: 28)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(card.command)
-                    .font(.system(.subheadline, design: .monospaced).weight(.semibold))
-                    .foregroundStyle(card.isEnabled ? .white : .secondary)
-                Text(card.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer()
-
-            if card.isEnabled {
-                Button(action: card.action) {
-                    Image(systemName: "play.fill")
-                        .font(.caption)
-                        .padding(8)
-                        .background(card.color.opacity(0.25), in: Circle())
-                        .foregroundStyle(card.color)
-                }
-                .buttonStyle(.plain)
-            } else {
-                Image(systemName: "minus.circle")
-                    .foregroundStyle(.tertiary)
-                    .font(.caption)
-            }
-        }
-        .padding(10)
-        .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
-        .opacity(card.isEnabled ? 1 : 0.6)
     }
 }
