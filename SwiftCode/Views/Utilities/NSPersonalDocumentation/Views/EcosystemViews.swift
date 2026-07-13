@@ -822,7 +822,7 @@ public struct WhiteboardsListView: View {
 
 public struct WhiteboardCanvasView: View {
     let coordinator: PersonalDocumentationCoordinator
-    @Bindable var board: WhiteboardRecord
+    let board: WhiteboardRecord
 
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero

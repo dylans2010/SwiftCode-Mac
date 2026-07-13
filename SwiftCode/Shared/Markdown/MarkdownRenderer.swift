@@ -28,6 +28,22 @@ public enum MarkdownBlock: Sendable, Identifiable {
     }
 }
 
+private func getPlainText(of markup: any Markdown.Markup) -> String {
+    if let paragraph = markup as? Markdown.Paragraph {
+        return paragraph.plainText
+    }
+    if let heading = markup as? Markdown.Heading {
+        return heading.plainText
+    }
+    if let textNode = markup as? Markdown.Text {
+        return textNode.string
+    }
+    if let inlineCode = markup as? Markdown.InlineCode {
+        return inlineCode.code
+    }
+    return markup.children.map { getPlainText(of: $0) }.joined()
+}
+
 public actor MarkdownRenderer {
     public static let shared = MarkdownRenderer()
 
@@ -118,7 +134,7 @@ private struct MarkdownASTVisitor: MarkupVisitor {
     }
 
     mutating func visitBlockQuote(_ blockQuote: Markdown.BlockQuote) -> Any? {
-        let text = blockQuote.plainText
+        let text = getPlainText(of: blockQuote)
         blocks.append(.blockQuote(text: text))
         return nil
     }
@@ -133,9 +149,9 @@ private struct MarkdownASTVisitor: MarkupVisitor {
                 if let checkbox = listItem.checkbox {
                     isTaskList = true
                     let checked = checkbox == .checked
-                    taskItems.append((checked: checked, text: listItem.plainText))
+                    taskItems.append((checked: checked, text: getPlainText(of: listItem)))
                 } else {
-                    bulletItems.append(listItem.plainText)
+                    bulletItems.append(getPlainText(of: listItem))
                 }
             }
         }
@@ -152,7 +168,7 @@ private struct MarkdownASTVisitor: MarkupVisitor {
         var items: [String] = []
         for child in orderedList.children {
             if let listItem = child as? Markdown.ListItem {
-                items.append(listItem.plainText)
+                items.append(getPlainText(of: listItem))
             }
         }
         blocks.append(.orderedList(items: items))
