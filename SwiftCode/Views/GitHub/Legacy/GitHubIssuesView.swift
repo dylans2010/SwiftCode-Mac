@@ -327,7 +327,7 @@ struct LegacyGitHubIssuesView: View {
         do {
             let (data, _) = try await URLSession.shared.data(for: request)
             let decoder = JSONDecoder()
-            issues = try decoder.decode([GitHubIssue].self, from: data)
+            issues = try decoder.decode([LegacyGitHubIssue].self, from: data)
         } catch {
             errorMessage = error.localizedDescription
         }

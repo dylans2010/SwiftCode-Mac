@@ -8,6 +8,19 @@ public struct GitCommit: Identifiable, Sendable, Codable {
     public let message: String
     public let parentHashes: [String]
 
+    public var sha: String { id }
+
+    public var subject: String {
+        message.components(separatedBy: .newlines).first ?? message
+    }
+
+    public var dateString: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
     public init(hash: String, author: String, email: String, date: Date, message: String, parentHashes: [String]) {
         self.id = hash
         self.author = author

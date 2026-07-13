@@ -294,7 +294,7 @@ struct WorkspaceView: View {
                 case .diffViewer: DiffViewerView()
                 case .symbolNavigator: SymbolNavigatorView()
                 case .codeReview: CodeReviewView()
-                case .gitHubIssues: GitHubIssuesView()
+                case .gitHubIssues: LegacyGitHubIssuesView()
                 case .complexityAnalyzer: ComplexityAnalyzerView()
                 case .localSimulation: LocalSimulationView()
                 case .simulatorMain: SimulatorMainView()

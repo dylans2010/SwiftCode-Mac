@@ -13,6 +13,7 @@ struct RepositoriesView: View {
     @State private var isFetching = false
     @State private var searchPattern = ""
     @State private var activeTab: RepoSubTab = .localChanges
+    @State private var commitMessage = ""
 
     enum RepoSubTab: String, CaseIterable, Identifiable {
         case localChanges = "Local Changes"
@@ -94,7 +95,12 @@ struct RepositoriesView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
 
-                                GitCommitComposerView(viewModel: gitViewModel)
+                                GitCommitComposerView(message: $commitMessage) {
+                                    Task {
+                                        await gitViewModel.commit(message: commitMessage)
+                                        commitMessage = ""
+                                    }
+                                }
                             }
                             .padding()
                         }

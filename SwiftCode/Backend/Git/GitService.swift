@@ -142,4 +142,13 @@ public actor GitService {
             return GitBranch(name: name, isCurrent: isCurrent, isRemote: name.hasPrefix("origin/"))
         }
     }
+
+    public func createBranch(name: String, repositoryURL: URL) async throws {
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["checkout", "-b", name],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+    }
 }

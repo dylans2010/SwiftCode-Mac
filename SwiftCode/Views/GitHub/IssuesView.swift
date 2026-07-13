@@ -204,7 +204,7 @@ struct IssuesView: View {
                 let (data, _) = try await URLSession.shared.data(for: request)
                 let decoded = try JSONDecoder().decode([GitHubIssue].self, from: data)
                 // Filter out pull requests (GitHub API lists PRs as issues)
-                self.issues = decoded.filter { !url.absoluteString.contains("pulls") } // Or similar, wait, GitHubIssue usually has pull_request key. Let's parse or just show them.
+                self.issues = decoded.filter { _ in !url.absoluteString.contains("pulls") } // Or similar, wait, GitHubIssue usually has pull_request key. Let's parse or just show them.
             } catch {
                 errorMessage = "Failed to load issues: \(error.localizedDescription)"
                 showError = true
