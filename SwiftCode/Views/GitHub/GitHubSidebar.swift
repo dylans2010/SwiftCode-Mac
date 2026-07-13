@@ -11,6 +11,7 @@ enum GitHubSidebarItem: String, CaseIterable, Identifiable, Codable {
     case commits = "Commits"
     case tags = "Tags"
     case releases = "Releases"
+    case discussions = "Discussions"
     case notifications = "Notifications"
     case settings = "Settings"
 
@@ -28,6 +29,7 @@ enum GitHubSidebarItem: String, CaseIterable, Identifiable, Codable {
         case .commits: return "clock.arrow.circlepath"
         case .tags: return "tag.fill"
         case .releases: return "shippingbox.fill"
+        case .discussions: return "bubble.left.and.bubble.right.fill"
         case .notifications: return "bell.fill"
         case .settings: return "gearshape.fill"
         }
@@ -45,6 +47,7 @@ enum GitHubSidebarItem: String, CaseIterable, Identifiable, Codable {
         case .commits: return .orange
         case .tags: return .purple
         case .releases: return .green
+        case .discussions: return .indigo
         case .notifications: return .yellow
         case .settings: return .gray
         }

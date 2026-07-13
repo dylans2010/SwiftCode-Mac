@@ -126,33 +126,13 @@ struct RepositoryDetailView: View {
                 request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
 
                 let (data, _) = try await URLSession.shared.data(for: request)
-                self.repoDetails = try JSONDecoder().decode(GitHubRepoDetail.self, from: data)
+                let decoder = JSONDecoder()
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+                self.repoDetails = try decoder.decode(GitHubRepoDetail.self, from: data)
             } catch {
                 // Silent catch
             }
             isLoading = false
         }
-    }
-}
-
-struct GitHubRepoDetail: Decodable {
-    let id: Int
-    let fullName: String
-    let description: String?
-    let `private`: Bool
-    let cloneUrl: String
-    let sshUrl: String?
-    let stargazersCount: Int
-    let forksCount: Int
-    let openIssuesCount: Int
-
-    enum CodingKeys: String, CodingKey {
-        case id, description, `private`
-        case fullName = "full_name"
-        case cloneUrl = "clone_url"
-        case sshUrl = "ssh_url"
-        case stargazersCount = "stargazers_count"
-        case forksCount = "forks_count"
-        case openIssuesCount = "open_issues_count"
     }
 }

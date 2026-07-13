@@ -724,6 +724,21 @@ final class GitHubService: @unchecked Sendable {
         }
     }
 
+    // MARK: - List Pull Requests
+
+    func listPullRequests(owner: String, repo: String) async throws -> [GitHubPullRequest] {
+        guard token != nil else { throw GitHubError.missingToken }
+        let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/pulls")
+        let request = authorizedRequest(url: url)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validateResponse(response, data: data)
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode([GitHubPullRequest].self, from: data)
+    }
+
     // MARK: - Create Pull Request
 
     /// Creates a pull request on GitHub.
@@ -949,6 +964,7 @@ struct WorkflowRun: Identifiable, Decodable {
     let updatedAt: Date
     let runNumber: Int
     let headBranch: String?
+    let actor: GitHubUser?
 
     var statusBadge: String {
         switch conclusion ?? status {
@@ -1054,10 +1070,13 @@ struct GitHubPullRequest: Identifiable, Decodable {
     let body: String?
     let htmlUrl: String
     let state: String
+    let user: GitHubUser
+    let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
-        case id, number, title, body, state
-        case htmlUrl = "html_url"
+        case id, number, title, body, state, user
+        case htmlUrl = "htmlUrl"
+        case createdAt = "createdAt"
     }
 }
 

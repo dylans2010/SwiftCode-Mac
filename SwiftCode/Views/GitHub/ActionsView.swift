@@ -105,10 +105,10 @@ struct ActionsView: View {
                         id: r.id,
                         name: r.name ?? "Workflow",
                         runNumber: r.runNumber,
-                        status: r.status ?? "unknown",
+                        status: r.status,
                         conclusion: r.conclusion,
                         actorLogin: r.actor?.login ?? "actor",
-                        createdAt: r.createdAt ?? ""
+                        createdAt: r.createdAt.formatted(date: .abbreviated, time: .shortened)
                     )
                 }
             } catch {

@@ -1,5 +1,7 @@
 import SwiftUI
 
+typealias GitHubJob = WorkflowJob
+
 @MainActor
 struct WorkflowRunsView: View {
     let run: WorkflowRunSummary
@@ -90,7 +92,7 @@ struct WorkflowRunsView: View {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(job.name)
                                                 .font(.subheadline.bold())
-                                            Text(job.startedAt ?? "")
+                                            Text(job.startedAt?.formatted(date: .abbreviated, time: .shortened) ?? "")
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
                                         }

@@ -77,7 +77,7 @@ struct GitHubCodeSearchView: View {
                 }
 
                 var matched: [String] = []
-                for case let fileURL as URL in enumerator {
+                while let fileURL = enumerator.nextObject() as? URL {
                     if fileURL.pathExtension == "swift" || fileURL.pathExtension == "txt" || fileURL.pathExtension == "md" {
                         let content = try String(contentsOf: fileURL, encoding: .utf8)
                         if content.contains(query) {

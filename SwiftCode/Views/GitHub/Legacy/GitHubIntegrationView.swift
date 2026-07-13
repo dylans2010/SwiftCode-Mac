@@ -977,7 +977,7 @@ struct BranchRow: View {
                     .font(.subheadline)
                 if branch.protected {
                     Image(systemName: "lock.fill")
-                        .foregroundColor(.amber)
+                        .foregroundColor(.yellow)
                         .font(.caption2)
                 }
                 Spacer()

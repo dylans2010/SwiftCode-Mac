@@ -53,4 +53,22 @@ public class GitViewModel {
         try? await GitService.shared.commit(message: message, repositoryURL: url)
         await refreshStatus()
     }
+
+    public func refreshBranches() {
+        Task {
+            await refreshStatus()
+        }
+    }
+
+    public func createBranch(named name: String) {
+        guard let url = repositoryURL else { return }
+        Task {
+            do {
+                try await GitService.shared.createBranch(name: name, repositoryURL: url)
+                await refreshStatus()
+            } catch {
+                LoggingTool.error("Git branch creation failed: \(error)")
+            }
+        }
+    }
 }
