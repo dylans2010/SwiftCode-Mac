@@ -880,7 +880,7 @@ public struct WhiteboardCanvasView: View {
                         for x in stride(from: CGFloat(0), to: size.width, by: gridSpacing) {
                             for y in stride(from: CGFloat(0), to: size.height, by: gridSpacing) {
                                 var path = Path()
-                                path.addArc(center: CGPoint(x: x, y: y), radius: 1, startAngle: .zero, endAngle: .pi * 2, clockwise: true)
+                                path.addArc(center: CGPoint(x: x, y: y), radius: 1, startAngle: .zero, endAngle: .radians(.pi * 2), clockwise: true)
                                 context.fill(path, with: .color(.secondary.opacity(0.2)))
                             }
                         }
