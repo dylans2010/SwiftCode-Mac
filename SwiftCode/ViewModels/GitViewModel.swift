@@ -71,4 +71,28 @@ public class GitViewModel {
             }
         }
     }
+
+    public func checkout(_ branch: GitBranch) {
+        guard let url = repositoryURL else { return }
+        Task {
+            do {
+                try await GitService.shared.checkout(branch: branch.name, repositoryURL: url)
+                await refreshStatus()
+            } catch {
+                LoggingTool.error("Git checkout failed: \(error)")
+            }
+        }
+    }
+
+    public func deleteBranch(_ branch: GitBranch) {
+        guard let url = repositoryURL else { return }
+        Task {
+            do {
+                try await GitService.shared.deleteBranch(name: branch.name, repositoryURL: url)
+                await refreshStatus()
+            } catch {
+                LoggingTool.error("Git branch deletion failed: \(error)")
+            }
+        }
+    }
 }
