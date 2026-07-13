@@ -658,3 +658,63 @@ struct GitCommandView: View {
         showStatus = true
     }
 }
+
+// MARK: - Git Command Models
+
+struct GitCommandCard: Identifiable {
+    let id = UUID()
+    let command: String
+    let description: String
+    let icon: String
+    let color: Color
+    let isEnabled: Bool
+    let action: () -> Void
+}
+
+// MARK: - Git Command Row
+
+struct GitCommandRow: View {
+    let card: GitCommandCard
+
+    var body: some View {
+        Button(action: card.action) {
+            HStack(spacing: 12) {
+                Image(systemName: card.icon)
+                    .font(.title2)
+                    .foregroundStyle(card.color)
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(card.command)
+                        .font(.system(.subheadline, design: .monospaced))
+                        .fontWeight(.semibold)
+                        .foregroundStyle(card.isEnabled ? .primary : .secondary)
+                    Text(card.description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+
+                Spacer()
+
+                if card.isEnabled {
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Unavailable")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
+                }
+            }
+            .padding(10)
+            .background(Color.secondary.opacity(0.04))
+            .cornerRadius(8)
+        }
+        .buttonStyle(.plain)
+        .disabled(!card.isEnabled)
+    }
+}

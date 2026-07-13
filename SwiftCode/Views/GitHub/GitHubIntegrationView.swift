@@ -959,3 +959,95 @@ struct GitHubIntegrationView: View {
         }
     }
 }
+
+// MARK: - Branch Row
+
+struct BranchRow: View {
+    let branch: GitHubBranch
+    let isActive: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Image(systemName: "arrow.branch")
+                    .foregroundColor(isActive ? .green : .secondary)
+                Text(branch.name)
+                    .foregroundStyle(isActive ? .green : .primary)
+                    .font(.subheadline)
+                if branch.protected {
+                    Image(systemName: "lock.fill")
+                        .foregroundColor(.amber)
+                        .font(.caption2)
+                }
+                Spacer()
+                if isActive {
+                    Image(systemName: "checkmark")
+                        .foregroundColor(.green)
+                }
+            }
+            .padding(8)
+            .background(isActive ? Color.green.opacity(0.1) : Color.secondary.opacity(0.04))
+            .cornerRadius(6)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Workflow Run Row
+
+struct WorkflowRunRow: View {
+    let run: WorkflowRun
+
+    var statusColor: Color {
+        switch run.conclusion ?? run.status {
+        case "success": return .green
+        case "failure": return .red
+        case "cancelled": return .gray
+        case "in_progress": return .blue
+        default: return .secondary
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: run.statusBadge)
+                .font(.title3)
+                .foregroundStyle(statusColor)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(run.name ?? "Workflow Run")
+                        .font(.subheadline.bold())
+                    Text("#\(run.runNumber)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack(spacing: 8) {
+                    if let branch = run.headBranch {
+                        Label(branch, systemImage: "arrow.branch")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(run.createdAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            if let url = URL(string: run.htmlUrl) {
+                Link(destination: url) {
+                    Image(systemName: "arrow.up.right.square")
+                        .foregroundColor(.blue)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(10)
+        .background(Color.secondary.opacity(0.04))
+        .cornerRadius(8)
+    }
+}
