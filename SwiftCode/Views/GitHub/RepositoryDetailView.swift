@@ -190,16 +190,14 @@ struct RepositoryDetailView: View {
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("Topics")
                                         .font(.subheadline.bold())
-                                    HFlowLayout(spacing: 6) {
-                                        ForEach(topics, id: \.self) { topic in
-                                            Text(topic)
-                                                .font(.caption2)
-                                                .padding(.horizontal, 8)
-                                                .padding(.vertical, 4)
-                                                .background(Color.blue.opacity(0.12))
-                                                .foregroundColor(.blue)
-                                                .cornerRadius(6)
-                                        }
+                                    HFlowLayout(topics, spacing: 6) { topic in
+                                        Text(topic)
+                                            .font(.caption2)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(Color.blue.opacity(0.12))
+                                            .foregroundColor(.blue)
+                                            .cornerRadius(6)
                                     }
                                 }
                             }

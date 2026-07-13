@@ -308,7 +308,7 @@ final class DesignerDevToolViewModel {
 
         var radiusLines = ""
         for (index, radius) in snapshot.radii.prefix(10).enumerated() {
-            let numStr = radius.replacingOccurrences(of: "px", "")
+            let numStr = radius.replacingOccurrences(of: "px", with: "")
             let num = Double(numStr) ?? 8.0
             radiusLines += "        static let radius\(index + 1): CGFloat = \(num)\n"
         }
@@ -360,7 +360,6 @@ struct DesignerDevToolView: View {
                                 .foregroundStyle(.secondary)
                             TextField("https://apple.com", text: $viewModel.urlString)
                                 .autocorrectionDisabled()
-                                .textInputAutocapitalization(.never)
                         }
                         .padding(12)
                         .background(Color(NSColor.controlBackgroundColor))

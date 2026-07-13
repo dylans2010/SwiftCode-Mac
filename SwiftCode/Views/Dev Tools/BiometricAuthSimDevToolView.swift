@@ -15,7 +15,7 @@ final class BiometricAuthSimViewModel {
             logger.info("Biometric Auth Sim: Simulated Success")
         } else {
             authLogs.insert("[\(timestamp)] LAContext: Error (BiometryLockout / UserCancel)", at: 0)
-            logger.warn("Biometric Auth Sim: Simulated Error")
+            logger.warning("Biometric Auth Sim: Simulated Error")
         }
     }
 }

@@ -148,7 +148,7 @@ public struct KnowledgeGraphView: View {
                 )
             }
             .clipped()
-            .background(Color(NSColor.underlyingWindowBackgroundColor))
+            .background(Color(NSColor.windowBackgroundColor))
         }
         .onAppear {
             buildGraph()
@@ -928,7 +928,7 @@ public struct WhiteboardCanvasView: View {
                 )
             }
             .clipped()
-            .background(Color(NSColor.underlyingWindowBackgroundColor))
+            .background(Color(NSColor.windowBackgroundColor))
         }
         .onAppear {
             loadCanvas()
@@ -944,7 +944,7 @@ public struct WhiteboardCanvasView: View {
             .padding()
             .frame(width: 120, height: 120)
             .background(Color.yellow.opacity(0.35))
-            .border(Color.yellow, lineWidth: 1)
+            .border(Color.yellow, width: 1)
             .shadow(radius: 2)
     }
 
@@ -953,7 +953,7 @@ public struct WhiteboardCanvasView: View {
             .font(.caption)
             .padding()
             .frame(width: 140, height: 80)
-            .border(Color.blue, lineWidth: 2)
+            .border(Color.blue, width: 2)
             .background(Color.blue.opacity(0.1))
     }
 
@@ -988,7 +988,7 @@ public struct WhiteboardCanvasView: View {
                 .padding(4)
         }
         .frame(width: 150)
-        .border(Color.green, lineWidth: 2)
+        .border(Color.green, width: 2)
         .background(Color.green.opacity(0.05))
     }
 

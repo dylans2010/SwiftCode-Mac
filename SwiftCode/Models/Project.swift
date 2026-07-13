@@ -125,3 +125,9 @@ public struct ProjectTransferConfiguration: Codable, Hashable, Sendable {
 
     public static let owner = ProjectTransferConfiguration(permission: .owner)
 }
+
+extension Project: Equatable {
+    public static func == (lhs: Project, rhs: Project) -> Bool {
+        return lhs.id == rhs.id
+    }
+}

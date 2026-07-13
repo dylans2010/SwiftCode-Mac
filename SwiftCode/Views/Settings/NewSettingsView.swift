@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct SettingsItem: Identifiable, Sendable {
+struct SettingsItem: Identifiable {
     let id: String
     let title: String
     let icon: String

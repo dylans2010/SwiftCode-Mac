@@ -881,6 +881,83 @@ final class GitHubService: @unchecked Sendable {
     }
 }
 
+// MARK: - Missing GitHub & Actions Models
+
+public struct WorkflowRunSummary: Identifiable, Decodable, Sendable {
+    public let id: Int
+    public let name: String
+    public let runNumber: Int
+    public let status: String
+    public let conclusion: String?
+    public let actorLogin: String
+    public let createdAt: String?
+
+    public init(id: Int, name: String, runNumber: Int, status: String, conclusion: String?, actorLogin: String, createdAt: String?) {
+        self.id = id
+        self.name = name
+        self.runNumber = runNumber
+        self.status = status
+        self.conclusion = conclusion
+        self.actorLogin = actorLogin
+        self.createdAt = createdAt
+    }
+}
+
+public struct GitHubIssue: Identifiable, Decodable, Sendable {
+    public let id: Int
+    public let number: Int
+    public let title: String
+    public let body: String?
+    public let state: String
+    public let createdAt: String
+    public let user: IssueUser
+
+    enum CodingKeys: String, CodingKey {
+        case id, number, title, body, state, user
+        case createdAt = "created_at"
+    }
+
+    public init(id: Int, number: Int, title: String, body: String?, state: String, createdAt: String, user: IssueUser) {
+        self.id = id
+        self.number = number
+        self.title = title
+        self.body = body
+        self.state = state
+        self.createdAt = createdAt
+        self.user = user
+    }
+}
+
+public struct IssueUser: Decodable, Sendable {
+    public let login: String
+
+    public init(login: String) {
+        self.login = login
+    }
+}
+
+public struct GitHubReleaseInfo: Identifiable, Decodable, Sendable {
+    public let id: Int
+    public let name: String?
+    public let tagName: String
+    public let createdAt: String
+    public let body: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, body
+        case tagName = "tag_name"
+        case createdAt = "created_at"
+    }
+
+    public init(id: Int, name: String?, tagName: String, createdAt: String, body: String?) {
+        self.id = id
+        self.name = name
+        self.tagName = tagName
+        self.createdAt = createdAt
+        self.body = body
+    }
+}
+
 // MARK: - No Redirect Delegate (for log URLs)
 
 private final class NoRedirectDelegate: NSObject, URLSessionTaskDelegate {
