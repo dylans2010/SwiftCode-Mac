@@ -19,7 +19,10 @@ public final class StorageManager: Sendable {
             DocumentVersion.self,
             Template.self,
             SmartCollection.self,
-            AnalyticsSnapshot.self
+            AnalyticsSnapshot.self,
+            WhiteboardRecord.self,
+            CodeSnippetRecord.self,
+            ProjectSnapshotRecord.self
         ])
 
         self.container = try ModelContainer(for: schema, configurations: [config])

@@ -4,6 +4,7 @@ public struct NSPersonalDocumentationView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var coordinator: PersonalDocumentationCoordinator? = nil
     @State private var initializationError: String? = nil
+    @State private var showingCommandPalette = false
 
     public init() {}
 
@@ -25,9 +26,48 @@ public struct NSPersonalDocumentationView: View {
                             }
                         }
 
-                        Section("Search") {
+                        Section("Search & Command") {
                             NavigationLink(value: ModuleKind.smartCollections) {
                                 Label("Global Search", systemImage: "magnifyingglass")
+                            }
+
+                            Button {
+                                showingCommandPalette = true
+                            } label: {
+                                Label("Quick Open Palette", systemImage: "terminal")
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.vertical, 4)
+                        }
+
+                        Section("Ecosystem & Productivity Tools") {
+                            NavigationLink(value: ModuleKind.knowledgeGraph) {
+                                Label("Knowledge Graph", systemImage: ModuleKind.knowledgeGraph.icon)
+                                    .foregroundStyle(ModuleKind.knowledgeGraph.accentColor)
+                            }
+                            NavigationLink(value: ModuleKind.timeline) {
+                                Label("Project Timeline", systemImage: ModuleKind.timeline.icon)
+                                    .foregroundStyle(ModuleKind.timeline.accentColor)
+                            }
+                            NavigationLink(value: ModuleKind.analytics) {
+                                Label("Project Analytics", systemImage: ModuleKind.analytics.icon)
+                                    .foregroundStyle(ModuleKind.analytics.accentColor)
+                            }
+                            NavigationLink(value: ModuleKind.intelligence) {
+                                Label("Project Intelligence", systemImage: ModuleKind.intelligence.icon)
+                                    .foregroundStyle(ModuleKind.intelligence.accentColor)
+                            }
+                            NavigationLink(value: ModuleKind.whiteboards) {
+                                Label("Advanced Whiteboards", systemImage: ModuleKind.whiteboards.icon)
+                                    .foregroundStyle(ModuleKind.whiteboards.accentColor)
+                            }
+                            NavigationLink(value: ModuleKind.snippets) {
+                                Label("Snippet Workspace", systemImage: ModuleKind.snippets.icon)
+                                    .foregroundStyle(ModuleKind.snippets.accentColor)
+                            }
+                            NavigationLink(value: ModuleKind.snapshots) {
+                                Label("Project Snapshots", systemImage: ModuleKind.snapshots.icon)
+                                    .foregroundStyle(ModuleKind.snapshots.accentColor)
                             }
                         }
 
@@ -50,7 +90,17 @@ public struct NSPersonalDocumentationView: View {
                         }
 
                         Section("Generated & Wiki") {
-                            ForEach(ModuleKind.allCases.filter { $0.archetype == .generated && $0 != .dashboard }) { kind in
+                            ForEach(ModuleKind.allCases.filter {
+                                $0.archetype == .generated &&
+                                $0 != .dashboard &&
+                                $0 != .knowledgeGraph &&
+                                $0 != .timeline &&
+                                $0 != .analytics &&
+                                $0 != .intelligence &&
+                                $0 != .whiteboards &&
+                                $0 != .snippets &&
+                                $0 != .snapshots
+                            }) { kind in
                                 NavigationLink(value: kind) {
                                     Label(kind.rawValue, systemImage: kind.icon)
                                         .foregroundStyle(kind.accentColor)
@@ -59,21 +109,13 @@ public struct NSPersonalDocumentationView: View {
                         }
                     }
                     .listStyle(.sidebar)
-                    .frame(minWidth: 220, idealWidth: 240)
-                    .navigationTitle("Documentation")
+                    .frame(minWidth: 230, idealWidth: 250)
+                    .navigationTitle("Personal Documentation")
                 } content: {
                     if let kind = coord.selectedModuleKind {
                         switch kind {
-                        case .dashboard:
-                            Text("Summary & Insights")
-                                .font(.headline)
-                                .padding()
-                        case .projectWiki:
-                            Text("Wiki Navigation")
-                                .font(.headline)
-                                .padding()
-                        case .smartCollections:
-                            Text("Search View")
+                        case .dashboard, .projectWiki, .smartCollections, .knowledgeGraph, .timeline, .analytics, .intelligence, .whiteboards, .snippets, .snapshots:
+                            Text(kind.rawValue)
                                 .font(.headline)
                                 .padding()
                         default:
@@ -96,6 +138,20 @@ public struct NSPersonalDocumentationView: View {
                             WikiPageView(coordinator: coord)
                         case .smartCollections:
                             GlobalSearchView(coordinator: coord)
+                        case .knowledgeGraph:
+                            KnowledgeGraphView(coordinator: coord)
+                        case .timeline:
+                            ProjectTimelineView(coordinator: coord)
+                        case .analytics:
+                            AnalyticsView(coordinator: coord)
+                        case .intelligence:
+                            IntelligenceView(coordinator: coord)
+                        case .whiteboards:
+                            WhiteboardsListView(coordinator: coord)
+                        case .snippets:
+                            SnippetWorkspaceView(coordinator: coord)
+                        case .snapshots:
+                            SnapshotsView(coordinator: coord)
                         default:
                             RecordDetailView(coordinator: coord, documentID: coord.selectedDocumentID)
                         }
@@ -105,6 +161,11 @@ public struct NSPersonalDocumentationView: View {
                         } description: {
                             Text("Choose a category and document to get started.")
                         }
+                    }
+                }
+                .sheet(isPresented: $showingCommandPalette) {
+                    PersonalDocCommandPalette(coordinator: coord) {
+                        showingCommandPalette = false
                     }
                 }
             } else {

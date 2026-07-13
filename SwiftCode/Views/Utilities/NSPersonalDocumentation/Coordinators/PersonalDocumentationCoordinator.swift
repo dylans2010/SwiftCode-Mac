@@ -8,7 +8,7 @@ public final class PersonalDocumentationCoordinator {
     public let projectID: UUID
     public let projectURL: URL
 
-    // 18 Managers
+    // Core Managers
     public let storage: StorageManager
     public let documents: DocumentManager
     public let dashboard: DashboardManager
@@ -29,6 +29,13 @@ public final class PersonalDocumentationCoordinator {
     public let importer: ImportManager
     public let templates: TemplateManager
 
+    // Ecosystem Extensions
+    public let whiteboards: WhiteboardManager
+    public let snippets: SnippetManager
+    public let snapshots: SnapshotManager
+    public let timeline: EcosystemTimelineManager
+    public let intelligence: IntelligenceManager
+
     // Navigation state
     public var selectedModuleKind: ModuleKind? = .dashboard
     public var selectedDocumentID: UUID?
@@ -39,7 +46,7 @@ public final class PersonalDocumentationCoordinator {
         self.projectID = projectID
         self.projectURL = projectURL
 
-        // Initialize Managers
+        // Initialize Core Managers
         let storageManager = try StorageManager(projectURL: projectURL)
         self.storage = storageManager
 
@@ -63,6 +70,13 @@ public final class PersonalDocumentationCoordinator {
         self.exporter = ExportManager()
         self.importer = ImportManager()
         self.templates = TemplateManager(storage: storageManager, projectID: projectID)
+
+        // Initialize Ecosystem Extensions
+        self.whiteboards = WhiteboardManager(storage: storageManager, projectID: projectID)
+        self.snippets = SnippetManager(storage: storageManager, projectID: projectID)
+        self.snapshots = SnapshotManager(storage: storageManager, projectID: projectID)
+        self.timeline = EcosystemTimelineManager(storage: storageManager, projectID: projectID)
+        self.intelligence = IntelligenceManager(projectID: projectID)
 
         try? self.templates.seedDefaultTemplates()
         try? self.analytics.logEvent("coordinator_initialized")
