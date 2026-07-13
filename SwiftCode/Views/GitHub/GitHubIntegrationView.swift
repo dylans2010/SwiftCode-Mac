@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct GitHubIntegrationView: View {
     let project: Project
     @Environment(ProjectSessionStore.self) private var sessionStore
@@ -58,9 +59,21 @@ struct GitHubIntegrationView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Label("GitHub Integration", systemImage: "folder.fill.badge.gearshape")
+                    .font(.headline)
+                    .foregroundColor(.blue)
+                Spacer()
+                Button("Done") { dismiss() }
+                    .buttonStyle(.bordered)
+            }
+            .padding(.bottom, 16)
+
+            // Scrollable Content
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: 20) {
                     GroupBox {
                         authSection
                     }
@@ -100,52 +113,45 @@ struct GitHubIntegrationView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 8)
             }
-            .navigationTitle("GitHub Integration")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
-                Button("OK") {}
-            } message: { msg in Text(msg) }
-            .alert("Success", isPresented: $showSuccess, presenting: successMessage) { _ in
-                Button("OK") {}
-            } message: { msg in Text(msg) }
-            .sheet(isPresented: $showCreateRepoSheet) { createRepoSheet }
-            .sheet(isPresented: $showRepoPicker) { repoPickerSheet }
-            .sheet(isPresented: $showGitCommands) {
-                GitCommandView(project: project)
-            }
-            .sheet(isPresented: $showBranchManagement) {
-                BranchManagementView(
-                    owner: ownerFromRepo,
-                    repo: repoNameFromURL,
-                    currentBranch: $currentBranch
-                )
-            }
-            .sheet(isPresented: $showCommitHistory) {
-                CommitHistoryView(
-                    owner: ownerFromRepo,
-                    repo: repoNameFromURL,
-                    currentBranch: $currentBranch
-                )
-            }
-            .sheet(isPresented: $showPullRequest) {
-                PullRequestView(
-                    owner: ownerFromRepo,
-                    repo: repoNameFromURL,
-                    currentBranch: currentBranch
-                )
-            }
-            .sheet(isPresented: $showLicenses) {
-                LicencesAddView(project: project)
-            }
-            .onAppear { loadSavedCredentials() }
         }
+        .sourceControlEmbedded()
+        .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
+            Button("OK") {}
+        } message: { msg in Text(msg) }
+        .alert("Success", isPresented: $showSuccess, presenting: successMessage) { _ in
+            Button("OK") {}
+        } message: { msg in Text(msg) }
+        .sheet(isPresented: $showCreateRepoSheet) { createRepoSheet }
+        .sheet(isPresented: $showRepoPicker) { repoPickerSheet }
+        .sheet(isPresented: $showGitCommands) {
+            GitCommandView(project: project)
+        }
+        .sheet(isPresented: $showBranchManagement) {
+            BranchManagementView(
+                owner: ownerFromRepo,
+                repo: repoNameFromURL,
+                currentBranch: $currentBranch
+            )
+        }
+        .sheet(isPresented: $showCommitHistory) {
+            CommitHistoryView(
+                owner: ownerFromRepo,
+                repo: repoNameFromURL,
+                currentBranch: $currentBranch
+            )
+        }
+        .sheet(isPresented: $showPullRequest) {
+            PullRequestView(
+                owner: ownerFromRepo,
+                repo: repoNameFromURL,
+                currentBranch: currentBranch
+            )
+        }
+        .sheet(isPresented: $showLicenses) {
+            LicencesAddView(project: project)
+        }
+        .onAppear { loadSavedCredentials() }
     }
 
     // MARK: - Auth Section
@@ -154,7 +160,7 @@ struct GitHubIntegrationView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Label("Authentication Status", systemImage: "key.fill")
-                    .font(.headline)
+                    .font(.subheadline.bold())
                     .foregroundColor(.yellow)
                 Spacer()
             }
@@ -224,7 +230,7 @@ struct GitHubIntegrationView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Label("GitHub Modules & Workflows", systemImage: "square.grid.2x2.fill")
-                    .font(.headline)
+                    .font(.subheadline.bold())
                     .foregroundColor(.purple)
                 Spacer()
             }
@@ -308,7 +314,7 @@ struct GitHubIntegrationView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Label("Repository Setup", systemImage: "folder.fill.badge.gearshape")
-                    .font(.headline)
+                    .font(.subheadline.bold())
                     .foregroundColor(.blue)
                 Spacer()
             }
@@ -450,7 +456,7 @@ struct GitHubIntegrationView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Label("Repository Branches", systemImage: "arrow.branch")
-                    .font(.headline)
+                    .font(.subheadline.bold())
                     .foregroundColor(.green)
                 Spacer()
                 Button {
@@ -496,7 +502,7 @@ struct GitHubIntegrationView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Label("Push & Synchronize", systemImage: "arrow.triangle.2.circlepath")
-                    .font(.headline)
+                    .font(.subheadline.bold())
                     .foregroundColor(.orange)
                 Spacer()
             }
@@ -543,7 +549,7 @@ struct GitHubIntegrationView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Label("Developer Tools & Utilities", systemImage: "wrench.and.screwdriver.fill")
-                    .font(.headline)
+                    .font(.subheadline.bold())
                     .foregroundColor(.purple)
                 Spacer()
             }
@@ -588,7 +594,7 @@ struct GitHubIntegrationView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Label("Build Actions", systemImage: "hammer.fill")
-                    .font(.headline)
+                    .font(.subheadline.bold())
                     .foregroundColor(.purple)
                 Spacer()
                 Button {
@@ -618,63 +624,37 @@ struct GitHubIntegrationView: View {
     // MARK: - Create Repo Sheet
 
     private var createRepoSheet: some View {
-        NavigationStack {
-            Form {
-                Section("Repository Details") {
-                    TextField("Repository Name", text: $newRepoName)
-                        .autocorrectionDisabled()
-                    TextField("Description (Optional)", text: $newRepoDescription)
-                    Toggle("Private", isOn: $newRepoPrivate)
-                }
+        Form {
+            Section("Repository Details") {
+                TextField("Repository Name", text: $newRepoName)
+                    .autocorrectionDisabled()
+                TextField("Description (Optional)", text: $newRepoDescription)
+                Toggle("Private", isOn: $newRepoPrivate)
+            }
 
-                if let url = createdRepoURL {
-                    Section("Repository Created") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label("Your New Repository Is Ready!", systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                                .font(.subheadline)
-                            Text(url)
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.blue)
-                                .textSelection(.enabled)
-                            if let repoURL = URL(string: url) {
-                                Link(destination: repoURL) {
-                                    Label("Open In Browser", systemImage: "safari")
-                                        .font(.caption)
-                                }
+            if let url = createdRepoURL {
+                Section("Repository Created") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Your New Repository Is Ready!", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .font(.subheadline)
+                        Text(url)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.blue)
+                            .textSelection(.enabled)
+                        if let repoURL = URL(string: url) {
+                            Link(destination: repoURL) {
+                                Label("Open In Browser", systemImage: "safari")
+                                    .font(.caption)
                             }
                         }
-                        .padding(.vertical, 4)
                     }
-                }
-            }
-            .navigationTitle("Create Repository")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        showCreateRepoSheet = false
-                        createdRepoURL = nil
-                        newRepoName = ""
-                        newRepoDescription = ""
-                        newRepoPrivate = true
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    if createdRepoURL == nil {
-                        Button("Create") { createRepository() }
-                            .disabled(newRepoName.isEmpty || isLoading)
-                    } else {
-                        Button("Done") {
-                            showCreateRepoSheet = false
-                            createdRepoURL = nil
-                            newRepoName = ""
-                            newRepoDescription = ""
-                            newRepoPrivate = true
-                        }
-                    }
+                    .padding(.vertical, 4)
                 }
             }
         }
+        .padding(24)
+        .frame(width: 450)
     }
 
     // MARK: - Repo Picker Sheet
@@ -688,85 +668,75 @@ struct GitHubIntegrationView: View {
     }
 
     private var repoPickerSheet: some View {
-        NavigationStack {
-            Group {
-                if isFetchingRepos {
-                    ProgressView("Loading Repositories…")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let fetchError = repoFetchError {
-                    ContentUnavailableView(
-                        "Could Not Load Repositories",
-                        systemImage: "exclamationmark.triangle.fill",
-                        description: Text(fetchError)
-                    )
-                } else if userRepos.isEmpty {
-                    ContentUnavailableView(
-                        "No Repositories Found",
-                        systemImage: "folder.badge.questionmark",
-                        description: Text("No repositories are accessible with your current token.")
-                    )
-                } else if filteredRepos.isEmpty {
-                    ContentUnavailableView(
-                        "No Results",
-                        systemImage: "magnifyingglass",
-                        description: Text("No repositories match \(repoSearchQuery).")
-                    )
-                } else {
-                    List(filteredRepos) { repo in
-                        Button {
-                            repoURL = repo.htmlUrl
-                            showRepoPicker = false
-                            repoSearchQuery = ""
-                            repoDetail = nil
-                            repoValidationError = nil
-                            saveRepoURL()
-                            if !ownerFromRepo.isEmpty && !repoNameFromURL.isEmpty {
-                                loadBranches()
-                            }
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: repo.isPrivate ? "lock.fill" : "globe")
-                                    .foregroundStyle(repo.isPrivate ? .yellow : .green)
-                                    .frame(width: 20)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(repo.fullName)
-                                        .font(.subheadline.weight(.semibold))
-                                    if let desc = repo.description, !desc.isEmpty {
-                                        Text(desc)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                    }
-                                }
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
+        VStack(spacing: 12) {
+            HStack {
+                TextField("Search Repositories", text: $repoSearchQuery)
+                    .textFieldStyle(.roundedBorder)
+                Button {
+                    fetchUserRepos()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
                 }
+                .disabled(isFetchingRepos)
             }
-            .searchable(text: $repoSearchQuery, prompt: "Search Repositories")
-            .navigationTitle("Select Repository")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        repoSearchQuery = ""
-                        showRepoPicker = false
+
+            ScrollView {
+                VStack(spacing: 8) {
+                    if isFetchingRepos {
+                        ProgressView("Loading Repositories…")
+                    } else if let fetchError = repoFetchError {
+                        ContentUnavailableView(
+                            "Could Not Load Repositories",
+                            systemImage: "exclamationmark.triangle.fill",
+                            description: Text(fetchError)
+                        )
+                    } else if userRepos.isEmpty {
+                        ContentUnavailableView(
+                            "No Repositories Found",
+                            systemImage: "folder.badge.questionmark",
+                            description: Text("No repositories are accessible with your current token.")
+                        )
+                    } else {
+                        ForEach(filteredRepos) { repo in
+                            Button {
+                                repoURL = repo.htmlUrl
+                                showRepoPicker = false
+                                repoSearchQuery = ""
+                                repoDetail = nil
+                                repoValidationError = nil
+                                saveRepoURL()
+                                if !ownerFromRepo.isEmpty && !repoNameFromURL.isEmpty {
+                                    loadBranches()
+                                }
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: repo.isPrivate ? "lock.fill" : "globe")
+                                        .foregroundStyle(repo.isPrivate ? .yellow : .green)
+                                        .frame(width: 20)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(repo.fullName)
+                                            .font(.subheadline.weight(.semibold))
+                                        if let desc = repo.description, !desc.isEmpty {
+                                            Text(desc)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                    Spacer()
+                                }
+                                .padding(8)
+                                .background(Color.secondary.opacity(0.04))
+                                .cornerRadius(8)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        fetchUserRepos()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .disabled(isFetchingRepos)
                 }
             }
         }
+        .padding(24)
+        .frame(width: 400, height: 450)
     }
 
     // MARK: - Actions
@@ -985,86 +955,6 @@ struct GitHubIntegrationView: View {
                     isValidatingRepo = false
                     repoValidationError = error.localizedDescription
                 }
-            }
-        }
-    }
-}
-
-// MARK: - Branch Row
-
-struct BranchRow: View {
-    let branch: GitHubBranch
-    let isActive: Bool
-    let onSwitch: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isActive ? .green : .secondary)
-                .font(.caption)
-
-            Text(branch.name)
-                .font(.caption)
-                .foregroundStyle(isActive ? .white : .primary)
-                .lineLimit(1)
-
-            if branch.protected {
-                Image(systemName: "lock.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.yellow)
-            }
-
-            Spacer()
-
-            if !isActive {
-                Button("Switch") {
-                    onSwitch()
-                }
-                .font(.caption2)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.green.opacity(0.2), in: Capsule())
-                .foregroundStyle(.green)
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-// MARK: - Workflow Run Row
-
-struct WorkflowRunRow: View {
-    let run: WorkflowRun
-
-    var statusColor: Color {
-        switch run.conclusion ?? run.status {
-        case "success": return .green
-        case "failure": return .red
-        case "cancelled": return .gray
-        case "in_progress": return .yellow
-        default: return .secondary
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: run.statusBadge)
-                .foregroundStyle(statusColor)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(run.name ?? "Run #\(run.runNumber)")
-                    .font(.caption)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                Text(run.createdAt, style: .relative)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            if run.isRunning {
-                ProgressView()
-                    .scaleEffect(0.7)
-                    .tint(.yellow)
             }
         }
     }

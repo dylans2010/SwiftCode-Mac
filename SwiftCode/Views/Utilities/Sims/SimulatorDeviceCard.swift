@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct SimulatorDeviceCard: View {
     let device: SimulatorDevice
     let isSelected: Bool
@@ -51,6 +52,7 @@ struct SimulatorDeviceCard: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1.5)
         )
+        .simulatorWorkspaceEmbedded()
     }
 
     private var platformIcon: String {

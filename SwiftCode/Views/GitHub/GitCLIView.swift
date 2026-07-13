@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct GitCLIView: View {
     let project: Project
 
@@ -44,18 +45,118 @@ struct GitCLIView: View {
     ]
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Label("Git CLI Terminal", systemImage: "terminal.fill")
+                    .font(.headline)
+                    .foregroundColor(.orange)
+
+                Spacer()
+
+                HStack(spacing: 12) {
+                    // Ask AI Button
+                    Button {
+                        showAIPopover = true
+                    } label: {
+                        Label("Ask AI", systemImage: "sparkles")
+                            .foregroundColor(.cyan)
+                    }
+                    .buttonStyle(.bordered)
+                    .popover(isPresented: $showAIPopover, arrowEdge: .top) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Ask AI Git Command Generator")
+                                .font(.headline)
+                                .foregroundStyle(.cyan)
+
+                            Text("Describe what you'd like to do with Git in plain English. The AI will output the full git prompt with explanatory comments.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            TextField("e.g. Undo last commit but keep changes", text: $aiQuery)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.body)
+
+                            if isAILoading {
+                                HStack {
+                                    ProgressView()
+                                        .scaleEffect(0.6)
+                                    Text("Generating Git command...")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            if !aiResponse.isEmpty {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Generated Command:")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.secondary)
+
+                                    ScrollView {
+                                        Text(aiResponse)
+                                            .font(.system(.body, design: .monospaced))
+                                            .foregroundStyle(.green)
+                                            .padding(8)
+                                            .background(Color.black.opacity(0.3))
+                                            .cornerRadius(6)
+                                            .textSelection(.enabled)
+                                    }
+                                    .frame(maxHeight: 120)
+
+                                    HStack(spacing: 8) {
+                                        Button("Run in Git CLI") {
+                                            showAIPopover = false
+                                            let cleaned = extractGitCommandFromResponse(aiResponse)
+                                            customArgs = cleaned
+                                            runCustomCommand()
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .tint(.green)
+
+                                        Button("Copy") {
+                                            let pb = NSPasteboard.general
+                                            pb.clearContents()
+                                            pb.setString(aiResponse, forType: .string)
+                                        }
+                                        .buttonStyle(.bordered)
+                                    }
+                                }
+                            }
+
+                            HStack {
+                                Spacer()
+                                Button("Generate") {
+                                    generateGitCommand()
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(aiQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isAILoading)
+                            }
+                        }
+                        .padding()
+                        .frame(width: 350)
+                    }
+
+                    Picker("Console Theme", selection: $selectedTheme) {
+                        ForEach(TerminalTheme.allCases) { theme in
+                            Text(theme.rawValue).tag(theme)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .controlSize(.small)
+                }
+            }
+            .padding(.bottom, 16)
+
+            // Scrollable Content
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: 20) {
                     // Card 1: Preset Command Panel
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Preset Git Commands", systemImage: "terminal.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.orange)
-                                Spacer()
-                            }
+                            Label("Preset Git Commands", systemImage: "terminal.fill")
+                                .font(.subheadline.bold())
+                                .foregroundColor(.orange)
 
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 8) {
@@ -83,12 +184,9 @@ struct GitCLIView: View {
                     // Card 2: Custom Execute Command Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Custom Git Executor", systemImage: "terminal")
-                                    .font(.headline)
-                                    .foregroundColor(.blue)
-                                Spacer()
-                            }
+                            Label("Custom Git Executor", systemImage: "terminal")
+                                .font(.subheadline.bold())
+                                .foregroundColor(.blue)
 
                             HStack(spacing: 12) {
                                 Text("git")
@@ -162,14 +260,11 @@ struct GitCLIView: View {
                     // Card 3: Console Terminal Output
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Console Terminal Output", systemImage: "text.alignleft")
-                                    .font(.headline)
-                                    .foregroundColor(.gray)
-                                Spacer()
-                            }
+                            Label("Console Terminal Output", systemImage: "text.alignleft")
+                                .font(.subheadline.bold())
+                                .foregroundColor(.gray)
 
-                            ScrollView {
+                            VStack(alignment: .leading, spacing: 8) {
                                 Text(output)
                                     .font(.system(.body, design: .monospaced))
                                     .foregroundColor(selectedTheme.textColor)
@@ -203,109 +298,9 @@ struct GitCLIView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 8)
-            }
-            .navigationTitle("Git CLI")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    HStack(spacing: 12) {
-                        // Ask AI Button
-                        Button {
-                            showAIPopover = true
-                        } label: {
-                            Label("Ask AI", systemImage: "sparkles")
-                                .foregroundColor(.cyan)
-                        }
-                        .buttonStyle(.bordered)
-                        .popover(isPresented: $showAIPopover, arrowEdge: .top) {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Ask AI Git Command Generator")
-                                    .font(.headline)
-                                    .foregroundStyle(.cyan)
-
-                                Text("Describe what you'd like to do with Git in plain English. The AI will output the full git prompt with explanatory comments.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-
-                                TextField("e.g. Undo last commit but keep changes", text: $aiQuery)
-                                    .textFieldStyle(.roundedBorder)
-                                    .font(.body)
-
-                                if isAILoading {
-                                    HStack {
-                                        ProgressView()
-                                            .scaleEffect(0.6)
-                                        Text("Generating Git command...")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-
-                                if !aiResponse.isEmpty {
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Text("Generated Command:")
-                                            .font(.caption.bold())
-                                            .foregroundStyle(.secondary)
-
-                                        ScrollView {
-                                            Text(aiResponse)
-                                                .font(.system(.body, design: .monospaced))
-                                                .foregroundStyle(.green)
-                                                .padding(8)
-                                                .background(Color.black.opacity(0.3))
-                                                .cornerRadius(6)
-                                                .textSelection(.enabled)
-                                        }
-                                        .frame(maxHeight: 120)
-
-                                        HStack(spacing: 8) {
-                                            Button("Run in Git CLI") {
-                                                showAIPopover = false
-                                                let cleaned = extractGitCommandFromResponse(aiResponse)
-                                                customArgs = cleaned
-                                                runCustomCommand()
-                                            }
-                                            .buttonStyle(.borderedProminent)
-                                            .tint(.green)
-
-                                            Button("Copy") {
-                                                let pb = NSPasteboard.general
-                                                pb.clearContents()
-                                                pb.setString(aiResponse, forType: .string)
-                                            }
-                                            .buttonStyle(.bordered)
-                                        }
-                                    }
-                                }
-
-                                HStack {
-                                    Spacer()
-                                    Button("Generate") {
-                                        generateGitCommand()
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .disabled(aiQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isAILoading)
-                                }
-                            }
-                            .padding()
-                            .frame(width: 350)
-                        }
-
-                        Picker("Console Theme", selection: $selectedTheme) {
-                            ForEach(TerminalTheme.allCases) { theme in
-                                Text(theme.rawValue).tag(theme)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .controlSize(.small)
-                    }
-                }
             }
         }
+        .sourceControlEmbedded()
     }
 
     private func runCommand(preset: String) {
@@ -406,7 +401,6 @@ struct GitCLIView: View {
 
     private func extractGitCommandFromResponse(_ raw: String) -> String {
         var lines = raw.components(separatedBy: .newlines)
-        // Strip markdown backticks if present
         lines = lines.filter { line in
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             return !trimmed.hasPrefix("```")

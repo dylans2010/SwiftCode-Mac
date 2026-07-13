@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct PreviewDeviceFrameView<Content: View>: View {
     let deviceName: String
     let isPortrait: Bool
@@ -15,7 +16,6 @@ struct PreviewDeviceFrameView<Content: View>: View {
 
                 // Outer Bezel / Frame
                 VStack(spacing: 0) {
-                    // Top speaker/notch block if applicable
                     if showTopNotch {
                         notchView
                     }
@@ -42,6 +42,7 @@ struct PreviewDeviceFrameView<Content: View>: View {
             }
             Spacer()
         }
+        .simulatorWorkspaceEmbedded()
     }
 
     private var deviceSize: CGSize {

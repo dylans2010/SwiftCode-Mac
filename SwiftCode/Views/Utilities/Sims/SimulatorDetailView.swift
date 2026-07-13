@@ -1,25 +1,29 @@
 import SwiftUI
 
+@MainActor
 struct SimulatorDetailView: View {
     let device: SimulatorDevice
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                // Actions card
-                SimulatorActionsView(device: device)
-
-                // Specifications card
-                SimulatorDeviceInformationView(device: device)
-
-                // Installed Apps card
-                SimulatorAppsView(device: device)
-
-                // Console logging card
-                SimulatorConsoleView()
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Label("Simulator Control Center", systemImage: "iphone")
+                    .font(.headline)
+                    .foregroundColor(.orange)
+                Spacer()
             }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 8)
+            .padding(.bottom, 16)
+
+            ScrollView {
+                VStack(spacing: 20) {
+                    SimulatorActionsView(device: device)
+                    SimulatorDeviceInformationView(device: device)
+                    SimulatorAppsView(device: device)
+                    SimulatorConsoleView()
+                }
+            }
         }
+        .simulatorWorkspaceEmbedded()
     }
 }

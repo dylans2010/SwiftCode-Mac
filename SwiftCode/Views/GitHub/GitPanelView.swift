@@ -1,61 +1,61 @@
 import SwiftUI
 
+@MainActor
 struct GitPanelView: View {
     @State var viewModel: GitViewModel
     @State private var selectedTab = 0
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Segmented picker card
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack {
-                            Label("Git Workspace Navigation", systemImage: "arrow.triangle.branch")
-                                .font(.headline)
-                                .foregroundColor(.orange)
-                            Spacer()
-                        }
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Label("Git Workspace Navigation", systemImage: "arrow.triangle.branch")
+                    .font(.headline)
+                    .foregroundColor(.orange)
 
-                        Picker("", selection: $selectedTab) {
-                            Text("Changes").tag(0)
-                            Text("History").tag(1)
-                            Text("Branches").tag(2)
-                        }
-                        .pickerStyle(.segmented)
-                    }
-                    .padding()
+                Spacer()
+
+                Picker("", selection: $selectedTab) {
+                    Text("Changes").tag(0)
+                    Text("History").tag(1)
+                    Text("Branches").tag(2)
                 }
-                .groupBoxStyle(ModernGroupBoxStyle())
-
-                // Selected Tab view card
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack {
-                            Label(tabTitle(selectedTab), systemImage: tabIcon(selectedTab))
-                                .font(.headline)
-                                .foregroundColor(.blue)
-                            Spacer()
-                        }
-
-                        switch selectedTab {
-                        case 0:
-                            GitChangesView(viewModel: viewModel)
-                        case 1:
-                            GitHistoryView(commits: viewModel.history)
-                        case 2:
-                            GitBranchesView(branches: viewModel.branches)
-                        default:
-                            EmptyView()
-                        }
-                    }
-                    .padding()
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
+                .pickerStyle(.segmented)
+                .frame(width: 300)
             }
-            .padding(24)
+            .padding(.bottom, 16)
+
+            // Scrollable Content
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Selected Tab view card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label(tabTitle(selectedTab), systemImage: tabIcon(selectedTab))
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
+
+                            switch selectedTab {
+                            case 0:
+                                GitChangesView(viewModel: viewModel)
+                            case 1:
+                                GitHistoryView(commits: viewModel.history)
+                            case 2:
+                                GitBranchesView(branches: viewModel.branches)
+                            default:
+                                EmptyView()
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+                }
+            }
         }
-        .background(Color(NSColor.windowBackgroundColor))
+        .sourceControlEmbedded()
     }
 
     private func tabTitle(_ tab: Int) -> String {

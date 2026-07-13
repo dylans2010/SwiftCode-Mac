@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct PreviewConfigurationView: View {
     @State private var manager = PreviewManager.shared
 
@@ -60,7 +61,7 @@ struct PreviewConfigurationView: View {
                         .scaleEffect(0.6)
                         .frame(width: 16, height: 16)
                     Text("Compiling Previews...")
-                        .font(.caption)
+                        .font(.caption.bold())
                         .foregroundColor(.orange)
                 }
             } else {
@@ -68,7 +69,7 @@ struct PreviewConfigurationView: View {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.green)
                     Text("Live View Ready")
-                        .font(.caption)
+                        .font(.caption.bold())
                         .foregroundColor(.green)
                 }
             }
@@ -76,5 +77,6 @@ struct PreviewConfigurationView: View {
         .padding(8)
         .background(Color.secondary.opacity(0.08))
         .cornerRadius(8)
+        .simulatorWorkspaceEmbedded()
     }
 }

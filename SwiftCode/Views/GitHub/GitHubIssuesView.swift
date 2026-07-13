@@ -39,6 +39,7 @@ struct GitHubIssue: Identifiable, Decodable {
 
 // MARK: - GitHub Issues View
 
+@MainActor
 struct GitHubIssuesView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @EnvironmentObject private var settings: AppSettings
@@ -64,56 +65,49 @@ struct GitHubIssuesView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Card 1: Issue Management Filters
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Issue Tracking Filters", systemImage: "line.3.horizontal.decrease.circle.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.blue)
-                                Spacer()
-                            }
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Label("GitHub Issues", systemImage: "exclamationmark.circle")
+                    .font(.headline)
+                    .foregroundColor(.cyan)
 
-                            HStack(spacing: 16) {
-                                Picker("State", selection: $filterState) {
-                                    Text("Open Issues").tag("open")
-                                    Text("Closed Issues").tag("closed")
-                                    Text("All Issues").tag("all")
-                                }
-                                .pickerStyle(.segmented)
-                                .frame(width: 320)
-                                .onChange(of: filterState) {
-                                    filterTask?.cancel()
-                                    filterTask = Task { await loadIssues() }
-                                }
+                Spacer()
 
-                                Spacer()
-
-                                Button { showCreateIssue = true } label: {
-                                    Label("New Issue", systemImage: "plus.circle.fill")
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.cyan)
-                                .disabled(owner.isEmpty)
-                            }
-                        }
-                        .padding()
+                HStack(spacing: 12) {
+                    Picker("State", selection: $filterState) {
+                        Text("Open Issues").tag("open")
+                        Text("Closed Issues").tag("closed")
+                        Text("All Issues").tag("all")
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                    .pickerStyle(.segmented)
+                    .frame(width: 320)
+                    .onChange(of: filterState) {
+                        filterTask?.cancel()
+                        filterTask = Task { await loadIssues() }
+                    }
 
-                    // Card 2: Issues List
+                    Button { Task { await loadIssues() } } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .disabled(isLoading || owner.isEmpty)
+
+                    Button { showCreateIssue = true } label: {
+                        Label("New Issue", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.cyan)
+                    .disabled(owner.isEmpty)
+                }
+            }
+            .padding(.bottom, 16)
+
+            // Scrollable Content
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Issues List Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Issues Directory", systemImage: "list.bullet")
-                                    .font(.headline)
-                                    .foregroundColor(.cyan)
-                                Spacer()
-                            }
-
                             if isLoading {
                                 VStack {
                                     ProgressView()
@@ -147,34 +141,19 @@ struct GitHubIssuesView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 8)
-            }
-            .navigationTitle("GitHub Issues")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        // Dismiss handled by sheets parent
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button { Task { await loadIssues() } } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .disabled(isLoading || owner.isEmpty)
-                }
-            }
-            .sheet(isPresented: $showCreateIssue) {
-                createIssueSheet
-            }
-            .sheet(item: $selectedIssue) { issue in
-                IssueDetailView(issue: issue, owner: owner, repo: repoName)
             }
         }
+        .sourceControlEmbedded()
         .task {
             if issues.isEmpty && !owner.isEmpty {
                 await loadIssues()
             }
+        }
+        .sheet(isPresented: $showCreateIssue) {
+            createIssueSheet
+        }
+        .sheet(item: $selectedIssue) { issue in
+            IssueDetailView(issue: issue, owner: owner, repo: repoName)
         }
     }
 
@@ -268,62 +247,59 @@ struct GitHubIssuesView: View {
     // MARK: - Create Issue Sheet
 
     private var createIssueSheet: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Issue Specifications", systemImage: "plus.circle.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.cyan)
-                                Spacer()
-                            }
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Title")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                TextField("Issue title", text: $newIssueTitle)
-                                    .textFieldStyle(.roundedBorder)
-                                    .autocorrectionDisabled()
-                            }
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Description")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                TextEditor(text: $newIssueBody)
-                                    .font(.callout)
-                                    .frame(minHeight: 120)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                                    )
-                            }
-
-                            if isCreating {
-                                ProgressView("Creating Issue…").tint(.cyan)
-                            }
-                        }
-                        .padding()
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-                }
-                .padding(24)
+        VStack(spacing: 20) {
+            HStack {
+                Label("Create New Issue", systemImage: "plus.circle.fill")
+                    .font(.headline)
+                    .foregroundColor(.cyan)
+                Spacer()
             }
-            .background(Color(NSColor.windowBackgroundColor))
-            .navigationTitle("New Issue")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showCreateIssue = false }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Title")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                        TextField("Issue title", text: $newIssueTitle)
+                            .textFieldStyle(.roundedBorder)
+                            .autocorrectionDisabled()
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Description")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                        TextEditor(text: $newIssueBody)
+                            .font(.callout)
+                            .frame(height: 120)
+                            .cornerRadius(6)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                            )
+                    }
+
+                    if isCreating {
+                        ProgressView("Creating Issue…").tint(.cyan)
+                    }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Submit") { Task { await createIssue() } }
-                        .disabled(newIssueTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreating)
-                }
+                .padding()
+            }
+            .groupBoxStyle(ModernGroupBoxStyle())
+
+            HStack {
+                Button("Cancel") { showCreateIssue = false }
+                    .buttonStyle(.bordered)
+                Spacer()
+                Button("Submit") { Task { await createIssue() } }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.cyan)
+                    .disabled(newIssueTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreating)
             }
         }
+        .padding(24)
+        .frame(width: 450)
     }
 
     // MARK: - Load Issues
@@ -410,6 +386,7 @@ struct GitHubIssuesView: View {
 
 // MARK: - Issue Detail View
 
+@MainActor
 struct IssueDetailView: View {
     let issue: GitHubIssue
     let owner: String
@@ -417,19 +394,21 @@ struct IssueDetailView: View {
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 20) {
+            HStack {
+                Label("Issue Specifications", systemImage: issue.isOpen ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                    .font(.headline)
+                    .foregroundStyle(issue.isOpen ? .cyan : .green)
+                Spacer()
+                Button("Done") { dismiss() }
+                    .buttonStyle(.bordered)
+            }
+
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 20) {
                     // Card 1: Issue Specifications
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
-                            HStack(alignment: .top) {
-                                Label("Issue specifications", systemImage: issue.isOpen ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                                    .font(.headline)
-                                    .foregroundStyle(issue.isOpen ? .cyan : .green)
-                                Spacer()
-                            }
-
                             Text(issue.title)
                                 .font(.title3.bold())
 
@@ -497,15 +476,9 @@ struct IssueDetailView: View {
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 8)
-            }
-            .navigationTitle("Issue #\(issue.number)")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
             }
         }
+        .padding(24)
+        .frame(width: 500, height: 500)
     }
 }
