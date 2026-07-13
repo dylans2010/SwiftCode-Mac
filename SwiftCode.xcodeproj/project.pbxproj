@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7A810248C8484845B948EAB1 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 7A810248A053420BB40882CD /* Markdown */; };
 		7A810247C000000000000000 /* MarkdownBlockRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000001 /* MarkdownBlockRenderer.swift */; };
 		7A810247C000000000000002 /* MarkdownRenderCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000003 /* MarkdownRenderCache.swift */; };
 		7A810247C000000000000004 /* MarkdownRenderOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000005 /* MarkdownRenderOptions.swift */; };
@@ -2142,6 +2143,7 @@
 				24CF3E2E85F04AC794E9BFA8 /* MLXNN in Frameworks */,
 				004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */,
 				2E0A7FB1BC5F4001B2AEAD30 /* MLXRandom in Frameworks */,
+				7A810248C8484845B948EAB1 /* Markdown in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -4339,6 +4341,7 @@
 				1F87188B9053420BB40882CD /* MLXNN */,
 				BBB818A276304EA881DBF6E6 /* MLXOptimizers */,
 				F58AD0F3D29C45FCA7AE5130 /* MLXRandom */,
+				7A810248A053420BB40882CD /* Markdown */,
 			);
 			productName = SwiftCode;
 			productReference = 489731B7093610E91733BFAC /* SwiftCode.app */;
@@ -4372,6 +4375,7 @@
 				4A810247BF88432CBDA28834 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 				A1B2C3D4E5F60123456789AB /* XCRemoteSwiftPackageReference "Splash" */,
 				B5C11042228B46F1A40BB7DA /* XCRemoteSwiftPackageReference "mlx-swift" */,
+				7A810248BF88432CBDA28834 /* XCRemoteSwiftPackageReference "swift-markdown" */,
 			);
 			productRefGroup = 021F2B7F3E0C61452C987484 /* Products */;
 			projectDirPath = "";
@@ -5697,6 +5701,14 @@
 				minimumVersion = 0.31.0;
 			};
 		};
+		7A810248BF88432CBDA28834 /* XCRemoteSwiftPackageReference "swift-markdown" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-markdown.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.2.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -5729,6 +5741,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B5C11042228B46F1A40BB7DA /* XCRemoteSwiftPackageReference "mlx-swift" */;
 			productName = MLXRandom;
+		};
+		7A810248A053420BB40882CD /* Markdown */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A810248BF88432CBDA28834 /* XCRemoteSwiftPackageReference "swift-markdown" */;
+			productName = Markdown;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
