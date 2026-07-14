@@ -4,12 +4,19 @@ public struct FeaturePlanningEditor: View {
     public let coordinator: PersonalDocumentationCoordinator
     public let documentID: UUID?
 
+    // Custom Interactive State Variables
     @State private var targetQuarter = "Q3 2026"
     @State private var leadDeveloper = ""
     @State private var estimatedStoryPoints = "5"
     @State private var teamAlignment = "Core Platform"
     @State private var riskLevel = "Medium"
     @State private var customerImpact = "All Public Users"
+
+    // Interactive Scope Guard Checklist
+    @State private var inScopeItem = ""
+    @State private var outOfScopeItem = ""
+    @State private var inScopeList: [String] = []
+    @State private var outOfScopeList: [String] = []
 
     public init(coordinator: PersonalDocumentationCoordinator, documentID: UUID?) {
         self.coordinator = coordinator
@@ -22,86 +29,135 @@ public struct FeaturePlanningEditor: View {
             kind: .featurePlanning,
             documentID: documentID,
             specializedToolbar: {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Button {
                         insertStories()
                     } label: {
                         Label("Stories List", systemImage: "person.2.fill")
                     }
-                    .buttonStyle(.bordered)
+                    .help("Insert standard User Stories specification")
 
                     Button {
                         insertMilestones()
                     } label: {
                         Label("Milestones", systemImage: "flag.fill")
                     }
-                    .buttonStyle(.bordered)
+                    .help("Insert key product milestones timeline")
                 }
             },
             specializedMetadata: {
-                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
-                    GridRow {
-                        Text("Target Quarter:")
-                            .font(.caption.bold())
-                        Picker("", selection: $targetQuarter) {
-                            Text("Q1 2026").tag("Q1 2026")
-                            Text("Q2 2026").tag("Q2 2026")
-                            Text("Q3 2026").tag("Q3 2026")
-                            Text("Q4 2026").tag("Q4 2026")
-                        }
-                        .frame(width: 180)
+                VStack(alignment: .leading, spacing: 12) {
+                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                        GridRow {
+                            Text("Quarter:")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.secondary)
+                            Picker("", selection: $targetQuarter) {
+                                Text("Q1 2026").tag("Q1 2026")
+                                Text("Q2 2026").tag("Q2 2026")
+                                Text("Q3 2026").tag("Q3 2026")
+                                Text("Q4 2026").tag("Q4 2026")
+                            }
+                            .controlSize(.small)
 
-                        Text("Lead Dev:")
-                            .font(.caption.bold())
-                        TextField("Name", text: $leadDeveloper)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 180)
+                            Text("Lead Dev:")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.secondary)
+                            TextField("Developer", text: $leadDeveloper)
+                                .textFieldStyle(.roundedBorder)
+                                .controlSize(.small)
+                        }
+
+                        GridRow {
+                            Text("Points:")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.secondary)
+                            Picker("", selection: $estimatedStoryPoints) {
+                                Text("1").tag("1")
+                                Text("3").tag("3")
+                                Text("5").tag("5")
+                                Text("8").tag("8")
+                                Text("13").tag("13")
+                            }
+                            .pickerStyle(.segmented)
+                            .controlSize(.small)
+                            .gridCellColumns(3)
+                        }
+
+                        GridRow {
+                            Text("Team:")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.secondary)
+                            Picker("", selection: $teamAlignment) {
+                                Text("Platform").tag("Core Platform")
+                                Text("UI Flow").tag("UI/UX Flow")
+                                Text("Data Sync").tag("Data Sync")
+                            }
+                            .controlSize(.small)
+
+                            Text("Risk:")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.secondary)
+                            Picker("", selection: $riskLevel) {
+                                Text("High").tag("High")
+                                Text("Med").tag("Medium")
+                                Text("Low").tag("Low")
+                            }
+                            .pickerStyle(.segmented)
+                            .controlSize(.small)
+                        }
+
+                        GridRow {
+                            Text("Impact:")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.secondary)
+                            Picker("", selection: $customerImpact) {
+                                Text("Internal").tag("Internal Tooling")
+                                Text("Enterprise").tag("Enterprise Customers")
+                                Text("Public").tag("All Public Users")
+                            }
+                            .controlSize(.small)
+                            .gridCellColumns(3)
+                        }
                     }
 
-                    GridRow {
-                        Text("Story Points:")
-                            .font(.caption.bold())
-                        Picker("", selection: $estimatedStoryPoints) {
-                            Text("1").tag("1")
-                            Text("2").tag("2")
-                            Text("3").tag("3")
-                            Text("5").tag("5")
-                            Text("8").tag("8")
-                            Text("13").tag("13")
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(width: 250)
+                    Divider().padding(.vertical, 4)
 
-                        Text("Team Alignment:")
-                            .font(.caption.bold())
-                        Picker("", selection: $teamAlignment) {
-                            Text("Core Platform").tag("Core Platform")
-                            Text("UI/UX Flow").tag("UI/UX Flow")
-                            Text("Data Sync").tag("Data Sync")
-                            Text("DevOps").tag("DevOps")
-                        }
-                        .frame(width: 180)
-                    }
+                    // SCOPE GUARD BUILDER
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("SCOPE GUARD CONTROLS")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
 
-                    GridRow {
-                        Text("Risk Level:")
-                            .font(.caption.bold())
-                        Picker("", selection: $riskLevel) {
-                            Text("High").tag("High")
-                            Text("Medium").tag("Medium")
-                            Text("Low").tag("Low")
+                        // In scope
+                        HStack {
+                            TextField("Add In-Scope...", text: $inScopeItem, onCommit: addInScope)
+                                .textFieldStyle(.roundedBorder)
+                                .controlSize(.small)
+                            Button { addInScope() } label: { Image(systemName: "plus") }
+                                .buttonStyle(.bordered).controlSize(.small)
                         }
-                        .pickerStyle(.segmented)
-                        .frame(width: 180)
 
-                        Text("Customer Impact:")
-                            .font(.caption.bold())
-                        Picker("", selection: $customerImpact) {
-                            Text("Internal Tooling").tag("Internal Tooling")
-                            Text("Enterprise Customers").tag("Enterprise Customers")
-                            Text("All Public Users").tag("All Public Users")
+                        // Out of scope
+                        HStack {
+                            TextField("Add Out-of-Scope...", text: $outOfScopeItem, onCommit: addOutOfScope)
+                                .textFieldStyle(.roundedBorder)
+                                .controlSize(.small)
+                            Button { addOutOfScope() } label: { Image(systemName: "plus") }
+                                .buttonStyle(.bordered).controlSize(.small)
                         }
-                        .frame(width: 180)
+
+                        // Added visual items count indicator
+                        if !inScopeList.isEmpty || !outOfScopeList.isEmpty {
+                            HStack {
+                                Text("In-Scope: \(inScopeList.count)")
+                                    .foregroundStyle(.green)
+                                Text("•")
+                                Text("Out-of-Scope: \(outOfScopeList.count)")
+                                    .foregroundStyle(.red)
+                            }
+                            .font(.system(size: 10, weight: .bold))
+                        }
                     }
                 }
             },
@@ -109,16 +165,51 @@ public struct FeaturePlanningEditor: View {
         )
     }
 
+    private func addInScope() {
+        let trimmed = inScopeItem.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            inScopeList.append(trimmed)
+            inScopeItem = ""
+        }
+    }
+
+    private func addOutOfScope() {
+        let trimmed = outOfScopeItem.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            outOfScopeList.append(trimmed)
+            outOfScopeItem = ""
+        }
+    }
+
     private func insertStories() {
+        var scopeMarkdown = ""
+        if !inScopeList.isEmpty {
+            scopeMarkdown += "\n#### In-Scope Items:\n"
+            for item in inScopeList { scopeMarkdown += "- [x] \(item)\n" }
+        }
+        if !outOfScopeList.isEmpty {
+            scopeMarkdown += "\n#### Out-of-Scope Boundaries:\n"
+            for item in outOfScopeList { scopeMarkdown += "- [ ] *Excluding*: \(item)\n" }
+        }
+
         let template = """
 
-        ### Proposed User Stories
+        ### Feature Requirements & User Stories
+
+        **Target Timeline:** `\(targetQuarter)`
+        **Story Points Budget:** `\(estimatedStoryPoints)` SP
+        **Team Alignment:** `\(teamAlignment)`
+        **Oversight Lead:** \(leadDeveloper.isEmpty ? "N/A" : leadDeveloper)
+
+        #### Proposed User Stories
         - [ ] **Story 1:** As a \(customerImpact) role, I want [action] so that [benefit].
         - [ ] **Story 2:** As a developer in \(teamAlignment), I want [technical action] so that [engineering benefit].
 
-        **Feature Constraints:**
-        * Story points budget: `\(estimatedStoryPoints)` SP
-        * Risk Level: `\(riskLevel)`
+        \(scopeMarkdown)
+
+        **Risk Mitigation Plan:**
+        - Risk Level: `\(riskLevel)`
+        - Mitigation: Regular testing sync and agile scope adjustments.
         """
         NotificationCenter.default.post(
             name: NSNotification.Name("InsertEditorText"),

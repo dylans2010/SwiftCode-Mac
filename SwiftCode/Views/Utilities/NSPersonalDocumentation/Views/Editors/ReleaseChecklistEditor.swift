@@ -4,6 +4,7 @@ public struct ReleaseChecklistEditor: View {
     public let coordinator: PersonalDocumentationCoordinator
     public let documentID: UUID?
 
+    // Custom Interactive State Variables
     @State private var targetEnvironment = "Production"
     @State private var releaseManager = ""
     @State private var buildVersion = "v1.0.0"
@@ -11,9 +12,34 @@ public struct ReleaseChecklistEditor: View {
     @State private var verificationMethod = "Automated E2E"
     @State private var rollbackStrategy = "Automatic Rollback"
 
+    // Interactive Checklist Steps
+    @State private var step1Completed = false
+    @State private var step2Completed = false
+    @State private var step3Completed = false
+    @State private var step4Completed = false
+
+    private var deploymentProgress: Double {
+        var completed = 0.0
+        if step1Completed { completed += 1 }
+        if step2Completed { completed += 1 }
+        if step3Completed { completed += 1 }
+        if step4Completed { completed += 1 }
+        return completed / 4.0
+    }
+
     public init(coordinator: PersonalDocumentationCoordinator, documentID: UUID?) {
         self.coordinator = coordinator
         self.documentID = documentID
+    }
+
+    private var validationMessage: String? {
+        if buildVersion.isEmpty {
+            return "Build version is required"
+        }
+        if !buildVersion.hasPrefix("v") {
+            return "Build version must start with 'v' (e.g. v1.2.3)"
+        }
+        return nil
     }
 
     public var body: some View {
@@ -22,71 +48,121 @@ public struct ReleaseChecklistEditor: View {
             kind: .releaseChecklist,
             documentID: documentID,
             specializedToolbar: {
-                Button {
-                    insertChecklist()
-                } label: {
-                    Label("Deployment Checklist", systemImage: "shippingbox.fill")
+                HStack(spacing: 6) {
+                    Button {
+                        insertChecklist()
+                    } label: {
+                        Label("Release Checklist", systemImage: "shippingbox.fill")
+                    }
+                    .help("Insert step-by-step Release Checklist protocol template")
+
+                    Button {
+                        insertRollbackPlaybook()
+                    } label: {
+                        Label("Rollback Playbook", systemImage: "arrow.counterclockwise.shield.fill")
+                    }
+                    .help("Insert Emergency Rollback Playbook blueprint")
                 }
-                .buttonStyle(.bordered)
             },
             specializedMetadata: {
-                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
-                    GridRow {
-                        Text("Environment:")
-                            .font(.caption.bold())
-                        Picker("", selection: $targetEnvironment) {
-                            Text("Staging").tag("Staging")
-                            Text("Production").tag("Production")
+                VStack(alignment: .leading, spacing: 12) {
+                    // Deployment progress bar visual
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("DEPLOYMENT STEP PROGRESS")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(Int(deploymentProgress * 100))%")
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .foregroundStyle(.accentColor)
                         }
-                        .frame(width: 180)
 
-                        Text("Release Lead:")
-                            .font(.caption.bold())
-                        TextField("Name", text: $releaseManager)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 180)
+                        ProgressView(value: deploymentProgress)
+                            .progressViewStyle(.linear)
+                            .controlSize(.small)
                     }
 
-                    GridRow {
-                        Text("Build Version:")
-                            .font(.caption.bold())
-                        TextField("e.g. v1.0.0", text: $buildVersion)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 180)
+                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                        GridRow {
+                            Text("Environment:")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.secondary)
+                            Picker("", selection: $targetEnvironment) {
+                                Text("Staging").tag("Staging")
+                                Text("Production").tag("Production")
+                            }
+                            .controlSize(.small)
 
-                        Text("Deployment Type:")
-                            .font(.caption.bold())
-                        Picker("", selection: $deploymentType) {
-                            Text("Rolling Update").tag("Rolling Update")
-                            Text("Blue-Green").tag("Blue-Green")
-                            Text("Canary").tag("Canary")
-                            Text("Recreate").tag("Recreate")
+                            Text("Release Lead:")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.secondary)
+                            TextField("Name", text: $releaseManager)
+                                .textFieldStyle(.roundedBorder)
+                                .controlSize(.small)
                         }
-                        .frame(width: 180)
+
+                        GridRow {
+                            Text("Build:")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.secondary)
+                            TextField("e.g. v1.0.0", text: $buildVersion)
+                                .textFieldStyle(.roundedBorder)
+                                .controlSize(.small)
+
+                            Text("Type:")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.secondary)
+                            Picker("", selection: $deploymentType) {
+                                Text("Rolling").tag("Rolling Update")
+                                Text("Blue-Green").tag("Blue-Green")
+                                Text("Canary").tag("Canary")
+                            }
+                            .controlSize(.small)
+                        }
+
+                        GridRow {
+                            Text("Verification:")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.secondary)
+                            Picker("", selection: $verificationMethod) {
+                                Text("E2E").tag("Automated E2E")
+                                Text("Manual").tag("Manual Acceptance")
+                                Text("Smoke").tag("Smoke Tests Only")
+                            }
+                            .controlSize(.small)
+
+                            Text("Rollback:")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.secondary)
+                            Picker("", selection: $rollbackStrategy) {
+                                Text("Auto").tag("Automatic Rollback")
+                                Text("Manual").tag("Manual Revert")
+                            }
+                            .controlSize(.small)
+                        }
                     }
 
-                    GridRow {
-                        Text("Verification:")
-                            .font(.caption.bold())
-                        Picker("", selection: $verificationMethod) {
-                            Text("Automated E2E").tag("Automated E2E")
-                            Text("Manual Acceptance").tag("Manual Acceptance")
-                            Text("Smoke Tests Only").tag("Smoke Tests Only")
-                        }
-                        .frame(width: 180)
+                    Divider().padding(.vertical, 4)
 
-                        Text("Rollback Plan:")
-                            .font(.caption.bold())
-                        Picker("", selection: $rollbackStrategy) {
-                            Text("Automatic Rollback").tag("Automatic Rollback")
-                            Text("Manual Revert").tag("Manual Revert")
-                            Text("Fail Forward").tag("Fail Forward")
+                    // STEPPER CHECKLIST
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("STEP-BY-STEP DEPLOYMENT GATEWAY")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Toggle("1. Database Backup Completed", isOn: $step1Completed)
+                            Toggle("2. Binary Clusters Complied & Tagged", isOn: $step2Completed)
+                            Toggle("3. Active Traffic Routing Verified", isOn: $step3Completed)
+                            Toggle("4. Smoke Regression Validated", isOn: $step4Completed)
                         }
-                        .frame(width: 180)
+                        .font(.system(size: 10))
+                        .controlSize(.small)
                     }
                 }
             },
-            validationMessage: nil
+            validationMessage: validationMessage
         )
     }
 
@@ -102,13 +178,13 @@ public struct ReleaseChecklistEditor: View {
         **Rollback Strategy:** `\(rollbackStrategy)`
 
         #### Pre-flight Checks
-        - [ ] Verify that CI/CD builds successfully and all target unit tests pass.
-        - [ ] Run security code analysis scanning on release branches.
+        - [\(step1Completed ? "x" : " ")] Verify that CI/CD builds successfully and all target unit tests pass.
+        - [\(step1Completed ? "x" : " ")] Run security code analysis scanning on release branches.
 
         #### Deployment Steps (\(deploymentType))
-        1. [ ] Back up target database structures (SQL Dump).
-        2. [ ] Deploy application binaries `\(buildVersion)` to clusters.
-        3. [ ] Run active smoke validation tests using `\(verificationMethod)`.
+        1. [\(step2Completed ? "x" : " ")] Back up target database structures (SQL Dump).
+        2. [\(step3Completed ? "x" : " ")] Deploy application binaries `\(buildVersion)` to clusters.
+        3. [\(step4Completed ? "x" : " ")] Run active smoke validation tests using `\(verificationMethod)`.
 
         #### Verification & Sign-off
         - [ ] Run active end-to-end regression workflows.
@@ -121,6 +197,23 @@ public struct ReleaseChecklistEditor: View {
             name: NSNotification.Name("InsertEditorText"),
             object: nil,
             userInfo: ["text": template]
+        )
+    }
+
+    private func insertRollbackPlaybook() {
+        let playbook = """
+
+        ### Emergency Rollback Playbook (Build: `\(buildVersion)`)
+        If deployment checks fail, follow these step-by-step mitigation routines immediately:
+
+        1. **Traffic Re-routing**: Shift traffic immediately back to prior production binaries.
+        2. **Database Revert**: Roll back database schema to prior snapshots.
+        3. **SLA Diagnostics**: Execute post-incident analysis on rollback actions.
+        """
+        NotificationCenter.default.post(
+            name: NSNotification.Name("InsertEditorText"),
+            object: nil,
+            userInfo: ["text": playbook]
         )
     }
 }
