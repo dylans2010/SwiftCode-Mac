@@ -132,10 +132,7 @@ struct WikiPageDetailView: View {
                 Divider()
 
                 if isEditing {
-                    TextEditor(text: $contentEditorText)
-                        .font(.system(.body, design: .monospaced))
-                        .padding()
-                        .background(Color(NSColor.controlBackgroundColor))
+                    DocNSTextView(text: $contentEditorText)
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 14) {

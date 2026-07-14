@@ -42,9 +42,7 @@ struct PersonalDocCanvasView: View {
 
             HStack(spacing: 0) {
                 if isEditing {
-                    TextEditor(text: $sourceText)
-                        .font(.system(.body, design: .monospaced))
-                        .padding()
+                    DocNSTextView(text: $sourceText)
                         .onChange(of: sourceText) { _, newText in
                             doc.markdownSource = newText
                             try? coordinator.documents.updateDocument(doc)

@@ -61,22 +61,7 @@ struct RecordListView: View {
             // Filters & Search Panel
             VStack(spacing: 8) {
                 // Search Bar
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("Search title...", text: $searchQuery)
-                        .textFieldStyle(.plain)
-                    if !searchQuery.isEmpty {
-                        Button {
-                            searchQuery = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(6)
-                .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                NativeSearchField(text: $searchQuery, placeholder: "Search title...")
 
                 HStack(spacing: 8) {
                     // Category Filter

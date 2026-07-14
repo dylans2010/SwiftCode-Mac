@@ -184,11 +184,10 @@ struct RecordDetailView: View {
                                             .font(.headline)
                                             .foregroundStyle(.secondary)
 
-                                        TextEditor(text: Binding(
+                                        DocNSTextView(text: Binding(
                                             get: { doc.markdownSource },
                                             set: { doc.markdownSource = $0; try? coordinator.documents.updateDocument(doc) }
                                         ))
-                                        .font(.system(.body, design: .monospaced))
                                         .frame(minHeight: 400)
                                         .cornerRadius(6)
                                         .overlay(
