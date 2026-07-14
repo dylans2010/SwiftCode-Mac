@@ -161,9 +161,41 @@ struct RepositoryDetailView: View {
                                 Text("Open Issues:")
                                     .fontWeight(.bold)
                                 Text("\(details.openIssuesCount)")
+
+                                Text("GitHub Releases:")
+                                    .fontWeight(.bold)
+                                Text("\(context.loadedReleasesCount > 0 ? "\(context.loadedReleasesCount)" : "N/A")")
+                            }
+
+                            GridRow {
+                                Text("Remote Branches:")
+                                    .fontWeight(.bold)
+                                Text("\(context.loadedBranchesCount > 0 ? "\(context.loadedBranchesCount)" : "N/A")")
+
+                                Text("Open Pull Requests:")
+                                    .fontWeight(.bold)
+                                Text("\(context.loadedPullRequestsCount > 0 ? "\(context.loadedPullRequestsCount)" : "N/A")")
                             }
                         }
                         .font(.subheadline)
+
+                        // Languages list
+                        if !context.loadedLanguages.isEmpty {
+                            Divider()
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Repository Languages")
+                                    .font(.subheadline.bold())
+                                HFlowLayout(context.loadedLanguages, spacing: 6) { language in
+                                    Text(language)
+                                        .font(.caption2)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.green.opacity(0.12))
+                                        .foregroundColor(.green)
+                                        .cornerRadius(6)
+                                }
+                            }
+                        }
 
                         // Topics list
                         if let topics = details.topics, !topics.isEmpty {
@@ -219,6 +251,7 @@ struct RepositoryDetailView: View {
                                 Task {
                                     isLoading = true
                                     await context.fetchMetadata()
+                                    await gitViewModel.refreshStatus()
                                     isLoading = false
                                 }
                             }

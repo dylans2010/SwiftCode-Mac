@@ -41,7 +41,7 @@ struct GitSidebarView: View {
                 }
 
                 VStack {
-                    GitCommitComposerView(message: $commitMessage) {
+                    GitCommitComposerView(message: $commitMessage, gitViewModel: viewModel) {
                         Task {
                             guard let url = viewModel.repositoryURL else { return }
                             try? await GitService.shared.commit(message: commitMessage, repositoryURL: url)

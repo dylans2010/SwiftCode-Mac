@@ -91,6 +91,12 @@ final class RepositoryContext {
     var isLoadingMetadata = false
     var showingSetRepoSheet = false
 
+    // Additional metadata loaded
+    var loadedBranchesCount: Int = 0
+    var loadedPullRequestsCount: Int = 0
+    var loadedReleasesCount: Int = 0
+    var loadedLanguages: [String] = []
+
     var activeProject: Project? {
         ProjectSessionStore.shared.activeProject
     }
@@ -155,6 +161,50 @@ final class RepositoryContext {
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             self.cachedMetadata = try decoder.decode(GitHubRepoDetail.self, from: data)
+
+            // 1. Fetch Languages
+            if let langURL = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/languages") {
+                var req = URLRequest(url: langURL)
+                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+                if let (langData, _) = try? await URLSession.shared.data(for: req),
+                   let langDict = try? JSONSerialization.jsonObject(with: langData) as? [String: Any] {
+                    self.loadedLanguages = Array(langDict.keys).sorted()
+                }
+            }
+
+            // 2. Fetch branches count
+            if let branchesURL = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/branches?per_page=100") {
+                var req = URLRequest(url: branchesURL)
+                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+                if let (branchesData, _) = try? await URLSession.shared.data(for: req),
+                   let arr = try? JSONSerialization.jsonObject(with: branchesData) as? [[String: Any]] {
+                    self.loadedBranchesCount = arr.count
+                }
+            }
+
+            // 3. Fetch pulls count
+            if let pullsURL = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/pulls?state=open&per_page=100") {
+                var req = URLRequest(url: pullsURL)
+                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+                if let (pullsData, _) = try? await URLSession.shared.data(for: req),
+                   let arr = try? JSONSerialization.jsonObject(with: pullsData) as? [[String: Any]] {
+                    self.loadedPullRequestsCount = arr.count
+                }
+            }
+
+            // 4. Fetch releases count
+            if let releasesURL = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/releases?per_page=100") {
+                var req = URLRequest(url: releasesURL)
+                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+                if let (releasesData, _) = try? await URLSession.shared.data(for: req),
+                   let arr = try? JSONSerialization.jsonObject(with: releasesData) as? [[String: Any]] {
+                    self.loadedReleasesCount = arr.count
+                }
+            }
         } catch {
             // silent catch
         }

@@ -942,19 +942,22 @@ public struct GitHubReleaseInfo: Identifiable, Decodable, Sendable {
     public let tagName: String
     public let createdAt: String
     public let body: String?
+    public let htmlUrl: String?
 
     enum CodingKeys: String, CodingKey {
         case id, name, body
         case tagName = "tag_name"
         case createdAt = "created_at"
+        case htmlUrl = "html_url"
     }
 
-    public init(id: Int, name: String?, tagName: String, createdAt: String, body: String?) {
+    public init(id: Int, name: String?, tagName: String, createdAt: String, body: String?, htmlUrl: String? = nil) {
         self.id = id
         self.name = name
         self.tagName = tagName
         self.createdAt = createdAt
         self.body = body
+        self.htmlUrl = htmlUrl
     }
 }
 
