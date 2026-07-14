@@ -32,298 +32,201 @@ struct RecordDetailView: View {
     }
 
     var body: some View {
-        HSplitView {
-            // Main Document Content Workspace
-            VStack(spacing: 0) {
-                if let doc = document {
-                    // Document Header Bar
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack(spacing: 16) {
-                            // Editable Title or Header Info
-                            HStack(spacing: 8) {
-                                Image(systemName: doc.moduleKind.icon)
-                                    .font(.title2)
-                                    .foregroundStyle(doc.moduleKind.accentColor)
-
-                                if isRenaming {
-                                    TextField("Document Title", text: $editTitleText)
-                                        .textFieldStyle(.roundedBorder)
-                                        .font(.title3.bold())
-                                        .frame(width: 250)
-                                        .onSubmit {
-                                            renameDocument(to: editTitleText)
-                                        }
-
-                                    Button {
-                                        renameDocument(to: editTitleText)
-                                    } label: {
-                                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                                    }
-                                    .buttonStyle(.plain)
-
-                                    Button {
-                                        isRenaming = false
-                                    } label: {
-                                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                                    }
-                                    .buttonStyle(.plain)
-                                } else {
-                                    Text(doc.title)
-                                        .font(.title2.bold())
-                                        .textSelection(.enabled)
-
-                                    Button {
-                                        editTitleText = doc.title
-                                        isRenaming = true
-                                    } label: {
-                                        Image(systemName: "pencil")
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-
-                            Spacer()
-
-                            // Read / Edit Segmented View Control
-                            Picker("View Mode", selection: $viewMode) {
-                                ForEach(ViewMode.allCases) { mode in
-                                    Label(mode.rawValue, systemImage: mode == .read ? "eye.fill" : "pencil")
-                                        .tag(mode)
-                                }
-                            }
-                            .pickerStyle(.segmented)
-                            .frame(width: 200)
-
-                            // Quick Action Buttons
-                            HStack(spacing: 12) {
-                                Button {
-                                    duplicateDocument()
-                                } label: {
-                                    Image(systemName: "doc.on.doc")
-                                }
-                                .help("Duplicate Document")
-                                .buttonStyle(.bordered)
-
-                                Button(role: .destructive) {
-                                    showingDeleteConfirmation = true
-                                } label: {
-                                    Image(systemName: "trash")
-                                }
-                                .help("Delete Document")
-                                .buttonStyle(.bordered)
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 12)
-                        .background(Color(NSColor.windowBackgroundColor))
-
-                        Divider()
-                    }
-
-                    // Content Area
-                    if doc.archetype == "freeform" && viewMode == .edit {
-                        PersonalDocCanvasView(coordinator: coordinator, doc: doc)
-                    } else {
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 20) {
-                                // Unified attributes grid for structured records or meta display
-                                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
-                                    GridRow {
-                                        Text("Status")
-                                            .font(.subheadline.bold())
-                                        Picker("Status", selection: Binding(
-                                            get: { doc.status ?? "To Do" },
-                                            set: { doc.status = $0; try? coordinator.documents.updateDocument(doc); reloadData() }
-                                        )) {
-                                            Text("To Do").tag("To Do")
-                                            Text("In Progress").tag("In Progress")
-                                            Text("Done").tag("Done")
-                                        }
-                                        .pickerStyle(.menu)
-                                        .controlSize(.small)
-                                    }
-
-                                    GridRow {
-                                        Text("Priority")
-                                            .font(.subheadline.bold())
-                                        Picker("Priority", selection: Binding(
-                                            get: { doc.priority ?? "Medium" },
-                                            set: { doc.priority = $0; try? coordinator.documents.updateDocument(doc); reloadData() }
-                                        )) {
-                                            Text("High").tag("High")
-                                            Text("Medium").tag("Medium")
-                                            Text("Low").tag("Low")
-                                        }
-                                        .pickerStyle(.menu)
-                                        .controlSize(.small)
-                                    }
-                                }
-                                .padding()
-                                .background(Color(NSColor.controlBackgroundColor))
-                                .cornerRadius(8)
-
-                                // View mode body
-                                if viewMode == .read {
-                                    // READ MODE: High Fidelity Markdown rendering
-                                    VStack(alignment: .leading, spacing: 12) {
-                                        if doc.markdownSource.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                            Text("No content written in this document yet. Click 'Edit Mode' above to start writing markdown notes.")
-                                                .font(.subheadline)
-                                                .foregroundStyle(.secondary)
-                                                .italic()
-                                        } else {
-                                            MarkdownBlockListView(blocks: MarkdownRenderer.shared.parse(doc.markdownSource))
-                                        }
-                                    }
-                                    .padding(.horizontal, 4)
-                                } else {
-                                    // EDIT MODE: Beautiful Markdown editor
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Text("Markdown Source Notes")
-                                            .font(.headline)
-                                            .foregroundStyle(.secondary)
-
-                                        DocNSTextView(text: Binding(
-                                            get: { doc.markdownSource },
-                                            set: { doc.markdownSource = $0; try? coordinator.documents.updateDocument(doc) }
-                                        ))
-                                        .frame(minHeight: 400)
-                                        .cornerRadius(6)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 6)
-                                                .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
-                                        )
-                                    }
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(24)
-                        }
-                    }
-                } else {
-                    ContentUnavailableView {
-                        Label("No Item Selected", systemImage: "doc.text")
-                    } description: {
-                        Text("Select a document or record from the list to view and edit details.")
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            // Right Inspector Sidebar: Relationships & Version History
+        VStack(spacing: 0) {
             if let doc = document {
-                VStack(spacing: 0) {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 18) {
-                            // Section 1: Document Relationships & Links
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack {
-                                    Text("Document Relationships")
-                                        .font(.headline)
-                                    Spacer()
-                                    Button {
-                                        showAddLink = true
-                                    } label: {
-                                        Image(systemName: "link.badge.plus")
-                                    }
-                                    .buttonStyle(.plain)
-                                }
+                // Document Header Bar
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 16) {
+                        // Editable Title or Header Info
+                        HStack(spacing: 8) {
+                            Image(systemName: doc.moduleKind.icon)
+                                .font(.title2)
+                                .foregroundStyle(doc.moduleKind.accentColor)
 
-                                if relationships.isEmpty {
-                                    Text("No connected resources. Link this document to Swift files, commits, bugs, or milestones.")
-                                        .font(.caption)
+                            if isRenaming {
+                                TextField("Document Title", text: $editTitleText)
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.title3.bold())
+                                    .frame(width: 250)
+                                    .onSubmit {
+                                        renameDocument(to: editTitleText)
+                                    }
+
+                                Button {
+                                    renameDocument(to: editTitleText)
+                                } label: {
+                                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                                }
+                                .buttonStyle(.plain)
+
+                                Button {
+                                    isRenaming = false
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                Text(doc.title)
+                                    .font(.title2.bold())
+                                    .textSelection(.enabled)
+
+                                Button {
+                                    editTitleText = doc.title
+                                    isRenaming = true
+                                } label: {
+                                    Image(systemName: "pencil")
                                         .foregroundStyle(.secondary)
-                                } else {
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        ForEach(relationships) { rel in
-                                            HStack {
-                                                Image(systemName: "link")
-                                                    .foregroundStyle(.blue)
-                                                VStack(alignment: .leading) {
-                                                    Text(rel.targetName)
-                                                        .font(.caption.bold())
-                                                    Text(rel.targetType)
-                                                        .font(.system(size: 9))
-                                                        .foregroundStyle(.secondary)
-                                                }
-                                                Spacer()
-                                                Button {
-                                                    try? coordinator.relationships.removeLink(rel)
-                                                    reloadData()
-                                                } label: {
-                                                    Image(systemName: "xmark.circle")
-                                                }
-                                                .buttonStyle(.plain)
-                                            }
-                                            .padding(6)
-                                            .background(Color(NSColor.controlBackgroundColor))
-                                            .cornerRadius(6)
-                                        }
-                                    }
                                 }
+                                .buttonStyle(.plain)
                             }
-                            .padding()
-                            .background(Color(NSColor.windowBackgroundColor))
-                            .cornerRadius(8)
-
-                            Divider()
-
-                            // Section 2: Revision History Versioning
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("Document Versioning")
-                                    .font(.headline)
-
-                                Button("Save Revision Point") {
-                                    saveRevisionPoint()
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.small)
-
-                                if versions.isEmpty {
-                                    Text("No previous snapshots. Snapshots provide historical restoration points.")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        ForEach(versions) { ver in
-                                            Button {
-                                                selectedVersion = ver
-                                            } label: {
-                                                HStack {
-                                                    Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
-                                                    VStack(alignment: .leading) {
-                                                        Text("Snapshot")
-                                                            .font(.caption.bold())
-                                                        Text(ver.timestamp, style: .time)
-                                                            .font(.system(size: 9))
-                                                            .foregroundStyle(.secondary)
-                                                    }
-                                                    Spacer()
-                                                    Image(systemName: "chevron.right")
-                                                }
-                                                .padding(6)
-                                                .background(selectedVersion?.id == ver.id ? Color.blue.opacity(0.15) : Color(NSColor.controlBackgroundColor))
-                                                .cornerRadius(6)
-                                            }
-                                            .buttonStyle(.plain)
-                                        }
-                                    }
-                                }
-                            }
-                            .padding()
-                            .background(Color(NSColor.windowBackgroundColor))
-                            .cornerRadius(8)
                         }
-                        .padding()
+
+                        Spacer()
+
+                        // Read / Edit Segmented View Control
+                        Picker("View Mode", selection: $viewMode) {
+                            ForEach(ViewMode.allCases) { mode in
+                                Label(mode.rawValue, systemImage: mode == .read ? "eye.fill" : "pencil")
+                                    .tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 200)
+
+                        // Quick Action Buttons
+                        HStack(spacing: 12) {
+                            Button {
+                                duplicateDocument()
+                            } label: {
+                                Image(systemName: "doc.on.doc")
+                            }
+                            .help("Duplicate Document")
+                            .buttonStyle(.bordered)
+
+                            Button(role: .destructive) {
+                                showingDeleteConfirmation = true
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .help("Delete Document")
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(Color(NSColor.windowBackgroundColor))
+
+                    Divider()
+                }
+
+                // Content Area
+                if doc.archetype == "freeform" && viewMode == .edit {
+                    PersonalDocCanvasView(coordinator: coordinator, doc: doc)
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            // Unified attributes grid for structured records or meta display
+                            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
+                                GridRow {
+                                    Text("Status")
+                                        .font(.subheadline.bold())
+                                    Picker("Status", selection: Binding(
+                                        get: { doc.status ?? "To Do" },
+                                        set: { doc.status = $0; try? coordinator.documents.updateDocument(doc); reloadData() }
+                                    )) {
+                                        Text("To Do").tag("To Do")
+                                        Text("In Progress").tag("In Progress")
+                                        Text("Done").tag("Done")
+                                    }
+                                    .pickerStyle(.menu)
+                                    .controlSize(.small)
+                                }
+
+                                GridRow {
+                                    Text("Priority")
+                                        .font(.subheadline.bold())
+                                    Picker("Priority", selection: Binding(
+                                        get: { doc.priority ?? "Medium" },
+                                        set: { doc.priority = $0; try? coordinator.documents.updateDocument(doc); reloadData() }
+                                    )) {
+                                        Text("High").tag("High")
+                                        Text("Medium").tag("Medium")
+                                        Text("Low").tag("Low")
+                                    }
+                                    .pickerStyle(.menu)
+                                    .controlSize(.small)
+                                }
+                            }
+                            .padding()
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .cornerRadius(8)
+
+                            // View mode body
+                            if viewMode == .read {
+                                // READ MODE: High Fidelity Markdown rendering
+                                VStack(alignment: .leading, spacing: 12) {
+                                    if doc.markdownSource.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        Text("No content written in this document yet. Click 'Edit Mode' above to start writing markdown notes.")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                            .italic()
+                                    } else {
+                                        MarkdownBlockListView(blocks: MarkdownRenderer.shared.parse(doc.markdownSource))
+                                    }
+                                }
+                                .padding(.horizontal, 4)
+                            } else {
+                                // EDIT MODE: Beautiful Markdown editor
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Markdown Source Notes")
+                                        .font(.headline)
+                                        .foregroundStyle(.secondary)
+
+                                    DocNSTextView(text: Binding(
+                                        get: { doc.markdownSource },
+                                        set: { doc.markdownSource = $0; try? coordinator.documents.updateDocument(doc) }
+                                    ))
+                                    .frame(minHeight: 400)
+                                    .cornerRadius(6)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+                                    )
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(24)
                     }
                 }
-                .frame(minWidth: 220, idealWidth: 260, maxWidth: 400)
-                .background(Color(NSColor.windowBackgroundColor))
+            } else {
+                ContentUnavailableView {
+                    Label("No Item Selected", systemImage: "doc.text")
+                } description: {
+                    Text("Select a document or record from the list to view and edit details.")
+                }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             reloadData()
+            // Observe the restored notification
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("PersonalDocDocumentRestored"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                reloadData()
+            }
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("PersonalDocViewModeChanged"),
+                object: nil,
+                queue: .main
+            ) { notification in
+                if let isEdit = notification.userInfo?["isEdit"] as? Bool {
+                    viewMode = isEdit ? .edit : .read
+                }
+            }
         }
         .onChange(of: documentID) { _, _ in
             reloadData()
@@ -503,16 +406,6 @@ struct RecordDetailView: View {
         do {
             try coordinator.documents.deleteDocument(doc)
             coordinator.selectedDocumentID = nil
-            reloadData()
-        } catch {
-            // silent catch
-        }
-    }
-
-    private func saveRevisionPoint() {
-        guard let doc = document else { return }
-        do {
-            try coordinator.versionHistory.recordSnapshot(for: doc)
             reloadData()
         } catch {
             // silent catch

@@ -127,7 +127,13 @@ struct WorkspaceView: View {
                         }
 
                         Section("Tools") {
-                            Button("Personal Documentation") { activeSheet = .personalDocumentation }
+                            Button("Personal Documentation") {
+                                if let activeProj = sessionStore.activeProject {
+                                    PersonalDocWindowManager.shared.showWindow(for: activeProj)
+                                } else {
+                                    activeSheet = .personalDocumentation
+                                }
+                            }
                             Button("Documentation") { activeSheet = .documentationBrowser }
                             Button("Extensions") { activeSheet = .extensionMarketplace }
                             Button("Debug Tools") { activeSheet = .debugTools }

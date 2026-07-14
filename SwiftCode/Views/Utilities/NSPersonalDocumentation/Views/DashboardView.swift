@@ -54,8 +54,8 @@ struct DashboardView: View {
                     ProgressView()
                         .padding()
                 } else {
-                    // Customizable Widget Layout Flow
-                    let columns = [GridItem(.flexible()), GridItem(.flexible())]
+                    // Customizable Widget Layout Flow - Desktop Adaptive Grid
+                    let columns = [GridItem(.adaptive(minimum: 280, maximum: 500), spacing: 20)]
                     LazyVGrid(columns: columns, spacing: 20) {
                         ForEach(activeWidgets, id: \.self) { widgetKey in
                             widgetView(for: widgetKey)
