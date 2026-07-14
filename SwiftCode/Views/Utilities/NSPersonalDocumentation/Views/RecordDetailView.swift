@@ -47,7 +47,7 @@ struct RecordDetailView: View {
                                 TextField("Document Title", text: $editTitleText)
                                     .textFieldStyle(.roundedBorder)
                                     .font(.title3.bold())
-                                    .frame(width: 250)
+                                    .frame(maxWidth: 300)
                                     .onSubmit {
                                         renameDocument(to: editTitleText)
                                     }
@@ -68,6 +68,8 @@ struct RecordDetailView: View {
                             } else {
                                 Text(doc.title)
                                     .font(.title2.bold())
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
                                     .textSelection(.enabled)
 
                                 Button {
@@ -122,7 +124,65 @@ struct RecordDetailView: View {
                 // Content Area
                 if doc.archetype == "freeform" && viewMode == .edit {
                     PersonalDocCanvasView(coordinator: coordinator, doc: doc)
+                } else if viewMode == .edit {
+                    // EDIT MODE: No outer ScrollView wrapper to eliminate nested scrolling conflict
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Unified attributes grid for structured records or meta display
+                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
+                            GridRow {
+                                Text("Status")
+                                    .font(.subheadline.bold())
+                                Picker("Status", selection: Binding(
+                                    get: { doc.status ?? "To Do" },
+                                    set: { doc.status = $0; try? coordinator.documents.updateDocument(doc); reloadData() }
+                                )) {
+                                    Text("To Do").tag("To Do")
+                                    Text("In Progress").tag("In Progress")
+                                    Text("Done").tag("Done")
+                                }
+                                .pickerStyle(.menu)
+                                .controlSize(.small)
+                            }
+
+                            GridRow {
+                                Text("Priority")
+                                    .font(.subheadline.bold())
+                                Picker("Priority", selection: Binding(
+                                    get: { doc.priority ?? "Medium" },
+                                    set: { doc.priority = $0; try? coordinator.documents.updateDocument(doc); reloadData() }
+                                )) {
+                                    Text("High").tag("High")
+                                    Text("Medium").tag("Medium")
+                                    Text("Low").tag("Low")
+                                }
+                                .pickerStyle(.menu)
+                                .controlSize(.small)
+                            }
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(8)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Markdown Source Notes")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+
+                            DocNSTextView(text: Binding(
+                                get: { doc.markdownSource },
+                                set: { doc.markdownSource = $0; try? coordinator.documents.updateDocument(doc) }
+                            ))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .cornerRadius(6)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+                            )
+                        }
+                    }
+                    .padding(24)
                 } else {
+                    // READ MODE: High Fidelity Markdown rendering inside ScrollView
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
                             // Unified attributes grid for structured records or meta display
@@ -161,39 +221,17 @@ struct RecordDetailView: View {
                             .background(Color(NSColor.controlBackgroundColor))
                             .cornerRadius(8)
 
-                            // View mode body
-                            if viewMode == .read {
-                                // READ MODE: High Fidelity Markdown rendering
-                                VStack(alignment: .leading, spacing: 12) {
-                                    if doc.markdownSource.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                        Text("No content written in this document yet. Click 'Edit Mode' above to start writing markdown notes.")
-                                            .font(.subheadline)
-                                            .foregroundStyle(.secondary)
-                                            .italic()
-                                    } else {
-                                        MarkdownBlockListView(blocks: MarkdownRenderer.shared.parse(doc.markdownSource))
-                                    }
-                                }
-                                .padding(.horizontal, 4)
-                            } else {
-                                // EDIT MODE: Beautiful Markdown editor
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Markdown Source Notes")
-                                        .font(.headline)
+                            VStack(alignment: .leading, spacing: 12) {
+                                if doc.markdownSource.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    Text("No content written in this document yet. Click 'Edit Mode' above to start writing markdown notes.")
+                                        .font(.subheadline)
                                         .foregroundStyle(.secondary)
-
-                                    DocNSTextView(text: Binding(
-                                        get: { doc.markdownSource },
-                                        set: { doc.markdownSource = $0; try? coordinator.documents.updateDocument(doc) }
-                                    ))
-                                    .frame(minHeight: 400)
-                                    .cornerRadius(6)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
-                                    )
+                                        .italic()
+                                } else {
+                                    MarkdownBlockListView(blocks: MarkdownRenderer.shared.parse(doc.markdownSource))
                                 }
                             }
+                            .padding(.horizontal, 4)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(24)

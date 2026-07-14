@@ -695,7 +695,7 @@ public class PersonalDocInspectorViewController: NSViewController {
 
         let stack = NSStackView()
         stack.orientation = .vertical
-        stack.alignment = .leading
+        stack.alignment = .fill
         stack.spacing = 16
         stack.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -713,7 +713,8 @@ public class PersonalDocInspectorViewController: NSViewController {
 
             stack.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: scroll.contentView.topAnchor)
+            stack.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
+            stack.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor)
         ])
 
         self.view = container
@@ -737,8 +738,11 @@ public class PersonalDocInspectorViewController: NSViewController {
             let emptyLabel = NSTextField(labelWithString: "Select a document to view relationships & version history.")
             emptyLabel.textColor = .secondaryLabelColor
             emptyLabel.font = .systemFont(ofSize: 13)
-            emptyLabel.cell?.wraps = true
             emptyLabel.alignment = .center
+            if let cell = emptyLabel.cell as? NSTextFieldCell {
+                cell.wraps = true
+                cell.lineBreakMode = .byWordWrapping
+            }
             mainStack.addView(emptyLabel, in: .top)
             return
         }
@@ -746,6 +750,9 @@ public class PersonalDocInspectorViewController: NSViewController {
         let titleLabel = NSTextField(labelWithString: "Inspector: \(doc.title)")
         titleLabel.font = .boldSystemFont(ofSize: 14)
         titleLabel.textColor = .labelColor
+        if let cell = titleLabel.cell as? NSTextFieldCell {
+            cell.lineBreakMode = .byTruncatingTail
+        }
         mainStack.addView(titleLabel, in: .top)
 
         let divider = NSBox()
@@ -762,7 +769,10 @@ public class PersonalDocInspectorViewController: NSViewController {
             let noneLabel = NSTextField(labelWithString: "No connected resources. Link this document to Swift files, commits, bugs, or milestones.")
             noneLabel.font = .systemFont(ofSize: 11)
             noneLabel.textColor = .secondaryLabelColor
-            noneLabel.cell?.wraps = true
+            if let cell = noneLabel.cell as? NSTextFieldCell {
+                cell.wraps = true
+                cell.lineBreakMode = .byWordWrapping
+            }
             mainStack.addView(noneLabel, in: .top)
         } else {
             for rel in relationships {
@@ -774,6 +784,9 @@ public class PersonalDocInspectorViewController: NSViewController {
                 let itemTitle = NSTextField(labelWithString: rel.targetName)
                 itemTitle.font = .boldSystemFont(ofSize: 11)
                 itemTitle.textColor = .labelColor
+                if let cell = itemTitle.cell as? NSTextFieldCell {
+                    cell.lineBreakMode = .byTruncatingTail
+                }
 
                 let itemType = NSTextField(labelWithString: rel.targetType)
                 itemType.font = .systemFont(ofSize: 9)
@@ -810,7 +823,6 @@ public class PersonalDocInspectorViewController: NSViewController {
                 ])
 
                 rowView.heightAnchor.constraint(equalToConstant: 36).isActive = true
-                rowView.widthAnchor.constraint(equalToConstant: 240).isActive = true
 
                 let cardBox = NSBox()
                 cardBox.boxType = .custom
@@ -820,7 +832,6 @@ public class PersonalDocInspectorViewController: NSViewController {
                 cardBox.cornerRadius = 6
                 cardBox.contentView = rowView
 
-                cardBox.widthAnchor.constraint(equalToConstant: 240).isActive = true
                 mainStack.addView(cardBox, in: .top)
             }
         }
@@ -847,7 +858,10 @@ public class PersonalDocInspectorViewController: NSViewController {
             let noneLabel = NSTextField(labelWithString: "No previous snapshots. Snapshots provide historical restoration points.")
             noneLabel.font = .systemFont(ofSize: 11)
             noneLabel.textColor = .secondaryLabelColor
-            noneLabel.cell?.wraps = true
+            if let cell = noneLabel.cell as? NSTextFieldCell {
+                cell.wraps = true
+                cell.lineBreakMode = .byWordWrapping
+            }
             mainStack.addView(noneLabel, in: .top)
         } else {
             for ver in versions {
@@ -861,7 +875,6 @@ public class PersonalDocInspectorViewController: NSViewController {
                 rowBtn.imagePosition = .imageLeft
                 rowBtn.alignment = .left
                 rowBtn.identifier = NSUserInterfaceItemIdentifier(ver.id.uuidString)
-                rowBtn.widthAnchor.constraint(equalToConstant: 240).isActive = true
 
                 mainStack.addView(rowBtn, in: .top)
             }

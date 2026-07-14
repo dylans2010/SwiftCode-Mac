@@ -31,66 +31,68 @@ struct PlanningBoardView: View {
 
             Divider()
 
-            HStack(spacing: 16) {
-                ForEach(columns, id: \.self) { column in
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text(column)
-                                .font(.headline)
-                            Spacer()
-                            Text("\(items.filter { $0.status == column }.count)")
-                                .font(.caption.bold())
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(Color.secondary.opacity(0.2))
-                                .clipShape(Capsule())
-                        }
+            ScrollView(.horizontal, showsIndicators: true) {
+                HStack(spacing: 16) {
+                    ForEach(columns, id: \.self) { column in
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text(column)
+                                    .font(.headline)
+                                Spacer()
+                                Text("\(items.filter { $0.status == column }.count)")
+                                    .font(.caption.bold())
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(Color.secondary.opacity(0.2))
+                                    .clipShape(Capsule())
+                            }
 
-                        ScrollView {
-                            VStack(spacing: 10) {
-                                ForEach(items.filter { $0.status == column }) { item in
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Text(item.title)
-                                            .font(.body.bold())
+                            ScrollView {
+                                VStack(spacing: 10) {
+                                    ForEach(items.filter { $0.status == column }) { item in
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Text(item.title)
+                                                .font(.body.bold())
 
-                                        if let priority = item.priority {
-                                            Text(priority)
-                                                .font(.caption)
-                                                .padding(.horizontal, 6)
-                                                .padding(.vertical, 2)
-                                                .background(priorityColor(priority).opacity(0.15))
-                                                .foregroundStyle(priorityColor(priority))
-                                                .cornerRadius(4)
-                                        }
-
-                                        HStack {
-                                            Spacer()
-                                            Button {
-                                                cycleStatus(of: item)
-                                            } label: {
-                                                Image(systemName: "arrow.right.circle")
+                                            if let priority = item.priority {
+                                                Text(priority)
+                                                    .font(.caption)
+                                                    .padding(.horizontal, 6)
+                                                    .padding(.vertical, 2)
+                                                    .background(priorityColor(priority).opacity(0.15))
+                                                    .foregroundStyle(priorityColor(priority))
+                                                    .cornerRadius(4)
                                             }
-                                            .buttonStyle(.plain)
+
+                                            HStack {
+                                                Spacer()
+                                                Button {
+                                                    cycleStatus(of: item)
+                                                } label: {
+                                                    Image(systemName: "arrow.right.circle")
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
                                         }
-                                    }
-                                    .padding()
-                                    .background(Color(NSColor.controlBackgroundColor))
-                                    .cornerRadius(8)
-                                    .shadow(radius: 1)
-                                    .onTapGesture {
-                                        coordinator.selectDocument(item.id)
+                                        .padding()
+                                        .background(Color(NSColor.controlBackgroundColor))
+                                        .cornerRadius(8)
+                                        .shadow(radius: 1)
+                                        .onTapGesture {
+                                            coordinator.selectDocument(item.id)
+                                        }
                                     }
                                 }
                             }
                         }
+                        .frame(width: 280)
+                        .padding()
+                        .background(Color(NSColor.windowBackgroundColor).opacity(0.5))
+                        .cornerRadius(10)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color(NSColor.windowBackgroundColor).opacity(0.5))
-                    .cornerRadius(10)
                 }
+                .padding()
             }
-            .padding()
         }
         .onAppear {
             loadItems()

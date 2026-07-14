@@ -105,6 +105,8 @@ struct WikiPageDetailView: View {
                         .foregroundStyle(.purple)
                     Text(page.title)
                         .font(.title2.bold())
+                        .lineLimit(1)
+                        .truncationMode(.tail)
 
                     Spacer()
 
@@ -133,6 +135,7 @@ struct WikiPageDetailView: View {
 
                 if isEditing {
                     DocNSTextView(text: $contentEditorText)
+                        .padding(24)
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 14) {

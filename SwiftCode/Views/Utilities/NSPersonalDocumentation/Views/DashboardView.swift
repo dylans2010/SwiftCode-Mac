@@ -74,164 +74,175 @@ struct DashboardView: View {
     private func widgetView(for key: String) -> some View {
         switch key {
         case "totalDocs":
-            HStack(spacing: 16) {
-                Image(systemName: "doc.text.fill")
-                    .font(.title)
-                    .foregroundStyle(.blue)
-                    .frame(width: 44, height: 44)
-                    .background(Color.blue.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            GroupBox {
+                HStack(spacing: 16) {
+                    Image(systemName: "doc.text.fill")
+                        .font(.title)
+                        .foregroundStyle(.blue)
+                        .frame(width: 44, height: 44)
+                        .background(Color.blue.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Total Documents")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text("\(snapshot?.totalDocuments ?? 0) Active Notes")
-                        .font(.title2.bold())
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Total Documents")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text("\(snapshot?.totalDocuments ?? 0) Active Notes")
+                            .font(.title2.bold())
+                    }
+                    Spacer()
                 }
-                Spacer()
+            } label: {
+                Label("Documents Overview", systemImage: "doc.text")
+                    .foregroundStyle(.blue)
             }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(10)
+            .groupBoxStyle(ModernGroupBoxStyle())
 
         case "tasks":
-            HStack(spacing: 16) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title)
-                    .foregroundStyle(.green)
-                    .frame(width: 44, height: 44)
-                    .background(Color.green.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            GroupBox {
+                HStack(spacing: 16) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title)
+                        .foregroundStyle(.green)
+                        .frame(width: 44, height: 44)
+                        .background(Color.green.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Tasks Progress")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text("\(snapshot?.completedTasks ?? 0) / \(snapshot?.totalTasks ?? 0) Work Items")
-                        .font(.title2.bold())
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Tasks Progress")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text("\(snapshot?.completedTasks ?? 0) / \(snapshot?.totalTasks ?? 0) Work Items")
+                            .font(.title2.bold())
+                    }
+                    Spacer()
                 }
-                Spacer()
+            } label: {
+                Label("Task Tracking", systemImage: "checklist")
+                    .foregroundStyle(.green)
             }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(10)
+            .groupBoxStyle(ModernGroupBoxStyle())
 
         case "analyticsChart":
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Documentation Weekly Pace")
-                    .font(.headline)
-                HStack(alignment: .bottom, spacing: 10) {
-                    bar(day: "M", h: 30)
-                    bar(day: "T", h: 50)
-                    bar(day: "W", h: 80)
-                    bar(day: "T", h: 40)
-                    bar(day: "F", h: 90)
+            GroupBox {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .bottom, spacing: 10) {
+                        bar(day: "M", h: 30)
+                        bar(day: "T", h: 50)
+                        bar(day: "W", h: 80)
+                        bar(day: "T", h: 40)
+                        bar(day: "F", h: 90)
+                    }
+                    .frame(height: 100)
                 }
-                .frame(height: 100)
+            } label: {
+                Label("Documentation Weekly Pace", systemImage: "chart.bar.fill")
+                    .foregroundStyle(.orange)
             }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(10)
+            .groupBoxStyle(ModernGroupBoxStyle())
 
         case "recentDocs":
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Recent Activity")
-                    .font(.headline)
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    if let docs = snapshot?.recentDocuments, !docs.isEmpty {
+                        ForEach(docs) { doc in
+                            HStack {
+                                Image(systemName: doc.moduleKind.icon)
+                                    .foregroundStyle(doc.moduleKind.accentColor)
+                                Text(doc.title)
+                                    .font(.body.bold())
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                Spacer()
+                                Text("Updated \(doc.updatedAt, style: .relative) ago")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    } else {
+                        Text("No documents yet.")
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    }
+                }
+            } label: {
+                Label("Recent Activity", systemImage: "clock.fill")
+                    .foregroundStyle(.purple)
+            }
+            .groupBoxStyle(ModernGroupBoxStyle())
 
-                if let docs = snapshot?.recentDocuments, !docs.isEmpty {
-                    ForEach(docs) { doc in
-                        HStack {
-                            Image(systemName: doc.moduleKind.icon)
-                                .foregroundStyle(doc.moduleKind.accentColor)
-                            Text(doc.title)
-                                .font(.body.bold())
-                                .lineLimit(1)
-                            Spacer()
-                            Text("Updated \(doc.updatedAt, style: .relative) ago")
-                                .font(.caption2)
+        case "recentWhiteboards":
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "pencil.and.outline")
+                            .font(.largeTitle)
+                            .foregroundStyle(.purple)
+                        VStack(alignment: .leading) {
+                            Text("Infinite Brainstorming Canvas")
+                                .font(.caption.bold())
+                            Text("Visual workflow schemas, UML diagrams, & mind maps.")
+                                .font(.system(size: 9))
                                 .foregroundStyle(.secondary)
                         }
                     }
-                } else {
-                    Text("No documents yet.")
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                }
-            }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(10)
-
-        case "recentWhiteboards":
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Advanced Whiteboard Canvas")
-                    .font(.headline)
-                HStack {
-                    Image(systemName: "pencil.and.outline")
-                        .font(.largeTitle)
-                        .foregroundStyle(.purple)
-                    VStack(alignment: .leading) {
-                        Text("Infinite Brainstorming Canvas")
-                            .font(.caption.bold())
-                        Text("Visual workflow schemas, UML diagrams, & mind maps.")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.secondary)
+                    Button {
+                        coordinator.navigate(to: .whiteboards)
+                    } label: {
+                        Text("Open Canvas")
                     }
                 }
-                Button {
-                    coordinator.navigate(to: .whiteboards)
-                } label: {
-                    Text("Open Canvas")
-                }
+            } label: {
+                Label("Advanced Whiteboard", systemImage: "pencil.and.outline")
+                    .foregroundStyle(.purple)
             }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(10)
+            .groupBoxStyle(ModernGroupBoxStyle())
 
         case "recentSnippets":
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Code Snippet Workspace")
-                    .font(.headline)
-                HStack {
-                    Image(systemName: "text.badge.plus")
-                        .font(.largeTitle)
-                        .foregroundStyle(.green)
-                    VStack(alignment: .leading) {
-                        Text("Centralized Snippet Repository")
-                            .font(.caption.bold())
-                        Text("Search code snippets, detect languages, run AI explainers.")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.secondary)
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "text.badge.plus")
+                            .font(.largeTitle)
+                            .foregroundStyle(.green)
+                        VStack(alignment: .leading) {
+                            Text("Centralized Snippet Repository")
+                                .font(.caption.bold())
+                            Text("Search code snippets, detect languages, run AI explainers.")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Button {
+                        coordinator.navigate(to: .snippets)
+                    } label: {
+                        Text("Open Repository")
                     }
                 }
-                Button {
-                    coordinator.navigate(to: .snippets)
-                } label: {
-                    Text("Open Repository")
-                }
+            } label: {
+                Label("Code Snippets", systemImage: "text.badge.plus")
+                    .foregroundStyle(.green)
             }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(10)
+            .groupBoxStyle(ModernGroupBoxStyle())
 
         case "aiAssistant":
-            VStack(alignment: .leading, spacing: 12) {
-                Text("AI Project Intelligence Assistant")
-                    .font(.headline)
-                Text("Direct link to codebase analysis, knowledge graphs, and memory Q&A.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Button {
-                    coordinator.navigate(to: .intelligence)
-                } label: {
-                    Text("Open AI Agent Panel")
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Direct link to codebase analysis, knowledge graphs, and memory Q&A.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button {
+                        coordinator.navigate(to: .intelligence)
+                    } label: {
+                        Text("Open AI Agent Panel")
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
+            } label: {
+                Label("AI Intelligence Assistant", systemImage: "sparkles")
+                    .foregroundStyle(.indigo)
             }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(10)
+            .groupBoxStyle(ModernGroupBoxStyle())
 
         default:
             EmptyView()
