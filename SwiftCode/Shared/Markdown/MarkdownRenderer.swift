@@ -28,6 +28,21 @@ public enum MarkdownBlock: Sendable, Identifiable {
     }
 }
 
+@MainActor
+public struct MarkdownParser {
+    public static let shared = MarkdownParser()
+
+    private init() {}
+
+    public func parse(_ markdown: String) -> [MarkdownBlock] {
+        MarkdownRenderer.shared.parse(markdown)
+    }
+
+    public func render(_ markdown: String) -> AttributedString {
+        MarkdownRenderer.shared.render(markdown)
+    }
+}
+
 private func getPlainText(of markup: any Markdown.Markup) -> String {
     if let paragraph = markup as? Markdown.Paragraph {
         return paragraph.plainText

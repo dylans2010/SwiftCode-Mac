@@ -32,6 +32,9 @@ public enum ModuleKind: String, Sendable, Codable, CaseIterable, Identifiable {
     case qaNotes = "QA Notes"
     case securityNotes = "Security Notes"
     case accessibilityNotes = "Accessibility Notes"
+    case technicalSpecification = "Technical Specification"
+    case userStory = "User Story"
+    case freeformDocument = "Freeform Document"
 
     // B. Structured Record
     case featurePlanning = "Feature Planning"
@@ -43,6 +46,8 @@ public enum ModuleKind: String, Sendable, Codable, CaseIterable, Identifiable {
     case changelogBuilder = "Changelog Builder"
     case apiDocumentation = "API Documentation"
     case databaseDocumentation = "Database Documentation"
+    case releaseChecklist = "Release Checklist"
+    case structuredRecord = "Structured Record"
 
     // C. Generated/Derived Document
     case projectWiki = "Project Wiki"
@@ -77,11 +82,12 @@ public enum ModuleKind: String, Sendable, Codable, CaseIterable, Identifiable {
              .learningNotes, .meetingNotes, .researchLibrary, .knowledgeBase, .ideasVault,
              .buildNotes, .deploymentNotes, .terminalHistory, .environmentDocs, .dependencyDocs,
              .uiUXPlanning, .experimentLog, .performanceNotes, .testingNotes, .qaNotes,
-             .securityNotes, .accessibilityNotes:
+             .securityNotes, .accessibilityNotes, .technicalSpecification, .userStory, .freeformDocument:
             return .freeform
 
         case .featurePlanning, .bugDatabase, .techDebtTracker, .roadmap, .milestones,
-             .releasePlanning, .changelogBuilder, .apiDocumentation, .databaseDocumentation:
+             .releasePlanning, .changelogBuilder, .apiDocumentation, .databaseDocumentation,
+             .releaseChecklist, .structuredRecord:
             return .structured
 
         case .projectWiki, .dashboard, .architectureDecisions, .aiInsights:
@@ -120,6 +126,9 @@ public enum ModuleKind: String, Sendable, Codable, CaseIterable, Identifiable {
         case .qaNotes: return "checkmark.seal.fill"
         case .securityNotes: return "shield.fill"
         case .accessibilityNotes: return "figure.roll"
+        case .technicalSpecification: return "doc.text.fill"
+        case .userStory: return "doc.text.image"
+        case .freeformDocument: return "doc.text"
 
         case .featurePlanning: return "slider.horizontal.3"
         case .bugDatabase: return "ladybug.fill"
@@ -130,6 +139,8 @@ public enum ModuleKind: String, Sendable, Codable, CaseIterable, Identifiable {
         case .changelogBuilder: return "doc.text.below.ecg.fill"
         case .apiDocumentation: return "network"
         case .databaseDocumentation: return "cylinder.split.1x2.fill"
+        case .releaseChecklist: return "shippingbox.fill"
+        case .structuredRecord: return "tablecells"
 
         case .projectWiki: return "globe.americas.fill"
         case .dashboard: return "square.grid.2x2.fill"

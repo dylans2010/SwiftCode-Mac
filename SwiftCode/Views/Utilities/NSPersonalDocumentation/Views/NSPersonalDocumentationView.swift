@@ -105,20 +105,14 @@ extension PersonalDocWindowController: NSToolbarDelegate {
             item.target = self
             item.action = #selector(openCommandPaletteAction(_:))
 
-        case .viewMode:
-            let segmented = NSSegmentedControl(labels: ["Read", "Edit"], trackingMode: .selectOne, target: self, action: #selector(viewModeChanged(_:)))
-            segmented.selectedSegment = 0
-            item.label = "View Mode"
-            item.paletteLabel = "View Mode"
-            item.view = segmented
-
         case .newDocument:
+            let button = NSButton(image: NSImage(systemSymbolName: "doc.badge.plus", accessibilityDescription: nil) ?? NSImage(), target: self, action: #selector(newDocumentAction(_:)))
+            button.bezelStyle = .texturedRounded
+            button.isBordered = true
             item.label = "New Document"
             item.paletteLabel = "New Document"
-            item.toolTip = "Create a new document in selected category"
-            item.image = NSImage(systemSymbolName: "doc.badge.plus", accessibilityDescription: nil)
-            item.target = self
-            item.action = #selector(newDocumentAction(_:))
+            item.toolTip = "Create a new document choosing its category"
+            item.view = button
 
         case .duplicateDocument:
             item.label = "Duplicate"
@@ -143,17 +137,16 @@ extension PersonalDocWindowController: NSToolbarDelegate {
     }
 
     public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .viewMode, .flexibleSpace, .commandPalette, .newDocument, .duplicateDocument, .deleteDocument]
+        return [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .flexibleSpace, .commandPalette, .newDocument, .duplicateDocument, .deleteDocument]
     }
 
     public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toggleSidebar, .sidebarTrackingSeparator, .commandPalette, .viewMode, .newDocument, .duplicateDocument, .deleteDocument, .flexibleSpace, .space]
+        return [.toggleSidebar, .sidebarTrackingSeparator, .commandPalette, .newDocument, .duplicateDocument, .deleteDocument, .flexibleSpace, .space]
     }
 }
 
 extension NSToolbarItem.Identifier {
     public static let commandPalette = NSToolbarItem.Identifier("commandPalette")
-    public static let viewMode = NSToolbarItem.Identifier("viewMode")
     public static let newDocument = NSToolbarItem.Identifier("newDocument")
     public static let duplicateDocument = NSToolbarItem.Identifier("duplicateDocument")
     public static let deleteDocument = NSToolbarItem.Identifier("deleteDocument")
@@ -170,16 +163,19 @@ extension PersonalDocWindowController {
         NotificationCenter.default.post(name: NSNotification.Name("ShowPersonalDocCommandPalette"), object: nil)
     }
 
-    @objc private func viewModeChanged(_ sender: NSSegmentedControl) {
-        NotificationCenter.default.post(
-            name: NSNotification.Name("PersonalDocViewModeChanged"),
-            object: nil,
-            userInfo: ["isEdit": sender.selectedSegment == 1]
-        )
-    }
-
     @objc private func newDocumentAction(_ sender: Any?) {
-        NotificationCenter.default.post(name: NSNotification.Name("PersonalDocNewDocument"), object: nil)
+        guard let button = sender as? NSButton else { return }
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.contentSize = NSSize(width: 260, height: 480)
+
+        let popoverView = DocumentCreationPopoverView(coordinator: coordinator) { [weak popover] in
+            popover?.performClose(nil)
+        }
+        let hostingController = NSHostingController(rootView: popoverView)
+        popover.contentViewController = hostingController
+
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .bottom)
     }
 
     @objc private func duplicateDocumentAction(_ sender: Any?) {
@@ -297,16 +293,19 @@ public class PersonalDocSplitViewController: NSSplitViewController {
 
     @objc private func handleNewDocument(_ notification: Notification) {
         let kind = coordinator.selectedModuleKind ?? .personalDocumentation
+        let state = coordinator.state(for: kind)
         do {
             if let newDoc = try? coordinator.documents.createDocument(title: "Untitled Document", kind: kind) {
-                coordinator.selectedDocumentID = newDoc.id
+                state.selectedDocumentID = newDoc.id
                 updateSplitItems(animate: true)
             }
         }
     }
 
     @objc private func handleDuplicateDocument(_ notification: Notification) {
-        guard let id = coordinator.selectedDocumentID,
+        let kind = coordinator.selectedModuleKind ?? .personalDocumentation
+        let state = coordinator.state(for: kind)
+        guard let id = state.selectedDocumentID,
               let doc = try? coordinator.documents.fetchDocument(id: id) else { return }
         do {
             let duplicate = Document(
@@ -333,7 +332,7 @@ public class PersonalDocSplitViewController: NSSplitViewController {
             coordinator.storage.context.insert(duplicate)
             try coordinator.storage.context.save()
 
-            coordinator.selectedDocumentID = duplicate.id
+            state.selectedDocumentID = duplicate.id
             updateSplitItems(animate: true)
         } catch {
             LoggingTool.error("Failed to duplicate document: \(error.localizedDescription)")
@@ -341,7 +340,9 @@ public class PersonalDocSplitViewController: NSSplitViewController {
     }
 
     @objc private func handleDeleteDocument(_ notification: Notification) {
-        guard let id = coordinator.selectedDocumentID,
+        let kind = coordinator.selectedModuleKind ?? .personalDocumentation
+        let state = coordinator.state(for: kind)
+        guard let id = state.selectedDocumentID,
               let doc = try? coordinator.documents.fetchDocument(id: id) else { return }
 
         let alert = NSAlert()
@@ -354,14 +355,14 @@ public class PersonalDocSplitViewController: NSSplitViewController {
             alert.beginSheetModal(for: window) { [weak self] response in
                 if response == .alertFirstButtonReturn {
                     try? self?.coordinator.documents.deleteDocument(doc)
-                    self?.coordinator.selectedDocumentID = nil
+                    state.selectedDocumentID = nil
                     self?.updateSplitItems(animate: true)
                 }
             }
         } else {
             if alert.runModal() == .alertFirstButtonReturn {
                 try? coordinator.documents.deleteDocument(doc)
-                coordinator.selectedDocumentID = nil
+                state.selectedDocumentID = nil
                 updateSplitItems(animate: true)
             }
         }
@@ -957,6 +958,7 @@ struct PersonalDocMiddleWrapper: View {
     @ViewBuilder
     private func middleListView(for kind: ModuleKind, coord: PersonalDocumentationCoordinator) -> some View {
         @Bindable var coord = coord
+        let state = coord.state(for: kind)
         switch kind {
         case .projectWiki:
             WikiPageListView(coordinator: coord)
@@ -967,7 +969,7 @@ struct PersonalDocMiddleWrapper: View {
         case .snapshots:
             SnapshotListView(coordinator: coord)
         default:
-            RecordListView(coordinator: coord, kind: kind, selectedDocumentID: $coord.selectedDocumentID)
+            RecordListView(coordinator: coord, kind: kind, selectedDocumentID: $state.selectedDocumentID)
         }
     }
 }
@@ -983,6 +985,7 @@ struct PersonalDocMainWrapper: View {
     @ViewBuilder
     private func mainWorkspaceView(for kind: ModuleKind?, coord: PersonalDocumentationCoordinator) -> some View {
         if let kind = kind {
+            let state = coord.state(for: kind)
             switch kind {
             case .dashboard:
                 DashboardView(coordinator: coord)
@@ -1004,8 +1007,47 @@ struct PersonalDocMainWrapper: View {
                 SnippetDetailView(coordinator: coord)
             case .snapshots:
                 SnapshotDetailView(coordinator: coord)
+
+            // Specialized Workspace Editors Routing
+            case .apiDocumentation:
+                APIDocumentationEditor(coordinator: coord, documentID: state.selectedDocumentID)
+            case .databaseDocumentation:
+                DatabaseDocumentationEditor(coordinator: coord, documentID: state.selectedDocumentID)
+            case .architectureDecisions:
+                ArchitectureDocumentationEditor(coordinator: coord, documentID: state.selectedDocumentID)
+            case .featurePlanning:
+                FeaturePlanningEditor(coordinator: coord, documentID: state.selectedDocumentID)
+            case .securityNotes:
+                SecurityNotesEditor(coordinator: coord, documentID: state.selectedDocumentID)
+            case .changelogBuilder:
+                ChangelogEditor(coordinator: coord, documentID: state.selectedDocumentID)
+            case .technicalSpecification:
+                TechnicalSpecificationEditor(coordinator: coord, documentID: state.selectedDocumentID)
+            case .uiUXPlanning:
+                DesignDocumentEditor(coordinator: coord, documentID: state.selectedDocumentID)
+            case .researchLibrary:
+                ResearchNotesEditor(coordinator: coord, documentID: state.selectedDocumentID)
+            case .meetingNotes:
+                MeetingNotesEditor(coordinator: coord, documentID: state.selectedDocumentID)
+            case .structuredRecord:
+                StructuredRecordEditor(coordinator: coord, documentID: state.selectedDocumentID)
+            case .freeformDocument:
+                FreeformDocumentEditor(coordinator: coord, documentID: state.selectedDocumentID)
+            case .releaseChecklist:
+                ReleaseChecklistEditor(coordinator: coord, documentID: state.selectedDocumentID)
+            case .userStory:
+                UserStoryEditor(coordinator: coord, documentID: state.selectedDocumentID)
+            case .testingNotes:
+                TestingNotesEditor(coordinator: coord, documentID: state.selectedDocumentID)
+            case .personalDocumentation:
+                FreeformDocumentEditor(coordinator: coord, documentID: state.selectedDocumentID)
+
             default:
-                RecordDetailView(coordinator: coord, documentID: coord.selectedDocumentID)
+                if kind.archetype == .structured {
+                    StructuredRecordEditor(coordinator: coord, documentID: state.selectedDocumentID)
+                } else {
+                    FreeformDocumentEditor(coordinator: coord, documentID: state.selectedDocumentID)
+                }
             }
         } else {
             ContentUnavailableView {
@@ -1168,85 +1210,86 @@ func buildSidebarNodes() -> [SidebarNode] {
     return nodes
 }
 
-// MARK: - AppKit-backed Native Text View
-struct DocNSTextView: NSViewRepresentable {
-    @Binding var text: String
-    var isEditable: Bool = true
+// MARK: - Modernized Document Type Selection Popover
+struct DocumentCreationPopoverView: View {
+    let coordinator: PersonalDocumentationCoordinator
+    let onDismiss: () -> Void
 
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSScrollView()
-        scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = false
-        scrollView.autoresizingMask = [.width, .height]
-
-        let contentSize = scrollView.contentSize
-
-        let textContainer = NSTextContainer(containerSize: NSSize(width: contentSize.width, height: CGFloat.greatestFiniteMagnitude))
-        textContainer.widthTracksTextView = true
-
-        let layoutManager = NSLayoutManager()
-        let textStorage = NSTextStorage()
-        textStorage.addLayoutManager(layoutManager)
-        layoutManager.addTextContainer(textContainer)
-
-        let textView = NSTextView(frame: .zero, textContainer: textContainer)
-        textView.autoresizingMask = [.width]
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = false
-        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        textView.minSize = NSSize(width: 0, height: contentSize.height)
-        textView.isEditable = isEditable
-        textView.font = .systemFont(ofSize: 13, weight: .regular)
-        textView.delegate = context.coordinator
-        textView.isRichText = false
-        textView.importsGraphics = false
-        textView.drawsBackground = false
-
-        textView.isContinuousSpellCheckingEnabled = true
-        textView.isGrammarCheckingEnabled = true
-        textView.isAutomaticDashSubstitutionEnabled = true
-        textView.isAutomaticQuoteSubstitutionEnabled = true
-        textView.isAutomaticSpellingCorrectionEnabled = true
-        textView.isAutomaticTextReplacementEnabled = true
-        textView.isIncrementalSearchingEnabled = true
-        textView.allowsUndo = true
-
-        textView.textContainerInset = NSSize(width: 12, height: 12)
-
-        scrollView.documentView = textView
-        return scrollView
+    struct DocTypeItem {
+        let name: String
+        let kind: ModuleKind
+        let icon: String
+        let color: Color
     }
 
-    func updateNSView(_ nsView: NSScrollView, context: Context) {
-        guard let textView = nsView.documentView as? NSTextView else { return }
+    private let items: [DocTypeItem] = [
+        DocTypeItem(name: "API Documentation", kind: .apiDocumentation, icon: "network", color: .purple),
+        DocTypeItem(name: "Database Documentation", kind: .databaseDocumentation, icon: "cylinder.split.1x2.fill", color: .orange),
+        DocTypeItem(name: "Feature Planning", kind: .featurePlanning, icon: "slider.horizontal.3", color: .blue),
+        DocTypeItem(name: "Security Notes", kind: .securityNotes, icon: "shield.fill", color: .red),
+        DocTypeItem(name: "Architecture Record", kind: .architectureDecisions, icon: "gavel.fill", color: .purple),
+        DocTypeItem(name: "Design Document", kind: .uiUXPlanning, icon: "paintpalette.fill", color: .green),
+        DocTypeItem(name: "Technical Specification", kind: .technicalSpecification, icon: "doc.text.fill", color: .indigo),
+        DocTypeItem(name: "Changelog", kind: .changelogBuilder, icon: "doc.text.below.ecg.fill", color: .orange),
+        DocTypeItem(name: "Meeting Notes", kind: .meetingNotes, icon: "person.2.wave.2.fill", color: .cyan),
+        DocTypeItem(name: "Research Notes", kind: .researchLibrary, icon: "archivebox.fill", color: .blue),
+        DocTypeItem(name: "User Story", kind: .userStory, icon: "doc.text.image", color: .teal),
+        DocTypeItem(name: "Testing Notes", kind: .testingNotes, icon: "checklist", color: .green),
+        DocTypeItem(name: "Structured Record", kind: .structuredRecord, icon: "tablecells", color: .orange),
+        DocTypeItem(name: "Freeform Document", kind: .freeformDocument, icon: "doc.text", color: .blue),
+        DocTypeItem(name: "Release Checklist", kind: .releaseChecklist, icon: "shippingbox.fill", color: .orange)
+    ]
 
-        if textView.string != text {
-            let selectedRanges = textView.selectedRanges
-            textView.string = text
-            if !selectedRanges.isEmpty {
-                textView.selectedRanges = selectedRanges
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Create New Entry")
+                    .font(.headline)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+
+                Divider()
+                    .padding(.bottom, 4)
+
+                ForEach(items, id: \.name) { item in
+                    Button {
+                        createNewDocument(of: item)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: item.icon)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(item.color)
+                                .frame(width: 24, height: 24)
+                                .background(item.color.opacity(0.12))
+                                .cornerRadius(6)
+
+                            Text(item.name)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.primary)
+
+                            Spacer()
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
+            .padding(8)
         }
-
-        if textView.isEditable != isEditable {
-            textView.isEditable = isEditable
-        }
+        .frame(width: 260, height: 480)
     }
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-
-    class Coordinator: NSObject, NSTextViewDelegate {
-        var parent: DocNSTextView
-
-        init(_ parent: DocNSTextView) {
-            self.parent = parent
+    private func createNewDocument(of item: DocTypeItem) {
+        do {
+            let doc = try coordinator.documents.createDocument(title: "Untitled \(item.name)", kind: item.kind)
+            coordinator.selectedModuleKind = item.kind
+            let state = coordinator.state(for: item.kind)
+            state.selectedDocumentID = doc.id
+        } catch {
+            // logging or ignore
         }
-
-        func textDidChange(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else { return }
-            parent.text = textView.string
-        }
+        onDismiss()
     }
 }
