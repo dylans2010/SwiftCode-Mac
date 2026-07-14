@@ -45,7 +45,9 @@ public class SimulatorWindowController: NSWindowController {
 
         super.init(window: window)
 
-        let contentView = SimulatorMainView()
+        let contentView = StylingBootstrap.configureEnvironment(
+            SimulatorMainView()
+        )
         let hostingVC = NSHostingController(rootView: contentView)
         hostingVC.sizingOptions = []
         window.contentViewController = hostingVC
