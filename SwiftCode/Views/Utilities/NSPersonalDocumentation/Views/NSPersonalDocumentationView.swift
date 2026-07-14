@@ -151,6 +151,14 @@ extension PersonalDocWindowController: NSToolbarDelegate {
     }
 }
 
+extension NSToolbarItem.Identifier {
+    public static let commandPalette = NSToolbarItem.Identifier("commandPalette")
+    public static let viewMode = NSToolbarItem.Identifier("viewMode")
+    public static let newDocument = NSToolbarItem.Identifier("newDocument")
+    public static let duplicateDocument = NSToolbarItem.Identifier("duplicateDocument")
+    public static let deleteDocument = NSToolbarItem.Identifier("deleteDocument")
+}
+
 extension PersonalDocWindowController {
     @objc private func toggleSidebarAction(_ sender: Any?) {
         if let splitVC = contentViewController as? PersonalDocSplitViewController {
@@ -695,7 +703,7 @@ public class PersonalDocInspectorViewController: NSViewController {
 
         let stack = NSStackView()
         stack.orientation = .vertical
-        stack.alignment = .fill
+        stack.alignment = .leading
         stack.spacing = 16
         stack.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -1065,7 +1073,7 @@ public struct NSPersonalDocumentationView: View {
         VStack(spacing: 16) {
             Image(systemName: "doc.text.fill")
                 .font(.system(size: 48))
-                .foregroundStyle(.accentColor)
+                .foregroundStyle(Color.accentColor)
             Text("Personal Documentation Workspace")
                 .font(.title2.bold())
             Text("The workspace opens in a dedicated native macOS window with full multi-column split layout and Finder-style sidebar.")
