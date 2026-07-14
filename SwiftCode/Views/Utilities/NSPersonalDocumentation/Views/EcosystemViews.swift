@@ -732,54 +732,55 @@ public struct IntelligenceView: View {
 }
 
 
-// MARK: - ADVANCED WHITEBOARD CANVAS VIEW
-public struct WhiteboardsListView: View {
+// MARK: - WHITEBOARD LIST VIEW (PANEL 2)
+struct WhiteboardListView: View {
     let coordinator: PersonalDocumentationCoordinator
 
     @State private var boards: [WhiteboardRecord] = []
-    @State private var selectedBoard: WhiteboardRecord? = nil
     @State private var showingAddBoard = false
     @State private var newBoardTitle = ""
 
-    public init(coordinator: PersonalDocumentationCoordinator) {
-        self.coordinator = coordinator
-    }
-
-    public var body: some View {
-        HStack(spacing: 0) {
-            // Whiteboard selection list
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("Whiteboards")
                         .font(.headline)
-                    Spacer()
-                    Button {
-                        showingAddBoard = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .buttonStyle(.plain)
+                    Text("\(boards.count) items")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .padding()
-
-                Divider()
-
-                List(boards, id: \.id, selection: $selectedBoard) { board in
-                    NavigationLink(value: board) {
-                        Label(board.title, systemImage: "pencil.and.outline")
-                    }
+                Spacer()
+                Button {
+                    showingAddBoard = true
+                } label: {
+                    Image(systemName: "plus")
                 }
-                .listStyle(.sidebar)
+                .buttonStyle(.plain)
             }
-            .frame(width: 220)
+            .padding()
             .background(Color(NSColor.windowBackgroundColor))
 
             Divider()
 
-            if let board = selectedBoard {
-                WhiteboardCanvasView(coordinator: coordinator, board: board)
+            if boards.isEmpty {
+                ContentUnavailableView("No Whiteboards", systemImage: "pencil.and.outline")
+                    .frame(maxHeight: .infinity)
             } else {
-                ContentUnavailableView("Select a Whiteboard", systemImage: "pencil.and.outline")
+                List(boards, id: \.id, selection: Binding(
+                    get: { coordinator.selectedWhiteboardID },
+                    set: { coordinator.selectedWhiteboardID = $0 }
+                )) { board in
+                    HStack {
+                        Image(systemName: "pencil.and.outline")
+                            .foregroundStyle(.blue)
+                        Text(board.title)
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .tag(board.id)
+                    .padding(.vertical, 4)
+                }
+                .listStyle(.sidebar)
             }
         }
         .onAppear {
@@ -799,7 +800,7 @@ public struct WhiteboardsListView: View {
                         if !newBoardTitle.isEmpty {
                             let newBoard = try? coordinator.whiteboards.createWhiteboard(title: newBoardTitle)
                             loadBoards()
-                            selectedBoard = newBoard
+                            coordinator.selectedWhiteboardID = newBoard?.id
                             showingAddBoard = false
                             newBoardTitle = ""
                         }
@@ -814,15 +815,17 @@ public struct WhiteboardsListView: View {
 
     private func loadBoards() {
         boards = (try? coordinator.whiteboards.fetchWhiteboards()) ?? []
-        if selectedBoard == nil {
-            selectedBoard = boards.first
+        if coordinator.selectedWhiteboardID == nil {
+            coordinator.selectedWhiteboardID = boards.first?.id
         }
     }
 }
 
-public struct WhiteboardCanvasView: View {
+
+// MARK: - WHITEBOARD CANVAS DETAIL VIEW (PANEL 3)
+public struct WhiteboardCanvasDetailView: View {
     let coordinator: PersonalDocumentationCoordinator
-    let board: WhiteboardRecord
+    @State private var board: WhiteboardRecord? = nil
 
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
@@ -839,101 +842,100 @@ public struct WhiteboardCanvasView: View {
 
     @State private var elements: [BoardElement] = []
 
-    public init(coordinator: PersonalDocumentationCoordinator, board: WhiteboardRecord) {
-        self.coordinator = coordinator
-        self.board = board
-    }
-
     public var body: some View {
         VStack(spacing: 0) {
-            // Canvas Toolbar
-            HStack(spacing: 12) {
-                Text(board.title)
-                    .font(.headline)
+            if let board = board {
+                // Canvas Toolbar
+                HStack(spacing: 12) {
+                    Text(board.title)
+                        .font(.headline)
 
-                Spacer()
+                    Spacer()
 
-                Button { addElement(kind: "sticky", title: "New Sticky Note") } label: { Label("Sticky", systemImage: "note.text") }
-                Button { addElement(kind: "rect", title: "Rectangle Shape") } label: { Label("Rect", systemImage: "square") }
-                Button { addElement(kind: "circle", title: "Circle Shape") } label: { Label("Circle", systemImage: "circle") }
-                Button { addElement(kind: "uml", title: "UML Block") } label: { Label("UML", systemImage: "rectangle.3.group") }
+                    Button { addElement(kind: "sticky", title: "New Sticky Note") } label: { Label("Sticky", systemImage: "note.text") }
+                    Button { addElement(kind: "rect", title: "Rectangle Shape") } label: { Label("Rect", systemImage: "square") }
+                    Button { addElement(kind: "circle", title: "Circle Shape") } label: { Label("Circle", systemImage: "circle") }
+                    Button { addElement(kind: "uml", title: "UML Block") } label: { Label("UML", systemImage: "rectangle.3.group") }
 
-                Spacer()
+                    Spacer()
 
-                Button { scale = max(0.5, scale - 0.1) } label: { Image(systemName: "minus") }
-                Button { scale = min(2.0, scale + 0.1) } label: { Image(systemName: "plus") }
-                Button("Save Canvas") { saveCanvas() }
-            }
-            .padding()
-            .background(Color(NSColor.windowBackgroundColor))
-
-            Divider()
-
-            // Visual Canvas Area
-            GeometryReader { geo in
-                ZStack {
-                    Color.white.opacity(0.01) // Captures gestures
-
-                    // Infinite dot grid representation
-                    Canvas { context, size in
-                        let gridSpacing: CGFloat = 30
-                        for x in stride(from: CGFloat(0), to: size.width, by: gridSpacing) {
-                            for y in stride(from: CGFloat(0), to: size.height, by: gridSpacing) {
-                                var path = Path()
-                                path.addArc(center: CGPoint(x: x, y: y), radius: 1, startAngle: .zero, endAngle: .radians(.pi * 2), clockwise: true)
-                                context.fill(path, with: .color(.secondary.opacity(0.2)))
-                            }
-                        }
-                    }
-
-                    // Render Canvas Elements
-                    ForEach(elements) { element in
-                        VStack(spacing: 6) {
-                            if element.kind == "sticky" {
-                                stickyNoteView(element: element)
-                            } else if element.kind == "rect" {
-                                rectangleShapeView(element: element)
-                            } else if element.kind == "circle" {
-                                circleShapeView(element: element)
-                            } else {
-                                umlBlockView(element: element)
-                            }
-                        }
-                        .position(CGPoint(x: element.x, y: element.y))
-                        .gesture(
-                            DragGesture()
-                                .onChanged { val in
-                                    if let idx = elements.firstIndex(where: { $0.id == element.id }) {
-                                        elements[idx].x = val.location.x
-                                        elements[idx].y = val.location.y
-                                    }
-                                }
-                        )
-                    }
+                    Button { scale = max(0.5, scale - 0.1) } label: { Image(systemName: "minus") }
+                    Button { scale = min(2.0, scale + 0.1) } label: { Image(systemName: "plus") }
+                    Button("Save Canvas") { saveCanvas() }
+                        .buttonStyle(.borderedProminent)
                 }
-                .offset(offset)
-                .scaleEffect(scale)
-                .gesture(
-                    DragGesture()
-                        .onChanged { val in
-                            // If dragging canvas itself
-                            offset = CGSize(
-                                width: lastOffset.width + val.translation.width,
-                                height: lastOffset.height + val.translation.height
+                .padding()
+                .background(Color(NSColor.windowBackgroundColor))
+
+                Divider()
+
+                // Visual Canvas Area
+                GeometryReader { geo in
+                    ZStack {
+                        Color.white.opacity(0.01) // Captures gestures
+
+                        // Infinite dot grid representation
+                        Canvas { context, size in
+                            let gridSpacing: CGFloat = 30
+                            for x in stride(from: CGFloat(0), to: size.width, by: gridSpacing) {
+                                for y in stride(from: CGFloat(0), to: size.height, by: gridSpacing) {
+                                    var path = Path()
+                                    path.addArc(center: CGPoint(x: x, y: y), radius: 1, startAngle: .zero, endAngle: .radians(.pi * 2), clockwise: true)
+                                    context.fill(path, with: .color(.secondary.opacity(0.2)))
+                                }
+                            }
+                        }
+
+                        // Render Canvas Elements
+                        ForEach(elements) { element in
+                            VStack(spacing: 6) {
+                                if element.kind == "sticky" {
+                                    stickyNoteView(element: element)
+                                } else if element.kind == "rect" {
+                                    rectangleShapeView(element: element)
+                                } else if element.kind == "circle" {
+                                    circleShapeView(element: element)
+                                } else {
+                                    umlBlockView(element: element)
+                                }
+                            }
+                            .position(CGPoint(x: element.x, y: element.y))
+                            .gesture(
+                                DragGesture()
+                                    .onChanged { val in
+                                        if let idx = elements.firstIndex(where: { $0.id == element.id }) {
+                                            elements[idx].x = val.location.x
+                                            elements[idx].y = val.location.y
+                                        }
+                                    }
                             )
                         }
-                        .onEnded { _ in
-                            lastOffset = offset
-                        }
-                )
+                    }
+                    .offset(offset)
+                    .scaleEffect(scale)
+                    .gesture(
+                        DragGesture()
+                            .onChanged { val in
+                                offset = CGSize(
+                                    width: lastOffset.width + val.translation.width,
+                                    height: lastOffset.height + val.translation.height
+                                )
+                            }
+                            .onEnded { _ in
+                                lastOffset = offset
+                            }
+                    )
+                }
+                .clipped()
+                .background(Color(NSColor.windowBackgroundColor))
+            } else {
+                ContentUnavailableView("Select a Whiteboard", systemImage: "pencil.and.outline")
             }
-            .clipped()
-            .background(Color(NSColor.windowBackgroundColor))
         }
         .onAppear {
             loadCanvas()
         }
-        .onChange(of: board) { _, _ in
+        .onChange(of: coordinator.selectedWhiteboardID) { _, _ in
             loadCanvas()
         }
     }
@@ -998,15 +1000,24 @@ public struct WhiteboardCanvasView: View {
     }
 
     private func loadCanvas() {
-        if let data = board.elementsJSON.data(using: .utf8),
-           let el = try? JSONDecoder().decode([BoardElement].self, from: data) {
-            elements = el
+        if let id = coordinator.selectedWhiteboardID,
+           let boards = try? coordinator.whiteboards.fetchWhiteboards(),
+           let match = boards.first(where: { $0.id == id }) {
+            self.board = match
+            if let data = match.elementsJSON.data(using: .utf8),
+               let el = try? JSONDecoder().decode([BoardElement].self, from: data) {
+                elements = el
+            } else {
+                elements = []
+            }
         } else {
+            self.board = nil
             elements = []
         }
     }
 
     private func saveCanvas() {
+        guard let board = board else { return }
         if let data = try? JSONEncoder().encode(elements),
            let str = String(data: data, encoding: .utf8) {
             board.elementsJSON = str
@@ -1016,139 +1027,72 @@ public struct WhiteboardCanvasView: View {
 }
 
 
-// MARK: - CODE SNIPPET WORKSPACE VIEW
-public struct SnippetWorkspaceView: View {
+// MARK: - CODE SNIPPET LIST VIEW (PANEL 2)
+struct SnippetListView: View {
     let coordinator: PersonalDocumentationCoordinator
 
     @State private var snippets: [CodeSnippetRecord] = []
-    @State private var selectedSnippet: CodeSnippetRecord? = nil
     @State private var showCreateDialog = false
     @State private var titleInput = ""
     @State private var codeInput = ""
     @State private var languageInput = "Swift"
     @State private var categoryInput = "Utility"
 
-    @State private var explanation = ""
-    @State private var isExplaining = false
-
-    public init(coordinator: PersonalDocumentationCoordinator) {
-        self.coordinator = coordinator
-    }
-
-    public var body: some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("Code Snippets")
                         .font(.headline)
-                    Spacer()
-                    Button {
-                        showCreateDialog = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .buttonStyle(.plain)
+                    Text("\(snippets.count) items")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .padding()
-
-                Divider()
-
-                List(snippets, id: \.id, selection: $selectedSnippet) { snip in
-                    NavigationLink(value: snip) {
-                        HStack {
-                            Image(systemName: "text.badge.plus")
-                                .foregroundStyle(.green)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(snip.title)
-                                    .font(.body.bold())
-                                Text(snip.language)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if snip.isFavorite {
-                                Image(systemName: "star.fill")
-                                    .foregroundStyle(.orange)
-                            }
-                        }
-                    }
+                Spacer()
+                Button {
+                    showCreateDialog = true
+                } label: {
+                    Image(systemName: "plus")
                 }
-                .listStyle(.sidebar)
+                .buttonStyle(.plain)
             }
-            .frame(width: 220)
+            .padding()
             .background(Color(NSColor.windowBackgroundColor))
 
             Divider()
 
-            if let snip = selectedSnippet {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack {
+            if snippets.isEmpty {
+                ContentUnavailableView("No Snippets", systemImage: "text.badge.plus")
+                    .frame(maxHeight: .infinity)
+            } else {
+                List(snippets, id: \.id, selection: Binding(
+                    get: { coordinator.selectedSnippetID },
+                    set: { coordinator.selectedSnippetID = $0 }
+                )) { snip in
+                    HStack {
+                        Image(systemName: "text.badge.plus")
+                            .foregroundStyle(.green)
+                        VStack(alignment: .leading, spacing: 2) {
                             Text(snip.title)
-                                .font(.title.bold())
-                            Spacer()
-                            Button {
-                                snip.isFavorite.toggle()
-                                try? coordinator.snippets.updateSnippet(snip)
-                            } label: {
-                                Image(systemName: snip.isFavorite ? "star.fill" : "star")
-                                    .foregroundStyle(.orange)
-                            }
-                            Button("Copy Code") {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(snip.code, forType: .string)
-                            }
-                        }
-
-                        Divider()
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(snip.language.uppercased())
-                                .font(.caption.bold())
+                                .font(.system(size: 13, weight: .semibold))
+                            Text(snip.language)
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
-                            ScrollView(.horizontal) {
-                                Text(snip.code)
-                                    .font(.system(.body, design: .monospaced))
-                                    .padding(10)
-                            }
-                            .background(Color.black.opacity(0.3))
-                            .cornerRadius(6)
                         }
-
-                        Button {
-                            explainCode(snip)
-                        } label: {
-                            if isExplaining {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Label("Explain snippet with AI", systemImage: "sparkles")
-                            }
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(isExplaining)
-
-                        if !explanation.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("AI Explanation")
-                                    .font(.headline)
-                                MarkdownBlockListView(blocks: MarkdownRenderer.shared.parse(explanation))
-                            }
-                            .padding()
-                            .background(Color(NSColor.controlBackgroundColor))
-                            .cornerRadius(8)
+                        Spacer()
+                        if snip.isFavorite {
+                            Image(systemName: "star.fill")
+                                .foregroundStyle(.orange)
                         }
                     }
-                    .padding(24)
+                    .tag(snip.id)
+                    .padding(.vertical, 4)
                 }
-            } else {
-                ContentUnavailableView("Select a Snippet", systemImage: "text.badge.plus")
+                .listStyle(.sidebar)
             }
         }
         .onAppear {
             loadSnippets()
-        }
-        .onChange(of: selectedSnippet) { _, _ in
-            explanation = ""
         }
         .sheet(isPresented: $showCreateDialog) {
             VStack(spacing: 16) {
@@ -1173,7 +1117,7 @@ public struct SnippetWorkspaceView: View {
                         if !titleInput.isEmpty {
                             let snip = try? coordinator.snippets.createSnippet(title: titleInput, code: codeInput, language: languageInput, category: categoryInput)
                             loadSnippets()
-                            selectedSnippet = snip
+                            coordinator.selectedSnippetID = snip?.id
                             titleInput = ""
                             codeInput = ""
                             showCreateDialog = false
@@ -1189,8 +1133,107 @@ public struct SnippetWorkspaceView: View {
 
     private func loadSnippets() {
         snippets = (try? coordinator.snippets.fetchSnippets()) ?? []
-        if selectedSnippet == nil {
-            selectedSnippet = snippets.first
+        if coordinator.selectedSnippetID == nil {
+            coordinator.selectedSnippetID = snippets.first?.id
+        }
+    }
+}
+
+
+// MARK: - CODE SNIPPET DETAIL VIEW (PANEL 3)
+struct SnippetDetailView: View {
+    let coordinator: PersonalDocumentationCoordinator
+    @State private var snippet: CodeSnippetRecord? = nil
+
+    @State private var explanation = ""
+    @State private var isExplaining = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if let snip = snippet {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(snip.title)
+                                .font(.title.bold())
+                            Text("Category: \(snip.category)")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button {
+                            snip.isFavorite.toggle()
+                            try? coordinator.snippets.updateSnippet(snip)
+                        } label: {
+                            Image(systemName: snip.isFavorite ? "star.fill" : "star")
+                                .foregroundStyle(.orange)
+                        }
+                        Button("Copy Code") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(snip.code, forType: .string)
+                        }
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(snip.language.uppercased())
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                        ScrollView(.horizontal) {
+                            Text(snip.code)
+                                .font(.system(.body, design: .monospaced))
+                                .padding(10)
+                        }
+                        .background(Color.black.opacity(0.3))
+                        .cornerRadius(6)
+                    }
+
+                    Button {
+                        explainCode(snip)
+                    } label: {
+                        if isExplaining {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Label("Explain snippet with AI", systemImage: "sparkles")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(isExplaining)
+
+                    if !explanation.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("AI Explanation")
+                                .font(.headline)
+                            MarkdownBlockListView(blocks: MarkdownRenderer.shared.parse(explanation))
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(8)
+                    }
+                } else {
+                    ContentUnavailableView("Select a Snippet", systemImage: "text.badge.plus")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(24)
+        }
+        .onAppear {
+            loadSnippet()
+        }
+        .onChange(of: coordinator.selectedSnippetID) { _, _ in
+            loadSnippet()
+            explanation = ""
+        }
+    }
+
+    private func loadSnippet() {
+        if let id = coordinator.selectedSnippetID,
+           let snips = try? coordinator.snippets.fetchSnippets(),
+           let match = snips.first(where: { $0.id == id }) {
+            self.snippet = match
+        } else {
+            self.snippet = nil
         }
     }
 
@@ -1208,79 +1251,56 @@ public struct SnippetWorkspaceView: View {
 }
 
 
-// MARK: - PROJECT SNAPSHOTS VIEW
-public struct SnapshotsView: View {
+// MARK: - PROJECT SNAPSHOT LIST VIEW (PANEL 2)
+struct SnapshotListView: View {
     let coordinator: PersonalDocumentationCoordinator
 
     @State private var snapshots: [ProjectSnapshotRecord] = []
-    @State private var selectedSnapshot: ProjectSnapshotRecord? = nil
     @State private var showCreateDialog = false
     @State private var snapTitle = ""
     @State private var snapDesc = ""
-    @State private var statusMsg = ""
 
-    public init(coordinator: PersonalDocumentationCoordinator) {
-        self.coordinator = coordinator
-    }
-
-    public var body: some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("Snapshots")
                         .font(.headline)
-                    Spacer()
-                    Button {
-                        showCreateDialog = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .buttonStyle(.plain)
+                    Text("\(snapshots.count) captures")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .padding()
-
-                Divider()
-
-                List(snapshots, id: \.id, selection: $selectedSnapshot) { snap in
-                    NavigationLink(value: snap) {
-                        Label(snap.title, systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
-                    }
+                Spacer()
+                Button {
+                    showCreateDialog = true
+                } label: {
+                    Image(systemName: "plus")
                 }
-                .listStyle(.sidebar)
+                .buttonStyle(.plain)
             }
-            .frame(width: 220)
+            .padding()
             .background(Color(NSColor.windowBackgroundColor))
 
             Divider()
 
-            if let snap = selectedSnapshot {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text(snap.title)
-                        .font(.title.bold())
-                    Text("Captured \(snap.createdAt, style: .date) \(snap.createdAt, style: .time)")
-                        .foregroundStyle(.secondary)
-
-                    Text(snap.descriptionText)
-                        .font(.body)
-
-                    Divider()
-
-                    Button("Restore Project to Snapshot") {
-                        restore(snap)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-
-                    if !statusMsg.isEmpty {
-                        Text(statusMsg)
-                            .foregroundStyle(.green)
-                            .font(.headline)
-                    }
-                }
-                .padding(24)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if snapshots.isEmpty {
+                ContentUnavailableView("No Snapshots", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                    .frame(maxHeight: .infinity)
             } else {
-                ContentUnavailableView("Select a Snapshot", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                List(snapshots, id: \.id, selection: Binding(
+                    get: { coordinator.selectedSnapshotID },
+                    set: { coordinator.selectedSnapshotID = $0 }
+                )) { snap in
+                    HStack {
+                        Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                            .foregroundStyle(.orange)
+                        Text(snap.title)
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .tag(snap.id)
+                    .padding(.vertical, 4)
+                }
+                .listStyle(.sidebar)
             }
         }
         .onAppear {
@@ -1312,8 +1332,8 @@ public struct SnapshotsView: View {
 
     private func loadSnapshots() {
         snapshots = (try? coordinator.snapshots.fetchSnapshots()) ?? []
-        if selectedSnapshot == nil {
-            selectedSnapshot = snapshots.first
+        if coordinator.selectedSnapshotID == nil {
+            coordinator.selectedSnapshotID = snapshots.first?.id
         }
     }
 
@@ -1332,12 +1352,71 @@ public struct SnapshotsView: View {
                 snippets: snippets
             )
             loadSnapshots()
-            selectedSnapshot = snap
+            coordinator.selectedSnapshotID = snap.id
             snapTitle = ""
             snapDesc = ""
             showCreateDialog = false
         } catch {
             logger.error("Error creating snapshot: \(error.localizedDescription)")
+        }
+    }
+}
+
+
+// MARK: - PROJECT SNAPSHOT DETAIL VIEW (PANEL 3)
+struct SnapshotDetailView: View {
+    let coordinator: PersonalDocumentationCoordinator
+    @State private var snapshot: ProjectSnapshotRecord? = nil
+    @State private var statusMsg = ""
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if let snap = snapshot {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(snap.title)
+                        .font(.title.bold())
+                    Text("Captured \(snap.createdAt, style: .date) \(snap.createdAt, style: .time)")
+                        .foregroundStyle(.secondary)
+
+                    Text(snap.descriptionText)
+                        .font(.body)
+
+                    Divider()
+
+                    Button("Restore Project to Snapshot") {
+                        restore(snap)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+
+                    if !statusMsg.isEmpty {
+                        Text(statusMsg)
+                            .foregroundStyle(.green)
+                            .font(.headline)
+                    }
+                }
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                ContentUnavailableView("Select a Snapshot", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+            }
+        }
+        .onAppear {
+            loadSnapshot()
+        }
+        .onChange(of: coordinator.selectedSnapshotID) { _, _ in
+            loadSnapshot()
+            statusMsg = ""
+        }
+    }
+
+    private func loadSnapshot() {
+        if let id = coordinator.selectedSnapshotID,
+           let snaps = try? coordinator.snapshots.fetchSnapshots(),
+           let match = snaps.first(where: { $0.id == id }) {
+            self.snapshot = match
+        } else {
+            self.snapshot = nil
         }
     }
 
@@ -1360,117 +1439,48 @@ public struct SnapshotsView: View {
 }
 
 
-// MARK: - PERSONAL DOCUMENT COMMAND PALETTE / QUICK OPEN
-public struct PersonalDocCommandPalette: View {
+// Deprecated legacy container wrappers to preserve backwards-compatible symbols
+public struct WhiteboardsListView: View {
     let coordinator: PersonalDocumentationCoordinator
-    let onDismiss: () -> Void
-
-    @State private var query = ""
-    @State private var results: [CommandResult] = []
-
-    struct CommandResult: Identifiable {
-        let id = UUID()
-        let title: String
-        let sub: String
-        let action: () -> Void
-    }
-
-    public init(coordinator: PersonalDocumentationCoordinator, onDismiss: @escaping () -> Void) {
+    public init(coordinator: PersonalDocumentationCoordinator) {
         self.coordinator = coordinator
-        self.onDismiss = onDismiss
     }
-
     public var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Quick Open (Type file name, whiteboard, or action...)", text: $query)
-                    .textFieldStyle(.plain)
-                    .font(.title3)
-                    .onChange(of: query) { _, _ in
-                        search()
-                    }
-
-                Button("ESC") {
-                    onDismiss()
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.escape, modifiers: [])
-            }
-            .padding(16)
-            .background(Color(NSColor.windowBackgroundColor))
-
-            Divider()
-
-            List(results) { res in
-                Button {
-                    res.action()
-                    onDismiss()
-                } label: {
-                    HStack {
-                        Image(systemName: "terminal")
-                            .foregroundStyle(.blue)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(res.title)
-                                .font(.body.bold())
-                            Text(res.sub)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .frame(width: 500, height: 350)
-        .background(Color(NSColor.windowBackgroundColor))
-        .onAppear {
-            search()
+        HSplitView {
+            WhiteboardListView(coordinator: coordinator)
+                .frame(width: 250)
+            WhiteboardCanvasDetailView(coordinator: coordinator)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
+}
 
-    private func search() {
-        var items: [CommandResult] = []
-
-        // Standard actions
-        items.append(CommandResult(title: "Show Knowledge Graph", sub: "Interactive structural map of ecosystem") {
-            coordinator.selectedModuleKind = .knowledgeGraph
-        })
-        items.append(CommandResult(title: "Show Project Timeline", sub: "Chronological documentation changes") {
-            coordinator.selectedModuleKind = .timeline
-        })
-        items.append(CommandResult(title: "Show Analytics", sub: "Growth metrics") {
-            coordinator.selectedModuleKind = .analytics
-        })
-        items.append(CommandResult(title: "AI Audit", sub: "Audit workspace for missing docs") {
-            coordinator.selectedModuleKind = .intelligence
-        })
-
-        // Fetch documents matching
-        if let docs = try? coordinator.documents.fetchDocuments() {
-            for doc in docs {
-                if query.isEmpty || doc.title.lowercased().contains(query.lowercased()) {
-                    items.append(CommandResult(title: "Document: \(doc.title)", sub: doc.moduleKindRaw) {
-                        coordinator.selectedModuleKind = doc.moduleKind
-                        coordinator.selectedDocumentID = doc.id
-                    })
-                }
-            }
+public struct SnippetWorkspaceView: View {
+    let coordinator: PersonalDocumentationCoordinator
+    public init(coordinator: PersonalDocumentationCoordinator) {
+        self.coordinator = coordinator
+    }
+    public var body: some View {
+        HSplitView {
+            SnippetListView(coordinator: coordinator)
+                .frame(width: 250)
+            SnippetDetailView(coordinator: coordinator)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+}
 
-        // Fetch snippets
-        if let snippets = try? coordinator.snippets.fetchSnippets() {
-            for snip in snippets {
-                if query.isEmpty || snip.title.lowercased().contains(query.lowercased()) {
-                    items.append(CommandResult(title: "Snippet: \(snip.title)", sub: snip.language) {
-                        coordinator.selectedModuleKind = .snippets
-                    })
-                }
-            }
+public struct SnapshotsView: View {
+    let coordinator: PersonalDocumentationCoordinator
+    public init(coordinator: PersonalDocumentationCoordinator) {
+        self.coordinator = coordinator
+    }
+    public var body: some View {
+        HSplitView {
+            SnapshotListView(coordinator: coordinator)
+                .frame(width: 250)
+            SnapshotDetailView(coordinator: coordinator)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-
-        results = items
     }
 }

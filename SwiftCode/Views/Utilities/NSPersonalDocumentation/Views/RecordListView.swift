@@ -113,27 +113,25 @@ struct RecordListView: View {
                 }
             } else {
                 List(filteredAndSortedDocuments, id: \.id, selection: $selectedDocumentID) { doc in
-                    NavigationLink(value: doc.id) {
-                        HStack(spacing: 10) {
-                            Image(systemName: doc.moduleKind.icon)
-                                .foregroundStyle(doc.moduleKind.accentColor)
+                    HStack(spacing: 10) {
+                        Image(systemName: doc.moduleKind.icon)
+                            .foregroundStyle(doc.moduleKind.accentColor)
 
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(doc.title)
-                                    .font(.subheadline.bold())
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(1)
-                                HStack {
-                                    Text(doc.moduleKind.rawValue)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(doc.title)
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            HStack {
+                                Text(doc.moduleKind.rawValue)
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.secondary)
+                                Text("•")
                                         .font(.system(size: 9))
                                         .foregroundStyle(.secondary)
-                                    Text("•")
-                                        .font(.system(size: 9))
-                                        .foregroundStyle(.secondary)
-                                    Text(doc.updatedAt, style: .date)
-                                        .font(.system(size: 9))
-                                        .foregroundStyle(.secondary)
-                                }
+                                Text(doc.updatedAt, style: .date)
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.secondary)
                             }
                         }
                     }

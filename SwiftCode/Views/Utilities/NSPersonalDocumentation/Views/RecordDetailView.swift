@@ -198,6 +198,7 @@ struct RecordDetailView: View {
                                     }
                                 }
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(24)
                         }
                     }
@@ -318,7 +319,7 @@ struct RecordDetailView: View {
                         .padding()
                     }
                 }
-                .frame(width: 250)
+                .frame(minWidth: 220, idealWidth: 260, maxWidth: 400)
                 .background(Color(NSColor.windowBackgroundColor))
             }
         }
