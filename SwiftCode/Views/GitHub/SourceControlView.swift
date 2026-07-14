@@ -49,6 +49,8 @@ public class SourceControlWindowController: NSWindowController {
         super.init(window: window)
 
         let contentView = SourceControlView(gitViewModel: gitViewModel)
+            .environment(ProjectSessionStore.shared)
+            .environmentObject(AppSettings.shared)
         let hostingVC = NSHostingController(rootView: contentView)
         hostingVC.sizingOptions = []
         window.contentViewController = hostingVC
