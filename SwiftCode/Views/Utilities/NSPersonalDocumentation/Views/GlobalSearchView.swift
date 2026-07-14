@@ -8,27 +8,12 @@ struct GlobalSearchView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Search all personal documentation...", text: $query)
-                    .textFieldStyle(.plain)
-                    .font(.title3)
-                    .onChange(of: query) { _, _ in
-                        performSearch()
-                    }
-                if !query.isEmpty {
-                    Button {
-                        query = ""
-                        results = []
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                    .buttonStyle(.plain)
+            NativeSearchField(text: $query, placeholder: "Search all personal documentation...")
+                .padding(16)
+                .background(Color(NSColor.windowBackgroundColor))
+                .onChange(of: query) { _, _ in
+                    performSearch()
                 }
-            }
-            .padding(16)
-            .background(Color(NSColor.windowBackgroundColor))
 
             Divider()
 

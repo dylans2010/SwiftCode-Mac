@@ -1,10 +1,14 @@
 import Foundation
 import SwiftUI
 import Observation
+import AppKit
 
 @Observable
 @MainActor
 public final class PersonalDocumentationCoordinator {
+    // AppKit Sidebar Properties
+    public var outlineView: NSOutlineView? = nil
+    public var nodes: [SidebarNode] = []
     public let projectID: UUID
     public let projectURL: URL
 
@@ -81,6 +85,9 @@ public final class PersonalDocumentationCoordinator {
         self.snapshots = SnapshotManager(storage: storageManager, projectID: projectID)
         self.timeline = EcosystemTimelineManager(storage: storageManager, projectID: projectID)
         self.intelligence = IntelligenceManager(projectID: projectID)
+
+        // Initialize AppKit Sidebar elements
+        self.nodes = buildSidebarNodes()
 
         try? self.templates.seedDefaultTemplates()
         try? self.analytics.logEvent("coordinator_initialized")
