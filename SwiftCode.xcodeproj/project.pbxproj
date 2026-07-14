@@ -54,6 +54,7 @@
 		7A810247C00000000000005B /* EcosystemModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000005C /* EcosystemModels.swift */; };
 		7A810247C00000000000005D /* EcosystemManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000005E /* EcosystemManagers.swift */; };
 		7A810247C00000000000005F /* EcosystemViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000060 /* EcosystemViews.swift */; };
+		7A810247C000000000000061 /* PersonalDocCommandPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000062 /* PersonalDocCommandPalette.swift */; };
 
 		90A3B649CCD589077B6696ED /* DesignerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9566538F7BD55C7409795C89 /* DesignerDevToolView.swift */; };
 		4298CA3C089ACDD9752E896A /* AESEncryptionDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59BECEBFFFFD21DB1AEE9891 /* AESEncryptionDevToolView.swift */; };
@@ -1123,6 +1124,7 @@
 		7A810247C00000000000005C /* EcosystemModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EcosystemModels.swift; sourceTree = "<group>"; };
 		7A810247C00000000000005E /* EcosystemManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EcosystemManagers.swift; sourceTree = "<group>"; };
 		7A810247C000000000000060 /* EcosystemViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EcosystemViews.swift; sourceTree = "<group>"; };
+		7A810247C000000000000062 /* PersonalDocCommandPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalDocCommandPalette.swift; sourceTree = "<group>"; };
 
 		9566538F7BD55C7409795C89 /* DesignerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignerDevToolView.swift; sourceTree = "<group>"; };
 		59BECEBFFFFD21DB1AEE9891 /* AESEncryptionDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AESEncryptionDevToolView.swift; sourceTree = "<group>"; };
@@ -2237,6 +2239,7 @@
 				7A810247C000000000000051 /* RecordListView.swift */,
 				7A810247C000000000000053 /* WikiPageView.swift */,
 				7A810247C000000000000055 /* NSPersonalDocumentationView.swift */,
+				7A810247C000000000000062 /* PersonalDocCommandPalette.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -4553,6 +4556,7 @@
 				7A810247C00000000000005B /* EcosystemModels.swift in Sources */,
 				7A810247C00000000000005D /* EcosystemManagers.swift in Sources */,
 				7A810247C00000000000005F /* EcosystemViews.swift in Sources */,
+				7A810247C000000000000061 /* PersonalDocCommandPalette.swift in Sources */,
 
 				90A3B649CCD589077B6696ED /* DesignerDevToolView.swift in Sources */,
 				4298CA3C089ACDD9752E896A /* AESEncryptionDevToolView.swift in Sources */,
