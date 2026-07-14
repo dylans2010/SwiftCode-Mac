@@ -392,9 +392,6 @@ public class PersonalDocSplitViewController: NSSplitViewController {
                             targetIdentifier: UUID().uuidString,
                             targetName: text
                         )
-                        if let inspectorVC = self?.inspectorItem?.viewController as? PersonalDocInspectorViewController {
-                            inspectorVC.reloadData()
-                        }
                     }
                 }
             }
