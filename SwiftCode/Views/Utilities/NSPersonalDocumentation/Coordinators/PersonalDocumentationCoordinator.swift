@@ -41,12 +41,36 @@ public final class PersonalDocumentationCoordinator {
     public let intelligence: IntelligenceManager
 
     // Navigation state
-    public var selectedModuleKind: ModuleKind? = .dashboard
-    public var selectedDocumentID: UUID?
-    public var selectedWikiPageID: UUID?
-    public var selectedWhiteboardID: UUID?
-    public var selectedSnippetID: UUID?
-    public var selectedSnapshotID: UUID?
+    public var selectedModuleKind: ModuleKind? = .dashboard {
+        didSet {
+            NotificationCenter.default.post(name: NSNotification.Name("PersonalDocSelectionChanged"), object: nil)
+        }
+    }
+    public var selectedDocumentID: UUID? {
+        didSet {
+            NotificationCenter.default.post(name: NSNotification.Name("PersonalDocSelectionChanged"), object: nil)
+        }
+    }
+    public var selectedWikiPageID: UUID? {
+        didSet {
+            NotificationCenter.default.post(name: NSNotification.Name("PersonalDocSelectionChanged"), object: nil)
+        }
+    }
+    public var selectedWhiteboardID: UUID? {
+        didSet {
+            NotificationCenter.default.post(name: NSNotification.Name("PersonalDocSelectionChanged"), object: nil)
+        }
+    }
+    public var selectedSnippetID: UUID? {
+        didSet {
+            NotificationCenter.default.post(name: NSNotification.Name("PersonalDocSelectionChanged"), object: nil)
+        }
+    }
+    public var selectedSnapshotID: UUID? {
+        didSet {
+            NotificationCenter.default.post(name: NSNotification.Name("PersonalDocSelectionChanged"), object: nil)
+        }
+    }
     public var searchActive: Bool = false
     public var navigationPath = NavigationPath()
 

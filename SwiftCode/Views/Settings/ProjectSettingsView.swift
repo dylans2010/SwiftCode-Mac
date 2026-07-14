@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct ProjectSettingsView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
@@ -97,14 +98,13 @@ struct ProjectSettingsView: View {
                         Button {
                             openProjectInFiles(project)
                         } label: {
-                            Label("Open In Files App", systemImage: "folder.fill")
+                            Label("Show in Finder", systemImage: "folder.fill")
                                 .foregroundStyle(.blue)
                         }
                     }
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(Color(red: 0.10, green: 0.10, blue: 0.14))
+            .formStyle(.grouped)
             .navigationTitle("Project Settings")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -139,10 +139,6 @@ struct ProjectSettingsView: View {
     }
 
     private func openProjectInFiles(_ project: Project) {
-        if let url = URL(string: "shareddocuments://\(project.directoryURL.path)") {
-            NSWorkspace.shared.open(url)
-        } else {
-            NSWorkspace.shared.open(project.directoryURL)
-        }
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.directoryURL.path)
     }
 }
