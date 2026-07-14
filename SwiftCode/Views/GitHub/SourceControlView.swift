@@ -180,6 +180,9 @@ enum SourceControlSelection: String, CaseIterable, Identifiable {
     case releases = "Releases"
     case tags = "Tags"
     case issues = "Issues"
+    case repositoryExplorer = "Repository Explorer"
+    case repositoryAutomationBuilder = "Repository Automation Builder"
+    case swiftCodeWorkflows = "SwiftCode Workflows"
     case diffViewer = "Diff Viewer"
     case cli = "CLI"
     case repositorySettings = "Repository Settings"
@@ -204,6 +207,9 @@ enum SourceControlSelection: String, CaseIterable, Identifiable {
         case .releases: return "shippingbox.fill"
         case .tags: return "tag.fill"
         case .issues: return "exclamationmark.bubble.fill"
+        case .repositoryExplorer: return "folder.circle.fill"
+        case .repositoryAutomationBuilder: return "arrow.triangle.2.circlepath.circle.fill"
+        case .swiftCodeWorkflows: return "bolt.circle.fill"
         case .diffViewer: return "arrow.left.and.right.square"
         case .cli: return "terminal.fill"
         case .repositorySettings: return "gearshape.fill"
@@ -491,6 +497,12 @@ struct SourceControlView: View {
                 UnifiedDiffView(gitViewModel: gitViewModel)
             case .cli:
                 GitCLIView(project: project)
+            case .repositoryExplorer:
+                RepositoryExplorerView(gitViewModel: gitViewModel, project: project)
+            case .repositoryAutomationBuilder:
+                RepositoryAutomationBuilderView(project: project)
+            case .swiftCodeWorkflows:
+                WorkflowDashboardView(project: project, gitViewModel: gitViewModel)
             case .repositorySettings:
                 GitHubSettingsView(project: project)
             case .onboarding:
