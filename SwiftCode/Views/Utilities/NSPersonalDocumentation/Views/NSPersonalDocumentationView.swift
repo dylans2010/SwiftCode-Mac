@@ -1,3 +1,12 @@
+// ====================================================================
+// NS PERSONAL DOCUMENTATION - MAIN ENTRY POINT
+// ====================================================================
+// This view acts as the MAIN container view of the personal documentation feature,
+// coordinating and accessing all sub-views/modules (Dashboard, Wiki,
+// Knowledge Graph, Timeline, Whiteboards, Snippets, Snapshots, etc.) and
+// is integrated to be accessible from WorkspaceView.
+// ====================================================================
+
 import SwiftUI
 
 public struct NSPersonalDocumentationView: View {

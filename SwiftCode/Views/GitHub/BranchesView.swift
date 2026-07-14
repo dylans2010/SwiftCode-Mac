@@ -121,15 +121,12 @@ struct BranchesView: View {
                 .buttonStyle(.bordered)
             }
 
-            GroupBox {
-                VStack(alignment: .leading, spacing: 14) {
-                    TextField("Branch Name", text: $newBranchName)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-                }
-                .padding()
+            VStack(alignment: .leading, spacing: 14) {
+                TextField("Branch Name", text: $newBranchName)
+                    .textFieldStyle(.roundedBorder)
+                    .autocorrectionDisabled()
             }
-            .groupBoxStyle(ModernGroupBoxStyle())
+            .padding()
 
             Button {
                 gitViewModel.createBranch(named: newBranchName)

@@ -180,22 +180,19 @@ struct IssuesView: View {
                 .buttonStyle(.bordered)
             }
 
-            GroupBox {
-                VStack(alignment: .leading, spacing: 14) {
-                    TextField("Title", text: $newTitle)
-                        .textFieldStyle(.roundedBorder)
+            VStack(alignment: .leading, spacing: 14) {
+                TextField("Title", text: $newTitle)
+                    .textFieldStyle(.roundedBorder)
 
-                    TextEditor(text: $newBody)
-                        .frame(height: 120)
-                        .cornerRadius(6)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                        )
-                }
-                .padding()
+                TextEditor(text: $newBody)
+                    .frame(height: 120)
+                    .cornerRadius(6)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                    )
             }
-            .groupBoxStyle(ModernGroupBoxStyle())
+            .padding()
 
             Button {
                 submitIssue()

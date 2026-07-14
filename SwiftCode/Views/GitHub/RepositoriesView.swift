@@ -61,55 +61,40 @@ struct RepositoriesView: View {
                             // Stage / Unstage groups
                             let conflicts = status.files.filter { $0.status == .conflicted }
                             if !conflicts.isEmpty {
-                                GroupBox {
-                                    fileGroupView(title: "Conflicts", files: conflicts, color: .red)
-                                }
-                                .groupBoxStyle(ModernGroupBoxStyle())
+                                fileGroupView(title: "Conflicts", files: conflicts, color: .red)
                             }
 
                             let staged = status.files.filter { $0.isStaged }
-                            GroupBox {
-                                fileGroupView(title: "Staged Changes", files: staged, color: .green)
-                            }
-                            .groupBoxStyle(ModernGroupBoxStyle())
+                            fileGroupView(title: "Staged Changes", files: staged, color: .green)
 
                             let unstaged = status.files.filter { !$0.isStaged && $0.status != .conflicted }
-                            GroupBox {
-                                fileGroupView(title: "Unstaged / Untracked", files: unstaged, color: .orange)
-                            }
-                            .groupBoxStyle(ModernGroupBoxStyle())
+                            fileGroupView(title: "Unstaged / Untracked", files: unstaged, color: .orange)
                         }
                         .padding()
                     }
                     .frame(minWidth: 400, maxWidth: .infinity)
 
-                    // Commit composer
-                    VStack {
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 14) {
-                                Label("Commit Changes", systemImage: "pencil.and.outline")
-                                    .font(.headline)
-                                    .foregroundStyle(.orange)
+                    // Commit composer - flat native macOS panel
+                    VStack(alignment: .leading, spacing: 14) {
+                        Label("Commit Changes", systemImage: "pencil.and.outline")
+                            .font(.headline)
+                            .foregroundStyle(.orange)
 
-                                Text("Write a message to commit staged files to local history.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                        Text("Write a message to commit staged files to local history.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
 
-                                GitCommitComposerView(message: $commitMessage) {
-                                    Task {
-                                        await gitViewModel.commit(message: commitMessage)
-                                        commitMessage = ""
-                                    }
-                                }
+                        GitCommitComposerView(message: $commitMessage) {
+                            Task {
+                                await gitViewModel.commit(message: commitMessage)
+                                commitMessage = ""
                             }
-                            .padding()
                         }
-                        .groupBoxStyle(ModernGroupBoxStyle())
-                        .frame(width: 320)
-                        .padding()
 
                         Spacer()
                     }
+                    .padding()
+                    .frame(width: 320)
                 }
             } else {
                 noGitRepoPlaceholder
@@ -139,51 +124,55 @@ struct RepositoriesView: View {
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 4)
             } else {
-                ForEach(files) { file in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(file.path.lastPathComponent)
-                                .font(.subheadline.bold())
-                            Text(file.path.path)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
+                VStack(spacing: 0) {
+                    ForEach(files) { file in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(file.path.lastPathComponent)
+                                    .font(.subheadline.bold())
+                                Text(file.path.path)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
 
-                        Spacer()
+                            Spacer()
 
-                        Text(file.status.rawValue.uppercased())
-                            .font(.system(size: 9, weight: .bold))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(color.opacity(0.15))
-                            .foregroundStyle(color)
-                            .cornerRadius(4)
+                            Text(file.status.rawValue.uppercased())
+                                .font(.system(size: 9, weight: .bold))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(color.opacity(0.15))
+                                .foregroundStyle(color)
+                                .cornerRadius(4)
 
-                        HStack(spacing: 8) {
-                            if file.isStaged {
-                                Button("Unstage") {
-                                    Task {
-                                        await gitViewModel.unstage(file)
+                            HStack(spacing: 8) {
+                                if file.isStaged {
+                                    Button("Unstage") {
+                                        Task {
+                                            await gitViewModel.unstage(file)
+                                        }
                                     }
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                            } else {
-                                Button("Stage") {
-                                    Task {
-                                        await gitViewModel.stage(file)
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                } else {
+                                    Button("Stage") {
+                                        Task {
+                                            await gitViewModel.stage(file)
+                                        }
                                     }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.blue)
+                                    .controlSize(.small)
                                 }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.blue)
-                                .controlSize(.small)
                             }
                         }
+                        .padding(.vertical, 6)
+
+                        if file.id != files.last?.id {
+                            Divider()
+                        }
                     }
-                    .padding(8)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(8)
                 }
             }
         }

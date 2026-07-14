@@ -127,6 +127,7 @@ struct WorkspaceView: View {
                         }
 
                         Section("Tools") {
+                            Button("Personal Documentation") { activeSheet = .personalDocumentation }
                             Button("Documentation") { activeSheet = .documentationBrowser }
                             Button("Extensions") { activeSheet = .extensionMarketplace }
                             Button("Debug Tools") { activeSheet = .debugTools }

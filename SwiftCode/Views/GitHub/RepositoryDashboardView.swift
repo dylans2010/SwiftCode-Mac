@@ -11,324 +11,231 @@ struct RepositoryDashboardView: View {
     @State private var quickActionLog = ""
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Overview & Connected Remote Status Header
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack {
-                            Label("Repository Command Center", systemImage: "macbook.and.iphone")
-                                .font(.title2.bold())
-                                .foregroundStyle(.blue)
+        List {
+            // Overview & Connected Remote Status Section
+            Section(header: Text("Repository Command Center").font(.system(size: 10, weight: .bold)).foregroundStyle(.blue)) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text(project?.name ?? "No Active Project")
+                            .font(.headline)
 
+                        Spacer()
+
+                        if let repoName = project?.githubRepo, !repoName.isEmpty {
+                            Text("Connected to Remote")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.green)
+                        } else {
+                            Text("Local Workspace Only")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.orange)
+                        }
+                    }
+
+                    if let repo = project?.githubRepo, !repo.isEmpty {
+                        Text("Linked GitHub Repository: \(repo)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Initialize a GitHub remote to synchronize with remote branches, manage issues, actions, and collaborate.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
+            // Repository Health Indicators Section
+            Section(header: Text("Repository Health Indicators").font(.system(size: 10, weight: .bold)).foregroundStyle(.green)) {
+                let filesCount = gitViewModel.status?.files.count ?? 0
+                healthRow(
+                    title: "Working Copy",
+                    subtitle: filesCount == 0 ? "Clean State" : "\(filesCount) Modified",
+                    isHealthy: filesCount == 0,
+                    systemImage: "checkmark.circle.fill",
+                    unhealthImage: "exclamationmark.triangle.fill"
+                )
+
+                let ahead = gitViewModel.status?.ahead ?? 0
+                healthRow(
+                    title: "Sync Status",
+                    subtitle: ahead == 0 ? "Up to Date" : "\(ahead) Commits Ahead",
+                    isHealthy: ahead == 0,
+                    systemImage: "cloud.checkmark.fill",
+                    unhealthImage: "arrow.up.circle.fill"
+                )
+
+                let hasRemote = !(project?.githubRepo ?? "").isEmpty
+                healthRow(
+                    title: "Remote Origin",
+                    subtitle: hasRemote ? "Connected" : "No Upstream",
+                    isHealthy: hasRemote,
+                    systemImage: "link.circle.fill",
+                    unhealthImage: "link.badge.plus"
+                )
+            }
+
+            // Quick Developer Actions Section
+            Section(header: Text("Quick Developer Actions").font(.system(size: 10, weight: .bold)).foregroundStyle(.orange)) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        Button {
+                            runQuickPull()
+                        } label: {
+                            Label("Pull Remote", systemImage: "arrow.down.circle.fill")
+                        }
+                        .controlSize(.small)
+                        .disabled(isRunningQuickAction)
+
+                        Button {
+                            runQuickStageAll()
+                        } label: {
+                            Label("Stage All", systemImage: "plus.circle.fill")
+                        }
+                        .controlSize(.small)
+                        .disabled(isRunningQuickAction)
+
+                        Button(role: .destructive) {
+                            runQuickDiscardAll()
+                        } label: {
+                            Label("Discard All", systemImage: "trash.fill")
+                        }
+                        .controlSize(.small)
+                        .disabled(isRunningQuickAction)
+                    }
+
+                    if !quickActionLog.isEmpty {
+                        Text(quickActionLog)
+                            .font(.system(.caption, design: .monospaced))
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.black.opacity(0.15))
+                            .cornerRadius(6)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
+            // Status & Statistics Section
+            Section(header: Text("Repository Status & Statistics").font(.system(size: 10, weight: .bold)).foregroundStyle(.purple)) {
+                // Current Branch
+                HStack {
+                    Label("Current Branch", systemImage: "arrow.triangle.branch")
+                        .font(.subheadline)
+                    Spacer()
+                    Text(gitViewModel.status?.branchName ?? "main")
+                        .font(.subheadline.bold())
+                    Button("Manage") {
+                        onNavigateToSection(.branches)
+                    }
+                    .buttonStyle(.link)
+                }
+
+                // Working Changes
+                HStack {
+                    Label("Working Directory", systemImage: "doc.text.fill")
+                        .font(.subheadline)
+                    Spacer()
+                    let changedCount = gitViewModel.status?.files.count ?? 0
+                    Text("\(changedCount) Modified")
+                        .font(.subheadline.bold())
+                    Button("View") {
+                        onNavigateToSection(.repositories)
+                    }
+                    .buttonStyle(.link)
+                }
+
+                // Commits
+                HStack {
+                    Label("Commit History", systemImage: "clock.arrow.circlepath")
+                        .font(.subheadline)
+                    Spacer()
+                    let commitCount = gitViewModel.history.count
+                    Text("\(commitCount) Local Commits")
+                        .font(.subheadline.bold())
+                    Button("History") {
+                        onNavigateToSection(.commits)
+                    }
+                    .buttonStyle(.link)
+                }
+
+                // Sync
+                HStack {
+                    Label("Remote Synchronization", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.subheadline)
+                    Spacer()
+                    let ahead = gitViewModel.status?.ahead ?? 0
+                    let behind = gitViewModel.status?.behind ?? 0
+                    Text("\(ahead) Ahead / \(behind) Behind")
+                        .font(.subheadline.bold())
+                    Button("Actions") {
+                        onNavigateToSection(.actions)
+                    }
+                    .buttonStyle(.link)
+                }
+            }
+
+            // Recent Commits Section
+            Section(header: Text("Recent Commits").font(.system(size: 10, weight: .bold)).foregroundStyle(.orange)) {
+                if gitViewModel.history.isEmpty {
+                    Text("No commits recorded yet.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 4)
+                } else {
+                    ForEach(gitViewModel.history.prefix(5)) { commit in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(commit.subject)
+                                    .font(.subheadline.bold())
+                                Text("\(commit.author) • \(commit.dateString)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                             Spacer()
 
-                            if let repoName = project?.githubRepo, !repoName.isEmpty {
-                                Text("Connected to Remote")
-                                    .font(.caption)
-                                    .fontWeight(.bold)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color.green.opacity(0.12))
-                                    .foregroundStyle(.green)
-                                    .clipShape(Capsule())
-                            } else {
-                                Text("Local Workspace Only")
-                                    .font(.caption)
-                                    .fontWeight(.bold)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color.orange.opacity(0.12))
-                                    .foregroundStyle(.orange)
-                                    .clipShape(Capsule())
-                            }
-                        }
-
-                        Text(project?.name ?? "No Active Project")
-                            .font(.title3.bold())
-
-                        if let repo = project?.githubRepo, !repo.isEmpty {
-                            Text("Linked GitHub Repository: \(repo)")
-                                .font(.body)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text("Initialize a GitHub remote to synchronize with remote branches, manage issues, actions, and collaborate.")
-                                .font(.body)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding()
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
-
-                // Repository Health Indicators Card
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label("Repository Health Indicators", systemImage: "heart.text.square.fill")
-                            .font(.headline)
-                            .foregroundStyle(.green)
-
-                        Divider()
-
-                        HStack(spacing: 20) {
-                            let filesCount = gitViewModel.status?.files.count ?? 0
-                            healthBadge(
-                                title: "Working Copy",
-                                subtitle: filesCount == 0 ? "Clean State" : "\(filesCount) Modified",
-                                isHealthy: filesCount == 0,
-                                systemImage: "checkmark.circle.fill",
-                                unhealthImage: "exclamationmark.triangle.fill"
-                            )
-
-                            let ahead = gitViewModel.status?.ahead ?? 0
-                            healthBadge(
-                                title: "Sync Status",
-                                subtitle: ahead == 0 ? "Up to Date" : "\(ahead) Commits Ahead",
-                                isHealthy: ahead == 0,
-                                systemImage: "cloud.checkmark.fill",
-                                unhealthImage: "arrow.up.circle.fill"
-                            )
-
-                            let hasRemote = !(project?.githubRepo ?? "").isEmpty
-                            healthBadge(
-                                title: "Remote Origin",
-                                subtitle: hasRemote ? "Connected" : "No Upstream",
-                                isHealthy: hasRemote,
-                                systemImage: "link.circle.fill",
-                                unhealthImage: "link.badge.plus"
-                            )
-                        }
-                    }
-                    .padding()
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
-
-                // Developer Dashboard Quick Actions
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Label("Quick Developer Actions", systemImage: "bolt.horizontal.circle.fill")
-                            .font(.headline)
-                            .foregroundStyle(.orange)
-
-                        Divider()
-
-                        HStack(spacing: 12) {
                             Button {
-                                runQuickPull()
+                                let board = NSPasteboard.general
+                                board.clearContents()
+                                board.setString(commit.sha, forType: .string)
                             } label: {
-                                Label("Pull Remote", systemImage: "arrow.down.circle.fill")
+                                Text(String(commit.sha.prefix(7)))
+                                    .font(.system(.caption, design: .monospaced))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.secondary.opacity(0.12))
+                                    .cornerRadius(4)
                             }
-                            .buttonStyle(.bordered)
-                            .disabled(isRunningQuickAction)
-
-                            Button {
-                                runQuickStageAll()
-                            } label: {
-                                Label("Stage All Changes", systemImage: "plus.circle.fill")
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(isRunningQuickAction)
-
-                            Button(role: .destructive) {
-                                runQuickDiscardAll()
-                            } label: {
-                                Label("Discard All Changes", systemImage: "trash.fill")
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(isRunningQuickAction)
+                            .buttonStyle(.plain)
+                            .help("Copy full SHA")
                         }
-
-                        if !quickActionLog.isEmpty {
-                            Text(quickActionLog)
-                                .font(.system(.caption, design: .monospaced))
-                                .padding(8)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.black.opacity(0.15))
-                                .cornerRadius(6)
-                        }
+                        .padding(.vertical, 4)
                     }
-                    .padding()
                 }
-                .groupBoxStyle(ModernGroupBoxStyle())
-
-                // Dynamic Status & Statistics Grid
-                let columns = [
-                    GridItem(.adaptive(minimum: 220), spacing: 16)
-                ]
-
-                LazyVGrid(columns: columns, spacing: 16) {
-                    // Local Branch card
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Label("Current Branch", systemImage: "arrow.triangle.branch")
-                                .font(.headline)
-                                .foregroundStyle(.orange)
-
-                            Text(gitViewModel.status?.branchName ?? "main")
-                                .font(.title3.bold())
-                                .lineLimit(1)
-
-                            Button("Manage Branches") {
-                                onNavigateToSection(.branches)
-                            }
-                            .buttonStyle(.link)
-                            .foregroundStyle(.orange)
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Working Changes card
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Label("Working Directory", systemImage: "doc.text.fill")
-                                .font(.headline)
-                                .foregroundStyle(.blue)
-
-                            let changedCount = gitViewModel.status?.files.count ?? 0
-                            Text("\(changedCount) Modified Files")
-                                .font(.title3.bold())
-
-                            Button("View Changes") {
-                                onNavigateToSection(.repositories) // Navigates to changes panel
-                            }
-                            .buttonStyle(.link)
-                            .foregroundStyle(.blue)
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Commits count / Sync card
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Label("Commit History", systemImage: "clock.arrow.circlepath")
-                                .font(.headline)
-                                .foregroundStyle(.purple)
-
-                            let commitCount = gitViewModel.history.count
-                            Text("\(commitCount) Local Commits")
-                                .font(.title3.bold())
-
-                            Button("History Timeline") {
-                                onNavigateToSection(.commits)
-                            }
-                            .buttonStyle(.link)
-                            .foregroundStyle(.purple)
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Remote Synced Card (Ahead / Behind)
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Label("Remote Synchronization", systemImage: "arrow.triangle.2.circlepath")
-                                .font(.headline)
-                                .foregroundStyle(.green)
-
-                            let ahead = gitViewModel.status?.ahead ?? 0
-                            let behind = gitViewModel.status?.behind ?? 0
-                            Text("\(ahead) Ahead / \(behind) Behind")
-                                .font(.title3.bold())
-
-                            Button("Check Actions") {
-                                onNavigateToSection(.actions)
-                            }
-                            .buttonStyle(.link)
-                            .foregroundStyle(.green)
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-                }
-
-                // Recent Commits Subsection
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Label("Recent Commits", systemImage: "list.dash")
-                            .font(.headline)
-                            .foregroundStyle(.orange)
-
-                        if gitViewModel.history.isEmpty {
-                            Text("No commits recorded yet.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .padding(.vertical, 8)
-                        } else {
-                            VStack(spacing: 0) {
-                                ForEach(gitViewModel.history.prefix(5)) { commit in
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(commit.subject)
-                                                .font(.subheadline.bold())
-                                            Text("\(commit.author) • \(commit.dateString)")
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        Spacer()
-
-                                        Button {
-                                            let board = NSPasteboard.general
-                                            board.clearContents()
-                                            board.setString(commit.sha, forType: .string)
-                                        } label: {
-                                            Text(String(commit.sha.prefix(7)))
-                                                .font(.system(.caption2, design: .monospaced))
-                                                .padding(.horizontal, 6)
-                                                .padding(.vertical, 2)
-                                                .background(Color.secondary.opacity(0.12))
-                                                .cornerRadius(4)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .help("Copy full SHA")
-                                    }
-                                    .padding(.vertical, 8)
-
-                                    if commit.id != gitViewModel.history.prefix(5).last?.id {
-                                        Divider()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding()
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
             }
-            .padding(24)
         }
+        .listStyle(.sidebar)
     }
 
-    private func healthBadge(title: String, subtitle: String, isHealthy: Bool, systemImage: String, unhealthImage: String) -> some View {
+    private func healthRow(title: String, subtitle: String, isHealthy: Bool, systemImage: String, unhealthImage: String) -> some View {
         HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill((isHealthy ? Color.green : Color.orange).opacity(0.12))
-                    .frame(width: 44, height: 44)
-                Image(systemName: isHealthy ? systemImage : unhealthImage)
-                    .font(.title3)
-                    .foregroundColor(isHealthy ? .green : .orange)
-            }
+            Image(systemName: isHealthy ? systemImage : unhealthImage)
+                .font(.title3)
+                .foregroundColor(isHealthy ? .green : .orange)
+                .frame(width: 24, height: 24)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption2.bold())
-                    .foregroundStyle(.secondary)
-                Text(subtitle)
-                    .font(.subheadline.bold())
-                    .foregroundStyle(isHealthy ? Color.primary : Color.orange)
-            }
+            Text(title)
+                .font(.subheadline.bold())
+
             Spacer()
+
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundStyle(isHealthy ? Color.secondary : Color.orange)
         }
-        .padding(12)
-        .background(Color.secondary.opacity(0.04))
-        .cornerRadius(10)
-        .frame(maxWidth: .infinity)
+        .padding(.vertical, 2)
     }
 
     // MARK: - Quick Actions Implementations

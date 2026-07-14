@@ -110,6 +110,14 @@ enum SourceControlSelection: String, CaseIterable, Identifiable {
     case commitHistory = "Commit History"
     case pullRequests = "Pull Requests"
     case github = "GitHub"
+    case actions = "Actions"
+    case activityFeed = "Activity Feed"
+    case discussions = "Discussions"
+    case githubAccount = "GitHub Account"
+    case githubCodeSearch = "GitHub Code Search"
+    case notifications = "Notifications"
+    case releases = "Releases"
+    case tags = "Tags"
     case issues = "Issues"
     case diffViewer = "Diff Viewer"
     case cli = "CLI"
@@ -126,6 +134,14 @@ enum SourceControlSelection: String, CaseIterable, Identifiable {
         case .commitHistory: return "clock.arrow.circlepath"
         case .pullRequests: return "arrow.triangle.pull"
         case .github: return "square.grid.2x2.fill"
+        case .actions: return "play.circle.fill"
+        case .activityFeed: return "bolt.fill"
+        case .discussions: return "bubble.left.and.bubble.right.fill"
+        case .githubAccount: return "person.crop.circle.fill"
+        case .githubCodeSearch: return "magnifyingglass"
+        case .notifications: return "bell.fill"
+        case .releases: return "shippingbox.fill"
+        case .tags: return "tag.fill"
         case .issues: return "exclamationmark.bubble.fill"
         case .diffViewer: return "arrow.left.and.right.square"
         case .cli: return "terminal.fill"
@@ -307,13 +323,13 @@ struct SourceControlView: View {
                         case .organizations: self.selection = .github
                         case .pullRequests: self.selection = .pullRequests
                         case .issues: self.selection = .issues
-                        case .actions: self.selection = .github
+                        case .actions: self.selection = .actions
                         case .branches: self.selection = .branches
                         case .commits: self.selection = .commitHistory
-                        case .tags: self.selection = .github
-                        case .releases: self.selection = .github
-                        case .discussions: self.selection = .github
-                        case .notifications: self.selection = .github
+                        case .tags: self.selection = .tags
+                        case .releases: self.selection = .releases
+                        case .discussions: self.selection = .discussions
+                        case .notifications: self.selection = .notifications
                         case .settings: self.selection = .repositorySettings
                         }
                     }
@@ -348,6 +364,40 @@ struct SourceControlView: View {
                 )
             case .github:
                 OrganizationsView()
+            case .actions:
+                ActionsView(
+                    project: project,
+                    showSuccess: $showSuccess,
+                    successMessage: $successMessage,
+                    showError: $showError,
+                    errorMessage: $errorMessage
+                )
+            case .activityFeed:
+                ActivityFeedView(project: project)
+            case .discussions:
+                DiscussionsView(project: project)
+            case .githubAccount:
+                GitHubAccountView()
+            case .githubCodeSearch:
+                GitHubCodeSearchView(project: project)
+            case .notifications:
+                NotificationsView()
+            case .releases:
+                ReleasesView(
+                    project: project,
+                    showSuccess: $showSuccess,
+                    successMessage: $successMessage,
+                    showError: $showError,
+                    errorMessage: $errorMessage
+                )
+            case .tags:
+                TagsView(
+                    project: project,
+                    showSuccess: $showSuccess,
+                    successMessage: $successMessage,
+                    showError: $showError,
+                    errorMessage: $errorMessage
+                )
             case .issues:
                 IssuesView(
                     project: project,

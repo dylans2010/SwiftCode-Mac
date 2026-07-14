@@ -39,51 +39,49 @@ struct WorkflowRunsView: View {
             Divider()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Title Card
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(run.name)
-                                .font(.title3.bold())
+                VStack(alignment: .leading, spacing: 24) {
+                    // Title section
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(run.name)
+                            .font(.title3.bold())
 
-                            HStack(spacing: 8) {
-                                Text("Run #\(run.runNumber)")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
+                        HStack(spacing: 8) {
+                            Text("Run #\(run.runNumber)")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
 
-                                Text(run.conclusion?.uppercased() ?? run.status.uppercased())
-                                    .font(.caption2.bold())
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(run.conclusion == "success" ? Color.green.opacity(0.12) : Color.orange.opacity(0.12))
-                                    .foregroundStyle(run.conclusion == "success" ? .green : .orange)
-                                    .clipShape(Capsule())
+                            Text(run.conclusion?.uppercased() ?? run.status.uppercased())
+                                .font(.caption2.bold())
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(run.conclusion == "success" ? Color.green.opacity(0.12) : Color.orange.opacity(0.12))
+                                .foregroundStyle(run.conclusion == "success" ? .green : .orange)
+                                .clipShape(Capsule())
 
-                                Text("by \(run.actorLogin) on \(run.createdAt)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                            Text("by \(run.actorLogin) on \(run.createdAt)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                    .padding(.horizontal)
+
+                    Divider()
 
                     // Jobs Panel
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            Label("Workflow Jobs", systemImage: "list.dash")
-                                .font(.headline)
-                                .foregroundStyle(.blue)
+                    VStack(alignment: .leading, spacing: 14) {
+                        Label("Workflow Jobs", systemImage: "list.dash")
+                            .font(.headline)
+                            .foregroundStyle(.blue)
 
-                            if isLoading {
-                                ProgressView()
-                                    .padding()
-                            } else if jobs.isEmpty {
-                                Text("No jobs found for this workflow run.")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            } else {
+                        if isLoading {
+                            ProgressView()
+                                .padding()
+                        } else if jobs.isEmpty {
+                            Text("No jobs found for this workflow run.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            VStack(spacing: 0) {
                                 ForEach(jobs) { job in
                                     HStack {
                                         Image(systemName: job.conclusion == "success" ? "checkmark.circle.fill" : "play.circle.fill")
@@ -103,18 +101,18 @@ struct WorkflowRunsView: View {
                                             .font(.caption2.bold())
                                             .foregroundStyle(.secondary)
                                     }
-                                    .padding(8)
-                                    .background(Color(NSColor.controlBackgroundColor))
-                                    .cornerRadius(8)
+                                    .padding(.vertical, 8)
+
+                                    if job.id != jobs.last?.id {
+                                        Divider()
+                                    }
                                 }
                             }
                         }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                    .padding(.horizontal)
                 }
-                .padding(24)
+                .padding(.vertical, 24)
             }
         }
         .frame(width: 500, height: 480)

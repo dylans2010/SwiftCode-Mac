@@ -17,63 +17,55 @@ struct GitHubInspector: View {
 
                 // Working directory status
                 if let status = gitViewModel.status {
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Local Status")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Local Status")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
 
-                            Label(status.branchName, systemImage: "arrow.triangle.branch")
-                                .font(.subheadline.bold())
+                        Label(status.branchName, systemImage: "arrow.triangle.branch")
+                            .font(.subheadline.bold())
 
-                            HStack(spacing: 12) {
-                                Label("\(status.ahead)", systemImage: "arrow.up.circle.fill")
-                                    .foregroundStyle(.green)
-                                Label("\(status.behind)", systemImage: "arrow.down.circle.fill")
-                                    .foregroundStyle(.blue)
-                            }
-                            .font(.caption)
+                        HStack(spacing: 12) {
+                            Label("\(status.ahead)", systemImage: "arrow.up.circle.fill")
+                                .foregroundStyle(.green)
+                            Label("\(status.behind)", systemImage: "arrow.down.circle.fill")
+                                .foregroundStyle(.blue)
                         }
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .font(.caption)
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Pending Changes")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
+                    Divider()
 
-                            let staged = status.files.filter { $0.isStaged }.count
-                            let unstaged = status.files.filter { !$0.isStaged }.count
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Pending Changes")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
 
-                            Text("\(staged) Staged Files")
-                                .font(.subheadline)
-                            Text("\(unstaged) Unstaged Files")
-                                .font(.subheadline)
-                        }
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        let staged = status.files.filter { $0.isStaged }.count
+                        let unstaged = status.files.filter { !$0.isStaged }.count
+
+                        Text("\(staged) Staged Files")
+                            .font(.subheadline)
+                        Text("\(unstaged) Unstaged Files")
+                            .font(.subheadline)
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Divider()
                 }
 
                 if let linkedRepo = project?.githubRepo, !linkedRepo.isEmpty {
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Linked Remote")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Linked Remote")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
 
-                            Text(linkedRepo)
-                                .font(.subheadline.bold())
-                                .lineLimit(1)
-                        }
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(linkedRepo)
+                            .font(.subheadline.bold())
+                            .lineLimit(1)
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 Spacer()

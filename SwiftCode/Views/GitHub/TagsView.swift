@@ -99,18 +99,15 @@ struct TagsView: View {
                 .buttonStyle(.bordered)
             }
 
-            GroupBox {
-                VStack(alignment: .leading, spacing: 14) {
-                    TextField("Tag Name (e.g. v1.0.0)", text: $newTagName)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
+            VStack(alignment: .leading, spacing: 14) {
+                TextField("Tag Name (e.g. v1.0.0)", text: $newTagName)
+                    .textFieldStyle(.roundedBorder)
+                    .autocorrectionDisabled()
 
-                    TextField("Annotation Message (Optional)", text: $newTagMessage)
-                        .textFieldStyle(.roundedBorder)
-                }
-                .padding()
+                TextField("Annotation Message (Optional)", text: $newTagMessage)
+                    .textFieldStyle(.roundedBorder)
             }
-            .groupBoxStyle(ModernGroupBoxStyle())
+            .padding()
 
             Button {
                 submitTag()
