@@ -196,9 +196,7 @@ public class PersonalDocSplitViewController: NSSplitViewController {
     public let coordinator: PersonalDocumentationCoordinator
 
     private var sidebarItem: NSSplitViewItem?
-    private var middleItem: NSSplitViewItem?
     private var mainItem: NSSplitViewItem?
-    private var inspectorItem: NSSplitViewItem?
 
     public init(coordinator: PersonalDocumentationCoordinator) {
         self.coordinator = coordinator
@@ -228,74 +226,21 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         self.sidebarItem = sidebarItem
         addSplitViewItem(sidebarItem)
 
-        // Panel 2: Middle List (SwiftUI Middle Wrapper)
-        let middleView = PersonalDocMiddleWrapper(coord: coordinator)
-        let middleVC = NSHostingController(rootView: middleView)
-        middleVC.sizingOptions = []
-        let middleItem = NSSplitViewItem(viewController: middleVC)
-        middleItem.minimumThickness = 260
-        middleItem.maximumThickness = 260
-        middleItem.holdingPriority = .defaultLow
-        self.middleItem = middleItem
-        addSplitViewItem(middleItem)
-
-        // Panel 3: Main Workspace (SwiftUI Main Wrapper)
+        // Panel 2: Main Workspace / Editor (SwiftUI Main Wrapper)
         let mainView = PersonalDocMainWrapper(coord: coordinator)
         let mainVC = NSHostingController(rootView: mainView)
         mainVC.sizingOptions = []
         let mainItem = NSSplitViewItem(viewController: mainVC)
-        mainItem.minimumThickness = 450
+        mainItem.minimumThickness = 600
         mainItem.holdingPriority = .defaultHigh
         self.mainItem = mainItem
         addSplitViewItem(mainItem)
-
-        // Panel 4: Inspector (Pure AppKit Controller)
-        let inspectorVC = PersonalDocInspectorViewController(coordinator: coordinator)
-        let inspectorItem = NSSplitViewItem(viewController: inspectorVC)
-        inspectorItem.minimumThickness = 280
-        inspectorItem.maximumThickness = 280
-        inspectorItem.holdingPriority = .defaultLow
-        self.inspectorItem = inspectorItem
-        addSplitViewItem(inspectorItem)
 
         updateSplitItems(animate: false)
     }
 
     public func updateSplitItems(animate: Bool) {
-        let hasMiddle: Bool
-        if let kind = coordinator.selectedModuleKind {
-            hasMiddle = hasMiddleList(kind)
-        } else {
-            hasMiddle = false
-        }
-        let isMiddleCollapsed = !hasMiddle
-
-        if let middleItem = middleItem, middleItem.isCollapsed != isMiddleCollapsed {
-            if animate {
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.22
-                    middleItem.animator().isCollapsed = isMiddleCollapsed
-                }
-            } else {
-                middleItem.isCollapsed = isMiddleCollapsed
-            }
-        }
-
-        let isInspectorCollapsed = (coordinator.selectedDocumentID == nil)
-        if let inspectorItem = inspectorItem, inspectorItem.isCollapsed != isInspectorCollapsed {
-            if animate {
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.22
-                    inspectorItem.animator().isCollapsed = isInspectorCollapsed
-                }
-            } else {
-                inspectorItem.isCollapsed = isInspectorCollapsed
-            }
-        }
-
-        if let inspectorVC = inspectorItem?.viewController as? PersonalDocInspectorViewController {
-            inspectorVC.setSelectedDocumentID(coordinator.selectedDocumentID)
-        }
+        // Omit collapsible middle pane or inspector in the modernized two-region desktop layout
     }
 
     private func hasMiddleList(_ kind: ModuleKind) -> Bool {
@@ -1045,7 +990,7 @@ struct PersonalDocMainWrapper: View {
             case .dashboard:
                 DashboardView(coordinator: coord)
             case .projectWiki:
-                WikiPageDetailView(coordinator: coord)
+                RecordDetailView(coordinator: coord, documentID: nil)
             case .smartCollections:
                 GlobalSearchView(coordinator: coord)
             case .knowledgeGraph:

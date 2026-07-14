@@ -21,7 +21,6 @@ public struct SourceControlEmbeddedModifier: ViewModifier {
             .cornerRadius(12)
             .clipped()
             .environment(\.adaptiveMetrics, layoutEngine.metrics)
-            .animation(.easeInOut(duration: 0.2), value: layoutEngine.metrics.windowWidth)
     }
 }
 
@@ -36,7 +35,6 @@ public struct SimulatorWorkspaceEmbeddedModifier: ViewModifier {
             .cornerRadius(12)
             .clipped()
             .environment(\.adaptiveMetrics, layoutEngine.metrics)
-            .animation(.easeInOut(duration: 0.2), value: layoutEngine.metrics.windowWidth)
     }
 }
 
