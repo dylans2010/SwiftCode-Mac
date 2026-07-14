@@ -6,6 +6,10 @@ public struct DatabaseDocumentationEditor: View {
 
     @State private var databaseEngine = "PostgreSQL"
     @State private var tableName = "users"
+    @State private var schemaVersion = "v1.0"
+    @State private var rowCountEstimate = "Medium (10k-1M)"
+    @State private var partitioningStrategy = "None"
+    @State private var backupFrequency = "Daily"
 
     public init(coordinator: PersonalDocumentationCoordinator, documentID: UUID?) {
         self.coordinator = coordinator
@@ -36,20 +40,62 @@ public struct DatabaseDocumentationEditor: View {
                 }
             },
             specializedMetadata: {
-                HStack(spacing: 20) {
-                    Picker("Engine:", selection: $databaseEngine) {
-                        Text("PostgreSQL").tag("PostgreSQL")
-                        Text("MySQL").tag("MySQL")
-                        Text("SQLite").tag("SQLite")
-                        Text("MongoDB").tag("MongoDB")
-                    }
-                    .frame(width: 200)
-
-                    Text("Table Name:")
-                        .font(.caption.bold())
-                    TextField("users, orders, etc.", text: $tableName)
-                        .textFieldStyle(.roundedBorder)
+                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
+                    GridRow {
+                        Text("Engine:")
+                            .font(.caption.bold())
+                        Picker("", selection: $databaseEngine) {
+                            Text("PostgreSQL").tag("PostgreSQL")
+                            Text("MySQL").tag("MySQL")
+                            Text("SQLite").tag("SQLite")
+                            Text("MongoDB").tag("MongoDB")
+                        }
                         .frame(width: 180)
+
+                        Text("Table Name:")
+                            .font(.caption.bold())
+                        TextField("users, orders, etc.", text: $tableName)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 180)
+                    }
+
+                    GridRow {
+                        Text("Schema Version:")
+                            .font(.caption.bold())
+                        TextField("e.g. v1.0", text: $schemaVersion)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 180)
+
+                        Text("Volume Estimate:")
+                            .font(.caption.bold())
+                        Picker("", selection: $rowCountEstimate) {
+                            Text("Low (<10k)").tag("Low (<10k)")
+                            Text("Medium (10k-1M)").tag("Medium (10k-1M)")
+                            Text("High (1M+)").tag("High (1M+)")
+                        }
+                        .frame(width: 180)
+                    }
+
+                    GridRow {
+                        Text("Partition Strategy:")
+                            .font(.caption.bold())
+                        Picker("", selection: $partitioningStrategy) {
+                            Text("None").tag("None")
+                            Text("Hash").tag("Hash")
+                            Text("Range").tag("Range")
+                            Text("List").tag("List")
+                        }
+                        .frame(width: 180)
+
+                        Text("Backup Freq:")
+                            .font(.caption.bold())
+                        Picker("", selection: $backupFrequency) {
+                            Text("Hourly").tag("Hourly")
+                            Text("Daily").tag("Daily")
+                            Text("Weekly").tag("Weekly")
+                        }
+                        .frame(width: 180)
+                    }
                 }
             },
             validationMessage: validationMessage
@@ -61,6 +107,11 @@ public struct DatabaseDocumentationEditor: View {
 
         ### Table Schema: `\(tableName)` (\(databaseEngine))
 
+        **Schema Version:** `\(schemaVersion)`
+        **Estimated Data Volume:** `\(rowCountEstimate)`
+        **Partitioning:** `\(partitioningStrategy)`
+        **Backup Frequency:** `\(backupFrequency)`
+
         | Column Name | Data Type | Constraints | Description |
         | :--- | :--- | :--- | :--- |
         | id | UUID | PRIMARY KEY | Unique identifier for the row |
@@ -70,8 +121,12 @@ public struct DatabaseDocumentationEditor: View {
         #### Indexes
         - `idx_\(tableName)_id` on (`id`)
 
-        #### Foreign Key Relations
-        - None
+        #### Partition Details
+        - Partitioning Scheme: `\(partitioningStrategy)`
+
+        #### Disaster Recovery
+        - Backup Interval: `\(backupFrequency)`
+        - Storage Target: Encrypted S3 Bucket object lock
         """
         NotificationCenter.default.post(
             name: NSNotification.Name("InsertEditorText"),

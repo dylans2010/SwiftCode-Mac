@@ -22,6 +22,10 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
     @State private var tableCols = 3
     @State private var showTableCreatorPopover = false
 
+    // Collapsible & Visual metadata state
+    @State private var isMetadataExpanded = true
+    @State private var newTagText = ""
+
     public init(
         coordinator: PersonalDocumentationCoordinator,
         kind: ModuleKind,
@@ -152,44 +156,159 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                 HStack(spacing: 0) {
                     // Editor view (always editable, comfortable width)
                     VStack(spacing: 0) {
-                        // Standard & Specialized Metadata Pane
-                        VStack(spacing: 12) {
-                            HStack(spacing: 24) {
-                                Picker("Status", selection: Binding(
-                                    get: { doc.status },
-                                    set: { val in
-                                        doc.status = val
-                                        try? coordinator.documents.updateDocument(doc)
-                                    }
-                                )) {
-                                    Text("To Do").tag("To Do")
-                                    Text("In Progress").tag("In Progress")
-                                    Text("Done").tag("Done")
+                        // Standard & Specialized Metadata Pane (Collapsible Card Style)
+                        VStack(alignment: .leading, spacing: 12) {
+                            Button {
+                                withAnimation {
+                                    isMetadataExpanded.toggle()
                                 }
-                                .frame(width: 180)
-
-                                Picker("Priority", selection: Binding(
-                                    get: { doc.priority },
-                                    set: { val in
-                                        doc.priority = val
-                                        try? coordinator.documents.updateDocument(doc)
+                            } label: {
+                                HStack {
+                                    Image(systemName: isMetadataExpanded ? "chevron.down" : "chevron.right")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(.secondary)
+                                    Image(systemName: "slider.horizontal.3")
+                                        .foregroundStyle(kind.accentColor)
+                                    Text("Document Parameters & Metadata")
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                    if !isMetadataExpanded {
+                                        HStack(spacing: 8) {
+                                            Text(doc.status ?? "To Do")
+                                                .font(.caption)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(Color.blue.opacity(0.12))
+                                                .foregroundStyle(Color.blue)
+                                                .cornerRadius(4)
+                                            Text(doc.priority ?? "Medium")
+                                                .font(.caption)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(Color.orange.opacity(0.12))
+                                                .foregroundStyle(Color.orange)
+                                                .cornerRadius(4)
+                                        }
                                     }
-                                )) {
-                                    Text("High").tag("High")
-                                    Text("Medium").tag("Medium")
-                                    Text("Low").tag("Low")
                                 }
-                                .frame(width: 180)
-
-                                Spacer()
                             }
+                            .buttonStyle(.plain)
+                            .padding(.bottom, isMetadataExpanded ? 4 : 0)
 
-                            // Inject specialized editor's own metadata UI here
-                            specializedMetadata()
+                            if isMetadataExpanded {
+                                Divider()
+
+                                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 12) {
+                                    GridRow {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("STATUS")
+                                                .font(.system(size: 9, weight: .bold))
+                                                .foregroundStyle(.secondary)
+                                            Picker("", selection: Binding(
+                                                get: { doc.status ?? "To Do" },
+                                                set: { val in
+                                                    doc.status = val
+                                                    try? coordinator.documents.updateDocument(doc)
+                                                }
+                                            )) {
+                                                Text("To Do").tag("To Do")
+                                                Text("In Progress").tag("In Progress")
+                                                Text("Done").tag("Done")
+                                            }
+                                            .pickerStyle(.segmented)
+                                            .frame(width: 200)
+                                        }
+
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("PRIORITY")
+                                                .font(.system(size: 9, weight: .bold))
+                                                .foregroundStyle(.secondary)
+                                            Picker("", selection: Binding(
+                                                get: { doc.priority ?? "Medium" },
+                                                set: { val in
+                                                    doc.priority = val
+                                                    try? coordinator.documents.updateDocument(doc)
+                                                }
+                                            )) {
+                                                Text("High").tag("High")
+                                                Text("Medium").tag("Medium")
+                                                Text("Low").tag("Low")
+                                            }
+                                            .pickerStyle(.segmented)
+                                            .frame(width: 200)
+                                        }
+                                    }
+
+                                    GridRow {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("TAGS")
+                                                .font(.system(size: 9, weight: .bold))
+                                                .foregroundStyle(.secondary)
+                                            HStack(spacing: 8) {
+                                                TextField("Add tag...", text: $newTagText, onCommit: {
+                                                    addNewTag(to: doc)
+                                                })
+                                                .textFieldStyle(.roundedBorder)
+                                                .frame(width: 120)
+                                                .controlSize(.small)
+
+                                                Button {
+                                                    addNewTag(to: doc)
+                                                } label: {
+                                                    Image(systemName: "plus")
+                                                }
+                                                .buttonStyle(.bordered)
+                                                .controlSize(.small)
+
+                                                ScrollView(.horizontal, showsIndicators: false) {
+                                                    HStack(spacing: 6) {
+                                                        ForEach(doc.tags, id: \.self) { tag in
+                                                            HStack(spacing: 4) {
+                                                                Text(tag)
+                                                                    .font(.caption)
+                                                                Button {
+                                                                    removeTag(tag, from: doc)
+                                                                } label: {
+                                                                    Image(systemName: "xmark")
+                                                                        .font(.system(size: 8, weight: .bold))
+                                                                }
+                                                                .buttonStyle(.plain)
+                                                            }
+                                                            .padding(.horizontal, 8)
+                                                            .padding(.vertical, 3)
+                                                            .background(Color.secondary.opacity(0.12))
+                                                            .cornerRadius(10)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        .gridCellColumns(2)
+                                    }
+
+                                    GridRow {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Divider().padding(.vertical, 4)
+                                            Text("SPECIALIZED OPTIONS & ARCHETYPE METADATA")
+                                                .font(.system(size: 9, weight: .bold))
+                                                .foregroundStyle(.secondary)
+                                            specializedMetadata()
+                                        }
+                                        .gridCellColumns(2)
+                                    }
+                                }
+                            }
                         }
+                        .padding(16)
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color(NSColor.separatorColor), lineWidth: 1)
+                        )
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
-                        .background(Color(NSColor.controlBackgroundColor))
 
                         Divider()
 
@@ -251,6 +370,7 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             reloadData()
+            registerNotificationObserver()
         }
         .onChange(of: documentID) { _, _ in
             reloadData()
@@ -399,6 +519,42 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
             document = doc
             titleText = doc.title
             markdownText = doc.markdownSource
+        }
+    }
+
+    private func registerNotificationObserver() {
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("InsertEditorText"),
+            object: nil,
+            queue: .main
+        ) { notification in
+            guard let textToInsert = notification.userInfo?["text"] as? String else { return }
+            if markdownText.isEmpty {
+                markdownText = textToInsert
+            } else {
+                markdownText += "\n" + textToInsert
+            }
+            document?.markdownSource = markdownText
+            if let doc = document {
+                try? coordinator.documents.updateDocument(doc)
+            }
+        }
+    }
+
+    private func addNewTag(to doc: Document) {
+        let tag = newTagText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tag.isEmpty else { return }
+        if !doc.tags.contains(tag) {
+            doc.tags.append(tag)
+            try? coordinator.documents.updateDocument(doc)
+        }
+        newTagText = ""
+    }
+
+    private func removeTag(_ tag: String, from doc: Document) {
+        if let idx = doc.tags.firstIndex(of: tag) {
+            doc.tags.remove(at: idx)
+            try? coordinator.documents.updateDocument(doc)
         }
     }
 
