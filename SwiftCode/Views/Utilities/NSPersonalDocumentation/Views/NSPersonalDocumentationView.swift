@@ -198,6 +198,7 @@ public struct NSPersonalDocumentationView: View {
 
     @ViewBuilder
     private func middleListView(for kind: ModuleKind, coord: PersonalDocumentationCoordinator) -> some View {
+        @Bindable var coord = coord
         switch kind {
         case .projectWiki:
             WikiPageListView(coordinator: coord)
