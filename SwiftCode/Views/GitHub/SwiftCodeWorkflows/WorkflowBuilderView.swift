@@ -231,7 +231,13 @@ public struct WorkflowBuilderView: View {
             HStack(spacing: 12) {
                 Image(systemName: "line.3.horizontal")
                     .foregroundStyle(.secondary)
-                    .cursor(.openHand)
+                    .onHover { isHovered in
+                        if isHovered {
+                            NSCursor.openHand.push()
+                        } else {
+                            NSCursor.pop()
+                        }
+                    }
 
                 Image(systemName: step.icon)
                     .font(.title3)
