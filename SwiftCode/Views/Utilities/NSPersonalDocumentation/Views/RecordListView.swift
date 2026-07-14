@@ -305,7 +305,7 @@ public struct RecordListView: View {
 
         switch selectedKind {
         case .document:
-            let docs = (try? coordinator.documents.fetchDocuments()) ?? []
+            let docs = ((try? coordinator.documents.fetchDocuments()) ?? []).filter { $0.moduleKind == kind }
             loadedItems = docs.map { doc in
                 UnifiedBrowserItem(
                     id: doc.id,

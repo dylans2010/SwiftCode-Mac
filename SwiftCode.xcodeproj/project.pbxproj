@@ -7,6 +7,23 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7A810247F000000000000100 /* APIDocumentationEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F000000000000200 /* APIDocumentationEditor.swift */; };
+		7A810247F000000000000101 /* DatabaseDocumentationEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F000000000000201 /* DatabaseDocumentationEditor.swift */; };
+		7A810247F000000000000102 /* ArchitectureDocumentationEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F000000000000202 /* ArchitectureDocumentationEditor.swift */; };
+		7A810247F000000000000103 /* FeaturePlanningEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F000000000000203 /* FeaturePlanningEditor.swift */; };
+		7A810247F000000000000104 /* SecurityNotesEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F000000000000204 /* SecurityNotesEditor.swift */; };
+		7A810247F000000000000105 /* ChangelogEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F000000000000205 /* ChangelogEditor.swift */; };
+		7A810247F000000000000106 /* TechnicalSpecificationEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F000000000000206 /* TechnicalSpecificationEditor.swift */; };
+		7A810247F000000000000107 /* DesignDocumentEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F000000000000207 /* DesignDocumentEditor.swift */; };
+		7A810247F000000000000108 /* ResearchNotesEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F000000000000208 /* ResearchNotesEditor.swift */; };
+		7A810247F000000000000109 /* MeetingNotesEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F000000000000209 /* MeetingNotesEditor.swift */; };
+		7A810247F00000000000010A /* StructuredRecordEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F00000000000020A /* StructuredRecordEditor.swift */; };
+		7A810247F00000000000010B /* FreeformDocumentEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F00000000000020B /* FreeformDocumentEditor.swift */; };
+		7A810247F00000000000010C /* ReleaseChecklistEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F00000000000020C /* ReleaseChecklistEditor.swift */; };
+		7A810247F00000000000010D /* UserStoryEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F00000000000020D /* UserStoryEditor.swift */; };
+		7A810247F00000000000010E /* TestingNotesEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F00000000000020E /* TestingNotesEditor.swift */; };
+		7A810247F00000000000010F /* BaseEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F00000000000020F /* BaseEditorView.swift */; };
+		7A810247F000000000000110 /* DocNSTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F000000000000210 /* DocNSTextView.swift */; };
 		7A810248C8484845B948EAB1 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 7A810248A053420BB40882CD /* Markdown */; };
 		7A810247C000000000000000 /* MarkdownBlockRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000001 /* MarkdownBlockRenderer.swift */; };
 		7A810247C000000000000002 /* MarkdownRenderCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000003 /* MarkdownRenderCache.swift */; };
@@ -1078,6 +1095,23 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		7A810247F000000000000200 /* APIDocumentationEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/APIDocumentationEditor.swift; sourceTree = "<group>"; };
+		7A810247F000000000000201 /* DatabaseDocumentationEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/DatabaseDocumentationEditor.swift; sourceTree = "<group>"; };
+		7A810247F000000000000202 /* ArchitectureDocumentationEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/ArchitectureDocumentationEditor.swift; sourceTree = "<group>"; };
+		7A810247F000000000000203 /* FeaturePlanningEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/FeaturePlanningEditor.swift; sourceTree = "<group>"; };
+		7A810247F000000000000204 /* SecurityNotesEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/SecurityNotesEditor.swift; sourceTree = "<group>"; };
+		7A810247F000000000000205 /* ChangelogEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/ChangelogEditor.swift; sourceTree = "<group>"; };
+		7A810247F000000000000206 /* TechnicalSpecificationEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/TechnicalSpecificationEditor.swift; sourceTree = "<group>"; };
+		7A810247F000000000000207 /* DesignDocumentEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/DesignDocumentEditor.swift; sourceTree = "<group>"; };
+		7A810247F000000000000208 /* ResearchNotesEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/ResearchNotesEditor.swift; sourceTree = "<group>"; };
+		7A810247F000000000000209 /* MeetingNotesEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/MeetingNotesEditor.swift; sourceTree = "<group>"; };
+		7A810247F00000000000020A /* StructuredRecordEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/StructuredRecordEditor.swift; sourceTree = "<group>"; };
+		7A810247F00000000000020B /* FreeformDocumentEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/FreeformDocumentEditor.swift; sourceTree = "<group>"; };
+		7A810247F00000000000020C /* ReleaseChecklistEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/ReleaseChecklistEditor.swift; sourceTree = "<group>"; };
+		7A810247F00000000000020D /* UserStoryEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/UserStoryEditor.swift; sourceTree = "<group>"; };
+		7A810247F00000000000020E /* TestingNotesEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/TestingNotesEditor.swift; sourceTree = "<group>"; };
+		7A810247F00000000000020F /* BaseEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/Shared/BaseEditorView.swift; sourceTree = "<group>"; };
+		7A810247F000000000000210 /* DocNSTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/Shared/DocNSTextView.swift; sourceTree = "<group>"; };
 		7A810247C000000000000001 /* MarkdownBlockRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../../Shared/Markdown/MarkdownBlockRenderer.swift; sourceTree = "<group>"; };
 		7A810247C000000000000003 /* MarkdownRenderCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../../Shared/Markdown/MarkdownRenderCache.swift; sourceTree = "<group>"; };
 		7A810247C000000000000005 /* MarkdownRenderOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../../Shared/Markdown/MarkdownRenderOptions.swift; sourceTree = "<group>"; };
@@ -2230,6 +2264,23 @@
 		7A810247C00000000000005A /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				7A810247F000000000000200 /* APIDocumentationEditor.swift */,
+				7A810247F000000000000201 /* DatabaseDocumentationEditor.swift */,
+				7A810247F000000000000202 /* ArchitectureDocumentationEditor.swift */,
+				7A810247F000000000000203 /* FeaturePlanningEditor.swift */,
+				7A810247F000000000000204 /* SecurityNotesEditor.swift */,
+				7A810247F000000000000205 /* ChangelogEditor.swift */,
+				7A810247F000000000000206 /* TechnicalSpecificationEditor.swift */,
+				7A810247F000000000000207 /* DesignDocumentEditor.swift */,
+				7A810247F000000000000208 /* ResearchNotesEditor.swift */,
+				7A810247F000000000000209 /* MeetingNotesEditor.swift */,
+				7A810247F00000000000020A /* StructuredRecordEditor.swift */,
+				7A810247F00000000000020B /* FreeformDocumentEditor.swift */,
+				7A810247F00000000000020C /* ReleaseChecklistEditor.swift */,
+				7A810247F00000000000020D /* UserStoryEditor.swift */,
+				7A810247F00000000000020E /* TestingNotesEditor.swift */,
+				7A810247F00000000000020F /* BaseEditorView.swift */,
+				7A810247F000000000000210 /* DocNSTextView.swift */,
 				7A810247C000000000000047 /* DashboardView.swift */,
 				7A810247C000000000000060 /* EcosystemViews.swift */,
 				7A810247C000000000000049 /* GlobalSearchView.swift */,
@@ -4510,6 +4561,23 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7A810247F000000000000100 /* APIDocumentationEditor.swift in Sources */,
+				7A810247F000000000000101 /* DatabaseDocumentationEditor.swift in Sources */,
+				7A810247F000000000000102 /* ArchitectureDocumentationEditor.swift in Sources */,
+				7A810247F000000000000103 /* FeaturePlanningEditor.swift in Sources */,
+				7A810247F000000000000104 /* SecurityNotesEditor.swift in Sources */,
+				7A810247F000000000000105 /* ChangelogEditor.swift in Sources */,
+				7A810247F000000000000106 /* TechnicalSpecificationEditor.swift in Sources */,
+				7A810247F000000000000107 /* DesignDocumentEditor.swift in Sources */,
+				7A810247F000000000000108 /* ResearchNotesEditor.swift in Sources */,
+				7A810247F000000000000109 /* MeetingNotesEditor.swift in Sources */,
+				7A810247F00000000000010A /* StructuredRecordEditor.swift in Sources */,
+				7A810247F00000000000010B /* FreeformDocumentEditor.swift in Sources */,
+				7A810247F00000000000010C /* ReleaseChecklistEditor.swift in Sources */,
+				7A810247F00000000000010D /* UserStoryEditor.swift in Sources */,
+				7A810247F00000000000010E /* TestingNotesEditor.swift in Sources */,
+				7A810247F00000000000010F /* BaseEditorView.swift in Sources */,
+				7A810247F000000000000110 /* DocNSTextView.swift in Sources */,
 				7A810247C000000000000000 /* MarkdownBlockRenderer.swift in Sources */,
 				7A810247C000000000000002 /* MarkdownRenderCache.swift in Sources */,
 				7A810247C000000000000004 /* MarkdownRenderOptions.swift in Sources */,

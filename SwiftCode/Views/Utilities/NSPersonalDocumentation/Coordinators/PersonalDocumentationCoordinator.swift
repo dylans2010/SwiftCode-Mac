@@ -5,9 +5,33 @@ import AppKit
 
 @Observable
 @MainActor
+public final class WorkspaceState {
+    public var selectedDocumentID: UUID? = nil
+    public var searchActive: Bool = false
+    public var searchQuery: String = ""
+    public var showBrowserSheet: Bool = false
+    public var showLivePreview: Bool = true
+
+    public init() {}
+}
+
+@Observable
+@MainActor
 public final class PersonalDocumentationCoordinator {
     // AppKit Sidebar Properties
     public var outlineView: NSOutlineView? = nil
+
+    // Isolated Workspace States
+    public var workspaceStates: [ModuleKind: WorkspaceState] = [:]
+
+    public func state(for kind: ModuleKind) -> WorkspaceState {
+        if let existing = workspaceStates[kind] {
+            return existing
+        }
+        let newState = WorkspaceState()
+        workspaceStates[kind] = newState
+        return newState
+    }
     public var nodes: [SidebarNode] = []
     public let projectID: UUID
     public let projectURL: URL
