@@ -6,6 +6,10 @@ public struct ArchitectureDocumentationEditor: View {
 
     @State private var decisionStatus = "Proposed"
     @State private var deciders = "Architecture Board"
+    @State private var impactLevel = "Medium"
+    @State private var techStackDomain = "Backend"
+    @State private var adrVersion = "1.0"
+    @State private var targetAudience = "Engineering"
 
     public init(coordinator: PersonalDocumentationCoordinator, documentID: UUID?) {
         self.coordinator = coordinator
@@ -27,20 +31,64 @@ public struct ArchitectureDocumentationEditor: View {
                 .help("Insert Architecture Decision Record boilerplate")
             },
             specializedMetadata: {
-                HStack(spacing: 20) {
-                    Picker("ADR Status:", selection: $decisionStatus) {
-                        Text("Proposed").tag("Proposed")
-                        Text("Accepted").tag("Accepted")
-                        Text("Rejected").tag("Rejected")
-                        Text("Superseded").tag("Superseded")
-                    }
-                    .frame(width: 180)
+                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
+                    GridRow {
+                        Text("ADR Status:")
+                            .font(.caption.bold())
+                        Picker("", selection: $decisionStatus) {
+                            Text("Proposed").tag("Proposed")
+                            Text("Accepted").tag("Accepted")
+                            Text("Rejected").tag("Rejected")
+                            Text("Superseded").tag("Superseded")
+                        }
+                        .frame(width: 180)
 
-                    Text("Deciders:")
-                        .font(.caption.bold())
-                    TextField("Names or Teams", text: $deciders)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 200)
+                        Text("Impact Level:")
+                            .font(.caption.bold())
+                        Picker("", selection: $impactLevel) {
+                            Text("High").tag("High")
+                            Text("Medium").tag("Medium")
+                            Text("Low").tag("Low")
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 180)
+                    }
+
+                    GridRow {
+                        Text("Deciders:")
+                            .font(.caption.bold())
+                        TextField("Names or Teams", text: $deciders)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 180)
+
+                        Text("Tech Stack:")
+                            .font(.caption.bold())
+                        Picker("", selection: $techStackDomain) {
+                            Text("Frontend").tag("Frontend")
+                            Text("Backend").tag("Backend")
+                            Text("Database").tag("Database")
+                            Text("DevOps").tag("DevOps")
+                            Text("Security").tag("Security")
+                        }
+                        .frame(width: 180)
+                    }
+
+                    GridRow {
+                        Text("ADR Version:")
+                            .font(.caption.bold())
+                        TextField("e.g. 1.0", text: $adrVersion)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 180)
+
+                        Text("Audience:")
+                            .font(.caption.bold())
+                        Picker("", selection: $targetAudience) {
+                            Text("Engineering").tag("Engineering")
+                            Text("Product").tag("Product")
+                            Text("Security Officers").tag("Security Officers")
+                        }
+                        .frame(width: 180)
+                    }
                 }
             },
             validationMessage: nil
@@ -55,6 +103,10 @@ public struct ArchitectureDocumentationEditor: View {
         **Status:** \(decisionStatus)
         **Deciders:** \(deciders)
         **Date:** \(Date().formatted(date: .abbreviated, time: .omitted))
+        **ADR Version:** `v\(adrVersion)`
+        **Impact Level:** `\(impactLevel)`
+        **Tech Domain:** `\(techStackDomain)`
+        **Target Audience:** `\(targetAudience)`
 
         ## Context & Problem Statement
         What is the design challenge? What circumstances led to this choice?
@@ -73,6 +125,13 @@ public struct ArchitectureDocumentationEditor: View {
         ### Consequences
         - **Good:** [Positive outcome]
         - **Bad:** [Negative impact/compromise]
+
+        ## Impact Analysis & Risk Management
+        - Security Impact: [Describe security checks]
+        - Operations/SLA Impact: [Deployment and scale effects]
+
+        ## Rollback Strategy
+        - How do we roll back if this decision fails?
         """
         NotificationCenter.default.post(
             name: NSNotification.Name("InsertEditorText"),
