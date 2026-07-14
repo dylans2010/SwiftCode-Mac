@@ -253,12 +253,12 @@ public struct WorkflowDashboardView: View {
                     .padding(.horizontal)
 
                 HStack(spacing: 20) {
-                    MetricCard(title: "Total Executions", value: "\(manager.history.count)", subtitle: "All-time local runs", color: .blue)
+                    RepoMetricCard(title: "Total Executions", value: "\(manager.history.count)", subtitle: "All-time local runs", color: .blue)
                     let successCount = manager.history.filter { $0.success }.count
                     let rate = manager.history.isEmpty ? 0 : Int(Double(successCount) / Double(manager.history.count) * 100)
-                    MetricCard(title: "Success Rate", value: "\(rate)%", subtitle: "Build validation passes", color: .green)
+                    RepoMetricCard(title: "Success Rate", value: "\(rate)%", subtitle: "Build validation passes", color: .green)
                     let totalTime = manager.history.reduce(0.0) { $0 + $1.duration }
-                    MetricCard(title: "Total Run Time", value: String(format: "%.1f min", totalTime / 60), subtitle: "Automated test time saved", color: .purple)
+                    RepoMetricCard(title: "Total Run Time", value: String(format: "%.1f min", totalTime / 60), subtitle: "Automated test time saved", color: .purple)
                 }
                 .padding(.horizontal)
 

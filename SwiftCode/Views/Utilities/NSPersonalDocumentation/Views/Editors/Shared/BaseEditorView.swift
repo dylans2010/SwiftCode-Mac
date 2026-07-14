@@ -224,7 +224,7 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                             .padding(24)
                         }
                         .frame(width: 400)
-                        .background(Color(NSColor.underlyingWindowBackgroundColor))
+                        .background(Color(NSColor.windowBackgroundColor))
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

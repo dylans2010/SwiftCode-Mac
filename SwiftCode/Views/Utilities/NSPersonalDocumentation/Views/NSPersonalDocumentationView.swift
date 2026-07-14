@@ -175,7 +175,7 @@ extension PersonalDocWindowController {
         let hostingController = NSHostingController(rootView: popoverView)
         popover.contentViewController = hostingController
 
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .bottom)
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
 
     @objc private func duplicateDocumentAction(_ sender: Any?) {
@@ -959,6 +959,7 @@ struct PersonalDocMiddleWrapper: View {
     private func middleListView(for kind: ModuleKind, coord: PersonalDocumentationCoordinator) -> some View {
         @Bindable var coord = coord
         let state = coord.state(for: kind)
+        @Bindable var stateBindable = state
         switch kind {
         case .projectWiki:
             WikiPageListView(coordinator: coord)
@@ -969,7 +970,7 @@ struct PersonalDocMiddleWrapper: View {
         case .snapshots:
             SnapshotListView(coordinator: coord)
         default:
-            RecordListView(coordinator: coord, kind: kind, selectedDocumentID: $state.selectedDocumentID)
+            RecordListView(coordinator: coord, kind: kind, selectedDocumentID: $stateBindable.selectedDocumentID)
         }
     }
 }
