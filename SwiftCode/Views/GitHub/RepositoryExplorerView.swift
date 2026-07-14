@@ -377,7 +377,7 @@ public struct RepositoryExplorerView: View {
                         .font(.headline)
                     if let status = gitViewModel.status {
                         HStack(spacing: 20) {
-                            StatusCard(title: "Current Branch", value: status.currentBranch ?? "None", icon: "arrow.triangle.branch", color: .purple)
+                            StatusCard(title: "Current Branch", value: status.branchName, icon: "arrow.triangle.branch", color: .purple)
                             StatusCard(title: "Unstaged Files", value: "\(status.unstagedFiles.count)", icon: "doc.badge.plus", color: .orange)
                             StatusCard(title: "Staged Files", value: "\(status.stagedFiles.count)", icon: "checkmark.circle", color: .green)
                         }
