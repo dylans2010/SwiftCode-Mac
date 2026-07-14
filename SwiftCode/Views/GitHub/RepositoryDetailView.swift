@@ -22,199 +22,207 @@ struct RepositoryDetailView: View {
     var body: some View {
         @Bindable var contextBindable = context
 
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // Display Preference Control
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Label("GitHub Data Display Mode", systemImage: "eye.fill")
-                            .font(.headline)
-                            .foregroundStyle(.blue)
+        List {
+            // Display Preference Control Section
+            Section(header: Text("GitHub Data Display Mode").font(.system(size: 10, weight: .bold)).foregroundStyle(.blue)) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Choose the scope of GitHub information shown throughout the workspace:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
-                        Text("Choose the scope of GitHub information shown throughout the workspace:")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        Picker("Display Mode", selection: $contextBindable.displayMode) {
-                            ForEach(RepositoryContext.DisplayMode.allCases) { mode in
-                                Text(mode.rawValue).tag(mode)
-                            }
+                    Picker("Display Mode", selection: $contextBindable.displayMode) {
+                        ForEach(RepositoryContext.DisplayMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
                         }
-                        .pickerStyle(.segmented)
                     }
-                    .padding()
+                    .pickerStyle(.segmented)
                 }
-                .groupBoxStyle(ModernGroupBoxStyle())
+                .padding(.vertical, 4)
+            }
 
-                // Local Details Info Card
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label("Local Workspace Status", systemImage: "laptopcomputer")
-                            .font(.headline)
-                            .foregroundStyle(.orange)
-
-                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
-                            GridRow {
-                                Text("Project Path:")
-                                    .fontWeight(.bold)
-                                Text(project?.directoryURL.path ?? "N/A")
-                                    .font(.system(.body, design: .monospaced))
-                            }
-                            GridRow {
-                                Text("Git Status:")
-                                    .fontWeight(.bold)
-                                if let status = gitViewModel.status {
-                                    Text("Initialized (Branch: \(status.branchName))")
-                                } else {
-                                    Text("Not Initialized")
-                                        .foregroundStyle(.red)
-                                }
-                            }
+            // Local Details Info Section
+            Section(header: Text("Local Workspace Status").font(.system(size: 10, weight: .bold)).foregroundStyle(.orange)) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
+                        GridRow {
+                            Text("Project Path:")
+                                .fontWeight(.bold)
+                            Text(project?.directoryURL.path ?? "N/A")
+                                .font(.system(.body, design: .monospaced))
+                        }
+                        GridRow {
+                            Text("Git Status:")
+                                .fontWeight(.bold)
                             if let status = gitViewModel.status {
-                                GridRow {
-                                    Text("Uncommitted:")
-                                        .fontWeight(.bold)
-                                    Text("\(status.files.count) files modified")
-                                }
-                                GridRow {
-                                    Text("Sync Info:")
-                                        .fontWeight(.bold)
-                                    Text("\(status.ahead) Ahead / \(status.behind) Behind")
-                                }
+                                Text("Initialized (Branch: \(status.branchName))")
+                            } else {
+                                Text("Not Initialized")
+                                    .foregroundStyle(.red)
                             }
                         }
-                        .font(.subheadline)
+                        if let status = gitViewModel.status {
+                            GridRow {
+                                Text("Uncommitted:")
+                                    .fontWeight(.bold)
+                                Text("\(status.files.count) files modified")
+                            }
+                            GridRow {
+                                Text("Sync Info:")
+                                    .fontWeight(.bold)
+                                Text("\(status.ahead) Ahead / \(status.behind) Behind")
+                            }
+                        }
                     }
-                    .padding()
+                    .font(.subheadline)
                 }
-                .groupBoxStyle(ModernGroupBoxStyle())
+                .padding(.vertical, 4)
+            }
 
-                if let details = context.cachedMetadata {
-                    // Expanded Connected Remote Details Card
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Connected Repository Details", systemImage: "link")
-                                    .font(.headline)
-                                    .foregroundStyle(.green)
-
-                                Spacer()
-
-                                Button {
-                                    Task {
-                                        await context.fetchMetadata()
-                                    }
-                                } label: {
-                                    Image(systemName: "arrow.clockwise")
+            if let details = context.cachedMetadata {
+                // Connected Remote Details Section
+                Section(header: Text("Connected Repository Details").font(.system(size: 10, weight: .bold)).foregroundStyle(.green)) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Text(details.fullName)
+                                .font(.headline)
+                            Spacer()
+                            Button {
+                                Task {
+                                    await context.fetchMetadata()
                                 }
-                                .disabled(isLoading)
+                            } label: {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            .disabled(isLoading)
+                        }
+
+                        Divider()
+
+                        // Clone URLs
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Clone URLs")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.primary)
+
+                            HStack {
+                                Text("HTTPS")
+                                    .font(.caption2.bold())
+                                    .frame(width: 50, alignment: .leading)
+                                Text(details.cloneUrl)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .textSelection(.enabled)
+                                    .padding(6)
+                                    .background(Color.secondary.opacity(0.12))
+                                    .cornerRadius(4)
                             }
 
-                            Divider()
-
-                            // Clone URLs
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Clone URLs")
-                                    .font(.subheadline.bold())
-                                    .foregroundStyle(.primary)
-
+                            if let ssh = details.sshUrl {
                                 HStack {
-                                    Text("HTTPS")
+                                    Text("SSH")
                                         .font(.caption2.bold())
                                         .frame(width: 50, alignment: .leading)
-                                    Text(details.cloneUrl)
+                                    Text(ssh)
                                         .font(.system(.caption, design: .monospaced))
                                         .textSelection(.enabled)
                                         .padding(6)
                                         .background(Color.secondary.opacity(0.12))
                                         .cornerRadius(4)
                                 }
-
-                                if let ssh = details.sshUrl {
-                                    HStack {
-                                        Text("SSH")
-                                            .font(.caption2.bold())
-                                            .frame(width: 50, alignment: .leading)
-                                        Text(ssh)
-                                            .font(.system(.caption, design: .monospaced))
-                                            .textSelection(.enabled)
-                                            .padding(6)
-                                            .background(Color.secondary.opacity(0.12))
-                                            .cornerRadius(4)
-                                    }
-                                }
                             }
-                            .padding(.vertical, 4)
+                        }
 
-                            Divider()
+                        Divider()
 
-                            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
-                                GridRow {
-                                    Text("Repository Name:")
-                                        .fontWeight(.bold)
-                                    Text(details.fullName)
+                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
+                            GridRow {
+                                Text("Visibility:")
+                                    .fontWeight(.bold)
+                                Text(details.isPrivate ? "Private" : "Public")
+                                    .foregroundColor(details.isPrivate ? .red : .green)
 
-                                    Text("Visibility:")
-                                        .fontWeight(.bold)
-                                    Text(details.isPrivate ? "Private" : "Public")
-                                        .foregroundColor(details.isPrivate ? .red : .green)
-                                }
+                                Text("Default Branch:")
+                                    .fontWeight(.bold)
+                                Text(details.defaultBranch ?? "main")
+                            }
 
-                                GridRow {
-                                    Text("Default Branch:")
-                                        .fontWeight(.bold)
-                                    Text(details.defaultBranch ?? "main")
-
-                                    Text("Primary Language:")
-                                        .fontWeight(.bold)
-                                    Text(details.language ?? "Swift")
-                                }
+                            GridRow {
+                                Text("Primary Language:")
+                                    .fontWeight(.bold)
+                                Text(details.language ?? "Swift")
 
                                 if let size = details.size {
-                                    GridRow {
-                                        Text("Repository Size:")
-                                            .fontWeight(.bold)
-                                        Text(String(format: "%.2f MB", Double(size) / 1024.0))
-
-                                        Text("Open Issues:")
-                                            .fontWeight(.bold)
-                                        Text("\(details.openIssuesCount)")
-                                    }
+                                    Text("Repository Size:")
+                                        .fontWeight(.bold)
+                                    Text(String(format: "%.2f MB", Double(size) / 1024.0))
                                 }
                             }
+
+                            GridRow {
+                                Text("Open Issues:")
+                                    .fontWeight(.bold)
+                                Text("\(details.openIssuesCount)")
+                            }
+                        }
+                        .font(.subheadline)
+
+                        // Topics list
+                        if let topics = details.topics, !topics.isEmpty {
+                            Divider()
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Topics")
+                                    .font(.subheadline.bold())
+                                HFlowLayout(topics, spacing: 6) { topic in
+                                    Text(topic)
+                                        .font(.caption2)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.blue.opacity(0.12))
+                                        .foregroundColor(.blue)
+                                        .cornerRadius(6)
+                                }
+                            }
+                        }
+
+                        Divider()
+
+                        // Key Statistics
+                        HStack(spacing: 20) {
+                            statIndicator(title: "Stars", value: "\(details.stargazersCount)", icon: "star.fill", color: .yellow)
+                            statIndicator(title: "Forks", value: "\(details.forksCount)", icon: "arrow.branch", color: .orange)
+                            statIndicator(title: "Subscribers", value: "\(details.subscribersCount ?? 0)", icon: "eye.fill", color: .purple)
+                            statIndicator(title: "Network", value: "\(details.networkCount ?? 0)", icon: "network", color: .blue)
+                        }
+
+                        Divider()
+
+                        Button("Disconnect Repository") {
+                            context.disconnectRepository()
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.red)
+                    }
+                    .padding(.vertical, 4)
+                }
+            } else if let repo = context.connectedRepository {
+                // Connection without metadata loaded Section
+                Section(header: Text("Linked Remote Details").font(.system(size: 10, weight: .bold)).foregroundStyle(.blue)) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Linked Remote: \(repo)")
+                            .font(.headline)
+
+                        Text("Details for this repository have not been loaded or the API is unavailable.")
                             .font(.subheadline)
+                            .foregroundStyle(.secondary)
 
-                            // Topics list
-                            if let topics = details.topics, !topics.isEmpty {
-                                Divider()
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("Topics")
-                                        .font(.subheadline.bold())
-                                    HFlowLayout(topics, spacing: 6) { topic in
-                                        Text(topic)
-                                            .font(.caption2)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(Color.blue.opacity(0.12))
-                                            .foregroundColor(.blue)
-                                            .cornerRadius(6)
-                                    }
+                        HStack {
+                            Button("Load Repository Metadata") {
+                                Task {
+                                    isLoading = true
+                                    await context.fetchMetadata()
+                                    isLoading = false
                                 }
                             }
-
-                            Divider()
-
-                            // Key Statistics
-                            HStack(spacing: 20) {
-                                statIndicator(title: "Stars", value: "\(details.stargazersCount)", icon: "star.fill", color: .yellow)
-                                statIndicator(title: "Forks", value: "\(details.forksCount)", icon: "arrow.branch", color: .orange)
-                                statIndicator(title: "Subscribers", value: "\(details.subscribersCount ?? 0)", icon: "eye.fill", color: .purple)
-                                statIndicator(title: "Network", value: "\(details.networkCount ?? 0)", icon: "network", color: .blue)
-                            }
-                            .padding(.top, 4)
-
-                            Divider()
-                                .padding(.vertical, 4)
+                            .buttonStyle(.borderedProminent)
 
                             Button("Disconnect Repository") {
                                 context.disconnectRepository()
@@ -222,93 +230,54 @@ struct RepositoryDetailView: View {
                             .buttonStyle(.bordered)
                             .tint(.red)
                         }
-                        .padding()
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-                } else if let repo = context.connectedRepository {
-                    // Has connection but metadata not yet loaded
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Linked Remote: \(repo)")
-                                .font(.headline)
-                                .foregroundStyle(.blue)
+                    .padding(.vertical, 4)
+                }
+            } else {
+                // Connect Repository Section
+                Section(header: Text("Connect Repository").font(.system(size: 10, weight: .bold)).foregroundStyle(.orange)) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("Connect an existing GitHub repository by name:")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
 
-                            Text("Details for this repository have not been loaded or the API is unavailable.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                        HStack {
+                            TextField("owner/repo (e.g. apple/swift)", text: $repoToConnect)
+                                .textFieldStyle(.roundedBorder)
+                                .autocorrectionDisabled()
 
-                            HStack {
-                                Button("Load Repository Metadata") {
-                                    Task {
-                                        isLoading = true
-                                        await context.fetchMetadata()
-                                        isLoading = false
-                                    }
-                                }
-                                .buttonStyle(.borderedProminent)
-
-                                Button("Disconnect Repository") {
-                                    context.disconnectRepository()
-                                }
-                                .buttonStyle(.bordered)
-                                .tint(.red)
+                            Button("Connect") {
+                                connectRepository(repoToConnect)
                             }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.orange)
+                            .disabled(repoToConnect.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
-                        .padding()
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-                } else {
-                    // No repository connected: offer connection tools
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            Label("Connect Repository", systemImage: "link.badge.plus")
-                                .font(.headline)
-                                .foregroundStyle(.orange)
 
-                            Text("Connect an existing GitHub repository by name:")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                        Divider()
 
-                            HStack {
-                                TextField("owner/repo (e.g. apple/swift)", text: $repoToConnect)
-                                    .textFieldStyle(.roundedBorder)
-                                    .autocorrectionDisabled()
+                        Text("Or, clone a remote repository into this project workspace:")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
 
-                                Button("Connect") {
-                                    connectRepository(repoToConnect)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.orange)
-                                .disabled(repoToConnect.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        HStack {
+                            TextField("https://github.com/owner/repo.git", text: $cloneURLStr)
+                                .textFieldStyle(.roundedBorder)
+                                .autocorrectionDisabled()
+
+                            Button("Clone") {
+                                cloneAndConnect(cloneURLStr)
                             }
-
-                            Divider()
-                                .padding(.vertical, 8)
-
-                            Text("Or, clone a remote repository into this project workspace:")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-
-                            HStack {
-                                TextField("https://github.com/owner/repo.git", text: $cloneURLStr)
-                                    .textFieldStyle(.roundedBorder)
-                                    .autocorrectionDisabled()
-
-                                Button("Clone") {
-                                    cloneAndConnect(cloneURLStr)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.blue)
-                                .disabled(cloneURLStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.blue)
+                            .disabled(cloneURLStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
-                        .padding()
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                    .padding(.vertical, 4)
                 }
             }
-            .padding()
         }
+        .listStyle(.sidebar)
         .onAppear {
             if context.cachedMetadata == nil {
                 Task {

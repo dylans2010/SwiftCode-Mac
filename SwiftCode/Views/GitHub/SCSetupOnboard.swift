@@ -97,91 +97,82 @@ struct SCSetupOnboard: View {
 
     private var overviewSectionView: some View {
         VStack(spacing: 20) {
-            GroupBox {
-                VStack(spacing: 16) {
-                    Image(systemName: "arrow.triangle.pull")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.orange)
+            VStack(spacing: 16) {
+                Image(systemName: "arrow.triangle.pull")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.orange)
 
-                    Text("Source Control Workspace")
-                        .font(.title2.bold())
+                Text("Source Control Workspace")
+                    .font(.title2.bold())
 
-                    Text("Welcome to SwiftCode Source Control Setup. Configure local Git execution pathways and register GitHub accounts to unlock full committing, branching, pulling, and pushing abilities.")
-                        .font(.body)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-                }
-                .padding()
+                Text("Welcome to SwiftCode Source Control Setup. Configure local Git execution pathways and register GitHub accounts to unlock full committing, branching, pulling, and pushing abilities.")
+                    .font(.body)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
             }
-            .groupBoxStyle(ModernGroupBoxStyle())
+            .padding()
         }
     }
 
     private var gitPathSectionView: some View {
         VStack(spacing: 20) {
-            GroupBox {
-                VStack(alignment: .leading, spacing: 14) {
-                    Label("Git Executable Configuration", systemImage: "terminal.fill")
-                        .font(.headline)
-                        .foregroundColor(.blue)
+            VStack(alignment: .leading, spacing: 14) {
+                Label("Git Executable Configuration", systemImage: "terminal.fill")
+                    .font(.headline)
+                    .foregroundColor(.blue)
 
-                    Text("Identify the location of the Git CLI executable on this Mac.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                Text("Identify the location of the Git CLI executable on this Mac.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
-                    HStack(spacing: 8) {
-                        TextField("/usr/bin/git", text: $gitPath)
-                            .textFieldStyle(.roundedBorder)
+                HStack(spacing: 8) {
+                    TextField("/usr/bin/git", text: $gitPath)
+                        .textFieldStyle(.roundedBorder)
 
-                        Button("Detect") {
-                            detectGit()
-                        }
-                        .disabled(isDetecting)
-
-                        Button("Browse...") {
-                            browseForGit()
-                        }
+                    Button("Detect") {
+                        detectGit()
                     }
+                    .disabled(isDetecting)
 
-                    Text("Standard macOS paths include /usr/bin/git or /usr/local/bin/git.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-
-                    if let error = errorMessage {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .padding(.top, 4)
+                    Button("Browse...") {
+                        browseForGit()
                     }
                 }
-                .padding()
+
+                Text("Standard macOS paths include /usr/bin/git or /usr/local/bin/git.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+
+                if let error = errorMessage {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .padding(.top, 4)
+                }
             }
-            .groupBoxStyle(ModernGroupBoxStyle())
+            .padding()
         }
     }
 
     private var githubTokenSectionView: some View {
         VStack(spacing: 20) {
-            GroupBox {
-                VStack(alignment: .leading, spacing: 14) {
-                    Label("GitHub Authentication Integration", systemImage: "key.fill")
-                        .font(.headline)
-                        .foregroundColor(.green)
+            VStack(alignment: .leading, spacing: 14) {
+                Label("GitHub Authentication Integration", systemImage: "key.fill")
+                    .font(.headline)
+                    .foregroundColor(.green)
 
-                    Text("Provide a Personal Access Token (PAT) with repo and workflow permissions to enable seamless syncing with remote repositories.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                Text("Provide a Personal Access Token (PAT) with repo and workflow permissions to enable seamless syncing with remote repositories.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
-                    SecureField("ghp_xxxxxxxxxxxx", text: $githubToken)
-                        .textFieldStyle(.roundedBorder)
+                SecureField("ghp_xxxxxxxxxxxx", text: $githubToken)
+                    .textFieldStyle(.roundedBorder)
 
-                    Link("Create a token on GitHub", destination: URL(string: "https://github.com/settings/tokens")!)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-                .padding()
+                Link("Create a token on GitHub", destination: URL(string: "https://github.com/settings/tokens")!)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
             }
-            .groupBoxStyle(ModernGroupBoxStyle())
+            .padding()
         }
     }
 
