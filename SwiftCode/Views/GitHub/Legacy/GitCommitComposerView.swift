@@ -200,9 +200,9 @@ struct GitCommitComposerView: View {
                 let hunks = await gitViewModel.getDiff()
                 var diffText = ""
                 for hunk in hunks {
-                    diffText += "File: \(hunk.filePath)\n"
+                    diffText += "Hunk: \(hunk.header)\n"
                     for line in hunk.lines {
-                        diffText += "\(line.text)\n"
+                        diffText += "\(line)\n"
                     }
                 }
 
