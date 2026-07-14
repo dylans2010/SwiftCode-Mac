@@ -1,7 +1,63 @@
 import SwiftUI
+import AppKit
 import os.log
 
 private let logger = Logger(subsystem: "com.swiftcode.SourceControl", category: "SourceControlView")
+
+// MARK: - Native Source Control Window Manager
+@MainActor
+public final class SourceControlWindowManager: NSObject, NSWindowDelegate {
+    public static let shared = SourceControlWindowManager()
+    private var windowController: SourceControlWindowController?
+
+    public func showWindow(for project: Project, gitViewModel: GitViewModel) {
+        if let existing = windowController {
+            existing.window?.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        let wc = SourceControlWindowController(gitViewModel: gitViewModel)
+        wc.window?.delegate = self
+        self.windowController = wc
+        wc.window?.makeKeyAndOrderFront(nil)
+    }
+
+    public func closeWindow() {
+        windowController?.close()
+        windowController = nil
+    }
+
+    public func windowWillClose(_ notification: Notification) {
+        windowController = nil
+    }
+}
+
+// MARK: - Native Source Control Window Controller
+@MainActor
+public class SourceControlWindowController: NSWindowController {
+    public init(gitViewModel: GitViewModel) {
+        let window = NSWindow(
+            contentRect: NSRect(x: 150, y: 150, width: 1200, height: 800),
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Source Control Workspace"
+        window.minSize = NSSize(width: 1200, height: 800)
+        window.setFrameAutosaveName("SourceControlMainWindow")
+
+        super.init(window: window)
+
+        let contentView = SourceControlView(gitViewModel: gitViewModel)
+        let hostingVC = NSHostingController(rootView: contentView)
+        hostingVC.sizingOptions = []
+        window.contentViewController = hostingVC
+    }
+
+    required public init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
 
 // ====================================================================
 // CENTRALIZED REPOSITORY CONTEXT

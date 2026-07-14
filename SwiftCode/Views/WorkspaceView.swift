@@ -138,9 +138,21 @@ struct WorkspaceView: View {
                             Button("Extensions") { activeSheet = .extensionMarketplace }
                             Button("Debug Tools") { activeSheet = .debugTools }
                             Button("Plugin Manager") { activeSheet = .pluginManager }
-                            Button("Simulator & Previews") { activeSheet = .simulatorMain }
+                            Button("Simulator & Previews") {
+                                if let activeProj = sessionStore.activeProject {
+                                    SimulatorWindowManager.shared.showWindow(for: activeProj)
+                                } else {
+                                    activeSheet = .simulatorMain
+                                }
+                            }
                             Button("Dev Tools") { activeSheet = .devTools }
-                            Button("Source Control") { activeSheet = .sourceControl }
+                            Button("Source Control") {
+                                if let activeProj = sessionStore.activeProject {
+                                    SourceControlWindowManager.shared.showWindow(for: activeProj, gitViewModel: viewModel.git)
+                                } else {
+                                    activeSheet = .sourceControl
+                                }
+                            }
                             Button("CI Build") { activeSheet = .ciBuild }
                             Button("Dependency Manager") { activeSheet = .dependencyManager }
                             Button("Xcode Build Settings") { activeSheet = .xcodeBuildSettings }

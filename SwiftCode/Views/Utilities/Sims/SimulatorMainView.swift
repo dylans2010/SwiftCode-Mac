@@ -1,4 +1,60 @@
 import SwiftUI
+import AppKit
+
+// MARK: - Native Simulator Window Manager
+@MainActor
+public final class SimulatorWindowManager: NSObject, NSWindowDelegate {
+    public static let shared = SimulatorWindowManager()
+    private var windowController: SimulatorWindowController?
+
+    public func showWindow(for project: Project) {
+        if let existing = windowController {
+            existing.window?.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        let wc = SimulatorWindowController()
+        wc.window?.delegate = self
+        self.windowController = wc
+        wc.window?.makeKeyAndOrderFront(nil)
+    }
+
+    public func closeWindow() {
+        windowController?.close()
+        windowController = nil
+    }
+
+    public func windowWillClose(_ notification: Notification) {
+        windowController = nil
+    }
+}
+
+// MARK: - Native Simulator Window Controller
+@MainActor
+public class SimulatorWindowController: NSWindowController {
+    public init() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 200, y: 200, width: 1200, height: 800),
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Simulator & Previews Workspace"
+        window.minSize = NSSize(width: 1200, height: 800)
+        window.setFrameAutosaveName("SimulatorMainWindow")
+
+        super.init(window: window)
+
+        let contentView = SimulatorMainView()
+        let hostingVC = NSHostingController(rootView: contentView)
+        hostingVC.sizingOptions = []
+        window.contentViewController = hostingVC
+    }
+
+    required public init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
 
 public struct SimulatorMainView: View {
     @State private var manager = SimulatorManager.shared

@@ -54,12 +54,12 @@ public class PersonalDocWindowController: NSWindowController {
 
         let window = NSWindow(
             contentRect: NSRect(x: 100, y: 100, width: 1200, height: 800),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = "Personal Documentation Workspace"
-        window.minSize = NSSize(width: 1000, height: 700)
+        window.minSize = NSSize(width: 1200, height: 800)
         window.setFrameAutosaveName("PersonalDocumentationMainWindow")
 
         super.init(window: window)
@@ -222,8 +222,8 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         // Panel 1: Sidebar (Pure AppKit Controller)
         let sidebarVC = PersonalDocSidebarViewController(coordinator: coordinator)
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
-        sidebarItem.minimumThickness = 220
-        sidebarItem.maximumThickness = 320
+        sidebarItem.minimumThickness = 240
+        sidebarItem.maximumThickness = 240
         sidebarItem.holdingPriority = .defaultLow
         self.sidebarItem = sidebarItem
         addSplitViewItem(sidebarItem)
@@ -231,9 +231,10 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         // Panel 2: Middle List (SwiftUI Middle Wrapper)
         let middleView = PersonalDocMiddleWrapper(coord: coordinator)
         let middleVC = NSHostingController(rootView: middleView)
+        middleVC.sizingOptions = []
         let middleItem = NSSplitViewItem(viewController: middleVC)
-        middleItem.minimumThickness = 240
-        middleItem.maximumThickness = 400
+        middleItem.minimumThickness = 260
+        middleItem.maximumThickness = 260
         middleItem.holdingPriority = .defaultLow
         self.middleItem = middleItem
         addSplitViewItem(middleItem)
@@ -241,6 +242,7 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         // Panel 3: Main Workspace (SwiftUI Main Wrapper)
         let mainView = PersonalDocMainWrapper(coord: coordinator)
         let mainVC = NSHostingController(rootView: mainView)
+        mainVC.sizingOptions = []
         let mainItem = NSSplitViewItem(viewController: mainVC)
         mainItem.minimumThickness = 450
         mainItem.holdingPriority = .defaultHigh
@@ -250,8 +252,8 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         // Panel 4: Inspector (Pure AppKit Controller)
         let inspectorVC = PersonalDocInspectorViewController(coordinator: coordinator)
         let inspectorItem = NSSplitViewItem(viewController: inspectorVC)
-        inspectorItem.minimumThickness = 260
-        inspectorItem.maximumThickness = 400
+        inspectorItem.minimumThickness = 280
+        inspectorItem.maximumThickness = 280
         inspectorItem.holdingPriority = .defaultLow
         self.inspectorItem = inspectorItem
         addSplitViewItem(inspectorItem)
@@ -336,6 +338,16 @@ public class PersonalDocSplitViewController: NSSplitViewController {
             name: NSNotification.Name("ShowPersonalDocCommandPalette"),
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleSelectionChanged(_:)),
+            name: NSNotification.Name("PersonalDocSelectionChanged"),
+            object: nil
+        )
+    }
+
+    @objc private func handleSelectionChanged(_ notification: Notification) {
+        updateSplitItems(animate: true)
     }
 
     @objc private func handleNewDocument(_ notification: Notification) {
