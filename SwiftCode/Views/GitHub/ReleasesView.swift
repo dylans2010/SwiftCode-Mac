@@ -10,6 +10,7 @@ struct ReleasesView: View {
 
     @State private var releases: [GitHubReleaseInfo] = []
     @State private var isFetching = false
+    @State private var selectedRelease: GitHubReleaseInfo?
 
     private var context: RepositoryContext {
         RepositoryContext.shared
@@ -94,15 +95,96 @@ struct ReleasesView: View {
                                 Text(release.body ?? "No release notes provided.")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
+                                    .lineLimit(3)
                             }
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
+
+                        HStack {
+                            Spacer()
+                            Button("View Release Details") {
+                                selectedRelease = release
+                            }
+                            .buttonStyle(.link)
+                            .foregroundStyle(.blue)
+                        }
                     }
                     .padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        selectedRelease = release
+                    }
                 }
             }
+        }
+        .sheet(item: $selectedRelease) { release in
+            VStack(spacing: 0) {
+                // Sheet Header
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(release.name ?? release.tagName)
+                            .font(.title2.bold())
+                        Text("Tag: \(release.tagName) • Published on \(release.createdAt)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Close") {
+                        selectedRelease = nil
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding()
+                .background(Color(NSColor.windowBackgroundColor))
+
+                Divider()
+
+                // Sheet Content
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Release Notes section
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Release Notes")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+
+                            Text(release.body ?? "No release notes provided.")
+                                .font(.body)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding()
+                                .background(Color.secondary.opacity(0.05))
+                                .cornerRadius(8)
+                        }
+
+                        // Additional Links section
+                        if let htmlUrlStr = release.htmlUrl, let htmlURL = URL(string: htmlUrlStr) {
+                            Divider()
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Reference Links")
+                                    .font(.headline)
+
+                                Link(destination: htmlURL) {
+                                    HStack {
+                                        Image(systemName: "safari")
+                                        Text("Open Release on GitHub")
+                                        Spacer()
+                                        Image(systemName: "arrow.up.right")
+                                            .font(.caption)
+                                    }
+                                    .padding()
+                                    .background(Color.blue.opacity(0.1))
+                                    .cornerRadius(8)
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                }
+            }
+            .frame(width: 500, height: 400)
         }
     }
 

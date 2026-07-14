@@ -84,7 +84,7 @@ struct RepositoriesView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        GitCommitComposerView(message: $commitMessage) {
+                        GitCommitComposerView(message: $commitMessage, gitViewModel: gitViewModel) {
                             Task {
                                 await gitViewModel.commit(message: commitMessage)
                                 commitMessage = ""

@@ -31,13 +31,55 @@ public struct WorkflowStep: Identifiable, Codable, Sendable {
     public var isOptional: Bool = false
     public var retryCount: Int = 0
 
-    public init(name: String, description: String, icon: String, category: String, estimatedDuration: Double, inputs: [String: String] = [:]) {
+    // Asynchronous terminal background execution properties
+    public var command: String = ""
+    public var workingDirectory: String = ""
+    public var environmentVariables: String = ""
+    public var timeout: Double = 300.0
+    public var outputVariableName: String = ""
+
+    public init(
+        name: String,
+        description: String,
+        icon: String,
+        category: String,
+        estimatedDuration: Double,
+        inputs: [String: String] = [:],
+        command: String = "",
+        workingDirectory: String = "",
+        environmentVariables: String = "",
+        timeout: Double = 300.0,
+        outputVariableName: String = ""
+    ) {
         self.name = name
         self.description = description
         self.icon = icon
         self.category = category
         self.estimatedDuration = estimatedDuration
         self.inputs = inputs
+        self.command = command
+        self.workingDirectory = workingDirectory
+        self.environmentVariables = environmentVariables
+        self.timeout = timeout
+        self.outputVariableName = outputVariableName
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        self.name = try container.decode(String.self, forKey: .name)
+        self.description = try container.decode(String.self, forKey: .description)
+        self.icon = try container.decode(String.self, forKey: .icon)
+        self.category = try container.decode(String.self, forKey: .category)
+        self.estimatedDuration = try container.decode(Double.self, forKey: .estimatedDuration)
+        self.inputs = try container.decodeIfPresent([String: String].self, forKey: .inputs) ?? [:]
+        self.isOptional = try container.decodeIfPresent(Bool.self, forKey: .isOptional) ?? false
+        self.retryCount = try container.decodeIfPresent(Int.self, forKey: .retryCount) ?? 0
+        self.command = try container.decodeIfPresent(String.self, forKey: .command) ?? ""
+        self.workingDirectory = try container.decodeIfPresent(String.self, forKey: .workingDirectory) ?? ""
+        self.environmentVariables = try container.decodeIfPresent(String.self, forKey: .environmentVariables) ?? ""
+        self.timeout = try container.decodeIfPresent(Double.self, forKey: .timeout) ?? 300.0
+        self.outputVariableName = try container.decodeIfPresent(String.self, forKey: .outputVariableName) ?? ""
     }
 }
 

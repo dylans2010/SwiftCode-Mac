@@ -16,6 +16,7 @@ public final class WorkflowManager {
     public var currentStepIndex = 0
     public var isRunning = false
     public var progress: Double = 0.0
+    public var workflowVariables: [String: String] = [:]
 
     private init() {
         loadWorkflows()
@@ -150,16 +151,38 @@ public final class WorkflowManager {
 
         currentStepIndex = 0
         progress = 0.0
+        workflowVariables = [:]
 
         let startTime = Date()
         var overallSuccess = true
+        var previousOutput = ""
 
         if workflow.useCLIOnly {
             currentExecutionLog += ">>> Executing Advanced CLI Canvas commands...\n"
             let resolvedCommands = resolveVariables(workflow.customCommands, project: project, gitViewModel: gitViewModel)
-            currentExecutionLog += resolvedCommands + "\n"
-            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2s duration
-            currentExecutionLog += ">>> Commands completed successfully!\n"
+
+            do {
+                let result = try await ProcessRunnerTool.shared.run(
+                    executableURL: URL(fileURLWithPath: "/bin/sh"),
+                    arguments: ["-c", resolvedCommands],
+                    workingDirectory: project.directoryURL
+                )
+                if !result.stdout.isEmpty {
+                    currentExecutionLog += result.stdout + "\n"
+                }
+                if !result.stderr.isEmpty {
+                    currentExecutionLog += "Error:\n" + result.stderr + "\n"
+                }
+                if result.exitCode == 0 {
+                    currentExecutionLog += ">>> Commands completed successfully!\n"
+                } else {
+                    currentExecutionLog += ">>> Commands failed with exit code \(result.exitCode)\n"
+                    overallSuccess = false
+                }
+            } catch {
+                currentExecutionLog += ">>> Execution failed: \(error.localizedDescription)\n"
+                overallSuccess = false
+            }
         } else {
             let totalSteps = Double(workflow.steps.count)
             for idx in workflow.steps.indices {
@@ -170,14 +193,18 @@ public final class WorkflowManager {
                 currentExecutionLog += "[STEP \(idx + 1)/\(workflow.steps.count)] \(step.name)\n"
                 currentExecutionLog += "  Description: \(step.description)\n"
 
-                // Resolve any variable references in step inputs
-                for (key, paramVal) in step.inputs {
-                    let resolved = resolveVariables(paramVal, project: project, gitViewModel: gitViewModel)
-                    currentExecutionLog += "  Config '\(key)' -> '\(resolved)'\n"
-                }
+                workflowVariables["PREVIOUS_OUTPUT"] = previousOutput
 
                 do {
-                    try await executeIndividualStep(step, project: project, gitViewModel: gitViewModel)
+                    let stepOutput = try await executeIndividualStep(step, project: project, gitViewModel: gitViewModel)
+                    previousOutput = stepOutput
+
+                    let cleanVar = step.outputVariableName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !cleanVar.isEmpty {
+                        workflowVariables[cleanVar] = stepOutput
+                        currentExecutionLog += "  [Saved Output to Variable: $(\(cleanVar))]\n"
+                    }
+
                     currentExecutionLog += "[SUCCESS] Finished \(step.name)\n\n"
                 } catch {
                     currentExecutionLog += "[ERROR] Failed \(step.name): \(error.localizedDescription)\n"
@@ -210,21 +237,67 @@ public final class WorkflowManager {
         isRunning = false
     }
 
-    private func executeIndividualStep(_ step: WorkflowStep, project: Project, gitViewModel: GitViewModel) async throws {
-        // Map common internal mock command or run tasks based on category
-        switch step.category {
-        case "Git":
-            // Simulating internal git task execution
-            try await Task.sleep(nanoseconds: UInt64(step.estimatedDuration * 100_000_000))
-        case "Swift":
-            // Simulating Swift compile step
-            try await Task.sleep(nanoseconds: UInt64(step.estimatedDuration * 100_000_000))
-        case "Xcode":
-            // Simulating Xcode build / simulator trigger
-            try await Task.sleep(nanoseconds: UInt64(step.estimatedDuration * 100_000_000))
-        default:
-            try await Task.sleep(nanoseconds: 1_000_000_000)
+    private func executeIndividualStep(_ step: WorkflowStep, project: Project, gitViewModel: GitViewModel) async throws -> String {
+        var cmdToRun = step.command
+        if cmdToRun.isEmpty {
+            if let script = step.inputs["script"] {
+                cmdToRun = script
+            } else if let commandInput = step.inputs["command"] {
+                cmdToRun = commandInput
+            } else {
+                cmdToRun = "echo 'No terminal command configured for step: \(step.name)'"
+            }
         }
+
+        // Resolve generic smart variables
+        cmdToRun = resolveVariables(cmdToRun, project: project, gitViewModel: gitViewModel)
+
+        // Resolve custom accumulated output variables
+        for (varName, varVal) in workflowVariables {
+            cmdToRun = cmdToRun.replacingOccurrences(of: "$(\(varName))", with: varVal)
+            cmdToRun = cmdToRun.replacingOccurrences(of: "{{\(varName)}}", with: varVal)
+        }
+
+        var finalWorkingDir = project.directoryURL
+        let cleanWorkDir = step.workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cleanWorkDir.isEmpty {
+            let resolvedDir = resolveVariables(cleanWorkDir, project: project, gitViewModel: gitViewModel)
+            finalWorkingDir = URL(fileURLWithPath: resolvedDir)
+        }
+
+        var env = ProcessInfo.processInfo.environment
+        let cleanEnvVars = step.environmentVariables.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cleanEnvVars.isEmpty {
+            let pairs = cleanEnvVars.components(separatedBy: " ")
+            for pair in pairs {
+                let parts = pair.components(separatedBy: "=")
+                if parts.count == 2 {
+                    env[parts[0]] = parts[1]
+                }
+            }
+        }
+
+        currentExecutionLog += "  $ \(cmdToRun)\n"
+
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: URL(fileURLWithPath: "/bin/sh"),
+            arguments: ["-c", cmdToRun],
+            environment: env,
+            workingDirectory: finalWorkingDir
+        )
+
+        if !result.stdout.isEmpty {
+            currentExecutionLog += result.stdout + "\n"
+        }
+        if !result.stderr.isEmpty {
+            currentExecutionLog += "Error: " + result.stderr + "\n"
+        }
+
+        if result.exitCode != 0 {
+            throw NSError(domain: "WorkflowStepError", code: Int(result.exitCode), userInfo: [NSLocalizedDescriptionKey: "Command failed with exit code \(result.exitCode)"])
+        }
+
+        return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     public func cancelExecution() {

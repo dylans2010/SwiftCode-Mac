@@ -10,13 +10,86 @@ struct RepositoryDashboardView: View {
     @State private var isRunningQuickAction = false
     @State private var quickActionLog = ""
 
-    // Desktop Adaptive Grid Layout Columns
-    private let columns = [GridItem(.adaptive(minimum: 320, maximum: 550), spacing: 20)]
+    // Suggestion structure representing actionable advice
+    struct DashboardSuggestion: Identifiable {
+        let id = UUID()
+        let title: String
+        let description: String
+        let icon: String
+        let accentColor: Color
+        let actionLabel: String
+        let action: () -> Void
+    }
+
+    private var activeSuggestions: [DashboardSuggestion] {
+        var list: [DashboardSuggestion] = []
+
+        // 1. Uncommitted changes suggestion
+        let filesCount = gitViewModel.status?.files.count ?? 0
+        if filesCount > 0 {
+            list.append(
+                DashboardSuggestion(
+                    title: "Uncommitted Changes Detected",
+                    description: "You have \(filesCount) modified file\(filesCount > 1 ? "s" : "") in your workspace. Build and record a commit to avoid losing your progress.",
+                    icon: "pencil.and.outline",
+                    accentColor: .orange,
+                    actionLabel: "Commit Composer",
+                    action: { onNavigateToSection(.repositories) }
+                )
+            )
+        }
+
+        // 2. Sync / Ahead commits suggestion
+        let aheadCount = gitViewModel.status?.ahead ?? 0
+        if aheadCount > 0 {
+            list.append(
+                DashboardSuggestion(
+                    title: "Sync Needed",
+                    description: "Your workspace is \(aheadCount) commit\(aheadCount > 1 ? "s" : "") ahead of the remote repository branch. Push your commits to remote origin to share.",
+                    icon: "arrow.up.circle.fill",
+                    accentColor: .blue,
+                    actionLabel: "Push to Remote",
+                    action: { onNavigateToSection(.actions) }
+                )
+            )
+        }
+
+        // 3. No connected remote upstream suggestion
+        let connectedRepo = project?.githubRepo ?? ""
+        if connectedRepo.isEmpty {
+            list.append(
+                DashboardSuggestion(
+                    title: "No Remote Repository Configured",
+                    description: "Sync code with a GitHub remote to enable actions, pull requests, release packaging, and automatic backups.",
+                    icon: "link.badge.plus",
+                    accentColor: .purple,
+                    actionLabel: "Configure Remote",
+                    action: { RepositoryContext.shared.showingSetRepoSheet = true }
+                )
+            )
+        }
+
+        // 4. Fallback healthy suggestions
+        if list.isEmpty {
+            list.append(
+                DashboardSuggestion(
+                    title: "Workspace is Fully Healthy & Clean",
+                    description: "Your local branches are fully synchronized and there are no uncommitted changes. Run local workflows or perform code reviews.",
+                    icon: "checkmark.shield.fill",
+                    accentColor: .green,
+                    actionLabel: "Run Workflows",
+                    action: { onNavigateToSection(.dashboard) } // In SourceControlView we map .dashboard -> local workspace / workflows
+                )
+            )
+        }
+
+        return list
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // Dashboard Header
+        List {
+            // Section 1: Dashboard Welcome Header
+            Section {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Repository Command Center")
                         .font(.title2.bold())
@@ -24,95 +97,43 @@ struct RepositoryDashboardView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                .padding(.bottom, 4)
-
-                // Modular Widgets Layout Flow - Desktop Adaptive Grid
-                LazyVGrid(columns: columns, spacing: 20) {
-                    // 1. Overview Card
-                    overviewCard
-
-                    // 2. Health Indicators Section
-                    healthIndicatorsCard
-
-                    // 3. Quick Actions Widget
-                    quickActionsCard
-
-                    // 4. Status & Statistics Widget
-                    statisticsCard
-
-                    // 5. Recent Commits Widget
-                    recentCommitsCard
-                }
+                .padding(.vertical, 8)
             }
-            .padding(24)
-        }
-    }
+            .listRowSeparator(.hidden)
 
-    // MARK: - Widget Subviews
+            // Section 2: AI-Powered Smart Suggestions
+            Section(header: Text("AI-Powered Smart Suggestions").font(.caption.bold()).foregroundStyle(.blue)) {
+                ForEach(activeSuggestions) { suggestion in
+                    HStack(spacing: 16) {
+                        Image(systemName: suggestion.icon)
+                            .font(.title2)
+                            .foregroundStyle(suggestion.accentColor)
+                            .frame(width: 40, height: 40)
+                            .background(suggestion.accentColor.opacity(0.1))
+                            .cornerRadius(8)
 
-    private var overviewCard: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 16) {
-                    Image(systemName: "arrow.triangle.branch")
-                        .font(.title)
-                        .foregroundStyle(.blue)
-                        .frame(width: 44, height: 44)
-                        .background(Color.blue.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(project?.name ?? "No Active Project")
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-
-                        if let repoName = project?.githubRepo, !repoName.isEmpty {
-                            Text("Connected to Remote")
-                                .font(.caption.bold())
-                                .foregroundColor(.green)
-                        } else {
-                            Text("Local Workspace Only")
-                                .font(.caption.bold())
-                                .foregroundColor(.orange)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(suggestion.title)
+                                .font(.headline)
+                            Text(suggestion.description)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                    }
-                    Spacer()
-                }
 
-                Divider()
+                        Spacer()
 
-                VStack(alignment: .leading, spacing: 6) {
-                    if let repo = project?.githubRepo, !repo.isEmpty {
-                        Text("Linked GitHub Repository")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(repo)
-                            .font(.system(.body, design: .monospaced))
-                            .lineLimit(1)
-                            .textSelection(.enabled)
-                    } else {
-                        Text("No Upstream Repository Associated")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("Initialize a GitHub remote to synchronize code with origin branch trackers.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                        Button(suggestion.actionLabel) {
+                            suggestion.action()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
+                    .padding(.vertical, 8)
                 }
             }
-        } label: {
-            HStack {
-                Label("Repository Connection", systemImage: "link")
-                    .font(.headline)
-                    .foregroundStyle(.blue)
-            }
-        }
-        .groupBoxStyle(ModernGroupBoxStyle())
-    }
 
-    private var healthIndicatorsCard: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 12) {
+            // Section 3: Project Overview & Status Feed
+            Section(header: Text("Repository Status & Health Feed").font(.caption.bold()).foregroundStyle(.green)) {
                 let filesCount = gitViewModel.status?.files.count ?? 0
                 healthRow(
                     title: "Working Copy Status",
@@ -145,85 +166,81 @@ struct RepositoryDashboardView: View {
                     healthyColor: .green,
                     unhealthyColor: .yellow
                 )
-            }
-        } label: {
-            HStack {
-                Label("Health Indicators", systemImage: "heart.text.square.fill")
-                    .font(.headline)
-                    .foregroundStyle(.green)
-            }
-        }
-        .groupBoxStyle(ModernGroupBoxStyle())
-    }
 
-    private var quickActionsCard: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Execute common Git operations instantly from the active working directory context.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                HStack(spacing: 12) {
-                    Button {
-                        runQuickPull()
-                    } label: {
-                        Label("Pull Remote", systemImage: "arrow.down.circle.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isRunningQuickAction)
-
-                    Button {
-                        runQuickStageAll()
-                    } label: {
-                        Label("Stage All", systemImage: "plus.circle.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isRunningQuickAction)
-
-                    Button(role: .destructive) {
-                        runQuickDiscardAll()
-                    } label: {
-                        Label("Discard All", systemImage: "trash.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isRunningQuickAction)
-                }
-
-                if !quickActionLog.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Execution Log Output:")
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                if let repo = project?.githubRepo, !repo.isEmpty {
+                    HStack {
+                        Image(systemName: "link")
                             .foregroundStyle(.secondary)
-                        ScrollView {
-                            Text(quickActionLog)
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(.primary)
-                                .padding(8)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.black.opacity(0.2))
-                                .cornerRadius(6)
-                        }
-                        .frame(maxHeight: 120)
+                        Text("Linked GitHub Repository")
+                            .font(.subheadline)
+                        Spacer()
+                        Text(repo)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.blue)
                     }
-                    .padding(.top, 4)
                 }
             }
-        } label: {
-            HStack {
-                Label("Quick Developer Actions", systemImage: "bolt.circle.fill")
-                    .font(.headline)
-                    .foregroundStyle(.orange)
-            }
-        }
-        .groupBoxStyle(ModernGroupBoxStyle())
-    }
 
-    private var statisticsCard: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 10) {
+            // Section 4: Quick Actions Hub
+            Section(header: Text("Quick Actions Hub").font(.caption.bold()).foregroundStyle(.orange)) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Execute common Git operations instantly from the active working directory context.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 12) {
+                        Button {
+                            runQuickPull()
+                        } label: {
+                            Label("Pull Remote", systemImage: "arrow.down.circle.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(isRunningQuickAction)
+
+                        Button {
+                            runQuickStageAll()
+                        } label: {
+                            Label("Stage All", systemImage: "plus.circle.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(isRunningQuickAction)
+
+                        Button(role: .destructive) {
+                            runQuickDiscardAll()
+                        } label: {
+                            Label("Discard All", systemImage: "trash.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(isRunningQuickAction)
+                    }
+
+                    if !quickActionLog.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Execution Log Output:")
+                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                            ScrollView {
+                                Text(quickActionLog)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(.primary)
+                                    .padding(8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.black.opacity(0.2))
+                                    .cornerRadius(6)
+                            }
+                            .frame(height: 100)
+                        }
+                        .padding(.top, 4)
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+
+            // Section 5: Stats Explorer
+            Section(header: Text("Status & Statistics").font(.caption.bold()).foregroundStyle(.purple)) {
                 statRow(
                     icon: "arrow.triangle.branch",
                     title: "Current Branch",
@@ -260,19 +277,9 @@ struct RepositoryDashboardView: View {
                     onNavigateToSection(.actions)
                 }
             }
-        } label: {
-            HStack {
-                Label("Status & Statistics", systemImage: "chart.bar.xaxis.ascending")
-                    .font(.headline)
-                    .foregroundStyle(.purple)
-            }
-        }
-        .groupBoxStyle(ModernGroupBoxStyle())
-    }
 
-    private var recentCommitsCard: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 10) {
+            // Section 6: Recent Commits Feed
+            Section(header: Text("Recent Commit History").font(.caption.bold()).foregroundStyle(.yellow)) {
                 if gitViewModel.history.isEmpty {
                     ContentUnavailableView {
                         Label("No Commit History", systemImage: "clock.arrow.circlepath")
@@ -314,20 +321,11 @@ struct RepositoryDashboardView: View {
                             .help("Copy full SHA")
                         }
                         .padding(.vertical, 4)
-                        if commit.id != gitViewModel.history.prefix(5).last?.id {
-                            Divider()
-                        }
                     }
                 }
             }
-        } label: {
-            HStack {
-                Label("Recent Commit History", systemImage: "clock.arrow.circlepath")
-                    .font(.headline)
-                    .foregroundStyle(.yellow)
-            }
         }
-        .groupBoxStyle(ModernGroupBoxStyle())
+        .listStyle(.sidebar)
     }
 
     // MARK: - Helper Views
