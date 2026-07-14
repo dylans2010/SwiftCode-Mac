@@ -38,15 +38,8 @@ public struct KnowledgeGraphView: View {
         VStack(spacing: 0) {
             // Header Controls
             HStack(spacing: 12) {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                    TextField("Search nodes...", text: $searchText)
-                        .textFieldStyle(.plain)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
-                .frame(width: 200)
+                NativeSearchField(text: $searchText, placeholder: "Search nodes...")
+                    .frame(width: 200)
 
                 Picker("Filter", selection: $selectedCategory) {
                     Text("All").tag("All")
@@ -302,15 +295,8 @@ public struct ProjectTimelineView: View {
                 }
                 .frame(width: 200)
 
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                    TextField("Search logs...", text: $searchText)
-                        .textFieldStyle(.plain)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
-                .frame(width: 250)
+                NativeSearchField(text: $searchText, placeholder: "Search logs...")
+                    .frame(width: 250)
 
                 Spacer()
 
@@ -462,48 +448,24 @@ public struct AnalyticsView: View {
 
                 Divider()
 
-                // Key Performance Cards
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                // Key Performance Cards - Fully Adaptive Grid
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 200, maximum: 400), spacing: 16)], spacing: 16) {
                     analyticsCard(title: "Documentation Growth", value: "\(totalDocs) notes", desc: "+3.2% vs last period", icon: "doc.text.fill", color: .blue)
                     analyticsCard(title: "Active Writing Work", value: "\(writingCount) additions", desc: "Average 120 words/day", icon: "pencil.line", color: .green)
                     analyticsCard(title: "Documentation Quality", value: "\(healthScore) / 100", desc: "Based on completeness", icon: "checkmark.seal.fill", color: .purple)
                     analyticsCard(title: "AI Project Usage", value: "34 tokens", desc: "LLM contextual reasoning", icon: "sparkles", color: .indigo)
                 }
 
-                // Complex layout blocks
-                HStack(spacing: 20) {
-                    // Left Column: Custom bar graph visualization
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Knowledge Writing Activity")
-                            .font(.headline)
-                        HStack(alignment: .bottom, spacing: 12) {
-                            barGraphic(day: "Mon", height: 40)
-                            barGraphic(day: "Tue", height: 75)
-                            barGraphic(day: "Wed", height: 110)
-                            barGraphic(day: "Thu", height: 85)
-                            barGraphic(day: "Fri", height: 140)
-                            barGraphic(day: "Sat", height: 30)
-                            barGraphic(day: "Sun", height: 20)
-                        }
-                        .frame(height: 180)
+                // Complex layout blocks - Adaptive stack (horizontal on wide screen, vertical on narrow)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 20) {
+                        statisticsGraphModule
+                        statisticsDirectoryModule
                     }
-                    .padding()
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(10)
-
-                    // Right Column: Most documented folders list
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Top Documented Directories")
-                            .font(.headline)
-
-                        directoryProgressRow(name: "Views/Utilities/NSPersonalDocumentation", percentage: 0.85)
-                        directoryProgressRow(name: "Backend/AI", percentage: 0.60)
-                        directoryProgressRow(name: "ViewModels", percentage: 0.45)
-                        directoryProgressRow(name: "Core/AI/Agent", percentage: 0.30)
+                    VStack(spacing: 20) {
+                        statisticsGraphModule
+                        statisticsDirectoryModule
                     }
-                    .padding()
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(10)
                 }
             }
             .padding(24)
@@ -513,34 +475,73 @@ public struct AnalyticsView: View {
         }
     }
 
-    private func analyticsCard(title: String, value: String, desc: String, icon: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(color.opacity(0.12))
-                    Image(systemName: icon)
-                        .foregroundStyle(color)
-                        .font(.headline)
+    private var statisticsGraphModule: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .bottom, spacing: 12) {
+                    barGraphic(day: "Mon", height: 40)
+                    barGraphic(day: "Tue", height: 75)
+                    barGraphic(day: "Wed", height: 110)
+                    barGraphic(day: "Thu", height: 85)
+                    barGraphic(day: "Fri", height: 140)
+                    barGraphic(day: "Sat", height: 30)
+                    barGraphic(day: "Sun", height: 20)
                 }
-                .frame(width: 32, height: 32)
-                Spacer()
+                .frame(height: 180)
             }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(value)
-                    .font(.title2.bold())
-                Text(title)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text(desc)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        } label: {
+            Label("Knowledge Writing Activity", systemImage: "chart.bar.fill")
+                .foregroundStyle(.blue)
         }
-        .padding()
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(10)
+        .groupBoxStyle(ModernGroupBoxStyle())
+    }
+
+    private var statisticsDirectoryModule: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 12) {
+                directoryProgressRow(name: "Views/Utilities/NSPersonalDocumentation", percentage: 0.85)
+                directoryProgressRow(name: "Backend/AI", percentage: 0.60)
+                directoryProgressRow(name: "ViewModels", percentage: 0.45)
+                directoryProgressRow(name: "Core/AI/Agent", percentage: 0.30)
+            }
+        } label: {
+            Label("Top Documented Directories", systemImage: "folder.fill")
+                .foregroundStyle(.green)
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+    }
+
+    private func analyticsCard(title: String, value: String, desc: String, icon: String, color: Color) -> some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(color.opacity(0.12))
+                        Image(systemName: icon)
+                            .foregroundStyle(color)
+                            .font(.headline)
+                    }
+                    .frame(width: 32, height: 32)
+                    Spacer()
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(value)
+                        .font(.title2.bold())
+                    Text(title)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text(desc)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } label: {
+            Label(title, systemImage: icon)
+                .foregroundStyle(color)
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
     }
 
     private func barGraphic(day: String, height: CGFloat) -> some View {
