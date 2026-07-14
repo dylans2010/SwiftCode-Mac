@@ -324,15 +324,15 @@ struct PersonalDocSplitViewRepresentable: NSViewControllerRepresentable {
 }
 
 // MARK: - AppKit-backed Native Sidebar
-class SidebarNode: NSObject {
-    let title: String
-    let icon: String?
-    let color: NSColor?
-    let kind: ModuleKind?
-    let isGroup: Bool
-    var children: [SidebarNode] = []
+public class SidebarNode: NSObject {
+    public let title: String
+    public let icon: String?
+    public let color: NSColor?
+    public let kind: ModuleKind?
+    public let isGroup: Bool
+    public var children: [SidebarNode] = []
 
-    init(title: String, icon: String? = nil, color: NSColor? = nil, kind: ModuleKind? = nil, isGroup: Bool = false) {
+    public init(title: String, icon: String? = nil, color: NSColor? = nil, kind: ModuleKind? = nil, isGroup: Bool = false) {
         self.title = title
         self.icon = icon
         self.color = color
