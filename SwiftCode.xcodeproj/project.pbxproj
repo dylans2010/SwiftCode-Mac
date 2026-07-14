@@ -7,6 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		12095A22ECC64B12B6DEC8A6 /* RepositoryExplorerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C4B5F1F12214C359ACD8CCA /* RepositoryExplorerView.swift */; };
+		B5BBAC4D7E5740458D5ED6D2 /* RepositoryAutomationBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 159C4D4C5E8C495FA5D92D5B /* RepositoryAutomationBuilderView.swift */; };
+		F318D8970C6E4868B8F89D31 /* WorkflowModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE3F6941F8794625A7F95FCF /* WorkflowModels.swift */; };
+		32591507180B43D6BC0E06B2 /* WorkflowTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AF5F3AF5C4446018EFEB762 /* WorkflowTemplates.swift */; };
+		1C1B507BEE604A18BA17ED82 /* WorkflowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25BE522CABAB4EC7A672E230 /* WorkflowManager.swift */; };
+		7FA89801A8BC466F8A986409 /* WorkflowDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E53E7857AD064FBD8038EB3E /* WorkflowDashboardView.swift */; };
+		5E730711D2F14AA79A5CF426 /* WorkflowBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BC8ECE011D245E99DBDBC91 /* WorkflowBuilderView.swift */; };
+		1C2A3C59D58B4DBCA5E4E182 /* WorkflowExecutionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83A4C69FD4C74FB6B42453E2 /* WorkflowExecutionView.swift */; };
 		7A810247F000000000000100 /* APIDocumentationEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F000000000000200 /* APIDocumentationEditor.swift */; };
 		7A810247F000000000000101 /* DatabaseDocumentationEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F000000000000201 /* DatabaseDocumentationEditor.swift */; };
 		7A810247F000000000000102 /* ArchitectureDocumentationEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247F000000000000202 /* ArchitectureDocumentationEditor.swift */; };
@@ -1095,6 +1103,14 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		8C4B5F1F12214C359ACD8CCA /* RepositoryExplorerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RepositoryExplorerView.swift"; sourceTree = "<group>"; };
+		159C4D4C5E8C495FA5D92D5B /* RepositoryAutomationBuilderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RepositoryAutomationBuilderView.swift"; sourceTree = "<group>"; };
+		BE3F6941F8794625A7F95FCF /* WorkflowModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCodeWorkflows/WorkflowModels.swift"; sourceTree = "<group>"; };
+		9AF5F3AF5C4446018EFEB762 /* WorkflowTemplates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCodeWorkflows/WorkflowTemplates.swift"; sourceTree = "<group>"; };
+		25BE522CABAB4EC7A672E230 /* WorkflowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCodeWorkflows/WorkflowManager.swift"; sourceTree = "<group>"; };
+		E53E7857AD064FBD8038EB3E /* WorkflowDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCodeWorkflows/WorkflowDashboardView.swift"; sourceTree = "<group>"; };
+		1BC8ECE011D245E99DBDBC91 /* WorkflowBuilderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCodeWorkflows/WorkflowBuilderView.swift"; sourceTree = "<group>"; };
+		83A4C69FD4C74FB6B42453E2 /* WorkflowExecutionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCodeWorkflows/WorkflowExecutionView.swift"; sourceTree = "<group>"; };
 		7A810247F000000000000200 /* APIDocumentationEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/APIDocumentationEditor.swift; sourceTree = "<group>"; };
 		7A810247F000000000000201 /* DatabaseDocumentationEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/DatabaseDocumentationEditor.swift; sourceTree = "<group>"; };
 		7A810247F000000000000202 /* ArchitectureDocumentationEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Editors/ArchitectureDocumentationEditor.swift; sourceTree = "<group>"; };
@@ -3202,6 +3218,15 @@
 		718173758FBD56C156A0D0F5 /* GitHub */ = {
 			isa = PBXGroup;
 			children = (
+				8C4B5F1F12214C359ACD8CCA /* RepositoryExplorerView.swift */,
+				159C4D4C5E8C495FA5D92D5B /* RepositoryAutomationBuilderView.swift */,
+				BE3F6941F8794625A7F95FCF /* WorkflowModels.swift */,
+				9AF5F3AF5C4446018EFEB762 /* WorkflowTemplates.swift */,
+				25BE522CABAB4EC7A672E230 /* WorkflowManager.swift */,
+				E53E7857AD064FBD8038EB3E /* WorkflowDashboardView.swift */,
+				1BC8ECE011D245E99DBDBC91 /* WorkflowBuilderView.swift */,
+				83A4C69FD4C74FB6B42453E2 /* WorkflowExecutionView.swift */,
+
 				0B696CCBAC2A4F029DCC3183 /* AgentToolCallSummaryView.swift */,
 				16F849EB4E07411D8BA067AA /* AgentMessageBubbleView.swift */,
 				29A60AD5A8F543A3B06736E3 /* AgentChecklistView.swift */,
@@ -4561,6 +4586,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				12095A22ECC64B12B6DEC8A6 /* RepositoryExplorerView.swift in Sources */,
+				B5BBAC4D7E5740458D5ED6D2 /* RepositoryAutomationBuilderView.swift in Sources */,
+				F318D8970C6E4868B8F89D31 /* WorkflowModels.swift in Sources */,
+				32591507180B43D6BC0E06B2 /* WorkflowTemplates.swift in Sources */,
+				1C1B507BEE604A18BA17ED82 /* WorkflowManager.swift in Sources */,
+				7FA89801A8BC466F8A986409 /* WorkflowDashboardView.swift in Sources */,
+				5E730711D2F14AA79A5CF426 /* WorkflowBuilderView.swift in Sources */,
+				1C2A3C59D58B4DBCA5E4E182 /* WorkflowExecutionView.swift in Sources */,
+
 				7A810247F000000000000100 /* APIDocumentationEditor.swift in Sources */,
 				7A810247F000000000000101 /* DatabaseDocumentationEditor.swift in Sources */,
 				7A810247F000000000000102 /* ArchitectureDocumentationEditor.swift in Sources */,
