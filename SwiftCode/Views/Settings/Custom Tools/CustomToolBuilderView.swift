@@ -2,7 +2,7 @@ import SwiftUI
 
 struct CustomToolBuilderView: View {
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var registry = CustomToolRegistry.shared
+    @State private var registry = CustomToolRegistry.shared
 
     // Basic info
     @State private var toolName = ""

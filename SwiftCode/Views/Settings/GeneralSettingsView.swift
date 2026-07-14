@@ -60,11 +60,12 @@ struct APIKeyEntry: Identifiable, Codable {
 
 // MARK: - API Key Manager
 
+@Observable
 @MainActor
-final class APIKeyManager: ObservableObject {
+final class APIKeyManager {
     static let shared = APIKeyManager()
 
-    @Published var keys: [APIKeyEntry] = [] {
+    var keys: [APIKeyEntry] = [] {
         didSet { saveMetadata() }
     }
 
@@ -268,11 +269,12 @@ struct AppTheme: Identifiable, Codable, Equatable {
 
 // MARK: - Theme Manager
 
+@Observable
 @MainActor
-final class ThemeManager: ObservableObject {
+final class ThemeManager {
     static let shared = ThemeManager()
 
-    @Published var customThemes: [AppTheme] = [] {
+    var customThemes: [AppTheme] = [] {
         didSet { save() }
     }
 
@@ -427,11 +429,12 @@ struct CustomAgentConnection: Identifiable, Codable {
 
 // MARK: - Custom Tool Registry
 
+@Observable
 @MainActor
-final class CustomToolRegistry: ObservableObject {
+final class CustomToolRegistry {
     static let shared = CustomToolRegistry()
 
-    @Published var connections: [CustomAgentConnection] = [] {
+    var connections: [CustomAgentConnection] = [] {
         didSet { save() }
     }
 
@@ -463,9 +466,9 @@ struct GeneralSettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
 
-    @StateObject private var apiKeyManager = APIKeyManager.shared
-    @StateObject private var themeManager = ThemeManager.shared
-    @StateObject private var toolRegistry = CustomToolRegistry.shared
+    @State private var apiKeyManager = APIKeyManager.shared
+    @State private var themeManager = ThemeManager.shared
+    @State private var toolRegistry = CustomToolRegistry.shared
     @StateObject private var devModeManager = DeveloperModeManager.shared
     @StateObject private var entitlementManager = EntitlementManager.shared
     @StateObject private var storeManager = StoreKitManager.shared
@@ -1286,7 +1289,7 @@ struct GeneralSettingsView: View {
 struct APIKeysManagementView: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var manager = APIKeyManager.shared
+    @State private var manager = APIKeyManager.shared
 
     @State private var showAddSheet = false
     @State private var selectedProvider: APIKeyProvider?
@@ -1454,7 +1457,7 @@ struct APIKeysHelpView: View {
 @MainActor
 struct APIKeyRowView: View {
     let entry: APIKeyEntry
-    @StateObject private var manager = APIKeyManager.shared
+    @State private var manager = APIKeyManager.shared
 
     var body: some View {
         HStack(spacing: 12) {
@@ -1495,7 +1498,7 @@ struct AddEditAPIKeyView: View {
     let entry: APIKeyEntry?
     let initialProvider: APIKeyProvider?
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var manager = APIKeyManager.shared
+    @State private var manager = APIKeyManager.shared
 
     @State private var name: String
     @State private var provider: APIKeyProvider
@@ -1665,7 +1668,7 @@ struct AddEditAPIKeyView: View {
 struct ThemeManagementView: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var themeManager = ThemeManager.shared
+    @State private var themeManager = ThemeManager.shared
 
     @State private var showCreateSheet = false
     @State private var editingTheme: AppTheme?
@@ -1783,7 +1786,7 @@ struct CustomThemeEditorView: View {
     let theme: AppTheme?
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var themeManager = ThemeManager.shared
+    @State private var themeManager = ThemeManager.shared
 
     @State private var themeName: String
     @State private var backgroundColor: Color
@@ -2084,7 +2087,7 @@ struct GitHubConfigView: View {
 struct AgentConnectionsView: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var registry = CustomToolRegistry.shared
+    @State private var registry = CustomToolRegistry.shared
 
     @State private var showAddSheet = false
     @State private var editingConnection: CustomAgentConnection?
@@ -2173,7 +2176,7 @@ struct AgentConnectionsView: View {
 struct CustomToolEditorView: View {
     let connection: CustomAgentConnection?
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var registry = CustomToolRegistry.shared
+    @State private var registry = CustomToolRegistry.shared
 
     @State private var name: String
     @State private var toolDescription: String
