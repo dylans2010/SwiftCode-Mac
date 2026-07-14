@@ -24,8 +24,8 @@ public struct WorkflowBuilderView: View {
         public var id: String { rawValue }
     }
 
-    public init(workflow: DeveloperWorkflow, project: Project, gitViewModel: GitViewModel, onRunTriggered: @escaping (DeveloperWorkflow) -> Void) {
-        self.workflow = workflow
+    public init(workflow: Binding<DeveloperWorkflow>, project: Project, gitViewModel: GitViewModel, onRunTriggered: @escaping (DeveloperWorkflow) -> Void) {
+        self._workflow = workflow
         self.project = project
         self.gitViewModel = gitViewModel
         self.onRunTriggered = onRunTriggered

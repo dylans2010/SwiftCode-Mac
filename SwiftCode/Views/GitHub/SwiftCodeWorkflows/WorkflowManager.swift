@@ -121,8 +121,8 @@ public final class WorkflowManager {
 
         let replacements: [String: String] = [
             "CURRENT_PROJECT": project.name,
-            "REPOSITORY_ROOT": project.directoryURL?.path ?? "",
-            "ACTIVE_BRANCH": gitViewModel.status?.currentBranch ?? "main",
+            "REPOSITORY_ROOT": project.directoryURL.path,
+            "ACTIVE_BRANCH": gitViewModel.status?.branchName ?? "main",
             "BUILD_CONFIGURATION": "Debug",
             "SELECTED_SIMULATOR": "iPhone 16 Pro",
             "CURRENT_DATE": Date().formatted(date: .abbreviated, time: .shortened)
@@ -146,7 +146,7 @@ public final class WorkflowManager {
         currentExecutionLog = "=== Running Pipeline: \(workflow.name) ===\n"
         currentExecutionLog += "Started on \(Date().formatted())\n"
         currentExecutionLog += "Project context: \(project.name)\n"
-        currentExecutionLog += "Branch context: \(gitViewModel.status?.currentBranch ?? "Unknown")\n\n"
+        currentExecutionLog += "Branch context: \(gitViewModel.status?.branchName ?? "Unknown")\n\n"
 
         currentStepIndex = 0
         progress = 0.0

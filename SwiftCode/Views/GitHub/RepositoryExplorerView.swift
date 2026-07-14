@@ -347,7 +347,7 @@ public struct RepositoryExplorerView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Repository Specifications")
                         .font(.headline)
-                    Grid(alignment: .leading, hSpacing: 20, vSpacing: 10) {
+                    Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
                         GridRow {
                             Text("Name:")
                                 .bold()
@@ -356,7 +356,7 @@ public struct RepositoryExplorerView: View {
                         GridRow {
                             Text("Directory:")
                                 .bold()
-                            Text(project.directoryURL?.path ?? "Unknown")
+                            Text(project.directoryURL.path)
                         }
                         if let repo = project.githubRepo {
                             GridRow {
@@ -575,9 +575,9 @@ public struct RepositoryExplorerView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Environment Variables")
                             .font(.subheadline).bold()
-                        VariableRow(name: "BUILD_CONFIGURATION", value: "Release")
-                        VariableRow(name: "FASTLANE_SCHEME", value: "SwiftCode")
-                        VariableRow(name: "SIMULATOR_DEVICE", value: "iPhone 16 Pro")
+                        RepoVariableRow(name: "BUILD_CONFIGURATION", value: "Release")
+                        RepoVariableRow(name: "FASTLANE_SCHEME", value: "SwiftCode")
+                        RepoVariableRow(name: "SIMULATOR_DEVICE", value: "iPhone 16 Pro")
                     }
                 }
                 .padding(20)
@@ -591,7 +591,7 @@ public struct RepositoryExplorerView: View {
                 Text("Top Project Contributors")
                     .font(.headline)
 
-                Grid(alignment: .leading, hSpacing: 20, vSpacing: 16) {
+                Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 16) {
                     GridRow {
                         ContributorCard(name: "Jules", commits: 242, additions: "42,100", deletions: "12,400", role: "Lead Engineer")
                         ContributorCard(name: "DevOps Bot", commits: 154, additions: "5,400", deletions: "2,100", role: "CI Integrator")
@@ -628,9 +628,9 @@ public struct RepositoryExplorerView: View {
                         .font(.subheadline).bold()
 
                     HStack(spacing: 20) {
-                        MetricCard(title: "Commit frequency", value: "4.8 commits/day", subtitle: "+12% from last month", color: .green)
-                        MetricCard(title: "PR cycle time", value: "1.4 hours", subtitle: "Fastest 5% of similar repos", color: .purple)
-                        MetricCard(title: "Issue resolution", value: "92% complete", subtitle: "Avg 4.2 hours resolution", color: .blue)
+                        RepoMetricCard(title: "Commit frequency", value: "4.8 commits/day", subtitle: "+12% from last month", color: .green)
+                        RepoMetricCard(title: "PR cycle time", value: "1.4 hours", subtitle: "Fastest 5% of similar repos", color: .purple)
+                        RepoMetricCard(title: "Issue resolution", value: "92% complete", subtitle: "Avg 4.2 hours resolution", color: .blue)
                     }
 
                     Text("Code Distribution")
@@ -655,7 +655,7 @@ public struct RepositoryExplorerView: View {
     // MARK: - File browser logic
 
     private func loadFiles() {
-        guard let url = project.directoryURL else { return }
+        let url = project.directoryURL
         do {
             let keys: [URLResourceKey] = [.isRegularFileKey]
             let enumerator = FileManager.default.enumerator(
@@ -840,7 +840,7 @@ struct SecretRow: View {
     }
 }
 
-struct VariableRow: View {
+struct RepoVariableRow: View {
     let name: String
     let value: String
 
@@ -888,7 +888,7 @@ struct ContributorCard: View {
                 Spacer()
             }
             Divider()
-            Grid(alignment: .leading, hSpacing: 10, vSpacing: 4) {
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 4) {
                 GridRow {
                     Text("Commits:")
                         .bold()
@@ -915,7 +915,7 @@ struct ContributorCard: View {
     }
 }
 
-struct MetricCard: View {
+struct RepoMetricCard: View {
     let title: String
     let value: String
     let subtitle: String

@@ -1191,14 +1191,14 @@ struct WorkflowJob: Identifiable, Decodable {
     let startedAt: Date?
     let completedAt: Date?
     let name: String
-    let steps: [WorkflowStep]?
+    let steps: [GitHubWorkflowStep]?
 
     var isRunning: Bool {
         status == "in_progress" || status == "queued"
     }
 }
 
-struct WorkflowStep: Decodable {
+struct GitHubWorkflowStep: Decodable {
     let name: String
     let status: String
     let conclusion: String?
