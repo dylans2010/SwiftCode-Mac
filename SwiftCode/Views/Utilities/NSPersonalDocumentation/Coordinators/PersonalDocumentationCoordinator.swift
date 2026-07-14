@@ -39,6 +39,10 @@ public final class PersonalDocumentationCoordinator {
     // Navigation state
     public var selectedModuleKind: ModuleKind? = .dashboard
     public var selectedDocumentID: UUID?
+    public var selectedWikiPageID: UUID?
+    public var selectedWhiteboardID: UUID?
+    public var selectedSnippetID: UUID?
+    public var selectedSnapshotID: UUID?
     public var searchActive: Bool = false
     public var navigationPath = NavigationPath()
 

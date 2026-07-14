@@ -1,79 +1,58 @@
 import SwiftUI
 
-struct WikiPageView: View {
+// MARK: - WIKI PAGE LIST VIEW (PANEL 2)
+struct WikiPageListView: View {
     let coordinator: PersonalDocumentationCoordinator
 
     @State private var wikiPages: [WikiPage] = []
-    @State private var selectedPage: WikiPage? = nil
     @State private var showingAddPageSheet = false
     @State private var newPageTitle = ""
-    @State private var contentEditorText = ""
 
     var body: some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("Wiki Navigation")
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Wiki Pages")
                         .font(.headline)
-                    Spacer()
-                    Button {
-                        showingAddPageSheet = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .buttonStyle(.plain)
+                    Text("\(wikiPages.count) pages")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .padding()
-
-                Divider()
-
-                List(wikiPages, id: \.id, selection: $selectedPage) { page in
-                    NavigationLink(value: page) {
-                        Label(page.title, systemImage: "book.pages")
-                    }
+                Spacer()
+                Button {
+                    showingAddPageSheet = true
+                } label: {
+                    Image(systemName: "plus")
                 }
-                .listStyle(.sidebar)
+                .help("New Wiki Page")
             }
-            .frame(width: 200)
+            .padding()
             .background(Color(NSColor.windowBackgroundColor))
 
             Divider()
 
-            VStack(spacing: 0) {
-                if let page = selectedPage {
+            if wikiPages.isEmpty {
+                ContentUnavailableView("No Pages", systemImage: "book.pages")
+                    .frame(maxHeight: .infinity)
+            } else {
+                List(wikiPages, id: \.id, selection: Binding(
+                    get: { coordinator.selectedWikiPageID },
+                    set: { coordinator.selectedWikiPageID = $0 }
+                )) { page in
                     HStack {
+                        Image(systemName: "doc.text.fill")
+                            .foregroundStyle(.purple)
                         Text(page.title)
-                            .font(.title2.bold())
-                        Spacer()
-                        Button {
-                            page.markdownSource = contentEditorText
-                            try? coordinator.wiki.createOrUpdateWikiPage(title: page.title, content: contentEditorText)
-                        } label: {
-                            Text("Save Wiki Page")
-                        }
+                            .font(.system(size: 13, weight: .semibold))
                     }
-                    .padding()
-                    .background(Color(NSColor.windowBackgroundColor))
-
-                    Divider()
-
-                    TextEditor(text: $contentEditorText)
-                        .font(.system(.body, design: .monospaced))
-                        .padding()
-                } else {
-                    ContentUnavailableView {
-                        Label("No page selected", systemImage: "globe")
-                    } description: {
-                        Text("Select a page from the Wiki navigation sidebar or add a new overview page.")
-                    }
+                    .tag(page.id)
+                    .padding(.vertical, 4)
                 }
+                .listStyle(.sidebar)
             }
         }
         .onAppear {
             loadPages()
-        }
-        .onChange(of: selectedPage) { _, page in
-            contentEditorText = page?.markdownSource ?? ""
         }
         .sheet(isPresented: $showingAddPageSheet) {
             VStack(spacing: 16) {
@@ -89,7 +68,7 @@ struct WikiPageView: View {
                         if !newPageTitle.isEmpty {
                             let newPage = try? coordinator.wiki.createOrUpdateWikiPage(title: newPageTitle, content: "# \(newPageTitle)\n\nStart writing wiki content here.")
                             loadPages()
-                            selectedPage = newPage
+                            coordinator.selectedWikiPageID = newPage?.id
                             showingAddPageSheet = false
                             newPageTitle = ""
                         }
@@ -104,8 +83,115 @@ struct WikiPageView: View {
 
     private func loadPages() {
         wikiPages = (try? coordinator.wiki.fetchWikiPages()) ?? []
-        if selectedPage == nil {
-            selectedPage = wikiPages.first
+        if coordinator.selectedWikiPageID == nil {
+            coordinator.selectedWikiPageID = wikiPages.first?.id
+        }
+    }
+}
+
+// MARK: - WIKI PAGE DETAIL VIEW (PANEL 3)
+struct WikiPageDetailView: View {
+    let coordinator: PersonalDocumentationCoordinator
+    @State private var page: WikiPage? = nil
+    @State private var contentEditorText = ""
+    @State private var isEditing = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if let page = page {
+                HStack {
+                    Image(systemName: "globe.americas.fill")
+                        .font(.title3)
+                        .foregroundStyle(.purple)
+                    Text(page.title)
+                        .font(.title2.bold())
+
+                    Spacer()
+
+                    Picker("Mode", selection: $isEditing) {
+                        Text("Read").tag(false)
+                        Text("Edit").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 150)
+
+                    if isEditing {
+                        Button {
+                            page.markdownSource = contentEditorText
+                            try? coordinator.wiki.createOrUpdateWikiPage(title: page.title, content: contentEditorText)
+                            isEditing = false
+                        } label: {
+                            Text("Save Page")
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+                .padding()
+                .background(Color(NSColor.windowBackgroundColor))
+
+                Divider()
+
+                if isEditing {
+                    TextEditor(text: $contentEditorText)
+                        .font(.system(.body, design: .monospaced))
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            if page.markdownSource.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text("This wiki page is empty. Click 'Edit' to start writing.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .italic()
+                            } else {
+                                MarkdownBlockListView(blocks: MarkdownRenderer.shared.parse(page.markdownSource))
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(24)
+                    }
+                }
+            } else {
+                ContentUnavailableView {
+                    Label("No page selected", systemImage: "globe")
+                } description: {
+                    Text("Select a page from the Wiki list or add a new overview page.")
+                }
+            }
+        }
+        .onAppear {
+            loadPage()
+        }
+        .onChange(of: coordinator.selectedWikiPageID) { _, _ in
+            loadPage()
+            isEditing = false
+        }
+    }
+
+    private func loadPage() {
+        if let id = coordinator.selectedWikiPageID,
+           let pages = try? coordinator.wiki.fetchWikiPages(),
+           let match = pages.first(where: { $0.id == id }) {
+            self.page = match
+            self.contentEditorText = match.markdownSource
+        } else {
+            self.page = nil
+            self.contentEditorText = ""
+        }
+    }
+}
+
+// Deprecated old container
+struct WikiPageView: View {
+    let coordinator: PersonalDocumentationCoordinator
+
+    var body: some View {
+        HSplitView {
+            WikiPageListView(coordinator: coordinator)
+                .frame(width: 250)
+            WikiPageDetailView(coordinator: coordinator)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }

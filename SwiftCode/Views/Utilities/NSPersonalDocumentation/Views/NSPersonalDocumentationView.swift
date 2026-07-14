@@ -1,10 +1,13 @@
 // ====================================================================
-// NS PERSONAL DOCUMENTATION - MAIN ENTRY POINT
+// NS PERSONAL DOCUMENTATION - MAIN ENTRY POINT (REFACTORED WORKSPACE)
 // ====================================================================
 // This view acts as the MAIN container view of the personal documentation feature,
 // coordinating and accessing all sub-views/modules (Dashboard, Wiki,
 // Knowledge Graph, Timeline, Whiteboards, Snippets, Snapshots, etc.) and
 // is integrated to be accessible from WorkspaceView.
+//
+// Refactored to utilize a native macOS-like HSplitView for fluid multi-column resizing,
+// a clean, modern collapsible sidebar, and full available workspace width.
 // ====================================================================
 
 import SwiftUI
@@ -27,150 +30,23 @@ public struct NSPersonalDocumentationView: View {
                 }
             } else if let coord = coordinator {
                 @Bindable var coord = coord
-                NavigationSplitView {
-                    List(selection: $coord.selectedModuleKind) {
-                        Section("Dashboard") {
-                            NavigationLink(value: ModuleKind.dashboard) {
-                                Label("Dashboard", systemImage: "square.grid.2x2.fill")
-                            }
-                        }
+                HSplitView {
+                    // Column 1: Native Sidebar
+                    sidebarView(coord: coord)
+                        .frame(minWidth: 200, idealWidth: 240, maxWidth: 320)
+                        .background(Color(NSColor.windowBackgroundColor))
 
-                        Section("Search & Command") {
-                            NavigationLink(value: ModuleKind.smartCollections) {
-                                Label("Global Search", systemImage: "magnifyingglass")
-                            }
-
-                            Button {
-                                showingCommandPalette = true
-                            } label: {
-                                Label("Quick Open Palette", systemImage: "terminal")
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.vertical, 4)
-                        }
-
-                        Section("Ecosystem & Productivity Tools") {
-                            NavigationLink(value: ModuleKind.knowledgeGraph) {
-                                Label("Knowledge Graph", systemImage: ModuleKind.knowledgeGraph.icon)
-                                    .foregroundStyle(ModuleKind.knowledgeGraph.accentColor)
-                            }
-                            NavigationLink(value: ModuleKind.timeline) {
-                                Label("Project Timeline", systemImage: ModuleKind.timeline.icon)
-                                    .foregroundStyle(ModuleKind.timeline.accentColor)
-                            }
-                            NavigationLink(value: ModuleKind.analytics) {
-                                Label("Project Analytics", systemImage: ModuleKind.analytics.icon)
-                                    .foregroundStyle(ModuleKind.analytics.accentColor)
-                            }
-                            NavigationLink(value: ModuleKind.intelligence) {
-                                Label("Project Intelligence", systemImage: ModuleKind.intelligence.icon)
-                                    .foregroundStyle(ModuleKind.intelligence.accentColor)
-                            }
-                            NavigationLink(value: ModuleKind.whiteboards) {
-                                Label("Advanced Whiteboards", systemImage: ModuleKind.whiteboards.icon)
-                                    .foregroundStyle(ModuleKind.whiteboards.accentColor)
-                            }
-                            NavigationLink(value: ModuleKind.snippets) {
-                                Label("Snippet Workspace", systemImage: ModuleKind.snippets.icon)
-                                    .foregroundStyle(ModuleKind.snippets.accentColor)
-                            }
-                            NavigationLink(value: ModuleKind.snapshots) {
-                                Label("Project Snapshots", systemImage: ModuleKind.snapshots.icon)
-                                    .foregroundStyle(ModuleKind.snapshots.accentColor)
-                            }
-                        }
-
-                        Section("Freeform Documents") {
-                            ForEach(ModuleKind.allCases.filter { $0.archetype == .freeform }) { kind in
-                                NavigationLink(value: kind) {
-                                    Label(kind.rawValue, systemImage: kind.icon)
-                                        .foregroundStyle(kind.accentColor)
-                                }
-                            }
-                        }
-
-                        Section("Structured Records") {
-                            ForEach(ModuleKind.allCases.filter { $0.archetype == .structured }) { kind in
-                                NavigationLink(value: kind) {
-                                    Label(kind.rawValue, systemImage: kind.icon)
-                                        .foregroundStyle(kind.accentColor)
-                                }
-                            }
-                        }
-
-                        Section("Generated & Wiki") {
-                            ForEach(ModuleKind.allCases.filter {
-                                $0.archetype == .generated &&
-                                $0 != .dashboard &&
-                                $0 != .knowledgeGraph &&
-                                $0 != .timeline &&
-                                $0 != .analytics &&
-                                $0 != .intelligence &&
-                                $0 != .whiteboards &&
-                                $0 != .snippets &&
-                                $0 != .snapshots
-                            }) { kind in
-                                NavigationLink(value: kind) {
-                                    Label(kind.rawValue, systemImage: kind.icon)
-                                        .foregroundStyle(kind.accentColor)
-                                }
-                            }
-                        }
+                    // Column 2: Optional Middle List Browser
+                    if let kind = coord.selectedModuleKind, hasMiddleList(kind) {
+                        middleListView(for: kind, coord: coord)
+                            .frame(minWidth: 240, idealWidth: 280, maxWidth: 400)
+                            .background(Color(NSColor.windowBackgroundColor))
                     }
-                    .listStyle(.sidebar)
-                    .frame(minWidth: 230, idealWidth: 250)
-                    .navigationTitle("Personal Documentation")
-                } content: {
-                    if let kind = coord.selectedModuleKind {
-                        switch kind {
-                        case .dashboard, .projectWiki, .smartCollections, .knowledgeGraph, .timeline, .analytics, .intelligence, .whiteboards, .snippets, .snapshots:
-                            Text(kind.rawValue)
-                                .font(.headline)
-                                .padding()
-                        default:
-                            RecordListView(coordinator: coord, kind: kind, selectedDocumentID: $coord.selectedDocumentID)
-                                .frame(minWidth: 250, idealWidth: 280)
-                        }
-                    } else {
-                        ContentUnavailableView {
-                            Label("No Module Selected", systemImage: "sidebar.left")
-                        } description: {
-                            Text("Select a module to view its documents.")
-                        }
-                    }
-                } detail: {
-                    if let kind = coord.selectedModuleKind {
-                        switch kind {
-                        case .dashboard:
-                            DashboardView(coordinator: coord)
-                        case .projectWiki:
-                            WikiPageView(coordinator: coord)
-                        case .smartCollections:
-                            GlobalSearchView(coordinator: coord)
-                        case .knowledgeGraph:
-                            KnowledgeGraphView(coordinator: coord)
-                        case .timeline:
-                            ProjectTimelineView(coordinator: coord)
-                        case .analytics:
-                            AnalyticsView(coordinator: coord)
-                        case .intelligence:
-                            IntelligenceView(coordinator: coord)
-                        case .whiteboards:
-                            WhiteboardsListView(coordinator: coord)
-                        case .snippets:
-                            SnippetWorkspaceView(coordinator: coord)
-                        case .snapshots:
-                            SnapshotsView(coordinator: coord)
-                        default:
-                            RecordDetailView(coordinator: coord, documentID: coord.selectedDocumentID)
-                        }
-                    } else {
-                        ContentUnavailableView {
-                            Label("Select an Item", systemImage: "doc.text")
-                        } description: {
-                            Text("Choose a category and document to get started.")
-                        }
-                    }
+
+                    // Column 3: Main Workspace Panel
+                    mainWorkspaceView(for: coord.selectedModuleKind, coord: coord)
+                        .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(NSColor.controlBackgroundColor))
                 }
                 .sheet(isPresented: $showingCommandPalette) {
                     PersonalDocCommandPalette(coordinator: coord) {
@@ -203,6 +79,172 @@ public struct NSPersonalDocumentationView: View {
         } catch {
             self.coordinator = nil
             self.initializationError = "Failed to initialize SwiftData project store: \(error.localizedDescription)"
+        }
+    }
+
+    private func hasMiddleList(_ kind: ModuleKind) -> Bool {
+        switch kind {
+        case .dashboard, .smartCollections, .knowledgeGraph, .timeline, .analytics, .intelligence:
+            return false
+        default:
+            return true
+        }
+    }
+
+    @ViewBuilder
+    private func sidebarView(coord: PersonalDocumentationCoordinator) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header Search / Action Row
+            HStack {
+                Text("Documentation")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    showingCommandPalette = true
+                } label: {
+                    Image(systemName: "terminal")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .help("Command Palette (Quick Open)")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+
+            Divider()
+
+            List {
+                Section(header: Text("OVERVIEW").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)) {
+                    sidebarRow(title: "Dashboard", icon: "square.grid.2x2.fill", color: .blue, tag: .dashboard, coord: coord)
+                    sidebarRow(title: "Global Search", icon: "magnifyingglass", color: .teal, tag: .smartCollections, coord: coord)
+                }
+
+                Section(header: Text("PRODUCTIVITY ECOSYSTEM").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)) {
+                    sidebarRow(title: "Knowledge Graph", icon: ModuleKind.knowledgeGraph.icon, color: ModuleKind.knowledgeGraph.accentColor, tag: .knowledgeGraph, coord: coord)
+                    sidebarRow(title: "Project Timeline", icon: ModuleKind.timeline.icon, color: ModuleKind.timeline.accentColor, tag: .timeline, coord: coord)
+                    sidebarRow(title: "Project Analytics", icon: ModuleKind.analytics.icon, color: ModuleKind.analytics.accentColor, tag: .analytics, coord: coord)
+                    sidebarRow(title: "Project Intelligence", icon: ModuleKind.intelligence.icon, color: ModuleKind.intelligence.accentColor, tag: .intelligence, coord: coord)
+                    sidebarRow(title: "Advanced Whiteboards", icon: ModuleKind.whiteboards.icon, color: ModuleKind.whiteboards.accentColor, tag: .whiteboards, coord: coord)
+                    sidebarRow(title: "Snippet Workspace", icon: ModuleKind.snippets.icon, color: ModuleKind.snippets.accentColor, tag: .snippets, coord: coord)
+                    sidebarRow(title: "Project Snapshots", icon: ModuleKind.snapshots.icon, color: ModuleKind.snapshots.accentColor, tag: .snapshots, coord: coord)
+                }
+
+                Section(header: Text("LIBRARIES").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)) {
+                    DisclosureGroup("Freeform Documents") {
+                        ForEach(ModuleKind.allCases.filter { $0.archetype == .freeform }) { kind in
+                            sidebarRow(title: kind.rawValue, icon: kind.icon, color: kind.accentColor, tag: kind, coord: coord)
+                        }
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+
+                    DisclosureGroup("Structured Records") {
+                        ForEach(ModuleKind.allCases.filter { $0.archetype == .structured }) { kind in
+                            sidebarRow(title: kind.rawValue, icon: kind.icon, color: kind.accentColor, tag: kind, coord: coord)
+                        }
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+
+                    DisclosureGroup("Generated & Wiki") {
+                        sidebarRow(title: "Project Wiki", icon: "globe.americas.fill", color: .purple, tag: .projectWiki, coord: coord)
+                        ForEach(ModuleKind.allCases.filter {
+                            $0.archetype == .generated &&
+                            $0 != .dashboard &&
+                            $0 != .knowledgeGraph &&
+                            $0 != .timeline &&
+                            $0 != .analytics &&
+                            $0 != .intelligence &&
+                            $0 != .whiteboards &&
+                            $0 != .snippets &&
+                            $0 != .snapshots &&
+                            $0 != .projectWiki
+                        }) { kind in
+                            sidebarRow(title: kind.rawValue, icon: kind.icon, color: kind.accentColor, tag: kind, coord: coord)
+                        }
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                }
+            }
+            .listStyle(.sidebar)
+        }
+    }
+
+    @ViewBuilder
+    private func sidebarRow(title: String, icon: String, color: Color, tag: ModuleKind, coord: PersonalDocumentationCoordinator) -> some View {
+        Button {
+            coord.selectedModuleKind = tag
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(color)
+                    .frame(width: 16, alignment: .center)
+                Text(title)
+                    .font(.system(size: 13))
+                    .foregroundColor(coord.selectedModuleKind == tag ? .primary : .secondary)
+                    .lineLimit(1)
+            }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(coord.selectedModuleKind == tag ? Color.accentColor.opacity(0.15) : Color.clear)
+        )
+    }
+
+    @ViewBuilder
+    private func middleListView(for kind: ModuleKind, coord: PersonalDocumentationCoordinator) -> some View {
+        switch kind {
+        case .projectWiki:
+            WikiPageListView(coordinator: coord)
+        case .whiteboards:
+            WhiteboardListView(coordinator: coord)
+        case .snippets:
+            SnippetListView(coordinator: coord)
+        case .snapshots:
+            SnapshotListView(coordinator: coord)
+        default:
+            RecordListView(coordinator: coord, kind: kind, selectedDocumentID: $coord.selectedDocumentID)
+        }
+    }
+
+    @ViewBuilder
+    private func mainWorkspaceView(for kind: ModuleKind?, coord: PersonalDocumentationCoordinator) -> some View {
+        if let kind = kind {
+            switch kind {
+            case .dashboard:
+                DashboardView(coordinator: coord)
+            case .projectWiki:
+                WikiPageDetailView(coordinator: coord)
+            case .smartCollections:
+                GlobalSearchView(coordinator: coord)
+            case .knowledgeGraph:
+                KnowledgeGraphView(coordinator: coord)
+            case .timeline:
+                ProjectTimelineView(coordinator: coord)
+            case .analytics:
+                AnalyticsView(coordinator: coord)
+            case .intelligence:
+                IntelligenceView(coordinator: coord)
+            case .whiteboards:
+                WhiteboardCanvasDetailView(coordinator: coord)
+            case .snippets:
+                SnippetDetailView(coordinator: coord)
+            case .snapshots:
+                SnapshotDetailView(coordinator: coord)
+            default:
+                RecordDetailView(coordinator: coord, documentID: coord.selectedDocumentID)
+            }
+        } else {
+            ContentUnavailableView {
+                Label("Select an Item", systemImage: "doc.text")
+            } description: {
+                Text("Choose a category and document to get started.")
+            }
         }
     }
 }
