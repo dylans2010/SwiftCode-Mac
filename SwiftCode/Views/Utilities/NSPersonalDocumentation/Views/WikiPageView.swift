@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - WIKI PAGE LIST VIEW (PANEL 2)
 struct WikiPageListView: View {
     let coordinator: PersonalDocumentationCoordinator
+    var onSelect: (() -> Void)? = nil
 
     @State private var wikiPages: [WikiPage] = []
     @State private var showingAddPageSheet = false
@@ -53,6 +54,14 @@ struct WikiPageListView: View {
         }
         .onAppear {
             loadPages()
+            if onSelect == nil {
+                collapseMiddlePane()
+            }
+        }
+        .onChange(of: coordinator.selectedWikiPageID) { _, newValue in
+            if newValue != nil {
+                onSelect?()
+            }
         }
         .sheet(isPresented: $showingAddPageSheet) {
             VStack(spacing: 16) {
@@ -71,6 +80,7 @@ struct WikiPageListView: View {
                             coordinator.selectedWikiPageID = newPage?.id
                             showingAddPageSheet = false
                             newPageTitle = ""
+                            onSelect?()
                         }
                     }
                     .buttonStyle(.borderedProminent)
@@ -95,6 +105,7 @@ struct WikiPageDetailView: View {
     @State private var page: WikiPage? = nil
     @State private var contentEditorText = ""
     @State private var isEditing = false
+    @State private var showBrowserSheet = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -109,6 +120,14 @@ struct WikiPageDetailView: View {
                         .truncationMode(.tail)
 
                     Spacer()
+
+                    Button {
+                        showBrowserSheet = true
+                    } label: {
+                        Label("Browse", systemImage: "book")
+                    }
+                    .buttonStyle(.bordered)
+                    .help("Open Wiki Page Browser")
 
                     Picker("Mode", selection: $isEditing) {
                         Text("Read").tag(false)
@@ -156,8 +175,36 @@ struct WikiPageDetailView: View {
                 ContentUnavailableView {
                     Label("No page selected", systemImage: "globe")
                 } description: {
-                    Text("Select a page from the Wiki list or add a new overview page.")
+                    VStack(spacing: 12) {
+                        Text("Select a page from the Wiki list or add a new overview page.")
+                        Button("Open Wiki Browser") {
+                            showBrowserSheet = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
                 }
+            }
+        }
+        .sheet(isPresented: $showBrowserSheet) {
+            VStack(spacing: 0) {
+                HStack {
+                    Text("Browse Wiki Pages")
+                        .font(.headline)
+                    Spacer()
+                    Button("Close") {
+                        showBrowserSheet = false
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding()
+                Divider()
+                WikiPageListView(
+                    coordinator: coordinator,
+                    onSelect: {
+                        showBrowserSheet = false
+                    }
+                )
+                .frame(width: 500, height: 600)
             }
         }
         .onAppear {

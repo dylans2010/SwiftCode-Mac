@@ -736,6 +736,7 @@ public struct IntelligenceView: View {
 // MARK: - WHITEBOARD LIST VIEW (PANEL 2)
 struct WhiteboardListView: View {
     let coordinator: PersonalDocumentationCoordinator
+    var onSelect: (() -> Void)? = nil
 
     @State private var boards: [WhiteboardRecord] = []
     @State private var showingAddBoard = false
@@ -786,6 +787,14 @@ struct WhiteboardListView: View {
         }
         .onAppear {
             loadBoards()
+            if onSelect == nil {
+                collapseMiddlePane()
+            }
+        }
+        .onChange(of: coordinator.selectedWhiteboardID) { _, newValue in
+            if newValue != nil {
+                onSelect?()
+            }
         }
         .sheet(isPresented: $showingAddBoard) {
             VStack(spacing: 16) {
@@ -804,6 +813,7 @@ struct WhiteboardListView: View {
                             coordinator.selectedWhiteboardID = newBoard?.id
                             showingAddBoard = false
                             newBoardTitle = ""
+                            onSelect?()
                         }
                     }
                     .buttonStyle(.borderedProminent)
@@ -831,6 +841,7 @@ public struct WhiteboardCanvasDetailView: View {
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
     @State private var scale: CGFloat = 1.0
+    @State private var showBrowserSheet = false
 
     struct BoardElement: Codable, Identifiable {
         let id: UUID
@@ -852,6 +863,14 @@ public struct WhiteboardCanvasDetailView: View {
                         .font(.headline)
 
                     Spacer()
+
+                    Button {
+                        showBrowserSheet = true
+                    } label: {
+                        Label("Browse", systemImage: "folder")
+                    }
+                    .buttonStyle(.bordered)
+                    .help("Browse whiteboards")
 
                     Button { addElement(kind: "sticky", title: "New Sticky Note") } label: { Label("Sticky", systemImage: "note.text") }
                     Button { addElement(kind: "rect", title: "Rectangle Shape") } label: { Label("Rect", systemImage: "square") }
@@ -930,7 +949,39 @@ public struct WhiteboardCanvasDetailView: View {
                 .clipped()
                 .background(Color(NSColor.windowBackgroundColor))
             } else {
-                ContentUnavailableView("Select a Whiteboard", systemImage: "pencil.and.outline")
+                ContentUnavailableView {
+                    Label("Select a Whiteboard", systemImage: "pencil.and.outline")
+                } description: {
+                    VStack(spacing: 12) {
+                        Text("Browse or create whiteboards.")
+                        Button("Open Whiteboard Browser") {
+                            showBrowserSheet = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showBrowserSheet) {
+            VStack(spacing: 0) {
+                HStack {
+                    Text("Browse Whiteboards")
+                        .font(.headline)
+                    Spacer()
+                    Button("Close") {
+                        showBrowserSheet = false
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding()
+                Divider()
+                WhiteboardListView(
+                    coordinator: coordinator,
+                    onSelect: {
+                        showBrowserSheet = false
+                    }
+                )
+                .frame(width: 500, height: 600)
             }
         }
         .onAppear {
@@ -1031,6 +1082,7 @@ public struct WhiteboardCanvasDetailView: View {
 // MARK: - CODE SNIPPET LIST VIEW (PANEL 2)
 struct SnippetListView: View {
     let coordinator: PersonalDocumentationCoordinator
+    var onSelect: (() -> Void)? = nil
 
     @State private var snippets: [CodeSnippetRecord] = []
     @State private var showCreateDialog = false
@@ -1094,6 +1146,14 @@ struct SnippetListView: View {
         }
         .onAppear {
             loadSnippets()
+            if onSelect == nil {
+                collapseMiddlePane()
+            }
+        }
+        .onChange(of: coordinator.selectedSnippetID) { _, newValue in
+            if newValue != nil {
+                onSelect?()
+            }
         }
         .sheet(isPresented: $showCreateDialog) {
             VStack(spacing: 16) {
@@ -1122,6 +1182,7 @@ struct SnippetListView: View {
                             titleInput = ""
                             codeInput = ""
                             showCreateDialog = false
+                            onSelect?()
                         }
                     }
                     .buttonStyle(.borderedProminent)
@@ -1148,6 +1209,7 @@ struct SnippetDetailView: View {
 
     @State private var explanation = ""
     @State private var isExplaining = false
+    @State private var showBrowserSheet = false
 
     var body: some View {
         ScrollView {
@@ -1162,6 +1224,14 @@ struct SnippetDetailView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
+                        Button {
+                            showBrowserSheet = true
+                        } label: {
+                            Label("Browse", systemImage: "folder")
+                        }
+                        .buttonStyle(.bordered)
+                        .help("Browse snippets")
+
                         Button {
                             snip.isFavorite.toggle()
                             try? coordinator.snippets.updateSnippet(snip)
@@ -1213,11 +1283,43 @@ struct SnippetDetailView: View {
                         .cornerRadius(8)
                     }
                 } else {
-                    ContentUnavailableView("Select a Snippet", systemImage: "text.badge.plus")
+                    ContentUnavailableView {
+                        Label("Select a Snippet", systemImage: "text.badge.plus")
+                    } description: {
+                        VStack(spacing: 12) {
+                            Text("Browse or create code snippets.")
+                            Button("Open Snippet Browser") {
+                                showBrowserSheet = true
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(24)
+        }
+        .sheet(isPresented: $showBrowserSheet) {
+            VStack(spacing: 0) {
+                HStack {
+                    Text("Browse Snippets")
+                        .font(.headline)
+                    Spacer()
+                    Button("Close") {
+                        showBrowserSheet = false
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding()
+                Divider()
+                SnippetListView(
+                    coordinator: coordinator,
+                    onSelect: {
+                        showBrowserSheet = false
+                    }
+                )
+                .frame(width: 500, height: 600)
+            }
         }
         .onAppear {
             loadSnippet()
@@ -1255,6 +1357,7 @@ struct SnippetDetailView: View {
 // MARK: - PROJECT SNAPSHOT LIST VIEW (PANEL 2)
 struct SnapshotListView: View {
     let coordinator: PersonalDocumentationCoordinator
+    var onSelect: (() -> Void)? = nil
 
     @State private var snapshots: [ProjectSnapshotRecord] = []
     @State private var showCreateDialog = false
@@ -1306,6 +1409,14 @@ struct SnapshotListView: View {
         }
         .onAppear {
             loadSnapshots()
+            if onSelect == nil {
+                collapseMiddlePane()
+            }
+        }
+        .onChange(of: coordinator.selectedSnapshotID) { _, newValue in
+            if newValue != nil {
+                onSelect?()
+            }
         }
         .sheet(isPresented: $showCreateDialog) {
             VStack(spacing: 16) {
@@ -1357,6 +1468,7 @@ struct SnapshotListView: View {
             snapTitle = ""
             snapDesc = ""
             showCreateDialog = false
+            onSelect?()
         } catch {
             logger.error("Error creating snapshot: \(error.localizedDescription)")
         }
@@ -1369,37 +1481,88 @@ struct SnapshotDetailView: View {
     let coordinator: PersonalDocumentationCoordinator
     @State private var snapshot: ProjectSnapshotRecord? = nil
     @State private var statusMsg = ""
+    @State private var showBrowserSheet = false
 
     var body: some View {
         VStack(spacing: 0) {
             if let snap = snapshot {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text(snap.title)
-                        .font(.title.bold())
-                    Text("Captured \(snap.createdAt, style: .date) \(snap.createdAt, style: .time)")
-                        .foregroundStyle(.secondary)
-
-                    Text(snap.descriptionText)
-                        .font(.body)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(snap.title)
+                                .font(.title.bold())
+                            Text("Captured \(snap.createdAt, style: .date) \(snap.createdAt, style: .time)")
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button {
+                            showBrowserSheet = true
+                        } label: {
+                            Label("Browse", systemImage: "folder")
+                        }
+                        .buttonStyle(.bordered)
+                        .help("Browse snapshots")
+                    }
+                    .padding()
+                    .background(Color(NSColor.windowBackgroundColor))
 
                     Divider()
 
-                    Button("Restore Project to Snapshot") {
-                        restore(snap)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(snap.descriptionText)
+                            .font(.body)
 
-                    if !statusMsg.isEmpty {
-                        Text(statusMsg)
-                            .foregroundStyle(.green)
-                            .font(.headline)
+                        Divider()
+
+                        Button("Restore Project to Snapshot") {
+                            restore(snap)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+
+                        if !statusMsg.isEmpty {
+                            Text(statusMsg)
+                                .foregroundStyle(.green)
+                                .font(.headline)
+                        }
                     }
+                    .padding(24)
                 }
-                .padding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                ContentUnavailableView("Select a Snapshot", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                ContentUnavailableView {
+                    Label("Select a Snapshot", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                } description: {
+                    VStack(spacing: 12) {
+                        Text("Browse or create project snapshots.")
+                        Button("Open Snapshot Browser") {
+                            showBrowserSheet = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showBrowserSheet) {
+            VStack(spacing: 0) {
+                HStack {
+                    Text("Browse Snapshots")
+                        .font(.headline)
+                    Spacer()
+                    Button("Close") {
+                        showBrowserSheet = false
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding()
+                Divider()
+                SnapshotListView(
+                    coordinator: coordinator,
+                    onSelect: {
+                        showBrowserSheet = false
+                    }
+                )
+                .frame(width: 500, height: 600)
             }
         }
         .onAppear {

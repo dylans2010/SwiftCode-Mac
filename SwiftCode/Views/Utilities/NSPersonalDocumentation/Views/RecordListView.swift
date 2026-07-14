@@ -1,9 +1,26 @@
 import SwiftUI
+import AppKit
+
+@MainActor
+func collapseMiddlePane() {
+    for window in NSApp.windows {
+        if window.title == "Personal Documentation Workspace" {
+            if let splitVC = window.contentViewController as? NSSplitViewController {
+                if splitVC.splitViewItems.count > 1 {
+                    let middleItem = splitVC.splitViewItems[1]
+                    middleItem.isCollapsed = true
+                }
+            }
+            break
+        }
+    }
+}
 
 struct RecordListView: View {
     let coordinator: PersonalDocumentationCoordinator
     let kind: ModuleKind
     @Binding var selectedDocumentID: UUID?
+    var onSelect: (() -> Void)? = nil
 
     @State private var documents: [Document] = []
 
@@ -146,6 +163,14 @@ struct RecordListView: View {
             } else {
                 categoryFilter = "All"
             }
+            if onSelect == nil {
+                collapseMiddlePane()
+            }
+        }
+        .onChange(of: selectedDocumentID) { _, newValue in
+            if newValue != nil {
+                onSelect?()
+            }
         }
         .onChange(of: kind) { _, _ in
             loadDocuments()
@@ -181,6 +206,7 @@ struct RecordListView: View {
                             selectedDocumentID = newDoc?.id
                             showingAddAlert = false
                             newDocTitle = ""
+                            onSelect?()
                         }
                     }
                     .buttonStyle(.borderedProminent)

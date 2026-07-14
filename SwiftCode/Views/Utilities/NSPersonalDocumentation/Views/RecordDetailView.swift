@@ -12,6 +12,7 @@ struct RecordDetailView: View {
     @State private var viewMode: ViewMode = .read
     @State private var isRenaming = false
     @State private var editTitleText = ""
+    @State private var showBrowserSheet = false
 
     // Relationship formulation states
     @State private var showAddLink = false
@@ -97,6 +98,14 @@ struct RecordDetailView: View {
 
                         // Quick Action Buttons
                         HStack(spacing: 12) {
+                            Button {
+                                showBrowserSheet = true
+                            } label: {
+                                Label("Browse", systemImage: "folder")
+                            }
+                            .buttonStyle(.bordered)
+                            .help("Open Document Browser")
+
                             Button {
                                 duplicateDocument()
                             } label: {
@@ -241,7 +250,13 @@ struct RecordDetailView: View {
                 ContentUnavailableView {
                     Label("No Item Selected", systemImage: "doc.text")
                 } description: {
-                    Text("Select a document or record from the list to view and edit details.")
+                    VStack(spacing: 12) {
+                        Text("Select a document or record from the list, or open the browser to choose or create one.")
+                        Button("Open Document Browser") {
+                            showBrowserSheet = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
                 }
             }
         }
@@ -269,6 +284,33 @@ struct RecordDetailView: View {
         .onChange(of: documentID) { _, _ in
             reloadData()
             isRenaming = false
+        }
+        .sheet(isPresented: $showBrowserSheet) {
+            VStack(spacing: 0) {
+                HStack {
+                    Text("Browse Documents")
+                        .font(.headline)
+                    Spacer()
+                    Button("Close") {
+                        showBrowserSheet = false
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding()
+                Divider()
+                RecordListView(
+                    coordinator: coordinator,
+                    kind: document?.moduleKind ?? coordinator.selectedModuleKind ?? .personalDocumentation,
+                    selectedDocumentID: Binding(
+                        get: { coordinator.selectedDocumentID },
+                        set: { coordinator.selectedDocumentID = $0 }
+                    ),
+                    onSelect: {
+                        showBrowserSheet = false
+                    }
+                )
+                .frame(width: 500, height: 600)
+            }
         }
         .sheet(isPresented: $showAddLink) {
             VStack(spacing: 16) {
