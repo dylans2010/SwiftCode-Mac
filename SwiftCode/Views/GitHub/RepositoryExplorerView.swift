@@ -395,7 +395,7 @@ public struct RepositoryExplorerView: View {
                             .foregroundStyle(.secondary)
                     } else {
                         VStack(alignment: .leading, spacing: 12) {
-                            ForEach(gitViewModel.history.prefix(5), id: \.hash) { commit in
+                            ForEach(Array(gitViewModel.history.prefix(5))) { commit in
                                 HStack {
                                     Image(systemName: "clock")
                                         .foregroundStyle(.secondary)
@@ -408,7 +408,7 @@ public struct RepositoryExplorerView: View {
                                             .foregroundStyle(.secondary)
                                     }
                                     Spacer()
-                                    Text(String(commit.hash.prefix(7)))
+                                    Text(String(commit.sha.prefix(7)))
                                         .font(.system(.body, design: .monospaced))
                                         .padding(.horizontal, 6)
                                         .padding(.vertical, 2)
