@@ -72,7 +72,7 @@ public struct RecordListView: View {
         }
     }
 
-    public struct UnifiedBrowserItem: Identifiable, Sendable {
+    public struct UnifiedBrowserItem: Identifiable {
         public let id: UUID
         public let title: String
         public let subtitle: String
