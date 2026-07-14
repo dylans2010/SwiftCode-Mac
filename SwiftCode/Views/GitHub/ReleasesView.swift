@@ -108,11 +108,14 @@ struct ReleasesView: View {
 
     private var disconnectedPlaceholder: some View {
         GitHubEmptyStateView(
-            title: "No Repository Connected",
-            description: "Connect a remote GitHub repository to this project to view and manage Releases.",
+            title: "No Repository Associated",
+            description: "A GitHub repository must first be associated with this project to view and manage Releases.",
             systemImage: "shippingbox",
-            accentColor: .orange
-        )
+            accentColor: .orange,
+            actionTitle: "Configure Repository Association"
+        ) {
+            RepositoryContext.shared.showingSetRepoSheet = true
+        }
     }
 
     private func fetchReleases() {

@@ -29,6 +29,7 @@ final class RepositoryContext {
     var syncEventsCount: Int = 0
     var cachedMetadata: GitHubRepoDetail?
     var isLoadingMetadata = false
+    var showingSetRepoSheet = false
 
     var activeProject: Project? {
         ProjectSessionStore.shared.activeProject
@@ -208,6 +209,7 @@ struct SourceControlView: View {
     }
 
     var body: some View {
+        @Bindable var context = RepositoryContext.shared
         VStack(spacing: 0) {
             // Unified Top Toolbar (Replacer for sidebars)
             HStack(spacing: 16) {
@@ -290,6 +292,25 @@ struct SourceControlView: View {
                     onDismiss: { showRepoDetails = false }
                 )
                 .frame(width: 550, height: 500)
+            }
+        }
+        .sheet(isPresented: $context.showingSetRepoSheet) {
+            VStack(spacing: 0) {
+                HStack {
+                    Text("Repository Association Manager")
+                        .font(.headline)
+                    Spacer()
+                    Button("Done") {
+                        context.showingSetRepoSheet = false
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding()
+
+                Divider()
+
+                SetRepoInProject()
+                    .frame(width: 580, height: 520)
             }
         }
         .alert("Success", isPresented: $showSuccess, presenting: successMessage) { _ in

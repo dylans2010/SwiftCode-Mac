@@ -33,41 +33,45 @@ struct AppDetailsInfo: View {
             List {
                 // Section 1: Dashboard Status Header
                 Section {
-                    HStack(spacing: 16) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.orange.opacity(0.12))
-                                .frame(width: 44, height: 44)
-                            Image(systemName: "square.grid.3x3.fill")
-                                .font(.title3)
-                                .foregroundColor(.orange)
-                        }
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.orange.opacity(0.12))
+                                    .frame(width: 48, height: 44)
+                                Image(systemName: "square.grid.3x3.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.orange)
+                            }
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(appName.isEmpty ? "Developer Project Dashboard" : appName)
-                                .font(.headline)
-                            Text("Bundle Target Identifier: \(bundleIdentifier)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(appName.isEmpty ? "Developer Project Dashboard" : appName)
+                                    .font(.title3.bold())
+                                    .foregroundStyle(.primary)
+                                Text("Bundle Target Identifier: \(bundleIdentifier)")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
 
-                        Spacer()
+                            Spacer()
+                        }
+                        .padding(.vertical, 4)
+
+                        HStack(spacing: 12) {
+                            indicatorMiniBox(title: "Target SDK", value: "iOS \(minDeploymentTarget)")
+                            indicatorMiniBox(title: "Build Config", value: activeBuildConfiguration)
+                            if let activeProj = sessionStore.activeProject {
+                                indicatorMiniBox(title: "Project Files", value: "\(activeProj.fileCount)")
+                            }
+                        }
                     }
-                    .padding(.vertical, 4)
-
-                    HStack(spacing: 12) {
-                        indicatorMiniBox(title: "Target SDK", value: "iOS \(minDeploymentTarget)")
-                        indicatorMiniBox(title: "Build Configuration", value: activeBuildConfiguration)
-                        if let activeProj = sessionStore.activeProject {
-                            indicatorMiniBox(title: "Project Files", value: "\(activeProj.fileCount)")
-                        }
-                    }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
                 }
 
                 // Section 2: App Specifications
-                Section(header: Text("App Specifications").font(.system(size: 10, weight: .bold)).foregroundStyle(.blue)) {
-                    VStack(alignment: .leading, spacing: 10) {
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
                         labeledField("App Display Name", text: $appName)
 
                         VStack(alignment: .leading, spacing: 4) {
@@ -89,28 +93,29 @@ struct AppDetailsInfo: View {
                         }
                     }
                     .padding(.vertical, 6)
+                } header: {
+                    Text("App Specifications")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.blue)
                 }
 
                 // Section 3: Platform Targets
-                Section(header: Text("Platform Targets").font(.system(size: 10, weight: .bold)).foregroundStyle(.orange)) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Supported Devices").font(.caption).foregroundStyle(.secondary)
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Supported Devices").font(.subheadline.bold()).foregroundStyle(.secondary)
                             Picker("Devices", selection: $supportedDevices) {
                                 Text("iPhone").tag("iPhone")
-                                    .font(.caption)
                                 Text("iPad").tag("iPad")
-                                    .font(.caption)
                                 Text("iPhone + iPad").tag("iPhone + iPad")
-                                    .font(.caption)
                             }
                             .pickerStyle(.segmented)
-                            .controlSize(.small)
+                            .controlSize(.regular)
                         }
 
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Minimum OS").font(.caption).foregroundStyle(.secondary)
+                        HStack(spacing: 16) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Minimum OS").font(.subheadline.bold()).foregroundStyle(.secondary)
                                 Picker("Minimum OS Target", selection: $minDeploymentTarget) {
                                     Text("iOS 15.0").tag("15.0")
                                     Text("iOS 16.0").tag("16.0")
@@ -118,11 +123,12 @@ struct AppDetailsInfo: View {
                                     Text("macOS 14.0").tag("14.0")
                                 }
                                 .pickerStyle(.menu)
-                                .controlSize(.small)
+                                .controlSize(.regular)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Category").font(.caption).foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Category").font(.subheadline.bold()).foregroundStyle(.secondary)
                                 Picker("App Category", selection: $appCategory) {
                                     Text("Developer Tools").tag("Developer Tools")
                                     Text("Utilities").tag("Utilities")
@@ -130,124 +136,138 @@ struct AppDetailsInfo: View {
                                     Text("Education").tag("Education")
                                 }
                                 .pickerStyle(.menu)
-                                .controlSize(.small)
+                                .controlSize(.regular)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
+                } header: {
+                    Text("Platform Targets")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.orange)
                 }
 
                 // Section 4: Signing & Entitlements
-                Section(header: Text("Signing & Entitlements").font(.system(size: 10, weight: .bold)).foregroundStyle(.green)) {
-                    VStack(alignment: .leading, spacing: 10) {
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
                         Toggle("App Sandbox Protection", isOn: $sandboxEnabled)
                             .toggleStyle(.checkbox)
-                            .font(.caption)
+                            .font(.body)
 
                         Toggle("Outgoing Networking Privileges (Client)", isOn: $outgoingNetworkEnabled)
                             .toggleStyle(.checkbox)
-                            .font(.caption)
+                            .font(.body)
 
                         Divider()
 
-                        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
+                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
                             GridRow {
                                 Text("Platform Target:")
-                                    .font(.caption)
+                                    .font(.subheadline)
                                     .foregroundColor(.secondary)
-                                Text(targetPlatform).font(.caption.bold())
+                                Text(targetPlatform).font(.subheadline.bold())
                             }
                             GridRow {
                                 Text("Target Membership:")
-                                    .font(.caption)
+                                    .font(.subheadline)
                                     .foregroundColor(.secondary)
-                                Text("Primary Application Target").font(.caption.bold())
+                                Text("Primary Application Target").font(.subheadline.bold())
                             }
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
+                } header: {
+                    Text("Signing & Entitlements")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.green)
                 }
 
                 // Section 5: Local Storage Map
-                Section(header: Text("Local Storage Map").font(.system(size: 10, weight: .bold)).foregroundStyle(.purple)) {
-                    VStack(alignment: .leading, spacing: 8) {
+                Section {
+                    VStack(alignment: .leading, spacing: 10) {
                         if let activeProj = sessionStore.activeProject {
-                            HStack {
-                                Text("Project Directory:")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                            }
+                            Text("Project Directory:")
+                                .font(.subheadline.bold())
+                                .foregroundColor(.secondary)
 
                             Text(activeProj.directoryURL.path)
-                                .font(.system(.caption2, design: .monospaced))
+                                .font(.system(.subheadline, design: .monospaced))
                                 .foregroundColor(.blue)
                                 .textSelection(.enabled)
-                                .padding(6)
+                                .padding(8)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(Color.secondary.opacity(0.12))
                                 .cornerRadius(6)
 
-                            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
+                            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
                                 GridRow {
                                     Text("File Count:")
-                                        .font(.caption)
+                                        .font(.subheadline)
                                         .foregroundColor(.secondary)
                                     Text("\(activeProj.fileCount)")
-                                        .font(.caption.bold())
+                                        .font(.subheadline.bold())
                                 }
 
                                 GridRow {
                                     Text("Created Date:")
-                                        .font(.caption)
+                                        .font(.subheadline)
                                         .foregroundColor(.secondary)
                                     Text(activeProj.createdAt.formatted(date: .abbreviated, time: .omitted))
-                                        .font(.caption.bold())
+                                        .font(.subheadline.bold())
                                 }
                             }
                         } else {
                             Text("No active project loaded in the current workspace.")
-                                .font(.caption)
+                                .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
+                } header: {
+                    Text("Local Storage Map")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.purple)
                 }
 
                 // Section 6: Privacy Descriptions
-                Section(header: Text("Privacy Descriptions").font(.system(size: 10, weight: .bold)).foregroundStyle(.red)) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("NSCameraUsageDescription").font(.system(.caption2, design: .monospaced)).foregroundStyle(.secondary)
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("NSCameraUsageDescription").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
                             TextField("Camera Privacy Usage Key", text: $cameraPrivacyDescription)
                                 .textFieldStyle(.roundedBorder)
-                                .font(.caption)
+                                .font(.body)
                         }
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("NSLocationWhenInUseUsageDescription").font(.system(.caption2, design: .monospaced)).foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("NSLocationWhenInUseUsageDescription").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
                             TextField("Location Privacy Usage Key", text: $locationPrivacyDescription)
                                 .textFieldStyle(.roundedBorder)
-                                .font(.caption)
+                                .font(.body)
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
+                } header: {
+                    Text("Privacy Descriptions")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.red)
                 }
 
                 // Section 7: Diagnostics & Actions
-                Section(header: Text("Diagnostics & Actions").font(.system(size: 10, weight: .bold)).foregroundStyle(.teal)) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 8) {
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 12) {
                             Button("Run Code Audit") {
                                 runDiagnosticAudit()
                             }
-                            .controlSize(.small)
+                            .controlSize(.regular)
                             .disabled(isRunningDiagnostic)
 
                             Button("Reset Defaults", role: .destructive) {
                                 revertToDefaults()
                             }
-                            .controlSize(.small)
+                            .controlSize(.regular)
                             .disabled(isRunningDiagnostic)
                         }
 
@@ -255,7 +275,7 @@ struct AppDetailsInfo: View {
                             HStack {
                                 ProgressView().controlSize(.small)
                                 Text("Auditing code directories...")
-                                    .font(.caption)
+                                    .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
                         }
@@ -263,16 +283,20 @@ struct AppDetailsInfo: View {
                         if !diagnosticsLog.isEmpty {
                             ScrollView {
                                 Text(diagnosticsLog)
-                                    .font(.system(.caption2, design: .monospaced))
-                                    .padding(6)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .padding(8)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .background(Color.black.opacity(0.15))
                                     .cornerRadius(6)
                             }
-                            .frame(height: 100)
+                            .frame(height: 120)
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
+                } header: {
+                    Text("Diagnostics & Actions")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.teal)
                 }
             }
             .listStyle(.sidebar)
@@ -295,16 +319,16 @@ struct AppDetailsInfo: View {
     // MARK: - Subviews
 
     private func indicatorMiniBox(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(title.uppercased())
-                .font(.system(size: 8, weight: .bold))
+                .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(.secondary)
             Text(value)
-                .font(.caption.bold())
+                .font(.subheadline.bold())
                 .foregroundStyle(.primary)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
     }
 
@@ -356,11 +380,11 @@ struct AppDetailsInfo: View {
     }
 
     private func labeledField(_ label: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.subheadline.bold()).foregroundStyle(.secondary)
             TextField(label, text: text)
                 .textFieldStyle(.roundedBorder)
-                .font(.caption)
+                .font(.body)
                 .autocorrectionDisabled()
         }
     }
