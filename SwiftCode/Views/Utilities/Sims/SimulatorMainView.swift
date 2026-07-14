@@ -2,19 +2,12 @@ import SwiftUI
 
 public struct SimulatorMainView: View {
     @State private var manager = SimulatorManager.shared
-    @State private var activeTab: Tab = .simulator
+    @State private var selection: SimulatorSidebarSelection? = .service(.previews)
+    @State private var showSidebar = true
     @State private var showingDiagnostics = false
     @Environment(\.dismiss) private var dismiss
 
     public init() {}
-
-    private enum Tab {
-        case simulator
-        case previewCanvas
-        case deviceManager
-        case runtimes
-        case dragDropDeploy
-    }
 
     public var body: some View {
         NavigationStack {
@@ -25,33 +18,58 @@ public struct SimulatorMainView: View {
 
                     Divider()
 
-                    // Main View Content Workspace
-                    mainWorkspaceView
+                    // Main View Content Workspace (Split Layout)
+                    HSplitView {
+                        if showSidebar {
+                            SimulatorSidebar(selection: $selection)
+                                .frame(minWidth: 220, idealWidth: 250, maxWidth: 320)
+                                .transition(.move(edge: .leading))
+                        }
+
+                        detailWorkspaceView
+                            .frame(minWidth: 500, maxWidth: .infinity, maxHeight: .infinity)
+                    }
                 }
             }
             .navigationTitle("Simulator & SwiftUI Previews Workspace")
             .sheet(isPresented: $showingDiagnostics) {
                 SimulatorDiagnosticsView()
             }
+            .onAppear {
+                if let devID = manager.selectedDeviceID {
+                    selection = .device(devID)
+                }
+            }
+            .onChange(of: manager.selectedDeviceID) { _, newID in
+                if let newID = newID {
+                    selection = .device(newID)
+                }
+            }
+            .onChange(of: selection) { _, newSelection in
+                if let newSelection = newSelection {
+                    switch newSelection {
+                    case .service:
+                        manager.selectedDeviceID = nil
+                    case .device(let udid):
+                        manager.selectedDeviceID = udid
+                    }
+                }
+            }
         }
     }
 
     private var headerToolbarView: some View {
         HStack(spacing: 16) {
-            Picker("Mode", selection: $activeTab) {
-                Label("Apple Simulator", systemImage: "iphone")
-                    .tag(Tab.simulator)
-                Label("SwiftUI Previews", systemImage: "sparkles")
-                    .tag(Tab.previewCanvas)
-                Label("Device Registry", systemImage: "macbook.and.iphone")
-                    .tag(Tab.deviceManager)
-                Label("SDK Runtimes", systemImage: "square.stack.3d.down.right")
-                    .tag(Tab.runtimes)
-                Label("Deploy App", systemImage: "square.and.arrow.down")
-                    .tag(Tab.dragDropDeploy)
+            // Sidebar Toggle
+            Button {
+                withAnimation {
+                    showSidebar.toggle()
+                }
+            } label: {
+                Label("Toggle Sidebar", systemImage: "sidebar.left")
             }
-            .pickerStyle(.segmented)
-            .frame(width: 700)
+            .buttonStyle(.bordered)
+            .help("Toggle the navigation sidebar")
 
             Spacer()
 
@@ -90,60 +108,60 @@ public struct SimulatorMainView: View {
     }
 
     @ViewBuilder
-    private var mainWorkspaceView: some View {
-        switch activeTab {
-        case .simulator:
-            HSplitView {
-                SimulatorSidebar()
-                    .simulatorWorkspaceEmbedded()
-                    .frame(minWidth: 240, idealWidth: 280, maxWidth: 350)
-
-                if let selected = manager.selectedDevice {
-                    SimulatorDetailView(device: selected)
+    private var detailWorkspaceView: some View {
+        if let sel = selection {
+            switch sel {
+            case .service(let item):
+                switch item {
+                case .previews:
+                    SimulatorPreviewView()
                         .simulatorWorkspaceEmbedded()
-                        .frame(minWidth: 400, idealWidth: 600, maxWidth: .infinity)
-                } else {
-                    ContentUnavailableView {
-                        Label("No Simulator Selected", systemImage: "iphone")
-                    } description: {
-                        Text("Select a simulator from the left sidebar to start booting, deploying, and tracing logs.")
+                case .deviceManager:
+                    ScrollView {
+                        VStack(spacing: 24) {
+                            DeviceManagementView()
+                            SimulatorSettingsView()
+                        }
+                        .padding(24)
+                    }
+                    .simulatorWorkspaceEmbedded()
+                case .runtimes:
+                    ScrollView {
+                        VStack(spacing: 24) {
+                            SimulatorRuntimeView()
+                            RuntimeManagementView()
+                        }
+                        .padding(24)
+                    }
+                    .simulatorWorkspaceEmbedded()
+                case .dragDropDeploy:
+                    ScrollView {
+                        VStack(spacing: 24) {
+                            ApplicationDeploymentView()
+                        }
+                        .padding(24)
                     }
                     .simulatorWorkspaceEmbedded()
                 }
-            }
-
-        case .previewCanvas:
-            SimulatorPreviewView()
-                .simulatorWorkspaceEmbedded()
-
-        case .deviceManager:
-            ScrollView {
-                VStack(spacing: 24) {
-                    DeviceManagementView()
-                    SimulatorSettingsView()
+            case .device(let udid):
+                if let device = manager.devices.first(where: { $0.udid == udid }) {
+                    SimulatorDetailView(device: device)
+                        .simulatorWorkspaceEmbedded()
+                } else {
+                    noSelectionPlaceholder
                 }
-                .padding(24)
             }
-            .simulatorWorkspaceEmbedded()
-
-        case .runtimes:
-            ScrollView {
-                VStack(spacing: 24) {
-                    SimulatorRuntimeView()
-                    RuntimeManagementView()
-                }
-                .padding(24)
-            }
-            .simulatorWorkspaceEmbedded()
-
-        case .dragDropDeploy:
-            ScrollView {
-                VStack(spacing: 24) {
-                    ApplicationDeploymentView()
-                }
-                .padding(24)
-            }
-            .simulatorWorkspaceEmbedded()
+        } else {
+            noSelectionPlaceholder
         }
+    }
+
+    private var noSelectionPlaceholder: some View {
+        ContentUnavailableView {
+            Label("No Simulator or Service Selected", systemImage: "iphone")
+        } description: {
+            Text("Select a service or an active/offline simulator from the left sidebar to start booting, deploying, and tracing logs.")
+        }
+        .simulatorWorkspaceEmbedded()
     }
 }

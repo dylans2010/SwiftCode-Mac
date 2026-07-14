@@ -101,57 +101,6 @@ final class RepositoryContext {
     }
 }
 
-// ====================================================================
-// NAVIGATION SELECTIONS
-// ====================================================================
-enum SourceControlSelection: String, CaseIterable, Identifiable {
-    case localWorkspace = "Local Workspace"
-    case changes = "Changes"
-    case branches = "Branches"
-    case commitHistory = "Commit History"
-    case pullRequests = "Pull Requests"
-    case github = "GitHub"
-    case actions = "Actions"
-    case activityFeed = "Activity Feed"
-    case discussions = "Discussions"
-    case githubAccount = "GitHub Account"
-    case githubCodeSearch = "GitHub Code Search"
-    case notifications = "Notifications"
-    case releases = "Releases"
-    case tags = "Tags"
-    case issues = "Issues"
-    case diffViewer = "Diff Viewer"
-    case cli = "CLI"
-    case repositorySettings = "Repository Settings"
-    case onboarding = "Onboarding"
-
-    var id: String { rawValue }
-
-    var icon: String {
-        switch self {
-        case .localWorkspace: return "laptopcomputer"
-        case .changes: return "doc.badge.plus"
-        case .branches: return "arrow.triangle.branch"
-        case .commitHistory: return "clock.arrow.circlepath"
-        case .pullRequests: return "arrow.triangle.pull"
-        case .github: return "square.grid.2x2.fill"
-        case .actions: return "play.circle.fill"
-        case .activityFeed: return "bolt.fill"
-        case .discussions: return "bubble.left.and.bubble.right.fill"
-        case .githubAccount: return "person.crop.circle.fill"
-        case .githubCodeSearch: return "magnifyingglass"
-        case .notifications: return "bell.fill"
-        case .releases: return "shippingbox.fill"
-        case .tags: return "tag.fill"
-        case .issues: return "exclamationmark.bubble.fill"
-        case .diffViewer: return "arrow.left.and.right.square"
-        case .cli: return "terminal.fill"
-        case .repositorySettings: return "gearshape.fill"
-        case .onboarding: return "person.badge.key.fill"
-        }
-    }
-}
-
 @MainActor
 struct SourceControlView: View {
     var gitViewModel: GitViewModel
@@ -159,9 +108,10 @@ struct SourceControlView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(\.dismiss) private var dismiss
 
-    @State private var selection: SourceControlSelection = .localWorkspace
+    @State private var selection: GitHubSidebarItem = .dashboard
     @State private var showSetup = false
     @State private var isPerformingGitAction = false
+    @State private var showInspector = true
     @State private var showRepoDetails = false
 
     @State private var successMessage: String?
@@ -200,44 +150,32 @@ struct SourceControlView: View {
         return true
     }
 
-    var availableSelections: [SourceControlSelection] {
-        if isSetupRequired {
-            return [.onboarding]
-        } else {
-            return SourceControlSelection.allCases.filter { $0 != .onboarding }
-        }
-    }
-
     var body: some View {
         @Bindable var context = RepositoryContext.shared
         VStack(spacing: 0) {
-            // Unified Top Toolbar (Replacer for sidebars)
+            // Unified macOS-Style Navigation Bar
             HStack(spacing: 16) {
-                // Logo & Section Title
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.triangle.branch")
                         .font(.title2)
                         .foregroundStyle(Color.accentColor)
-                    Text("Source Control")
+                    Text("Source Control Workspace")
                         .font(.headline)
                 }
 
                 Spacer()
 
-                // Primary Navigation Picker in the Top Toolbar
-                Picker("Navigation", selection: $selection) {
-                    ForEach(availableSelections) { item in
-                        Label(item.rawValue, systemImage: item.icon)
-                            .tag(item)
-                    }
-                }
-                .pickerStyle(.menu)
-                .frame(width: 250)
-
-                Spacer()
-
-                // Repository Details Toggle and general actions
                 HStack(spacing: 12) {
+                    // Toggle Sidebar
+                    Button {
+                        withAnimation {
+                            showInspector.toggle()
+                        }
+                    } label: {
+                        Label("Toggle Inspector", systemImage: "sidebar.right")
+                    }
+                    .help("Toggle right-hand repository inspector")
+
                     Button {
                         showRepoDetails = true
                     } label: {
@@ -256,16 +194,60 @@ struct SourceControlView: View {
 
             Divider()
 
-            // Main Content Area
-            VStack(spacing: 0) {
-                if isSetupRequired {
-                    setupRequiredPlaceholder
-                } else {
-                    detailPaneView(for: selection)
-                        .transition(.opacity.animation(.easeInOut(duration: 0.15)))
+            // Main Desktop Workspace Layout
+            if isSetupRequired {
+                setupRequiredPlaceholder
+            } else {
+                HSplitView {
+                    // Left Column: Navigation Sidebar
+                    GitHubSidebar(selection: $selection)
+                        .frame(minWidth: 200, idealWidth: 220, maxWidth: 300)
+
+                    // Center Column: Primary Workspace with Toolbar
+                    VStack(spacing: 0) {
+                        GitHubToolbar(
+                            currentSelection: selection,
+                            isProjectConnected: sessionStore.activeProject?.githubRepo?.isEmpty == false,
+                            isPerformingAction: isPerformingGitAction,
+                            onRefresh: {
+                                Task {
+                                    isPerformingGitAction = true
+                                    await gitViewModel.refreshStatus()
+                                    isPerformingGitAction = false
+                                }
+                            },
+                            onClone: {
+                                showSetup = true
+                            },
+                            onPull: {
+                                runGitPull()
+                            },
+                            onPush: {
+                                runGitPush()
+                            },
+                            onFetch: {
+                                runGitFetch()
+                            },
+                            onSync: {
+                                runGitSync()
+                            }
+                        )
+
+                        Divider()
+
+                        detailPaneView(for: selection)
+                            .transition(.opacity.animation(.easeInOut(duration: 0.15)))
+                    }
+                    .frame(minWidth: 500, maxWidth: .infinity, maxHeight: .infinity)
+
+                    // Right Column: Inspector (Collapsible)
+                    if showInspector {
+                        GitHubInspector(project: sessionStore.activeProject, gitViewModel: gitViewModel)
+                            .frame(minWidth: 220, idealWidth: 240, maxWidth: 320)
+                            .transition(.move(edge: .trailing))
+                    }
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(minWidth: 1000, minHeight: 650)
         .sheet(isPresented: $showSetup) {
@@ -330,32 +312,18 @@ struct SourceControlView: View {
     // MARK: - Detail Switcher
 
     @ViewBuilder
-    private func detailPaneView(for selection: SourceControlSelection) -> some View {
+    private func detailPaneView(for item: GitHubSidebarItem) -> some View {
         let project = sessionStore.activeProject ?? Project(name: "Untitled")
 
         Group {
-            switch selection {
-            case .localWorkspace:
-                RepositoryDashboardView(gitViewModel: gitViewModel, project: project) { item in
+            switch item {
+            case .dashboard:
+                RepositoryDashboardView(gitViewModel: gitViewModel, project: project) { section in
                     withAnimation {
-                        switch item {
-                        case .dashboard: self.selection = .localWorkspace
-                        case .repositories: self.selection = .changes
-                        case .organizations: self.selection = .github
-                        case .pullRequests: self.selection = .pullRequests
-                        case .issues: self.selection = .issues
-                        case .actions: self.selection = .actions
-                        case .branches: self.selection = .branches
-                        case .commits: self.selection = .commitHistory
-                        case .tags: self.selection = .tags
-                        case .releases: self.selection = .releases
-                        case .discussions: self.selection = .discussions
-                        case .notifications: self.selection = .notifications
-                        case .settings: self.selection = .repositorySettings
-                        }
+                        self.selection = section
                     }
                 }
-            case .changes:
+            case .repositories:
                 RepositoriesView(
                     gitViewModel: gitViewModel,
                     project: project,
@@ -373,7 +341,7 @@ struct SourceControlView: View {
                     showError: $showError,
                     errorMessage: $errorMessage
                 )
-            case .commitHistory:
+            case .commits:
                 CommitsView(gitViewModel: gitViewModel)
             case .pullRequests:
                 PullRequestsView(
@@ -383,7 +351,7 @@ struct SourceControlView: View {
                     showError: $showError,
                     errorMessage: $errorMessage
                 )
-            case .github:
+            case .organizations:
                 OrganizationsView()
             case .actions:
                 ActionsView(
@@ -393,8 +361,6 @@ struct SourceControlView: View {
                     showError: $showError,
                     errorMessage: $errorMessage
                 )
-            case .activityFeed:
-                ActivityFeedView(project: project)
             case .discussions:
                 DiscussionsView(project: project)
             case .githubAccount:
@@ -431,10 +397,8 @@ struct SourceControlView: View {
                 UnifiedDiffView(gitViewModel: gitViewModel)
             case .cli:
                 GitCLIView(project: project)
-            case .repositorySettings:
+            case .settings:
                 GitHubSettingsView(project: project)
-            case .onboarding:
-                SCSetupOnboard()
             }
         }
         .sourceControlEmbedded()
@@ -456,15 +420,111 @@ struct SourceControlView: View {
 
     private func checkSetup() {
         if isSetupRequired {
-            selection = .onboarding
             showSetup = true
         } else {
-            if selection == .onboarding {
-                selection = .localWorkspace
-            }
             Task {
                 await gitViewModel.refreshStatus()
             }
+        }
+    }
+
+    private func runGitPull() {
+        guard let proj = sessionStore.activeProject else { return }
+        isPerformingGitAction = true
+        Task {
+            do {
+                let gitBinary = URL(fileURLWithPath: settings.gitPath.isEmpty ? "/usr/bin/git" : settings.gitPath)
+                let result = try await ProcessRunnerTool.shared.run(
+                    executableURL: gitBinary,
+                    arguments: ["pull"],
+                    workingDirectory: proj.directoryURL
+                )
+                if result.exitCode == 0 {
+                    successMessage = "Git pull completed successfully."
+                    showSuccess = true
+                } else {
+                    errorMessage = "Pull failed:\n\(result.stderr)"
+                    showError = true
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+            await gitViewModel.refreshStatus()
+            isPerformingGitAction = false
+        }
+    }
+
+    private func runGitPush() {
+        guard let proj = sessionStore.activeProject else { return }
+        isPerformingGitAction = true
+        Task {
+            do {
+                let gitBinary = URL(fileURLWithPath: settings.gitPath.isEmpty ? "/usr/bin/git" : settings.gitPath)
+                let result = try await ProcessRunnerTool.shared.run(
+                    executableURL: gitBinary,
+                    arguments: ["push"],
+                    workingDirectory: proj.directoryURL
+                )
+                if result.exitCode == 0 {
+                    successMessage = "Git push completed successfully."
+                    showSuccess = true
+                } else {
+                    errorMessage = "Push failed:\n\(result.stderr)"
+                    showError = true
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+            await gitViewModel.refreshStatus()
+            isPerformingGitAction = false
+        }
+    }
+
+    private func runGitFetch() {
+        guard let proj = sessionStore.activeProject else { return }
+        isPerformingGitAction = true
+        Task {
+            do {
+                let gitBinary = URL(fileURLWithPath: settings.gitPath.isEmpty ? "/usr/bin/git" : settings.gitPath)
+                let result = try await ProcessRunnerTool.shared.run(
+                    executableURL: gitBinary,
+                    arguments: ["fetch"],
+                    workingDirectory: proj.directoryURL
+                )
+                if result.exitCode == 0 {
+                    successMessage = "Git fetch completed successfully."
+                    showSuccess = true
+                } else {
+                    errorMessage = "Fetch failed:\n\(result.stderr)"
+                    showError = true
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+            await gitViewModel.refreshStatus()
+            isPerformingGitAction = false
+        }
+    }
+
+    private func runGitSync() {
+        guard let proj = sessionStore.activeProject else { return }
+        isPerformingGitAction = true
+        Task {
+            do {
+                let gitBinary = URL(fileURLWithPath: settings.gitPath.isEmpty ? "/usr/bin/git" : settings.gitPath)
+                _ = try? await ProcessRunnerTool.shared.run(
+                    executableURL: gitBinary,
+                    arguments: ["fetch", "--all"],
+                    workingDirectory: proj.directoryURL
+                )
+                successMessage = "Sync and update status completed."
+                showSuccess = true
+            }
+            await gitViewModel.refreshStatus()
+            isPerformingGitAction = false
         }
     }
 }

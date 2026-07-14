@@ -220,37 +220,36 @@ struct NewSettingsView: View {
             .navigationTitle("Preferences")
         } detail: {
             VStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        // Header with Icon & Title
-                        HStack(spacing: 14) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(selectedItem.iconBgColor)
-                                    .frame(width: 38, height: 38)
-                                Image(systemName: selectedItem.icon)
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(.white)
-                            }
+                AdaptiveSettingsPage {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            // Header with Icon & Title
+                            HStack(spacing: 14) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(selectedItem.iconBgColor)
+                                        .frame(width: 38, height: 38)
+                                    Image(systemName: selectedItem.icon)
+                                        .font(.system(size: 20, weight: .bold))
+                                        .foregroundColor(.white)
+                                }
 
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(selectedItem.title)
-                                    .font(.title2.bold())
-                                Text(selectedItem.category)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(selectedItem.title)
+                                        .font(.title2.bold())
+                                    Text(selectedItem.category)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
+                            .padding(.top, 24)
+
+                            Divider()
+
+                            selectedItem.destination
                         }
-                        .padding(.horizontal, 24)
-                        .padding(.top, 24)
-
-                        Divider()
-                            .padding(.horizontal, 24)
-
-                        selectedItem.destination
-                            .padding(24)
+                        .padding(24)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .background(Color(NSColor.windowBackgroundColor))
@@ -262,7 +261,7 @@ struct NewSettingsView: View {
                 }
             }
         }
-        .frame(width: 1050, height: 750)
+        .frame(minWidth: 900, idealWidth: 1050, minHeight: 600, idealHeight: 750)
         .keyboardShortcut(.cancelAction) // support keyboard esc or cancel
     }
 }
