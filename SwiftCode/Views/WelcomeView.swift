@@ -1,6 +1,7 @@
 import SwiftUI
+import WelcomeView
 
-struct HomeView: View {
+struct WelcomeView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @EnvironmentObject private var folderManager: FolderManager
     @Environment(ThemeViewModel.self) private var themeVM
@@ -31,6 +32,10 @@ struct HomeView: View {
     @State private var errorMessage: String?
     @State private var showError = false
 
+    // WelcomeView Package Bindings
+    @State private var welcomeTitle = "Welcome to SwiftCode"
+    @State private var resetSelection = false
+
     enum ViewMode: String {
         case grid, list
     }
@@ -56,7 +61,7 @@ struct HomeView: View {
             }
         }
         .sheet(isPresented: $showingNewProject) {
-            NewProjectSheetView(viewModel: HomeViewModel())
+            NewProjectSheetView(viewModel: WelcomeViewModel())
         }
         .sheet(isPresented: $showingSettings) {
             NewSettingsView()
@@ -88,7 +93,7 @@ struct HomeView: View {
         VStack(spacing: 0) {
             List(selection: $selection) {
                 Section("Library") {
-                    Label("Recent Projects", systemImage: "clock").tag("Recent")
+                    Label("Welcome Screen", systemImage: "sparkles").tag("Recent")
                     Label("All Projects", systemImage: "folder").tag("All")
                     Label("Favorites", systemImage: "star.fill").tag("Favorites")
                 }
@@ -143,18 +148,71 @@ struct HomeView: View {
             .background(.ultraThinMaterial)
 
             VStack(spacing: 0) {
-                heroHeader
-
-                if filteredProjects.isEmpty && !isSearching {
-                    emptyStateView
+                if selection == "Recent" {
+                    packageWelcomeView
+                } else if selection == "Templates" {
+                    TemplatePickerView(viewModel: WelcomeViewModel())
+                        .padding(24)
                 } else {
-                    if viewModeRaw == "grid" {
-                        projectsGrid
+                    heroHeader
+
+                    if filteredProjects.isEmpty && !isSearching {
+                        emptyStateView
                     } else {
-                        projectsList
+                        if viewModeRaw == "grid" {
+                            projectsGrid
+                        } else {
+                            projectsList
+                        }
                     }
                 }
             }
+        }
+    }
+
+    private var packageWelcomeView: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Button(action: { showingSettings = true }) {
+                    Image(systemName: "gearshape")
+                        .font(.title2)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 20)
+                .padding(.trailing, 24)
+            }
+
+            WelcomeView.WelcomeView(
+                titleText: $welcomeTitle,
+                menu: .constant(
+                    WelcomeView.WelcomeMenu {
+                        WelcomeView.WelcomeMenuButton(title: "New Project", image: Image(systemName: "plus.circle.fill")) {
+                            showingNewProject = true
+                        }
+                        WelcomeView.WelcomeMenuButton(title: "Import Folder", image: Image(systemName: "folder.badge.plus")) {
+                            importFolder()
+                        }
+                        WelcomeView.WelcomeMenuButton(title: "Xcode Project", image: Image(systemName: "hammer.circle.fill")) {
+                            showingNewProject = true
+                        }
+                    }
+                ),
+                emptyMessage: "No Recent Projects",
+                recents: Binding(
+                    get: {
+                        sessionStore.projects.map { project in
+                            WelcomeView.RecentFileView(fileURL: project.directoryURL, action: { url in
+                                Task {
+                                    await sessionStore.openProject(project)
+                                }
+                            }, resetSelection: $resetSelection)
+                        }
+                    },
+                    set: { _ in }
+                )
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -608,6 +666,22 @@ struct HomeView: View {
         .frame(width: 300, height: 400)
     }
 
+    private func importFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        if panel.runModal() == .OK, let url = panel.url {
+            Task {
+                do {
+                    let project = try await sessionStore.importProject(from: url)
+                    await sessionStore.openProject(project)
+                } catch {
+                    LoggingTool.error("Failed to import folder: \(error)")
+                }
+            }
+        }
+    }
+
     private func exportProject(_ project: Project) {
         Task {
             do {
@@ -636,137 +710,5 @@ struct HomeView: View {
     private func showError(_ error: Error) {
         errorMessage = error.localizedDescription
         showError = true
-    }
-}
-
-// MARK: - Reusable Dashboard/Home Components
-
-struct HomeStatPill: View {
-    let icon: String
-    let title: String
-    let value: String
-    let tint: Color
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(tint)
-                .frame(width: 30, height: 30)
-                .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(value)
-                    .font(.headline)
-                Text(title)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-}
-
-struct QuickStartRow: View {
-    let icon: String
-    let title: String
-    let description: String
-
-    var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(.orange)
-                .frame(width: 32, height: 32)
-                .background(Color.orange.opacity(0.1))
-                .cornerRadius(8)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                Text(description)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding(.vertical, 8)
-    }
-}
-
-struct HomeProjectCardView: View {
-    let project: Project
-    let onSelect: () -> Void
-    let onDelete: () -> Void
-
-    @State private var isHovered = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "swift")
-                    .font(.title)
-                    .foregroundColor(.orange)
-                    .padding(10)
-                    .background(Color.orange.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                Spacer()
-
-                Button(role: .destructive, action: onDelete) {
-                    Image(systemName: "trash")
-                        .foregroundStyle(.red)
-                }
-                .buttonStyle(.plain)
-                .opacity(isHovered ? 1.0 : 0.0)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(project.name)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .foregroundStyle(.primary)
-
-                Text(project.description.isEmpty ? "No description" : project.description)
-                    .font(.caption)
-                    .lineLimit(2)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            HStack {
-                Label("\(project.fileCount) files", systemImage: "doc")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Text("Opened \(project.lastOpened, style: .relative) ago")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding()
-        .frame(minHeight: 140)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.secondary.opacity(0.1))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isHovered ? Color.orange.opacity(0.3) : Color.clear, lineWidth: 1.5)
-        )
-        .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            onSelect()
-        }
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isHovered = hovering
-            }
-        }
     }
 }
