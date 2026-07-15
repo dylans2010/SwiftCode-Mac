@@ -2,7 +2,7 @@ import SwiftUI
 
 @MainActor
 struct GitCloneSheetView: View {
-    @Bindable var viewModel: HomeViewModel
+    var viewModel: HomeViewModel
     @Environment(\.dismiss) var dismiss
     @State private var remoteURL = ""
     @State private var isCloning = false
