@@ -305,6 +305,7 @@
 		265E9A582B28B39C005F9A10 /* SectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A592B28B39C005F9A10 /* SectionView.swift */; };
 		265E9A5C2B28B39C005F9A10 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A5B2B28B39C005F9A10 /* ShareSheet.swift */; };
 		265E9A5E2B28B39C005F9A10 /* FolderCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A5D2B28B39C005F9A10 /* FolderCardView.swift */; };
+		265E9A5D2B28B39C005F9C12 /* HomeProjectCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A5D2B28B39C005F9C11 /* HomeProjectCardView.swift */; };
 		265E9A602B28B39C005F9A10 /* IntroductionTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265E9A612B28B39C005F9A10 /* IntroductionTemplate.swift */; };
 		26FE3853DBA24DFCA079A053 /* ParseJSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD0EFEEFF10842969DB5A893 /* ParseJSON.swift */; };
 		28B4687B9F17EF3D38C274C4 /* SimulatorDeviceInformationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FBE2FFDE65993F1F847B5DD /* SimulatorDeviceInformationView.swift */; };
@@ -1417,6 +1418,7 @@
 		265E9A592B28B39C005F9A10 /* SectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionView.swift; sourceTree = "<group>"; };
 		265E9A5B2B28B39C005F9A10 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
 		265E9A5D2B28B39C005F9A10 /* FolderCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderCardView.swift; sourceTree = "<group>"; };
+		265E9A5D2B28B39C005F9C11 /* HomeProjectCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeProjectCardView.swift; sourceTree = "<group>"; };
 		265E9A612B28B39C005F9A10 /* IntroductionTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroductionTemplate.swift; sourceTree = "<group>"; };
 		26A2214B1EA1974C9709B778 /* LogConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogConsoleView.swift; sourceTree = "<group>"; };
 		26FFEA3BEA79D669FD8D84E0 /* FoldersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoldersView.swift; sourceTree = "<group>"; };
@@ -4312,6 +4314,7 @@
 				9BE9D55B96AE4C0CF1531DE1 /* FolderCreateView.swift */,
 				26FFEA3BEA79D669FD8D84E0 /* FoldersView.swift */,
 				265E9A5D2B28B39C005F9A10 /* FolderCardView.swift */,
+				265E9A5D2B28B39C005F9C11 /* HomeProjectCardView.swift */,
 			);
 			path = Dashboard;
 			sourceTree = "<group>";
@@ -5649,6 +5652,7 @@
 				AB1234567890ABCDEF100002 /* WorkflowEditorView.swift in Sources */,
 				265E9A5C2B28B39C005F9A10 /* ShareSheet.swift in Sources */,
 				265E9A5E2B28B39C005F9A10 /* FolderCardView.swift in Sources */,
+				265E9A5D2B28B39C005F9C12 /* HomeProjectCardView.swift in Sources */,
 				B93035378D64633E8209D504 /* SimulatorManager.swift in Sources */,
 				F3F96F45CF5F9FC659ECD387 /* SimulatorDevice.swift in Sources */,
 				9FC98596CCAC2CF34542CDDF /* SimulatorRuntime.swift in Sources */,
