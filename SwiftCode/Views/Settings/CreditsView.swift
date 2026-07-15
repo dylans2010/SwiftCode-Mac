@@ -13,42 +13,50 @@ struct CreditsView: View {
 
     private let usernames = ["dylans2010", "aoyn1xw"]
 
-    private static var groupedBackground: Color {
-#if canImport(UIKit)
-        Color(UIColor.systemGroupedBackground)
-#elseif canImport(AppKit)
-        Color(nsColor: NSColor.windowBackgroundColor)
-#else
-        Color.primary.opacity(0.04)
-#endif
-    }
-
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    if isLoading && profiles.isEmpty {
-                        ProgressView("Loading profiles…")
-                            .padding(.top, 32)
-                    }
+        ScrollView {
+            VStack(spacing: 24) {
+                // Contributors Header Card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Contributors", systemImage: "person.2.fill")
+                                .font(.headline)
+                                .foregroundColor(.cyan)
+                            Spacer()
+                        }
 
-                    ForEach(profiles) { profile in
-                        GitHubProfileCard(profile: profile)
+                        Text("Meet the brilliant minds and open-source contributors powering the SwiftCode IDE platform.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                if isLoading && profiles.isEmpty {
+                    HStack {
+                        ProgressView()
+                            .padding(.trailing, 8)
+                        Text("Loading profiles…")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 32)
+                } else {
+                    VStack(spacing: 16) {
+                        ForEach(profiles) { profile in
+                            GitHubProfileCard(profile: profile)
+                        }
                     }
                 }
-                .padding()
             }
-            .background(Self.groupedBackground)
-            .navigationTitle("Credits")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .task {
-                if profiles.isEmpty {
-                    await loadProfiles()
-                }
+            .padding(24)
+        }
+        .navigationTitle("Credits")
+        .task {
+            if profiles.isEmpty {
+                await loadProfiles()
             }
         }
     }
@@ -70,61 +78,55 @@ struct CreditsView: View {
 private struct GitHubProfileCard: View {
     let profile: GitHubProfile
 
-    private static var secondaryGroupedBackground: Color {
-#if canImport(UIKit)
-        Color(UIColor.secondarySystemGroupedBackground)
-#elseif canImport(AppKit)
-        Color(nsColor: NSColor.controlBackgroundColor)
-#else
-        Color.secondary.opacity(0.08)
-#endif
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                AsyncImage(url: URL(string: profile.avatarURL)) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    Circle().fill(Color.secondary.opacity(0.15))
-                }
-                .frame(width: 56, height: 56)
-                .clipShape(Circle())
+        GroupBox {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 16) {
+                    AsyncImage(url: URL(string: profile.avatarURL)) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        Circle().fill(Color.secondary.opacity(0.15))
+                    }
+                    .frame(width: 56, height: 56)
+                    .clipShape(Circle())
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(profile.name ?? profile.login)
-                        .font(.headline)
-                    Text("@\(profile.login)")
-                        .font(.subheadline)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(profile.name ?? profile.login)
+                            .font(.headline)
+                        Text("@\(profile.login)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+
+                if let bio = profile.bio, !bio.isEmpty {
+                    Text(bio)
+                        .font(.body)
                         .foregroundStyle(.secondary)
+                        .lineSpacing(4)
                 }
-                Spacer()
-            }
 
-            if let bio = profile.bio, !bio.isEmpty {
-                Text(bio)
-                    .font(.subheadline)
-            }
+                Divider()
 
-            HStack(spacing: 16) {
-                Label("\(profile.followers)", systemImage: "person.2")
-                Label("\(profile.publicRepos)", systemImage: "folder")
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-            if let profileURL = URL(string: profile.htmlURL) {
-                Link(destination: profileURL) {
-                    Label("View GitHub Profile", systemImage: "arrow.up.right.square")
+                HStack(spacing: 24) {
+                    Label("\(profile.followers) followers", systemImage: "person.2")
+                    Label("\(profile.publicRepos) public repos", systemImage: "folder")
                 }
-                .font(.subheadline.weight(.semibold))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                if let profileURL = URL(string: profile.htmlURL) {
+                    Link(destination: profileURL) {
+                        Label("View GitHub Profile", systemImage: "arrow.up.right.square")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .padding(.top, 4)
+                }
             }
+            .padding()
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Self.secondaryGroupedBackground)
-        )
+        .groupBoxStyle(ModernGroupBoxStyle())
     }
 }
 

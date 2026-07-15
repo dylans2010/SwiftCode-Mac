@@ -380,6 +380,11 @@ struct WorkspaceView: View {
                     NSPersonalDocumentationView()
                         .frame(minWidth: 800, minHeight: 600)
 
+                case .settings:
+                    SettingsView()
+                        .environmentObject(AppSettings.shared)
+                        .frame(width: 500, height: 400)
+
                 default:
                     ContentUnavailableView {
                         Label("Feature Detail", systemImage: "hammer")

@@ -8,95 +8,125 @@ struct PluginManagerView: View {
     @State private var showCreateView = false
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if pluginManager.isLoading {
-                    ProgressView("Scanning Plugins…")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if pluginManager.plugins.isEmpty {
-                    emptyState
-                } else {
-                    pluginList
-                }
-            }
-            .navigationTitle("Plugin Manager")
-            .toolbar {
-                ToolbarItem() {
-                    HStack {
-                        Button {
-                            showCreateView = true
-                        } label: {
-                            Image(systemName: "plus")
-                        }
-                        .foregroundStyle(.orange)
+        ScrollView {
+            VStack(spacing: 24) {
+                // 1. Installed Plugins GroupBox
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Installed Plugins", systemImage: "cpu")
+                                .font(.headline)
+                                .foregroundColor(.orange)
+                            Spacer()
 
-                        Button("Refresh") {
-                            Task { await pluginManager.scanPlugins() }
+                            HStack(spacing: 12) {
+                                Button {
+                                    showCreateView = true
+                                } label: {
+                                    Label("Create Plugin", systemImage: "plus")
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(.orange)
+
+                                Button {
+                                    Task { await pluginManager.scanPlugins() }
+                                } label: {
+                                    Label("Refresh", systemImage: "arrow.clockwise")
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(.orange)
+                            }
                         }
-                        .foregroundStyle(.orange)
+
+                        if pluginManager.isLoading {
+                            HStack {
+                                ProgressView()
+                                    .padding(.trailing, 8)
+                                Text("Scanning Plugins…")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 24)
+                        } else if pluginManager.plugins.isEmpty {
+                            emptyState
+                        } else {
+                            VStack(spacing: 12) {
+                                ForEach(pluginManager.plugins) { plugin in
+                                    PluginRowView(plugin: plugin) {
+                                        pluginManager.togglePlugin(plugin)
+                                    } onUninstall: {
+                                        try? pluginManager.uninstallPlugin(plugin)
+                                    }
+                                    .padding()
+                                    .background(Color.primary.opacity(0.04))
+                                    .cornerRadius(10)
+                                }
+                            }
+                        }
                     }
+                    .padding()
                 }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // 2. Guide / How to Install GroupBox
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("How to Install Plugins", systemImage: "questionmark.circle")
+                                .font(.headline)
+                                .foregroundColor(.blue)
+                            Spacer()
+                        }
+
+                        Text("Copy a plugin folder containing a plugin.json manifest into the Plugins directory in the app's Documents folder. SwiftCode will automatically detect and list them.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineSpacing(4)
+
+                        Button("Learn More") {
+                            showInstallHelp = true
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
             }
-            .sheet(isPresented: $showCreateView) {
-                PluginCodeCreateView()
-            }
-            .alert("Install Plugin", isPresented: $showInstallHelp) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("Copy a plugin folder containing a plugin.json manifest into the Plugins directory in the app's Documents folder.")
-            }
+            .padding(24)
         }
-    }
-
-    // MARK: - Plugin List
-
-    private var pluginList: some View {
-        List {
-            ForEach(pluginManager.plugins) { plugin in
-                PluginRowView(plugin: plugin) {
-                    pluginManager.togglePlugin(plugin)
-                } onUninstall: {
-                    try? pluginManager.uninstallPlugin(plugin)
-                }
-            }
-
-            Section {
-                Button {
-                    showInstallHelp = true
-                } label: {
-                    Label("How to Install a Plugin", systemImage: "questionmark.circle")
-                        .foregroundStyle(.secondary)
-                }
-            }
+        .navigationTitle("Plugin Manager")
+        .sheet(isPresented: $showCreateView) {
+            PluginCodeCreateView()
         }
-        .listStyle(.inset)
+        .alert("Install Plugin", isPresented: $showInstallHelp) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Copy a plugin folder containing a plugin.json manifest into the Plugins directory in the app's Documents folder.")
+        }
     }
 
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 16) {
             Image(systemName: "puzzlepiece.extension")
-                .font(.system(size: 52))
+                .font(.system(size: 44))
                 .foregroundStyle(.secondary.opacity(0.5))
+                .padding()
+                .background(Circle().fill(Color.primary.opacity(0.03)))
+
             Text("No Plugins Installed")
-                .font(.title3.weight(.semibold))
+                .font(.headline)
                 .foregroundStyle(.primary)
+
             Text("Add plugins by placing a plugin folder with a plugin.json manifest in the Plugins directory.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-            Button {
-                showInstallHelp = true
-            } label: {
-                Label("Learn More", systemImage: "questionmark.circle")
-                    .font(.subheadline)
-                    .foregroundStyle(.orange)
-            }
-            .buttonStyle(.plain)
+                .frame(maxWidth: 320)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
     }
 }
 
@@ -133,36 +163,39 @@ private struct PluginRowView: View {
                     .lineLimit(2)
 
                 if !plugin.capabilities.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 4) {
-                            ForEach(plugin.capabilities, id: \.self) { cap in
-                                Text(cap.rawValue)
-                                    .font(.caption2)
-                                    .foregroundStyle(.blue)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 2)
-                                    .background(.blue.opacity(0.12), in: Capsule())
-                            }
+                    HStack(spacing: 4) {
+                        ForEach(plugin.capabilities, id: \.self) { cap in
+                            Text(cap.rawValue)
+                                .font(.caption2)
+                                .foregroundStyle(.blue)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(.blue.opacity(0.12), in: Capsule())
                         }
                     }
+                    .padding(.top, 2)
                 }
             }
 
             Spacer()
 
-            Toggle("", isOn: .constant(plugin.isEnabled))
-                .labelsHidden()
-                .tint(.orange)
-                .onTapGesture { onToggle() }
-        }
-        .padding(.vertical, 4)
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button(role: .destructive) {
-                showUninstallConfirm = true
-            } label: {
-                Label("Uninstall", systemImage: "trash")
+            HStack(spacing: 12) {
+                Toggle("", isOn: .constant(plugin.isEnabled))
+                    .labelsHidden()
+                    .tint(.orange)
+                    .onTapGesture { onToggle() }
+
+                Button(role: .destructive) {
+                    showUninstallConfirm = true
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(.red)
+                }
+                .buttonStyle(.plain)
+                .help("Uninstall Plugin")
             }
         }
+        .padding(.vertical, 4)
         .confirmationDialog("Uninstall \(plugin.name)?", isPresented: $showUninstallConfirm, titleVisibility: .visible) {
             Button("Uninstall", role: .destructive) { onUninstall() }
             Button("Cancel", role: .cancel) {}

@@ -11,96 +11,156 @@ struct OfflineModelsView: View {
     @State private var isPresentingInstallGuide = false
 
     var body: some View {
-        List {
-            InstalledOfflineModelsView(manager: manager)
-
-            Section("Recommended Models") {
-                ForEach(recommendations) { recommendation in
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(recommendation.modelName)
-                            .font(.headline)
-
-                        Text(recommendation.description)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-
-                        Text("Compatibility: \(recommendation.compatibility)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
+        ScrollView {
+            VStack(spacing: 24) {
+                // 1. Installed Models
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
                         HStack {
-                            Text(recommendation.estimatedSize)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            Label("Installed Models", systemImage: "externaldrive.fill")
+                                .font(.headline)
+                                .foregroundColor(.blue)
                             Spacer()
-                            Button("Download") {
-                                Task { await startRecommendedDownload(recommendation) }
+                        }
+
+                        InstalledOfflineModelsView(manager: manager)
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // 2. Recommended Models
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Recommended Models", systemImage: "sparkles")
+                                .font(.headline)
+                                .foregroundColor(.purple)
+                            Spacer()
+                        }
+
+                        if recommendations.isEmpty {
+                            Text("No Recommendations Available")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(recommendations) { recommendation in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(recommendation.modelName)
+                                        .font(.headline)
+
+                                    Text(recommendation.description)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+
+                                    Text("Compatibility: \(recommendation.compatibility)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+
+                                    HStack {
+                                        Text(recommendation.estimatedSize)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                        Button("Download") {
+                                            Task { await startRecommendedDownload(recommendation) }
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                    }
+                                }
+                                .padding()
+                                .background(Color.primary.opacity(0.04))
+                                .cornerRadius(10)
                             }
-                            .buttonStyle(.borderedProminent)
                         }
                     }
                     .padding()
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
-                    .listRowBackground(Color.clear)
                 }
-            }
+                .groupBoxStyle(ModernGroupBoxStyle())
 
-            Section("Install Model Through Link") {
-                Button("Install Model Through Link") {
-                    isPresentingInstallGuide = true
-                }
-            }
-
-            Section("Available Models") {
-                Button {
-                    Task {
-                        await loadModels(forceRefresh: true)
-                    }
-                } label: {
-                    HStack {
-                        Label("Fetch", systemImage: "arrow.clockwise")
-                        if isRefreshingFromAPI {
-                            Spacer()
-                            ProgressView()
-                                .progressViewStyle(.circular)
-                        }
-                    }
-                }
-                .disabled(isLoading || isRefreshingFromAPI)
-
-                if isLoading {
-                    ProgressView()
-                } else {
-                    ForEach(availableModels) { model in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(model.modelName)
+                // 3. Install Model via Link
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Install Model via Link", systemImage: "link")
                                 .font(.headline)
-                            Text(model.description)
-                                .font(.caption)
-                                .lineLimit(2)
+                                .foregroundColor(.orange)
+                            Spacer()
+                        }
 
-                            HStack {
-                                Text(model.modelSize)
-                                Spacer()
-                                Button {
-                                    startDownload(model)
-                                } label: {
-                                    Text("Download")
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 4)
-                                        .background(Color.blue)
-                                        .foregroundColor(.white)
-                                        .cornerRadius(8)
+                        Text("You can download and install GGUF or CoreML models directly from custom URLs or Hugging Face links.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        Button("Install Model Through Link") {
+                            isPresentingInstallGuide = true
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // 4. Available Models on Hugging Face
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Available Models", systemImage: "arrow.down.circle")
+                                .font(.headline)
+                                .foregroundColor(.green)
+                            Spacer()
+
+                            Button {
+                                Task {
+                                    await loadModels(forceRefresh: true)
                                 }
-                                .disabled(manager.isModelInstalled(model.modelName) || model.preferredDownloadFile == nil)
+                            } label: {
+                                Label("Fetch", systemImage: "arrow.clockwise")
+                            }
+                            .disabled(isLoading || isRefreshingFromAPI)
+                        }
+
+                        if isRefreshingFromAPI || isLoading {
+                            HStack {
+                                ProgressView()
+                                    .padding(.trailing, 8)
+                                Text("Fetching available models...")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            ForEach(availableModels) { model in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(model.modelName)
+                                        .font(.headline)
+                                    Text(model.description)
+                                        .font(.caption)
+                                        .lineLimit(2)
+
+                                    HStack {
+                                        Text(model.modelSize)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                        Button {
+                                            startDownload(model)
+                                        } label: {
+                                            Text("Download")
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .disabled(manager.isModelInstalled(model.modelName) || model.preferredDownloadFile == nil)
+                                    }
+                                }
+                                .padding()
+                                .background(Color.primary.opacity(0.04))
+                                .cornerRadius(10)
                             }
                         }
-                        .padding(.vertical, 4)
                     }
+                    .padding()
                 }
+                .groupBoxStyle(ModernGroupBoxStyle())
             }
+            .padding(24)
         }
         .navigationTitle("Offline Models")
         .task {
@@ -117,8 +177,8 @@ struct OfflineModelsView: View {
                 downloadingModel = nil
                 await loadModels(forceRefresh: false)
             }
-                .presentationDetents([.height(280)])
-                .presentationDragIndicator(.visible)
+            .presentationDetents([.height(280)])
+            .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $isPresentingInstallGuide) {
             ModelLinkInstallGuideView {

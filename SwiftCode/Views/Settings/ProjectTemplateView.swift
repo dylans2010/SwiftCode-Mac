@@ -13,78 +13,120 @@ struct ProjectTemplateView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Text("Select a template to scaffold files into the current project.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section("Templates") {
-                    ForEach(templateManager.templates) { template in
-                        TemplateRowView(
-                            template: template,
-                            isSelected: selectedTemplate?.id == template.id
-                        ) {
-                            selectedTemplate = template
+        ScrollView {
+            VStack(spacing: 24) {
+                // 1. Overview Card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Project Template Scaffolder", systemImage: "doc.badge.plus")
+                                .font(.headline)
+                                .foregroundColor(.teal)
+                            Spacer()
                         }
+
+                        Text("Select a template to scaffold files into the current project.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
+                    .padding()
                 }
+                .groupBoxStyle(ModernGroupBoxStyle())
 
-                if let selected = selectedTemplate {
-                    Section("Selected") {
-                        TemplateDetailView(template: selected)
-                    }
+                // 2. Templates Card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Available Templates", systemImage: "doc.text.fill")
+                                .font(.headline)
+                                .foregroundColor(.orange)
+                            Spacer()
+                        }
 
-                    Section {
-                        if isInitializingRepo {
-                            HStack {
-                                ProgressView()
-                                    .padding(.trailing, 8)
-                                Text("Initializing GitHub Repository...")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-                        } else {
-                            Button {
-                                showApplyConfirm = true
-                            } label: {
-                                HStack {
-                                    Spacer()
-                                    Label("Apply Template", systemImage: "doc.badge.plus")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.white)
-                                    Spacer()
+                        VStack(spacing: 12) {
+                            ForEach(templateManager.templates) { template in
+                                TemplateRowView(
+                                    template: template,
+                                    isSelected: selectedTemplate?.id == template.id
+                                ) {
+                                    selectedTemplate = template
                                 }
+                                .padding()
+                                .background(selectedTemplate?.id == template.id ? Color.orange.opacity(0.1) : Color.primary.opacity(0.04))
+                                .cornerRadius(10)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(selectedTemplate?.id == template.id ? Color.orange.opacity(0.5) : Color.clear, lineWidth: 1)
+                                )
                             }
-                            .listRowBackground(Color.orange)
                         }
                     }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // 3. Selection Details & Actions Card
+                if let selected = selectedTemplate {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Selected Template Details", systemImage: "slider.horizontal.3")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
+
+                            TemplateDetailView(template: selected)
+
+                            Divider()
+
+                            if isInitializingRepo {
+                                HStack {
+                                    ProgressView()
+                                        .padding(.trailing, 8)
+                                    Text("Initializing GitHub Repository...")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } else {
+                                Button {
+                                    showApplyConfirm = true
+                                } label: {
+                                    HStack {
+                                        Spacer()
+                                        Label("Apply Template", systemImage: "doc.badge.plus")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(.white)
+                                        Spacer()
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
+                                .tint(.orange)
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
             }
-            .listStyle(.inset)
-            .navigationTitle("Project Templates")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
-                }
-            }
-            .confirmationDialog(
-                "Apply \"\(selectedTemplate?.name ?? "")\" template?",
-                isPresented: $showApplyConfirm,
-                titleVisibility: .visible
-            ) {
-                Button("Apply") { applyTemplate() }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Template files will be added to the current project.")
-            }
-            .alert("Template Applied", isPresented: $showResultAlert) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(applyResult ?? "")
-            }
+            .padding(24)
+        }
+        .navigationTitle("Project Templates")
+        .confirmationDialog(
+            "Apply \"\(selectedTemplate?.name ?? "")\" template?",
+            isPresented: $showApplyConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Apply") { applyTemplate() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Template files will be added to the current project.")
+        }
+        .alert("Template Applied", isPresented: $showResultAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(applyResult ?? "")
         }
     }
 
