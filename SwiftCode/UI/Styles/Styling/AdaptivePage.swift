@@ -25,12 +25,14 @@ public struct AdaptivePage<Content: View>: View {
     }
 
     private func updateMetrics(size: CGSize) {
-        AdaptiveLayoutEngine.shared.updateMetrics(
-            width: size.width,
-            height: size.height,
-            scale: NSScreen.main?.backingScaleFactor ?? 1.0,
-            isFullscreen: NSApp.keyWindow?.styleMask.contains(.fullScreen) ?? false,
-            appearance: colorScheme == .dark ? .dark : .light
-        )
+        DispatchQueue.main.async {
+            AdaptiveLayoutEngine.shared.updateMetrics(
+                width: size.width,
+                height: size.height,
+                scale: NSScreen.main?.backingScaleFactor ?? 1.0,
+                isFullscreen: NSApp.keyWindow?.styleMask.contains(.fullScreen) ?? false,
+                appearance: colorScheme == .dark ? .dark : .light
+            )
+        }
     }
 }

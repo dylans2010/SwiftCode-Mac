@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct NewProjectSheetView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
-    @Bindable var viewModel: HomeViewModel
+    var viewModel: HomeViewModel
     @Environment(\.dismiss) var dismiss
 
     @State private var mode: SelectionMode = .create
