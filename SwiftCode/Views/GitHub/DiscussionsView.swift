@@ -104,12 +104,14 @@ struct DiscussionsView: View {
         HSplitView {
             // Sidebar Pane 1: Category browser
             categoryPanel
-                .frame(width: 180, maxHeight: .infinity)
+                .frame(width: 180)
+                .frame(maxHeight: .infinity)
                 .layoutPriority(1)
 
             // Split Pane 2: Thread list
             threadListPanel
-                .frame(width: 250, maxHeight: .infinity)
+                .frame(width: 250)
+                .frame(maxHeight: .infinity)
                 .layoutPriority(2)
 
             // Split Pane 3: Selected thread workspace

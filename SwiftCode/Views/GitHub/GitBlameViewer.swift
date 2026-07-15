@@ -60,7 +60,8 @@ public struct GitBlameViewer: View {
         HSplitView {
             // Left Pane: File explorer tree
             fileSelectorSidebarPanel
-                .frame(width: 220, maxHeight: .infinity)
+                .frame(width: 220)
+                .frame(maxHeight: .infinity)
                 .layoutPriority(1)
 
             // Right Pane: High-fidelity code annotation editor

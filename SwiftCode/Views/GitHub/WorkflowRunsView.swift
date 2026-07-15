@@ -136,7 +136,8 @@ struct WorkflowRunsView: View {
                         .listStyle(.plain)
                     }
                 }
-                .frame(width: 250, maxHeight: .infinity)
+                .frame(width: 250)
+                .frame(maxHeight: .infinity)
 
                 // Right Pane: Logs Terminal Console + Artifacts Browser
                 VStack(spacing: 0) {
