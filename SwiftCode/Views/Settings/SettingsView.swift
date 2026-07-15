@@ -245,11 +245,11 @@ public final class SettingsSplitViewController: NSSplitViewController {
         self.sidebarItem = sidebarItem
         addSplitViewItem(sidebarItem)
 
-        // 2. Main Preferences View (SwiftUI Wrapper)
+        // 2. Main Preferences View (SwiftUI Wrapper wrapped in StylingBootstrap to inject AdaptiveLayoutEngine)
         let mainView = SettingsMainWrapper(coordinator: coordinator)
             .environmentObject(AppSettings.shared)
             .environment(ThemeViewModel())
-        let mainVC = NSHostingController(rootView: mainView)
+        let mainVC = NSHostingController(rootView: StylingBootstrap.configureEnvironment(mainView))
         mainVC.sizingOptions = []
         mainVC.view.autoresizingMask = [.width, .height]
         let mainItem = NSSplitViewItem(viewController: mainVC)
@@ -258,9 +258,9 @@ public final class SettingsSplitViewController: NSSplitViewController {
         self.mainItem = mainItem
         addSplitViewItem(mainItem)
 
-        // 3. Right Inspector Help Panel (SwiftUI Wrapper)
+        // 3. Right Inspector Help Panel (SwiftUI Wrapper wrapped in StylingBootstrap to inject AdaptiveLayoutEngine)
         let inspectorView = SettingsInspectorWrapper(coordinator: coordinator)
-        let inspectorVC = NSHostingController(rootView: inspectorView)
+        let inspectorVC = NSHostingController(rootView: StylingBootstrap.configureEnvironment(inspectorView))
         inspectorVC.sizingOptions = []
         inspectorVC.view.autoresizingMask = [.width, .height]
         let inspectorItem = NSSplitViewItem(viewController: inspectorVC)
