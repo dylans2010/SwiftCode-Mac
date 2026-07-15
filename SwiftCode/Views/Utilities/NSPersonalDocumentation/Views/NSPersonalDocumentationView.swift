@@ -61,6 +61,7 @@ public class PersonalDocWindowController: NSWindowController {
         window.title = "Personal Documentation Workspace"
         window.minSize = NSSize(width: 1200, height: 800)
         window.setFrameAutosaveName("PersonalDocumentationMainWindow")
+        window.collectionBehavior = [.fullScreenPrimary, .managed]
 
         super.init(window: window)
 
@@ -252,16 +253,12 @@ public class PersonalDocSplitViewController: NSSplitViewController {
 
     @objc private func windowDidEnterFullScreen(_ notification: Notification) {
         coordinator.isFullScreen = true
-        if let sidebar = sidebarItem, !sidebar.isCollapsed {
-            toggleSidebar(nil)
-        }
+        splitView.needsLayout = true
     }
 
     @objc private func windowDidExitFullScreen(_ notification: Notification) {
         coordinator.isFullScreen = false
-        if let sidebar = sidebarItem, sidebar.isCollapsed {
-            toggleSidebar(nil)
-        }
+        splitView.needsLayout = true
     }
 
     private func setupSplitView() {
@@ -271,8 +268,8 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         // Panel 1: Sidebar (Pure AppKit Controller)
         let sidebarVC = PersonalDocSidebarViewController(coordinator: coordinator)
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
-        sidebarItem.minimumThickness = 240
-        sidebarItem.maximumThickness = 240
+        sidebarItem.minimumThickness = 200
+        sidebarItem.maximumThickness = 450
         sidebarItem.holdingPriority = .defaultLow
         self.sidebarItem = sidebarItem
         addSplitViewItem(sidebarItem)
@@ -281,6 +278,7 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         let middleView = PersonalDocMiddleWrapper(coord: coordinator)
         let middleVC = NSHostingController(rootView: middleView)
         middleVC.sizingOptions = []
+        middleVC.view.autoresizingMask = [.width, .height]
         let middleItem = NSSplitViewItem(viewController: middleVC)
         middleItem.minimumThickness = 280
         middleItem.maximumThickness = 350
@@ -292,6 +290,7 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         let mainView = PersonalDocMainWrapper(coord: coordinator)
         let mainVC = NSHostingController(rootView: mainView)
         mainVC.sizingOptions = []
+        mainVC.view.autoresizingMask = [.width, .height]
         let mainItem = NSSplitViewItem(viewController: mainVC)
         mainItem.minimumThickness = 600
         mainItem.holdingPriority = .defaultHigh
@@ -528,6 +527,8 @@ public class PersonalDocSidebarViewController: NSViewController, NSOutlineViewDa
         outline.selectionHighlightStyle = .sourceList
         outline.style = .sourceList
         outline.floatsGroupRows = false
+        outline.rowSizeStyle = .custom
+        outline.indentationPerLevel = 14
         self.outlineView = outline
 
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("SidebarColumn"))
@@ -637,6 +638,13 @@ public class PersonalDocSidebarViewController: NSViewController, NSOutlineViewDa
             return !node.isGroup
         }
         return true
+    }
+
+    public func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
+        if let node = item as? SidebarNode, node.isGroup {
+            return 26
+        }
+        return 32
     }
 
     public func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {

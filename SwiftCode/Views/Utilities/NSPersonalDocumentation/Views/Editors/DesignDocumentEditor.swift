@@ -10,6 +10,9 @@ public struct DesignDocumentEditor: View {
     @State private var uiKitFramework = "SwiftUI"
     @State private var reviewStatus = "Draft"
     @State private var targetCompletionDate = ""
+    @State private var accentColorHex = "#007AFF"
+    @State private var baseFontSize = 13
+    @State private var borderRadius = 8
 
     public init(coordinator: PersonalDocumentationCoordinator, documentID: UUID?) {
         self.coordinator = coordinator
@@ -85,6 +88,26 @@ public struct DesignDocumentEditor: View {
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 180)
                     }
+
+                    GridRow {
+                        Text("Accent Color:")
+                            .font(.caption.bold())
+                        TextField("#Hex", text: $accentColorHex)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 180)
+
+                        Text("Base Font:")
+                            .font(.caption.bold())
+                        Stepper("\(baseFontSize)pt", value: $baseFontSize, in: 9...24)
+                            .frame(width: 180)
+                    }
+
+                    GridRow {
+                        Text("Corner Radius:")
+                            .font(.caption.bold())
+                        Stepper("\(borderRadius)px", value: $borderRadius, in: 0...32)
+                            .frame(width: 180)
+                    }
                 }
             },
             validationMessage: nil
@@ -105,13 +128,17 @@ public struct DesignDocumentEditor: View {
 
         | Token Name | Hex Code | Purpose |
         | :--- | :--- | :--- |
-        | `--brand-primary` | `#007AFF` | Primary button states, active tabs |
+        | `--brand-primary` | `\(accentColorHex)` | Primary active highlight |
         | `--brand-success` | `#34C759` | Success checkmarks, completion banners |
         | `--text-main` | `#1C1C1E` | Primary desktop typography color |
 
+        #### Design Tokens
+        - **Accent Color:** `\(accentColorHex)`
+        - **Border Radius:** `\(borderRadius)px`
+
         #### Key Typography Elements
-        - **Headers:** SF Pro Display Bold, 20pt / line-height 28pt
-        - **Body Text:** SF Pro Text Regular, 13pt / line-height 18pt
+        - **Headers:** SF Pro Display Bold, \(baseFontSize + 7)pt / line-height \(baseFontSize + 15)pt
+        - **Body Text:** SF Pro Text Regular, \(baseFontSize)pt / line-height \(baseFontSize + 5)pt
         """
         NotificationCenter.default.post(
             name: NSNotification.Name("InsertEditorText"),

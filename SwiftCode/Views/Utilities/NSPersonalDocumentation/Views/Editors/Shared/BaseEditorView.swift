@@ -63,7 +63,7 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
 
         GeometryReader { geometry in
             let width = geometry.size.width
-            let mode: EditorLayoutMode = width < 680 ? .compact : (width < 1050 ? .normal : .wide)
+            let mode: EditorLayoutMode = coordinator.isFullScreen ? .wide : (width < 680 ? .compact : (width < 1050 ? .normal : .wide))
 
             VStack(spacing: 0) {
                 if let doc = document {

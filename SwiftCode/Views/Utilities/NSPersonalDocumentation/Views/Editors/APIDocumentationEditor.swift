@@ -11,6 +11,8 @@ public struct APIDocumentationEditor: View {
     @State private var authScheme = "Bearer Token"
     @State private var rateLimit = "100 req/min"
     @State private var isDeprecated = false
+    @State private var responseStatusCode = 200
+    @State private var includeErrorResponse = false
 
     public init(coordinator: PersonalDocumentationCoordinator, documentID: UUID?) {
         self.coordinator = coordinator
@@ -103,6 +105,24 @@ public struct APIDocumentationEditor: View {
                             .help("Mark this endpoint as deprecated")
                             .gridCellColumns(2)
                     }
+
+                    GridRow {
+                        Text("Response Status:")
+                            .font(.caption.bold())
+                        Picker("", selection: $responseStatusCode) {
+                            Text("200 OK").tag(200)
+                            Text("201 Created").tag(201)
+                            Text("400 Bad Request").tag(400)
+                            Text("401 Unauthorized").tag(401)
+                            Text("404 Not Found").tag(404)
+                            Text("500 Error").tag(500)
+                        }
+                        .frame(width: 250)
+
+                        Toggle("Error Block", isOn: $includeErrorResponse)
+                            .help("Include error response payload boilerplate")
+                            .gridCellColumns(2)
+                    }
                 }
             },
             validationMessage: validationMessage
@@ -111,6 +131,20 @@ public struct APIDocumentationEditor: View {
 
     private func insertTemplate() {
         let deprecationWarning = isDeprecated ? "\n> ⚠️ **DEPRECATED**: This endpoint is scheduled for removal in future releases.\n" : ""
+        let errorDocBlock = includeErrorResponse ? """
+
+        #### Response (Error Case)
+        ```json
+        {
+          "status": "error",
+          "error": {
+            "code": "resource_missing",
+            "message": "The requested resource could not be found or retrieved."
+          }
+        }
+        ```
+        """ : ""
+
         let template = """
 
         ### API Endpoint: `\(endpointMethod)` `\(endpointPath)`
@@ -134,7 +168,7 @@ public struct APIDocumentationEditor: View {
         | :--- | :--- | :--- | :--- |
         | id | String | Yes | The resource unique identifier |
 
-        #### Response (200 OK)
+        #### Response (\(responseStatusCode))
         ```json
         {
           "status": "success",
@@ -146,6 +180,7 @@ public struct APIDocumentationEditor: View {
           }
         }
         ```
+        \(errorDocBlock)
         """
         NotificationCenter.default.post(
             name: NSNotification.Name("InsertEditorText"),
