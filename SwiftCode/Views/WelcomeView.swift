@@ -185,33 +185,20 @@ struct SwiftCodeWelcomeView: View {
             }
 
             WelcomeView(
-                titleText: $welcomeTitle,
-                menu: .constant(
-                    WelcomeMenu {
-                        WelcomeMenuButton(title: "New Project", image: Image(systemName: "plus.circle.fill")) {
-                            showingNewProject = true
-                        }
-                        WelcomeMenuButton(title: "Import Folder", image: Image(systemName: "folder.badge.plus")) {
-                            importFolder()
-                        }
-                        WelcomeMenuButton(title: "Xcode Project", image: Image(systemName: "hammer.circle.fill")) {
-                            showingNewProject = true
-                        }
+                titleText: welcomeTitle,
+                menu: WelcomeMenu {
+                    WelcomeMenuButton(title: "New Project", image: Image(systemName: "plus.circle.fill")) {
+                        showingNewProject = true
                     }
-                ),
+                    WelcomeMenuButton(title: "Import Folder", image: Image(systemName: "folder.badge.plus")) {
+                        importFolder()
+                    }
+                    WelcomeMenuButton(title: "Xcode Project", image: Image(systemName: "hammer.circle.fill")) {
+                        showingNewProject = true
+                    }
+                },
                 emptyMessage: "No Recent Projects",
-                recents: Binding(
-                    get: {
-                        sessionStore.projects.map { project in
-                            RecentFileView(fileURL: project.directoryURL, action: { url in
-                                Task {
-                                    await sessionStore.openProject(project)
-                                }
-                            }, resetSelection: $resetSelection)
-                        }
-                    },
-                    set: { _ in }
-                )
+                recentFileProvider: ProjectRecentFileProvider(sessionStore: sessionStore)
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -768,5 +755,28 @@ struct QuickStartRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+@MainActor
+struct ProjectRecentFileProvider: RecentFileProvider {
+    let sessionStore: ProjectSessionStore
+
+    func provideRecentFiles() async -> [RecentFile] {
+        sessionStore.projects.map { project in
+            RecentFile(
+                customTitle: project.name,
+                customSubtitle: project.description.isEmpty ? nil : project.description,
+                url: project.directoryURL
+            )
+        }
+    }
+
+    func openFile(_ file: RecentFile) {
+        if let project = sessionStore.projects.first(where: { $0.directoryURL == file.url }) {
+            Task {
+                await sessionStore.openProject(project)
+            }
+        }
     }
 }
