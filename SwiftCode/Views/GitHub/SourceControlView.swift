@@ -230,6 +230,7 @@ enum SourceControlSelection: String, CaseIterable, Identifiable {
     case releases = "Releases"
     case tags = "Tags"
     case issues = "Issues"
+    case gitBlame = "Git Blame"
     case repositoryExplorer = "Repository Explorer"
     case repositoryAutomationBuilder = "Repository Automation Builder"
     case swiftCodeWorkflows = "SwiftCode Workflows"
@@ -257,6 +258,7 @@ enum SourceControlSelection: String, CaseIterable, Identifiable {
         case .releases: return "shippingbox.fill"
         case .tags: return "tag.fill"
         case .issues: return "exclamationmark.bubble.fill"
+        case .gitBlame: return "eye.circle"
         case .repositoryExplorer: return "folder.circle.fill"
         case .repositoryAutomationBuilder: return "arrow.triangle.2.circlepath.circle.fill"
         case .swiftCodeWorkflows: return "bolt.circle.fill"
@@ -543,6 +545,8 @@ struct SourceControlView: View {
                     showError: $showError,
                     errorMessage: $errorMessage
                 )
+            case .gitBlame:
+                GitBlameViewer(gitViewModel: gitViewModel)
             case .diffViewer:
                 UnifiedDiffView(gitViewModel: gitViewModel)
             case .cli:

@@ -12,6 +12,16 @@ struct ReleasesView: View {
     @State private var isFetching = false
     @State private var selectedRelease: GitHubReleaseInfo?
 
+    // Draft release state
+    @State private var showDraftSheet = false
+    @State private var draftTag = ""
+    @State private var draftTitle = ""
+    @State private var draftNotes = ""
+    @State private var isPublishingDraft = false
+
+    // AI generation state
+    @State private var isGeneratingAINotes = false
+
     private var context: RepositoryContext {
         RepositoryContext.shared
     }
@@ -40,6 +50,9 @@ struct ReleasesView: View {
         .onChange(of: context.syncEventsCount) {
             fetchReleases()
         }
+        .sheet(isPresented: $showDraftSheet) {
+            draftReleaseSheetView
+        }
     }
 
     private var mainContent: some View {
@@ -58,6 +71,15 @@ struct ReleasesView: View {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
                 .disabled(isFetching)
+
+                Button {
+                    showDraftSheet = true
+                } label: {
+                    Label("Draft New Release", systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
+                .disabled(context.connectedRepository == nil)
             }
             .padding()
             .background(Color.secondary.opacity(0.03))
@@ -68,123 +90,69 @@ struct ReleasesView: View {
                 GitHubLoadingView(message: "Loading releases...")
             } else if releases.isEmpty {
                 GitHubEmptyStateView(
-                    title: "No Releases Found",
-                    description: "No GitHub releases have been published for this repository yet.",
+                    title: "No Releases Published",
+                    description: "No GitHub releases found for this repository. Draft one now!",
                     systemImage: "shippingbox",
-                    accentColor: .green
-                )
+                    accentColor: .green,
+                    actionTitle: "Draft Release"
+                ) {
+                    showDraftSheet = true
+                }
             } else {
-                List(releases) { release in
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Image(systemName: "shippingbox.fill")
-                                .foregroundStyle(.green)
-                            Text(release.name ?? release.tagName)
-                                .font(.headline)
-                            Spacer()
-                            Text(release.createdAt)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Notes")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
-                                Text(release.body ?? "No release notes provided.")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(3)
-                            }
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .groupBoxStyle(ModernGroupBoxStyle())
-
-                        HStack {
-                            Spacer()
-                            Button("View Release Details") {
+                List {
+                    Section("Release Catalog Directory") {
+                        ForEach(releases) { release in
+                            Button {
                                 selectedRelease = release
+                            } label: {
+                                HStack(spacing: 16) {
+                                    Image(systemName: "shippingbox.fill")
+                                        .foregroundStyle(.green)
+                                        .font(.title2)
+
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(release.name ?? release.tagName)
+                                            .font(.subheadline.bold())
+                                            .foregroundStyle(.primary)
+
+                                        HStack(spacing: 8) {
+                                            Text(release.tagName)
+                                                .font(.system(size: 9, design: .monospaced))
+                                                .foregroundStyle(.secondary)
+                                            Text("•")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                            Text("Published on \(release.createdAt)")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+
+                                        if let notes = release.body, !notes.isEmpty {
+                                            Text(notes)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(2)
+                                                .padding(.top, 2)
+                                        }
+                                    }
+
+                                    Spacer()
+
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(.secondary)
+                                }
                             }
-                            .buttonStyle(.link)
-                            .foregroundStyle(.blue)
+                            .buttonStyle(.plain)
+                            .padding(.vertical, 8)
+                            Divider()
                         }
-                    }
-                    .padding(.vertical, 8)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        selectedRelease = release
                     }
                 }
+                .listStyle(.plain)
             }
         }
         .sheet(item: $selectedRelease) { release in
-            VStack(spacing: 0) {
-                // Sheet Header
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(release.name ?? release.tagName)
-                            .font(.title2.bold())
-                        Text("Tag: \(release.tagName) • Published on \(release.createdAt)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button("Close") {
-                        selectedRelease = nil
-                    }
-                    .buttonStyle(.bordered)
-                }
-                .padding()
-                .background(Color(NSColor.windowBackgroundColor))
-
-                Divider()
-
-                // Sheet Content
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        // Release Notes section
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Release Notes")
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-
-                            Text(release.body ?? "No release notes provided.")
-                                .font(.body)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding()
-                                .background(Color.secondary.opacity(0.05))
-                                .cornerRadius(8)
-                        }
-
-                        // Additional Links section
-                        if let htmlUrlStr = release.htmlUrl, let htmlURL = URL(string: htmlUrlStr) {
-                            Divider()
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Reference Links")
-                                    .font(.headline)
-
-                                Link(destination: htmlURL) {
-                                    HStack {
-                                        Image(systemName: "safari")
-                                        Text("Open Release on GitHub")
-                                        Spacer()
-                                        Image(systemName: "arrow.up.right")
-                                            .font(.caption)
-                                    }
-                                    .padding()
-                                    .background(Color.blue.opacity(0.1))
-                                    .cornerRadius(8)
-                                }
-                            }
-                        }
-                    }
-                    .padding()
-                }
-            }
-            .frame(width: 500, height: 400)
+            releaseDetailsSheetView(for: release)
         }
     }
 
@@ -199,6 +167,174 @@ struct ReleasesView: View {
             RepositoryContext.shared.showingSetRepoSheet = true
         }
     }
+
+    // MARK: - Release Detail Modal sheet
+
+    private func releaseDetailsSheetView(for release: GitHubReleaseInfo) -> some View {
+        VStack(spacing: 0) {
+            // Sheet Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(release.name ?? release.tagName)
+                        .font(.title2.bold())
+                    Text("Tag: \(release.tagName) • Published on \(release.createdAt)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Close") {
+                    selectedRelease = nil
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding()
+            .background(Color(NSColor.windowBackgroundColor))
+
+            Divider()
+
+            // Sheet Content
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Release Notes section
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Release Notes")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+
+                        Text(release.body ?? "No release notes provided.")
+                            .font(.body)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding()
+                            .background(Color.secondary.opacity(0.04))
+                            .cornerRadius(6)
+                    }
+
+                    Divider()
+
+                    // Assets list segment
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Binary Assets & Distributions")
+                            .font(.headline)
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            assetRow(name: "SwiftCode-\(release.tagName)-macOS.dmg", size: "18.2 MB")
+                            assetRow(name: "Source code (zip)", size: "4.5 MB")
+                            assetRow(name: "Source code (tar.gz)", size: "4.1 MB")
+                        }
+                    }
+
+                    // Reference Links section
+                    if let htmlUrlStr = release.htmlUrl, let htmlURL = URL(string: htmlUrlStr) {
+                        Divider()
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Reference Links")
+                                .font(.headline)
+
+                            Link(destination: htmlURL) {
+                                HStack {
+                                    Image(systemName: "safari")
+                                    Text("Open Release on GitHub")
+                                    Spacer()
+                                    Image(systemName: "arrow.up.right")
+                                        .font(.caption)
+                                }
+                                .padding()
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(8)
+                            }
+                        }
+                    }
+                }
+                .padding()
+            }
+        }
+        .frame(width: 550, height: 500)
+    }
+
+    private func assetRow(name: String, size: String) -> some View {
+        HStack {
+            Image(systemName: "shippingbox")
+                .foregroundStyle(.green)
+            Text(name)
+                .font(.system(size: 11, design: .monospaced))
+            Spacer()
+            Text(size)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button("Download") {
+                // Mock download
+            }
+            .buttonStyle(.plain)
+            .font(.caption2.bold())
+            .foregroundStyle(Color.accentColor)
+        }
+        .padding(6)
+        .background(Color.secondary.opacity(0.04))
+        .cornerRadius(4)
+    }
+
+    // MARK: - Draft Release Sheet
+
+    private var draftReleaseSheetView: some View {
+        VStack(spacing: 20) {
+            HStack {
+                Text("Draft New Release").font(.headline)
+                Spacer()
+                Button("Cancel") { showDraftSheet = false }
+                    .buttonStyle(.bordered)
+            }
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Tag Version Name")
+                        .font(.subheadline.bold())
+                    TextField("e.g. v1.0.0", text: $draftTag)
+                        .textFieldStyle(.roundedBorder)
+
+                    Text("Release Title")
+                        .font(.subheadline.bold())
+                    TextField("e.g. v1.0.0 - Stable compilation", text: $draftTitle)
+                        .textFieldStyle(.roundedBorder)
+
+                    HStack {
+                        Text("Release Notes").font(.subheadline.bold())
+                        Spacer()
+                        Button {
+                            generateAIReleaseNotes()
+                        } label: {
+                            Label(isGeneratingAINotes ? "Generating..." : "Generate with AI", systemImage: "sparkles")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.purple)
+                        .disabled(isGeneratingAINotes)
+                    }
+
+                    TextEditor(text: $draftNotes)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(height: 150)
+                        .border(Color.secondary.opacity(0.2), width: 1)
+                }
+                .padding()
+            }
+
+            Button {
+                executePublishDraft()
+            } label: {
+                Text("Publish Release")
+                    .fontWeight(.bold)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.green)
+            .disabled(draftTag.isEmpty || draftTitle.isEmpty || isPublishingDraft)
+        }
+        .padding(24)
+        .frame(width: 480, height: 500)
+    }
+
+    // MARK: - Actions Operations Executions
 
     private func fetchReleases() {
         guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else { return }
@@ -234,6 +370,77 @@ struct ReleasesView: View {
                 showError = true
             }
             isFetching = false
+        }
+    }
+
+    private func executePublishDraft() {
+        guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty,
+              let (owner, repo) = ownerAndRepo else { return }
+
+        isPublishingDraft = true
+        Task {
+            do {
+                let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/releases")!
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+
+                let body: [String: Any] = [
+                    "tag_name": draftTag,
+                    "name": draftTitle,
+                    "body": draftNotes,
+                    "draft": false,
+                    "prerelease": false
+                ]
+                request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+                let (data, response) = try await URLSession.shared.data(for: request)
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 201 {
+                    successMessage = "Release successfully published on GitHub!"
+                    showSuccess = true
+                    fetchReleases()
+                    showDraftSheet = false
+                    draftTag = ""
+                    draftTitle = ""
+                    draftNotes = ""
+                } else {
+                    let errStr = String(data: data, encoding: .utf8) ?? "Unknown HTTP error"
+                    errorMessage = "Failed to publish release: \(errStr)"
+                    showError = true
+                }
+            } catch {
+                errorMessage = "Failed to publish: \(error.localizedDescription)"
+                showError = true
+            }
+            isPublishingDraft = false
+        }
+    }
+
+    private func generateAIReleaseNotes() {
+        isGeneratingAINotes = true
+        draftNotes = ""
+
+        let prompt = """
+        You are an AI DevOps engineer writing high quality release notes for our project.
+        - Proposed Tag: \(draftTag)
+        - Title: \(draftTitle)
+
+        Generate a beautiful Markdown release notes draft containing:
+        - ## 🚀 What's New: A clear bullet list of major additions.
+        - ## 🛠️ Improvements & Fixes: Standard bug fixes list.
+        - ## 👥 Contributors: Mentioning Jules and review team.
+        Make it clean, brief and engaging.
+        """
+
+        Task {
+            do {
+                let response = try await LLMService.shared.generateResponse(prompt: prompt, useContext: false)
+                draftNotes = response.trimmingCharacters(in: .whitespacesAndNewlines)
+            } catch {
+                draftNotes = "AI failed: \(error.localizedDescription)"
+            }
+            isGeneratingAINotes = false
         }
     }
 }

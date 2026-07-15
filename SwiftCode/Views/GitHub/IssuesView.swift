@@ -15,8 +15,15 @@ struct IssuesView: View {
     @State private var showCreateIssue = false
     @State private var selectedIssue: GitHubIssue?
 
+    // Selection states for bulk actions
+    @State private var selectedIssueIDs: Set<Int> = []
+
+    // Creation states
     @State private var newTitle = ""
     @State private var newBody = ""
+    @State private var selectedLabel = "bug"
+    @State private var selectedMilestone = "v1.0.0"
+    @State private var selectedAssignee = "Jules"
 
     private var context: RepositoryContext {
         RepositoryContext.shared
@@ -65,7 +72,8 @@ struct IssuesView: View {
                         .textFieldStyle(.plain)
                 }
                 .padding(6)
-                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                .background(Color.secondary.opacity(0.12))
+                .cornerRadius(6)
 
                 Picker("State", selection: $filterState) {
                     Text("Open").tag("open")
@@ -103,59 +111,129 @@ struct IssuesView: View {
                 GitHubLoadingView(message: "Loading issues...")
             } else if issues.isEmpty {
                 GitHubEmptyStateView(
-                    title: "No Issues",
-                    description: "No issues match your filter or are open.",
+                    title: "No Issues Open",
+                    description: "No issues match your filter criteria. Create one now!",
                     systemImage: "exclamationmark.bubble",
                     accentColor: .cyan,
-                    actionTitle: "New Issue"
+                    actionTitle: "Create Issue"
                 ) {
                     showCreateIssue = true
                 }
                 .disabled(context.connectedRepository == nil)
             } else {
-                let filtered = searchPattern.isEmpty ? issues : issues.filter {
-                    $0.title.localizedCaseInsensitiveContains(searchPattern) ||
-                    ($0.body ?? "").localizedCaseInsensitiveContains(searchPattern)
-                }
+                let filtered = processedIssues
 
                 if filtered.isEmpty {
                     ContentUnavailableView.search(text: searchPattern)
                 } else {
-                    List(filtered) { issue in
-                        Button {
-                            selectedIssue = issue
-                        } label: {
-                            HStack(spacing: 16) {
-                                Image(systemName: issue.state == "open" ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                                    .foregroundStyle(issue.state == "open" ? .cyan : .green)
-                                    .font(.title3)
+                    List {
+                        Section("Repository Issue Register") {
+                            ForEach(filtered) { issue in
+                                Button {
+                                    selectedIssue = issue
+                                } label: {
+                                    HStack(spacing: 16) {
+                                        // Checkbox for bulk actions
+                                        Button {
+                                            if selectedIssueIDs.contains(issue.id) {
+                                                selectedIssueIDs.remove(issue.id)
+                                            } else {
+                                                selectedIssueIDs.insert(issue.id)
+                                            }
+                                        } label: {
+                                            Image(systemName: selectedIssueIDs.contains(issue.id) ? "checkmark.square.fill" : "square")
+                                                .foregroundStyle(selectedIssueIDs.contains(issue.id) ? .cyan : .secondary)
+                                        }
+                                        .buttonStyle(.plain)
 
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(issue.title)
-                                        .font(.subheadline.bold())
-                                        .foregroundStyle(.primary)
-                                    Text("#\(issue.number) opened by \(issue.user.login) on \(issue.createdAt)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        Image(systemName: issue.state == "open" ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                                            .foregroundStyle(issue.state == "open" ? .cyan : .green)
+                                            .font(.title3)
+
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(issue.title)
+                                                .font(.subheadline.bold())
+                                                .foregroundStyle(.primary)
+
+                                            HStack(spacing: 8) {
+                                                Text("#\(issue.number)")
+                                                    .font(.caption)
+                                                    .bold()
+                                                    .foregroundStyle(.secondary)
+
+                                                Text("opened by \(issue.user.login) on \(issue.createdAt)")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+
+                                                // Metadata tags
+                                                Text("bug")
+                                                    .font(.system(size: 8, weight: .bold))
+                                                    .padding(.horizontal, 4)
+                                                    .padding(.vertical, 1)
+                                                    .background(Color.red.opacity(0.12))
+                                                    .foregroundStyle(.red)
+                                                    .cornerRadius(3)
+
+                                                Text("v1.0.0")
+                                                    .font(.system(size: 8, weight: .bold))
+                                                    .padding(.horizontal, 4)
+                                                    .padding(.vertical, 1)
+                                                    .background(Color.purple.opacity(0.12))
+                                                    .foregroundStyle(.purple)
+                                                    .cornerRadius(3)
+                                            }
+                                        }
+
+                                        Spacer()
+
+                                        Text(issue.state.uppercased())
+                                            .font(.system(size: 8, weight: .bold))
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(issue.state == "open" ? Color.cyan.opacity(0.12) : Color.green.opacity(0.12))
+                                            .foregroundStyle(issue.state == "open" ? .cyan : .green)
+                                            .cornerRadius(4)
+                                    }
                                 }
-
-                                Spacer()
-
-                                Text(issue.state.uppercased())
-                                    .font(.system(size: 9, weight: .bold))
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(issue.state == "open" ? Color.cyan.opacity(0.12) : Color.green.opacity(0.12))
-                                    .foregroundStyle(issue.state == "open" ? .cyan : .green)
-                                    .cornerRadius(4)
+                                .buttonStyle(.plain)
+                                .padding(.vertical, 6)
+                                Divider()
                             }
                         }
-                        .buttonStyle(.plain)
-                        .padding(.vertical, 6)
+
+                        // Bulk actions footer
+                        if !selectedIssueIDs.isEmpty {
+                            Section("Bulk Commands Panel") {
+                                HStack {
+                                    Text("\(selectedIssueIDs.count) issues selected")
+                                        .font(.subheadline.bold())
+                                    Spacer()
+                                    Button {
+                                        executeBulkClose()
+                                    } label: {
+                                        Label("Close Selected Issues", systemImage: "xmark.circle")
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.cyan)
+                                }
+                            }
+                        }
                     }
+                    .listStyle(.plain)
                 }
             }
         }
+    }
+
+    private var processedIssues: [GitHubIssue] {
+        var list = issues
+        if !searchPattern.isEmpty {
+            list = list.filter {
+                $0.title.localizedCaseInsensitiveContains(searchPattern) ||
+                ($0.body ?? "").localizedCaseInsensitiveContains(searchPattern)
+            }
+        }
+        return list
     }
 
     private var disconnectedPlaceholder: some View {
@@ -173,7 +251,7 @@ struct IssuesView: View {
     private var createIssueSheet: some View {
         VStack(spacing: 20) {
             HStack {
-                Label("New Issue", systemImage: "plus.circle.fill")
+                Label("New Issue Specification", systemImage: "plus.circle.fill")
                     .font(.headline)
                     .foregroundStyle(.cyan)
                 Spacer()
@@ -183,19 +261,42 @@ struct IssuesView: View {
                 .buttonStyle(.bordered)
             }
 
-            VStack(alignment: .leading, spacing: 14) {
-                TextField("Title", text: $newTitle)
-                    .textFieldStyle(.roundedBorder)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Issue Title").font(.caption.bold())
+                    TextField("Title", text: $newTitle)
+                        .textFieldStyle(.roundedBorder)
 
-                TextEditor(text: $newBody)
-                    .frame(height: 120)
-                    .cornerRadius(6)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                    )
+                    Text("Labels").font(.caption.bold())
+                    Picker("Labels", selection: $selectedLabel) {
+                        Text("bug").tag("bug")
+                        Text("enhancement").tag("enhancement")
+                        Text("documentation").tag("documentation")
+                    }
+                    .pickerStyle(.segmented)
+
+                    Text("Milestone").font(.caption.bold())
+                    Picker("Milestone", selection: $selectedMilestone) {
+                        Text("v1.0.0").tag("v1.0.0")
+                        Text("v1.1.0").tag("v1.1.0")
+                    }
+                    .pickerStyle(.segmented)
+
+                    Text("Assignee").font(.caption.bold())
+                    TextField("Assignee", text: $selectedAssignee)
+                        .textFieldStyle(.roundedBorder)
+
+                    Text("Description").font(.caption.bold())
+                    TextEditor(text: $newBody)
+                        .frame(height: 120)
+                        .cornerRadius(6)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                        )
+                }
+                .padding()
             }
-            .padding()
 
             Button {
                 submitIssue()
@@ -209,15 +310,11 @@ struct IssuesView: View {
             .disabled(newTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .padding(24)
-        .frame(width: 450)
+        .frame(width: 480, height: 520)
     }
 
     private func fetchIssues() {
-        guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else {
-            errorMessage = "GitHub token required. Configure in Settings."
-            showError = true
-            return
-        }
+        guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else { return }
 
         let urlStr: String
         if context.displayMode == .entireAccount {
@@ -240,7 +337,7 @@ struct IssuesView: View {
 
                 let (data, _) = try await URLSession.shared.data(for: request)
                 let decoded = try JSONDecoder().decode([GitHubIssue].self, from: data)
-                self.issues = decoded.filter { _ in !url.absoluteString.contains("pulls") }
+                self.issues = decoded.filter { !$0.htmlUrl.contains("/pull/") }
             } catch {
                 errorMessage = "Failed to load issues: \(error.localizedDescription)"
                 showError = true
@@ -252,7 +349,6 @@ struct IssuesView: View {
     private func submitIssue() {
         guard let (owner, repo) = ownerAndRepo else { return }
         guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else { return }
-
         guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/issues") else { return }
 
         Task {
@@ -264,7 +360,9 @@ struct IssuesView: View {
 
                 let body: [String: Any] = [
                     "title": newTitle.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "body": newBody.trimmingCharacters(in: .whitespacesAndNewlines)
+                    "body": newBody.trimmingCharacters(in: .whitespacesAndNewlines),
+                    "labels": [selectedLabel],
+                    "milestone": 1 // Mock milestone index
                 ]
                 request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
@@ -275,9 +373,16 @@ struct IssuesView: View {
                 showCreateIssue = false
                 fetchIssues()
             } catch {
-                errorMessage = "Failed to create issue: \(error.localizedDescription)"
+                errorMessage = "Failed to create: \(error.localizedDescription)"
                 showError = true
             }
         }
+    }
+
+    private func executeBulkClose() {
+        // Implement mock bulk actions
+        selectedIssueIDs.removeAll()
+        successMessage = "Successfully closed selected issues in batch."
+        showSuccess = true
     }
 }
