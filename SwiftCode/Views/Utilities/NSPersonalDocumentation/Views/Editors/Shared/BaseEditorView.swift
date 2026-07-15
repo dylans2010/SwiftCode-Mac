@@ -1,4 +1,11 @@
 import SwiftUI
+import AppKit
+
+public enum EditorLayoutMode {
+    case compact
+    case normal
+    case wide
+}
 
 public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View {
     public let coordinator: PersonalDocumentationCoordinator
@@ -23,8 +30,13 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
     @State private var showTableCreatorPopover = false
 
     // Collapsible & Visual metadata state
-    @State private var isMetadataExpanded = true
     @State private var newTagText = ""
+    @State private var selectedSidePanelTab = 0 // 0 = Live Preview, 1 = Right Inspector
+
+    // Search and Replace state
+    @State private var showSearchAndReplace = false
+    @State private var searchQuery = ""
+    @State private var replaceQuery = ""
 
     public init(
         coordinator: PersonalDocumentationCoordinator,
@@ -49,323 +61,64 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
     public var body: some View {
         @Bindable var state = workspaceState
 
-        VStack(spacing: 0) {
-            if let doc = document {
-                // Header Area
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 16) {
-                        HStack(spacing: 10) {
-                            Image(systemName: kind.icon)
-                                .font(.title2)
-                                .foregroundStyle(kind.accentColor)
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            let mode: EditorLayoutMode = width < 680 ? .compact : (width < 1050 ? .normal : .wide)
 
-                            if isRenaming {
-                                TextField("Title", text: $editTitleText)
-                                    .textFieldStyle(.roundedBorder)
-                                    .font(.title3.bold())
-                                    .frame(maxWidth: 300)
-                                    .onSubmit {
-                                        renameDocument(to: editTitleText)
-                                    }
-
-                                Button {
-                                    renameDocument(to: editTitleText)
-                                } label: {
-                                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                                }
-                                .buttonStyle(.plain)
-
-                                Button {
-                                    isRenaming = false
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                            } else {
-                                Text(titleText)
-                                    .font(.title2.bold())
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                    .textSelection(.enabled)
-
-                                Button {
-                                    editTitleText = titleText
-                                    isRenaming = true
-                                } label: {
-                                    Image(systemName: "pencil")
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-
-                        Spacer()
-
-                        // Validation Message Indicator
-                        if let validation = validationMessage {
-                            HStack(spacing: 4) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(.orange)
-                                Text(validation)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Color.orange.opacity(0.1))
-                            .cornerRadius(6)
-                        }
-
-                        // Preview Toggler
-                        Toggle(isOn: $state.showLivePreview) {
-                            Label("Live Preview", systemImage: "sidebar.right")
-                        }
-                        .toggleStyle(.button)
-                        .help("Show/Hide live markdown preview side panel")
-
-                        // Action Buttons
-                        HStack(spacing: 10) {
-                            Button {
-                                state.showBrowserSheet = true
-                            } label: {
-                                Label("Browse", systemImage: "folder")
-                            }
-                            .buttonStyle(.bordered)
-                            .help("Browse category documents")
-
-                            Button {
-                                duplicateDocument()
-                            } label: {
-                                Image(systemName: "doc.on.doc")
-                            }
-                            .help("Duplicate current document")
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 14)
-                    .background(Color(NSColor.windowBackgroundColor))
+            VStack(spacing: 0) {
+                if let doc = document {
+                    // Header Area
+                    headerArea(for: doc, mode: mode, state: state)
 
                     Divider()
 
                     // Formatting Toolbar
-                    formattingToolbar
-                }
+                    adaptiveFormattingToolbar(mode: mode)
 
-                // Split Editing Pane
-                HStack(spacing: 0) {
-                    // Editor view (always editable, comfortable width)
-                    VStack(spacing: 0) {
-                        // Standard & Specialized Metadata Pane (Collapsible Card Style)
-                        VStack(alignment: .leading, spacing: 12) {
-                            Button {
-                                withAnimation {
-                                    isMetadataExpanded.toggle()
-                                }
-                            } label: {
-                                HStack {
-                                    Image(systemName: isMetadataExpanded ? "chevron.down" : "chevron.right")
-                                        .font(.system(size: 11, weight: .bold))
-                                        .foregroundStyle(.secondary)
-                                    Image(systemName: "slider.horizontal.3")
-                                        .foregroundStyle(kind.accentColor)
-                                    Text("Document Parameters & Metadata")
-                                        .font(.subheadline.bold())
-                                        .foregroundStyle(.primary)
-                                    Spacer()
-                                    if !isMetadataExpanded {
-                                        HStack(spacing: 8) {
-                                            Text(doc.status ?? "To Do")
-                                                .font(.caption)
-                                                .padding(.horizontal, 6)
-                                                .padding(.vertical, 2)
-                                                .background(Color.blue.opacity(0.12))
-                                                .foregroundStyle(Color.blue)
-                                                .cornerRadius(4)
-                                            Text(doc.priority ?? "Medium")
-                                                .font(.caption)
-                                                .padding(.horizontal, 6)
-                                                .padding(.vertical, 2)
-                                                .background(Color.orange.opacity(0.12))
-                                                .foregroundStyle(Color.orange)
-                                                .cornerRadius(4)
-                                        }
-                                    }
-                                }
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.bottom, isMetadataExpanded ? 4 : 0)
-
-                            if isMetadataExpanded {
-                                Divider()
-
-                                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 12) {
-                                    GridRow {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text("STATUS")
-                                                .font(.system(size: 9, weight: .bold))
-                                                .foregroundStyle(.secondary)
-                                            Picker("", selection: Binding(
-                                                get: { doc.status ?? "To Do" },
-                                                set: { val in
-                                                    doc.status = val
-                                                    try? coordinator.documents.updateDocument(doc)
-                                                }
-                                            )) {
-                                                Text("To Do").tag("To Do")
-                                                Text("In Progress").tag("In Progress")
-                                                Text("Done").tag("Done")
-                                            }
-                                            .pickerStyle(.segmented)
-                                            .frame(width: 200)
-                                        }
-
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text("PRIORITY")
-                                                .font(.system(size: 9, weight: .bold))
-                                                .foregroundStyle(.secondary)
-                                            Picker("", selection: Binding(
-                                                get: { doc.priority ?? "Medium" },
-                                                set: { val in
-                                                    doc.priority = val
-                                                    try? coordinator.documents.updateDocument(doc)
-                                                }
-                                            )) {
-                                                Text("High").tag("High")
-                                                Text("Medium").tag("Medium")
-                                                Text("Low").tag("Low")
-                                            }
-                                            .pickerStyle(.segmented)
-                                            .frame(width: 200)
-                                        }
-                                    }
-
-                                    GridRow {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text("TAGS")
-                                                .font(.system(size: 9, weight: .bold))
-                                                .foregroundStyle(.secondary)
-                                            HStack(spacing: 8) {
-                                                TextField("Add tag...", text: $newTagText, onCommit: {
-                                                    addNewTag(to: doc)
-                                                })
-                                                .textFieldStyle(.roundedBorder)
-                                                .frame(width: 120)
-                                                .controlSize(.small)
-
-                                                Button {
-                                                    addNewTag(to: doc)
-                                                } label: {
-                                                    Image(systemName: "plus")
-                                                }
-                                                .buttonStyle(.bordered)
-                                                .controlSize(.small)
-
-                                                ScrollView(.horizontal, showsIndicators: false) {
-                                                    HStack(spacing: 6) {
-                                                        ForEach(doc.tags, id: \.self) { tag in
-                                                            HStack(spacing: 4) {
-                                                                Text(tag)
-                                                                    .font(.caption)
-                                                                Button {
-                                                                    removeTag(tag, from: doc)
-                                                                } label: {
-                                                                    Image(systemName: "xmark")
-                                                                        .font(.system(size: 8, weight: .bold))
-                                                                }
-                                                                .buttonStyle(.plain)
-                                                            }
-                                                            .padding(.horizontal, 8)
-                                                            .padding(.vertical, 3)
-                                                            .background(Color.secondary.opacity(0.12))
-                                                            .cornerRadius(10)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        .gridCellColumns(2)
-                                    }
-
-                                    GridRow {
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            Divider().padding(.vertical, 4)
-                                            Text("SPECIALIZED OPTIONS & ARCHETYPE METADATA")
-                                                .font(.system(size: 9, weight: .bold))
-                                                .foregroundStyle(.secondary)
-                                            specializedMetadata()
-                                        }
-                                        .gridCellColumns(2)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(16)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color(NSColor.separatorColor), lineWidth: 1)
-                        )
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-
-                        Divider()
-
-                        DocNSTextView(text: Binding(
-                            get: { markdownText },
-                            set: { val in
-                                markdownText = val
-                                doc.markdownSource = val
-                                try? coordinator.documents.updateDocument(doc)
-                            }
-                        ))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // Search & Replace Bar
+                    if showSearchAndReplace {
+                        searchAndReplaceBar()
                     }
-                    .frame(maxWidth: .infinity)
 
-                    if state.showLivePreview {
-                        Divider()
-
-                        // Premium Live Markdown Preview
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 20) {
-                                if markdownText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                    Text("Start typing on the left to see live-rendered markdown preview.")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                        .italic()
-                                } else {
-                                    MarkdownBlockListView(blocks: MarkdownParser.shared.parse(markdownText))
+                    // Content Split View
+                    HStack(spacing: 0) {
+                        // Left-Center: Editing Canvas
+                        VStack(spacing: 0) {
+                            DocNSTextView(text: Binding(
+                                get: { markdownText },
+                                set: { val in
+                                    markdownText = val
+                                    doc.markdownSource = val
+                                    try? coordinator.documents.updateDocument(doc)
                                 }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(24)
+                            ))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
-                        .frame(width: 400)
-                        .background(Color(NSColor.windowBackgroundColor))
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(maxWidth: .infinity)
 
-            } else {
-                ContentUnavailableView {
-                    Label("\(kind.rawValue) Workspace", systemImage: kind.icon)
-                } description: {
-                    VStack(spacing: 16) {
-                        Text("No active document selected. Choose one from the category browser or create a new document.")
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: 400)
-                            .multilineTextAlignment(.center)
-
-                        Button("Browse Documents") {
-                            state.showBrowserSheet = true
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
+                        // Conditional Side Panels (Live Preview and Inspector)
+                        sidePanelsArea(for: doc, mode: mode, state: state)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                } else {
+                    emptyStateView()
                 }
             }
+            .background(
+                // Invisible shortcut button for Cmd+F
+                ZStack {
+                    Button("") {
+                        withAnimation {
+                            showSearchAndReplace.toggle()
+                        }
+                    }
+                    .keyboardShortcut("f", modifiers: .command)
+                    .buttonStyle(.plain)
+                    .frame(width: 0, height: 0)
+                    .opacity(0)
+                }
+            )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
@@ -376,137 +129,659 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
             reloadData()
             isRenaming = false
         }
-        .sheet(isPresented: $state.showBrowserSheet) {
-            VStack(spacing: 0) {
-                HStack {
-                    Text("Browse \(kind.rawValue)")
-                        .font(.headline)
-                    Spacer()
-                    Button("Close") {
-                        state.showBrowserSheet = false
-                    }
-                    .buttonStyle(.bordered)
-                }
-                .padding()
-                Divider()
-                RecordListView(
-                    coordinator: coordinator,
-                    kind: kind,
-                    selectedDocumentID: $state.selectedDocumentID,
-                    onSelect: {
-                        state.showBrowserSheet = false
-                        reloadData()
-                    }
-                )
-                .frame(width: 800, height: 600)
-            }
-        }
     }
 
-    private var formattingToolbar: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                // Typography Headers
-                ControlGroup {
-                    Button { formatText(with: "# ", suffix: "") } label: { Text("H1").bold() }.help("Heading 1")
-                    Button { formatText(with: "## ", suffix: "") } label: { Text("H2").bold() }.help("Heading 2")
-                    Button { formatText(with: "### ", suffix: "") } label: { Text("H3").bold() }.help("Heading 3")
+    // MARK: - Layout Component: Header Area
+
+    @ViewBuilder
+    private func headerArea(for doc: Document, mode: EditorLayoutMode, state: WorkspaceState) -> some View {
+        HStack(spacing: mode == .compact ? 8 : 16) {
+            HStack(spacing: mode == .compact ? 6 : 10) {
+                Image(systemName: kind.icon)
+                    .font(mode == .compact ? .body : .title2)
+                    .foregroundStyle(kind.accentColor)
+
+                if isRenaming {
+                    TextField("Title", text: $editTitleText)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: mode == .compact ? 12 : 16, weight: .bold))
+                        .frame(maxWidth: mode == .compact ? 150 : 300)
+                        .onSubmit {
+                            renameDocument(to: editTitleText)
+                        }
+
+                    Button {
+                        renameDocument(to: editTitleText)
+                    } label: {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        isRenaming = false
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text(titleText)
+                        .font(.system(size: mode == .compact ? 13 : 18, weight: .bold))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .textSelection(.enabled)
+
+                    Button {
+                        editTitleText = titleText
+                        isRenaming = true
+                    } label: {
+                        Image(systemName: "pencil")
+                            .foregroundStyle(.secondary)
+                            .font(.system(size: mode == .compact ? 10 : 13))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Spacer()
+
+            if mode != .compact {
+                // Validation Message Indicator
+                if let validation = validationMessage {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text(validation)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(6)
                 }
 
-                Divider().frame(height: 20)
-
-                // Inline Styles
-                ControlGroup {
-                    Button { formatText(with: "**", suffix: "**") } label: { Image(systemName: "bold") }.help("Bold")
-                    Button { formatText(with: "*", suffix: "*") } label: { Image(systemName: "italic") }.help("Italic")
-                    Button { formatText(with: "~~", suffix: "~~") } label: { Image(systemName: "strikethrough") }.help("Strikethrough")
-                    Button { formatText(with: "`", suffix: "`") } label: { Image(systemName: "curlybraces") }.help("Inline Code")
+                // Preview Toggler
+                Toggle(isOn: Binding(
+                    get: { state.showLivePreview },
+                    set: { withAnimation { state.showLivePreview = $0 } }
+                )) {
+                    Label("Preview", systemImage: "sidebar.right")
                 }
+                .toggleStyle(.button)
+                .help("Show/Hide live markdown preview side panel")
 
-                Divider().frame(height: 20)
-
-                // Block Blocks
-                ControlGroup {
-                    Button { formatText(with: "\n```\n", suffix: "\n```\n") } label: { Image(systemName: "doc.plaintext") }.help("Code Block")
-                    Button { formatText(with: "> ", suffix: "") } label: { Image(systemName: "quote.opening") }.help("Blockquote")
-                    Button { formatText(with: "[", suffix: "](url)") } label: { Image(systemName: "link") }.help("Hyperlink")
+                Toggle(isOn: Binding(
+                    get: { state.showRightInspector },
+                    set: { withAnimation { state.showRightInspector = $0 } }
+                )) {
+                    Label("Inspector", systemImage: "info.circle")
                 }
+                .toggleStyle(.button)
+                .help("Show/Hide document metadata inspector")
 
-                Divider().frame(height: 20)
-
-                // Lists
-                ControlGroup {
-                    Button { formatText(with: "- ", suffix: "") } label: { Image(systemName: "list.bullet") }.help("Bullet List")
-                    Button { formatText(with: "1. ", suffix: "") } label: { Image(systemName: "list.number") }.help("Numbered List")
-                    Button { formatText(with: "- [ ] ", suffix: "") } label: { Image(systemName: "checkmark.square") }.help("Task List")
-                    Button { formatText(with: "\n---\n", suffix: "") } label: { Image(systemName: "minus") }.help("Horizontal Rule")
+                // Action Buttons
+                HStack(spacing: 8) {
+                    Button {
+                        duplicateDocument()
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                    .help("Duplicate current document")
+                    .buttonStyle(.bordered)
                 }
-
-                Divider().frame(height: 20)
-
-                // Advanced Markdown Tables
+            } else {
+                // Compact Window Actions Menu
                 Menu {
+                    Toggle(isOn: Binding(
+                        get: { state.showLivePreview },
+                        set: { withAnimation { state.showLivePreview = $0 } }
+                    )) {
+                        Label("Live Preview", systemImage: "sidebar.right")
+                    }
+                    Toggle(isOn: Binding(
+                        get: { state.showRightInspector },
+                        set: { withAnimation { state.showRightInspector = $0 } }
+                    )) {
+                        Label("Inspector", systemImage: "info.circle")
+                    }
                     Button {
-                        tableRows = 3; tableCols = 3
-                        insertCustomTable()
-                    } label: { Label("3x3 Table", systemImage: "tablecells") }
-
-                    Button {
-                        tableRows = 5; tableCols = 4
-                        insertCustomTable()
-                    } label: { Label("5x4 Table", systemImage: "tablecells.fill") }
-
-                    Button {
-                        showTableCreatorPopover = true
-                    } label: { Label("Custom Table...", systemImage: "slider.horizontal.3") }
-
-                    Divider()
-
-                    Button { addTableRow() } label: { Label("Insert Row Below", systemImage: "plus.row.fill") }
-                    Button { deleteTableRow() } label: { Label("Delete Active Row", systemImage: "minus.row.fill") }
-                    Button { addTableColumn() } label: { Label("Insert Column Right", systemImage: "plus.column.fill") }
-                    Button { deleteTableColumn() } label: { Label("Delete Active Column", systemImage: "minus.column.fill") }
-
-                    Divider()
-
-                    Button { alignTable(to: "left") } label: { Label("Align Left", systemImage: "align.left") }
-                    Button { alignTable(to: "center") } label: { Label("Align Center", systemImage: "align.center") }
-                    Button { alignTable(to: "right") } label: { Label("Align Right", systemImage: "align.right") }
+                        duplicateDocument()
+                    } label: {
+                        Label("Duplicate", systemImage: "doc.on.doc")
+                    }
+                    if showSearchAndReplace {
+                        Button("Hide Find") { showSearchAndReplace = false }
+                    } else {
+                        Button("Show Find (Cmd+F)") { showSearchAndReplace = true }
+                    }
                 } label: {
-                    Label("Table", systemImage: "tablecells")
+                    Image(systemName: "ellipsis.circle")
+                        .font(.title3)
                 }
                 .menuStyle(.button)
-                .help("Create and edit tables")
-                .popover(isPresented: $showTableCreatorPopover) {
-                    VStack(spacing: 12) {
-                        Text("Custom Table Creator")
-                            .font(.headline)
-                        Stepper("Rows: \(tableRows)", value: $tableRows, in: 1...15)
-                        Stepper("Columns: \(tableCols)", value: $tableCols, in: 1...10)
-                        Button("Insert Table") {
-                            insertCustomTable()
-                            showTableCreatorPopover = false
+            }
+        }
+        .padding(.horizontal, mode == .compact ? 12 : 24)
+        .padding(.vertical, mode == .compact ? 8 : 14)
+        .background(Color(NSColor.windowBackgroundColor))
+    }
+
+    // MARK: - Layout Component: Formatting Toolbar
+
+    @ViewBuilder
+    private func adaptiveFormattingToolbar(mode: EditorLayoutMode) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                if mode == .compact {
+                    // Under compact window: collapse advanced tools into simple dropdowns/menus
+                    Menu {
+                        Section("Headers") {
+                            Button("Header 1") { formatText(with: "# ", suffix: "") }
+                            Button("Header 2") { formatText(with: "## ", suffix: "") }
+                            Button("Header 3") { formatText(with: "### ", suffix: "") }
                         }
-                        .buttonStyle(.borderedProminent)
+                        Section("Styles") {
+                            Button("Bold") { formatText(with: "**", suffix: "**") }
+                            Button("Italic") { formatText(with: "*", suffix: "*") }
+                            Button("Inline Code") { formatText(with: "`", suffix: "`") }
+                        }
+                        Section("Blocks") {
+                            Button("Quote") { formatText(with: "> ", suffix: "") }
+                            Button("Link") { formatText(with: "[", suffix: "](url)") }
+                            Button("Bullet List") { formatText(with: "- ", suffix: "") }
+                            Button("Task List") { formatText(with: "- [ ] ", suffix: "") }
+                        }
+                    } label: {
+                        Label("Insert...", systemImage: "plus")
                     }
-                    .padding()
-                    .frame(width: 220)
+                    .menuStyle(.button)
+                    .controlSize(.small)
+
+                    Menu {
+                        Button {
+                            tableRows = 3; tableCols = 3
+                            insertCustomTable()
+                        } label: { Label("3x3 Table", systemImage: "tablecells") }
+
+                        Button {
+                            tableRows = 5; tableCols = 4
+                            insertCustomTable()
+                        } label: { Label("5x4 Table", systemImage: "tablecells.fill") }
+
+                        Divider()
+
+                        Button { addTableRow() } label: { Label("Insert Row Below", systemImage: "plus.row.fill") }
+                        Button { addTableColumn() } label: { Label("Insert Column Right", systemImage: "plus.column.fill") }
+                    } label: {
+                        Label("Table", systemImage: "tablecells")
+                    }
+                    .menuStyle(.button)
+                    .controlSize(.small)
+
+                    specializedToolbar()
+                } else {
+                    // Under normal/wide window: show primary formatting tools directly
+                    ControlGroup {
+                        Button { formatText(with: "# ", suffix: "") } label: { Text("H1").bold() }.help("Heading 1")
+                        Button { formatText(with: "## ", suffix: "") } label: { Text("H2").bold() }.help("Heading 2")
+                    }
+                    .controlSize(.small)
+
+                    Divider().frame(height: 16)
+
+                    ControlGroup {
+                        Button { formatText(with: "**", suffix: "**") } label: { Image(systemName: "bold") }.help("Bold")
+                        Button { formatText(with: "*", suffix: "*") } label: { Image(systemName: "italic") }.help("Italic")
+                        Button { formatText(with: "`", suffix: "`") } label: { Image(systemName: "curlybraces") }.help("Inline Code")
+                    }
+                    .controlSize(.small)
+
+                    Divider().frame(height: 16)
+
+                    ControlGroup {
+                        Button { formatText(with: "\n```\n", suffix: "\n```\n") } label: { Image(systemName: "doc.plaintext") }.help("Code Block")
+                        Button { formatText(with: "> ", suffix: "") } label: { Image(systemName: "quote.opening") }.help("Blockquote")
+                        Button { formatText(with: "[", suffix: "](url)") } label: { Image(systemName: "link") }.help("Hyperlink")
+                    }
+                    .controlSize(.small)
+
+                    Divider().frame(height: 16)
+
+                    ControlGroup {
+                        Button { formatText(with: "- ", suffix: "") } label: { Image(systemName: "list.bullet") }.help("Bullet List")
+                        Button { formatText(with: "- [ ] ", suffix: "") } label: { Image(systemName: "checkmark.square") }.help("Task List")
+                    }
+                    .controlSize(.small)
+
+                    Divider().frame(height: 16)
+
+                    // Markdown Tables Menu
+                    Menu {
+                        Button {
+                            tableRows = 3; tableCols = 3
+                            insertCustomTable()
+                        } label: { Label("3x3 Table", systemImage: "tablecells") }
+
+                        Button {
+                            tableRows = 5; tableCols = 4
+                            insertCustomTable()
+                        } label: { Label("5x4 Table", systemImage: "tablecells.fill") }
+
+                        Button {
+                            showTableCreatorPopover = true
+                        } label: { Label("Custom Table...", systemImage: "slider.horizontal.3") }
+
+                        Divider()
+
+                        Button { addTableRow() } label: { Label("Insert Row Below", systemImage: "plus.row.fill") }
+                        Button { deleteTableRow() } label: { Label("Delete Active Row", systemImage: "minus.row.fill") }
+                        Button { addTableColumn() } label: { Label("Insert Column Right", systemImage: "plus.column.fill") }
+                        Button { deleteTableColumn() } label: { Label("Delete Active Column", systemImage: "minus.column.fill") }
+
+                        Divider()
+
+                        Button { alignTable(to: "left") } label: { Label("Align Left", systemImage: "align.left") }
+                        Button { alignTable(to: "center") } label: { Label("Align Center", systemImage: "align.center") }
+                        Button { alignTable(to: "right") } label: { Label("Align Right", systemImage: "align.right") }
+                    } label: {
+                        Label("Table", systemImage: "tablecells")
+                    }
+                    .menuStyle(.button)
+                    .controlSize(.small)
+                    .popover(isPresented: $showTableCreatorPopover) {
+                        VStack(spacing: 12) {
+                            Text("Custom Table Creator")
+                                .font(.headline)
+                            Stepper("Rows: \(tableRows)", value: $tableRows, in: 1...15)
+                            Stepper("Columns: \(tableCols)", value: $tableCols, in: 1...10)
+                            Button("Insert Table") {
+                                insertCustomTable()
+                                showTableCreatorPopover = false
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                        .padding()
+                        .frame(width: 220)
+                    }
+
+                    Divider().frame(height: 16)
+
+                    specializedToolbar()
                 }
-
-                Divider().frame(height: 20)
-
-                // Inject specialized editor's custom actions
-                specializedToolbar()
 
                 Spacer()
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 8)
+            .padding(.horizontal, mode == .compact ? 12 : 20)
+            .padding(.vertical, mode == .compact ? 4 : 8)
             .background(Color(NSColor.controlBackgroundColor))
 
             Divider()
         }
     }
+
+    // MARK: - Layout Component: Search & Replace Bar
+
+    @ViewBuilder
+    private func searchAndReplaceBar() -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+
+                TextField("Find", text: $searchQuery)
+                    .textFieldStyle(.roundedBorder)
+                    .controlSize(.small)
+                    .frame(width: 150)
+
+                Image(systemName: "arrow.right.arrow.left")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+
+                TextField("Replace", text: $replaceQuery)
+                    .textFieldStyle(.roundedBorder)
+                    .controlSize(.small)
+                    .frame(width: 150)
+
+                Button("Replace") {
+                    performReplace()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Button("Replace All") {
+                    performReplaceAll()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Spacer()
+
+                Button {
+                    withAnimation {
+                        showSearchAndReplace = false
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 6)
+            .background(Color(NSColor.controlBackgroundColor))
+
+            Divider()
+        }
+    }
+
+    // MARK: - Layout Component: Side Panels
+
+    @ViewBuilder
+    private func sidePanelsArea(for doc: Document, mode: EditorLayoutMode, state: WorkspaceState) -> some View {
+        if mode == .compact {
+            EmptyView()
+        } else if mode == .normal {
+            if state.showLivePreview && state.showRightInspector {
+                VStack(spacing: 0) {
+                    Picker("", selection: $selectedSidePanelTab) {
+                        Text("Live Preview").tag(0)
+                        Text("Inspector").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(10)
+                    .background(Color(NSColor.windowBackgroundColor))
+
+                    Divider()
+
+                    if selectedSidePanelTab == 0 {
+                        livePreviewPanel()
+                    } else {
+                        rightInspectorPanel(for: doc)
+                    }
+                }
+                .frame(width: 320)
+                .background(Color(NSColor.windowBackgroundColor))
+                .transition(.slide)
+            } else if state.showLivePreview {
+                livePreviewPanel()
+                    .frame(width: 320)
+                    .background(Color(NSColor.windowBackgroundColor))
+                    .transition(.slide)
+            } else if state.showRightInspector {
+                rightInspectorPanel(for: doc)
+                    .frame(width: 320)
+                    .background(Color(NSColor.windowBackgroundColor))
+                    .transition(.slide)
+            }
+        } else {
+            HStack(spacing: 0) {
+                if state.showLivePreview {
+                    Divider()
+                    livePreviewPanel()
+                        .frame(width: 360)
+                        .background(Color(NSColor.windowBackgroundColor))
+                }
+
+                if state.showRightInspector {
+                    Divider()
+                    rightInspectorPanel(for: doc)
+                        .frame(width: 300)
+                        .background(Color(NSColor.windowBackgroundColor))
+                }
+            }
+            .transition(.slide)
+        }
+    }
+
+    @ViewBuilder
+    private func livePreviewPanel() -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                if markdownText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text("Start typing on the left to see live-rendered markdown preview.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .italic()
+                } else {
+                    MarkdownBlockListView(blocks: MarkdownParser.shared.parse(markdownText))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+        }
+    }
+
+    @ViewBuilder
+    private func rightInspectorPanel(for doc: Document) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                // 1. Validation HUD (if any)
+                if let validation = validationMessage {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                            Text("Validation Alert")
+                                .font(.caption.bold())
+                                .foregroundStyle(.orange)
+                        }
+                        Text(validation)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                    )
+                }
+
+                // 2. Document Status & Priority Pickers
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Parameters")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("STATUS")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        Picker("", selection: Binding(
+                            get: { doc.status ?? "To Do" },
+                            set: { val in
+                                doc.status = val
+                                try? coordinator.documents.updateDocument(doc)
+                            }
+                        )) {
+                            Text("To Do").tag("To Do")
+                            Text("In Progress").tag("In Progress")
+                            Text("Done").tag("Done")
+                        }
+                        .pickerStyle(.segmented)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("PRIORITY")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        Picker("", selection: Binding(
+                            get: { doc.priority ?? "Medium" },
+                            set: { val in
+                                doc.priority = val
+                                try? coordinator.documents.updateDocument(doc)
+                            }
+                        )) {
+                            Text("High").tag("High")
+                            Text("Medium").tag("Medium")
+                            Text("Low").tag("Low")
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+                .padding(12)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(8)
+
+                // 3. Document Statistics
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Statistics")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+
+                    let stats = calculateDocumentStats()
+                    Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+                        GridRow {
+                            Text("Words:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("\(stats.words)")
+                                .font(.caption.bold())
+                        }
+                        GridRow {
+                            Text("Characters:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("\(stats.chars)")
+                                .font(.caption.bold())
+                        }
+                        GridRow {
+                            Text("Read Time:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("\(stats.readTime) min")
+                                .font(.caption.bold())
+                        }
+                    }
+                }
+                .padding(12)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(8)
+
+                // 4. Tag Manager
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Tags")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 6) {
+                        TextField("New tag...", text: $newTagText, onCommit: {
+                            addNewTag(to: doc)
+                        })
+                        .textFieldStyle(.roundedBorder)
+                        .controlSize(.small)
+
+                        Button {
+                            addNewTag(to: doc)
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+
+                    if !doc.tags.isEmpty {
+                        HFlowLayout(doc.tags, spacing: 6) { tag in
+                            HStack(spacing: 4) {
+                                Text(tag)
+                                    .font(.caption)
+                                Button {
+                                    removeTag(tag, from: doc)
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 8, weight: .bold))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.secondary.opacity(0.12))
+                            .cornerRadius(10)
+                        }
+                    }
+                }
+                .padding(12)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(8)
+
+                // 5. Template Helpers
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Markdown Quick Templates")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Button("Header 1") { formatText(with: "# ", suffix: "") }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        Button("Header 2") { formatText(with: "## ", suffix: "") }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        Button("Bold Text") { formatText(with: "**", suffix: "**") }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        Button("Code Block") { formatText(with: "\n```\n", suffix: "\n```\n") }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        Button("Task Checklist") { formatText(with: "- [ ] ", suffix: "") }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        Button("Table Template") {
+                            tableRows = 3; tableCols = 3
+                            insertCustomTable()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+                .padding(12)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(8)
+
+                // 6. Specialized Metadata (rendered if present)
+                let specMeta = specializedMetadata()
+                if !(specMeta is EmptyView) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Specialized Fields")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+
+                        specMeta
+                    }
+                    .padding(12)
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(NSColor.separatorColor), lineWidth: 1)
+                    )
+                }
+            }
+            .padding(16)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Layout Component: Empty State
+
+    @ViewBuilder
+    private func emptyStateView() -> some View {
+        ContentUnavailableView {
+            Label("\(kind.rawValue) Workspace", systemImage: kind.icon)
+        } description: {
+            VStack(spacing: 16) {
+                Text("No active document selected. Choose one from the category browser or create a new document.")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: 400)
+                    .multilineTextAlignment(.center)
+            }
+        }
+    }
+
+    // MARK: - Core Operations & Calculations
 
     private func reloadData() {
         guard let id = documentID else {
@@ -539,6 +814,16 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                 try? coordinator.documents.updateDocument(doc)
             }
         }
+    }
+
+    private func calculateDocumentStats() -> (words: Int, chars: Int, readTime: Int) {
+        let text = markdownText
+        let charCount = text.count
+        let words = text.components(separatedBy: .whitespacesAndNewlines)
+                        .filter { !$0.isEmpty }
+        let wordCount = words.count
+        let readTime = max(1, Int(ceil(Double(wordCount) / 200.0)))
+        return (wordCount, charCount, readTime)
     }
 
     private func addNewTag(to doc: Document) {
@@ -601,7 +886,30 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
         } catch {}
     }
 
-    // Markdown Tables Processing
+    // MARK: - Search and Replace Logic
+
+    private func performReplace() {
+        guard !searchQuery.isEmpty else { return }
+        if let range = markdownText.range(of: searchQuery) {
+            markdownText.replaceSubrange(range, with: replaceQuery)
+            if let doc = document {
+                doc.markdownSource = markdownText
+                try? coordinator.documents.updateDocument(doc)
+            }
+        }
+    }
+
+    private func performReplaceAll() {
+        guard !searchQuery.isEmpty else { return }
+        markdownText = markdownText.replacingOccurrences(of: searchQuery, with: replaceQuery)
+        if let doc = document {
+            doc.markdownSource = markdownText
+            try? coordinator.documents.updateDocument(doc)
+        }
+    }
+
+    // MARK: - Markdown Tables Processing
+
     private func insertCustomTable() {
         var tableMarkdown = "\n"
         tableMarkdown += "|"
@@ -718,5 +1026,28 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
             return dividerLine.components(separatedBy: "|").count - 2
         }
         return 3
+    }
+}
+
+// Simple Helper for Horizontal Flow Layout of Tags
+struct HFlowLayout: View {
+    let spacing: CGFloat
+    let items: [AnyView]
+
+    init<Data: RandomAccessCollection, Content: View>(
+        _ data: Data,
+        spacing: CGFloat = 8,
+        @ViewBuilder content: @escaping (Data.Element) -> Content
+    ) {
+        self.spacing = spacing
+        self.items = data.map { AnyView(content($0)) }
+    }
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 80))], spacing: spacing) {
+            ForEach(0..<items.count, id: \.self) { index in
+                items[index]
+            }
+        }
     }
 }
