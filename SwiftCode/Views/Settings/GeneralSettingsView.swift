@@ -46,7 +46,7 @@ enum APIKeyProvider: String, Codable, CaseIterable {
 
 // MARK: - Custom Section Shorthand Wrapper for High-Fidelity macOS Card Styling
 
-struct Section<Header: View, Content: View, Footer: View>: View {
+struct SettingsCardSection<Header: View, Content: View, Footer: View>: View {
     let header: Header
     let content: Content
     let footer: Footer
@@ -594,7 +594,7 @@ struct GeneralSettingsView: View {
                     aiSection
                     deploymentAndAPIKeysSection
                     editorSection
-                    Section {
+                    SettingsCardSection {
                         NavigationLink {
                             AssistSettingsView()
                         } label: {
@@ -713,7 +713,7 @@ struct GeneralSettingsView: View {
     }
 
     private var quickSetupSection: some View {
-        Section {
+        SettingsCardSection {
             Button {
                 showOfflineModelsSheet = true
             } label: {
@@ -776,7 +776,7 @@ struct GeneralSettingsView: View {
     }
 
     private var aiSection: some View {
-        Section {
+        SettingsCardSection {
             Picker("Dynamic AI", selection: $aiRoutingModeRawValue) {
                 ForEach(AIRoutingMode.allCases, id: \.self) { mode in
                     Text(mode.rawValue).tag(mode.rawValue)
@@ -925,7 +925,7 @@ struct GeneralSettingsView: View {
 
     private var deploymentAndAPIKeysSection: some View {
         Group {
-            Section {
+            SettingsCardSection {
                 let aiProviders: [APIKeyProvider] = [.openRouter, .anthropic, .openai, .google, .mistral, .qwen]
                 ForEach(aiProviders, id: \.self) { provider in
                     apiKeyRow(for: provider)
@@ -936,7 +936,7 @@ struct GeneralSettingsView: View {
                 Text("Server based API keys for OpenRouter, Gemini, Claude, GPT, and other providers.")
             }
 
-            Section {
+            SettingsCardSection {
                 let deploymentProviders: [APIKeyProvider] = [.gitHub, .netlify, .vercel]
                 ForEach(deploymentProviders, id: \.self) { provider in
                     apiKeyRow(for: provider)
@@ -990,7 +990,7 @@ struct GeneralSettingsView: View {
     }
 
     private var themesSection: some View {
-        Section {
+        SettingsCardSection {
             Button {
                 showThemeSheet = true
             } label: {
@@ -1022,7 +1022,7 @@ struct GeneralSettingsView: View {
 
 
     private var editorSection: some View {
-        Section {
+        SettingsCardSection {
             Toggle(isOn: $settings.alwaysPinFilesView) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Always Pin Files View")
@@ -1039,7 +1039,7 @@ struct GeneralSettingsView: View {
     }
 
     private var dashboardSection: some View {
-        Section {
+        SettingsCardSection {
             // Layout picker
             Picker("Layout", selection: $settings.dashboardLayout) {
                 ForEach(DashboardLayout.allCases, id: \.self) { layout in
@@ -1101,7 +1101,7 @@ struct GeneralSettingsView: View {
     }
 
     private var fileNavigatorCustomizationSection: some View {
-        Section {
+        SettingsCardSection {
             Picker("Layout Style", selection: $settings.fileNavigatorLayoutStyle) {
                 ForEach(FileNavigatorLayoutStyle.allCases, id: \.self) { style in
                     Text(style.rawValue).tag(style)
@@ -1144,7 +1144,7 @@ struct GeneralSettingsView: View {
     }
 
     private var proSection: some View {
-        Section {
+        SettingsCardSection {
             if entitlementManager.isProUser {
                 HStack {
                     Label("SwiftCode Pro Member!", systemImage: "crown.fill")
@@ -1184,7 +1184,7 @@ struct GeneralSettingsView: View {
     }
 
     private var developerToolsSection: some View {
-        Section {
+        SettingsCardSection {
             Button {
                 showDeveloperDashboard = true
             } label: {
@@ -1196,7 +1196,7 @@ struct GeneralSettingsView: View {
     }
 
     private var agentConnectionsSection: some View {
-        Section {
+        SettingsCardSection {
             Button {
                 showAgentConnectionsSheet = true
             } label: {
@@ -1220,7 +1220,7 @@ struct GeneralSettingsView: View {
     }
 
     private var skillsSection: some View {
-        Section {
+        SettingsCardSection {
             Button {
                 showSkillsSheet = true
             } label: {
@@ -1244,7 +1244,7 @@ struct GeneralSettingsView: View {
     }
 
     private var appManagementSection: some View {
-        Section {
+        SettingsCardSection {
             Button(role: .destructive) {
                 showResetConfirmation = true
             } label: {
@@ -1262,7 +1262,7 @@ struct GeneralSettingsView: View {
     private static let swiftCodeReleasesURL = URL(string: "https://github.com/dylans2010/SwiftCode/releases")!
 
     private var aboutSection: some View {
-        Section {
+        SettingsCardSection {
             HStack {
                 Text("Version")
                 Spacer()
