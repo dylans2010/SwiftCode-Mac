@@ -11,6 +11,8 @@ public final class WorkspaceState {
     public var searchQuery: String = ""
     public var showBrowserSheet: Bool = false
     public var showLivePreview: Bool = true
+    public var showLeftSidebar: Bool = true
+    public var showRightInspector: Bool = true
 
     public init() {}
 }
