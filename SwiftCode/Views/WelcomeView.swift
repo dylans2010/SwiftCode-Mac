@@ -1,5 +1,4 @@
 import SwiftUI
-import WelcomeView
 
 @MainActor
 struct SwiftCodeWelcomeView: View {
@@ -9,7 +8,6 @@ struct SwiftCodeWelcomeView: View {
 
     @State private var showingNewProject = false
     @State private var showingSettings = false
-    @State private var selection: String? = "Recent"
     @State private var searchText = ""
 
     // Sorting and view mode
@@ -33,14 +31,6 @@ struct SwiftCodeWelcomeView: View {
     @State private var errorMessage: String?
     @State private var showError = false
 
-    // WelcomeView Package Bindings
-    @State private var welcomeTitle = "Welcome to SwiftCode"
-    @State private var resetSelection = false
-
-    enum ViewMode: String {
-        case grid, list
-    }
-
     enum SortMode: String, CaseIterable, Identifiable {
         case lastOpened = "Last Opened"
         case name = "Name"
@@ -53,13 +43,11 @@ struct SwiftCodeWelcomeView: View {
         Set(favoriteProjectIDs.split(separator: ",").map(String.init))
     }
 
+    private var isSearching: Bool { !searchText.isEmpty }
+
     var body: some View {
         AdaptivePage {
-            AdaptiveSplitLayout {
-                sidebar
-            } detail: {
-                detail
-            }
+            mainDashboard
         }
         .sheet(isPresented: $showingNewProject) {
             NewProjectSheetView(viewModel: WelcomeViewModel())
@@ -90,327 +78,270 @@ struct SwiftCodeWelcomeView: View {
         }
     }
 
-    private var sidebar: some View {
-        VStack(spacing: 0) {
-            List(selection: $selection) {
-                Section("Library") {
-                    Label("Welcome Screen", systemImage: "sparkles").tag("Recent")
-                    Label("All Projects", systemImage: "folder").tag("All")
-                    Label("Favorites", systemImage: "star.fill").tag("Favorites")
-                }
-
-                Section(header: HStack {
-                    Text("Folders")
-                    Spacer()
-                    Button {
-                        newFolderName = ""
-                        showCreateFolderSheet = true
-                    } label: {
-                        Image(systemName: "plus.circle")
-                    }
-                    .buttonStyle(.plain)
-                    .help("Create Organization Folder")
-                }) {
-                    ForEach(folderManager.folders) { folder in
-                        Label(folder.folderName, systemImage: "folder.badge.gearshape")
-                            .tag("folder_\(folder.folderId)")
-                            .contextMenu {
-                                Button(role: .destructive) {
-                                    folderManager.deleteFolder(folder)
-                                } label: {
-                                    Label("Delete Folder", systemImage: "trash")
-                                }
-                            }
-                    }
-                }
-
-                Section("Templates") {
-                    Label("Browse Templates", systemImage: "square.grid.2x2").tag("Templates")
-                }
-            }
-            .listStyle(.sidebar)
-            .background(.ultraThinMaterial)
-        }
-        .navigationTitle("SwiftCode")
-    }
-
-    private var detail: some View {
+    private var mainDashboard: some View {
         ZStack {
+            // Modern, rich background gradient with neon accents
             LinearGradient(
                 colors: [
-                    Color(hex: themeVM.currentTheme.background).opacity(0.96),
-                    Color.accentColor.opacity(0.10),
-                    Color.orange.opacity(0.08)
+                    Color(hex: themeVM.currentTheme.background).opacity(0.98),
+                    Color.accentColor.opacity(0.08),
+                    Color.orange.opacity(0.05)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
-            .background(.ultraThinMaterial)
 
-            VStack(spacing: 0) {
-                if selection == "Recent" {
-                    packageWelcomeView
-                } else if selection == "Templates" {
-                    TemplatePickerView(viewModel: WelcomeViewModel())
-                        .padding(24)
-                } else {
-                    heroHeader
+            HStack(spacing: 0) {
+                // Left Column: Modern Welcoming Hero & Quick Actions
+                leftPanel
+                    .frame(width: 360)
+                    .background(.ultraThinMaterial.opacity(0.5))
 
-                    if filteredProjects.isEmpty && !isSearching {
-                        emptyStateView
-                    } else {
-                        if viewModeRaw == "grid" {
-                            projectsGrid
-                        } else {
-                            projectsList
+                Divider()
+
+                // Right Column: Active/Recent Workspace Manager
+                rightPanel
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+
+    private var leftPanel: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 32) {
+                    // Modern Stylized Icon
+                    ZStack {
+                        Circle()
+                            .fill(Color.orange.opacity(0.12).gradient)
+                            .frame(width: 110, height: 110)
+                            .blur(radius: 6)
+
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(LinearGradient(colors: [.orange, .red], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .frame(width: 80, height: 80)
+                            .shadow(color: .orange.opacity(0.4), radius: 12, x: 0, y: 6)
+
+                        Image(systemName: "swift")
+                            .font(.system(size: 44, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+                    .padding(.top, 40)
+
+                    // Modernised "Welcome to SwiftCode" Header Text
+                    VStack(spacing: 12) {
+                        Text("Welcome to SwiftCode")
+                            .font(.system(size: 30, weight: .black, design: .rounded))
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.orange, .red, Color.accentColor],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+
+                        Text("The desktop IDE for building and organizing cutting-edge Swift applications natively.")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+                    }
+
+                    // Modern Quick Action Cards
+                    VStack(spacing: 14) {
+                        ModernActionCard(
+                            title: "New Project",
+                            subtitle: "Start a fresh app from templates",
+                            iconName: "plus.circle.fill",
+                            color: .orange
+                        ) {
+                            showingNewProject = true
+                        }
+
+                        ModernActionCard(
+                            title: "Import Folder",
+                            subtitle: "Open a project directory from disk",
+                            iconName: "folder.badge.plus",
+                            color: .blue
+                        ) {
+                            importFolder()
+                        }
+
+                        ModernActionCard(
+                            title: "Settings",
+                            subtitle: "Configure accounts, themes & AI",
+                            iconName: "gearshape.fill",
+                            color: .purple
+                        ) {
+                            showingSettings = true
                         }
                     }
+                    .padding(.horizontal, 20)
+
+                    Spacer(minLength: 20)
                 }
             }
-        }
-    }
+            .scrollIndicators(.never)
 
-    private var packageWelcomeView: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Spacer()
-                Button(action: { showingSettings = true }) {
-                    Image(systemName: "gearshape")
-                        .font(.title2)
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 20)
-                .padding(.trailing, 24)
-            }
-
-            WelcomeView(
-                titleText: welcomeTitle,
-                menu: WelcomeMenu {
-                    WelcomeMenuButton(title: "New Project", image: Image(systemName: "plus.circle.fill")) {
-                        showingNewProject = true
-                    }
-                    WelcomeMenuButton(title: "Import Folder", image: Image(systemName: "folder.badge.plus")) {
-                        importFolder()
-                    }
-                    WelcomeMenuButton(title: "Xcode Project", image: Image(systemName: "hammer.circle.fill")) {
-                        showingNewProject = true
-                    }
-                },
-                emptyMessage: "No Recent Projects",
-                recentFileProvider: ProjectRecentFileProvider(sessionStore: sessionStore)
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-
-    private var isSearching: Bool { !searchText.isEmpty }
-
-    private var filteredProjects: [Project] {
-        var baseProjects = sessionStore.projects
-
-        // Filter based on library/sidebar selection
-        if let sel = selection {
-            if sel == "Recent" {
-                baseProjects = Array(baseProjects.prefix(5))
-            } else if sel == "Favorites" {
-                baseProjects = baseProjects.filter { favorites.contains($0.id.uuidString) }
-            } else if sel.hasPrefix("folder_") {
-                let idString = String(sel.dropFirst(7))
-                if let uuid = UUID(uuidString: idString),
-                   let folder = folderManager.folders.first(where: { $0.folderId == uuid }) {
-                    baseProjects = folderManager.projects(in: folder, allProjects: baseProjects)
-                }
-            }
-        }
-
-        // Apply text search
-        if isSearching {
-            baseProjects = baseProjects.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
-        }
-
-        // Apply sort mode
-        switch sortBy {
-        case .lastOpened:
-            baseProjects.sort { $0.lastOpened > $1.lastOpened }
-        case .name:
-            baseProjects.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-        case .dateCreated:
-            baseProjects.sort { $0.createdAt > $1.createdAt }
-        }
-
-        return baseProjects
-    }
-
-    private var heroHeader: some View {
-        VStack(spacing: 18) {
-            HStack(alignment: .center, spacing: 16) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(Color.orange.opacity(0.22).gradient)
-                    Image(systemName: "swift")
-                        .font(.system(size: 34, weight: .semibold))
-                        .foregroundStyle(.orange.gradient)
-                }
-                .frame(width: 72, height: 72)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(titleForSelection)
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                    Text(homeSubtitle)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                HStack(spacing: 10) {
-                    Button(action: { showingSettings = true }) {
-                        Label("Settings", systemImage: "gearshape")
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button(action: { showingNewProject = true }) {
-                        Label("New Project", systemImage: "plus.circle.fill")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                }
-            }
-
+            // Dynamic stats bar at the bottom
             HStack(spacing: 12) {
-                HomeStatPill(icon: "folder.fill", title: "Projects", value: "\(sessionStore.projects.count)", tint: .blue)
-                HomeStatPill(icon: "clock.fill", title: "Recent", value: "\(min(sessionStore.projects.count, 5))", tint: .purple)
-                HomeStatPill(icon: "star.fill", title: "Favorites", value: "\(favorites.count)", tint: .orange)
-
-                Spacer(minLength: 12)
-
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("Search projects", text: $searchText)
-                        .textFieldStyle(.plain)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(sessionStore.projects.count)")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    Text("Total Projects")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .frame(width: 230)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .frame(maxWidth: .infinity)
 
-                Picker("Sort", selection: $sortBy) {
-                    ForEach(SortMode.allCases) { mode in
-                        Text(mode.rawValue).tag(mode)
+                Divider()
+                    .frame(height: 24)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(favorites.count)")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    Text("Favorites")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.vertical, 16)
+            .background(.ultraThinMaterial.opacity(0.8))
+        }
+    }
+
+    private var rightPanel: some View {
+        VStack(spacing: 0) {
+            // Workspace Header Bar
+            HStack(spacing: 16) {
+                Text("Your Workspaces")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
+
+                Spacer()
+
+                // Interactive Filters
+                HStack(spacing: 12) {
+                    // Search Bar
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        TextField("Search projects...", text: $searchText)
+                            .textFieldStyle(.plain)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .frame(width: 180)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    // Sort Picker
+                    Picker("", selection: $sortBy) {
+                        ForEach(SortMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 120)
+
+                    // View Mode Switcher
+                    Picker("", selection: $viewModeRaw) {
+                        Image(systemName: "square.grid.2x2").tag("grid")
+                        Image(systemName: "list.bullet").tag("list")
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 60)
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 20)
+
+            Divider()
+
+            // Main List/Grid Area
+            ZStack {
+                if filteredProjects.isEmpty {
+                    emptyStateView
+                } else {
+                    if viewModeRaw == "grid" {
+                        projectsGrid
+                    } else {
+                        projectsList
                     }
                 }
-                .pickerStyle(.menu)
-                .frame(width: 130)
 
-                Picker("View", selection: $viewModeRaw) {
-                    Label("Grid", systemImage: "square.grid.2x2").tag("grid")
-                    Label("List", systemImage: "list.bullet").tag("list")
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 96)
+                loadingOverlay
             }
         }
-        .padding(24)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(.white.opacity(0.14), lineWidth: 1)
-        )
-        .padding(.horizontal, 24)
-        .padding(.top, 20)
-        .padding(.bottom, 12)
-    }
-
-    private var homeSubtitle: String {
-        if isSearching {
-            return "Showing \(filteredProjects.count) result(s) for “\(searchText)”"
-        }
-        return "Open a workspace, organize favorites, or start something new."
-    }
-
-    private var titleForSelection: String {
-        guard let sel = selection else { return "Projects" }
-        if sel == "Recent" { return "Recent Projects" }
-        if sel == "All" { return "All Projects" }
-        if sel == "Favorites" { return "Favorites" }
-        if sel.hasPrefix("folder_") {
-            let idString = String(sel.dropFirst(7))
-            if let uuid = UUID(uuidString: idString) {
-                return folderManager.folders.first(where: { $0.folderId == uuid })?.folderName ?? "Folder"
-            }
-            return "Folder"
-        }
-        return "Projects"
     }
 
     private var projectsGrid: some View {
-        ZStack {
-            AdaptiveGrid(filteredProjects, id: \.id) { project in
-                HomeProjectCardView(project: project) {
-                    Task {
-                        await sessionStore.openProject(project)
-                    }
-                } onDelete: {
-                    try? sessionStore.deleteProject(project)
+        AdaptiveGrid(filteredProjects, id: \.id) { project in
+            HomeProjectCardView(project: project) {
+                Task {
+                    await sessionStore.openProject(project)
                 }
-                .contextMenu { projectContextMenu(for: project) }
+            } onDelete: {
+                try? sessionStore.deleteProject(project)
             }
-
-            loadingOverlay
+            .contextMenu { projectContextMenu(for: project) }
         }
+        .padding(24)
     }
 
     private var projectsList: some View {
-        ZStack {
-            ScrollView {
-                LazyVStack(spacing: 8) {
-                    ForEach(filteredProjects) { project in
-                        HStack {
-                            Image(systemName: "swift")
-                                .font(.title3)
-                                .foregroundColor(.orange)
-                                .padding(8)
-                                .background(Color.orange.opacity(0.12))
-                                .cornerRadius(6)
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                ForEach(filteredProjects) { project in
+                    HStack(spacing: 16) {
+                        Image(systemName: "swift")
+                            .font(.title3)
+                            .foregroundColor(.orange)
+                            .padding(10)
+                            .background(Color.orange.opacity(0.12))
+                            .cornerRadius(8)
 
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(project.name)
-                                    .font(.headline)
-                                Text(project.description.isEmpty ? "No description" : project.description)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            HStack(spacing: 16) {
-                                if favorites.contains(project.id.uuidString) {
-                                    Image(systemName: "star.fill")
-                                        .foregroundColor(.orange)
-                                }
-                                Text(project.lastOpened, style: .relative)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(project.name)
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            Text(project.description.isEmpty ? "No description provided" : project.description)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
                         }
-                        .padding()
-                        .background(Color(NSColor.controlBackgroundColor).opacity(0.6))
-                        .cornerRadius(10)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            Task {
-                                await sessionStore.openProject(project)
+
+                        Spacer()
+
+                        HStack(spacing: 16) {
+                            if favorites.contains(project.id.uuidString) {
+                                Image(systemName: "star.fill")
+                                    .foregroundColor(.orange)
                             }
+
+                            Text(project.lastOpened, style: .relative)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        .contextMenu { projectContextMenu(for: project) }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color(NSColor.controlBackgroundColor).opacity(0.4))
+                    .cornerRadius(12)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        Task {
+                            await sessionStore.openProject(project)
+                        }
+                    }
+                    .contextMenu { projectContextMenu(for: project) }
                 }
-                .padding(.horizontal, 32)
             }
-
-            loadingOverlay
+            .padding(24)
         }
     }
 
@@ -508,13 +439,6 @@ struct SwiftCodeWelcomeView: View {
             Label("Export As ZIP", systemImage: "square.and.arrow.up")
         }
 
-        Button {
-            projectToAssignFolder = project
-            showAddToFolderSheet = true
-        } label: {
-            Label("Add To Folder", systemImage: "folder.badge.plus")
-        }
-
         Divider()
 
         Button(role: .destructive) {
@@ -528,20 +452,21 @@ struct SwiftCodeWelcomeView: View {
     private var emptyStateView: some View {
         VStack(spacing: 24) {
             Image(systemName: "sparkles")
-                .font(.system(size: 74, weight: .semibold))
+                .font(.system(size: 64, weight: .semibold))
                 .foregroundStyle(.orange.gradient)
-                .padding(28)
+                .padding(24)
                 .background(.regularMaterial, in: Circle())
-                .overlay(Circle().stroke(.orange.opacity(0.25), lineWidth: 1))
+                .overlay(Circle().stroke(.orange.opacity(0.2), lineWidth: 1))
 
             VStack(spacing: 8) {
-                Text("Welcome to SwiftCode")
-                    .font(.title)
+                Text("No Projects Found")
+                    .font(.title2)
                     .bold()
-                Text("Start your next great idea by creating a new project or importing an existing one.")
+                Text("Get started by creating a new project or importing an existing folder from your Mac.")
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 400)
+                    .frame(maxWidth: 360)
             }
 
             HStack(spacing: 16) {
@@ -552,25 +477,13 @@ struct SwiftCodeWelcomeView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
 
-                Button(action: { showingNewProject = true }) {
-                    Label("Import Project", systemImage: "folder.badge.plus")
+                Button(action: { importFolder() }) {
+                    Label("Import Folder", systemImage: "folder.badge.plus")
                         .padding(.horizontal, 8)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
             }
-
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Quick Start")
-                    .font(.headline)
-                    .padding(.top)
-
-                QuickStartRow(icon: "book.pages", title: "Learn SwiftCode", description: "Read the introduction guide to get started.")
-                QuickStartRow(icon: "shippingbox", title: "Swift Packages", description: "Create and manage Swift packages with ease.")
-                QuickStartRow(icon: "macwindow", title: "App Templates", description: "Choose from a variety of pre-configured templates.")
-            }
-            .frame(maxWidth: 400)
-            .padding(.top, 40)
         }
         .frame(maxHeight: .infinity)
     }
@@ -702,81 +615,54 @@ struct SwiftCodeWelcomeView: View {
 }
 
 @MainActor
-struct HomeStatPill: View {
-    let icon: String
+struct ModernActionCard: View {
     let title: String
-    let value: String
-    let tint: Color
+    let subtitle: String
+    let iconName: String
+    let color: Color
+    let action: () -> Void
+
+    @State private var isHovering = false
 
     var body: some View {
-        HStack(spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(tint.opacity(0.15))
-                    .frame(width: 32, height: 32)
-                Image(systemName: icon)
-                    .font(.subheadline)
-                    .foregroundColor(tint)
+        Button(action: action) {
+            HStack(spacing: 16) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(color.opacity(isHovering ? 0.25 : 0.12).gradient)
+                    Image(systemName: iconName)
+                        .font(.title2)
+                        .foregroundColor(color)
+                }
+                .frame(width: 44, height: 44)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer()
             }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(value)
-                    .font(.subheadline.bold())
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-}
-
-@MainActor
-struct QuickStartRow: View {
-    let icon: String
-    let title: String
-    let description: String
-
-    var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(.orange)
-                .frame(width: 30)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline.bold())
-                Text(description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-@MainActor
-struct ProjectRecentFileProvider: RecentFileProvider {
-    let sessionStore: ProjectSessionStore
-
-    func provideRecentFiles() async -> [RecentFile] {
-        sessionStore.projects.map { project in
-            RecentFile(
-                customTitle: project.name,
-                customSubtitle: project.description.isEmpty ? nil : project.description,
-                url: project.directoryURL
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(.regularMaterial)
+                    .shadow(color: Color.black.opacity(isHovering ? 0.12 : 0.04), radius: isHovering ? 8 : 3, x: 0, y: isHovering ? 3 : 1)
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(isHovering ? color.opacity(0.3) : Color.primary.opacity(0.05), lineWidth: 1)
+            )
+            .scaleEffect(isHovering ? 1.02 : 1.0)
+            .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.82), value: isHovering)
         }
-    }
-
-    func openFile(_ file: RecentFile) {
-        if let project = sessionStore.projects.first(where: { $0.directoryURL == file.url }) {
-            Task {
-                await sessionStore.openProject(project)
-            }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovering = hovering
         }
     }
 }
