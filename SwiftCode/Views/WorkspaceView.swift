@@ -376,6 +376,10 @@ struct WorkspaceView: View {
                     }
                     .frame(width: 820, height: 650)
 
+                case .settings:
+                    SettingsView()
+                        .environmentObject(AppSettings.shared)
+
                 case .personalDocumentation:
                     NSPersonalDocumentationView()
                         .frame(minWidth: 800, minHeight: 600)

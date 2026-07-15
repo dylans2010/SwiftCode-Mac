@@ -1,690 +1,922 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Saved Repository Model
+// MARK: - Settings Item Definition
 
-struct SavedRepository: Identifiable, Codable, Equatable {
-    var id: UUID
-    var name: String
-    var owner: String
-    var repositoryURL: String
-    var defaultBranch: String
-    var localProjectPath: String?
+public struct SettingsItem: Identifiable, Hashable {
+    public let id: String
+    public let title: String
+    public let icon: String
+    public let iconBgColor: Color
+    public let category: String
+    public let sortOrder: Int
+    public let keywords: String
+    public let helpDoc: String
 
-    init(id: UUID = UUID(), name: String, owner: String, repositoryURL: String, defaultBranch: String = "main", localProjectPath: String? = nil) {
-        self.id = id
-        self.name = name
-        self.owner = owner
-        self.repositoryURL = repositoryURL
-        self.defaultBranch = defaultBranch
-        self.localProjectPath = localProjectPath
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    public static func == (lhs: SettingsItem, rhs: SettingsItem) -> Bool {
+        lhs.id == rhs.id
     }
 }
 
-// MARK: - Dashboard Layout
-
-enum DashboardLayout: String, Codable, CaseIterable {
-    case grid = "Grid"
-    case list = "List"
-}
-
-enum DashboardSortOrder: String, Codable, CaseIterable {
-    case name = "Name"
-    case lastOpened = "Last Opened"
-    case creationDate = "Creation Date"
-}
-
-enum FileNavigatorLayoutStyle: String, Codable, CaseIterable {
-    case compact = "Compact"
-    case expanded = "Expanded"
-}
-
-enum FileNavigatorAnimationStyle: String, Codable, CaseIterable {
-    case easeInOut = "Ease In/Out"
-    case spring = "Spring"
-    case bouncy = "Bouncy"
-}
-
-// MARK: - App Settings
+// MARK: - Settings Coordinator
 
 @Observable
 @MainActor
-final class AppSettings {
-    static let shared = AppSettings()
+public final class SettingsCoordinator {
+    public var selectedPaneId: String = "general"
+    public var searchText: String = ""
+    public var favorites: [String] = []
+    public var recents: [String] = []
+    public var showInspector: Bool = true
+    public var isFullScreen: Bool = false
 
-    private var saveTask: Task<Void, Never>?
+    private static let favoritesKey = "com.swiftcode.settings.favorites"
+    private static let recentsKey = "com.swiftcode.settings.recents"
 
-    var selectedModel: String {
-        didSet { debouncedSave("selectedModel", selectedModel) }
-    }
-    var customModel: String {
-        didSet { debouncedSave("customModel", customModel) }
-    }
-    var selectedAssistModelID: String {
-        didSet { debouncedSave("selectedAssistModelID", selectedAssistModelID) }
-    }
-    var autoSave: Bool {
-        didSet { debouncedSave("autoSave", autoSave) }
-    }
-    var editorFontSize: Double {
-        didSet { debouncedSave("editorFontSize", editorFontSize) }
-    }
-    var useDarkTheme: Bool {
-        didSet { debouncedSave("useDarkTheme", useDarkTheme) }
-    }
-    var fileHeaderAuthor: String {
-        didSet { debouncedSave("fileHeaderAuthor", fileHeaderAuthor) }
-    }
-    var fileHeaderCustomComment: String {
-        didSet { debouncedSave("fileHeaderCustomComment", fileHeaderCustomComment) }
+    public init() {
+        loadFavoritesAndRecents()
     }
 
-    // MARK: Theme
-    var selectedThemeID: String {
-        didSet { debouncedSave("selectedThemeID", selectedThemeID) }
+    public func loadFavoritesAndRecents() {
+        favorites = UserDefaults.standard.stringArray(forKey: Self.favoritesKey) ?? []
+        recents = UserDefaults.standard.stringArray(forKey: Self.recentsKey) ?? []
     }
 
-    // MARK: Git / GitHub Configuration
-    var gitUserName: String {
-        didSet { debouncedSave("gitUserName", gitUserName) }
-    }
-    var gitUserEmail: String {
-        didSet { debouncedSave("gitUserEmail", gitUserEmail) }
-    }
-    var defaultBranch: String {
-        didSet { debouncedSave("defaultBranch", defaultBranch) }
-    }
-    var defaultGitHubRepo: String {
-        didSet { debouncedSave("defaultGitHubRepo", defaultGitHubRepo) }
-    }
-
-    // MARK: Saved Repositories
-    var savedRepositories: [SavedRepository] = [] {
-        didSet { persistSavedRepositories() }
-    }
-    var startOnNewProject: Bool {
-        didSet { debouncedSave("startOnNewProject", startOnNewProject) }
-    }
-
-    // MARK: Extended Git Configuration
-    var sshKeyPath: String {
-        didSet { debouncedSave("sshKeyPath", sshKeyPath) }
-    }
-    var httpsAuthToken: String {
-        didSet { debouncedSave("httpsAuthToken", httpsAuthToken) }
-    }
-    var autoFetchRepositories: Bool {
-        didSet { debouncedSave("autoFetchRepositories", autoFetchRepositories) }
-    }
-    var autoPullBeforeCommit: Bool {
-        didSet { debouncedSave("autoPullBeforeCommit", autoPullBeforeCommit) }
-    }
-    var commitMessageTemplate: String {
-        didSet { debouncedSave("commitMessageTemplate", commitMessageTemplate) }
-    }
-    var workflowMonitoringEnabled: Bool {
-        didSet { debouncedSave("workflowMonitoringEnabled", workflowMonitoringEnabled) }
-    }
-
-    // MARK: Dashboard Customization
-    var dashboardLayout: DashboardLayout {
-        didSet { debouncedSave("dashboardLayout", dashboardLayout.rawValue) }
-    }
-    var dashboardSortOrder: DashboardSortOrder {
-        didSet { debouncedSave("dashboardSortOrder", dashboardSortOrder.rawValue) }
-    }
-    var showProjectIcons: Bool {
-        didSet { debouncedSave("showProjectIcons", showProjectIcons) }
-    }
-    var showFolderPreview: Bool {
-        didSet { debouncedSave("showFolderPreview", showFolderPreview) }
-    }
-    var alwaysPinFilesView: Bool {
-        didSet { debouncedSave("alwaysPinFilesView", alwaysPinFilesView) }
-    }
-    var showFileCount: Bool {
-        didSet { debouncedSave("showFileCount", showFileCount) }
-    }
-    var showLastOpenedTime: Bool {
-        didSet { debouncedSave("showLastOpenedTime", showLastOpenedTime) }
-    }
-
-    // MARK: CoreML
-    var coreMLEnabled: Bool {
-        didSet { debouncedSave("coreMLEnabled", coreMLEnabled) }
-    }
-    var coreMLHybridMode: Bool {
-        didSet { debouncedSave("coreMLHybridMode", coreMLHybridMode) }
-    }
-    var coreMLSelectedModel: String {
-        didSet { debouncedSave("coreMLSelectedModel", coreMLSelectedModel) }
-    }
-    var coreMLUsageLimit: Double {
-        didSet { debouncedSave("coreMLUsageLimit", coreMLUsageLimit) }
-    }
-
-    // MARK: File Navigator Customization
-    var fileNavigatorLayoutStyle: FileNavigatorLayoutStyle {
-        didSet { debouncedSave("fileNavigatorLayoutStyle", fileNavigatorLayoutStyle.rawValue) }
-    }
-    var fileNavigatorAnimationStyle: FileNavigatorAnimationStyle {
-        didSet { debouncedSave("fileNavigatorAnimationStyle", fileNavigatorAnimationStyle.rawValue) }
-    }
-    var fileNavigatorFolderSymbol: String {
-        didSet { debouncedSave("fileNavigatorFolderSymbol", fileNavigatorFolderSymbol) }
-    }
-    var fileNavigatorFileSymbol: String {
-        didSet { debouncedSave("fileNavigatorFileSymbol", fileNavigatorFileSymbol) }
-    }
-    var fileNavigatorFolderColorHex: String {
-        didSet { debouncedSave("fileNavigatorFolderColorHex", fileNavigatorFolderColorHex) }
-    }
-    var fileNavigatorSwiftFileColorHex: String {
-        didSet { debouncedSave("fileNavigatorSwiftFileColorHex", fileNavigatorSwiftFileColorHex) }
-    }
-    var fileNavigatorDefaultFileColorHex: String {
-        didSet { debouncedSave("fileNavigatorDefaultFileColorHex", fileNavigatorDefaultFileColorHex) }
-    }
-    var fileNavigatorAnimationSpeed: Double {
-        didSet { debouncedSave("fileNavigatorAnimationSpeed", fileNavigatorAnimationSpeed) }
-    }
-    var codeSuggestionsEnabled: Bool {
-        didSet { debouncedSave("codeSuggestionsEnabled", codeSuggestionsEnabled) }
-    }
-    var appleIntelligenceEnabled: Bool {
-        didSet { debouncedSave("appleIntelligenceEnabled", appleIntelligenceEnabled) }
-    }
-    var useCodexAsDefaultAgent: Bool {
-        didSet {
-            debouncedSave("useCodexAsDefaultAgent", useCodexAsDefaultAgent)
-            debouncedSave("useCodexAsAgent", useCodexAsDefaultAgent)
+    public func toggleFavorite(id: String) {
+        if favorites.contains(id) {
+            favorites.removeAll { $0 == id }
+        } else {
+            favorites.append(id)
         }
-    }
-    var hasCompletedOnboarding: Bool {
-        didSet { debouncedSave("hasCompletedOnboarding", hasCompletedOnboarding) }
+        UserDefaults.standard.set(favorites, forKey: Self.favoritesKey)
     }
 
-    // MARK: - Debounced Save
-
-    private func debouncedSave(_ key: String, _ value: Any) {
-        // Cancel previous save task
-        saveTask?.cancel()
-
-        // Schedule new save after a short delay to batch multiple changes
-        saveTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
-            guard !Task.isCancelled else { return }
-            UserDefaults.standard.set(value, forKey: key)
-        }
-    }
-
-    /// `true` when the user has chosen a custom OpenRouter model ID
-    var isUsingCustomModel: Bool {
-        !customModel.isEmpty && selectedModel == customModel
-    }
-
-    private init() {
-        selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? OpenRouterModel.defaults.first?.id ?? ""
-        customModel   = UserDefaults.standard.string(forKey: "customModel") ?? ""
-        selectedAssistModelID = UserDefaults.standard.string(forKey: "selectedAssistModelID") ?? AssistModelOption.swiftCodeBalanced.id
-        autoSave = UserDefaults.standard.object(forKey: "autoSave") as? Bool ?? true
-        editorFontSize = UserDefaults.standard.object(forKey: "editorFontSize") as? Double ?? 14
-        useDarkTheme = UserDefaults.standard.object(forKey: "useDarkTheme") as? Bool ?? true
-        fileHeaderAuthor = UserDefaults.standard.string(forKey: "fileHeaderAuthor") ?? ""
-        fileHeaderCustomComment = UserDefaults.standard.string(forKey: "fileHeaderCustomComment") ?? "Made with SwiftCode"
-        selectedThemeID = UserDefaults.standard.string(forKey: "selectedThemeID") ?? "dark"
-        gitUserName = UserDefaults.standard.string(forKey: "gitUserName") ?? ""
-        gitUserEmail = UserDefaults.standard.string(forKey: "gitUserEmail") ?? ""
-        defaultBranch = UserDefaults.standard.string(forKey: "defaultBranch") ?? "main"
-        defaultGitHubRepo = UserDefaults.standard.string(forKey: "defaultGitHubRepo") ?? ""
-        startOnNewProject = UserDefaults.standard.object(forKey: "startOnNewProject") as? Bool ?? false
-        sshKeyPath = UserDefaults.standard.string(forKey: "sshKeyPath") ?? ""
-        httpsAuthToken = UserDefaults.standard.string(forKey: "httpsAuthToken") ?? ""
-        autoFetchRepositories = UserDefaults.standard.object(forKey: "autoFetchRepositories") as? Bool ?? false
-        autoPullBeforeCommit = UserDefaults.standard.object(forKey: "autoPullBeforeCommit") as? Bool ?? false
-        commitMessageTemplate = UserDefaults.standard.string(forKey: "commitMessageTemplate") ?? ""
-        workflowMonitoringEnabled = UserDefaults.standard.object(forKey: "workflowMonitoringEnabled") as? Bool ?? true
-        dashboardLayout = DashboardLayout(rawValue: UserDefaults.standard.string(forKey: "dashboardLayout") ?? "") ?? .grid
-        dashboardSortOrder = DashboardSortOrder(rawValue: UserDefaults.standard.string(forKey: "dashboardSortOrder") ?? "") ?? .lastOpened
-        showProjectIcons = UserDefaults.standard.object(forKey: "showProjectIcons") as? Bool ?? true
-        showFolderPreview = UserDefaults.standard.object(forKey: "showFolderPreview") as? Bool ?? false
-        alwaysPinFilesView = UserDefaults.standard.object(forKey: "alwaysPinFilesView") as? Bool ?? false
-        showFileCount = UserDefaults.standard.object(forKey: "showFileCount") as? Bool ?? true
-        showLastOpenedTime = UserDefaults.standard.object(forKey: "showLastOpenedTime") as? Bool ?? true
-        coreMLEnabled = UserDefaults.standard.object(forKey: "coreMLEnabled") as? Bool ?? false
-        coreMLHybridMode = UserDefaults.standard.object(forKey: "coreMLHybridMode") as? Bool ?? false
-        coreMLSelectedModel = UserDefaults.standard.string(forKey: "coreMLSelectedModel") ?? ""
-        coreMLUsageLimit = UserDefaults.standard.object(forKey: "coreMLUsageLimit") as? Double ?? 100
-        fileNavigatorLayoutStyle = FileNavigatorLayoutStyle(rawValue: UserDefaults.standard.string(forKey: "fileNavigatorLayoutStyle") ?? "") ?? .compact
-        fileNavigatorAnimationStyle = FileNavigatorAnimationStyle(rawValue: UserDefaults.standard.string(forKey: "fileNavigatorAnimationStyle") ?? "") ?? .easeInOut
-        fileNavigatorFolderSymbol = UserDefaults.standard.string(forKey: "fileNavigatorFolderSymbol") ?? "folder.fill"
-        fileNavigatorFileSymbol = UserDefaults.standard.string(forKey: "fileNavigatorFileSymbol") ?? "doc.fill"
-        fileNavigatorFolderColorHex = UserDefaults.standard.string(forKey: "fileNavigatorFolderColorHex") ?? "#5E86FF"
-        fileNavigatorSwiftFileColorHex = UserDefaults.standard.string(forKey: "fileNavigatorSwiftFileColorHex") ?? "#FF9F0A"
-        fileNavigatorDefaultFileColorHex = UserDefaults.standard.string(forKey: "fileNavigatorDefaultFileColorHex") ?? "#9FA8DA"
-        fileNavigatorAnimationSpeed = UserDefaults.standard.object(forKey: "fileNavigatorAnimationSpeed") as? Double ?? 0.22
-        codeSuggestionsEnabled = UserDefaults.standard.object(forKey: "codeSuggestionsEnabled") as? Bool ?? false
-        appleIntelligenceEnabled = UserDefaults.standard.object(forKey: "appleIntelligenceEnabled") as? Bool ?? false
-        useCodexAsDefaultAgent = UserDefaults.standard.object(forKey: "useCodexAsAgent") as? Bool ?? UserDefaults.standard.object(forKey: "useCodexAsDefaultAgent") as? Bool ?? false
-        hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
-
-        // Load saved repositories
-        loadSavedRepositories()
-    }
-
-    // MARK: - Saved Repositories Persistence
-
-    private static let savedReposKey = "savedRepositories"
-
-    private func persistSavedRepositories() {
-        if let data = try? JSONEncoder().encode(savedRepositories) {
-            UserDefaults.standard.set(data, forKey: Self.savedReposKey)
-        }
-    }
-
-    private func loadSavedRepositories() {
-        guard let data = UserDefaults.standard.data(forKey: Self.savedReposKey),
-              let decoded = try? JSONDecoder().decode([SavedRepository].self, from: data) else { return }
-        savedRepositories = decoded
-    }
-
-    func addRepository(_ repo: SavedRepository) {
-        savedRepositories.append(repo)
-    }
-
-    func removeRepository(_ repo: SavedRepository) {
-        savedRepositories.removeAll { $0.id == repo.id }
+    public func appendToRecents(id: String) {
+        recents.removeAll { $0 == id }
+        recents.insert(id, at: 0)
+        recents = Array(recents.prefix(5))
+        UserDefaults.standard.set(recents, forKey: Self.recentsKey)
     }
 }
 
-// MARK: - Settings Categories (Sidebar)
+// MARK: - Native Settings Window Manager
 
-private enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
-    case aiConfiguration = "AI Configuration"
-    case github = "GitHub"
-    case editor = "Editor"
-    case fileTemplates = "File Templates"
-    case extensions = "Extensions"
-    case about = "About"
+@MainActor
+public final class SettingsWindowManager: NSObject, NSWindowDelegate {
+    public static let shared = SettingsWindowManager()
+    private var windowControllers: [SettingsWindowController] = []
 
-    var id: String { rawValue }
-
-    var symbolName: String {
-        switch self {
-        case .aiConfiguration: return "sparkles"
-        case .github: return "arrow.triangle.2.circlepath"
-        case .editor: return "doc.text"
-        case .fileTemplates: return "doc.badge.plus"
-        case .extensions: return "puzzlepiece.extension.fill"
-        case .about: return "info.circle"
-        }
+    public func showSettings() {
+        // Support multiple settings windows
+        let wc = SettingsWindowController()
+        wc.window?.delegate = self
+        windowControllers.append(wc)
+        wc.window?.makeKeyAndOrderFront(nil)
     }
 
-    /// Matches System Settings' sidebar tinted-icon style.
-    var symbolTint: Color {
-        switch self {
-        case .aiConfiguration: return .purple
-        case .github: return .indigo
-        case .editor: return .orange
-        case .fileTemplates: return .teal
-        case .extensions: return .pink
-        case .about: return .gray
+    // MARK: - NSWindowDelegate
+    public func windowWillClose(_ notification: Notification) {
+        if let window = notification.object as? NSWindow,
+           let wc = windowControllers.first(where: { $0.window == window }) {
+            windowControllers.removeAll { $0 == wc }
         }
     }
 }
 
-// MARK: - Settings View
+// MARK: - Native Settings Window Controller
 
-struct SettingsView: View {
-    @Environment(AppSettings.self) private var settings
+@MainActor
+public final class SettingsWindowController: NSWindowController {
+    public let coordinator = SettingsCoordinator()
 
-    @State private var selectedCategory: SettingsCategory? = .aiConfiguration
-    @State private var searchText = ""
+    public init() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 150, y: 150, width: 1050, height: 750),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Preferences"
+        window.minSize = NSSize(width: 850, height: 600)
+        window.setFrameAutosaveName("SettingsMainWindow")
+        window.collectionBehavior = [.fullScreenPrimary, .managed]
 
-    @State private var openRouterKey: String = ""
-    @State private var githubToken: String = ""
-    @State private var showOpenRouterKey = false
-    @State private var showGitHubToken = false
-    @State private var keySaved = false
-    @State private var tokenSaved = false
-    @State private var customModelInput: String = ""
-    @State private var customModelSaved = false
-    @State private var showExtensions = false
+        super.init(window: window)
 
-    private var filteredCategories: [SettingsCategory] {
-        guard !searchText.isEmpty else { return SettingsCategory.allCases }
-        return SettingsCategory.allCases.filter {
-            $0.rawValue.localizedCaseInsensitiveContains(searchText)
+        let splitVC = SettingsSplitViewController(coordinator: coordinator)
+        window.contentViewController = splitVC
+
+        setupToolbar(window: window)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func setupToolbar(window: NSWindow) {
+        let toolbar = NSToolbar(identifier: "SettingsToolbar")
+        toolbar.delegate = self
+        toolbar.allowsUserCustomization = true
+        toolbar.autosavesConfiguration = true
+        toolbar.displayMode = .iconOnly
+        window.toolbar = toolbar
+    }
+}
+
+extension SettingsWindowController: NSToolbarDelegate {
+    public func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+
+        switch itemIdentifier {
+        case .toggleSidebar:
+            item.label = "Toggle Sidebar"
+            item.paletteLabel = "Toggle Sidebar"
+            item.toolTip = "Toggle Settings Categories Sidebar"
+            item.image = NSImage(systemSymbolName: "sidebar.left", accessibilityDescription: nil)
+            item.target = self
+            item.action = #selector(toggleSidebarAction(_:))
+
+        case .toggleInspector:
+            item.label = "Toggle Inspector"
+            item.paletteLabel = "Toggle Inspector"
+            item.toolTip = "Toggle Settings Help Inspector"
+            item.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
+            item.target = self
+            item.action = #selector(toggleInspectorAction(_:))
+
+        default:
+            return nil
         }
+        return item
+    }
+
+    public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        return [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .toggleInspector]
+    }
+
+    public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        return [.toggleSidebar, .sidebarTrackingSeparator, .toggleInspector, .flexibleSpace, .space]
+    }
+}
+
+extension SettingsWindowController {
+    @objc private func toggleSidebarAction(_ sender: Any?) {
+        if let splitVC = contentViewController as? SettingsSplitViewController {
+            splitVC.toggleSidebar(sender)
+        }
+    }
+
+    @objc private func toggleInspectorAction(_ sender: Any?) {
+        withAnimation {
+            coordinator.showInspector.toggle()
+        }
+        if let splitVC = contentViewController as? SettingsSplitViewController {
+            splitVC.updateSplitItems(animate: true)
+        }
+    }
+}
+
+// MARK: - Native Settings Split View Controller
+
+public final class SettingsSplitViewController: NSSplitViewController {
+    public let coordinator: SettingsCoordinator
+
+    private var sidebarItem: NSSplitViewItem?
+    private var mainItem: NSSplitViewItem?
+    private var inspectorItem: NSSplitViewItem?
+
+    public init(coordinator: SettingsCoordinator) {
+        self.coordinator = coordinator
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override public func viewDidLoad() {
+        super.viewDidLoad()
+        setupSplitView()
+    }
+
+    override public func viewDidAppear() {
+        super.viewDidAppear()
+        if let window = view.window {
+            NotificationCenter.default.addObserver(self, selector: #selector(windowDidEnterFullScreen(_:)), name: NSWindow.didEnterFullScreenNotification, object: window)
+            NotificationCenter.default.addObserver(self, selector: #selector(windowDidExitFullScreen(_:)), name: NSWindow.didExitFullScreenNotification, object: window)
+        }
+    }
+
+    override public func viewWillDisappear() {
+        super.viewWillDisappear()
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didEnterFullScreenNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didExitFullScreenNotification, object: nil)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func windowDidEnterFullScreen(_ notification: Notification) {
+        coordinator.isFullScreen = true
+        splitView.needsLayout = true
+    }
+
+    @objc private func windowDidExitFullScreen(_ notification: Notification) {
+        coordinator.isFullScreen = false
+        splitView.needsLayout = true
+    }
+
+    private func setupSplitView() {
+        splitView.isVertical = true
+        splitView.dividerStyle = .thin
+        splitView.autoresizingMask = [.width, .height]
+
+        // 1. Sidebar Panel (Pure AppKit View Controller)
+        let sidebarVC = SettingsSidebarViewController(coordinator: coordinator)
+        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
+        sidebarItem.minimumThickness = 240
+        sidebarItem.maximumThickness = 320
+        sidebarItem.holdingPriority = .defaultLow + 10
+        self.sidebarItem = sidebarItem
+        addSplitViewItem(sidebarItem)
+
+        // 2. Main Preferences View (SwiftUI Wrapper with styling environment)
+        let mainView = StylingBootstrap.configureEnvironment(
+            SettingsMainWrapper(coordinator: coordinator)
+                .environmentObject(AppSettings.shared)
+                .environment(ThemeViewModel())
+        )
+        let mainVC = NSHostingController(rootView: mainView)
+        mainVC.sizingOptions = []
+        mainVC.view.autoresizingMask = [.width, .height]
+        let mainItem = NSSplitViewItem(viewController: mainVC)
+        mainItem.minimumThickness = 500
+        mainItem.holdingPriority = .defaultLow - 10
+        self.mainItem = mainItem
+        addSplitViewItem(mainItem)
+
+        // 3. Right Inspector Help Panel (SwiftUI Wrapper with styling environment)
+        let inspectorView = StylingBootstrap.configureEnvironment(
+            SettingsInspectorWrapper(coordinator: coordinator)
+        )
+        let inspectorVC = NSHostingController(rootView: inspectorView)
+        inspectorVC.sizingOptions = []
+        inspectorVC.view.autoresizingMask = [.width, .height]
+        let inspectorItem = NSSplitViewItem(viewController: inspectorVC)
+        inspectorItem.minimumThickness = 260
+        inspectorItem.maximumThickness = 320
+        inspectorItem.holdingPriority = .defaultLow + 20
+        self.inspectorItem = inspectorItem
+        addSplitViewItem(inspectorItem)
+
+        updateSplitItems(animate: false)
+    }
+
+    public func updateSplitItems(animate: Bool) {
+        if let inspector = inspectorItem {
+            if animate {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.2
+                    inspector.isCollapsed = !coordinator.showInspector
+                }
+            } else {
+                inspector.isCollapsed = !coordinator.showInspector
+            }
+        }
+    }
+}
+
+// MARK: - Native Settings Sidebar View Controller
+
+public final class SettingsSidebarViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
+    public let coordinator: SettingsCoordinator
+    private var scrollView: NSScrollView?
+    private var outlineView: NSOutlineView?
+    private var nodes: [SettingsSidebarNode] = []
+
+    public init(coordinator: SettingsCoordinator) {
+        self.coordinator = coordinator
+        super.init(nibName: nil, bundle: nil)
+        rebuildNodes()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override public func loadView() {
+        let visualEffectView = NSVisualEffectView()
+        visualEffectView.material = .sidebar
+        visualEffectView.blendingMode = .behindWindow
+        visualEffectView.state = .active
+        visualEffectView.autoresizingMask = [.width, .height]
+
+        let searchContainer = NSView()
+        searchContainer.translatesAutoresizingMaskIntoConstraints = false
+        visualEffectView.addSubview(searchContainer)
+
+        let searchField = NSSearchField()
+        searchField.placeholderString = "Search settings..."
+        searchField.delegate = self
+        searchField.bezelStyle = .roundedBezel
+        searchField.translatesAutoresizingMaskIntoConstraints = false
+        searchContainer.addSubview(searchField)
+
+        let scroll = NSScrollView()
+        scroll.drawsBackground = false
+        scroll.hasVerticalScroller = true
+        scroll.autoresizingMask = [.width, .height]
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        self.scrollView = scroll
+
+        let outline = NSOutlineView()
+        outline.autoresizingMask = [.width]
+        outline.headerView = nil
+        outline.selectionHighlightStyle = .sourceList
+        outline.style = .sourceList
+        outline.floatsGroupRows = false
+        outline.rowSizeStyle = .custom
+        outline.indentationPerLevel = 14
+        self.outlineView = outline
+
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("SettingsSidebarColumn"))
+        column.resizingMask = .autoresizingMask
+        outline.addTableColumn(column)
+        outline.outlineTableColumn = column
+
+        outline.dataSource = self
+        outline.delegate = self
+
+        scroll.documentView = outline
+        visualEffectView.addSubview(scroll)
+
+        NSLayoutConstraint.activate([
+            searchContainer.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor),
+            searchContainer.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor),
+            searchContainer.topAnchor.constraint(equalTo: visualEffectView.topAnchor),
+            searchContainer.heightAnchor.constraint(equalToConstant: 44),
+
+            searchField.leadingAnchor.constraint(equalTo: searchContainer.leadingAnchor, constant: 14),
+            searchField.trailingAnchor.constraint(equalTo: searchContainer.trailingAnchor, constant: -14),
+            searchField.centerYAnchor.constraint(equalTo: searchContainer.centerYAnchor),
+
+            scroll.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor),
+            scroll.topAnchor.constraint(equalTo: searchContainer.bottomAnchor),
+            scroll.bottomAnchor.constraint(equalTo: visualEffectView.bottomAnchor)
+        ])
+
+        self.view = visualEffectView
+    }
+
+    override public func viewDidLoad() {
+        super.viewDidLoad()
+        expandAllGroups()
+    }
+
+    private func expandAllGroups() {
+        if let outline = outlineView {
+            for group in nodes {
+                outline.expandItem(group)
+            }
+        }
+    }
+
+    private func rebuildNodes() {
+        nodes = buildSettingsSidebarNodes(coordinator: coordinator)
+        outlineView?.reloadData()
+        expandAllGroups()
+    }
+
+    // MARK: - NSOutlineViewDataSource
+
+    public func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
+        if item == nil {
+            return nodes.count
+        }
+        if let node = item as? SettingsSidebarNode {
+            return node.children.count
+        }
+        return 0
+    }
+
+    public func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
+        if item == nil {
+            return nodes[index]
+        }
+        guard let node = item as? SettingsSidebarNode else { return SettingsSidebarNode(title: "") }
+        return node.children[index]
+    }
+
+    public func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+        if let node = item as? SettingsSidebarNode {
+            return node.isGroup
+        }
+        return false
+    }
+
+    // MARK: - NSOutlineViewDelegate
+
+    public func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
+        if let node = item as? SettingsSidebarNode {
+            return node.isGroup
+        }
+        return false
+    }
+
+    public func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
+        if let node = item as? SettingsSidebarNode {
+            return !node.isGroup
+        }
+        return true
+    }
+
+    public func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
+        if let node = item as? SettingsSidebarNode, node.isGroup {
+            return 26
+        }
+        return 32
+    }
+
+    public func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
+        guard let node = item as? SettingsSidebarNode else { return nil }
+
+        if node.isGroup {
+            let identifier = NSUserInterfaceItemIdentifier("HeaderView")
+            var textField = outlineView.makeView(withIdentifier: identifier, owner: self) as? NSTextField
+            if textField == nil {
+                textField = NSTextField(labelWithString: node.title)
+                textField?.identifier = identifier
+                textField?.font = .systemFont(ofSize: 11, weight: .bold)
+                textField?.textColor = .headerTextColor
+            } else {
+                textField?.stringValue = node.title
+            }
+            return textField
+        } else {
+            let identifier = NSUserInterfaceItemIdentifier("SidebarCell")
+            var cell = outlineView.makeView(withIdentifier: identifier, owner: self) as? SettingsSidebarCellView
+            if cell == nil {
+                cell = SettingsSidebarCellView(frame: .zero)
+                cell?.identifier = identifier
+            }
+
+            cell?.textField?.stringValue = node.title
+            if let iconName = node.icon {
+                if let image = NSImage(systemSymbolName: iconName, accessibilityDescription: nil) {
+                    cell?.iconView.image = image
+                } else {
+                    cell?.iconView.image = nil
+                }
+            } else {
+                cell?.iconView.image = nil
+            }
+            if let color = node.color {
+                cell?.iconBackground.fillColor = color
+            } else {
+                cell?.iconBackground.fillColor = .controlAccentColor
+            }
+
+            // Right Click Context menu to toggle Favorites
+            let menu = NSMenu()
+            let favItem = NSMenuItem(title: coordinator.favorites.contains(node.id) ? "Remove from Favorites" : "Add to Favorites", action: #selector(toggleFavoriteAction(_:)), keyEquivalent: "")
+            favItem.representedObject = node
+            menu.addItem(favItem)
+            cell?.menu = menu
+
+            return cell
+        }
+    }
+
+    @objc private func toggleFavoriteAction(_ sender: NSMenuItem) {
+        if let node = sender.representedObject as? SettingsSidebarNode {
+            coordinator.toggleFavorite(id: node.id)
+            rebuildNodes()
+        }
+    }
+
+    public func outlineViewSelectionDidChange(_ notification: Notification) {
+        guard let outline = outlineView else { return }
+        let selectedRow = outline.selectedRow
+        if selectedRow >= 0, let node = outline.item(atRow: selectedRow) as? SettingsSidebarNode, !node.isGroup {
+            coordinator.selectedPaneId = node.id
+            coordinator.appendToRecents(id: node.id)
+            rebuildNodes()
+        }
+    }
+}
+
+extension SettingsSidebarViewController: NSSearchFieldDelegate {
+    public func controlTextDidChange(_ obj: Notification) {
+        guard let searchField = obj.object as? NSSearchField else { return }
+        coordinator.searchText = searchField.stringValue
+        rebuildNodes()
+    }
+}
+
+// MARK: - AppKit Settings Sidebar Node & Cell View
+
+public final class SettingsSidebarNode: NSObject {
+    public let id: String
+    public let title: String
+    public let icon: String?
+    public let color: NSColor?
+    public let isGroup: Bool
+    public var children: [SettingsSidebarNode] = []
+
+    public init(id: String = UUID().uuidString, title: String, icon: String? = nil, color: NSColor? = nil, isGroup: Bool = false) {
+        self.id = id
+        self.title = title
+        self.icon = icon
+        self.color = color
+        self.isGroup = isGroup
+    }
+}
+
+final class SettingsSidebarCellView: NSTableCellView {
+    let iconBackground = NSBox()
+    let iconView = NSImageView()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setupViews()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func setupViews() {
+        iconBackground.translatesAutoresizingMaskIntoConstraints = false
+        iconBackground.boxType = .custom
+        iconBackground.cornerRadius = 6
+        iconBackground.borderWidth = 0
+        addSubview(iconBackground)
+
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconView.contentTintColor = .white
+        iconBackground.addSubview(iconView)
+
+        let text = NSTextField(labelWithString: "")
+        text.translatesAutoresizingMaskIntoConstraints = false
+        text.font = .systemFont(ofSize: 13)
+        text.textColor = .labelColor
+        addSubview(text)
+        self.textField = text
+
+        NSLayoutConstraint.activate([
+            iconBackground.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
+            iconBackground.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconBackground.widthAnchor.constraint(equalToConstant: 22),
+            iconBackground.heightAnchor.constraint(equalToConstant: 22),
+
+            iconView.centerXAnchor.constraint(equalTo: iconBackground.centerXAnchor),
+            iconView.centerYAnchor.constraint(equalTo: iconBackground.centerYAnchor),
+            iconView.widthAnchor.constraint(equalToConstant: 12),
+            iconView.heightAnchor.constraint(equalToConstant: 12),
+
+            text.leadingAnchor.constraint(equalTo: iconBackground.trailingAnchor, constant: 8),
+            text.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            text.centerYAnchor.constraint(equalTo: centerYAnchor)
+        ])
+    }
+}
+
+// MARK: - Central Settings Registry list
+
+private let settingsRegistryList: [SettingsItem] = [
+    SettingsItem(
+        id: "general",
+        title: "General",
+        icon: "gearshape.fill",
+        iconBgColor: .gray,
+        category: "System",
+        sortOrder: 10,
+        keywords: "general interface background appearance font behavior launch startup log path executable editor",
+        helpDoc: "Configure general editor preferences, custom startup options, logging levels, and terminal shell behaviors."
+    ),
+    SettingsItem(
+        id: "themes",
+        title: "Themes",
+        icon: "paintbrush.fill",
+        iconBgColor: .pink,
+        category: "System",
+        sortOrder: 15,
+        keywords: "themes colors styles customization dark light visual custom editor fonts highlight darkpro nord gruvbox",
+        helpDoc: "Select and modify code-coloring themes, visual parameters, font sizes, font families, and custom text styles."
+    ),
+    SettingsItem(
+        id: "ai_assist",
+        title: "AI & Assist",
+        icon: "sparkles",
+        iconBgColor: .purple,
+        category: "A.I. & Tools",
+        sortOrder: 20,
+        keywords: "ai assist smart complete chat model code suggestion intelligence openrouter local key API suggestions",
+        helpDoc: "Setup A.I. routing modes, OpenRouter developer API keys, default completion models, and customize the prompt engineer parameters."
+    ),
+    SettingsItem(
+        id: "offline_models",
+        title: "Offline Models",
+        icon: "externaldrive.fill",
+        iconBgColor: .blue,
+        category: "A.I. & Tools",
+        sortOrder: 30,
+        keywords: "offline models local coreml download storage model weight install local model manager",
+        helpDoc: "Download, manage, and cache on-device local models for private, zero-latency secure codebase reasoning."
+    ),
+    SettingsItem(
+        id: "templates",
+        title: "Project Templates",
+        icon: "doc.badge.plus",
+        iconBgColor: .teal,
+        category: "A.I. & Tools",
+        sortOrder: 40,
+        keywords: "templates project custom scaffold boilerplates ios app macos framework library structure boilerplate",
+        helpDoc: "Build and organize custom project scaffolds, code boilerplates, target architectures, and standard workspace structures."
+    ),
+    SettingsItem(
+        id: "plugins",
+        title: "Plugin Manager",
+        icon: "cpu",
+        iconBgColor: .orange,
+        category: "A.I. & Tools",
+        sortOrder: 50,
+        keywords: "plugins custom tools automate script capability action plugin manifest code manager interop",
+        helpDoc: "Automate development pipelines with custom capability plugins, build scripts, action manifests, and platform extensions."
+    ),
+    SettingsItem(
+        id: "extensions",
+        title: "Extensions",
+        icon: "puzzlepiece.extension.fill",
+        iconBgColor: .indigo,
+        category: "Extension & Updates",
+        sortOrder: 60,
+        keywords: "extensions language linter formatter kotlin python rust typescript spm formatter linting tools capability market",
+        helpDoc: "Install and manage language-specific linters, code formatters, and tooling extensions for Python, Go, Rust, and TypeScript."
+    ),
+    SettingsItem(
+        id: "updates",
+        title: "Updates",
+        icon: "arrow.triangle.2.circlepath.circle.fill",
+        iconBgColor: .green,
+        category: "Extension & Updates",
+        sortOrder: 70,
+        keywords: "updates version release check upgrade changelog download system latest news improvements bugfix",
+        helpDoc: "Check for updates, view system changelogs, review release notes, and install the latest IDE engine optimizations."
+    ),
+    SettingsItem(
+        id: "credits",
+        title: "Credits",
+        icon: "person.2.fill",
+        iconBgColor: .cyan,
+        category: "About",
+        sortOrder: 80,
+        keywords: "credits licenses developers thirdparty apple swift library contributors team community about",
+        helpDoc: "Review licenses for integrated open-source libraries, developer credits, contributors, and legal information."
+    )
+]
+
+@MainActor
+func buildSettingsSidebarNodes(coordinator: SettingsCoordinator) -> [SettingsSidebarNode] {
+    var nodes: [SettingsSidebarNode] = []
+
+    let filteredRegistry = settingsRegistryList.filter { item in
+        if coordinator.searchText.isEmpty { return true }
+        return item.title.localizedCaseInsensitiveContains(coordinator.searchText) ||
+               item.keywords.localizedCaseInsensitiveContains(coordinator.searchText) ||
+               item.category.localizedCaseInsensitiveContains(coordinator.searchText)
+    }
+
+    // 1. Favorites Group (if non-empty and not searching)
+    if !coordinator.favorites.isEmpty && coordinator.searchText.isEmpty {
+        let favGroup = SettingsSidebarNode(title: "FAVORITES", isGroup: true)
+        favGroup.children = coordinator.favorites.compactMap { favId in
+            settingsRegistryList.first { $0.id == favId }
+        }.map { item in
+            SettingsSidebarNode(id: item.id, title: item.title, icon: item.icon, color: NSColor(item.iconBgColor))
+        }
+        nodes.append(favGroup)
+    }
+
+    // 2. Recents Group (if non-empty and not searching)
+    if !coordinator.recents.isEmpty && coordinator.searchText.isEmpty {
+        let recentGroup = SettingsSidebarNode(title: "RECENTS", isGroup: true)
+        recentGroup.children = coordinator.recents.compactMap { rId in
+            settingsRegistryList.first { $0.id == rId }
+        }.map { item in
+            SettingsSidebarNode(id: item.id, title: item.title, icon: item.icon, color: NSColor(item.iconBgColor))
+        }
+        nodes.append(recentGroup)
+    }
+
+    // 3. Category Categorized Groups
+    let categories = ["System", "A.I. & Tools", "Extension & Updates", "About"]
+    for category in categories {
+        let itemsInCategory = filteredRegistry.filter { $0.category == category }
+            .sorted { $0.sortOrder < $1.sortOrder }
+
+        if !itemsInCategory.isEmpty {
+            let catGroup = SettingsSidebarNode(title: category.uppercased(), isGroup: true)
+            catGroup.children = itemsInCategory.map { item in
+                SettingsSidebarNode(id: item.id, title: item.title, icon: item.icon, color: NSColor(item.iconBgColor))
+            }
+            nodes.append(catGroup)
+        }
+    }
+
+    return nodes
+}
+
+// MARK: - Settings Main View Wrapper (SwiftUI)
+
+struct SettingsMainWrapper: View {
+    let coordinator: SettingsCoordinator
+    @EnvironmentObject private var settings: AppSettings
+    @Environment(ThemeViewModel.self) var themeVM
+
+    var body: some View {
+        if let currentItem = settingsRegistryList.first(where: { $0.id == coordinator.selectedPaneId }) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Header
+                    HStack(spacing: 14) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(currentItem.iconBgColor)
+                                .frame(width: 38, height: 38)
+                            Image(systemName: currentItem.icon)
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(currentItem.title)
+                                .font(.title2.bold())
+                            Text(currentItem.category)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        // Toggle Favorite Button
+                        Button {
+                            coordinator.toggleFavorite(id: currentItem.id)
+                        } label: {
+                            Image(systemName: coordinator.favorites.contains(currentItem.id) ? "star.fill" : "star")
+                                .foregroundStyle(coordinator.favorites.contains(currentItem.id) ? Color.yellow : Color.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Toggle Favorite")
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 24)
+
+                    Divider()
+                        .padding(.horizontal, 24)
+
+                    // Destination View Loader
+                    destinationView(for: currentItem.id)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 40)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(Color(NSColor.controlBackgroundColor))
+        } else {
+            ContentUnavailableView("Select a category", systemImage: "gearshape")
+        }
+    }
+
+    @ViewBuilder
+    private func destinationView(for id: String) -> some View {
+        switch id {
+        case "general":
+            GeneralSettingsView()
+                .environmentObject(settings)
+        case "themes":
+            ThemeManagementView()
+                .environmentObject(settings)
+        case "ai_assist":
+            AssistSettingsView()
+        case "offline_models":
+            OfflineModelsView()
+        case "templates":
+            ProjectTemplateView()
+        case "plugins":
+            PluginManagerView()
+        case "extensions":
+            ExtensionsView()
+        case "updates":
+            UpdatesView()
+        case "credits":
+            CreditsView()
+        default:
+            GeneralSettingsView()
+                .environmentObject(settings)
+        }
+    }
+}
+
+// MARK: - Settings Help Inspector View Wrapper (SwiftUI)
+
+struct SettingsInspectorWrapper: View {
+    let coordinator: SettingsCoordinator
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Settings Help")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+
+                Divider()
+
+                if let currentItem = settingsRegistryList.first(where: { $0.id == coordinator.selectedPaneId }) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label(currentItem.title, systemImage: currentItem.icon)
+                            .font(.subheadline.bold())
+                            .foregroundStyle(currentItem.iconBgColor)
+
+                        Text(currentItem.helpDoc)
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.leading)
+
+                        Divider()
+
+                        Text("Keywords")
+                            .font(.caption.bold())
+                            .foregroundStyle(.tertiary)
+
+                        FlowLayout(currentItem.keywords.components(separatedBy: " ").filter { !$0.isEmpty }, spacing: 6) { kw in
+                            Text(rtrim(kw))
+                                .font(.caption)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Color.secondary.opacity(0.12))
+                                .cornerRadius(6)
+                        }
+                    }
+                } else {
+                    Text("Select a preferences category to view detail diagnostics and context documentation here.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(16)
+        }
+        .background(Color(NSColor.windowBackgroundColor))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func rtrim(_ kw: String) -> String {
+        kw.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+// Simple FlowLayout Helper for Keyword Badges
+struct FlowLayout: View {
+    let spacing: CGFloat
+    let items: [AnyView]
+
+    init<Data: RandomAccessCollection, Content: View>(
+        _ data: Data,
+        spacing: CGFloat = 8,
+        @ViewBuilder content: @escaping (Data.Element) -> Content
+    ) {
+        self.spacing = spacing
+        self.items = data.map { AnyView(content($0)) }
     }
 
     var body: some View {
-        NavigationSplitView {
-            List(filteredCategories, selection: $selectedCategory) { category in
-                Label {
-                    Text(category.rawValue)
-                } icon: {
-                    Image(systemName: category.symbolName)
-                        .foregroundStyle(.white)
-                        .frame(width: 22, height: 22)
-                        .background(category.symbolTint.gradient, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                }
-                .tag(category)
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 80))], spacing: spacing) {
+            ForEach(0..<items.count, id: \.self) { index in
+                items[index]
             }
-            .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 260)
-            .searchable(text: $searchText, placement: .sidebar, prompt: "Search Settings")
-        } detail: {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    detailContent(for: selectedCategory ?? .aiConfiguration)
-                }
-                .frame(maxWidth: 640)
-                .frame(maxWidth: .infinity)
-                .padding(28)
-            }
-            .background(.background)
-            .navigationTitle((selectedCategory ?? .aiConfiguration).rawValue)
-        }
-        .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 720, idealWidth: 780, minHeight: 480, idealHeight: 540)
-        .sheet(isPresented: $showExtensions) {
-            ExtensionsView()
-                .frame(minWidth: 560, minHeight: 440)
-        }
-        .onAppear {
-            openRouterKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey) ?? ""
-            githubToken = KeychainService.shared.get(forKey: KeychainService.githubToken) ?? ""
-            customModelInput = settings.customModel
         }
     }
-
-    // MARK: - Detail Routing
-
-    @ViewBuilder
-    private func detailContent(for category: SettingsCategory) -> some View {
-        switch category {
-        case .aiConfiguration: aiConfigurationDetail
-        case .github: gitHubDetail
-        case .editor: editorDetail
-        case .fileTemplates: fileTemplatesDetail
-        case .extensions: extensionsDetail
-        case .about: aboutDetail
-        }
-    }
-
-    // MARK: - AI Configuration
-
-    private var aiConfigurationDetail: some View {
-        @Bindable var settings = settings
-        return Form {
-            Section {
-                LabeledContent("OpenRouter API Key") {
-                    HStack(spacing: 8) {
-                        if openRouterKey.isEmpty {
-                            Text("Not Set")
-                                .font(.callout)
-                                .foregroundStyle(.red)
-                        } else {
-                            Text("••••••••\(String(openRouterKey.suffix(4)))")
-                                .font(.callout.monospaced())
-                                .foregroundStyle(.green)
-                        }
-                        Button {
-                            showOpenRouterKey.toggle()
-                        } label: {
-                            Image(systemName: showOpenRouterKey ? "eye.slash" : "eye")
-                        }
-                        .buttonStyle(.borderless)
-                        .help(showOpenRouterKey ? "Hide key" : "Reveal key")
-                    }
-                }
-
-                if showOpenRouterKey {
-                    TextField("sk-or-xxxxxxxxxxxxxxxx", text: $openRouterKey)
-                        .autocorrectionDisabled()
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-
-                    HStack {
-                        Spacer()
-                        Button {
-                            KeychainService.shared.set(openRouterKey, forKey: KeychainService.openRouterAPIKey)
-                            keySaved = true
-                            showOpenRouterKey = false
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                keySaved = false
-                            }
-                        } label: {
-                            Label(keySaved ? "Saved!" : "Save Key", systemImage: keySaved ? "checkmark.circle.fill" : "key.fill")
-                        }
-                        .foregroundStyle(keySaved ? .green : .orange)
-                    }
-                }
-
-                Picker("Default Model", selection: $settings.selectedModel) {
-                    ForEach(OpenRouterModel.defaults) { model in
-                        Text(model.name).tag(model.id)
-                    }
-                    if !settings.customModel.isEmpty {
-                        Text("Custom: \(settings.customModel)").tag(settings.customModel)
-                    }
-                }
-            } header: {
-                Text("OpenRouter")
-            }
-
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Custom OpenRouter Model")
-                        .font(.headline)
-                    Text("Enter any valid OpenRouter model ID.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    TextField("e.g. mistralai/mistral-7b-instruct", text: $customModelInput)
-                        .autocorrectionDisabled()
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-                    HStack {
-                        Spacer()
-                        Button {
-                            let trimmed = customModelInput.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !trimmed.isEmpty else { return }
-                            settings.customModel = trimmed
-                            settings.selectedModel = trimmed
-                            customModelSaved = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                customModelSaved = false
-                            }
-                        } label: {
-                            Label(
-                                customModelSaved ? "Saved & Selected!" : "Save & Use Custom Model",
-                                systemImage: customModelSaved ? "checkmark.circle.fill" : "cpu"
-                            )
-                        }
-                        .foregroundStyle(customModelSaved ? .green : .purple)
-                    }
-                }
-            } header: {
-                Text("Custom Model")
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    // MARK: - GitHub
-
-    private var gitHubDetail: some View {
-        Form {
-            Section {
-                LabeledContent("GitHub Personal Access Token") {
-                    HStack(spacing: 8) {
-                        if githubToken.isEmpty {
-                            Text("Not Set")
-                                .font(.callout)
-                                .foregroundStyle(.red)
-                        } else {
-                            Text("••••••••\(String(githubToken.suffix(4)))")
-                                .font(.callout.monospaced())
-                                .foregroundStyle(.green)
-                        }
-                        Button {
-                            showGitHubToken.toggle()
-                        } label: {
-                            Image(systemName: showGitHubToken ? "eye.slash" : "eye")
-                        }
-                        .buttonStyle(.borderless)
-                        .help(showGitHubToken ? "Hide token" : "Reveal token")
-                    }
-                }
-
-                if showGitHubToken {
-                    TextField("ghp_xxxxxxxxxxxx", text: $githubToken)
-                        .autocorrectionDisabled()
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-
-                    HStack {
-                        Spacer()
-                        Button {
-                            KeychainService.shared.set(githubToken, forKey: KeychainService.githubToken)
-                            tokenSaved = true
-                            showGitHubToken = false
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                tokenSaved = false
-                            }
-                        } label: {
-                            Label(tokenSaved ? "Saved!" : "Save Token", systemImage: tokenSaved ? "checkmark.circle.fill" : "key.fill")
-                        }
-                        .foregroundStyle(tokenSaved ? .green : .blue)
-                    }
-                }
-            } header: {
-                Text("Authentication")
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    // MARK: - Editor
-
-    private var editorDetail: some View {
-        @Bindable var settings = settings
-        return Form {
-            Section {
-                Toggle("Auto Save", isOn: $settings.autoSave)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Font Size")
-                        Spacer()
-                        Text("\(Int(settings.editorFontSize))pt")
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                    Slider(value: $settings.editorFontSize, in: 10...24, step: 1)
-                        .tint(.orange)
-                }
-
-                Toggle("Dark Theme", isOn: $settings.useDarkTheme)
-            } header: {
-                Text("Editor")
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    // MARK: - File Templates
-
-    private var fileTemplatesDetail: some View {
-        @Bindable var settings = settings
-        return Form {
-            Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Author Name")
-                        .font(.headline)
-                    Text("Used in the // Created by header of new Swift files.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                TextField("Your Name", text: $settings.fileHeaderAuthor)
-                    .autocorrectionDisabled()
-                    .textFieldStyle(.roundedBorder)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Custom Comment")
-                        .font(.headline)
-                    Text("Added as a second header comment in new Swift files.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                TextField("Made with SwiftCode", text: $settings.fileHeaderCustomComment)
-                    .autocorrectionDisabled()
-                    .textFieldStyle(.roundedBorder)
-            } header: {
-                Text("File Templates")
-            } footer: {
-                Text("New .swift files will include:\n// Created by <Author> on <Date>.\n// <Custom Comment>")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    // MARK: - Extensions
-
-    private var extensionsDetail: some View {
-        Form {
-            Section {
-                Button {
-                    showExtensions = true
-                } label: {
-                    Label("Manage Extensions…", systemImage: "puzzlepiece.extension.fill")
-                        .foregroundStyle(.orange)
-                }
-                .buttonStyle(.plain)
-            } header: {
-                Text("Extensions")
-            } footer: {
-                Text("Install, enable, disable, or create custom extensions for SwiftCode.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    // MARK: - About
-
-    private var aboutDetail: some View {
-        Form {
-            Section {
-                LabeledContent("Version", value: "1.0.0")
-                LabeledContent("Build", value: "1")
-            }
-
-            Section {
-                Link(destination: Self.openRouterURL) {
-                    Label("OpenRouter API", systemImage: "link")
-                }
-                Link(destination: Self.githubDocsURL) {
-                    Label("GitHub API Docs", systemImage: "link")
-                }
-            } header: {
-                Text("Resources")
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    // SAFETY: static, hardcoded, well-formed URL literals — force-unwrap cannot fail.
-    private static let openRouterURL = URL(string: "https://openrouter.ai")!
-    // SAFETY: static, hardcoded, well-formed URL literals — force-unwrap cannot fail.
-    private static let githubDocsURL = URL(string: "https://docs.github.com/en/rest")!
 }
 
-#Preview {
-    SettingsView()
-        .environment(AppSettings.shared)
+// MARK: - SettingsView (SwiftUI NSViewControllerRepresentable)
+
+@MainActor
+public struct SettingsView: NSViewControllerRepresentable {
+    public init() {}
+
+    public func makeNSViewController(context: Context) -> SettingsSplitViewController {
+        let coordinator = SettingsCoordinator()
+        let splitVC = SettingsSplitViewController(coordinator: coordinator)
+        return splitVC
+    }
+
+    public func updateNSViewController(_ nsViewController: SettingsSplitViewController, context: Context) {
+        // No-op
+    }
 }
