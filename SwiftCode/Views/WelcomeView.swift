@@ -45,6 +45,28 @@ struct SwiftCodeWelcomeView: View {
 
     private var isSearching: Bool { !searchText.isEmpty }
 
+    private var filteredProjects: [Project] {
+        var result = sessionStore.projects
+
+        if !searchText.isEmpty {
+            result = result.filter { project in
+                project.name.localizedCaseInsensitiveContains(searchText) ||
+                project.description.localizedCaseInsensitiveContains(searchText)
+            }
+        }
+
+        switch sortBy {
+        case .lastOpened:
+            result.sort { $0.lastOpened > $1.lastOpened }
+        case .name:
+            result.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        case .dateCreated:
+            result.sort { $0.createdAt > $1.createdAt }
+        }
+
+        return result
+    }
+
     var body: some View {
         AdaptivePage {
             mainDashboard
