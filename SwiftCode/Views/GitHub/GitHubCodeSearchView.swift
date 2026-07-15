@@ -643,7 +643,7 @@ struct PublicRepositoryBrowserView: View {
                             .font(.body)
 
                         if let topics = meta.topics, !topics.isEmpty {
-                            HFlowLayout(spacing: 6) {
+                            DiscoverHFlowLayout(spacing: 6) {
                                 ForEach(topics, id: \.self) { topic in
                                     Text(topic)
                                         .font(.system(size: 10, weight: .bold))
