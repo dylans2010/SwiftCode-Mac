@@ -11,43 +11,48 @@ struct InstalledOfflineModelsView: View {
     }()
 
     var body: some View {
-        Section("Installed Models") {
+        VStack(alignment: .leading, spacing: 12) {
             if manager.installedModelRecords.isEmpty {
                 Text("No Local Models Installed")
                     .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
             } else {
                 ForEach(manager.installedModelRecords) { model in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(model.modelName)
-                            .font(.subheadline.weight(.semibold))
-
+                    VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Label(model.folderName, systemImage: "folder")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            Text(model.modelName)
+                                .font(.headline)
                             Spacer()
                             Text(model.sizeDescription)
-                                .font(.caption)
+                                .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
+
+                        HStack(spacing: 16) {
+                            Label(model.folderName, systemImage: "folder")
+                            Spacer()
+                            Label("Tokens: \(model.metadata.tokenCount)", systemImage: "number")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
                         HStack {
                             Label("Added: \(dateFormatter.string(from: model.installDate))", systemImage: "calendar")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
                             Spacer()
-                            Label("Tokens: \(model.metadata.tokenCount)", systemImage: "number")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
                         }
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
 
                         if let validation = model.validationStatus {
                             Text(validation)
                                 .font(.caption2)
                                 .foregroundStyle(validation.hasPrefix("Error") ? .red : .secondary)
+                                .padding(6)
+                                .background(validation.hasPrefix("Error") ? Color.red.opacity(0.12) : Color.primary.opacity(0.06))
+                                .cornerRadius(6)
                         }
 
-                        HStack(spacing: 8) {
+                        HStack(spacing: 12) {
                             Button {
                                 Task {
                                     await testModel(model)
@@ -64,8 +69,11 @@ struct InstalledOfflineModelsView: View {
                             }
                             .buttonStyle(.bordered)
                         }
+                        .padding(.top, 4)
                     }
-                    .padding(.vertical, 2)
+                    .padding()
+                    .background(Color.secondary.opacity(0.08))
+                    .cornerRadius(10)
                 }
             }
         }
