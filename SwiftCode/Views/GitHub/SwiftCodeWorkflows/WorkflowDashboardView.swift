@@ -363,3 +363,39 @@ public struct WorkflowDashboardView: View {
         .frame(width: 400, height: 320)
     }
 }
+
+// MARK: - RepoMetricCard
+
+struct RepoMetricCard: View {
+    let title: String
+    let value: String
+    let subtitle: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .bold()
+                .foregroundStyle(.secondary)
+
+            Text(value)
+                .font(.title2)
+                .bold()
+                .foregroundStyle(color)
+
+            Text(subtitle)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(NSColor.windowBackgroundColor))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+        )
+    }
+}

@@ -36,6 +36,22 @@ public struct GitBlameViewer: View {
         public let code: String
     }
 
+    struct IndexedBlameLineEntry: Identifiable {
+        let index: Int
+        let entry: BlameLineEntry
+        var id: UUID { entry.id }
+    }
+
+    private var indexedBlameLines: [IndexedBlameLineEntry] {
+        processedBlameLines.enumerated().map { IndexedBlameLineEntry(index: $0.offset, entry: $0.element) }
+    }
+
+    private var filteredFiles: [URL] {
+        fileList.filter {
+            fileSearchText.isEmpty || $0.lastPathComponent.localizedCaseInsensitiveContains(fileSearchText)
+        }
+    }
+
     public init(gitViewModel: GitViewModel) {
         self.gitViewModel = gitViewModel
     }
@@ -82,18 +98,14 @@ public struct GitBlameViewer: View {
 
             Divider()
 
-            let filtered = fileList.filter {
-                fileSearchText.isEmpty || $0.lastPathComponent.localizedCaseInsensitiveContains(fileSearchText)
-            }
-
-            if filtered.isEmpty {
+            if filteredFiles.isEmpty {
                 Text("No files matches")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding()
                 Spacer()
             } else {
-                List(filtered, id: \.self) { url in
+                List(filteredFiles, id: \.self) { url in
                     HStack {
                         Image(systemName: "doc.text")
                             .foregroundStyle(.secondary)
@@ -176,9 +188,9 @@ public struct GitBlameViewer: View {
                     // Main annotated view grid list
                     ScrollView {
                         VStack(alignment: .leading, spacing: 0) {
-                            let list = processedBlameLines
-                            ForEach(0..<list.count, id: \.self) { index in
-                                let entry = list[index]
+                            ForEach(indexedBlameLines) { item in
+                                let index = item.index
+                                let entry = item.entry
                                 let isSelected = selectedLineIndex == index
 
                                 HStack(spacing: 0) {

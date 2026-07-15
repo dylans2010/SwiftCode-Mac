@@ -205,6 +205,7 @@ public struct SavedLayout: Identifiable, Codable {
 // MARK: - Terminal Session
 
 @Observable
+@MainActor
 public final class TerminalSession: Identifiable, @unchecked Sendable {
     public let id = UUID()
     public var name: String
@@ -238,14 +239,12 @@ public final class TerminalSession: Identifiable, @unchecked Sendable {
         self.outputLines.append(TerminalLine(text: "Session \(name) initialized.", type: .info))
     }
 
-    @MainActor
     public func startRecording() {
         isRecording = true
         recordingLines = []
         outputLines.append(TerminalLine(text: "[Recording Started]", type: .info))
     }
 
-    @MainActor
     public func stopRecording() -> TerminalRecording {
         isRecording = false
         outputLines.append(TerminalLine(text: "[Recording Stopped]", type: .info))
@@ -257,7 +256,6 @@ public final class TerminalSession: Identifiable, @unchecked Sendable {
         )
     }
 
-    @MainActor
     public func runCommand(_ cmd: String) {
         let trimmed = cmd.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -327,7 +325,6 @@ public final class TerminalSession: Identifiable, @unchecked Sendable {
         }
     }
 
-    @MainActor
     public func terminate() {
         if let proc = activeProcess, proc.isRunning {
             proc.terminate()
@@ -336,7 +333,6 @@ public final class TerminalSession: Identifiable, @unchecked Sendable {
         isRunning = false
     }
 
-    @MainActor
     private func addOutput(_ text: String, type: TerminalLine.LineType) {
         let lines = text.components(separatedBy: .newlines)
         for line in lines where !line.isEmpty {
@@ -351,6 +347,7 @@ public final class TerminalSession: Identifiable, @unchecked Sendable {
 // MARK: - Terminal Manager (Central State)
 
 @Observable
+@MainActor
 public final class TerminalManager: @unchecked Sendable {
     public static let shared = TerminalManager()
 
@@ -628,6 +625,7 @@ public final class TerminalManager: @unchecked Sendable {
 
 // MARK: - Views
 
+@MainActor
 public struct TerminalView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var manager = TerminalManager.shared
@@ -709,6 +707,7 @@ public struct TerminalView: View {
 
 // MARK: - Sidebar view
 
+@MainActor
 struct TerminalSidebar: View {
     @Bindable var manager: TerminalManager
 
@@ -751,6 +750,7 @@ struct TerminalSidebar: View {
 
 // MARK: - SSH Sidebar
 
+@MainActor
 struct SSHConnectionsSidebar: View {
     var manager: TerminalManager
     @State private var isAddingHost = false
@@ -800,6 +800,7 @@ struct SSHConnectionsSidebar: View {
 
 // MARK: - Profiles Sidebar
 
+@MainActor
 struct ProfilesSidebar: View {
     var manager: TerminalManager
 
@@ -839,6 +840,7 @@ struct ProfilesSidebar: View {
 
 // MARK: - History Sidebar
 
+@MainActor
 struct HistorySidebar: View {
     var manager: TerminalManager
     @State private var searchQuery = ""
@@ -885,6 +887,7 @@ struct HistorySidebar: View {
 
 // MARK: - Command Library Sidebar
 
+@MainActor
 struct CommandLibrarySidebar: View {
     var manager: TerminalManager
 
@@ -934,6 +937,7 @@ struct CommandLibrarySidebar: View {
 
 // MARK: - Environment Sidebar
 
+@MainActor
 struct EnvironmentSidebar: View {
     var manager: TerminalManager
     @State private var newKey = ""
@@ -983,6 +987,7 @@ struct EnvironmentSidebar: View {
 
 // MARK: - Remote FS Sidebar
 
+@MainActor
 struct RemoteFSSidebar: View {
     @Bindable var manager: TerminalManager
     @State private var currentPath = "/home/developer"
@@ -1035,6 +1040,7 @@ struct RemoteFSSidebar: View {
 
 // MARK: - Tasks Sidebar
 
+@MainActor
 struct TasksSidebar: View {
     var manager: TerminalManager
 
@@ -1080,6 +1086,7 @@ struct TasksSidebar: View {
 
 // MARK: - Recordings Sidebar
 
+@MainActor
 struct RecordingsSidebar: View {
     @Bindable var manager: TerminalManager
 
@@ -1118,6 +1125,7 @@ struct RecordingsSidebar: View {
 
 // MARK: - Terminal Workspace Area (Center Tabs & Splits)
 
+@MainActor
 struct TerminalWorkspaceArea: View {
     @Bindable var manager: TerminalManager
 
@@ -1191,6 +1199,7 @@ struct TerminalWorkspaceArea: View {
 
 // MARK: - Layout Node Renderer
 
+@MainActor
 struct LayoutRendererView: View {
     let node: LayoutNode
     let manager: TerminalManager
@@ -1221,6 +1230,7 @@ struct LayoutRendererView: View {
 
 // MARK: - Interactive Session Terminal View
 
+@MainActor
 struct InteractiveTerminalSessionView: View {
     @Bindable var session: TerminalSession
     let manager: TerminalManager
@@ -1314,6 +1324,7 @@ struct InteractiveTerminalSessionView: View {
 
 // MARK: - Rich Text Renderer for Terminal Line
 
+@MainActor
 struct RenderTextLine: View {
     let text: String
     let workspaceVM: WorkspaceViewModel?
@@ -1363,6 +1374,7 @@ struct RenderTextLine: View {
 
 // MARK: - Transfer Queue Panel
 
+@MainActor
 struct TransferQueuePanel: View {
     @Bindable var manager: TerminalManager
 
@@ -1396,6 +1408,7 @@ struct TransferQueuePanel: View {
 
 // MARK: - Terminal Inspector Panel (Right Sidebar)
 
+@MainActor
 struct TerminalInspectorPanel: View {
     @Bindable var manager: TerminalManager
     @State private var activeTab = "Stats"
@@ -1432,6 +1445,7 @@ struct TerminalInspectorPanel: View {
 
 // MARK: - Session Inspector Tab
 
+@MainActor
 struct SessionInspectorTab: View {
     let manager: TerminalManager
 
@@ -1470,6 +1484,7 @@ struct SessionInspectorTab: View {
 
 // MARK: - Progress Gauge
 
+@MainActor
 struct ProgressGauge: View {
     let title: String
     let percentage: Double
@@ -1500,6 +1515,7 @@ struct ProgressGauge: View {
 
 // MARK: - Process Explorer Tab
 
+@MainActor
 struct ProcessExplorerTab: View {
     @State private var processes: [ProcessItem] = [
         ProcessItem(pid: 2981, ppid: 1, name: "zsh", cpuPercent: 0.1, memoryPercent: 1.2, state: "Running"),
@@ -1550,6 +1566,7 @@ struct ProcessExplorerTab: View {
 
 // MARK: - Git Status Tab
 
+@MainActor
 struct GitStatusTab: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -1584,6 +1601,7 @@ struct GitStatusTab: View {
 
 // MARK: - AI Terminal Assistant Tab
 
+@MainActor
 struct AITerminalAssistantTab: View {
     let manager: TerminalManager
     @State private var query = ""

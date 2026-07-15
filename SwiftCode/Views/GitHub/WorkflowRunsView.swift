@@ -6,7 +6,7 @@ struct WorkflowRunsView: View {
     let project: Project?
     @Environment(\.dismiss) private var dismiss
 
-    @State private var jobs: [GitHubJob] = []
+    @State private var jobs: [WorkflowJob] = []
     @State private var isLoading = false
 
     // Console logs state
@@ -243,7 +243,7 @@ struct WorkflowRunsView: View {
         }
     }
 
-    private func fetchLogs(for job: GitHubJob) {
+    private func fetchLogs(for job: WorkflowJob) {
         consoleLogsText = """
         [2026-11-12T10:00:00Z] Starting job "\(job.name)"
         [2026-11-12T10:00:02Z] Step 1: Checking out branch state

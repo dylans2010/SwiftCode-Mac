@@ -911,13 +911,15 @@ public struct GitHubIssue: Identifiable, Decodable, Sendable {
     public let state: String
     public let createdAt: String
     public let user: IssueUser
+    public let htmlUrl: String
 
     enum CodingKeys: String, CodingKey {
         case id, number, title, body, state, user
         case createdAt = "created_at"
+        case htmlUrl = "html_url"
     }
 
-    public init(id: Int, number: Int, title: String, body: String?, state: String, createdAt: String, user: IssueUser) {
+    public init(id: Int, number: Int, title: String, body: String?, state: String, createdAt: String, user: IssueUser, htmlUrl: String = "") {
         self.id = id
         self.number = number
         self.title = title
@@ -925,6 +927,7 @@ public struct GitHubIssue: Identifiable, Decodable, Sendable {
         self.state = state
         self.createdAt = createdAt
         self.user = user
+        self.htmlUrl = htmlUrl
     }
 }
 
