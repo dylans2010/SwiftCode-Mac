@@ -164,10 +164,18 @@ public struct RecordListView: View {
                             .cornerRadius(6)
 
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(item.title)
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
+                            HStack(spacing: 6) {
+                                Text(item.title)
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+
+                                if item.rawDocument?.pinned == true {
+                                    Image(systemName: "pin.fill")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.orange)
+                                }
+                            }
 
                             HStack(spacing: 8) {
                                 Text(item.subtitle)
@@ -196,6 +204,41 @@ public struct RecordListView: View {
                         selectItem(item)
                     }
                     .contextMenu {
+                        if item.kind == .document, let doc = item.rawDocument {
+                            Button {
+                                doc.pinned.toggle()
+                                try? coordinator.documents.updateDocument(doc)
+                                loadAllItems()
+                            } label: {
+                                Label(doc.pinned ? "Unpin Document" : "Pin Document", systemImage: doc.pinned ? "pin.slash.fill" : "pin.fill")
+                            }
+
+                            Button {
+                                let nextStatus = doc.status == "Done" ? "In Progress" : "Done"
+                                doc.status = nextStatus
+                                try? coordinator.documents.updateDocument(doc)
+                                loadAllItems()
+                            } label: {
+                                Label(doc.status == "Done" ? "Mark as In Progress" : "Mark as Done", systemImage: doc.status == "Done" ? "arrow.counterclockwise" : "checkmark.circle")
+                            }
+
+                            Button {
+                                promptRename(item)
+                            } label: {
+                                Label("Rename...", systemImage: "pencil")
+                            }
+
+                            Divider()
+                        } else {
+                            Button {
+                                promptRename(item)
+                            } label: {
+                                Label("Rename...", systemImage: "pencil")
+                            }
+
+                            Divider()
+                        }
+
                         Button {
                             duplicateItem(item)
                         } label: {
@@ -394,20 +437,97 @@ public struct RecordListView: View {
         if !searchQuery.isEmpty {
             filtered = filtered.filter { item in
                 item.title.localizedCaseInsensitiveContains(searchQuery) ||
-                item.subtitle.localizedCaseInsensitiveContains(searchQuery)
+                item.subtitle.localizedCaseInsensitiveContains(searchQuery) ||
+                (item.rawDocument?.markdownSource.localizedCaseInsensitiveContains(searchQuery) ?? false) ||
+                (item.rawWikiPage?.markdownSource.localizedCaseInsensitiveContains(searchQuery) ?? false) ||
+                (item.rawSnippet?.code.localizedCaseInsensitiveContains(searchQuery) ?? false)
             }
         }
 
-        switch sortOption {
-        case .updatedAt:
-            filtered.sort { $0.updatedAt > $1.updatedAt }
-        case .createdAt:
-            filtered.sort { $0.createdAt > $1.createdAt }
-        case .title:
-            filtered.sort { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        // Pinned prioritisation
+        filtered.sort {
+            let pin0 = $0.rawDocument?.pinned ?? false
+            let pin1 = $1.rawDocument?.pinned ?? false
+            if pin0 != pin1 {
+                return pin0 && !pin1
+            }
+
+            switch sortOption {
+            case .updatedAt:
+                return $0.updatedAt > $1.updatedAt
+            case .createdAt:
+                return $0.createdAt > $1.createdAt
+            case .title:
+                return $0.title.localizedStandardCompare($1.title) == .orderedAscending
+            }
         }
 
         return filtered
+    }
+
+    private func promptRename(_ item: UnifiedBrowserItem) {
+        let alert = NSAlert()
+        alert.messageText = "Rename Entry"
+        alert.informativeText = "Enter a new title for this entry:"
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        input.stringValue = item.title
+        alert.accessoryView = input
+
+        if let window = NSApp.keyWindow {
+            alert.beginSheetModal(for: window) { response in
+                if response == .alertFirstButtonReturn {
+                    let newName = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !newName.isEmpty {
+                        self.renameItem(item, to: newName)
+                    }
+                }
+            }
+        } else {
+            if alert.runModal() == .alertFirstButtonReturn {
+                let newName = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !newName.isEmpty {
+                    self.renameItem(item, to: newName)
+                }
+            }
+        }
+    }
+
+    private func renameItem(_ item: UnifiedBrowserItem, to newName: String) {
+        do {
+            switch item.kind {
+            case .document:
+                if let doc = item.rawDocument {
+                    doc.title = newName
+                    try coordinator.documents.updateDocument(doc)
+                }
+            case .wikiPage:
+                if let page = item.rawWikiPage {
+                    page.title = newName
+                    try coordinator.storage.context.save()
+                }
+            case .whiteboard:
+                if let board = item.rawWhiteboard {
+                    board.title = newName
+                    try coordinator.whiteboards.updateWhiteboard(board)
+                }
+            case .snippet:
+                if let snip = item.rawSnippet {
+                    snip.title = newName
+                    try coordinator.storage.context.save()
+                }
+            case .snapshot:
+                if let snap = item.rawSnapshot {
+                    snap.title = newName
+                    try coordinator.storage.context.save()
+                }
+            }
+            loadAllItems()
+        } catch {
+            // silent catch
+        }
     }
 
     private func selectItem(_ item: UnifiedBrowserItem) {

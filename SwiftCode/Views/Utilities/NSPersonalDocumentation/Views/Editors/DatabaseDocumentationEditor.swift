@@ -10,6 +10,9 @@ public struct DatabaseDocumentationEditor: View {
     @State private var rowCountEstimate = "Medium (10k-1M)"
     @State private var partitioningStrategy = "None"
     @State private var backupFrequency = "Daily"
+    @State private var primaryKeyType = "UUID"
+    @State private var indexType = "B-Tree"
+    @State private var isNullableEnabled = false
 
     public init(coordinator: PersonalDocumentationCoordinator, documentID: UUID?) {
         self.coordinator = coordinator
@@ -96,6 +99,34 @@ public struct DatabaseDocumentationEditor: View {
                         }
                         .frame(width: 180)
                     }
+
+                    GridRow {
+                        Text("PK Type:")
+                            .font(.caption.bold())
+                        Picker("", selection: $primaryKeyType) {
+                            Text("UUID").tag("UUID")
+                            Text("INT").tag("INT")
+                            Text("BIGINT").tag("BIGINT")
+                            Text("VARCHAR").tag("VARCHAR")
+                        }
+                        .frame(width: 180)
+
+                        Text("Index Type:")
+                            .font(.caption.bold())
+                        Picker("", selection: $indexType) {
+                            Text("B-Tree").tag("B-Tree")
+                            Text("Hash").tag("Hash")
+                            Text("GIN").tag("GIN")
+                            Text("BRIN").tag("BRIN")
+                        }
+                        .frame(width: 180)
+                    }
+
+                    GridRow {
+                        Toggle("Columns Nullable By Default", isOn: $isNullableEnabled)
+                            .help("Default constraint behavior for new columns")
+                            .gridCellColumns(4)
+                    }
                 }
             },
             validationMessage: validationMessage
@@ -114,12 +145,12 @@ public struct DatabaseDocumentationEditor: View {
 
         | Column Name | Data Type | Constraints | Description |
         | :--- | :--- | :--- | :--- |
-        | id | UUID | PRIMARY KEY | Unique identifier for the row |
+        | id | \(primaryKeyType) | PRIMARY KEY | Unique identifier for the row |
         | created_at | TIMESTAMP | DEFAULT NOW() | Timestamp when record was created |
-        | updated_at | TIMESTAMP | NULLABLE | Timestamp of last record update |
+        | updated_at | TIMESTAMP | \(isNullableEnabled ? "NULL" : "NOT NULL") | Timestamp of last record update |
 
         #### Indexes
-        - `idx_\(tableName)_id` on (`id`)
+        - `idx_\(tableName)_id` on (`id`) using \(indexType)
 
         #### Partition Details
         - Partitioning Scheme: `\(partitioningStrategy)`
