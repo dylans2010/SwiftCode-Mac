@@ -14,6 +14,7 @@ struct RepositoriesView: View {
     @State private var searchPattern = ""
     @State private var activeTab: RepoSubTab = .localChanges
     @State private var commitMessage = ""
+    @State private var selectedConflictedFile: GitFileStatus?
 
     enum RepoSubTab: String, CaseIterable, Identifiable {
         case localChanges = "Local Changes"
@@ -46,6 +47,11 @@ struct RepositoriesView: View {
         .onAppear {
             if remoteRepos.isEmpty {
                 fetchRemoteRepos()
+            }
+        }
+        .sheet(item: $selectedConflictedFile) { file in
+            GitConflictResolverView(conflictedFile: file, gitViewModel: gitViewModel) {
+                selectedConflictedFile = nil
             }
         }
     }
@@ -147,7 +153,14 @@ struct RepositoriesView: View {
                                 .cornerRadius(4)
 
                             HStack(spacing: 8) {
-                                if file.isStaged {
+                                if file.status == .conflicted {
+                                    Button("Resolve Conflict...") {
+                                        selectedConflictedFile = file
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.red)
+                                    .controlSize(.small)
+                                } else if file.isStaged {
                                     Button("Unstage") {
                                         Task {
                                             await gitViewModel.unstage(file)

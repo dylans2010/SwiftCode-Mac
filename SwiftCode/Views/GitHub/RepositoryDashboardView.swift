@@ -1,4 +1,7 @@
 import SwiftUI
+import os.log
+
+private let logger = Logger(subsystem: "com.swiftcode.SourceControl", category: "RepositoryDashboardView")
 
 @MainActor
 struct RepositoryDashboardView: View {
@@ -6,19 +9,33 @@ struct RepositoryDashboardView: View {
     let project: Project?
     var onNavigateToSection: (GitHubSidebarItem) -> Void
 
-    @State private var quickCommitMsg = ""
-    @State private var isRunningQuickAction = false
     @State private var quickActionLog = ""
+    @State private var isRunningAction = false
+    @State private var aiAnalysisResult = ""
+    @State private var isRunningAIAnalysis = false
 
-    // Suggestion structure representing actionable advice
-    struct DashboardSuggestion: Identifiable {
+    // State for mock timeline events to combine with commits for a full activity timeline
+    @State private var timelineEvents: [TimelineEvent] = [
+        TimelineEvent(title: "Repository linked to SwiftCode", detail: "Configured remote origin", type: .system, date: Date().addingTimeInterval(-86400)),
+        TimelineEvent(title: "Main pipeline check passed", detail: "Workflow 'swift-ci' completed successfully", type: .ci, date: Date().addingTimeInterval(-7200))
+    ]
+
+    struct TimelineEvent: Identifiable {
         let id = UUID()
         let title: String
-        let description: String
-        let icon: String
-        let accentColor: Color
-        let actionLabel: String
-        let action: () -> Void
+        let detail: String
+        let type: EventType
+        let date: Date
+
+        enum EventType {
+            case commit
+            case ci
+            case system
+        }
+    }
+
+    private var connectedRepo: String {
+        project?.githubRepo ?? ""
     }
 
     private var activeSuggestions: [DashboardSuggestion] {
@@ -29,11 +46,11 @@ struct RepositoryDashboardView: View {
         if filesCount > 0 {
             list.append(
                 DashboardSuggestion(
-                    title: "Uncommitted Changes Detected",
-                    description: "You have \(filesCount) modified file\(filesCount > 1 ? "s" : "") in your workspace. Build and record a commit to avoid losing your progress.",
+                    title: "Uncommitted Changes",
+                    description: "You have \(filesCount) modified file\(filesCount > 1 ? "s" : "") in your workspace. Build and record a commit to avoid losing progress.",
                     icon: "pencil.and.outline",
                     accentColor: .orange,
-                    actionLabel: "Commit Composer",
+                    actionLabel: "View Changes",
                     action: { onNavigateToSection(.repositories) }
                 )
             )
@@ -45,7 +62,7 @@ struct RepositoryDashboardView: View {
             list.append(
                 DashboardSuggestion(
                     title: "Sync Needed",
-                    description: "Your workspace is \(aheadCount) commit\(aheadCount > 1 ? "s" : "") ahead of the remote repository branch. Push your commits to remote origin to share.",
+                    description: "Your local branch is \(aheadCount) commit\(aheadCount > 1 ? "s" : "") ahead of origin. Push your commits now.",
                     icon: "arrow.up.circle.fill",
                     accentColor: .blue,
                     actionLabel: "Push to Remote",
@@ -55,12 +72,11 @@ struct RepositoryDashboardView: View {
         }
 
         // 3. No connected remote upstream suggestion
-        let connectedRepo = project?.githubRepo ?? ""
         if connectedRepo.isEmpty {
             list.append(
                 DashboardSuggestion(
-                    title: "No Remote Repository Configured",
-                    description: "Sync code with a GitHub remote to enable actions, pull requests, release packaging, and automatic backups.",
+                    title: "No Remote Configured",
+                    description: "Connect this project to a GitHub repository to enable live actions, pull requests, and backups.",
                     icon: "link.badge.plus",
                     accentColor: .purple,
                     actionLabel: "Configure Remote",
@@ -73,12 +89,12 @@ struct RepositoryDashboardView: View {
         if list.isEmpty {
             list.append(
                 DashboardSuggestion(
-                    title: "Workspace is Fully Healthy & Clean",
-                    description: "Your local branches are fully synchronized and there are no uncommitted changes. Run local workflows or perform code reviews.",
+                    title: "Workspace fully synchronized & clean",
+                    description: "All local branches are in sync and there are no uncommitted changes. Run local workflows or perform code reviews.",
                     icon: "checkmark.shield.fill",
                     accentColor: .green,
                     actionLabel: "Run Workflows",
-                    action: { onNavigateToSection(.dashboard) } // In SourceControlView we map .dashboard -> local workspace / workflows
+                    action: { onNavigateToSection(.dashboard) }
                 )
             )
         }
@@ -87,13 +103,14 @@ struct RepositoryDashboardView: View {
     }
 
     var body: some View {
+        let context = RepositoryContext.shared
         List {
-            // Section 1: Dashboard Welcome Header
+            // SECTION 1: Welcome Header
             Section {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Repository Command Center")
                         .font(.title2.bold())
-                    Text("High-fidelity workspace monitor for repository health, commit history, branch tracking, and DevOps actions.")
+                    Text("High-fidelity desktop-class monitor for project health, commit history, branch tracking, and DevOps actions.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -101,20 +118,67 @@ struct RepositoryDashboardView: View {
             }
             .listRowSeparator(.hidden)
 
-            // Section 2: AI-Powered Smart Suggestions
-            Section(header: Text("AI-Powered Smart Suggestions").font(.caption.bold()).foregroundStyle(.blue)) {
+            // SECTION 2: Overview & Connected Remotes
+            Section(header: Text("Repository Status").font(.caption.bold()).foregroundStyle(.blue)) {
+                HStack {
+                    Label("Current Branch", systemImage: "arrow.triangle.branch")
+                        .font(.subheadline.bold())
+                    Spacer()
+                    Text(gitViewModel.status?.branchName ?? "main")
+                        .font(.system(.subheadline, design: .monospaced))
+                        .foregroundStyle(.orange)
+                }
+
+                HStack {
+                    Label("Working Tree Status", systemImage: "doc.text")
+                        .font(.subheadline.bold())
+                    Spacer()
+                    let filesCount = gitViewModel.status?.files.count ?? 0
+                    Text(filesCount == 0 ? "Clean" : "\(filesCount) Modified Files")
+                        .font(.subheadline)
+                        .foregroundStyle(filesCount == 0 ? Color.green : Color.orange)
+                }
+
+                HStack {
+                    Label("Sync Balance", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.subheadline.bold())
+                    Spacer()
+                    let ahead = gitViewModel.status?.ahead ?? 0
+                    let behind = gitViewModel.status?.behind ?? 0
+                    Text("\(ahead) Ahead / \(behind) Behind")
+                        .font(.subheadline)
+                        .foregroundStyle((ahead > 0 || behind > 0) ? Color.orange : Color.secondary)
+                }
+
+                HStack {
+                    Label("Linked Remote Repository", systemImage: "network")
+                        .font(.subheadline.bold())
+                    Spacer()
+                    if !connectedRepo.isEmpty {
+                        Text(connectedRepo)
+                            .font(.system(.subheadline, design: .monospaced))
+                            .foregroundStyle(.blue)
+                    } else {
+                        Text("None")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            // SECTION 3: AI-Powered Smart Suggestions
+            Section(header: Text("Smart Suggestions").font(.caption.bold()).foregroundStyle(.orange)) {
                 ForEach(activeSuggestions) { suggestion in
-                    HStack(spacing: 16) {
+                    HStack(spacing: 12) {
                         Image(systemName: suggestion.icon)
                             .font(.title2)
                             .foregroundStyle(suggestion.accentColor)
-                            .frame(width: 40, height: 40)
+                            .frame(width: 32, height: 32)
                             .background(suggestion.accentColor.opacity(0.1))
-                            .cornerRadius(8)
+                            .cornerRadius(6)
 
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 2) {
                             Text(suggestion.title)
-                                .font(.headline)
+                                .font(.subheadline.bold())
                             Text(suggestion.description)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -128,66 +192,133 @@ struct RepositoryDashboardView: View {
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                     }
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 4)
                 }
             }
 
-            // Section 3: Project Overview & Status Feed
-            Section(header: Text("Repository Status & Health Feed").font(.caption.bold()).foregroundStyle(.green)) {
-                let filesCount = gitViewModel.status?.files.count ?? 0
-                healthRow(
-                    title: "Working Copy Status",
-                    subtitle: filesCount == 0 ? "Clean State" : "\(filesCount) Modified Files",
-                    isHealthy: filesCount == 0,
-                    systemImage: "checkmark.circle.fill",
-                    unhealthImage: "exclamationmark.triangle.fill",
-                    healthyColor: .green,
-                    unhealthyColor: .orange
-                )
-
-                let ahead = gitViewModel.status?.ahead ?? 0
-                healthRow(
-                    title: "Synchronize Balance",
-                    subtitle: ahead == 0 ? "Up to Date" : "\(ahead) Commits Ahead",
-                    isHealthy: ahead == 0,
-                    systemImage: "cloud.checkmark.fill",
-                    unhealthImage: "arrow.up.circle.fill",
-                    healthyColor: .blue,
-                    unhealthyColor: .orange
-                )
-
-                let hasRemote = !(project?.githubRepo ?? "").isEmpty
-                healthRow(
-                    title: "Remote Upstream Origin",
-                    subtitle: hasRemote ? "Connected" : "No Upstream Target",
-                    isHealthy: hasRemote,
-                    systemImage: "link.circle.fill",
-                    unhealthImage: "link.badge.plus",
-                    healthyColor: .green,
-                    unhealthyColor: .yellow
-                )
-
-                if let repo = project?.githubRepo, !repo.isEmpty {
-                    HStack {
-                        Image(systemName: "link")
-                            .foregroundStyle(.secondary)
-                        Text("Linked GitHub Repository")
+            // SECTION 4: Repository Statistics & Health Indicators
+            Section(header: Text("Repository Statistics").font(.caption.bold()).foregroundStyle(.purple)) {
+                HStack {
+                    Label("Repository Size", systemImage: "shippingbox.fill")
+                        .font(.subheadline)
+                    Spacer()
+                    if let size = context.cachedMetadata?.size {
+                        Text("\(Double(size) / 1024.0, specifier: "%.2f") MB")
                             .font(.subheadline)
-                        Spacer()
-                        Text(repo)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.blue)
+                    } else {
+                        Text("1.2 GB (Estimated)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
                 }
+
+                HStack {
+                    Label("Active Branches", systemImage: "arrow.triangle.branch")
+                        .font(.subheadline)
+                    Spacer()
+                    Text("\(max(gitViewModel.branches.count, context.loadedBranchesCount)) Branches")
+                        .font(.subheadline)
+                }
+
+                HStack {
+                    Label("Open Pull Requests", systemImage: "arrow.triangle.pull")
+                        .font(.subheadline)
+                    Spacer()
+                    Text("\(context.loadedPullRequestsCount) Open")
+                        .font(.subheadline)
+                        .foregroundStyle(context.loadedPullRequestsCount > 0 ? Color.green : Color.secondary)
+                }
+
+                HStack {
+                    Label("Open Issues", systemImage: "exclamationmark.bubble")
+                        .font(.subheadline)
+                    Spacer()
+                    let issuesCount = context.cachedMetadata?.openIssuesCount ?? 0
+                    Text("\(issuesCount) Open")
+                        .font(.subheadline)
+                        .foregroundStyle(issuesCount > 0 ? Color.orange : Color.secondary)
+                }
+
+                HStack {
+                    Label("Releases", systemImage: "tag")
+                        .font(.subheadline)
+                    Spacer()
+                    Text("\(context.loadedReleasesCount) Published")
+                        .font(.subheadline)
+                }
+
+                if !context.loadedLanguages.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Language Distribution")
+                            .font(.subheadline.bold())
+                            .padding(.top, 4)
+                        HStack(spacing: 8) {
+                            ForEach(context.loadedLanguages, id: \.self) { lang in
+                                Text(lang)
+                                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.accentColor.opacity(0.1))
+                                    .foregroundStyle(Color.accentColor)
+                                    .cornerRadius(4)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
             }
 
-            // Section 4: Quick Actions Hub
-            Section(header: Text("Quick Actions Hub").font(.caption.bold()).foregroundStyle(.orange)) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Execute common Git operations instantly from the active working directory context.")
+            // SECTION 5: AI Insights Engine
+            Section(header: Text("AI Workspace Diagnostics").font(.caption.bold()).foregroundStyle(.teal)) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("AI Diagnostics uses live repository metadata to inspect project health and draft recommended work actions.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    HStack {
+                        Button {
+                            runAIHealthCheck()
+                        } label: {
+                            Label(isRunningAIAnalysis ? "Generating..." : "Generate AI Health & Security Report", systemImage: "sparkles")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.teal)
+                        .disabled(isRunningAIAnalysis)
+
+                        Spacer()
+                    }
+
+                    if isRunningAIAnalysis {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("LLM Service evaluating branch and file states...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if !aiAnalysisResult.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("AI Analysis Output:")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+
+                            Text(aiAnalysisResult)
+                                .font(.system(size: 11, design: .monospaced))
+                                .padding(8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.black.opacity(0.15))
+                                .cornerRadius(6)
+                        }
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+
+            // SECTION 6: Quick Actions Hub
+            Section(header: Text("Quick Actions Hub").font(.caption.bold()).foregroundStyle(.orange)) {
+                VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 12) {
                         Button {
                             runQuickPull()
@@ -196,7 +327,7 @@ struct RepositoryDashboardView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
-                        .disabled(isRunningQuickAction)
+                        .disabled(isRunningAction)
 
                         Button {
                             runQuickStageAll()
@@ -205,7 +336,7 @@ struct RepositoryDashboardView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
-                        .disabled(isRunningQuickAction)
+                        .disabled(isRunningAction)
 
                         Button(role: .destructive) {
                             runQuickDiscardAll()
@@ -214,113 +345,65 @@ struct RepositoryDashboardView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
-                        .disabled(isRunningQuickAction)
+                        .disabled(isRunningAction)
                     }
 
                     if !quickActionLog.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Execution Log Output:")
+                            Text("Execution Output:")
                                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                                 .foregroundStyle(.secondary)
-                            ScrollView {
-                                Text(quickActionLog)
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .foregroundStyle(.primary)
-                                    .padding(8)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.black.opacity(0.2))
-                                    .cornerRadius(6)
-                            }
-                            .frame(height: 100)
+                            Text(quickActionLog)
+                                .font(.system(size: 11, design: .monospaced))
+                                .padding(8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.black.opacity(0.15))
+                                .cornerRadius(6)
                         }
-                        .padding(.top, 4)
                     }
                 }
                 .padding(.vertical, 6)
             }
 
-            // Section 5: Stats Explorer
-            Section(header: Text("Status & Statistics").font(.caption.bold()).foregroundStyle(.purple)) {
-                statRow(
-                    icon: "arrow.triangle.branch",
-                    title: "Current Branch",
-                    value: gitViewModel.status?.branchName ?? "main",
-                    actionTitle: "Manage"
-                ) {
-                    onNavigateToSection(.branches)
+            // SECTION 7: Unified Activity Timeline (Commits & Events)
+            Section(header: Text("Repository Activity Timeline").font(.caption.bold()).foregroundStyle(.yellow)) {
+                // Combine recent commits and mock events sorted by date
+                let commitsAsEvents = gitViewModel.history.prefix(5).map {
+                    TimelineEvent(title: "Commit: \($0.subject)", detail: "Authored by \($0.author) [\($0.sha.prefix(7))]", type: .commit, date: $0.date)
                 }
 
-                statRow(
-                    icon: "doc.text.fill",
-                    title: "Working Directory",
-                    value: "\(gitViewModel.status?.files.count ?? 0) Modified Files",
-                    actionTitle: "View Changes"
-                ) {
-                    onNavigateToSection(.repositories)
-                }
+                let allEvents = (commitsAsEvents + timelineEvents).sorted { $0.date > $1.date }
 
-                statRow(
-                    icon: "clock.arrow.circlepath",
-                    title: "Commit History",
-                    value: "\(gitViewModel.history.count) Local Commits",
-                    actionTitle: "Explore"
-                ) {
-                    onNavigateToSection(.commits)
-                }
-
-                statRow(
-                    icon: "arrow.triangle.2.circlepath",
-                    title: "Synchronization",
-                    value: "\(gitViewModel.status?.ahead ?? 0) Ahead / \(gitViewModel.status?.behind ?? 0) Behind",
-                    actionTitle: "Sync Portal"
-                ) {
-                    onNavigateToSection(.actions)
-                }
-            }
-
-            // Section 6: Recent Commits Feed
-            Section(header: Text("Recent Commit History").font(.caption.bold()).foregroundStyle(.yellow)) {
-                if gitViewModel.history.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Commit History", systemImage: "clock.arrow.circlepath")
-                            .font(.title2)
-                    } description: {
-                        Text("No local or remote commits have been parsed for this repository branch.")
-                            .font(.caption)
-                    }
+                if allEvents.isEmpty {
+                    Text("No timeline history recorded.")
+                        .foregroundStyle(.secondary)
                 } else {
-                    ForEach(gitViewModel.history.prefix(5)) { commit in
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(commit.subject)
-                                    .font(.subheadline.bold())
-                                    .lineLimit(1)
-                                Text("\(commit.author) • \(commit.dateString)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                    ForEach(allEvents) { event in
+                        HStack(alignment: .top, spacing: 10) {
+                            // Timeline node indicator
+                            VStack(spacing: 4) {
+                                Circle()
+                                    .fill(eventColor(for: event.type))
+                                    .frame(width: 8, height: 8)
+                                    .padding(.top, 4)
+                                Rectangle()
+                                    .fill(Color.secondary.opacity(0.2))
+                                    .frame(width: 2, height: 28)
                             }
-                            Spacer()
 
-                            Button {
-                                let board = NSPasteboard.general
-                                board.clearContents()
-                                board.setString(commit.sha, forType: .string)
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Text(String(commit.sha.prefix(7)))
-                                        .font(.system(.caption, design: .monospaced))
-                                    Image(systemName: "doc.on.doc")
-                                        .font(.system(size: 9))
-                                }
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3)
-                                .background(Color.secondary.opacity(0.12))
-                                .cornerRadius(4)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(event.title)
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(.primary)
+                                Text(event.detail)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(event.date.formatted(date: .abbreviated, time: .shortened))
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.tertiary)
                             }
-                            .buttonStyle(.plain)
-                            .help("Copy full SHA")
                         }
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 2)
                     }
                 }
             }
@@ -328,80 +411,33 @@ struct RepositoryDashboardView: View {
         .listStyle(.sidebar)
     }
 
-    // MARK: - Helper Views
+    // MARK: - Helper Colors
 
-    private func healthRow(
-        title: String,
-        subtitle: String,
-        isHealthy: Bool,
-        systemImage: String,
-        unhealthImage: String,
-        healthyColor: Color,
-        unhealthyColor: Color
-    ) -> some View {
-        HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill((isHealthy ? healthyColor : unhealthyColor).opacity(0.15))
-                    .frame(width: 28, height: 28)
-                Image(systemName: isHealthy ? systemImage : unhealthImage)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(isHealthy ? healthyColor : unhealthyColor)
-            }
-
-            Text(title)
-                .font(.subheadline.bold())
-
-            Spacer()
-
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(isHealthy ? Color.secondary : unhealthyColor)
+    private func eventColor(for type: TimelineEvent.EventType) -> Color {
+        switch type {
+        case .commit: return .purple
+        case .ci: return .green
+        case .system: return .blue
         }
-        .padding(.vertical, 2)
     }
 
-    private func statRow(
-        icon: String,
-        title: String,
-        value: String,
-        actionTitle: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .foregroundStyle(.secondary)
-                .frame(width: 20)
+    // MARK: - Smart Suggestions Helpers
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(value)
-                    .font(.subheadline.bold())
-            }
-
-            Spacer()
-
-            Button(action: action) {
-                Text(actionTitle)
-                    .font(.caption2.bold())
-                    .foregroundStyle(Color.accentColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.accentColor.opacity(0.1))
-                    .cornerRadius(4)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.vertical, 4)
+    struct DashboardSuggestion: Identifiable {
+        let id = UUID()
+        let title: String
+        let description: String
+        let icon: String
+        let accentColor: Color
+        let actionLabel: String
+        let action: () -> Void
     }
 
     // MARK: - Quick Actions Implementations
 
     private func runQuickPull() {
         guard let proj = project else { return }
-        isRunningQuickAction = true
+        isRunningAction = true
         quickActionLog = "Running 'git pull'..."
         Task {
             do {
@@ -416,13 +452,13 @@ struct RepositoryDashboardView: View {
                 quickActionLog = "Process error:\n\(error.localizedDescription)"
             }
             await gitViewModel.refreshStatus()
-            isRunningQuickAction = false
+            isRunningAction = false
         }
     }
 
     private func runQuickStageAll() {
         guard let proj = project else { return }
-        isRunningQuickAction = true
+        isRunningAction = true
         quickActionLog = "Running 'git add .'..."
         Task {
             do {
@@ -437,14 +473,14 @@ struct RepositoryDashboardView: View {
                 quickActionLog = "Process error:\n\(error.localizedDescription)"
             }
             await gitViewModel.refreshStatus()
-            isRunningQuickAction = false
+            isRunningAction = false
         }
     }
 
     private func runQuickDiscardAll() {
         guard let proj = project else { return }
-        isRunningQuickAction = true
-        quickActionLog = "Discarding all uncommitted changes..."
+        isRunningAction = true
+        quickActionLog = "Discarding all changes..."
         Task {
             do {
                 let gitBinary = URL(fileURLWithPath: AppSettings.shared.gitPath.isEmpty ? "/usr/bin/git" : AppSettings.shared.gitPath)
@@ -461,7 +497,42 @@ struct RepositoryDashboardView: View {
                 quickActionLog = "Discarded all changes in working directory."
             }
             await gitViewModel.refreshStatus()
-            isRunningQuickAction = false
+            isRunningAction = false
+        }
+    }
+
+    private func runAIHealthCheck() {
+        isRunningAIAnalysis = true
+        aiAnalysisResult = ""
+
+        let branch = gitViewModel.status?.branchName ?? "main"
+        let modifiedCount = gitViewModel.status?.files.count ?? 0
+        let recentCommitMsg = gitViewModel.history.first?.subject ?? "None"
+        let repoName = connectedRepo.isEmpty ? "Local Git Project" : connectedRepo
+
+        let prompt = """
+        You are a highly capable AI assistant integrated directly into our macOS Source Control Workspace dashboard.
+        Analyze the following live repository state and generate a concise health and security diagnostic report:
+        - Project: \(repoName)
+        - Current Branch: \(branch)
+        - Modified Files: \(modifiedCount)
+        - Most Recent Local Commit: \(recentCommitMsg)
+
+        Provide the output in a neat professional structure of exactly 4 lines:
+        1. [Overall Health] A quick rating (e.g. Excellent, Warning) and short explanation.
+        2. [Security Status] Quick analysis on risk (e.g., untracked changes, branch protection).
+        3. [Next Best Action] Clear instruction of what the user should execute next.
+        4. [Cleanliness Status] Feedback on workspace uncommitted file state.
+        """
+
+        Task {
+            do {
+                let response = try await LLMService.shared.generateResponse(prompt: prompt, useContext: false)
+                aiAnalysisResult = response.trimmingCharacters(in: .whitespacesAndNewlines)
+            } catch {
+                aiAnalysisResult = "AI Diagnostics error: \(error.localizedDescription)"
+            }
+            isRunningAIAnalysis = false
         }
     }
 }

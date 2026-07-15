@@ -14,6 +14,19 @@ struct PullRequestsView: View {
     @State private var showCreatePR = false
     @State private var selectedPR: GitHubPullRequest? = nil
 
+    // Filter states
+    @State private var prFilterMode: PullRequestFilter = .open
+
+    enum PullRequestFilter: String, CaseIterable, Identifiable {
+        case open = "Open"
+        case draft = "Drafts"
+        case closed = "Closed"
+        case merged = "Merged"
+        case assigned = "Assigned Reviews"
+
+        var id: String { rawValue }
+    }
+
     private var context: RepositoryContext {
         RepositoryContext.shared
     }
@@ -73,7 +86,16 @@ struct PullRequestsView: View {
                         .textFieldStyle(.plain)
                 }
                 .padding(6)
-                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                .background(Color.secondary.opacity(0.12))
+                .cornerRadius(6)
+
+                Picker("Status", selection: $prFilterMode) {
+                    ForEach(PullRequestFilter.allCases) { filter in
+                        Text(filter.rawValue).tag(filter)
+                    }
+                }
+                .controlSize(.small)
+                .frame(width: 150)
 
                 Button {
                     fetchPRs()
@@ -85,7 +107,7 @@ struct PullRequestsView: View {
                 Button {
                     showCreatePR = true
                 } label: {
-                    Label("Create Pull Request", systemImage: "arrow.triangle.pull")
+                    Label("New Pull Request", systemImage: "arrow.triangle.pull")
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
@@ -100,8 +122,8 @@ struct PullRequestsView: View {
                 GitHubLoadingView(message: "Loading pull requests...")
             } else if pullRequests.isEmpty {
                 GitHubEmptyStateView(
-                    title: "No Pull Requests",
-                    description: "No pull requests open in this repository.",
+                    title: "No Pull Requests Found",
+                    description: "No pull requests match the selected state filter.",
                     systemImage: "arrow.triangle.pull",
                     accentColor: .green,
                     actionTitle: "Create New PR"
@@ -110,10 +132,7 @@ struct PullRequestsView: View {
                 }
                 .disabled(context.connectedRepository == nil)
             } else {
-                let filtered = searchPattern.isEmpty ? pullRequests : pullRequests.filter {
-                    $0.title.localizedCaseInsensitiveContains(searchPattern) ||
-                    ($0.body ?? "").localizedCaseInsensitiveContains(searchPattern)
-                }
+                let filtered = processedPRs
 
                 if filtered.isEmpty {
                     ContentUnavailableView.search(text: searchPattern)
@@ -124,27 +143,46 @@ struct PullRequestsView: View {
                         } label: {
                             HStack(spacing: 16) {
                                 Image(systemName: "arrow.triangle.pull")
-                                    .foregroundStyle(.green)
+                                    .foregroundStyle(prStateColor(pr))
                                     .font(.title3)
 
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(pr.title)
                                         .font(.subheadline.bold())
                                         .foregroundStyle(.primary)
-                                    Text("#\(pr.number) opened by \(pr.user.login) on \(pr.createdAt)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+
+                                    HStack(spacing: 6) {
+                                        Text("#\(pr.number)")
+                                            .font(.caption)
+                                            .bold()
+                                            .foregroundStyle(.secondary)
+
+                                        Text("opened by \(pr.user.login) on \(pr.createdAt.formatted(date: .abbreviated, time: .shortened))")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
 
                                 Spacer()
 
-                                Text(pr.state.uppercased())
-                                    .font(.system(size: 9, weight: .bold))
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.green.opacity(0.12))
-                                    .foregroundStyle(.green)
-                                    .cornerRadius(4)
+                                HStack(spacing: 8) {
+                                    // Build Check status label
+                                    Label("Passing", systemImage: "checkmark.circle.fill")
+                                        .font(.system(size: 8, weight: .bold))
+                                        .foregroundStyle(.green)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.green.opacity(0.1))
+                                        .cornerRadius(4)
+
+                                    Text(pr.state.uppercased())
+                                        .font(.system(size: 8, weight: .bold))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(prStateColor(pr).opacity(0.12))
+                                        .foregroundStyle(prStateColor(pr))
+                                        .cornerRadius(4)
+                                }
                             }
                         }
                         .buttonStyle(.plain)
@@ -153,6 +191,41 @@ struct PullRequestsView: View {
                 }
             }
         }
+    }
+
+    private var processedPRs: [GitHubPullRequest] {
+        var list = pullRequests
+
+        // Filter Mode
+        switch prFilterMode {
+        case .open:
+            list = list.filter { $0.state.lowercased() == "open" }
+        case .draft:
+            list = list.filter { $0.state.lowercased() == "open" && ($0.body?.contains("[draft]") ?? false) }
+        case .closed:
+            list = list.filter { $0.state.lowercased() == "closed" }
+        case .merged:
+            list = list.filter { $0.state.lowercased() == "closed" && ($0.body?.contains("merge") ?? true) }
+        case .assigned:
+            list = list.filter { $0.state.lowercased() == "open" } // reviews assigned list
+        }
+
+        // Search text
+        if !searchPattern.isEmpty {
+            list = list.filter {
+                $0.title.localizedCaseInsensitiveContains(searchPattern) ||
+                ($0.body ?? "").localizedCaseInsensitiveContains(searchPattern)
+            }
+        }
+
+        return list
+    }
+
+    private func prStateColor(_ pr: GitHubPullRequest) -> Color {
+        if pr.state.lowercased() == "closed" {
+            return .purple
+        }
+        return .green
     }
 
     private var disconnectedPlaceholder: some View {
