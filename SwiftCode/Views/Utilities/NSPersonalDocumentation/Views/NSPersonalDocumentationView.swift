@@ -247,6 +247,16 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         }
     }
 
+    override public func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let window = view.window {
+            NotificationCenter.default.removeObserver(self, name: NSWindow.didEnterFullScreenNotification, object: nil)
+            NotificationCenter.default.removeObserver(self, name: NSWindow.didExitFullScreenNotification, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(windowDidEnterFullScreen(_:)), name: NSWindow.didEnterFullScreenNotification, object: window)
+            NotificationCenter.default.addObserver(self, selector: #selector(windowDidExitFullScreen(_:)), name: NSWindow.didExitFullScreenNotification, object: window)
+        }
+    }
+
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
@@ -264,13 +274,14 @@ public class PersonalDocSplitViewController: NSSplitViewController {
     private func setupSplitView() {
         splitView.isVertical = true
         splitView.dividerStyle = .thin
+        splitView.autoresizingMask = [.width, .height]
 
         // Panel 1: Sidebar (Pure AppKit Controller)
         let sidebarVC = PersonalDocSidebarViewController(coordinator: coordinator)
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
         sidebarItem.minimumThickness = 200
         sidebarItem.maximumThickness = 450
-        sidebarItem.holdingPriority = .defaultLow
+        sidebarItem.holdingPriority = .defaultLow + 10
         self.sidebarItem = sidebarItem
         addSplitViewItem(sidebarItem)
 
@@ -282,7 +293,7 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         let middleItem = NSSplitViewItem(viewController: middleVC)
         middleItem.minimumThickness = 280
         middleItem.maximumThickness = 350
-        middleItem.holdingPriority = .defaultLow
+        middleItem.holdingPriority = .defaultLow + 20
         self.middleItem = middleItem
         addSplitViewItem(middleItem)
 
@@ -293,7 +304,7 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         mainVC.view.autoresizingMask = [.width, .height]
         let mainItem = NSSplitViewItem(viewController: mainVC)
         mainItem.minimumThickness = 600
-        mainItem.holdingPriority = .defaultHigh
+        mainItem.holdingPriority = .defaultLow - 10
         self.mainItem = mainItem
         addSplitViewItem(mainItem)
 
@@ -514,6 +525,7 @@ public class PersonalDocSidebarViewController: NSViewController, NSOutlineViewDa
         visualEffectView.material = .sidebar
         visualEffectView.blendingMode = .behindWindow
         visualEffectView.state = .active
+        visualEffectView.autoresizingMask = [.width, .height]
 
         let scroll = NSScrollView()
         scroll.drawsBackground = false
