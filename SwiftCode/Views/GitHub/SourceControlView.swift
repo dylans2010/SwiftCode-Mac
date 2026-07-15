@@ -238,11 +238,41 @@ enum SourceControlSelection: String, CaseIterable, Identifiable {
     case cli = "CLI"
     case repositorySettings = "Repository Settings"
     case onboarding = "Onboarding"
+    case repositoryIntelligence = "Repository Intelligence"
+    case knowledgeGraph = "Repository Knowledge Graph"
+    case repositoryTimeline = "Repository Timeline"
+    case gitOperations = "Git Operations Center"
+    case advancedDiff = "Advanced Diff Center"
+    case repositorySearch = "Repository Search Platform"
+    case codeOwnership = "Code Ownership Workspace"
+    case branchIntelligence = "Branch Intelligence"
+    case commitIntelligence = "Commit Intelligence"
+    case pullRequestIntelligence = "Pull Request Intelligence"
+    case securityCenter = "Security Center"
+    case collaborationCenter = "Collaboration Center"
+    case workspaceAutomation = "Workspace Automation"
+    case githubDiscovery = "GitHub Discovery"
+    case aiAssistant = "AI Repository Assistant"
 
     var id: String { rawValue }
 
     var icon: String {
         switch self {
+        case .repositoryIntelligence: return "chart.bar.doc.horizontal"
+        case .knowledgeGraph: return "circle.grid.3x3"
+        case .repositoryTimeline: return "calendar.day.timeline.left"
+        case .gitOperations: return "command"
+        case .advancedDiff: return "doc.text.magnifyingglass"
+        case .repositorySearch: return "magnifyingglass.circle"
+        case .codeOwnership: return "person.3.sequence"
+        case .branchIntelligence: return "arrow.triangle.branch"
+        case .commitIntelligence: return "clock"
+        case .pullRequestIntelligence: return "arrow.triangle.pull"
+        case .securityCenter: return "shield.righthalf.filled"
+        case .collaborationCenter: return "person.2"
+        case .workspaceAutomation: return "cpu"
+        case .githubDiscovery: return "safari"
+        case .aiAssistant: return "sparkles"
         case .localWorkspace: return "laptopcomputer"
         case .changes: return "doc.badge.plus"
         case .branches: return "arrow.triangle.branch"
@@ -561,6 +591,36 @@ struct SourceControlView: View {
                 GitHubSettingsView(project: project)
             case .onboarding:
                 SCSetupOnboard()
+            case .repositoryIntelligence:
+                RepositoryIntelligenceView(gitViewModel: gitViewModel)
+            case .knowledgeGraph:
+                RepositoryKnowledgeGraphView(gitViewModel: gitViewModel)
+            case .repositoryTimeline:
+                InteractiveRepositoryTimelineView(gitViewModel: gitViewModel)
+            case .gitOperations:
+                AdvancedGitOperationsCenterView(gitViewModel: gitViewModel)
+            case .advancedDiff:
+                AdvancedDiffCenterView(gitViewModel: gitViewModel)
+            case .repositorySearch:
+                RepositorySearchPlatformView(gitViewModel: gitViewModel)
+            case .codeOwnership:
+                CodeOwnershipWorkspaceView(gitViewModel: gitViewModel)
+            case .branchIntelligence:
+                BranchIntelligenceView(gitViewModel: gitViewModel)
+            case .commitIntelligence:
+                CommitIntelligenceView(gitViewModel: gitViewModel)
+            case .pullRequestIntelligence:
+                PullRequestIntelligenceView()
+            case .securityCenter:
+                SecurityCenterView()
+            case .collaborationCenter:
+                CollaborationCenterView()
+            case .workspaceAutomation:
+                WorkspaceAutomationView()
+            case .githubDiscovery:
+                GitHubDiscoveryView()
+            case .aiAssistant:
+                AIRepositoryAssistantView()
             }
         }
         .sourceControlEmbedded()
