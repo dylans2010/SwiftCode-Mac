@@ -903,45 +903,60 @@ struct FlowLayout: View {
 // MARK: - NewSettingsView (SwiftUI Sheet Shorthand Fallback)
 
 public struct NewSettingsView: View {
-    @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
 
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "gearshape.2.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.accentColor)
+        VStack(alignment: .leading, spacing: 24) {
+            HStack(spacing: 16) {
+                Image(systemName: "gearshape.2.fill")
+                    .font(.system(size: 42, weight: .semibold))
+                    .foregroundStyle(.blue.gradient)
+                    .frame(width: 72, height: 72)
+                    .background(.blue.opacity(0.14), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
 
-            Text("System Preferences")
-                .font(.title2.bold())
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Settings")
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                    Text("Open SwiftCode preferences in a dedicated native macOS window.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
-            Text("Preferences can be loaded inside a dedicated native macOS split-screen settings window.")
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 400)
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Full split-view preferences browser", systemImage: "sidebar.left")
+                Label("Search, favorites, and contextual help", systemImage: "magnifyingglass")
+                Label("Resizable native macOS window", systemImage: "macwindow")
+            }
+            .font(.headline)
+            .foregroundStyle(.primary)
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
 
             HStack(spacing: 12) {
-                Button("Open Native Settings Window") {
-                    SettingsWindowManager.shared.showSettings()
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-
-                Button("Done") {
+                Button("Cancel") {
                     dismiss()
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
+
+                Spacer()
+
+                Button {
+                    SettingsWindowManager.shared.showSettings()
+                    dismiss()
+                } label: {
+                    Label("Open Settings", systemImage: "arrow.up.forward.app.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
             }
         }
-        .padding(40)
-        .frame(width: 500, height: 350)
-        .onAppear {
-            SettingsWindowManager.shared.showSettings()
-            dismiss()
-        }
+        .padding(32)
+        .frame(width: 560, height: 380)
+        .background(.thinMaterial)
     }
 }

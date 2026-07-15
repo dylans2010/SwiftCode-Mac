@@ -59,9 +59,8 @@ struct HomeView: View {
             NewProjectSheetView(viewModel: HomeViewModel())
         }
         .sheet(isPresented: $showingSettings) {
-            AdaptiveSheet {
-                NewSettingsView()
-            }
+            NewSettingsView()
+                .environmentObject(AppSettings.shared)
         }
         .sheet(isPresented: $showCreateFolderSheet) {
             createFolderSheet
@@ -131,14 +130,20 @@ struct HomeView: View {
 
     private var detail: some View {
         ZStack {
-            // Vibant translucent layout
-            Color(hex: themeVM.currentTheme.background)
-                .opacity(0.85)
-                .ignoresSafeArea()
-                .background(.ultraThinMaterial)
+            LinearGradient(
+                colors: [
+                    Color(hex: themeVM.currentTheme.background).opacity(0.96),
+                    Color.accentColor.opacity(0.10),
+                    Color.orange.opacity(0.08)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            .background(.ultraThinMaterial)
 
             VStack(spacing: 0) {
-                headerView
+                heroHeader
 
                 if filteredProjects.isEmpty && !isSearching {
                     emptyStateView
@@ -185,73 +190,98 @@ struct HomeView: View {
         case .name:
             baseProjects.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         case .dateCreated:
-            baseProjects.sort { $0.createdAt > $1.lastOpened }
+            baseProjects.sort { $0.createdAt > $1.createdAt }
         }
 
         return baseProjects
     }
 
-    private var headerView: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(titleForSelection)
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundStyle(.primary)
-                Text("\(filteredProjects.count) projects")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+    private var heroHeader: some View {
+        VStack(spacing: 18) {
+            HStack(alignment: .center, spacing: 16) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(Color.orange.opacity(0.22).gradient)
+                    Image(systemName: "swift")
+                        .font(.system(size: 34, weight: .semibold))
+                        .foregroundStyle(.orange.gradient)
+                }
+                .frame(width: 72, height: 72)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(titleForSelection)
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                    Text(homeSubtitle)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                HStack(spacing: 10) {
+                    Button(action: { showingSettings = true }) {
+                        Label("Settings", systemImage: "gearshape")
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button(action: { showingNewProject = true }) {
+                        Label("New Project", systemImage: "plus.circle.fill")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                }
             }
 
-            Spacer()
+            HStack(spacing: 12) {
+                HomeStatPill(icon: "folder.fill", title: "Projects", value: "\(sessionStore.projects.count)", tint: .blue)
+                HomeStatPill(icon: "clock.fill", title: "Recent", value: "\(min(sessionStore.projects.count, 5))", tint: .purple)
+                HomeStatPill(icon: "star.fill", title: "Favorites", value: "\(favorites.count)", tint: .orange)
 
-            HStack(spacing: 10) {
-                // View Mode Toggle
-                Picker("View", selection: $viewModeRaw) {
-                    Image(systemName: "square.grid.2x2").tag("grid")
-                    Image(systemName: "list.bullet").tag("list")
+                Spacer(minLength: 12)
+
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search projects", text: $searchText)
+                        .textFieldStyle(.plain)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 64)
-                .help("Toggle Grid/List layout")
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .frame(width: 230)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                // Sort selection
                 Picker("Sort", selection: $sortBy) {
                     ForEach(SortMode.allCases) { mode in
                         Text(mode.rawValue).tag(mode)
                     }
                 }
                 .pickerStyle(.menu)
-                .frame(width: 120)
+                .frame(width: 130)
 
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextField("Search projects...", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.caption)
+                Picker("View", selection: $viewModeRaw) {
+                    Label("Grid", systemImage: "square.grid.2x2").tag("grid")
+                    Label("List", systemImage: "list.bullet").tag("list")
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                .frame(width: 170)
-
-                Button(action: { showingNewProject = true }) {
-                    Label("New Project", systemImage: "plus")
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.regular)
-
-                Button(action: { showingSettings = true }) {
-                    Image(systemName: "gear")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
+                .pickerStyle(.segmented)
+                .frame(width: 96)
             }
         }
+        .padding(24)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(.white.opacity(0.14), lineWidth: 1)
+        )
         .padding(.horizontal, 24)
-        .padding(.top, 16)
+        .padding(.top, 20)
         .padding(.bottom, 12)
+    }
+
+    private var homeSubtitle: String {
+        if isSearching {
+            return "Showing \(filteredProjects.count) result(s) for “\(searchText)”"
+        }
+        return "Open a workspace, organize favorites, or start something new."
     }
 
     private var titleForSelection: String {
@@ -451,11 +481,12 @@ struct HomeView: View {
 
     private var emptyStateView: some View {
         VStack(spacing: 24) {
-            Image(systemName: "swift")
-                .font(.system(size: 80))
+            Image(systemName: "sparkles")
+                .font(.system(size: 74, weight: .semibold))
                 .foregroundStyle(.orange.gradient)
-                .padding()
-                .background(Circle().fill(.orange.opacity(0.1)))
+                .padding(28)
+                .background(.regularMaterial, in: Circle())
+                .overlay(Circle().stroke(.orange.opacity(0.25), lineWidth: 1))
 
             VStack(spacing: 8) {
                 Text("Welcome to SwiftCode")
@@ -609,6 +640,34 @@ struct HomeView: View {
 }
 
 // MARK: - Reusable Dashboard/Home Components
+
+struct HomeStatPill: View {
+    let icon: String
+    let title: String
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 30, height: 30)
+                .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value)
+                    .font(.headline)
+                Text(title)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
 
 struct QuickStartRow: View {
     let icon: String
