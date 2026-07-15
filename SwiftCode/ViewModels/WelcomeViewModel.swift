@@ -3,7 +3,7 @@ import Observation
 
 @Observable
 @MainActor
-public class HomeViewModel {
+public class WelcomeViewModel {
     public var recentProjects: [ProjectRegistryEntry] = []
     public var isCloning = false
 

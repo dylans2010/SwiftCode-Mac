@@ -27,7 +27,7 @@ struct SwiftCodeApp: App {
                         WorkspaceHostView(project: activeProject)
                             .id(activeProject.id)
                     } else {
-                        HomeView()
+                        WelcomeView()
                             .navigationTitle("SwiftCode")
                     }
                 }

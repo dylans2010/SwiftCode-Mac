@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct NewProjectSheetView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
-    var viewModel: HomeViewModel
+    var viewModel: WelcomeViewModel
     @Environment(\.dismiss) var dismiss
 
     @State private var mode: SelectionMode = .create
@@ -308,9 +308,11 @@ struct NewProjectSheetView: View {
 
     private func importXcodeProject() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [UTType(filenameExtension: "xcodeproj")].compactMap { $0 }
+        let xcodeProjType = UTType("com.apple.dt.document.xcodeproj") ?? UTType(filenameExtension: "xcodeproj") ?? .directory
+        panel.allowedContentTypes = [xcodeProjType]
+        panel.treatsFilePackagesAsDirectories = false
         panel.canChooseFiles = true
-        panel.canChooseDirectories = true
+        panel.canChooseDirectories = false
         if panel.runModal() == .OK, let url = panel.url {
             Task {
                 do {
