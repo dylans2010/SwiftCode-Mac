@@ -74,6 +74,13 @@ struct AppCommands: Commands {
             Button("Project Settings...") {
                 NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "settings"])
             }
+
+            Divider()
+
+            Button("Terminal 2.0") {
+                NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "terminal"])
+            }
+            .keyboardShortcut("t", modifiers: [.command, .shift])
         }
 
         CommandGroup(after: .textEditing) {
