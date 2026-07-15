@@ -53,7 +53,7 @@ struct SwiftCodeWelcomeView: View {
             NewProjectSheetView(viewModel: WelcomeViewModel())
         }
         .sheet(isPresented: $showingSettings) {
-            NewSettingsView()
+            SettingsView()
                 .environmentObject(AppSettings.shared)
         }
         .sheet(isPresented: $showCreateFolderSheet) {
