@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 // MARK: - FileSymbolsShow (Central symbol registry)
 
@@ -84,10 +85,20 @@ extension View {
 
 // MARK: - FileNavigatorSidebarView
 
+@MainActor
 struct FileNavigatorSidebarView: View {
     @Bindable var viewModel: ProjectTreeViewModel
     @Environment(WorkspaceViewModel.self) var workspaceViewModel
 
+    @State private var searchText = ""
+    @State private var favorites: [String] = []
+    @State private var recents: [String] = []
+
+    // Inline Rename State
+    @State private var renamingNodeID: String? = nil
+    @State private var inlineRenameText = ""
+
+    // Legacy sheet structures maintained for robust backup
     @State private var showingRenameSheet = false
     @State private var selectedNodeForRename: ProjectNode?
     @State private var renameText = ""
@@ -98,17 +109,40 @@ struct FileNavigatorSidebarView: View {
     @State private var selectedNodeForWorkflow: ProjectNode?
     @State private var showingWorkflowPopover = false
 
+    private static let favoritesKey = "com.swiftcode.sidebar.favorites"
+    private static let recentsKey = "com.swiftcode.sidebar.recents"
+
     var body: some View {
         VStack(spacing: 0) {
-            // Liquid Glass Styled Header Actions
+            // macOS Native Search Header
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                    .font(.subheadline)
+                TextField("Filter files...", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.subheadline)
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial)
+
+            // Dynamic Action Bar Header
             HStack(spacing: 12) {
                 Button(action: {
-                    Task {
-                        guard let projectURL = viewModel.projectURL else { return }
-                        let newFileURL = projectURL.appendingPathComponent("Untitled.swift")
-                        try? await FileSystemService.shared.createFile(at: newFileURL)
-                        await viewModel.refresh()
-                    }
+                    createNewFileInActiveDir()
                 }) {
                     Image(systemName: "plus")
                         .font(.subheadline.bold())
@@ -118,12 +152,7 @@ struct FileNavigatorSidebarView: View {
                 .disabled(viewModel.projectURL == nil)
 
                 Button(action: {
-                    Task {
-                        guard let projectURL = viewModel.projectURL else { return }
-                        let newFolderURL = projectURL.appendingPathComponent("New Folder")
-                        try? await FileSystemService.shared.createDirectory(at: newFolderURL)
-                        await viewModel.refresh()
-                    }
+                    createNewFolderInActiveDir()
                 }) {
                     Image(systemName: "folder.badge.plus")
                         .font(.subheadline.bold())
@@ -137,6 +166,7 @@ struct FileNavigatorSidebarView: View {
                 Button(action: {
                     Task {
                         await viewModel.refresh()
+                        loadFavoritesAndRecents()
                     }
                 }) {
                     Image(systemName: "arrow.clockwise")
@@ -146,13 +176,13 @@ struct FileNavigatorSidebarView: View {
                 .help("Refresh")
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.vertical, 6)
             .background(.ultraThinMaterial)
             .overlay(
                 Divider(), alignment: .bottom
             )
 
-            // Modern Navigation List
+            // Modern Navigation Sidebar List
             List(selection: $viewModel.selectedNodeID) {
                 if let error = viewModel.loadError {
                     Text(error)
@@ -161,26 +191,68 @@ struct FileNavigatorSidebarView: View {
                         .padding()
                 }
 
-                if let rootNode = viewModel.rootNode {
-                    // Start with the root children to avoid showing the project root itself in the list
-                    ProjectTreeNodeView(
-                        node: rootNode,
-                        viewModel: viewModel,
-                        onRename: { node in
-                            selectedNodeForRename = node
-                            renameText = node.url.lastPathComponent
-                            showingRenameSheet = true
-                        },
-                        onDelete: { node in
-                            selectedNodeForDelete = node
-                            showingDeleteConfirm = true
-                        },
-                        onDoubleClick: { node in
-                            selectedNodeForWorkflow = node
-                            showingWorkflowPopover = true
+                // 1. Favorites Section (if non-empty)
+                if !favorites.isEmpty && searchText.isEmpty {
+                    Section(header: Text("FAVORITES")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)) {
+                            ForEach(favorites, id: \.self) { path in
+                                let url = URL(fileURLWithPath: path)
+                                let fakeNode = ProjectNode(url: url, kind: .file)
+                                fileRow(for: fakeNode, indent: 0)
+                            }
                         }
-                    )
-                } else {
+                }
+
+                // 2. Recents Section (if non-empty)
+                if !recents.isEmpty && searchText.isEmpty {
+                    Section(header: Text("RECENTS")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)) {
+                            ForEach(recents, id: \.self) { path in
+                                let url = URL(fileURLWithPath: path)
+                                let fakeNode = ProjectNode(url: url, kind: .file)
+                                fileRow(for: fakeNode, indent: 0)
+                            }
+                        }
+                }
+
+                // 3. Project Tree Section
+                if let rootNode = viewModel.rootNode {
+                    Section(header: Text("PROJECT FILES")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)) {
+                            if !searchText.isEmpty {
+                                // Search active: display flattened filtered matches
+                                ForEach(flattenedAndFilteredNodes(root: rootNode)) { node in
+                                    fileRow(for: node, indent: 0)
+                                }
+                            } else {
+                                // Normal tree disclosure view hierarchy
+                                ProjectTreeNodeView(
+                                    node: rootNode,
+                                    viewModel: viewModel,
+                                    gitViewModel: workspaceViewModel.git,
+                                    favorites: $favorites,
+                                    recents: $recents,
+                                    renamingNodeID: $renamingNodeID,
+                                    inlineRenameText: $inlineRenameText,
+                                    onRename: { node in
+                                        renamingNodeID = node.id
+                                        inlineRenameText = node.url.lastPathComponent
+                                    },
+                                    onDelete: { node in
+                                        selectedNodeForDelete = node
+                                        showingDeleteConfirm = true
+                                    },
+                                    onDoubleClick: { node in
+                                        selectedNodeForWorkflow = node
+                                        showingWorkflowPopover = true
+                                    }
+                                )
+                            }
+                        }
+                } else if !viewModel.isLoading {
                     VStack(spacing: 12) {
                         Image(systemName: "folder.badge.questionmark")
                             .font(.title)
@@ -194,40 +266,16 @@ struct FileNavigatorSidebarView: View {
                 }
             }
             .listStyle(.sidebar)
+            .animation(.easeInOut(duration: 0.2), value: viewModel.expandedNodeIDs)
+        }
+        .onAppear {
+            loadFavoritesAndRecents()
         }
         .onChange(of: viewModel.selectedNodeID) { oldValue, newValue in
-            workspaceViewModel.handleFileSelectionChange(nodeID: newValue)
-        }
-        // Rename Dialog Popover/Sheet
-        .sheet(isPresented: $showingRenameSheet) {
-            NavigationStack {
-                VStack(spacing: 16) {
-                    TextField("Name", text: $renameText)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 260)
-                }
-                .padding()
-                .navigationTitle("Rename Item")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { showingRenameSheet = false }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Rename") {
-                            if let node = selectedNodeForRename {
-                                Task {
-                                    let newURL = node.url.deletingLastPathComponent().appendingPathComponent(renameText)
-                                    try? FileManager.default.moveItem(at: node.url, to: newURL)
-                                    await viewModel.refresh()
-                                    showingRenameSheet = false
-                                }
-                            }
-                        }
-                        .disabled(renameText.isEmpty)
-                    }
-                }
+            if let id = newValue {
+                workspaceViewModel.handleFileSelectionChange(nodeID: id)
+                appendToRecents(path: id)
             }
-            .frame(width: 300, height: 160)
         }
         // Delete Confirmation Dialog
         .confirmationDialog(
@@ -239,6 +287,7 @@ struct FileNavigatorSidebarView: View {
                 if let node = selectedNodeForDelete {
                     Task {
                         try? await FileSystemService.shared.delete(at: node.url)
+                        viewModel.invalidateCache(at: node.url.deletingLastPathComponent())
                         await viewModel.refresh()
                     }
                 }
@@ -259,9 +308,8 @@ struct FileNavigatorSidebarView: View {
                 Button {
                     showingWorkflowPopover = false
                     if let node = selectedNodeForWorkflow {
-                        selectedNodeForRename = node
-                        renameText = node.url.lastPathComponent
-                        showingRenameSheet = true
+                        renamingNodeID = node.id
+                        inlineRenameText = node.url.lastPathComponent
                     }
                 } label: {
                     Label("Rename...", systemImage: "pencil")
@@ -286,6 +334,190 @@ struct FileNavigatorSidebarView: View {
             .frame(width: 220)
         }
     }
+
+    // MARK: - Helper Views & Operations
+
+    @ViewBuilder
+    private func fileRow(for node: ProjectNode, indent: CGFloat) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: FileSymbolsShow.symbol(forPathExtension: node.url.pathExtension, isFolder: node.kind == .folder))
+                .foregroundStyle(node.kind == .folder ? .blue : .orange)
+                .font(.subheadline)
+                .frame(width: 16)
+
+            if renamingNodeID == node.id {
+                TextField("Rename...", text: $inlineRenameText, onCommit: {
+                    commitInlineRename(for: node)
+                })
+                .textFieldStyle(.plain)
+                .font(.subheadline)
+                .onSubmit {
+                    commitInlineRename(for: node)
+                }
+            } else {
+                Text(node.url.lastPathComponent)
+                    .font(.subheadline)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            // Git Decoration Badges
+            if let decoration = gitDecoration(for: node) {
+                Text(decoration.label)
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(decoration.color)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(decoration.color.opacity(0.12))
+                    .cornerRadius(4)
+            }
+
+            // Favorite Star indicator
+            if favorites.contains(node.url.path) {
+                Image(systemName: "star.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.yellow)
+            }
+        }
+        .padding(.leading, indent)
+        .padding(.vertical, 3)
+        .contentShape(Rectangle())
+        .onFileDoubleClick {
+            selectedNodeForWorkflow = node
+            showingWorkflowPopover = true
+        }
+        .onDrag {
+            NSItemProvider(object: node.url.path as NSString)
+        }
+        .contextMenu {
+            Button("Open in Editor") {
+                viewModel.selectedNodeID = node.id
+            }
+
+            Button(favorites.contains(node.url.path) ? "Remove from Favorites" : "Add to Favorites") {
+                toggleFavorite(path: node.url.path)
+            }
+
+            Button("Rename Inline...") {
+                renamingNodeID = node.id
+                inlineRenameText = node.url.lastPathComponent
+            }
+
+            Button("Reveal in Finder") {
+                NSWorkspace.shared.selectFile(node.url.path, inFileViewerRootedAtPath: "")
+            }
+
+            Divider()
+
+            Button("Delete", role: .destructive) {
+                selectedNodeForDelete = node
+                showingDeleteConfirm = true
+            }
+        }
+        .tag(node.url.path)
+    }
+
+    private func gitDecoration(for node: ProjectNode) -> (label: String, color: Color)? {
+        guard let gitStatus = workspaceViewModel.git.status else { return nil }
+        // Find matching status record for this node's path
+        if let match = gitStatus.files.first(where: { $0.path.path == node.url.path }) {
+            switch match.status {
+            case .modified:
+                return ("M", .blue)
+            case .added:
+                return ("A", .green)
+            case .untracked:
+                return ("?", .green)
+            case .deleted:
+                return ("D", .red)
+            case .renamed:
+                return ("R", .purple)
+            case .conflicted:
+                return ("U", .orange)
+            }
+        }
+        return nil
+    }
+
+    private func commitInlineRename(for node: ProjectNode) {
+        let trimmed = inlineRenameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty && trimmed != node.url.lastPathComponent else {
+            renamingNodeID = nil
+            return
+        }
+
+        Task {
+            let newURL = node.url.deletingLastPathComponent().appendingPathComponent(trimmed)
+            do {
+                try FileManager.default.moveItem(at: node.url, to: newURL)
+                viewModel.invalidateCache(at: node.url.deletingLastPathComponent())
+                await viewModel.refresh()
+                renamingNodeID = nil
+            } catch {
+                LoggingTool.error("Rename failed: \(error.localizedDescription)")
+                renamingNodeID = nil
+            }
+        }
+    }
+
+    private func createNewFileInActiveDir() {
+        Task {
+            guard let projectURL = viewModel.projectURL else { return }
+            let name = "Untitled.swift"
+            let newFileURL = projectURL.appendingPathComponent(name)
+            try? await FileSystemService.shared.createFile(at: newFileURL)
+            viewModel.invalidateCache(at: projectURL)
+            await viewModel.refresh()
+        }
+    }
+
+    private func createNewFolderInActiveDir() {
+        Task {
+            guard let projectURL = viewModel.projectURL else { return }
+            let newFolderURL = projectURL.appendingPathComponent("New Folder")
+            try? await FileSystemService.shared.createDirectory(at: newFolderURL)
+            viewModel.invalidateCache(at: projectURL)
+            await viewModel.refresh()
+        }
+    }
+
+    private func toggleFavorite(path: String) {
+        if favorites.contains(path) {
+            favorites.removeAll { $0 == path }
+        } else {
+            favorites.append(path)
+        }
+        UserDefaults.standard.set(favorites, forKey: Self.favoritesKey)
+    }
+
+    private func appendToRecents(path: String) {
+        recents.removeAll { $0 == path }
+        recents.insert(path, at: 0)
+        recents = Array(recents.prefix(8))
+        UserDefaults.standard.set(recents, forKey: Self.recentsKey)
+    }
+
+    private func loadFavoritesAndRecents() {
+        favorites = UserDefaults.standard.stringArray(forKey: Self.favoritesKey) ?? []
+        recents = UserDefaults.standard.stringArray(forKey: Self.recentsKey) ?? []
+    }
+
+    private func flattenedAndFilteredNodes(root: ProjectNode) -> [ProjectNode] {
+        var results: [ProjectNode] = []
+        func traverse(node: ProjectNode) {
+            if node.url.lastPathComponent.localizedCaseInsensitiveContains(searchText) && node.id != root.id {
+                results.append(node)
+            }
+            if let children = node.children {
+                for child in children {
+                    traverse(node: child)
+                }
+            }
+        }
+        traverse(node: root)
+        return results
+    }
 }
 
 // MARK: - ProjectTreeNodeView
@@ -293,6 +525,11 @@ struct FileNavigatorSidebarView: View {
 struct ProjectTreeNodeView: View {
     let node: ProjectNode
     @Bindable var viewModel: ProjectTreeViewModel
+    let gitViewModel: GitViewModel
+    @Binding var favorites: [String]
+    @Binding var recents: [String]
+    @Binding var renamingNodeID: String?
+    @Binding var inlineRenameText: String
     let onRename: (ProjectNode) -> Void
     let onDelete: (ProjectNode) -> Void
     let onDoubleClick: (ProjectNode) -> Void
@@ -318,6 +555,11 @@ struct ProjectTreeNodeView: View {
                         ProjectTreeNodeView(
                             node: child,
                             viewModel: viewModel,
+                            gitViewModel: gitViewModel,
+                            favorites: $favorites,
+                            recents: $recents,
+                            renamingNodeID: $renamingNodeID,
+                            inlineRenameText: $inlineRenameText,
                             onRename: onRename,
                             onDelete: onDelete,
                             onDoubleClick: onDoubleClick
@@ -350,11 +592,40 @@ struct ProjectTreeNodeView: View {
                     .frame(width: 16)
             }
 
-            Text(node.url.lastPathComponent)
+            if renamingNodeID == node.id {
+                TextField("Rename...", text: $inlineRenameText, onCommit: {
+                    commitInlineRename()
+                })
+                .textFieldStyle(.plain)
                 .font(.subheadline)
-                .lineLimit(1)
+                .onSubmit {
+                    commitInlineRename()
+                }
+            } else {
+                Text(node.url.lastPathComponent)
+                    .font(.subheadline)
+                    .lineLimit(1)
+            }
 
             Spacer()
+
+            // Git Badges
+            if let decoration = gitDecoration() {
+                Text(decoration.label)
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(decoration.color)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(decoration.color.opacity(0.12))
+                    .cornerRadius(4)
+            }
+
+            // Favorite Indicator
+            if favorites.contains(node.url.path) {
+                Image(systemName: "star.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.yellow)
+            }
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 6)
@@ -362,15 +633,84 @@ struct ProjectTreeNodeView: View {
         .onFileDoubleClick {
             onDoubleClick(node)
         }
+        .onDrag {
+            NSItemProvider(object: node.url.path as NSString)
+        }
         .contextMenu {
-            Button("Rename...") {
-                onRename(node)
+            Button("Open in Editor") {
+                viewModel.selectedNodeID = node.id
             }
+
+            Button(favorites.contains(node.url.path) ? "Remove from Favorites" : "Add to Favorites") {
+                toggleFavorite(path: node.url.path)
+            }
+
+            Button("Rename Inline...") {
+                renamingNodeID = node.id
+                inlineRenameText = node.url.lastPathComponent
+            }
+
+            Button("Reveal in Finder") {
+                NSWorkspace.shared.selectFile(node.url.path, inFileViewerRootedAtPath: "")
+            }
+
+            Divider()
 
             Button("Delete", role: .destructive) {
                 onDelete(node)
             }
         }
         .tag(node.url.path)
+    }
+
+    private func gitDecoration() -> (label: String, color: Color)? {
+        guard let gitStatus = gitViewModel.status else { return nil }
+        if let match = gitStatus.files.first(where: { $0.path.path == node.url.path }) {
+            switch match.status {
+            case .modified:
+                return ("M", .blue)
+            case .added:
+                return ("A", .green)
+            case .untracked:
+                return ("?", .green)
+            case .deleted:
+                return ("D", .red)
+            case .renamed:
+                return ("R", .purple)
+            case .conflicted:
+                return ("U", .orange)
+            }
+        }
+        return nil
+    }
+
+    private func toggleFavorite(path: String) {
+        if favorites.contains(path) {
+            favorites.removeAll { $0 == path }
+        } else {
+            favorites.append(path)
+        }
+        UserDefaults.standard.set(favorites, forKey: "com.swiftcode.sidebar.favorites")
+    }
+
+    private func commitInlineRename() {
+        let trimmed = inlineRenameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty && trimmed != node.url.lastPathComponent else {
+            renamingNodeID = nil
+            return
+        }
+
+        Task {
+            let newURL = node.url.deletingLastPathComponent().appendingPathComponent(trimmed)
+            do {
+                try FileManager.default.moveItem(at: node.url, to: newURL)
+                viewModel.invalidateCache(at: node.url.deletingLastPathComponent())
+                await viewModel.refresh()
+                renamingNodeID = nil
+            } catch {
+                LoggingTool.error("Rename failed: \(error.localizedDescription)")
+                renamingNodeID = nil
+            }
+        }
     }
 }

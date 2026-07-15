@@ -90,24 +90,295 @@ struct DesignSnapshot: Codable {
     }
 }
 
-// MARK: - View Model
+// MARK: - Prompt Template Definition
+
+struct PromptTemplate: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let description: String
+    let basePrompt: String
+}
+
+// MARK: - DesignerDevTool View Model
 
 @Observable
 @MainActor
 final class DesignerDevToolViewModel {
+    // URL Reverse Engineering States
     var urlString: String = ""
     var isAnalyzing: Bool = false
     var result: DesignSnapshot?
     var errorMessage: String?
+
+    // Design Studio Workspace States
+    var selectedWorkspaceTab: Int = 0 // 0 = DESIGN.md, 1 = SwiftUI Tokens, 2 = SwiftUI Components, 3 = Live Sandbox Preview, 4 = URL Analyzer
+    var userConcept: String = ""
+    var selectedTemplateId: String = "saas"
+
+    // Prompt Variables
+    var accentColorHex: String = "#007AFF"
+    var secondaryColorHex: String = "#5856D6"
+    var typographyStyle: String = "Inter, Sans-serif"
+    var spacingScale: String = "8px, 16px, 24px, 32px"
+    var containerRadii: String = "8px, 12px, 16px"
+    var themeMode: String = "Dark"
+
+    // Prompt History & Previews
+    var promptHistory: [String] = []
+    var optimizedPrompt: String = ""
+    var showOptimizationComparison: Bool = false
+    var isOptimizingPrompt: Bool = false
+    var isGeneratingWorkspace: Bool = false
+
+    // Generated Workspace Outputs
     var designDoc: String = ""
     var swiftUITokens: String = ""
-    var selectedTab: Int = 0
+    var swiftUIComponents: String = ""
 
     private let logger = Logger(subsystem: "com.swiftcode.devtools", category: "DesignerDevTool")
-
-    // FORCE-UNWRAP JUSTIFICATION: The analyzeURL string is a well-formed constant URL known at compile time.
     private let analyzeURL = URL(string: "http://50.21.181.105:4000/analyze")!
 
+    // Pre-defined Design System Templates
+    let templates: [PromptTemplate] = [
+        PromptTemplate(
+            id: "saas",
+            name: "SaaS Analytics Dashboard",
+            description: "A data-rich metrics board featuring charts, progress rings, and multi-column widgets.",
+            basePrompt: "Build a sleek desktop SaaS analytics dashboard for tracking engineering velocity, build statuses, and deployment health."
+        ),
+        PromptTemplate(
+            id: "fintech",
+            name: "Fintech Mobile Interface",
+            description: "Clean card layouts, interactive sliders, transactions history, and neon-glass accents.",
+            basePrompt: "Design a high-fidelity fintech personal banking interface with transaction streams, investment cards, and custom transfer forms."
+        ),
+        PromptTemplate(
+            id: "developer",
+            name: "Developer Logging System",
+            description: "Command line dark palettes, diagnostic terminal windows, status pills, and monospaced typography.",
+            basePrompt: "Create a technical developer logging dashboard displaying system telemetry, real-time process heaps, and database query latencies."
+        )
+    ]
+
+    func loadTemplate() {
+        if let template = templates.first(where: { $0.id == selectedTemplateId }) {
+            userConcept = template.basePrompt
+        }
+    }
+
+    func optimizePrompt() async {
+        guard !userConcept.isEmpty else { return }
+        isOptimizingPrompt = true
+        showOptimizationComparison = true
+
+        let promptText = """
+        Rewrite and expand the following simple design concept into a highly detailed, professional engineering prompt.
+        Specify target platform guidelines, precise accessibility contracts, strict color systems, typography scale, container corner radii, and interactions.
+
+        Simple Concept: \(userConcept)
+        Accent Color: \(accentColorHex)
+        Secondary Color: \(secondaryColorHex)
+        Typography: \(typographyStyle)
+        Theme Mode: \(themeMode)
+        Spacing: \(spacingScale)
+        Corner Radii: \(containerRadii)
+        """
+
+        let systemPrompt = "You are a senior Design Systems Architect. Optimize the provided concept into a gorgeous, extensive system prompt that forces highly-scalable, accessible AppKit & SwiftUI interfaces."
+
+        // Call OpenRouter / local fallback
+        if let apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey), !apiKey.isEmpty {
+            do {
+                let response = try await OpenRouterService.shared.chat(
+                    messages: [AIMessage(role: .user, content: promptText)],
+                    model: "meta-llama/llama-3-8b-instruct:free",
+                    systemPrompt: systemPrompt
+                )
+                if !response.isEmpty {
+                    optimizedPrompt = response
+                    isOptimizingPrompt = false
+                    return
+                }
+            } catch {
+                logger.error("OpenRouter optimization failed: \(error.localizedDescription)")
+            }
+        }
+
+        // Local fallback
+        optimizedPrompt = """
+        [Optimized Design Prompts]
+        SYSTEM DIRECTIVE: Engineer a multi-platform SwiftUI design environment optimized primarily for macOS desktop screens.
+        - THEME: \(themeMode) mode.
+        - PRIMARY PALETTE: Main Accent (\(accentColorHex)), Secondary Highlights (\(secondaryColorHex)).
+        - TYPOGRAPHY SCALE: \(typographyStyle) featuring high visual hierarchy (Bold titles, structured regular body scales).
+        - ACCESSIBILITY: Full VoiceOver labels, contrast ratio matching WCAG AAA, and high-visibility keyboard focus borders.
+        - CONTAINERS: GroupBox configurations applying corner radii values (\(containerRadii)) with soft shadow depth buffers.
+        - ARCHITECTURE: Strict downward flow (Core -> Backend -> ViewModel -> View) using SwiftUI 6 @Observable.
+        - COMPONENT FOCUS: Navigation sidebars, responsive metric grids, and custom forms with robust validation.
+        """
+        isOptimizingPrompt = false
+    }
+
+    func generateWorkspace() async {
+        isGeneratingWorkspace = true
+        let activePrompt = optimizedPrompt.isEmpty ? userConcept : optimizedPrompt
+
+        // ENFORCED DESIGN.md system prompt
+        let designDocSystemPrompt = """
+        You are a principal designer and engineering lead. You must reverse-engineer the provided prompt into a comprehensive, production-ready specification document named DESIGN.md.
+        The output MUST cover all of the following exact sections with outstanding structure:
+        1. Executive Summary
+        2. Goals & Success Criteria
+        3. User Experience & User Stories
+        4. Navigation architecture
+        5. Window Hierarchy
+        6. View Hierarchy
+        7. Components (Interactive buttons, text inputs, metric charts, modern GroupBoxes)
+        8. Layout Behavior & Responsive Scaling
+        9. States & Interactive Transitions
+        10. Animations & Vibrancy Curves
+        11. Accessibility Contract (VoiceOver labels, AA/AAA contrast guidelines, dynamic font support)
+        12. Style Tokens (Colors, Typography scale, Spacing scale, Icons, SF Symbols)
+        13. Data Flow & MainActor State Management
+        14. Architecture & SwiftUI/AppKit integration notes
+        15. Performance Considerations, Edge Cases, and Interaction Patterns.
+
+        Output ONLY the Markdown document. Do not add conversational intro/outro texts.
+        """
+
+        let tokensSystemPrompt = """
+        You are an expert design systems engineer. Analyze the design criteria and generate compile-safe, production-ready SwiftUI extensions for Color, Font, and CGFloat holding the visual tokens.
+        Output ONLY the SwiftUI code block with no extra conversational text.
+        """
+
+        let componentsSystemPrompt = """
+        You are a senior SwiftUI developer. Generate a set of beautifully styled, reusable SwiftUI component views (such as CardView, CustomButton, FormField, ModernHeader) styled according to the design specifications.
+        Use strict Swift 6 and @Observable state models. Output ONLY the code block.
+        """
+
+        // 1. Generate DESIGN.md
+        if let apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey), !apiKey.isEmpty {
+            do {
+                designDoc = try await OpenRouterService.shared.chat(
+                    messages: [AIMessage(role: .user, content: activePrompt)],
+                    model: "meta-llama/llama-3-8b-instruct:free",
+                    systemPrompt: designDocSystemPrompt
+                )
+                swiftUITokens = try await OpenRouterService.shared.chat(
+                    messages: [AIMessage(role: .user, content: activePrompt)],
+                    model: "meta-llama/llama-3-8b-instruct:free",
+                    systemPrompt: tokensSystemPrompt
+                )
+                swiftUIComponents = try await OpenRouterService.shared.chat(
+                    messages: [AIMessage(role: .user, content: activePrompt)],
+                    model: "meta-llama/llama-3-8b-instruct:free",
+                    systemPrompt: componentsSystemPrompt
+                )
+
+                // Add to history
+                if !promptHistory.contains(userConcept) {
+                    promptHistory.insert(userConcept, at: 0)
+                }
+                isGeneratingWorkspace = false
+                return
+            } catch {
+                logger.error("OpenRouter generation failed: \(error.localizedDescription)")
+            }
+        }
+
+        // Fallbacks
+        designDoc = """
+        # DESIGN.md - Custom Design Specification
+
+        ## 1. Executive Summary
+        A professional, premium \(themeMode) mode workspace layout custom engineered for \(userConcept.prefix(30)).
+
+        ## 2. Goals & Success Criteria
+        - Establish a high-fidelity visual standard with unified style tokens.
+        - Optimize rendering layout speeds for desktop-first monitors.
+        - Implement cohesive SwiftUI components that comply with platform accessibility requirements.
+
+        ## 3. User Experience & Navigation
+        A Native split sidebar structure enabling smooth transitions between lists and primary canvas views.
+
+        ## 4. Window & View Hierarchy
+        - Main Application Window (resizable, min size 1000x700).
+        - Split View Pane 1: Sidebar Category List.
+        - Split View Pane 2: Interactive metrics and detail editors.
+
+        ## 5. Style Tokens
+        - Accent Highlight Color: \(accentColorHex)
+        - Secondary Highlight Color: \(secondaryColorHex)
+        - Typography Scale: \(typographyStyle)
+        - Spacing Hierarchy: \(spacingScale)
+        - Corner Radii: \(containerRadii)
+
+        ## 6. SwiftUI Implementation & AppKit Integration Notes
+        - Host views cleanly in `NSHostingController` instances with `sizingOptions = []`.
+        - Fully isolated `@MainActor` state management models using SwiftUI 6 `@Observable` frameworks.
+        """
+
+        swiftUITokens = """
+        import SwiftUI
+
+        extension Color {
+            enum StudioTokens {
+                static let accent = Color(hex: "\(accentColorHex)")
+                static let secondaryAccent = Color(hex: "\(secondaryColorHex)")
+                static let background = Color(hex: "#1A1A1E")
+                static let cardBg = Color(hex: "#25252A")
+            }
+        }
+
+        extension Font {
+            enum StudioTokens {
+                static func titleFont(size: CGFloat = 20) -> Font {
+                    .custom("System", size: size).bold()
+                }
+                static func bodyFont(size: CGFloat = 13) -> Font {
+                    .custom("System", size: size)
+                }
+            }
+        }
+        """
+
+        swiftUIComponents = """
+        import SwiftUI
+
+        struct CustomCardView<Content: View>: View {
+            let title: String
+            let content: Content
+
+            init(title: String, @ViewBuilder content: () -> Content) {
+                self.title = title
+                self.content = content()
+            }
+
+            var body: some View {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Label(title, systemImage: "sparkles")
+                            .font(.headline)
+                            .foregroundStyle(Color.StudioTokens.accent)
+                        Spacer()
+                    }
+                    content
+                }
+                .padding()
+                .background(Color.StudioTokens.cardBg)
+                .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: 3)
+            }
+        }
+        """
+
+        if !promptHistory.contains(userConcept) {
+            promptHistory.insert(userConcept, at: 0)
+        }
+        isGeneratingWorkspace = false
+    }
+
+    // URL Reverse Engineering API Action
     func analyze() async {
         guard let url = URL(string: urlString), url.scheme != nil else {
             errorMessage = "Please enter a valid URL."
@@ -137,13 +408,24 @@ final class DesignerDevToolViewModel {
                 let snapshot = DesignSnapshot(from: designData)
                 self.result = snapshot
 
-                // Generate design doc content
-                self.designDoc = await generateDesignMarkdown(from: snapshot)
+                // Load reverse-engineered parameters as default workspace tokens
+                if !snapshot.colors.isEmpty {
+                    accentColorHex = snapshot.colors[0]
+                    if snapshot.colors.count > 1 {
+                        secondaryColorHex = snapshot.colors[1]
+                    }
+                }
+                if !snapshot.fonts.isEmpty {
+                    typographyStyle = snapshot.fonts.joined(separator: ", ")
+                }
+                if !snapshot.radii.isEmpty {
+                    containerRadii = snapshot.radii.joined(separator: ", ")
+                }
 
-                // Generate SwiftUI tokens
-                await generateSwiftUITokens(from: snapshot)
+                // Auto transition workspace tab
+                selectedWorkspaceTab = 0
 
-                logger.info("Successfully analyzed and generated design tokens for: \(snapshot.title)")
+                logger.info("Successfully analyzed and loaded design tokens for: \(snapshot.title)")
             } else {
                 errorMessage = apiResponse.error ?? "Analysis failed without an error message."
                 logger.error("Analysis failed: \(apiResponse.error ?? "No error details")")
@@ -156,479 +438,604 @@ final class DesignerDevToolViewModel {
 
         isAnalyzing = false
     }
-
-    private func generateDesignMarkdown(from snapshot: DesignSnapshot) async -> String {
-        let title = snapshot.title.isEmpty ? "System" : snapshot.title
-        let prompt = """
-        Analyze the following extracted website design data and generate a professional, extensive DESIGN.md document.
-
-        Extracted Data:
-        Title: \(title)
-        Colors: \(snapshot.colors.joined(separator: ", "))
-        Fonts: \(snapshot.fonts.joined(separator: ", "))
-        Corner Radii: \(snapshot.radii.joined(separator: ", "))
-
-        Output a comprehensive specification detailing theme styles, typographic scale, spacing hierarchy, and container patterns. Use markdown format.
-        """
-
-        // 1. Try OpenRouter if API key is present
-        if let apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey), !apiKey.isEmpty {
-            do {
-                let response = try await OpenRouterService.shared.chat(
-                    messages: [AIMessage(role: .user, content: prompt)],
-                    model: "meta-llama/llama-3-8b-instruct:free",
-                    systemPrompt: "You are an expert design systems engineer. Output a beautifully organized, comprehensive markdown document."
-                )
-                if !response.isEmpty {
-                    return response
-                }
-            } catch {
-                logger.error("OpenRouter markdown generation failed: \(error.localizedDescription)")
-            }
-        }
-
-        // 2. Try OnDeviceAIManager if available
-        do {
-            let response = try await OnDeviceAIManager.shared.sendPrompt(prompt, task: .textGeneration)
-            if !response.isEmpty {
-                return response
-            }
-        } catch {
-            logger.error("On-device markdown generation failed: \(error.localizedDescription)")
-        }
-
-        // 3. Robust local fallback generator
-        return generateLocalDesignMarkdown(from: snapshot)
-    }
-
-    private func generateSwiftUITokens(from snapshot: DesignSnapshot) async {
-        let title = snapshot.title.isEmpty ? "System" : snapshot.title
-        let prompt = """
-        Analyze the following extracted website design data and generate a SwiftUI extension on Color and Font containing these tokens.
-
-        Extracted Data:
-        Title: \(title)
-        Colors: \(snapshot.colors.joined(separator: ", "))
-        Fonts: \(snapshot.fonts.joined(separator: ", "))
-        Corner Radii: \(snapshot.radii.joined(separator: ", "))
-
-        Return ONLY the SwiftUI code block.
-        """
-
-        // 1. Try OpenRouter if API key is present
-        if let apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey), !apiKey.isEmpty {
-            do {
-                let response = try await OpenRouterService.shared.chat(
-                    messages: [AIMessage(role: .user, content: prompt)],
-                    model: "meta-llama/llama-3-8b-instruct:free",
-                    systemPrompt: "You are an expert design systems engineer. Output only a complete, compile-safe SwiftUI extension with no extra text."
-                )
-                if !response.isEmpty {
-                    self.swiftUITokens = response
-                    return
-                }
-            } catch {
-                logger.error("OpenRouter token generation failed: \(error.localizedDescription)")
-            }
-        }
-
-        // 2. Try OnDeviceAIManager if available
-        do {
-            let response = try await OnDeviceAIManager.shared.sendPrompt(prompt, task: .codeAssist)
-            if !response.isEmpty {
-                self.swiftUITokens = response
-                return
-            }
-        } catch {
-            logger.error("On-device token generation failed: \(error.localizedDescription)")
-        }
-
-        // 3. Robust local fallback generator
-        self.swiftUITokens = generateLocalSwiftUITokens(from: snapshot)
-    }
-
-    private func generateLocalDesignMarkdown(from snapshot: DesignSnapshot) -> String {
-        let title = snapshot.title.isEmpty ? "System" : snapshot.title
-        var content = """
-        # Design Tokens for \(title)
-
-        ## Typography Styles
-        """
-
-        if snapshot.fonts.isEmpty {
-            content += "\n- Default system font families\n"
-        } else {
-            for font in snapshot.fonts {
-                content += "\n- \(font) (Primary scale: 32px, Body: 14px)"
-            }
-        }
-
-        content += """
-
-
-        ## Spacing Scale
-        - Compact: 8px
-        - Medium: 16px
-        - Large: 24px
-        - Extra Large: 32px
-
-        ## Corner Radii Scale
-        """
-
-        if snapshot.radii.isEmpty {
-            content += "\n- Default: 8px\n"
-        } else {
-            for radius in snapshot.radii {
-                content += "\n- Corner Radius: \(radius)"
-            }
-        }
-
-        return content
-    }
-
-    private func generateLocalSwiftUITokens(from snapshot: DesignSnapshot) -> String {
-        let title = snapshot.title.isEmpty ? "System" : snapshot.title.replacingOccurrences(of: " ", with: "")
-        let safeTitle = title.components(separatedBy: CharacterSet.alphanumerics.inverted).joined()
-
-        var colorLines = ""
-        for (index, color) in snapshot.colors.prefix(15).enumerated() {
-            colorLines += "        static let color\(index + 1) = Color(hex: \"\(color)\")\n"
-        }
-        if colorLines.isEmpty {
-            colorLines = "        static let background = Color(hex: \"#1A1A1A\")\n        static let foreground = Color(hex: \"#FFFFFF\")\n"
-        }
-
-        var fontLines = ""
-        for (index, font) in snapshot.fonts.prefix(10).enumerated() {
-            fontLines += "        static func font\(index + 1)(size: CGFloat) -> Font {\n            .custom(\"\(font)\", size: size)\n        }\n"
-        }
-        if fontLines.isEmpty {
-            fontLines = "        static func header(size: CGFloat = 32) -> Font {\n            .system(size: size, weight: .bold)\n        }\n"
-        }
-
-        var radiusLines = ""
-        for (index, radius) in snapshot.radii.prefix(10).enumerated() {
-            let numStr = radius.replacingOccurrences(of: "px", with: "")
-            let num = Double(numStr) ?? 8.0
-            radiusLines += "        static let radius\(index + 1): CGFloat = \(num)\n"
-        }
-        if radiusLines.isEmpty {
-            radiusLines = "        static let standardRadius: CGFloat = 8.0\n"
-        }
-
-        return """
-        import SwiftUI
-
-        extension Color {
-            enum \(safeTitle)Tokens {
-        \(colorLines)    }
-        }
-
-        extension Font {
-            enum \(safeTitle)Tokens {
-        \(fontLines)    }
-        }
-
-        extension CGFloat {
-            enum \(safeTitle)Tokens {
-        \(radiusLines)    }
-        }
-        """
-    }
 }
 
-// MARK: - UI
+// MARK: - DesignerDevToolView
 
-struct DesignerDevToolView: View {
+public struct DesignerDevToolView: View {
     @State private var viewModel = DesignerDevToolViewModel()
-    @Namespace private var animation
+    @Namespace private var workspaceAnimation
 
-    var body: some View {
-        ZStack {
-            // Modern Background
-            Color(NSColor.windowBackgroundColor).ignoresSafeArea()
+    public init() {}
 
-            LinearGradient(colors: [Color.accentColor.opacity(0.05), Color.clear], startPoint: .topLeading, endPoint: .bottomTrailing)
-                .ignoresSafeArea()
+    public var body: some View {
+        HSplitView {
+            // Left Column: Prompt Architect & Variable Configurator
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Label("Design System Architect", systemImage: "wand.and.stars")
+                        .font(.title2.bold())
+                        .foregroundStyle(Color.accentColor)
 
-            VStack(spacing: 0) {
-                // Modern Header Input
-                VStack(spacing: 16) {
-                    HStack(spacing: 12) {
-                        HStack {
-                            Image(systemName: "globe")
-                                .foregroundStyle(.secondary)
-                            TextField("https://apple.com", text: $viewModel.urlString)
-                                .autocorrectionDisabled()
-                        }
-                        .padding(12)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(12)
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.1), lineWidth: 1))
-
-                        Button(action: {
-                            Task {
-                                await viewModel.analyze()
-                            }
-                        }) {
-                            HStack {
-                                if viewModel.isAnalyzing {
-                                    ProgressView().controlSize(.small)
-                                } else {
-                                    Image(systemName: "sparkles")
-                                    Text("Analyze")
-                                }
-                            }
-                            .font(.headline)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 8)
-                            .background(viewModel.urlString.isEmpty ? Color.gray : Color.accentColor)
-                            .cornerRadius(12)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(viewModel.urlString.isEmpty || viewModel.isAnalyzing)
-                    }
-
-                    if let error = viewModel.errorMessage {
-                        Label(error, systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                .padding()
-                .background(.ultraThinMaterial)
-
-                if let result = viewModel.result {
-                    // Modern Tab Picker
-                    HStack(spacing: 20) {
-                        ForEach(["System", "DESIGN.md", "SwiftUI"].indices, id: \.self) { index in
-                            Button(action: { withAnimation(.spring()) { viewModel.selectedTab = index } }) {
-                                VStack(spacing: 8) {
-                                    Text(["System", "DESIGN.md", "SwiftUI"][index])
-                                        .font(.subheadline.weight(viewModel.selectedTab == index ? .bold : .medium))
-                                        .foregroundStyle(viewModel.selectedTab == index ? Color.primary : Color.secondary)
-
-                                    if viewModel.selectedTab == index {
-                                        RoundedRectangle(cornerRadius: 2)
-                                            .fill(Color.accentColor)
-                                            .frame(height: 2)
-                                            .matchedGeometryEffect(id: "tab", in: animation)
-                                    } else {
-                                        Color.clear.frame(height: 2)
-                                    }
-                                }
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 12)
-
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 24) {
-                            if viewModel.selectedTab == 0 {
-                                designSummary(result)
-                                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-                            } else if viewModel.selectedTab == 1 {
-                                codeView(viewModel.designDoc)
-                                    .transition(.opacity)
-                            } else {
-                                codeView(viewModel.swiftUITokens)
-                                    .transition(.opacity)
-                            }
-                        }
-                        .padding()
-                    }
-                } else if !viewModel.isAnalyzing {
-                    VStack(spacing: 24) {
-                        Spacer()
-                        ZStack {
-                            Circle()
-                                .fill(Color.accentColor.opacity(0.1))
-                                .frame(width: 120, height: 120)
-                            Image(systemName: "wand.and.stars")
-                                .font(.system(size: 50))
-                                .foregroundStyle(LinearGradient(colors: [.accentColor, .purple], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        }
-
-                        VStack(spacing: 8) {
-                            Text("Engine Your Design")
-                                .font(.title2.bold())
-                            Text("Enter a URL to reverse-engineer its visual identity into a production-ready design system.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 40)
-                        }
-                        Spacer()
-                    }
-                } else {
-                    VStack(spacing: 20) {
-                        Spacer()
-                        ProgressView()
-                            .scaleEffect(1.5)
-                        Text("Extracting Design DNA...")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                        Text("Analyzing colors, typography and spacing patterns")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                        Spacer()
-                    }
-                    .frame(maxHeight: .infinity)
-                }
-            }
-        }
-        .navigationTitle("Designer Dev Tool")
-    }
-
-    @ViewBuilder
-    private func designSummary(_ data: DesignSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 28) {
-            // Colors Section
-            sectionHeader(title: "Color Palette", icon: "paintpalette.fill")
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 110))], spacing: 12) {
-                ForEach(data.colors, id: \.self) { colorHex in
-                    VStack(spacing: 8) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(Color(hex: colorHex))
-                                .frame(width: 70, height: 70)
-                                .shadow(color: Color(hex: colorHex).opacity(0.3), radius: 4, x: 0, y: 2)
-
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                                .frame(width: 70, height: 70)
-                        }
-
-                        VStack(spacing: 2) {
-                            Text(colorHex.uppercased())
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        }
-                    }
-                    .padding(8)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(16)
-                }
-            }
-
-            // Typography Section
-            sectionHeader(title: "Typography", icon: "textformat")
-
-            VStack(spacing: 12) {
-                ForEach(data.fonts, id: \.self) { fontName in
-                    HStack(spacing: 16) {
-                        Text("Aa")
-                            .font(.system(size: 24, weight: .medium))
-                            .frame(width: 44)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(fontName)
-                                .font(.subheadline.bold())
-                        }
-
-                        Spacer()
-                    }
-                    .padding()
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(16)
-                }
-            }
-
-            // Radius Section
-            sectionHeader(title: "Radius Scale", icon: "square.dashed")
-
-            HStack(spacing: 16) {
-                if data.radii.isEmpty {
-                    Text("none detected")
+                    Text("Reverse-engineer existing websites or leverage advanced prompt variables to compile high-fidelity SwiftUI & AppKit designs.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(16)
-                } else {
-                    ForEach(data.radii, id: \.self) { r in
-                        VStack(spacing: 12) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.accentColor.opacity(0.1))
-                                    .frame(width: 50, height: 50)
 
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.accentColor, lineWidth: 1.5)
-                                    .frame(width: 50, height: 50)
+                    Divider()
+
+                    // Template Chooser
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("CHOOSE DESIGN ARCHETYPE")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+
+                        Picker("", selection: $viewModel.selectedTemplateId) {
+                            ForEach(viewModel.templates) { t in
+                                Text(t.name).tag(t.id)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: viewModel.selectedTemplateId) {
+                            viewModel.loadTemplate()
+                        }
+
+                        if let currentT = viewModel.templates.first(where: { $0.id == viewModel.selectedTemplateId }) {
+                            Text(currentT.description)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 4)
+                        }
+                    }
+
+                    // Prompt Concept Editor
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("CREATIVE DESIGN CONCEPT")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+
+                        TextEditor(text: $viewModel.userConcept)
+                            .font(.system(size: 12))
+                            .frame(height: 80)
+                            .padding(8)
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                    }
+
+                    // Variable Overrides
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("DESIGN TOKEN VARIABLE OVERRIDES")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Text("Accent color:")
+                                    .font(.caption)
+                                Spacer()
+                                TextField("#007AFF", text: $viewModel.accentColorHex)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 120)
                             }
 
-                            Text(r)
-                                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            HStack {
+                                Text("Secondary color:")
+                                    .font(.caption)
+                                Spacer()
+                                TextField("#5856D6", text: $viewModel.secondaryColorHex)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 120)
+                            }
+
+                            HStack {
+                                Text("Typography Style:")
+                                    .font(.caption)
+                                Spacer()
+                                TextField("Inter, Sans-serif", text: $viewModel.typographyStyle)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 120)
+                            }
+
+                            HStack {
+                                Text("Spacing scale:")
+                                    .font(.caption)
+                                Spacer()
+                                TextField("8px, 16px, 24px", text: $viewModel.spacingScale)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 120)
+                            }
+
+                            HStack {
+                                Text("Theme mode:")
+                                    .font(.caption)
+                                Spacer()
+                                Picker("", selection: $viewModel.themeMode) {
+                                    Text("Dark").tag("Dark")
+                                    Text("Light").tag("Light")
+                                    Text("Vibrant Glass").tag("Glass")
+                                }
+                                .pickerStyle(.menu)
+                                .frame(width: 120)
+                            }
                         }
-                        .padding(.vertical, 12)
+                        .padding(12)
+                        .background(Color(NSColor.windowBackgroundColor))
+                        .cornerRadius(10)
+                    }
+
+                    // Optimize Prompt Button
+                    Button {
+                        Task {
+                            await viewModel.optimizePrompt()
+                        }
+                    } label: {
+                        HStack {
+                            if viewModel.isOptimizingPrompt {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Image(systemName: "wand.and.rays")
+                                Text("AI Optimize Prompt Configuration")
+                            }
+                        }
                         .frame(maxWidth: .infinity)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(16)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .disabled(viewModel.userConcept.isEmpty || viewModel.isOptimizingPrompt)
+
+                    // Prompt comparison
+                    if viewModel.showOptimizationComparison {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("AI Optimized Output Prompt Preview:")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+
+                            TextEditor(text: $viewModel.optimizedPrompt)
+                                .font(.system(size: 11, design: .monospaced))
+                                .frame(height: 120)
+                                .padding(8)
+                                .background(Color(NSColor.controlBackgroundColor))
+                                .cornerRadius(8)
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                        }
+                        .transition(.slide)
+                    }
+
+                    // Main Generation Trigger Button
+                    Button {
+                        Task {
+                            await viewModel.generateWorkspace()
+                        }
+                    } label: {
+                        HStack {
+                            if viewModel.isGeneratingWorkspace {
+                                ProgressView().controlSize(.small)
+                                Text("Compiling Design Workspace...")
+                            } else {
+                                Image(systemName: "sparkles")
+                                Text("Generate Full Design System")
+                            }
+                        }
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(viewModel.userConcept.isEmpty ? Color.gray : Color.accentColor)
+                        .cornerRadius(10)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.userConcept.isEmpty || viewModel.isGeneratingWorkspace)
+
+                    // History Section (if non-empty)
+                    if !viewModel.promptHistory.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("DESIGN PROMPT HISTORY")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.secondary)
+
+                            ForEach(viewModel.promptHistory, id: \.self) { concept in
+                                Button {
+                                    viewModel.userConcept = concept
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "clock.fill")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(concept)
+                                            .font(.caption)
+                                            .lineLimit(1)
+                                            .truncationMode(.tail)
+                                        Spacer()
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .padding(6)
+                                .background(Color.secondary.opacity(0.1))
+                                .cornerRadius(6)
+                            }
+                        }
                     }
                 }
+                .padding(20)
             }
+            .frame(minWidth: 320, maxWidth: 450)
+            .background(Color(NSColor.windowBackgroundColor))
+
+            // Right Column: Professional Tabbed Design Studio Workspace
+            VStack(spacing: 0) {
+                // Modern Tabbed Headers
+                HStack(spacing: 16) {
+                    ForEach(["DESIGN.md", "SwiftUI Tokens", "Components", "Live Preview", "URL Analyzer"].indices, id: \.self) { idx in
+                        Button {
+                            withAnimation(.spring(response: 0.3)) {
+                                viewModel.selectedWorkspaceTab = idx
+                            }
+                        } label: {
+                            VStack(spacing: 8) {
+                                Text(["DESIGN.md", "SwiftUI Tokens", "Components", "Live Preview", "URL Analyzer"][idx])
+                                    .font(.subheadline.weight(viewModel.selectedWorkspaceTab == idx ? .bold : .medium))
+                                    .foregroundStyle(viewModel.selectedWorkspaceTab == idx ? Color.primary : Color.secondary)
+
+                                if viewModel.selectedWorkspaceTab == idx {
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .fill(Color.accentColor)
+                                        .frame(height: 2)
+                                        .matchedGeometryEffect(id: "activeTabLine", in: workspaceAnimation)
+                                } else {
+                                    Color.clear.frame(height: 2)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .background(.ultraThinMaterial)
+
+                Divider()
+
+                // Active Workspace Tab Render
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        switch viewModel.selectedWorkspaceTab {
+                        case 0:
+                            designMarkdownWorkspace()
+                        case 1:
+                            designTokensWorkspace()
+                        case 2:
+                            designComponentsWorkspace()
+                        case 3:
+                            interactiveLiveSandboxPreview()
+                        default:
+                            urlReverseEngineeringAnalyzer()
+                        }
+                    }
+                    .padding(24)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(NSColor.controlBackgroundColor))
+            }
+            .frame(minWidth: 500)
         }
     }
 
-    @ViewBuilder
-    private func sectionHeader(title: String, icon: String) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .foregroundStyle(Color.accentColor)
-                .font(.headline)
-            Text(title)
-                .font(.headline)
-            Spacer()
-        }
-    }
+    // MARK: - Workspace Subview: DESIGN.md Spec Sheet
 
     @ViewBuilder
-    private func codeView(_ content: String) -> some View {
+    private func designMarkdownWorkspace() -> some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Label("Generated Implementation", systemImage: "chevron.left.forwardslash.chevron.right")
-                    .font(.subheadline.bold())
+                Label("DESIGN.md Specification", systemImage: "doc.text.fill")
+                    .font(.title3.bold())
                 Spacer()
-                Button(action: {
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    pasteboard.setString(content, forType: .string)
-                }) {
-                    HStack {
-                        Image(systemName: "doc.on.doc")
-                        Text("Copy")
+                if !viewModel.designDoc.isEmpty {
+                    Button(action: {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(viewModel.designDoc, forType: .string)
+                    }) {
+                        Label("Copy DESIGN.md", systemImage: "doc.on.doc")
                     }
-                    .font(.caption.bold())
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.accentColor)
-                    .foregroundStyle(.white)
-                    .cornerRadius(8)
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.plain)
             }
 
-            ScrollView {
-                Text(content)
+            if viewModel.designDoc.isEmpty {
+                emptyWorkspacePlaceholder(title: "No Design Specification Generated Yet", description: "Use the prompt configurator on the left to trigger 'Generate Full Design System' and produce your fully-detailed DESIGN.md document.")
+            } else {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(viewModel.designDoc)
+                        .font(.system(size: 12, design: .monospaced))
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.black.opacity(0.15))
+                        .cornerRadius(10)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+    }
+
+    // MARK: - Workspace Subview: SwiftUI Tokens Sheet
+
+    @ViewBuilder
+    private func designTokensWorkspace() -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Label("SwiftUI Design Tokens", systemImage: "curlybraces")
+                    .font(.title3.bold())
+                Spacer()
+                if !viewModel.swiftUITokens.isEmpty {
+                    Button(action: {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(viewModel.swiftUITokens, forType: .string)
+                    }) {
+                        Label("Copy Tokens Code", systemImage: "doc.on.doc")
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+
+            if viewModel.swiftUITokens.isEmpty {
+                emptyWorkspacePlaceholder(title: "No SwiftUI Tokens Compiled", description: "Trigger the Design generation on the left to compile theme Color and Font tokens.")
+            } else {
+                Text(viewModel.swiftUITokens)
                     .font(.system(size: 12, design: .monospaced))
                     .padding()
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.black.opacity(0.05))
-                    .cornerRadius(12)
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                    .background(Color.black.opacity(0.15))
+                    .cornerRadius(10)
+                    .textSelection(.enabled)
             }
-            .frame(maxHeight: 400)
-            .textSelection(.enabled)
         }
-        .padding()
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(20)
-        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
+    }
+
+    // MARK: - Workspace Subview: SwiftUI Components Sheet
+
+    @ViewBuilder
+    private func designComponentsWorkspace() -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Label("SwiftUI Reusable Components", systemImage: "cube.fill")
+                    .font(.title3.bold())
+                Spacer()
+                if !viewModel.swiftUIComponents.isEmpty {
+                    Button(action: {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(viewModel.swiftUIComponents, forType: .string)
+                    }) {
+                        Label("Copy Components Code", systemImage: "doc.on.doc")
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+
+            if viewModel.swiftUIComponents.isEmpty {
+                emptyWorkspacePlaceholder(title: "No Reusable Components Compiled", description: "Design components are produced upon full studio workspace generation.")
+            } else {
+                Text(viewModel.swiftUIComponents)
+                    .font(.system(size: 12, design: .monospaced))
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.black.opacity(0.15))
+                    .cornerRadius(10)
+                    .textSelection(.enabled)
+            }
+        }
+    }
+
+    // MARK: - Workspace Subview: Interactive Live Sandbox Preview
+
+    @ViewBuilder
+    private func interactiveLiveSandboxPreview() -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Label("Interactive Sandbox Preview", systemImage: "play.circle.fill")
+                .font(.title3.bold())
+
+            Text("This live sandbox lets you interact with widgets colored in your customized variables and generated design styles.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Divider()
+
+            let mainColor = Color(hex: viewModel.accentColorHex)
+            let secondColor = Color(hex: viewModel.secondaryColorHex)
+
+            VStack(spacing: 16) {
+                // Interactive Banner
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "sparkles")
+                            .foregroundStyle(.yellow)
+                        Text("Active Theme Sandbox")
+                            .font(.headline)
+                        Spacer()
+                    }
+                    Text("Interactive visual components rendering live using primary color hex \(viewModel.accentColorHex) and secondary color hex \(viewModel.secondaryColorHex).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding()
+                .background(mainColor.opacity(0.12))
+                .cornerRadius(12)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(mainColor.opacity(0.3), lineWidth: 1.5))
+
+                // Structured Layout Widgets Row
+                HStack(spacing: 16) {
+                    // Card 1
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Visual Card", systemImage: "photo.fill")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(mainColor)
+
+                        Text("Sleek dynamic rounded container satisfying container corner radii scale.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+
+                        Button("Primary Action") {}
+                            .buttonStyle(.borderedProminent)
+                            .tint(mainColor)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color(NSColor.windowBackgroundColor))
+                    .cornerRadius(12)
+                    .shadow(color: Color.black.opacity(0.1), radius: 4)
+
+                    // Card 2
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Analytical Card", systemImage: "chart.line.uptrend.xyaxis")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(secondColor)
+
+                        Text("Interactive visual indicators reflecting the theme structure.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+
+                        Button("Secondary Action") {}
+                            .buttonStyle(.bordered)
+                            .tint(secondColor)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color(NSColor.windowBackgroundColor))
+                    .cornerRadius(12)
+                    .shadow(color: Color.black.opacity(0.1), radius: 4)
+                }
+            }
+            .padding()
+            .background(Color.black.opacity(0.2))
+            .cornerRadius(16)
+        }
+    }
+
+    // MARK: - Workspace Subview: URL Reverse Engineering Analyzer
+
+    @ViewBuilder
+    private func urlReverseEngineeringAnalyzer() -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Label("URL Reverse Engineering Analyzer", systemImage: "network")
+                .font(.title3.bold())
+
+            Text("Enter a fully-formed HTTPS / HTTP URL on the left or top input to extract and analyze its design details (Color systems, typography selection, corner radii scale, and styling).")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 12) {
+                HStack {
+                    Image(systemName: "globe")
+                        .foregroundStyle(.secondary)
+                    TextField("https://apple.com", text: $viewModel.urlString)
+                        .autocorrectionDisabled()
+                        .onSubmit {
+                            Task { await viewModel.analyze() }
+                        }
+                }
+                .padding(10)
+                .background(Color(NSColor.windowBackgroundColor))
+                .cornerRadius(10)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+
+                Button(action: {
+                    Task {
+                        await viewModel.analyze()
+                    }
+                }) {
+                    HStack {
+                        if viewModel.isAnalyzing {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "sparkles")
+                            Text("Reverse-Engineer URL")
+                        }
+                    }
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(viewModel.urlString.isEmpty ? Color.gray : Color.accentColor)
+                    .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+                .disabled(viewModel.urlString.isEmpty || viewModel.isAnalyzing)
+            }
+
+            if let error = viewModel.errorMessage {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            if let snapshot = viewModel.result {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Successfully Analyzed: \(snapshot.title)")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+
+                    Divider()
+
+                    // Color palette chips
+                    Text("EXTRACTED COLORS")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+
+                    FlowLayout(snapshot.colors, spacing: 10) { colorHex in
+                        VStack {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color(hex: colorHex))
+                                .frame(width: 44, height: 44)
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.2), lineWidth: 1))
+
+                            Text(colorHex.uppercased())
+                                .font(.system(size: 8, design: .monospaced))
+                        }
+                    }
+
+                    Divider()
+
+                    // Extracted fonts
+                    Text("EXTRACTED TYPOGRAPHY")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+
+                    ForEach(snapshot.fonts, id: \.self) { fontName in
+                        HStack {
+                            Image(systemName: "textformat")
+                                .font(.caption)
+                                .foregroundStyle(Color.accentColor)
+                            Text(fontName)
+                                .font(.caption)
+                        }
+                        .padding(6)
+                        .background(Color.secondary.opacity(0.12))
+                        .cornerRadius(6)
+                    }
+                }
+                .padding()
+                .background(Color(NSColor.windowBackgroundColor))
+                .cornerRadius(12)
+            }
+        }
+    }
+
+    // MARK: - General Utility Views
+
+    @ViewBuilder
+    private func emptyWorkspacePlaceholder(title: String, description: String) -> some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "doc.text.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary.opacity(0.5))
+            Text(title)
+                .font(.headline)
+            Text(description)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 360)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, minHeight: 300)
     }
 }
