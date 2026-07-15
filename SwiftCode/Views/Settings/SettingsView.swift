@@ -140,14 +140,6 @@ extension SettingsWindowController: NSToolbarDelegate {
             item.target = self
             item.action = #selector(toggleSidebarAction(_:))
 
-        case .toggleInspector:
-            item.label = "Toggle Inspector"
-            item.paletteLabel = "Toggle Inspector"
-            item.toolTip = "Toggle Settings Help Inspector"
-            item.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
-            item.target = self
-            item.action = #selector(toggleInspectorAction(_:))
-
         default:
             return nil
         }
@@ -155,11 +147,11 @@ extension SettingsWindowController: NSToolbarDelegate {
     }
 
     public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .toggleInspector]
+        return [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace]
     }
 
     public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toggleSidebar, .sidebarTrackingSeparator, .toggleInspector, .flexibleSpace, .space]
+        return [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .space]
     }
 }
 
@@ -167,15 +159,6 @@ extension SettingsWindowController {
     @objc private func toggleSidebarAction(_ sender: Any?) {
         if let splitVC = contentViewController as? SettingsSplitViewController {
             splitVC.toggleSidebar(sender)
-        }
-    }
-
-    @objc private func toggleInspectorAction(_ sender: Any?) {
-        withAnimation {
-            coordinator.showInspector.toggle()
-        }
-        if let splitVC = contentViewController as? SettingsSplitViewController {
-            splitVC.updateSplitItems(animate: true)
         }
     }
 }
@@ -187,7 +170,6 @@ public final class SettingsSplitViewController: NSSplitViewController {
 
     private var sidebarItem: NSSplitViewItem?
     private var mainItem: NSSplitViewItem?
-    private var inspectorItem: NSSplitViewItem?
 
     public init(coordinator: SettingsCoordinator) {
         self.coordinator = coordinator
@@ -257,33 +239,6 @@ public final class SettingsSplitViewController: NSSplitViewController {
         mainItem.holdingPriority = .defaultLow - 10
         self.mainItem = mainItem
         addSplitViewItem(mainItem)
-
-        // 3. Right Inspector Help Panel (SwiftUI Wrapper wrapped in StylingBootstrap to inject AdaptiveLayoutEngine)
-        let inspectorView = SettingsInspectorWrapper(coordinator: coordinator)
-        let inspectorVC = NSHostingController(rootView: StylingBootstrap.configureEnvironment(inspectorView))
-        inspectorVC.sizingOptions = []
-        inspectorVC.view.autoresizingMask = [.width, .height]
-        let inspectorItem = NSSplitViewItem(viewController: inspectorVC)
-        inspectorItem.minimumThickness = 260
-        inspectorItem.maximumThickness = 320
-        inspectorItem.holdingPriority = .defaultLow + 20
-        self.inspectorItem = inspectorItem
-        addSplitViewItem(inspectorItem)
-
-        updateSplitItems(animate: false)
-    }
-
-    public func updateSplitItems(animate: Bool) {
-        if let inspector = inspectorItem {
-            if animate {
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.2
-                    inspector.isCollapsed = !coordinator.showInspector
-                }
-            } else {
-                inspector.isCollapsed = !coordinator.showInspector
-            }
-        }
     }
 }
 
@@ -647,16 +602,6 @@ private let settingsRegistryList: [SettingsItem] = [
         helpDoc: "Automate development pipelines with custom capability plugins, build scripts, action manifests, and platform extensions."
     ),
     SettingsItem(
-        id: "extensions",
-        title: "Extensions",
-        icon: "puzzlepiece.extension.fill",
-        iconBgColor: .indigo,
-        category: "Extension & Updates",
-        sortOrder: 60,
-        keywords: "extensions language linter formatter kotlin python rust typescript spm formatter linting tools capability market",
-        helpDoc: "Install and manage language-specific linters, code formatters, and tooling extensions for Python, Go, Rust, and TypeScript."
-    ),
-    SettingsItem(
         id: "updates",
         title: "Updates",
         icon: "arrow.triangle.2.circlepath.circle.fill",
@@ -807,8 +752,6 @@ struct SettingsMainWrapper: View {
             ProjectTemplateView()
         case "plugins":
             PluginManagerView()
-        case "extensions":
-            ExtensionsView()
         case "updates":
             UpdatesView()
         case "credits":
@@ -816,117 +759,6 @@ struct SettingsMainWrapper: View {
         default:
             GeneralSettingsView()
                 .environmentObject(settings)
-        }
-    }
-}
-
-// MARK: - Settings Help Inspector View Wrapper (SwiftUI)
-
-struct SettingsInspectorWrapper: View {
-    let coordinator: SettingsCoordinator
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Settings Help")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-
-                Divider()
-
-                if let currentItem = settingsRegistryList.first(where: { $0.id == coordinator.selectedPaneId }) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label(currentItem.title, systemImage: currentItem.icon)
-                            .font(.subheadline.bold())
-                            .foregroundStyle(currentItem.iconBgColor)
-
-                        Text(currentItem.helpDoc)
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.leading)
-
-                        Divider()
-
-                        Text("Keywords")
-                            .font(.caption.bold())
-                            .foregroundStyle(.tertiary)
-
-                        FlowLayout(currentItem.keywords.components(separatedBy: " ").filter { !$0.isEmpty }, spacing: 6) { kw in
-                            Text(rtrim(kw))
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(Color.secondary.opacity(0.12))
-                                .cornerRadius(6)
-                        }
-                    }
-                } else {
-                    Text("Select a preferences category to view detail diagnostics and context documentation here.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(16)
-        }
-        .background(Color(NSColor.windowBackgroundColor))
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func rtrim(_ kw: String) -> String {
-        kw.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-}
-
-// Simple FlowLayout Helper for Keyword Badges
-struct FlowLayout: View {
-    let spacing: CGFloat
-    let items: [AnyView]
-
-    init<Data: RandomAccessCollection, Content: View>(
-        _ data: Data,
-        spacing: CGFloat = 8,
-        @ViewBuilder content: @escaping (Data.Element) -> Content
-    ) {
-        self.spacing = spacing
-        self.items = data.map { AnyView(content($0)) }
-    }
-
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 80))], spacing: spacing) {
-            ForEach(0..<items.count, id: \.self) { index in
-                items[index]
-            }
-        }
-    }
-}
-
-// MARK: - SettingsView (macOS AppKit native bridging shorthand fallback wrapper)
-
-public struct SettingsView: View {
-    public init() {}
-
-    public var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "gearshape.2.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.accentColor)
-            Text("Settings")
-                .font(.title2.bold())
-            Text("The settings panel opens in a dedicated native macOS window with search, favorites, and contextual help.")
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 400)
-
-            Button("Open Settings Window") {
-                SettingsWindowManager.shared.showSettings()
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-        }
-        .padding(40)
-        .frame(width: 500, height: 400)
-        .onAppear {
-            SettingsWindowManager.shared.showSettings()
         }
     }
 }
