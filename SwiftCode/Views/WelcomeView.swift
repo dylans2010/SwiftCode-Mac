@@ -184,17 +184,17 @@ struct SwiftCodeWelcomeView: View {
                 .padding(.trailing, 24)
             }
 
-            WelcomeView.WelcomeView(
+            WelcomeView(
                 titleText: $welcomeTitle,
                 menu: .constant(
-                    WelcomeView.WelcomeMenu {
-                        WelcomeView.WelcomeMenuButton(title: "New Project", image: Image(systemName: "plus.circle.fill")) {
+                    WelcomeMenu {
+                        WelcomeMenuButton(title: "New Project", image: Image(systemName: "plus.circle.fill")) {
                             showingNewProject = true
                         }
-                        WelcomeView.WelcomeMenuButton(title: "Import Folder", image: Image(systemName: "folder.badge.plus")) {
+                        WelcomeMenuButton(title: "Import Folder", image: Image(systemName: "folder.badge.plus")) {
                             importFolder()
                         }
-                        WelcomeView.WelcomeMenuButton(title: "Xcode Project", image: Image(systemName: "hammer.circle.fill")) {
+                        WelcomeMenuButton(title: "Xcode Project", image: Image(systemName: "hammer.circle.fill")) {
                             showingNewProject = true
                         }
                     }
@@ -203,7 +203,7 @@ struct SwiftCodeWelcomeView: View {
                 recents: Binding(
                     get: {
                         sessionStore.projects.map { project in
-                            WelcomeView.RecentFileView(fileURL: project.directoryURL, action: { url in
+                            RecentFileView(fileURL: project.directoryURL, action: { url in
                                 Task {
                                     await sessionStore.openProject(project)
                                 }
