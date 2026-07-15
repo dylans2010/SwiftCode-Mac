@@ -380,9 +380,35 @@ struct IssuesView: View {
     }
 
     private func executeBulkClose() {
-        // Implement mock bulk actions
-        selectedIssueIDs.removeAll()
-        successMessage = "Successfully closed selected issues in batch."
-        showSuccess = true
+        guard let (owner, repo) = ownerAndRepo else { return }
+        guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else { return }
+
+        isLoading = true
+        let idsToClose = selectedIssueIDs
+        Task {
+            do {
+                for issueID in idsToClose {
+                    guard let issue = issues.first(where: { $0.id == issueID }) else { continue }
+                    let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/issues/\(issue.number)")!
+                    var request = URLRequest(url: url)
+                    request.httpMethod = "PATCH"
+                    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+                    let body: [String: Any] = ["state": "closed"]
+                    request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+                    _ = try await URLSession.shared.data(for: request)
+                }
+                successMessage = "Successfully closed selected issues on GitHub!"
+                showSuccess = true
+                selectedIssueIDs.removeAll()
+                fetchIssues()
+            } catch {
+                errorMessage = "Failed to bulk close: \(error.localizedDescription)"
+                showError = true
+            }
+            isLoading = false
+        }
     }
 }

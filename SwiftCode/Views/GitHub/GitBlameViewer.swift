@@ -405,16 +405,9 @@ public struct GitBlameViewer: View {
                     throw AppError.gitError(result.stderr)
                 }
             } catch {
-                // Fallback mock blame lines for code visualization
                 logger.error("Blame native failed: \(error.localizedDescription)")
-                self.blameLines = [
-                    BlameLineEntry(lineNumber: 1, sha: "d83f12a", author: "Jules", date: "2 days ago", code: "import SwiftUI"),
-                    BlameLineEntry(lineNumber: 2, sha: "d83f12a", author: "Jules", date: "2 days ago", code: "import os.log"),
-                    BlameLineEntry(lineNumber: 3, sha: "00000000", author: "Initial", date: "Initial", code: ""),
-                    BlameLineEntry(lineNumber: 4, sha: "ab9d10e", author: "reviewer-prime", date: "Yesterday", code: "class CommitsView {"),
-                    BlameLineEntry(lineNumber: 5, sha: "ab9d10e", author: "reviewer-prime", date: "Yesterday", code: "    var gitViewModel: GitViewModel"),
-                    BlameLineEntry(lineNumber: 6, sha: "c18f192", author: "Jules", date: "2 hours ago", code: "    @State private var selectedCommitID: String?")
-                ]
+                // Since we are strictly using live git data, untracked/new files have no blame details
+                self.blameLines = []
             }
             isLoadingBlame = false
         }

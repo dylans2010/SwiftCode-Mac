@@ -9,50 +9,20 @@ struct DiscussionsView: View {
     @State private var searchPattern = ""
 
     // Discussion threads states
-    @State private var selectedThreadID: UUID?
-    @State private var threads: [DiscussionThread] = [
-        DiscussionThread(
-            title: "How to minimize Redraw Cycles in SwiftUI HSplitView?",
-            author: "dev-explorer",
-            category: "Q&A",
-            body: "I am building a native macOS multi-column split layout and noticed some lag during split divider drags. What is the recommended frame constraint pattern?",
-            votes: 24,
-            repliesCount: 3,
-            hasAcceptedAnswer: true,
-            date: "3 days ago"
-        ),
-        DiscussionThread(
-            title: "Proposing Modular Plugin Extension Architecture",
-            author: "Jules",
-            category: "Ideas",
-            body: "We could load dynamic bundles compiled with Xcode in private developer directories to support custom linters and code suggestions.",
-            votes: 42,
-            repliesCount: 8,
-            hasAcceptedAnswer: false,
-            date: "2 days ago"
-        ),
-        DiscussionThread(
-            title: "Announcing SwiftCode v1.1.0 Stable Rollout!",
-            author: "DevOps Bot",
-            category: "Announcements",
-            body: "We have finalized workflow pipelines, multi-window split structures, and native git blame annotations! Update your workspaces today.",
-            votes: 56,
-            repliesCount: 2,
-            hasAcceptedAnswer: false,
-            date: "1 day ago"
-        )
-    ]
+    @State private var selectedThreadID: String?
+    @State private var threads: [DiscussionThread] = []
 
-    // Active replies list
+    // Local-added replies to simulate instant comment updates on live threads
+    @State private var localReplies: [String: [DiscussionReply]] = [:]
     @State private var replyText = ""
-    @State private var activeReplies: [DiscussionReply] = [
-        DiscussionReply(author: "Jules", body: "Set the .layoutPriority() modifier explicitly on primary detail containers to prevent frame layout recalculation during drags.", isAccepted: true, date: "2 days ago"),
-        DiscussionReply(author: "reviewer-prime", body: "Also consider using an underlying NSSplitViewController wrapping NSHostingControllers for optimal performance.", isAccepted: false, date: "1 day ago")
-    ]
 
     // AI summary state
     @State private var isSummarizingThread = false
     @State private var aiSummaryText = ""
+
+    // Fetch states
+    @State private var isLoading = false
+    @State private var errorMessage: String?
 
     private var context: RepositoryContext {
         RepositoryContext.shared
@@ -60,29 +30,19 @@ struct DiscussionsView: View {
 
     private var filteredThreads: [DiscussionThread] {
         threads.filter {
-            $0.category == selectedCategory &&
+            $0.category.localizedCaseInsensitiveContains(selectedCategory) &&
             (searchPattern.isEmpty || $0.title.localizedCaseInsensitiveContains(searchPattern))
         }
     }
 
-    struct DiscussionThread: Identifiable {
-        let id = UUID()
-        let title: String
-        let author: String
-        let category: String
-        let body: String
-        var votes: Int
-        let repliesCount: Int
-        let hasAcceptedAnswer: Bool
-        let date: String
+    private var selectedThread: DiscussionThread? {
+        guard let targetID = selectedThreadID else { return nil }
+        return threads.first(where: { $0.id == targetID })
     }
 
-    struct DiscussionReply: Identifiable {
-        let id = UUID()
-        let author: String
-        let body: String
-        var isAccepted: Bool
-        let date: String
+    private var activeReplies: [DiscussionReply] {
+        guard let thread = selectedThread else { return [] }
+        return thread.replies + localReplies[thread.id, default: []]
     }
 
     var body: some View {
@@ -94,9 +54,13 @@ struct DiscussionsView: View {
             }
         }
         .onAppear {
-            if selectedThreadID == nil {
-                selectedThreadID = threads.first(where: { $0.category == selectedCategory })?.id
-            }
+            fetchDiscussions()
+        }
+        .onChange(of: context.connectedRepository) {
+            fetchDiscussions()
+        }
+        .onChange(of: context.syncEventsCount) {
+            fetchDiscussions()
         }
     }
 
@@ -157,7 +121,7 @@ struct DiscussionsView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             selectedCategory = name
-            selectedThreadID = threads.first(where: { $0.category == name })?.id
+            selectedThreadID = threads.first(where: { $0.category.localizedCaseInsensitiveContains(name) })?.id
             aiSummaryText = ""
         }
         .listRowBackground(selectedCategory == name ? Color.accentColor.opacity(0.1) : Color.clear)
@@ -178,12 +142,25 @@ struct DiscussionsView: View {
 
             Divider()
 
-            if filteredThreads.isEmpty {
-                Text("No threads in this category.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding()
-                Spacer()
+            if isLoading {
+                VStack {
+                    Spacer()
+                    ProgressView().controlSize(.small)
+                    Text("Fetching discussions...").font(.caption).foregroundStyle(.secondary).padding(.top, 4)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+            } else if filteredThreads.isEmpty {
+                VStack {
+                    Spacer()
+                    Text(errorMessage != nil ? "Error loading discussions" : "No threads in this category.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding()
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
             } else {
                 List(selection: $selectedThreadID) {
                     ForEach(filteredThreads) { thread in
@@ -199,7 +176,7 @@ struct DiscussionsView: View {
 
                                 Spacer()
 
-                                if thread.hasAcceptedAnswer {
+                                if thread.replies.contains(where: { $0.isAccepted }) {
                                     Label("Resolved", systemImage: "checkmark.circle.fill")
                                         .font(.system(size: 8, weight: .bold))
                                         .foregroundStyle(.green)
@@ -217,8 +194,7 @@ struct DiscussionsView: View {
 
     private var threadDetailWorkspacePanel: some View {
         ScrollView {
-            if let targetID = selectedThreadID,
-               let thread = threads.first(where: { $0.id == targetID }) {
+            if let thread = selectedThread {
                 VStack(alignment: .leading, spacing: 18) {
                     // Title block
                     VStack(alignment: .leading, spacing: 8) {
@@ -226,7 +202,7 @@ struct DiscussionsView: View {
                             .font(.title2.bold())
 
                         HStack {
-                            Text("Posted by \(thread.author) in \(thread.category) • \(thread.date)")
+                            Text("Posted by \(thread.author) in \(thread.category) • \(formatDateString(thread.date))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
 
@@ -296,7 +272,7 @@ struct DiscussionsView: View {
                                             .font(.system(size: 8, weight: .bold))
                                             .foregroundStyle(.green)
                                     }
-                                    Text(reply.date).font(.caption2).foregroundStyle(.secondary)
+                                    Text(formatDateString(reply.date)).font(.caption2).foregroundStyle(.secondary)
                                 }
 
                                 Text(reply.body)
@@ -304,21 +280,12 @@ struct DiscussionsView: View {
 
                                 HStack {
                                     Button {
-                                        // Vote mock
+                                        // Upvote behavior
                                     } label: {
                                         Label("Upvote", systemImage: "arrow.up")
                                             .font(.caption2)
                                     }
                                     .buttonStyle(.plain)
-
-                                    if !reply.isAccepted && thread.author == "You" {
-                                        Button("Accept Answer") {
-                                            // Accept mock
-                                        }
-                                        .buttonStyle(.plain)
-                                        .font(.caption2)
-                                        .foregroundStyle(.green)
-                                    }
                                 }
                                 .padding(.top, 2)
                             }
@@ -357,9 +324,41 @@ struct DiscussionsView: View {
         .background(Color(NSColor.windowBackgroundColor))
     }
 
+    private func fetchDiscussions() {
+        guard let repoStr = context.connectedRepository, !repoStr.isEmpty else { return }
+        let parts = repoStr.split(separator: "/")
+        guard parts.count == 2 else { return }
+        let owner = String(parts[0])
+        let repo = String(parts[1])
+
+        isLoading = true
+        errorMessage = nil
+        Task {
+            do {
+                let fetched = try await GitHubService.shared.fetchDiscussions(owner: owner, repo: repo)
+                self.threads = fetched
+                if selectedThreadID == nil || !fetched.contains(where: { $0.id == selectedThreadID }) {
+                    selectedThreadID = fetched.first?.id
+                }
+            } catch {
+                self.errorMessage = error.localizedDescription
+                self.threads = []
+            }
+            isLoading = false
+        }
+    }
+
     private func executePostReply() {
+        guard let thread = selectedThread else { return }
         let text = replyText.trimmingCharacters(in: .whitespacesAndNewlines)
-        activeReplies.append(DiscussionReply(author: "You", body: text, isAccepted: false, date: "Just now"))
+        let reply = DiscussionReply(
+            id: UUID().uuidString,
+            author: "You",
+            body: text,
+            isAccepted: false,
+            date: ISO8601DateFormatter().string(from: Date())
+        )
+        localReplies[thread.id, default: []].append(reply)
         replyText = ""
     }
 
@@ -384,7 +383,6 @@ struct DiscussionsView: View {
         - Category: \(thread.category)
         - Title: \(thread.title)
         - Body: \(thread.body)
-        - Accepted Answer: \(activeReplies.first(where: { $0.isAccepted })?.body ?? "None")
 
         Synthesize the conversation into exactly 3 lines:
         1. [Overview] Main problem/idea discussed.
@@ -401,5 +399,15 @@ struct DiscussionsView: View {
             }
             isSummarizingThread = false
         }
+    }
+
+    private func formatDateString(_ dateStr: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: dateStr) {
+            let relativeFormatter = RelativeDateTimeFormatter()
+            relativeFormatter.unitsStyle = .full
+            return relativeFormatter.localizedString(for: date, relativeTo: Date())
+        }
+        return dateStr
     }
 }
