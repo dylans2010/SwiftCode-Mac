@@ -58,6 +58,13 @@ struct DiscussionsView: View {
         RepositoryContext.shared
     }
 
+    private var filteredThreads: [DiscussionThread] {
+        threads.filter {
+            $0.category == selectedCategory &&
+            (searchPattern.isEmpty || $0.title.localizedCaseInsensitiveContains(searchPattern))
+        }
+    }
+
     struct DiscussionThread: Identifiable {
         let id = UUID()
         let title: String
@@ -169,12 +176,7 @@ struct DiscussionsView: View {
 
             Divider()
 
-            let filtered = threads.filter {
-                $0.category == selectedCategory &&
-                (searchPattern.isEmpty || $0.title.localizedCaseInsensitiveContains(searchPattern))
-            }
-
-            if filtered.isEmpty {
+            if filteredThreads.isEmpty {
                 Text("No threads in this category.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -182,7 +184,7 @@ struct DiscussionsView: View {
                 Spacer()
             } else {
                 List(selection: $selectedThreadID) {
-                    ForEach(filtered) { thread in
+                    ForEach(filteredThreads) { thread in
                         VStack(alignment: .leading, spacing: 4) {
                             Text(thread.title)
                                 .font(.subheadline.bold())
