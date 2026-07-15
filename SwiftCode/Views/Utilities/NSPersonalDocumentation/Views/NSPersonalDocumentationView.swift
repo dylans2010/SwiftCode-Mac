@@ -239,22 +239,18 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         setupNotifications()
     }
 
-    override public func viewWillAppear() {
-        super.viewWillAppear()
+    override public func viewDidAppear() {
+        super.viewDidAppear()
         if let window = view.window {
             NotificationCenter.default.addObserver(self, selector: #selector(windowDidEnterFullScreen(_:)), name: NSWindow.didEnterFullScreenNotification, object: window)
             NotificationCenter.default.addObserver(self, selector: #selector(windowDidExitFullScreen(_:)), name: NSWindow.didExitFullScreenNotification, object: window)
         }
     }
 
-    override public func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if let window = view.window {
-            NotificationCenter.default.removeObserver(self, name: NSWindow.didEnterFullScreenNotification, object: nil)
-            NotificationCenter.default.removeObserver(self, name: NSWindow.didExitFullScreenNotification, object: nil)
-            NotificationCenter.default.addObserver(self, selector: #selector(windowDidEnterFullScreen(_:)), name: NSWindow.didEnterFullScreenNotification, object: window)
-            NotificationCenter.default.addObserver(self, selector: #selector(windowDidExitFullScreen(_:)), name: NSWindow.didExitFullScreenNotification, object: window)
-        }
+    override public func viewWillDisappear() {
+        super.viewWillDisappear()
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didEnterFullScreenNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didExitFullScreenNotification, object: nil)
     }
 
     deinit {
