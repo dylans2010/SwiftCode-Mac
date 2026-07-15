@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		775C17DFAC2EE718919A321 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 775C17DFAC2EE718919A322 /* SettingsView.swift */; };
 		12095A22ECC64B12B6DEC8A6 /* RepositoryExplorerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C4B5F1F12214C359ACD8CCA /* RepositoryExplorerView.swift */; };
 		B5BBAC4D7E5740458D5ED6D2 /* RepositoryAutomationBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 159C4D4C5E8C495FA5D92D5B /* RepositoryAutomationBuilderView.swift */; };
 		F318D8970C6E4868B8F89D31 /* WorkflowModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE3F6941F8794625A7F95FCF /* WorkflowModels.swift */; };
@@ -1133,6 +1134,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		775C17DFAC2EE718919A322 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		8C4B5F1F12214C359ACD8CCA /* RepositoryExplorerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RepositoryExplorerView.swift"; sourceTree = "<group>"; };
 		159C4D4C5E8C495FA5D92D5B /* RepositoryAutomationBuilderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RepositoryAutomationBuilderView.swift"; sourceTree = "<group>"; };
 		BE3F6941F8794625A7F95FCF /* WorkflowModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCodeWorkflows/WorkflowModels.swift"; sourceTree = "<group>"; };
@@ -3843,6 +3845,7 @@
 		ACCD78AD790D110C0A76E747 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				775C17DFAC2EE718919A322 /* SettingsView.swift */,
 				02BC29E58C19C690DD971DA0 /* NewSettingsView.swift */,
 				E5C09D1515DC441A8619FDB6 /* AssistSettingsView.swift */,
 				057EAE735A7C77DB1A01F4B0 /* PluginManagerView.swift */,
@@ -4677,6 +4680,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				775C17DFAC2EE718919A321 /* SettingsView.swift in Sources */,
 				12095A22ECC64B12B6DEC8A6 /* RepositoryExplorerView.swift in Sources */,
 				B5BBAC4D7E5740458D5ED6D2 /* RepositoryAutomationBuilderView.swift in Sources */,
 				F318D8970C6E4868B8F89D31 /* WorkflowModels.swift in Sources */,
