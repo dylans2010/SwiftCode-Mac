@@ -617,7 +617,7 @@ public struct RepositoryKnowledgeGraphView: View {
 
         idx = 0
         for commit in gitViewModel.history.prefix(5) {
-            let cId = "commit_\(commit.hash)"
+            let cId = "commit_\(commit.sha)"
             let cNode = KnowledgeNode(id: cId, name: String(commit.message.prefix(25)), type: .commit, position: CGPoint(x: 200 + (idx * 120), y: 450))
             tempNodes.append(cNode)
             tempRels.append(KnowledgeRelationship(from: cId, to: "root", type: .references))
@@ -785,7 +785,7 @@ public struct InteractiveRepositoryTimelineView: View {
 
         for commit in gitViewModel.history {
             events.append(TimelineEvent(
-                title: "Commit: \(commit.hash.prefix(8))",
+                title: "Commit: \(commit.sha.prefix(8))",
                 subtitle: commit.message,
                 date: commit.date,
                 type: .commit,
@@ -870,22 +870,22 @@ public struct AdvancedGitOperationsCenterView: View {
                 // Interactive controls
                 List {
                     Section("Local Commit Operations") {
-                        ForEach(gitViewModel.history.prefix(5), id: \.hash) { commit in
+                        ForEach(Array(gitViewModel.history.prefix(5)), id: \.sha) { commit in
                             HStack {
                                 VStack(alignment: .leading) {
                                     Text(commit.message)
                                         .font(.subheadline)
                                         .bold()
-                                    Text(commit.hash.prefix(8))
+                                    Text(commit.sha.prefix(8))
                                         .font(.system(size: 10, design: .monospaced))
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
                                 Button("Cherry-Pick") {
-                                    Task { await runGitCommand(args: ["cherry-pick", commit.hash]) }
+                                    Task { await runGitCommand(args: ["cherry-pick", commit.sha]) }
                                 }
                                 Button("Revert") {
-                                    Task { await runGitCommand(args: ["revert", "--no-commit", commit.hash]) }
+                                    Task { await runGitCommand(args: ["revert", "--no-commit", commit.sha]) }
                                 }
                             }
                         }
@@ -1531,11 +1531,11 @@ public struct CommitIntelligenceView: View {
             HSplitView {
                 List {
                     Section("Recent Commits") {
-                        ForEach(gitViewModel.history.prefix(15), id: \.hash) { commit in
+                        ForEach(Array(gitViewModel.history.prefix(15)), id: \.sha) { commit in
                             VStack(alignment: .leading) {
                                 Text(commit.message)
                                     .bold()
-                                Text(commit.hash.prefix(8))
+                                Text(commit.sha.prefix(8))
                                     .font(.system(size: 10, design: .monospaced))
                                     .foregroundStyle(.secondary)
                             }
