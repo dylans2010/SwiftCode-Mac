@@ -203,7 +203,7 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                 // Preview Toggler
                 Toggle(isOn: Binding(
                     get: { state.showLivePreview },
-                    set: { withAnimation { state.showLivePreview = $0 } }
+                    set: { val in withAnimation { state.showLivePreview = val } }
                 )) {
                     Label("Preview", systemImage: "sidebar.right")
                 }
@@ -212,7 +212,7 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
 
                 Toggle(isOn: Binding(
                     get: { state.showRightInspector },
-                    set: { withAnimation { state.showRightInspector = $0 } }
+                    set: { val in withAnimation { state.showRightInspector = val } }
                 )) {
                     Label("Inspector", systemImage: "info.circle")
                 }
@@ -234,13 +234,13 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                 Menu {
                     Toggle(isOn: Binding(
                         get: { state.showLivePreview },
-                        set: { withAnimation { state.showLivePreview = $0 } }
+                        set: { val in withAnimation { state.showLivePreview = val } }
                     )) {
                         Label("Live Preview", systemImage: "sidebar.right")
                     }
                     Toggle(isOn: Binding(
                         get: { state.showRightInspector },
-                        set: { withAnimation { state.showRightInspector = $0 } }
+                        set: { val in withAnimation { state.showRightInspector = val } }
                     )) {
                         Label("Inspector", systemImage: "info.circle")
                     }
@@ -684,7 +684,7 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                     }
 
                     if !doc.tags.isEmpty {
-                        HFlowLayout(doc.tags, spacing: 6) { tag in
+                        PersonalDocHFlowLayout(doc.tags, spacing: 6) { tag in
                             HStack(spacing: 4) {
                                 Text(tag)
                                     .font(.caption)
@@ -1030,7 +1030,7 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
 }
 
 // Simple Helper for Horizontal Flow Layout of Tags
-struct HFlowLayout: View {
+struct PersonalDocHFlowLayout: View {
     let spacing: CGFloat
     let items: [AnyView]
 
