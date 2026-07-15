@@ -54,7 +54,7 @@ public class PersonalDocWindowController: NSWindowController {
 
         let window = NSWindow(
             contentRect: NSRect(x: 100, y: 100, width: 1200, height: 800),
-            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -72,6 +72,23 @@ public class PersonalDocWindowController: NSWindowController {
 
     required public init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    override public func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags == [.command, .shift] {
+            if let chars = event.charactersIgnoringModifiers?.lowercased() {
+                if chars == "l" {
+                    toggleSidebarAction(nil)
+                    return true
+                }
+                if chars == "i" {
+                    toggleRightInspectorAction(nil)
+                    return true
+                }
+            }
+        }
+        return super.performKeyEquivalent(with: event)
     }
 
     private func setupToolbar(window: NSWindow) {
@@ -157,6 +174,17 @@ extension PersonalDocWindowController {
         if let splitVC = contentViewController as? PersonalDocSplitViewController {
             splitVC.toggleSidebar(sender)
         }
+        let kind = coordinator.selectedModuleKind ?? .personalDocumentation
+        let state = coordinator.state(for: kind)
+        state.showLeftSidebar.toggle()
+    }
+
+    @objc private func toggleRightInspectorAction(_ sender: Any?) {
+        let kind = coordinator.selectedModuleKind ?? .personalDocumentation
+        let state = coordinator.state(for: kind)
+        withAnimation {
+            state.showRightInspector.toggle()
+        }
     }
 
     @objc private func openCommandPaletteAction(_ sender: Any?) {
@@ -192,6 +220,7 @@ public class PersonalDocSplitViewController: NSSplitViewController {
     public let coordinator: PersonalDocumentationCoordinator
 
     private var sidebarItem: NSSplitViewItem?
+    private var middleItem: NSSplitViewItem?
     private var mainItem: NSSplitViewItem?
 
     public init(coordinator: PersonalDocumentationCoordinator) {
@@ -209,6 +238,32 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         setupNotifications()
     }
 
+    override public func viewWillAppear() {
+        super.viewWillAppear()
+        if let window = view.window {
+            NotificationCenter.default.addObserver(self, selector: #selector(windowDidEnterFullScreen(_:)), name: NSWindow.didEnterFullScreenNotification, object: window)
+            NotificationCenter.default.addObserver(self, selector: #selector(windowDidExitFullScreen(_:)), name: NSWindow.didExitFullScreenNotification, object: window)
+        }
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func windowDidEnterFullScreen(_ notification: Notification) {
+        coordinator.isFullScreen = true
+        if let sidebar = sidebarItem, !sidebar.isCollapsed {
+            toggleSidebar(nil)
+        }
+    }
+
+    @objc private func windowDidExitFullScreen(_ notification: Notification) {
+        coordinator.isFullScreen = false
+        if let sidebar = sidebarItem, sidebar.isCollapsed {
+            toggleSidebar(nil)
+        }
+    }
+
     private func setupSplitView() {
         splitView.isVertical = true
         splitView.dividerStyle = .thin
@@ -222,7 +277,18 @@ public class PersonalDocSplitViewController: NSSplitViewController {
         self.sidebarItem = sidebarItem
         addSplitViewItem(sidebarItem)
 
-        // Panel 2: Main Workspace / Editor (SwiftUI Main Wrapper)
+        // Panel 2: Middle List Browser (SwiftUI Middle Wrapper)
+        let middleView = PersonalDocMiddleWrapper(coord: coordinator)
+        let middleVC = NSHostingController(rootView: middleView)
+        middleVC.sizingOptions = []
+        let middleItem = NSSplitViewItem(viewController: middleVC)
+        middleItem.minimumThickness = 280
+        middleItem.maximumThickness = 350
+        middleItem.holdingPriority = .defaultLow
+        self.middleItem = middleItem
+        addSplitViewItem(middleItem)
+
+        // Panel 3: Main Workspace / Editor (SwiftUI Main Wrapper)
         let mainView = PersonalDocMainWrapper(coord: coordinator)
         let mainVC = NSHostingController(rootView: mainView)
         mainVC.sizingOptions = []
@@ -236,7 +302,19 @@ public class PersonalDocSplitViewController: NSSplitViewController {
     }
 
     public func updateSplitItems(animate: Bool) {
-        // Omit collapsible middle pane or inspector in the modernized two-region desktop layout
+        guard let kind = coordinator.selectedModuleKind else { return }
+        let showMiddle = hasMiddleList(kind)
+
+        if let middle = middleItem {
+            if animate {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.2
+                    middle.isCollapsed = !showMiddle
+                }
+            } else {
+                middle.isCollapsed = !showMiddle
+            }
+        }
     }
 
     private func hasMiddleList(_ kind: ModuleKind) -> Bool {

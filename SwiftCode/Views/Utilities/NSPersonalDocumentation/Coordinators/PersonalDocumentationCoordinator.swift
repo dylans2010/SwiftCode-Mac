@@ -96,6 +96,7 @@ public final class PersonalDocumentationCoordinator {
         }
     }
     public var searchActive: Bool = false
+    public var isFullScreen: Bool = false
     public var navigationPath = NavigationPath()
 
     public init(projectID: UUID, projectURL: URL) throws {
