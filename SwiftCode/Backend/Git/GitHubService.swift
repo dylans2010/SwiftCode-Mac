@@ -1224,6 +1224,198 @@ struct GitHubCommitDetailResponse: Decodable {
     }
 }
 
+// MARK: - GraphQL Discussions Support
+
+public struct DiscussionThread: Identifiable, Sendable {
+    public let id: String
+    public let title: String
+    public let author: String
+    public let category: String
+    public let body: String
+    public var votes: Int
+    public let replies: [DiscussionReply]
+    public let date: String
+}
+
+public struct DiscussionReply: Identifiable, Sendable {
+    public let id: String
+    public let author: String
+    public let body: String
+    public var isAccepted: Bool
+    public let date: String
+}
+
+struct GraphQLDiscussionsResponse: Decodable {
+    let data: GraphQLData?
+
+    struct GraphQLData: Decodable {
+        let repository: GraphQLRepository?
+    }
+
+    struct GraphQLRepository: Decodable {
+        let discussions: GraphQLDiscussionsConnection?
+    }
+
+    struct GraphQLDiscussionsConnection: Decodable {
+        let nodes: [GraphQLDiscussionNode]?
+    }
+
+    struct GraphQLDiscussionNode: Decodable {
+        let id: String
+        let title: String
+        let body: String?
+        let createdAt: String
+        let upvoteCount: Int?
+        let category: GraphQLCategory?
+        let author: GraphQLAuthor?
+        let comments: GraphQLCommentsConnection?
+    }
+
+    struct GraphQLCategory: Decodable {
+        let name: String
+    }
+
+    struct GraphQLAuthor: Decodable {
+        let login: String
+    }
+
+    struct GraphQLCommentsConnection: Decodable {
+        let nodes: [GraphQLCommentNode]?
+    }
+
+    struct GraphQLCommentNode: Decodable {
+        let id: String
+        let body: String?
+        let createdAt: String
+        let author: GraphQLAuthor?
+    }
+}
+
+extension GitHubService {
+    func fetchDiscussions(owner: String, repo: String) async throws -> [DiscussionThread] {
+        guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else {
+            throw GitHubError.missingToken
+        }
+
+        let query = """
+        query($owner: String!, $repo: String!) {
+          repository(owner: $owner, name: $repo) {
+            discussions(first: 20) {
+              nodes {
+                id
+                title
+                body
+                createdAt
+                upvoteCount
+                category {
+                  name
+                }
+                author {
+                  login
+                }
+                comments(first: 10) {
+                  nodes {
+                    id
+                    body
+                    createdAt
+                    author {
+                      login
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+
+        let variables: [String: Any] = ["owner": owner, "repo": repo]
+        let payload: [String: Any] = ["query": query, "variables": variables]
+
+        let url = URL(string: "https://api.github.com/graphql")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validateResponse(response, data: data)
+
+        let decoded = try JSONDecoder().decode(GraphQLDiscussionsResponse.self, from: data)
+        guard let nodes = decoded.data?.repository?.discussions?.nodes else {
+            return []
+        }
+
+        return nodes.map { node in
+            DiscussionThread(
+                id: node.id,
+                title: node.title,
+                author: node.author?.login ?? "anonymous",
+                category: node.category?.name ?? "General",
+                body: node.body ?? "",
+                votes: node.upvoteCount ?? 0,
+                replies: (node.comments?.nodes ?? []).map { comment in
+                    DiscussionReply(
+                        id: comment.id,
+                        author: comment.author?.login ?? "anonymous",
+                        body: comment.body ?? "",
+                        isAccepted: false,
+                        date: comment.createdAt
+                    )
+                },
+                date: node.createdAt
+            )
+        }
+    }
+
+    func listPullRequestFiles(owner: String, repo: String, number: Int) async throws -> [PullRequestFile] {
+        guard token != nil else { throw GitHubError.missingToken }
+        let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/pulls/\(number)/files")
+        let request = authorizedRequest(url: url)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validateResponse(response, data: data)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode([PullRequestFile].self, from: data)
+    }
+
+    func listPullRequestCommits(owner: String, repo: String, number: Int) async throws -> [GitHubCommit] {
+        guard token != nil else { throw GitHubError.missingToken }
+        let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/pulls/\(number)/commits")
+        let request = authorizedRequest(url: url)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validateResponse(response, data: data)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode([GitHubCommit].self, from: data)
+    }
+
+    func mergePullRequest(owner: String, repo: String, number: Int, method: String) async throws -> Bool {
+        guard token != nil else { throw GitHubError.missingToken }
+        let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/pulls/\(number)/merge")
+        var request = authorizedRequest(url: url, method: "PUT")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = ["merge_method": method]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw GitHubError.invalidResponse }
+        return (200...299).contains(http.statusCode)
+    }
+}
+
+// MARK: - GraphQL Discussions Support
+
+public struct PullRequestFile: Identifiable, Codable, Sendable {
+    public var id: String { filename }
+    public let filename: String
+    public let status: String
+    public let additions: Int
+    public let deletions: Int
+    public let patch: String?
+}
+
 // MARK: - Errors
 
 enum GitHubError: LocalizedError {

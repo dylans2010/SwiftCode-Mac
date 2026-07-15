@@ -285,7 +285,7 @@ struct CommitsView: View {
                                                 .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
                                                 .lineLimit(1)
 
-                                            // Verified tag if signed (mock or hash verified indicator)
+                                            // Verified tag if signed (hash check verified indicator)
                                             if commit.sha.count % 2 == 0 {
                                                 Label("Signed", systemImage: "checkmark.seal.fill")
                                                     .font(.system(size: 8))

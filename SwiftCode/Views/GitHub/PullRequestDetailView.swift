@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 @MainActor
 struct PullRequestDetailView: View {
@@ -8,23 +9,34 @@ struct PullRequestDetailView: View {
     // Details view segment tabs
     @State private var activeTab: DetailTab = .conversation
 
-    // Conversation states
-    @State private var timelineComments: [TimelineComment] = [
-        TimelineComment(author: "reviewer-prime", body: "Could you optimize the rendering path in the Canvas drawing method?", type: .reviewComment, date: "Yesterday at 4:12 PM"),
-        TimelineComment(author: "Jules", body: "Sure, streamlined the frame counts and minimized view redraw boundaries.", type: .commit, date: "Today at 10:45 AM")
-    ]
-
-    // Files Changed states
+    // Live Pull Request State Data
+    @State private var filesModified: [PullRequestFile] = []
+    @State private var prCommits: [GitHubCommit] = []
+    @State private var isLoadingFiles = false
+    @State private var isLoadingCommits = false
+    @State private var isMerging = false
     @State private var selectedFileIdx = 0
-    @State private var filesModified = [
-        PRFile(path: "Sources/SwiftCode/Views/GitHub/CommitsView.swift", status: "modified", additions: 142, deletions: 34),
-        PRFile(path: "Sources/SwiftCode/Views/GitHub/SourceControlView.swift", status: "modified", additions: 24, deletions: 8),
-        PRFile(path: "Tests/SwiftCodeTests/CommitsViewTests.swift", status: "added", additions: 44, deletions: 0)
-    ]
+
+    // Local Comments (posted during this session)
+    @State private var replyText = ""
+    @State private var localComments: [LocalComment] = []
 
     // AI Review states
     @State private var isRunningAIReview = false
     @State private var aiReviewSummaryText = ""
+
+    // Alerts and messages
+    @State private var successMessage: String?
+    @State private var errorMessage: String?
+    @State private var showSuccess = false
+    @State private var showError = false
+
+    struct LocalComment: Identifiable {
+        let id = UUID()
+        let author: String
+        let body: String
+        let date: Date
+    }
 
     enum DetailTab: String, CaseIterable, Identifiable {
         case conversation = "Conversation"
@@ -34,25 +46,15 @@ struct PullRequestDetailView: View {
         var id: String { rawValue }
     }
 
-    struct PRFile: Identifiable {
-        let id = UUID()
-        let path: String
-        let status: String
-        let additions: Int
-        let deletions: Int
+    private var context: RepositoryContext {
+        RepositoryContext.shared
     }
 
-    struct TimelineComment: Identifiable {
-        let id = UUID()
-        let author: String
-        let body: String
-        let type: CommentType
-        let date: String
-
-        enum CommentType {
-            case reviewComment
-            case commit
-        }
+    private var ownerAndRepo: (String, String)? {
+        guard let repoStr = context.connectedRepository, !repoStr.isEmpty else { return nil }
+        let parts = repoStr.split(separator: "/")
+        guard parts.count == 2 else { return nil }
+        return (String(parts[0]), String(parts[1]))
     }
 
     var body: some View {
@@ -96,7 +98,16 @@ struct PullRequestDetailView: View {
                 aiReviewsPane
             }
         }
-        .frame(width: 650, height: 560)
+        .frame(width: 750, height: 600)
+        .onAppear {
+            fetchPRData()
+        }
+        .alert("Success", isPresented: $showSuccess, presenting: successMessage) { _ in
+            Button("OK") { dismiss() }
+        } message: { msg in Text(msg) }
+        .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
+            Button("OK") {}
+        } message: { msg in Text(msg) }
     }
 
     // MARK: - Conversation Tab Pane
@@ -130,23 +141,6 @@ struct PullRequestDetailView: View {
                     .cornerRadius(6)
                 }
 
-                // Reviews & Approvals Status
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("REVIEWS & APPROVALS")
-                        .font(.caption2.bold())
-                        .foregroundStyle(.secondary)
-
-                    HStack {
-                        Label("Approved by reviewer-prime", systemImage: "checkmark.seal.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(.green)
-                        Spacer()
-                    }
-                    .padding(8)
-                    .background(Color.green.opacity(0.06))
-                    .cornerRadius(4)
-                }
-
                 // CI / Build checks
                 VStack(alignment: .leading, spacing: 8) {
                     Text("BUILD CHECK STATUS")
@@ -156,7 +150,7 @@ struct PullRequestDetailView: View {
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(.green)
-                        Text("CI Pipeline: All checks passed (3 successful)")
+                        Text("All checks and status pipelines passed on GitHub")
                             .font(.subheadline)
                         Spacer()
                     }
@@ -180,26 +174,29 @@ struct PullRequestDetailView: View {
 
                     HStack(spacing: 12) {
                         Button {
-                            // Merge PR execution mock
+                            performMerge(method: "merge")
                         } label: {
-                            Label("Merge Pull Request", systemImage: "arrow.merge")
+                            Label(isMerging ? "Merging..." : "Merge Pull Request", systemImage: "arrow.merge")
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.green)
+                        .disabled(isMerging)
 
                         Button {
-                            // Squash mock
+                            performMerge(method: "squash")
                         } label: {
                             Text("Squash & Merge")
                         }
                         .buttonStyle(.bordered)
+                        .disabled(isMerging)
 
                         Button {
-                            // Rebase mock
+                            performMerge(method: "rebase")
                         } label: {
                             Text("Rebase & Merge")
                         }
                         .buttonStyle(.bordered)
+                        .disabled(isMerging)
                     }
                     .padding(.top, 4)
                 }
@@ -209,33 +206,85 @@ struct PullRequestDetailView: View {
 
                 // Conversation Timeline (comments and commits)
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("TIMELINE ACTIVITY")
+                    Text("TIMELINE ACTIVITY (COMMITS)")
                         .font(.caption2.bold())
                         .foregroundStyle(.secondary)
 
-                    ForEach(timelineComments) { comment in
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Image(systemName: comment.type == .commit ? "arrow.triangle.branch" : "bubble.left.fill")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                    if isLoadingCommits {
+                        ProgressView().controlSize(.small)
+                    } else if prCommits.isEmpty {
+                        Text("No commits in this Pull Request.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(prCommits) { commit in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Image(systemName: "arrow.triangle.branch")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
 
-                                Text(comment.author).bold()
-                                    .font(.caption)
+                                    Text(commit.commit.author?.name ?? "Developer").bold()
+                                        .font(.caption)
 
-                                Spacer()
+                                    Spacer()
 
-                                Text(comment.date)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                    Text(commit.sha.prefix(7))
+                                        .font(.system(size: 9, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Text(commit.commit.message)
+                                    .font(.subheadline)
+                                    .padding(.leading, 18)
                             }
-                            Text(comment.body)
-                                .font(.subheadline)
-                                .padding(.leading, 18)
+                            .padding(.vertical, 4)
+                            Divider()
                         }
-                        .padding(.vertical, 4)
-                        Divider()
                     }
+
+                    // Local session comments
+                    if !localComments.isEmpty {
+                        Text("SESSION COMMENTS")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 10)
+
+                        ForEach(localComments) { comment in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Image(systemName: "bubble.left.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.cyan)
+                                    Text(comment.author).bold().font(.caption)
+                                    Spacer()
+                                    Text(comment.date, style: .relative)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Text(comment.body)
+                                    .font(.subheadline)
+                                    .padding(.leading, 18)
+                            }
+                            .padding(.vertical, 4)
+                            Divider()
+                        }
+                    }
+
+                    // Add comment form
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Add Comment").font(.caption.bold())
+                        TextEditor(text: $replyText)
+                            .frame(height: 80)
+                            .border(Color.secondary.opacity(0.2), width: 1)
+
+                        Button("Comment") {
+                            executePostComment()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+                        .disabled(replyText.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    .padding(.top, 10)
                 }
             }
             .padding(20)
@@ -245,68 +294,93 @@ struct PullRequestDetailView: View {
     // MARK: - Files Changed Tab Pane
 
     private var filesChangedPane: some View {
-        HSplitView {
-            // Left list files
-            List(0..<filesModified.count, id: \.self) { idx in
-                let file = filesModified[idx]
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text((file.path as NSString).lastPathComponent)
-                            .font(.subheadline.bold())
-                        Text(file.path)
-                            .font(.system(size: 9, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+        VStack(spacing: 0) {
+            if isLoadingFiles {
+                ProgressView("Loading files changed...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if filesModified.isEmpty {
+                ContentUnavailableView("No Files Changed", systemImage: "doc.text")
+            } else {
+                HSplitView {
+                    // Left list files
+                    List(0..<filesModified.count, id: \.self) { idx in
+                        let file = filesModified[idx]
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text((file.filename as NSString).lastPathComponent)
+                                    .font(.subheadline.bold())
+                                Text(file.filename)
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+
+                            Spacer()
+
+                            HStack(spacing: 4) {
+                                Text("+\(file.additions)").foregroundStyle(.green).font(.caption.bold())
+                                Text("-\(file.deletions)").foregroundStyle(.red).font(.caption.bold())
+                            }
+                        }
+                        .padding(.vertical, 2)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            selectedFileIdx = idx
+                        }
+                        .listRowBackground(selectedFileIdx == idx ? Color.accentColor.opacity(0.1) : Color.clear)
                     }
+                    .frame(width: 250)
 
-                    Spacer()
-
-                    HStack(spacing: 4) {
-                        Text("+\(file.additions)").foregroundStyle(.green).font(.caption.bold())
-                        Text("-\(file.deletions)").foregroundStyle(.red).font(.caption.bold())
-                    }
-                }
-                .padding(.vertical, 2)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    selectedFileIdx = idx
-                }
-                .listRowBackground(selectedFileIdx == idx ? Color.accentColor.opacity(0.1) : Color.clear)
-            }
-            .frame(width: 220)
-
-            // Right inline diff display
-            VStack(alignment: .leading, spacing: 0) {
-                let activeFile = filesModified[selectedFileIdx]
-                Text("Diff for \(activeFile.path)")
-                    .font(.caption2.bold())
-                    .foregroundStyle(.secondary)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.secondary.opacity(0.08))
-
-                Divider()
-
-                ScrollView {
+                    // Right inline diff display
                     VStack(alignment: .leading, spacing: 0) {
-                        diffLine(text: "@@ -14,10 +14,24 @@ class CommitsView {", type: .hunk)
-                        diffLine(text: " class CommitsView: View {", type: .normal)
-                        diffLine(text: "     var gitViewModel: GitViewModel", type: .normal)
-                        diffLine(text: "-    @State private var selectedCommit: GitCommit?", type: .deleted)
-                        diffLine(text: "+    @State private var selectedCommitID: String?", type: .added)
-                        diffLine(text: "+    @State private var searchKeyword = \"\"", type: .added)
-                        diffLine(text: " ", type: .normal)
-                        diffLine(text: "     var body: some View {", type: .normal)
-                        diffLine(text: "         HSplitView {", type: .normal)
+                        let activeFile = filesModified[selectedFileIdx]
+                        Text("Diff for \(activeFile.filename)")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.secondary)
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.secondary.opacity(0.08))
+
+                        Divider()
+
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 0) {
+                                if let patch = activeFile.patch, !patch.isEmpty {
+                                    ForEach(patch.components(separatedBy: .newlines), id: \.self) { line in
+                                        diffLineView(line)
+                                    }
+                                } else {
+                                    Text("Binary file or no preview available.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .padding()
+                                }
+                            }
+                            .font(.system(size: 11, design: .monospaced))
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.black.opacity(0.85))
+                        }
                     }
-                    .font(.system(size: 11, design: .monospaced))
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.black.opacity(0.85))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    @ViewBuilder
+    private func diffLineView(_ line: String) -> some View {
+        let type: DiffLineType = {
+            if line.hasPrefix("@@") { return .hunk }
+            if line.hasPrefix("+") { return .added }
+            if line.hasPrefix("-") { return .deleted }
+            return .normal
+        }()
+
+        Text(line)
+            .foregroundStyle(diffLineColor(type))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(diffLineBgColor(type))
     }
 
     enum DiffLineType {
@@ -314,13 +388,6 @@ struct PullRequestDetailView: View {
         case normal
         case added
         case deleted
-    }
-
-    private func diffLine(text: String, type: DiffLineType) -> some View {
-        Text(text)
-            .foregroundStyle(diffLineColor(type))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(diffLineBgColor(type))
     }
 
     private func diffLineColor(_ type: DiffLineType) -> Color {
@@ -390,16 +457,76 @@ struct PullRequestDetailView: View {
         }
     }
 
+    // MARK: - Actions Operations Executions
+
+    private func fetchPRData() {
+        guard let (owner, repo) = ownerAndRepo else { return }
+
+        isLoadingFiles = true
+        isLoadingCommits = true
+
+        Task {
+            do {
+                let fetchedFiles = try await GitHubService.shared.listPullRequestFiles(owner: owner, repo: repo, number: pr.number)
+                self.filesModified = fetchedFiles
+            } catch {
+                errorMessage = "Failed to load files changed: \(error.localizedDescription)"
+                showError = true
+            }
+            isLoadingFiles = false
+        }
+
+        Task {
+            do {
+                let fetchedCommits = try await GitHubService.shared.listPullRequestCommits(owner: owner, repo: repo, number: pr.number)
+                self.prCommits = fetchedCommits
+            } catch {
+                // silent capture
+            }
+            isLoadingCommits = false
+        }
+    }
+
+    private func executePostComment() {
+        let text = replyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        localComments.append(LocalComment(author: "You", body: text, date: Date()))
+        replyText = ""
+    }
+
+    private func performMerge(method: String) {
+        guard let (owner, repo) = ownerAndRepo else { return }
+
+        isMerging = true
+        Task {
+            do {
+                let success = try await GitHubService.shared.mergePullRequest(owner: owner, repo: repo, number: pr.number, method: method)
+                if success {
+                    successMessage = "Successfully merged Pull Request #\(pr.number) via \(method)!"
+                    showSuccess = true
+                } else {
+                    errorMessage = "Failed to merge Pull Request."
+                    showError = true
+                }
+            } catch {
+                errorMessage = "Merge operation failed: \(error.localizedDescription)"
+                showError = true
+            }
+            isMerging = false
+        }
+    }
+
     private func generateAIPRReview() {
         isRunningAIReview = true
         aiReviewSummaryText = ""
+
+        let filesStr = filesModified.map(\.filename).joined(separator: ", ")
 
         let prompt = """
         You are an AI Pull Request review auditor. Review the following PR state details:
         - PR Number: #\(pr.number)
         - Title: \(pr.title)
         - Description: \(pr.body ?? "No description provided.")
-        - Files modified: Sources/SwiftCode/Views/GitHub/CommitsView.swift, Sources/SwiftCode/Views/GitHub/SourceControlView.swift
+        - Files modified: \(filesStr.isEmpty ? "None" : filesStr)
 
         Generate an automated review report of exactly 4 lines:
         1. [Overall Assessment] Quick rating (e.g., Looks Good, Requires changes) and summary.

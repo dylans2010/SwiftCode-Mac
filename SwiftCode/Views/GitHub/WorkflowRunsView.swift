@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 @MainActor
 struct WorkflowRunsView: View {
@@ -7,7 +8,9 @@ struct WorkflowRunsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var jobs: [WorkflowJob] = []
+    @State private var artifacts: [GitHubArtifact] = []
     @State private var isLoading = false
+    @State private var isLoadingArtifacts = false
 
     // Console logs state
     @State private var selectedJobID: Int?
@@ -18,18 +21,8 @@ struct WorkflowRunsView: View {
     @State private var isExecutingReRun = false
     @State private var executionOutput = ""
 
-    // Artifacts browser state
-    @State private var mockArtifacts: [MockArtifact] = [
-        MockArtifact(name: "SwiftCode-macOS-build.zip", size: "48.2 MB", downloaded: false),
-        MockArtifact(name: "test-results.xml", size: "124 KB", downloaded: false)
-    ]
-
-    struct MockArtifact: Identifiable {
-        let id = UUID()
-        let name: String
-        let size: String
-        var downloaded: Bool
-    }
+    // Downloading artifact tracking
+    @State private var downloadingArtifactID: Int?
 
     private var ownerAndRepo: (String, String)? {
         guard let repoStr = project?.githubRepo, !repoStr.isEmpty else { return nil }
@@ -79,22 +72,27 @@ struct WorkflowRunsView: View {
 
                     if isLoading {
                         VStack {
+                            Spacer()
                             ProgressView().controlSize(.small)
-                            Text("Fetching run jobs...").font(.caption).foregroundStyle(.secondary)
+                            Text("Fetching run jobs...").font(.caption).foregroundStyle(.secondary).padding(.top, 4)
+                            Spacer()
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if jobs.isEmpty {
-                        Text("No jobs executed for this run.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding()
-                        Spacer()
+                        VStack {
+                            Spacer()
+                            Text("No jobs executed for this run.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         List {
                             ForEach(jobs) { job in
                                 VStack(alignment: .leading, spacing: 6) {
                                     HStack {
-                                        Image(systemName: job.conclusion == "success" ? "checkmark.circle.fill" : "play.circle.fill")
+                                        Image(systemName: job.conclusion == "success" ? "checkmark.circle.fill" : (job.isRunning ? "clock.fill" : "play.circle.fill"))
                                             .foregroundStyle(job.conclusion == "success" ? .green : .orange)
 
                                         Text(job.name)
@@ -102,13 +100,14 @@ struct WorkflowRunsView: View {
 
                                         Spacer()
 
-                                        Button("Logs") {
+                                        Button(isFetchingLogs && selectedJobID == job.id ? "Fetching..." : "Logs") {
                                             selectedJobID = job.id
                                             fetchLogs(for: job)
                                         }
                                         .buttonStyle(.plain)
                                         .font(.caption2)
                                         .foregroundStyle(Color.accentColor)
+                                        .disabled(isFetchingLogs)
                                     }
 
                                     // Render step hierarchy indented
@@ -176,31 +175,50 @@ struct WorkflowRunsView: View {
 
                         Divider()
 
-                        List {
-                            ForEach($mockArtifacts) { $artifact in
-                                HStack {
-                                    Image(systemName: "doc.zipper")
-                                        .foregroundStyle(.cyan)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(artifact.name)
-                                            .font(.caption.bold())
-                                        Text(artifact.size)
-                                            .font(.system(size: 9))
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-
-                                    Button(artifact.downloaded ? "Downloaded" : "Download") {
-                                        artifact.downloaded = true
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                    .disabled(artifact.downloaded)
-                                }
-                                .padding(.vertical, 2)
+                        if isLoadingArtifacts {
+                            HStack {
+                                Spacer()
+                                ProgressView().controlSize(.small)
+                                Text("Loading artifacts...").font(.caption).foregroundStyle(.secondary)
+                                Spacer()
                             }
+                            .frame(height: 100)
+                        } else if artifacts.isEmpty {
+                            HStack {
+                                Spacer()
+                                Text("No artifacts produced by this run.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                            }
+                            .frame(height: 100)
+                        } else {
+                            List {
+                                ForEach(artifacts) { artifact in
+                                    HStack {
+                                        Image(systemName: "doc.zipper")
+                                            .foregroundStyle(.cyan)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(artifact.name)
+                                                .font(.caption.bold())
+                                            Text(formatBytes(artifact.sizeInBytes))
+                                                .font(.system(size: 9))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+
+                                        Button(downloadingArtifactID == artifact.id ? "Downloading..." : "Download") {
+                                            downloadArtifact(artifact)
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                        .disabled(downloadingArtifactID != nil)
+                                    }
+                                    .padding(.vertical, 2)
+                                }
+                            }
+                            .frame(height: 100)
                         }
-                        .frame(height: 100)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -209,6 +227,7 @@ struct WorkflowRunsView: View {
         .frame(width: 750, height: 550)
         .onAppear {
             fetchJobs()
+            fetchArtifacts()
         }
     }
 
@@ -221,52 +240,116 @@ struct WorkflowRunsView: View {
                 let fetched = try await GitHubService.shared.listWorkflowJobs(owner: owner, repo: repo, runID: run.id)
                 self.jobs = fetched
                 if let firstJob = fetched.first {
+                    selectedJobID = firstJob.id
                     fetchLogs(for: firstJob)
                 }
             } catch {
-                // Fallback structured mock jobs
-                self.jobs = [
-                    WorkflowJob(id: 11, runId: run.id, status: "completed", conclusion: "success", startedAt: Date(), completedAt: Date(), name: "compile-and-test", steps: [
-                        GitHubWorkflowStep(name: "Check out code", status: "completed", conclusion: "success", number: 1),
-                        GitHubWorkflowStep(name: "Set up Swift 5.10", status: "completed", conclusion: "success", number: 2),
-                        GitHubWorkflowStep(name: "Swift build compilation", status: "completed", conclusion: "success", number: 3),
-                        GitHubWorkflowStep(name: "Run XCTest unit tests", status: "completed", conclusion: "success", number: 4)
-                    ]),
-                    WorkflowJob(id: 12, runId: run.id, status: "completed", conclusion: "success", startedAt: Date(), completedAt: Date(), name: "deploy-stage", steps: [
-                        GitHubWorkflowStep(name: "Deploying build package to TestFlight", status: "completed", conclusion: "success", number: 1)
-                    ])
-                ]
-                if let firstJob = self.jobs.first {
-                    fetchLogs(for: firstJob)
-                }
+                self.consoleLogsText = "Failed to load workflow jobs: \(error.localizedDescription)"
             }
             isLoading = false
         }
     }
 
     private func fetchLogs(for job: WorkflowJob) {
-        consoleLogsText = """
-        [2026-11-12T10:00:00Z] Starting job "\(job.name)"
-        [2026-11-12T10:00:02Z] Step 1: Checking out branch state
-        [2026-11-12T10:00:05Z] Step 2: Swift compilation build success
-        [2026-11-12T10:00:10Z] Step 3: Running XCTest unit check suites
-        [2026-11-12T10:00:12Z] Test Suite Passed: 14 test cases passed, 0 failures.
-        [2026-11-12T10:00:14Z] Job completed successfully.
-        """
+        guard let (owner, repo) = ownerAndRepo else { return }
+
+        isFetchingLogs = true
+        Task {
+            do {
+                let fetchedLogs = try await GitHubService.shared.getJobLogs(owner: owner, repo: repo, jobID: job.id)
+                self.consoleLogsText = fetchedLogs.isEmpty ? "No logs returned for this job." : fetchedLogs
+            } catch {
+                self.consoleLogsText = "Failed to fetch logs: \(error.localizedDescription)"
+            }
+            isFetchingLogs = false
+        }
+    }
+
+    private func fetchArtifacts() {
+        guard let (owner, repo) = ownerAndRepo else { return }
+
+        isLoadingArtifacts = true
+        Task {
+            do {
+                let fetched = try await GitHubService.shared.listWorkflowArtifacts(owner: owner, repo: repo, runID: run.id)
+                self.artifacts = fetched
+            } catch {
+                // silent failure, keep list empty
+            }
+            isLoadingArtifacts = false
+        }
+    }
+
+    private func downloadArtifact(_ artifact: GitHubArtifact) {
+        guard let (owner, repo) = ownerAndRepo else { return }
+
+        downloadingArtifactID = artifact.id
+        Task {
+            do {
+                let zipData = try await GitHubService.shared.downloadArtifact(owner: owner, repo: repo, artifactID: artifact.id)
+
+                // Save to Downloads directory
+                let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+                let destURL = downloadsURL.appendingPathComponent(artifact.name.hasSuffix(".zip") ? artifact.name : "\(artifact.name).zip")
+
+                try zipData.write(to: destURL, options: .atomic)
+
+                showDownloadSuccess(name: artifact.name, path: destURL.path)
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = "Download Failed"
+                alert.informativeText = error.localizedDescription
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+            }
+            downloadingArtifactID = nil
+        }
     }
 
     private func executeReRun() {
+        guard let (owner, repo) = ownerAndRepo else { return }
         isExecutingReRun = true
         executionOutput = "Re-triggering workflow run ID: \(run.id) via GitHub API...\n"
 
         Task {
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-            executionOutput += "[Queue] Run re-scheduled in Actions scheduler.\n"
-            executionOutput += "[Running] Active Job \"compile-and-test\" running...\n"
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-            executionOutput += "[Completed] Success!\n"
+            do {
+                guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else {
+                    throw GitHubError.missingToken
+                }
+                let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/actions/runs/\(run.id)/rerun")!
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+
+                let (_, response) = try await URLSession.shared.data(for: request)
+                if let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) {
+                    executionOutput += "[Success] Workflow re-run triggered successfully!\n"
+                    executionOutput += "[Running] GitHub is initiating jobs. Refresh in a few moments.\n"
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    fetchJobs()
+                } else {
+                    executionOutput += "[Failed] Server returned status: \((response as? HTTPURLResponse)?.statusCode ?? 0)\n"
+                }
+            } catch {
+                executionOutput += "[Failed] \(error.localizedDescription)\n"
+            }
             isExecutingReRun = false
-            consoleLogsText = executionOutput
         }
+    }
+
+    private func showDownloadSuccess(name: String, path: String) {
+        let alert = NSAlert()
+        alert.messageText = "Artifact Download Complete"
+        alert.informativeText = "Successfully saved '\(name)' to:\n\(path)"
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    private func formatBytes(_ bytes: Int) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useAll]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(bytes))
     }
 }

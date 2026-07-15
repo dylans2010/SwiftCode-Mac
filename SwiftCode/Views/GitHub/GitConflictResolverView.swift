@@ -318,14 +318,8 @@ struct GitConflictResolverView: View {
 
             self.conflictBlocks = blocks
             if blocks.isEmpty {
-                // If porcelain conflict markers weren't fully parsed, fallback mock a merge conflict block
-                self.conflictBlocks = [
-                    ConflictBlock(
-                        currentText: "func loadTimeline() {\n    // HEAD change: stream layout metrics lazily\n}",
-                        incomingText: "func loadTimeline() {\n    // Incoming branch change: optimized core render frames\n}",
-                        range: content.startIndex..<content.endIndex
-                    )
-                ]
+                // Since we are running on real data, if no conflict markers are parsed, let conflictBlocks remain empty so the safety validator warns the user
+                self.conflictBlocks = []
             }
 
             activeBlockIndex = 0

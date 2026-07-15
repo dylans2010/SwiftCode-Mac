@@ -14,11 +14,32 @@ struct RepositoryDashboardView: View {
     @State private var aiAnalysisResult = ""
     @State private var isRunningAIAnalysis = false
 
-    // State for mock timeline events to combine with commits for a full activity timeline
-    @State private var timelineEvents: [TimelineEvent] = [
-        TimelineEvent(title: "Repository linked to SwiftCode", detail: "Configured remote origin", type: .system, date: Date().addingTimeInterval(-86400)),
-        TimelineEvent(title: "Main pipeline check passed", detail: "Workflow 'swift-ci' completed successfully", type: .ci, date: Date().addingTimeInterval(-7200))
-    ]
+    // State for live timeline events to combine with commits for a full activity timeline
+    @State private var liveCIEvents: [TimelineEvent] = []
+
+    private func fetchLiveTimelineEvents() {
+        guard let repoStr = project?.githubRepo, !repoStr.isEmpty else { return }
+        let parts = repoStr.split(separator: "/")
+        guard parts.count == 2 else { return }
+        let owner = String(parts[0])
+        let repo = String(parts[1])
+
+        Task {
+            do {
+                let runs = try await GitHubService.shared.listWorkflowRuns(owner: owner, repo: repo)
+                self.liveCIEvents = runs.prefix(5).map { run in
+                    TimelineEvent(
+                        title: "CI: \(run.name ?? "Workflow Run")",
+                        detail: "Run #\(run.runNumber) - \(run.conclusion?.uppercased() ?? run.status.uppercased())",
+                        type: .ci,
+                        date: run.createdAt
+                    )
+                }
+            } catch {
+                // Keep liveCIEvents empty on error
+            }
+        }
+    }
 
     struct TimelineEvent: Identifiable {
         let id = UUID()
@@ -367,12 +388,14 @@ struct RepositoryDashboardView: View {
 
             // SECTION 7: Unified Activity Timeline (Commits & Events)
             Section(header: Text("Repository Activity Timeline").font(.caption.bold()).foregroundStyle(.yellow)) {
-                // Combine recent commits and mock events sorted by date
+                // Combine recent commits and live CI events sorted by date
                 let commitsAsEvents = gitViewModel.history.prefix(5).map {
                     TimelineEvent(title: "Commit: \($0.subject)", detail: "Authored by \($0.author) [\($0.sha.prefix(7))]", type: .commit, date: $0.date)
                 }
 
-                let allEvents = (commitsAsEvents + timelineEvents).sorted { $0.date > $1.date }
+                let systemEvent = [TimelineEvent(title: "Repository linked to SwiftCode", detail: "Configured remote origin", type: .system, date: project?.createdAt ?? Date())]
+
+                let allEvents = (commitsAsEvents + liveCIEvents + systemEvent).sorted { $0.date > $1.date }
 
                 if allEvents.isEmpty {
                     Text("No timeline history recorded.")
@@ -409,6 +432,9 @@ struct RepositoryDashboardView: View {
             }
         }
         .listStyle(.sidebar)
+        .onAppear {
+            fetchLiveTimelineEvents()
+        }
     }
 
     // MARK: - Helper Colors
