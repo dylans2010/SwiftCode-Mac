@@ -44,6 +44,84 @@ enum APIKeyProvider: String, Codable, CaseIterable {
     }
 }
 
+// MARK: - Custom Section Shorthand Wrapper for High-Fidelity macOS Card Styling
+
+struct Section<Header: View, Content: View, Footer: View>: View {
+    let header: Header
+    let content: Content
+    let footer: Footer
+
+    init(
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder header: () -> Header,
+        @ViewBuilder footer: () -> Footer
+    ) {
+        self.header = header()
+        self.content = content()
+        self.footer = footer()
+    }
+
+    init(
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder header: () -> Header
+    ) where Footer == EmptyView {
+        self.header = header()
+        self.content = content()
+        self.footer = EmptyView()
+    }
+
+    init(
+        _ titleKey: LocalizedStringKey,
+        @ViewBuilder content: () -> Content
+    ) where Header == Text, Footer == EmptyView {
+        self.header = Text(titleKey).font(.headline)
+        self.content = content()
+        self.footer = EmptyView()
+    }
+
+    init<S: StringProtocol>(
+        _ title: S,
+        @ViewBuilder content: () -> Content
+    ) where Header == Text, Footer == EmptyView {
+        self.header = Text(title).font(.headline)
+        self.content = content()
+        self.footer = EmptyView()
+    }
+
+    init(
+        header: Header,
+        @ViewBuilder content: () -> Content
+    ) where Footer == EmptyView {
+        self.header = header
+        self.content = content()
+        self.footer = EmptyView()
+    }
+
+    var body: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    header
+                        .font(.headline)
+                    Spacer()
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    content
+                }
+
+                if !(footer is EmptyView) {
+                    footer
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding()
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+    }
+}
+
 struct APIKeyEntry: Identifiable, Codable {
     var id: UUID
     var name: String
@@ -498,7 +576,6 @@ struct GeneralSettingsView: View {
     @State private var versionTapCount = 0
 
     // Quick Setup section state
-    @State private var showExtensions = false
     @State private var showOfflineModelsSheet = false
     @State private var codexAPIKey: String = ""
     @State private var codexValidationMessage: String = ""
@@ -509,43 +586,38 @@ struct GeneralSettingsView: View {
     }
 
     var body: some View {
-        AdaptiveSettingsPage {
-            NavigationStack {
-                Form {
-                proSection
-                quickSetupSection
-                aiSection
-                deploymentAndAPIKeysSection
-                editorSection
-                Section {
-                    NavigationLink {
-                        AssistSettingsView()
-                    } label: {
-                        Label("Assist Settings", systemImage: "sparkles.rectangle.stack.fill")
-                            .foregroundStyle(.orange)
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    proSection
+                    quickSetupSection
+                    aiSection
+                    deploymentAndAPIKeysSection
+                    editorSection
+                    Section {
+                        NavigationLink {
+                            AssistSettingsView()
+                        } label: {
+                            Label("Assist Settings", systemImage: "sparkles.rectangle.stack.fill")
+                                .foregroundStyle(.orange)
+                        }
+                    } header: {
+                        Label("Assist", systemImage: "sparkles")
                     }
-                } header: {
-                    Label("Assist", systemImage: "sparkles")
-                }
-                dashboardSection
-                fileNavigatorCustomizationSection
-                themesSection
-                agentConnectionsSection
-                skillsSection
-                if devModeManager.isDeveloperModeEnabled {
-                    developerToolsSection
-                }
-                appManagementSection
-                aboutSection
-            }
-                .formStyle(.grouped)
-                .navigationTitle("Settings")
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { dismiss() }
+                    dashboardSection
+                    fileNavigatorCustomizationSection
+                    themesSection
+                    agentConnectionsSection
+                    skillsSection
+                    if devModeManager.isDeveloperModeEnabled {
+                        developerToolsSection
                     }
+                    appManagementSection
+                    aboutSection
                 }
+                .padding(24)
             }
+            .navigationTitle("Settings")
         }
         .sheet(isPresented: $showAPIKeysSheet) {
             APIKeysManagementView()
@@ -575,9 +647,6 @@ struct GeneralSettingsView: View {
         }
         .sheet(isPresented: $showCreditsSheet) {
             CreditsView()
-        }
-        .sheet(isPresented: $showExtensions) {
-            ExtensionsView()
         }
         .sheet(isPresented: $showOfflineModelsSheet) {
             NavigationStack {
@@ -645,14 +714,6 @@ struct GeneralSettingsView: View {
 
     private var quickSetupSection: some View {
         Section {
-            // Extensions shortcut
-            Button {
-                showExtensions = true
-            } label: {
-                Label("Manage Extensions", systemImage: "puzzlepiece.extension.fill")
-                    .foregroundStyle(.orange)
-            }
-
             Button {
                 showOfflineModelsSheet = true
             } label: {
@@ -710,7 +771,7 @@ struct GeneralSettingsView: View {
         } header: {
             Label("Quick Setup", systemImage: "bolt.fill")
         } footer: {
-            Text("Configure your model and extensions here.")
+            Text("Configure your model here.")
         }
     }
 
