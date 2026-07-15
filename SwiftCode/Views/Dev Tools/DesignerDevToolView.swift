@@ -979,7 +979,7 @@ public struct DesignerDevToolView: View {
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
 
-                    FlowLayout(snapshot.colors, spacing: 10) { colorHex in
+                    HFlowLayout(snapshot.colors, spacing: 10) { colorHex in
                         VStack {
                             RoundedRectangle(cornerRadius: 8)
                                 .fill(Color(hex: colorHex))
