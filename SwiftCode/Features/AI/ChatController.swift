@@ -19,7 +19,6 @@ final class ChatController: ObservableObject {
     @Published var messages: [ChatMessage] = []
     @Published var isGenerating = false
 
-    private let genericErrorMessage = "Something went wrong while generating the response."
     private let unavailableModelMessage = "No AI model available. Add an API key or download an offline model."
 
     func sendMessage(_ text: String, useContext: Bool) async {
@@ -56,10 +55,10 @@ final class ChatController: ObservableObject {
             case .missingOfflineDefaultModel, .offlineFallbackUnavailable:
                 appendMessage(role: .assistant, content: unavailableModelMessage)
             default:
-                appendMessage(role: .assistant, content: genericErrorMessage)
+                appendMessage(role: .assistant, content: "Request failed: \(error.localizedDescription)")
             }
         } catch {
-            appendMessage(role: .assistant, content: genericErrorMessage)
+            appendMessage(role: .assistant, content: "Request failed: \(error.localizedDescription)")
         }
     }
 

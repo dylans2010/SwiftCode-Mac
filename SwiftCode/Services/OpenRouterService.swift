@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let logger = Logger(subsystem: "com.swiftcode.app", category: "OpenRouterService")
 
 // MARK: - OpenRouter API Service
 
@@ -15,8 +18,18 @@ final class OpenRouterService: Sendable {
         model: String,
         systemPrompt: String
     ) async throws -> String {
+        let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled }
+        logger.log("[chat] Requested model: \(model, privacy: .public). FoundationModels enabled: \(isFMEnabled).")
+
+        if isFMEnabled {
+            logger.log("[chat] Routing request to local Apple Foundation Models.")
+            let lastPrompt = messages.last?.content ?? ""
+            return try await FoundationModels.shared.generatePrivateResponse(prompt: lastPrompt)
+        }
+
         guard let apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey),
               !apiKey.isEmpty else {
+            logger.error("[chat] Missing API key for OpenRouter.")
             throw OpenRouterError.missingAPIKey
         }
 
@@ -80,8 +93,21 @@ final class OpenRouterService: Sendable {
         systemPrompt: String,
         onToken: @escaping @Sendable (String) async -> Void
     ) async throws {
+        let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled }
+        logger.log("[streamChat] Requested model: \(model, privacy: .public). FoundationModels enabled: \(isFMEnabled).")
+
+        if isFMEnabled {
+            logger.log("[streamChat] Routing request to local Apple Foundation Models.")
+            let lastPrompt = messages.last?.content ?? ""
+            try await FoundationModels.shared.streamPrivateResponse(prompt: lastPrompt) { token in
+                await onToken(token)
+            }
+            return
+        }
+
         guard let apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey),
               !apiKey.isEmpty else {
+            logger.error("[streamChat] Missing API key for OpenRouter.")
             throw OpenRouterError.missingAPIKey
         }
 
@@ -133,11 +159,20 @@ final class OpenRouterService: Sendable {
 
         for try await line in stream.lines {
             guard line.hasPrefix("data: ") else { continue }
-            let jsonString = String(line.dropFirst(6))
+            let jsonString = String(line.dropFirst(6)).trimmingCharacters(in: .whitespacesAndNewlines)
             guard jsonString != "[DONE]" else { break }
 
-            guard let data = jsonString.data(using: .utf8),
-                  let chunk = try? JSONDecoder().decode(OpenRouterStreamChunk.self, from: data),
+            guard let data = jsonString.data(using: .utf8) else { continue }
+
+            // Check for JSON error payload within the stream line
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let errorDict = json["error"] as? [String: Any],
+               let errorMessage = errorDict["message"] as? String {
+                logger.error("[streamChat] SSE stream contained error: \(errorMessage, privacy: .public)")
+                throw OpenRouterError.apiError(statusCode: 400, body: errorMessage)
+            }
+
+            guard let chunk = try? JSONDecoder().decode(OpenRouterStreamChunk.self, from: data),
                   let token = chunk.choices.first?.delta.content else { continue }
 
             await onToken(token)
@@ -147,6 +182,11 @@ final class OpenRouterService: Sendable {
     // MARK: - Fetch Available Models
 
     func fetchModels() async throws -> [OpenRouterModel] {
+        let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled }
+        if isFMEnabled {
+            return OpenRouterModel.defaults
+        }
+
         guard let apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey),
               !apiKey.isEmpty else {
             return OpenRouterModel.defaults

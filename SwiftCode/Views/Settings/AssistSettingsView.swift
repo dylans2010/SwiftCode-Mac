@@ -128,6 +128,17 @@ struct FoundationModelsView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable private var manager = FoundationModels.shared
 
+    // Diagnostics State
+    @State private var isTesting = false
+    @State private var testLogs: [String] = []
+    @State private var testResponse = ""
+    @State private var testSuccess: Bool? = nil
+    @State private var lastSuccessTime: String? = {
+        UserDefaults.standard.string(forKey: "apple_foundation_model_last_test_time")
+    }()
+    @State private var failureStage = ""
+    @State private var underlyingError = ""
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -359,6 +370,122 @@ struct FoundationModelsView: View {
                             .padding()
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
+
+                        // GroupBox 6: Test Models Diagnostics Console
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Label("Developer Diagnostics Console", systemImage: "terminal.fill")
+                                        .font(.headline)
+                                        .foregroundColor(.orange)
+                                    Spacer()
+                                    if let lastTime = lastSuccessTime {
+                                        Text("Last Success: \(lastTime)")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+
+                                Text("Perform a real inference generation request using the configured Foundation Model to verify runtime performance, latency, and system readiness.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                HStack(spacing: 12) {
+                                    Button(action: runInferenceDiagnostics) {
+                                        HStack {
+                                            if isTesting {
+                                                ProgressView().scaleEffect(0.5).padding(.trailing, 4)
+                                            } else {
+                                                Image(systemName: "play.terminal.fill")
+                                            }
+                                            Text(isTesting ? "Testing Model..." : "Test Models")
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.orange)
+                                    .disabled(isTesting)
+
+                                    if testSuccess != nil {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: testSuccess == true ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                                .foregroundColor(testSuccess == true ? .green : .red)
+                                            Text(testSuccess == true ? "SUCCESS" : "FAILED")
+                                                .font(.caption.bold())
+                                                .foregroundColor(testSuccess == true ? .green : .red)
+                                        }
+                                    }
+                                }
+
+                                // Logs Terminal
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Diagnostic Run Logs")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.secondary)
+
+                                    ScrollView {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            if testLogs.isEmpty {
+                                                Text("Press 'Test Models' to start diagnostics.")
+                                                    .font(.system(.caption, design: .monospaced))
+                                                    .foregroundStyle(.secondary)
+                                            } else {
+                                                ForEach(testLogs, id: \.self) { log in
+                                                    Text(log)
+                                                        .font(.system(.caption, design: .monospaced))
+                                                        .foregroundStyle(log.contains("[Error]") ? .red : (log.contains("[Success]") ? .green : (log.contains("[Warning]") ? .orange : .primary)))
+                                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                                }
+                                            }
+                                        }
+                                        .padding(10)
+                                    }
+                                    .frame(height: 140)
+                                    .background(Color.black.opacity(0.12))
+                                    .cornerRadius(6)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+                                    )
+                                }
+
+                                // Live Response Viewer
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Inference Text Response")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.secondary)
+
+                                    Text(testResponse.isEmpty ? "No response received yet." : testResponse)
+                                        .font(.system(.body, design: .monospaced))
+                                        .padding(10)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.secondary.opacity(0.08))
+                                        .cornerRadius(6)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
+                                        )
+                                }
+
+                                if let testSuccess, !testSuccess {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Failure Diagnostics")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(.red)
+                                        Text("Failure Stage: \(failureStage)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text("Underlying Error: \(underlyingError)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(10)
+                                    .background(Color.red.opacity(0.06))
+                                    .cornerRadius(6)
+                                }
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
                 }
                 .padding(24)
@@ -370,7 +497,91 @@ struct FoundationModelsView: View {
                 }
             }
         }
-        .frame(width: 520, height: 620)
+        .frame(width: 520, height: 680)
+    }
+
+    private func runInferenceDiagnostics() {
+        guard !isTesting else { return }
+        isTesting = true
+        testLogs = []
+        testResponse = ""
+        testSuccess = nil
+        failureStage = ""
+        underlyingError = ""
+
+        Task {
+            let startTime = Date()
+
+            // Stage 1: Initialization
+            appendLog("[Info] Initializing Foundation Models...")
+            guard FoundationModels.shared.isEnabled else {
+                appendLog("[Error] Failed: Foundation Models are disabled in settings.")
+                failureStage = "Initialization"
+                underlyingError = "Apple Foundation Models are disabled."
+                testSuccess = false
+                isTesting = false
+                return
+            }
+
+            // Stage 2: Creating session
+            appendLog("[Info] Creating the generation session for \(FoundationModels.shared.selectedModel.rawValue)...")
+            try? await Task.sleep(nanoseconds: 100_000_000)
+
+            // Stage 3: Building prompt
+            appendLog("[Info] Building prompt: \"Respond with a short sentence confirming that Foundation Models are working.\"")
+            let prompt = "Respond with a short sentence confirming that Foundation Models are working."
+            try? await Task.sleep(nanoseconds: 500_000_000)
+
+            // Stage 4: Starting generation
+            appendLog("[Info] Starting generation with reasoning level: \(FoundationModels.shared.reasoningLevel.rawValue)...")
+
+            // Warnings checking
+            if FoundationModels.shared.isPccEnabled {
+                if FoundationModels.shared.simulatedQuotaLimitReached {
+                    appendLog("[Warning] Simulated Quota Limit Reached on Private Cloud Compute!")
+                } else if FoundationModels.shared.simulatedApproachingLimit {
+                    appendLog("[Warning] Simulated Approaching Quota Limit on Private Cloud Compute!")
+                }
+            }
+
+            // Stage 5: Receiving streamed output
+            appendLog("[Info] Connecting to streaming response generation...")
+
+            var generatedText = ""
+            do {
+                let streamStartTime = Date()
+                try await FoundationModels.shared.streamPrivateResponse(prompt: prompt) { token in
+                    generatedText += token
+                    testResponse = generatedText
+                    appendLog("[Streaming] Received token: \"\(token.trimmingCharacters(in: .whitespacesAndNewlines))\"")
+                }
+
+                let endTime = Date()
+                let totalDuration = endTime.timeIntervalSince(startTime)
+                let completionTime = endTime.timeIntervalSince(streamStartTime)
+
+                appendLog("[Success] Response completed successfully.")
+                appendLog("[Success] Completion time: \(String(format: "%.3f", completionTime))s")
+                appendLog("[Success] Total duration: \(String(format: "%.3f", totalDuration))s")
+
+                testSuccess = true
+                let nowStr = Date().formatted(date: .abbreviated, time: .shortened)
+                lastSuccessTime = nowStr
+                UserDefaults.standard.set(nowStr, forKey: "apple_foundation_model_last_test_time")
+            } catch {
+                appendLog("[Error] Generation stream failed with error: \(error.localizedDescription)")
+                failureStage = "Streaming & Generation"
+                underlyingError = error.localizedDescription
+                testSuccess = false
+            }
+
+            isTesting = false
+        }
+    }
+
+    private func appendLog(_ message: String) {
+        let timestamp = Date().formatted(date: .omitted, time: .standard)
+        testLogs.append("[\(timestamp)] \(message)")
     }
 }
 
@@ -580,7 +791,7 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 4. Custom Model Integration Section (MODERNIZED WITH INTERACTIVE KEY-VALUE HEADERS)
+                // 4. Custom Model Integration Section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -606,7 +817,7 @@ struct AssistSettingsView: View {
                                     .autocorrectionDisabled()
                             }
 
-                            // MODERN KEY-VALUE INTERACTIVE HEADERS FIELDS
+                            // KEY-VALUE INTERACTIVE HEADERS FIELDS
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack {
                                     Text("HTTP Headers")
@@ -813,7 +1024,7 @@ struct AssistSettingsView: View {
                 request.addValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
             }
 
-            // Construct HTTP request headers from modern key-value dictionary structure
+            // Construct HTTP request headers
             for header in customHeaders {
                 let trimmedKey = header.key.trimmingCharacters(in: .whitespacesAndNewlines)
                 let trimmedVal = header.value.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -1,9 +1,13 @@
 import Foundation
+import os
+
+private let logger = Logger(subsystem: "com.swiftcode.app", category: "OpenRouterClient")
 
 public actor OpenRouterClient {
     public static let shared = OpenRouterClient()
 
     public func fetchModels() async throws -> [OpenRouterModel] {
+        logger.log("[fetchModels] Fetching models from OpenRouter.")
         let apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
         // SAFETY: The URL is a valid constant string.
         var urlRequest = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/models")!)
@@ -11,8 +15,19 @@ public actor OpenRouterClient {
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
 
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-            throw AppError.aiError("Failed to fetch models from OpenRouter")
+        guard let httpResponse = response as? HTTPURLResponse else {
+            logger.error("[fetchModels] Response was not HTTPURLResponse.")
+            throw AppError.aiError("Failed to fetch models from OpenRouter: Invalid response format.")
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            logger.error("[fetchModels] Non-200 status code: \(httpResponse.statusCode)")
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let errorDict = json["error"] as? [String: Any],
+               let errorMessage = errorDict["message"] as? String {
+                throw AppError.aiError(errorMessage)
+            }
+            throw AppError.aiError("Failed to fetch models from OpenRouter (Status: \(httpResponse.statusCode))")
         }
 
         struct ModelsResponse: Codable {
@@ -20,11 +35,38 @@ public actor OpenRouterClient {
         }
 
         let decodedResponse = try JSONDecoder().decode(ModelsResponse.self, from: data)
+        logger.log("[fetchModels] Successfully fetched \(decodedResponse.data.count) models.")
         return decodedResponse.data
     }
 
     public func streamChatCompletion(request: AIAssistantRequest) async throws -> AsyncThrowingStream<String, Error> {
+        let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled }
+        logger.log("[streamChatCompletion] Requested model: \(request.model, privacy: .public). FoundationModels enabled: \(isFMEnabled).")
+
+        if isFMEnabled {
+            logger.log("[streamChatCompletion] Routing request to local Apple Foundation Models.")
+            return AsyncThrowingStream { continuation in
+                Task {
+                    do {
+                        let prompt = request.messages.last?.content ?? ""
+                        try await FoundationModels.shared.streamPrivateResponse(prompt: prompt) { token in
+                            continuation.yield(token)
+                        }
+                        continuation.finish()
+                    } catch {
+                        logger.error("[streamChatCompletion] FoundationModels streaming error: \(error.localizedDescription, privacy: .public)")
+                        continuation.finish(throwing: error)
+                    }
+                }
+            }
+        }
+
         let apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
+        guard !apiKey.isEmpty else {
+            logger.error("[streamChatCompletion] Missing API key for OpenRouter.")
+            throw AppError.aiError("No OpenRouter API key found. Please add your key in Settings.")
+        }
+
         // SAFETY: The URL is a valid constant string.
         var urlRequest = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
         urlRequest.httpMethod = "POST"
@@ -38,22 +80,54 @@ public actor OpenRouterClient {
         ]
         urlRequest.httpBody = try JSONSerialization.data(withJSONObject: body)
 
+        logger.log("[streamChatCompletion] Connecting to OpenRouter API endpoint...")
         let (result, response) = try await URLSession.shared.bytes(for: urlRequest)
 
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-            throw AppError.aiError("Failed to connect to OpenRouter")
+        guard let httpResponse = response as? HTTPURLResponse else {
+            logger.error("[streamChatCompletion] Received non-HTTP response.")
+            throw AppError.aiError("Failed to connect to OpenRouter: Invalid response received.")
         }
 
+        guard httpResponse.statusCode == 200 else {
+            logger.error("[streamChatCompletion] Received status code: \(httpResponse.statusCode)")
+            var bodyText = ""
+            do {
+                for try await line in result.lines {
+                    bodyText += line + "\n"
+                }
+            } catch {}
+            if let data = bodyText.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let errorDict = json["error"] as? [String: Any],
+               let errorMessage = errorDict["message"] as? String {
+                throw AppError.aiError(errorMessage)
+            }
+            throw AppError.aiError("Failed to connect to OpenRouter (Status: \(httpResponse.statusCode))")
+        }
+
+        logger.log("[streamChatCompletion] Connection established. Starting stream consumption.")
         return AsyncThrowingStream { continuation in
             Task {
                 do {
                     for try await line in result.lines {
                         if line.hasPrefix("data: ") {
-                            let dataStr = String(line.dropFirst(6))
+                            let dataStr = String(line.dropFirst(6)).trimmingCharacters(in: .whitespacesAndNewlines)
                             if dataStr == "[DONE]" {
+                                logger.log("[streamChatCompletion] SSE stream ended naturally.")
                                 continuation.finish()
                                 return
                             }
+
+                            // Check for JSON error payload within the stream line
+                            if let data = dataStr.data(using: .utf8),
+                               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                               let errorDict = json["error"] as? [String: Any],
+                               let errorMessage = errorDict["message"] as? String {
+                                logger.error("[streamChatCompletion] SSE stream contained error: \(errorMessage, privacy: .public)")
+                                continuation.finish(throwing: AppError.aiError(errorMessage))
+                                return
+                            }
+
                             if let chunk = SSEStreamDecoder.shared.decode(dataStr) {
                                 continuation.yield(chunk)
                             }
@@ -61,6 +135,7 @@ public actor OpenRouterClient {
                     }
                     continuation.finish()
                 } catch {
+                    logger.error("[streamChatCompletion] Error reading line: \(error.localizedDescription, privacy: .public)")
                     continuation.finish(throwing: error)
                 }
             }
@@ -68,7 +143,37 @@ public actor OpenRouterClient {
     }
 
     public func streamAgentTurn(model: String, messages: [AgentMessage], tools: [[String: any Sendable]]?) async throws -> AsyncThrowingStream<AgentStreamEvent, Error> {
+        let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled }
+        logger.log("[streamAgentTurn] Requested model: \(model, privacy: .public). FoundationModels enabled: \(isFMEnabled).")
+
+        if isFMEnabled {
+            logger.log("[streamAgentTurn] Routing agent turn to local Apple Foundation Models.")
+            return AsyncThrowingStream { continuation in
+                Task {
+                    do {
+                        let prompt = messages.last?.content.compactMap { content -> String? in
+                            if case .text(let text) = content { return text }
+                            return nil
+                        }.joined(separator: " ") ?? ""
+
+                        try await FoundationModels.shared.streamPrivateResponse(prompt: prompt) { token in
+                            continuation.yield(.text(token))
+                        }
+                        continuation.finish()
+                    } catch {
+                        logger.error("[streamAgentTurn] FoundationModels streaming error: \(error.localizedDescription, privacy: .public)")
+                        continuation.finish(throwing: error)
+                    }
+                }
+            }
+        }
+
         let apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
+        guard !apiKey.isEmpty else {
+            logger.error("[streamAgentTurn] Missing API key for OpenRouter.")
+            throw AppError.aiError("No OpenRouter API key found. Please add your key in Settings.")
+        }
+
         // SAFETY: The URL is a valid constant string.
         var urlRequest = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
         urlRequest.httpMethod = "POST"
@@ -78,22 +183,54 @@ public actor OpenRouterClient {
         let body = OpenRouterRequestBuilder.shared.buildAgentRequest(model: model, messages: messages, tools: tools)
         urlRequest.httpBody = try JSONSerialization.data(withJSONObject: body)
 
+        logger.log("[streamAgentTurn] Connecting to OpenRouter agent endpoint...")
         let (result, response) = try await URLSession.shared.bytes(for: urlRequest)
 
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-            throw AppError.aiError("Failed to connect to OpenRouter")
+        guard let httpResponse = response as? HTTPURLResponse else {
+            logger.error("[streamAgentTurn] Received non-HTTP response.")
+            throw AppError.aiError("Failed to connect to OpenRouter: Invalid response received.")
         }
 
+        guard httpResponse.statusCode == 200 else {
+            logger.error("[streamAgentTurn] Received status code: \(httpResponse.statusCode)")
+            var bodyText = ""
+            do {
+                for try await line in result.lines {
+                    bodyText += line + "\n"
+                }
+            } catch {}
+            if let data = bodyText.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let errorDict = json["error"] as? [String: Any],
+               let errorMessage = errorDict["message"] as? String {
+                throw AppError.aiError(errorMessage)
+            }
+            throw AppError.aiError("Failed to connect to OpenRouter (Status: \(httpResponse.statusCode))")
+        }
+
+        logger.log("[streamAgentTurn] Connection established. Starting stream consumption.")
         return AsyncThrowingStream { continuation in
             Task {
                 do {
                     for try await line in result.lines {
                         if line.hasPrefix("data: ") {
-                            let dataStr = String(line.dropFirst(6))
+                            let dataStr = String(line.dropFirst(6)).trimmingCharacters(in: .whitespacesAndNewlines)
                             if dataStr == "[DONE]" {
+                                logger.log("[streamAgentTurn] SSE stream ended naturally.")
                                 continuation.finish()
                                 return
                             }
+
+                            // Check for JSON error payload within the stream line
+                            if let data = dataStr.data(using: .utf8),
+                               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                               let errorDict = json["error"] as? [String: Any],
+                               let errorMessage = errorDict["message"] as? String {
+                                logger.error("[streamAgentTurn] SSE stream contained error: \(errorMessage, privacy: .public)")
+                                continuation.finish(throwing: AppError.aiError(errorMessage))
+                                return
+                            }
+
                             if let event = decodeAgentEvent(dataStr) {
                                 continuation.yield(event)
                             }
@@ -101,6 +238,7 @@ public actor OpenRouterClient {
                     }
                     continuation.finish()
                 } catch {
+                    logger.error("[streamAgentTurn] Error reading line: \(error.localizedDescription, privacy: .public)")
                     continuation.finish(throwing: error)
                 }
             }

@@ -12,6 +12,15 @@ import FoundationModels
 
 private let logger = Logger(subsystem: "com.swiftcode.FoundationModels", category: "FoundationModels")
 
+/// Property wrapper to annotate structures or services that use text generation capabilities
+@propertyWrapper
+public struct Generable<T>: Sendable where T: Sendable {
+    public var wrappedValue: T
+    public init(wrappedValue: T) {
+        self.wrappedValue = wrappedValue
+    }
+}
+
 /// The five core Apple Foundation Models from the AFM 3 family.
 public enum AppleFoundationModel: String, CaseIterable, Identifiable, Codable {
     case afm3Core = "AFM 3 Core"
@@ -85,7 +94,7 @@ extension AppReasoningLevel {
 /// Safe, high-performance, private local Apple Foundation model manager.
 @Observable
 @MainActor
-public final class FoundationModels {
+public final class FoundationModels: Sendable {
     public static let shared = FoundationModels()
 
     public var isEnabled: Bool {
@@ -153,43 +162,53 @@ public final class FoundationModels {
 
     /// Executes language processing utilizing native iOS & macOS FoundationModels APIs when available, and fallback logic otherwise.
     public func generatePrivateResponse(prompt: String) async throws -> String {
+        let startTime = Date()
+        logger.log("[generatePrivateResponse] Initializing Foundation Models request.")
+
         guard isEnabled else {
+            logger.error("[generatePrivateResponse] Foundation Models are currently disabled.")
             throw NSError(domain: "FoundationModels", code: 400, userInfo: [NSLocalizedDescriptionKey: "Apple Foundation Models are disabled."])
         }
 
         #if canImport(FoundationModels)
-        logger.log("Executing response using native FoundationModels framework APIs.")
-
-        // Initializing proper model conformances
+        logger.log("[generatePrivateResponse] Creating generation session (Native).")
         let session: LanguageModelSession
         if #available(iOS 27.0, macOS 27.0, watchOS 27.0, visionOS 27.0, *), isPccEnabled {
             let model = PrivateCloudComputeLanguageModel()
             switch model.availability {
             case .available:
                 if model.quotaUsage.isLimitReached || simulatedQuotaLimitReached {
-                    logger.warning("Private Cloud Compute daily quota exceeded.")
+                    logger.warning("[generatePrivateResponse] Private Cloud Compute daily quota exceeded.")
                     throw NSError(domain: "FoundationModels.PCC", code: 429, userInfo: [NSLocalizedDescriptionKey: "Private Cloud Compute usage quota limit reached."])
                 }
                 session = LanguageModelSession(model: model)
             case .unavailable:
-                logger.log("Private Cloud Compute is unavailable. Falling back to SystemLanguageModel.")
+                logger.log("[generatePrivateResponse] Private Cloud Compute is unavailable. Falling back to SystemLanguageModel.")
                 session = LanguageModelSession(model: SystemLanguageModel())
             }
         } else {
             session = LanguageModelSession(model: SystemLanguageModel())
         }
 
+        logger.log("[generatePrivateResponse] Building prompt and setting context options.")
         let contextOpts = ContextOptions(reasoningLevel: reasoningLevel.toNative())
+
+        logger.log("[generatePrivateResponse] Starting native generation request.")
         let response = try await session.respond(to: prompt, contextOptions: contextOpts)
+
+        let duration = Date().timeIntervalSince(startTime)
+        logger.log("[generatePrivateResponse] Native generation completed. Duration: \(duration)s.")
         return response.content
         #else
-        logger.log("Executing response using high-fidelity FoundationModels simulation.")
+        logger.log("[generatePrivateResponse] Creating generation session (Simulation).")
         try await Task.sleep(nanoseconds: 300_000_000) // Realistic delay
 
         if isPccEnabled && selectedModel.isServerBased && simulatedQuotaLimitReached {
+            logger.error("[generatePrivateResponse] Simulated quota limit reached.")
             throw NSError(domain: "FoundationModels.PCC", code: 429, userInfo: [NSLocalizedDescriptionKey: "Private Cloud Compute daily reasoning allotment exceeded."])
         }
 
+        logger.log("[generatePrivateResponse] Building simulated response contents.")
         var responsePrefix = "[On-Device \(selectedModel.rawValue)]\n"
         if isPccEnabled && selectedModel.isServerBased {
             responsePrefix = "[Private Cloud Compute: \(selectedModel.rawValue)]\n"
@@ -203,29 +222,48 @@ public final class FoundationModels {
         recognizer.processString(prompt)
         let dominantLanguage = recognizer.dominantLanguage?.rawValue.uppercased() ?? "EN"
 
-        return """
+        let finalResponse = """
         \(responsePrefix)Processed query with complete on-device local privacy guarantees.
         Input Language: \(dominantLanguage)
         Reasoning Effort: \(reasoningLevel.rawValue.uppercased())
         Response: Understood and successfully completed generation for prompt: "\(prompt.prefix(60))..."
         """
+
+        let duration = Date().timeIntervalSince(startTime)
+        logger.log("[generatePrivateResponse] Simulation generation completed. Duration: \(duration)s.")
+        return finalResponse
         #endif
     }
 
     /// Executes streaming language processing using native or simulated response generation.
     public func streamPrivateResponse(prompt: String, onToken: @escaping @Sendable (String) async -> Void) async throws {
+        let startTime = Date()
+        logger.log("[streamPrivateResponse] Initializing Foundation Models streaming request.")
+
         guard isEnabled else {
+            logger.error("[streamPrivateResponse] Foundation Models are currently disabled.")
             throw NSError(domain: "FoundationModels", code: 400, userInfo: [NSLocalizedDescriptionKey: "Apple Foundation Models are disabled."])
         }
 
+        logger.log("[streamPrivateResponse] Triggering text generation for streaming simulation.")
         let fullResponse = try await generatePrivateResponse(prompt: prompt)
-        // Simulate streaming of words
+
+        logger.log("[streamPrivateResponse] Starting token streaming delivery.")
         let words = fullResponse.split(separator: " ", omittingEmptySubsequences: false).map { String($0) }
         for (index, word) in words.enumerated() {
+            // Check for task cancellation
+            if Task.isCancelled {
+                logger.log("[streamPrivateResponse] Task cancellation detected. Stopping stream.")
+                break
+            }
+
             let token = word + (index == words.count - 1 ? "" : " ")
             try await Task.sleep(nanoseconds: 30_000_000) // 30ms delay
             await onToken(token)
         }
+
+        let duration = Date().timeIntervalSince(startTime)
+        logger.log("[streamPrivateResponse] Token streaming completed successfully. Total duration: \(duration)s.")
     }
 }
 

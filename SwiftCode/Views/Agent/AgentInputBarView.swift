@@ -1,4 +1,7 @@
 import SwiftUI
+import os
+
+private let logger = Logger(subsystem: "com.swiftcode.app", category: "AgentInputBarView")
 
 struct AgentInputBarView: View {
     @Bindable var viewModel: AgentViewModel
@@ -22,7 +25,7 @@ struct AgentInputBarView: View {
                 Divider()
             }
 
-            HStack(alignment: .bottom, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
                 Button(action: { showingAttachments = true }) {
                     Image(systemName: "plus.circle")
                         .font(.title2)
@@ -30,17 +33,20 @@ struct AgentInputBarView: View {
                 .buttonStyle(.plain)
                 .help("Add Attachment")
 
-                TextField("Ask the agent anything...", text: $text, axis: .vertical)
+                TextField("Ask the agent anything...", text: $text)
                     .textFieldStyle(.plain)
-                    .lineLimit(1...10)
                     .padding(8)
                     .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(8)
                     .onSubmit {
+                        logger.log("[AgentInputBarView] Return pressed, triggering sendMessage.")
                         sendMessage()
                     }
 
-                Button(action: sendMessage) {
+                Button(action: {
+                    logger.log("[AgentInputBarView] Send button clicked, triggering sendMessage.")
+                    sendMessage()
+                }) {
                     Image(systemName: viewModel.isProcessing ? "stop.circle.fill" : "arrow.up.circle.fill")
                         .font(.title2)
                         .foregroundColor(text.isEmpty && !viewModel.isProcessing ? .secondary : .accentColor)
@@ -60,11 +66,13 @@ struct AgentInputBarView: View {
 
     private func sendMessage() {
         if viewModel.isProcessing {
+            logger.log("[AgentInputBarView] Active request is running. Triggering cancel task.")
             viewModel.cancelTask()
         } else {
             guard !text.isEmpty else { return }
             let currentText = text
             text = ""
+            logger.log("[AgentInputBarView] Dispatching sendUserMessage task for prompt.")
             Task {
                 await viewModel.sendUserMessage(currentText)
             }

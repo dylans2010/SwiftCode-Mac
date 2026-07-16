@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let logger = Logger(subsystem: "com.swiftcode.app", category: "LLMService")
 
 enum LLMProvider: String, CaseIterable {
     case openRouter = "OpenRouter"
@@ -38,8 +41,6 @@ enum LLMProvider: String, CaseIterable {
         }
     }
 }
-
-
 
 enum AIRoutingMode: String, CaseIterable {
     case alwaysLocal = "Always Local"
@@ -98,6 +99,8 @@ final class LLMService: Sendable {
     private func resolvedRoutingProvider() throws -> LLMProvider {
         let mode = AIRoutingMode.from(rawValue: UserDefaults.standard.string(forKey: aiRoutingModeKey))
         let preferredProvider = LLMProvider.from(rawValue: UserDefaults.standard.string(forKey: "ai.selectedProvider"))
+
+        logger.log("[resolvedRoutingProvider] Routing Mode: \(mode.rawValue). Preferred Provider: \(preferredProvider.rawValue).")
 
         switch mode {
         case .alwaysLocal:
@@ -160,10 +163,15 @@ final class LLMService: Sendable {
 
     @MainActor
     func generateResponse(prompt: String, useContext: Bool, modelOverride: String? = nil, providerOverride: LLMProvider? = nil) async throws -> String {
-        if FoundationModels.shared.isEnabled {
+        let isFMEnabled = FoundationModels.shared.isEnabled
+        logger.log("[generateResponse] Starting response generation. FoundationModels enabled: \(isFMEnabled).")
+
+        if isFMEnabled {
+            logger.log("[generateResponse] Foundation Models are enabled. Routing to Apple private on-device reasoning.")
             return try await FoundationModels.shared.generatePrivateResponse(prompt: prompt)
         }
         if modelOverride == nil && providerOverride == nil && OnDeviceModelRouter.shared.useOnDeviceAI() {
+            logger.log("[generateResponse] OnDeviceModelRouter enabled. Routing to on-device AI.")
             return try await OnDeviceModelRouter.shared.generateResponse(prompt: prompt, useContext: useContext)
         }
         return try await generateExternalResponse(prompt: prompt, useContext: useContext, modelOverride: modelOverride, providerOverride: providerOverride)
@@ -171,7 +179,11 @@ final class LLMService: Sendable {
 
     @MainActor
     func generateExternalResponse(prompt: String, useContext: Bool, modelOverride: String? = nil, providerOverride: LLMProvider? = nil) async throws -> String {
-        if FoundationModels.shared.isEnabled {
+        let isFMEnabled = FoundationModels.shared.isEnabled
+        logger.log("[generateExternalResponse] Starting external generation. FoundationModels enabled: \(isFMEnabled).")
+
+        if isFMEnabled {
+            logger.log("[generateExternalResponse] Foundation Models are enabled. Routing to Apple private on-device reasoning.")
             return try await FoundationModels.shared.generatePrivateResponse(prompt: prompt)
         }
         let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -194,15 +206,16 @@ final class LLMService: Sendable {
             model = selected.isEmpty ? "openai/gpt-4o-mini" : selected
         }
 
+        logger.log("[generateExternalResponse] Request constructed. Provider: \(provider.rawValue). Model: \(model). Sending chat request.")
         let response = try await sendChatRequest(
             model: model,
             messages: [AIMessage(role: .user, content: messageContent)],
             providerOverride: providerOverride
         )
 
+        logger.log("[generateExternalResponse] Chat request successful. Response completed.")
         return response.completionText
     }
-
 
     func sanitizeResponse(_ response: String, relativeTo prompt: String) -> String {
         let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -239,13 +252,13 @@ final class LLMService: Sendable {
             .joined()
     }
 
-
     func validateAPIKey(provider: LLMProvider, key: String) async throws -> Bool {
+        logger.log("[validateAPIKey] Validating API key for provider: \(provider.rawValue).")
         do {
-            // For most providers, fetching models is a good way to validate
             _ = try await fetchAvailableModels(provider: provider, key: key)
             return true
         } catch {
+            logger.error("[validateAPIKey] Key validation failed: \(error.localizedDescription)")
             throw error
         }
     }
@@ -260,7 +273,6 @@ final class LLMService: Sendable {
         let (data, response) = try await URLSession.shared.data(for: request)
         try handleHTTPError(response, data: data)
 
-        // Anthropic doesn't have a standard /models endpoint like OpenAI
         if provider == .anthropic {
             return ["claude-3-5-sonnet-20240620", "claude-3-opus-20240229", "claude-3-haiku-20240307"]
         }
@@ -277,12 +289,17 @@ final class LLMService: Sendable {
             provider = try await resolvedRoutingProvider()
         }
 
+        logger.log("[sendChatRequest] Starting generation request. Provider: \(provider.rawValue). Model: \(model).")
+
         if provider == .offline {
             return try await runOfflineResponse(messages: messages)
         }
 
         let actualKey = key ?? APIKeyManager.shared.retrieveKey(service: apiKeyProvider(for: provider)) ?? KeychainService.shared.get(forKey: provider.keychainKey) ?? ""
-        guard !actualKey.isEmpty else { throw LLMError.invalidKey }
+        guard !actualKey.isEmpty else {
+            logger.error("[sendChatRequest] Missing API key for \(provider.rawValue).")
+            throw LLMError.invalidKey
+        }
 
         do {
             let startTime = Date()
@@ -296,10 +313,12 @@ final class LLMService: Sendable {
             let body = try buildRequestBody(provider: provider, model: model, messages: messages, stream: false)
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
+            logger.log("[sendChatRequest] Sending non-streaming API request to \(provider.rawValue)...")
             let (data, response) = try await URLSession.shared.data(for: request)
             try handleHTTPError(response, data: data)
 
             let latency = Date().timeIntervalSince(startTime)
+            logger.log("[sendChatRequest] Request finished in \(latency) seconds.")
 
             if provider == .anthropic {
                 let decoded = try JSONDecoder().decode(AnthropicResponse.self, from: data)
@@ -323,7 +342,9 @@ final class LLMService: Sendable {
                 )
             }
         } catch {
+            logger.warning("[sendChatRequest] Request failed: \(error.localizedDescription). Checking fallback eligibility.")
             if await shouldFallbackToOffline(for: provider) {
+                logger.log("[sendChatRequest] Falling back to offline runner.")
                 return try await runOfflineResponse(messages: messages)
             }
             throw error
@@ -332,7 +353,6 @@ final class LLMService: Sendable {
 
     func measureLatency(provider: LLMProvider, key: String) async throws -> TimeInterval {
         let startTime = Date()
-        // Simple validation or model fetch to measure latency
         _ = try await fetchAvailableModels(provider: provider, key: key)
         return Date().timeIntervalSince(startTime)
     }
@@ -343,13 +363,18 @@ final class LLMService: Sendable {
         systemPrompt: String,
         onToken: @escaping @Sendable (String) async -> Void
     ) async throws {
-        if await FoundationModels.shared.isEnabled {
+        let isFMEnabled = await FoundationModels.shared.isEnabled
+        logger.log("[streamChat] Starting stream request. FoundationModels enabled: \(isFMEnabled).")
+
+        if isFMEnabled {
+            logger.log("[streamChat] Foundation Models are enabled. Routing to Apple private on-device reasoning.")
             try await FoundationModels.shared.streamPrivateResponse(prompt: messages.last?.content ?? "", onToken: onToken)
             return
         }
         let provider = try await resolvedRoutingProvider()
 
         if provider == .offline {
+            logger.log("[streamChat] Routing stream to offline model.")
             _ = try await defaultOfflineModelName()
             try await OfflineModelRunner.shared.loadModel(at: try await defaultOfflineModelDirectory())
             try await OfflineModelRunner.shared.streamResponse(prompt: messages.last?.content ?? "") { token in
@@ -362,6 +387,7 @@ final class LLMService: Sendable {
 
         do {
             if provider == .openRouter {
+                logger.log("[streamChat] Streaming with OpenRouter.")
                 try await OpenRouterService.shared.streamChat(
                     messages: messages,
                     model: model,
@@ -372,7 +398,10 @@ final class LLMService: Sendable {
             }
 
             let key = APIKeyManager.shared.retrieveKey(service: apiKeyProvider(for: provider)) ?? KeychainService.shared.get(forKey: provider.keychainKey) ?? ""
-            guard !key.isEmpty else { throw LLMError.invalidKey }
+            guard !key.isEmpty else {
+                logger.error("[streamChat] Missing API key for stream.")
+                throw LLMError.invalidKey
+            }
 
             let endpoint = provider == .anthropic ? "messages" : "chat/completions"
             let url = provider.baseURL.appendingPathComponent(endpoint)
@@ -384,9 +413,11 @@ final class LLMService: Sendable {
             let body = try buildRequestBody(provider: provider, model: model, messages: messages, systemPrompt: systemPrompt, stream: true)
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
+            logger.log("[streamChat] Connecting to stream at \(provider.rawValue)...")
             let (stream, response) = try await URLSession.shared.bytes(for: request)
             try handleHTTPError(response, data: nil)
 
+            logger.log("[streamChat] Stream connected. Consuming lines.")
             for try await line in stream.lines {
                 guard line.hasPrefix("data: ") else { continue }
                 let jsonString = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
@@ -407,7 +438,9 @@ final class LLMService: Sendable {
                 }
             }
         } catch {
+            logger.warning("[streamChat] Stream failed: \(error.localizedDescription). Checking fallback eligibility.")
             if await shouldFallbackToOffline(for: provider) {
+                logger.log("[streamChat] Falling back to offline runner stream.")
                 _ = try await defaultOfflineModelName()
                 try await OfflineModelRunner.shared.loadModel(at: try await defaultOfflineModelDirectory())
                 try await OfflineModelRunner.shared.streamResponse(prompt: messages.last?.content ?? "") { token in
