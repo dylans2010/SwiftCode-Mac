@@ -3,6 +3,7 @@ import AppKit
 
 // MARK: - FileSymbolsShow (Central symbol registry with AppSettings integration)
 
+@MainActor
 public struct FileSymbolsShow {
     public static func symbol(forPathExtension ext: String, isFolder: Bool = false) -> String {
         if isFolder {

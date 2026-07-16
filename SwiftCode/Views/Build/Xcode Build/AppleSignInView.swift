@@ -260,58 +260,11 @@ struct AppleSignInView: View {
                                 }
 
                                 ForEach(manager.developerAccounts) { account in
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        HStack {
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text(account.teamName)
-                                                    .font(.body.bold())
-                                                Text("\(account.appleID) (Team ID: \(account.teamID))")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                            }
-                                            Spacer()
-
-                                            Button(role: .destructive) {
-                                                if let index = manager.developerAccounts.firstIndex(where: { $0.id == account.id }) {
-                                                    manager.removeAccount(at: IndexSet(integer: index))
-                                                }
-                                            } label: {
-                                                Image(systemName: "trash")
-                                                    .foregroundStyle(.red)
-                                            }
-                                            .buttonStyle(.plain)
-                                            .help("Remove Account")
-                                            .padding(.trailing, 8)
-
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .foregroundStyle(.green)
-                                        }
-
-                                        if let certificates = account.certificates, !certificates.isEmpty {
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text("Active Signing Certificates:")
-                                                    .font(.caption.bold())
-                                                    .foregroundStyle(.secondary)
-
-                                                ForEach(certificates) { cert in
-                                                    HStack {
-                                                        Image(systemName: "key.fill")
-                                                            .foregroundStyle(.orange)
-                                                            .imageScale(.small)
-                                                        Text("\(cert.name) (\(cert.type))")
-                                                            .font(.caption)
-                                                            .foregroundStyle(.secondary)
-                                                    }
-                                                }
-                                            }
-                                            .padding(.top, 4)
-                                        } else {
-                                            Text("No active certificates found in this account.")
-                                                .font(.caption.italic())
-                                                .foregroundStyle(.secondary)
+                                    ConnectedAccountRowView(account: account) {
+                                        if let index = manager.developerAccounts.firstIndex(where: { $0.id == account.id }) {
+                                            manager.removeAccount(at: IndexSet(integer: index))
                                         }
                                     }
-                                    .padding(.vertical, 4)
 
                                     if account.id != manager.developerAccounts.last?.id {
                                         Divider()
@@ -489,5 +442,64 @@ struct AppleSignInView: View {
             }
         }
         .frame(minWidth: 550, idealWidth: 600, maxWidth: 800, minHeight: 500, idealHeight: 650, maxHeight: 900)
+    }
+}
+
+@MainActor
+struct ConnectedAccountRowView: View {
+    let account: AppleSignInManager.AppleDeveloperAccount
+    let onRemove: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(account.teamName)
+                        .font(.body.bold())
+                    Text("\(account.appleID) (Team ID: \(account.teamID))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+
+                Button(role: .destructive) {
+                    onRemove()
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(.red)
+                }
+                .buttonStyle(.plain)
+                .help("Remove Account")
+                .padding(.trailing, 8)
+
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            }
+
+            if let certificates = account.certificates, !certificates.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Active Signing Certificates:")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+
+                    ForEach(certificates) { cert in
+                        HStack {
+                            Image(systemName: "key.fill")
+                                .foregroundStyle(.orange)
+                                .imageScale(.small)
+                            Text("\(cert.name) (\(cert.type))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            } else {
+                Text("No active certificates found in this account.")
+                    .font(.caption.italic())
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
