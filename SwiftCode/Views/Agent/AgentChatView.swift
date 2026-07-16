@@ -8,6 +8,16 @@ public struct AgentChatView: View {
 
     public init() {}
 
+    @MainActor
+    private var filteredSessions: [AgentSession] {
+        viewModel.sessions.filter { s in
+            searchText.isEmpty || s.messages.compactMap { content -> String? in
+                if case .text(let t) = content { return t }
+                return nil
+            }.joined(separator: " ").localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
     public var body: some View {
         HSplitView {
             // Column 1: Left Sidebar (Conversation History)
@@ -39,21 +49,14 @@ public struct AgentChatView: View {
                     Divider()
 
                     // Sessions List
-                    List(selection: Binding(
+                    List(selection: Binding<UUID?>(
                         get: { viewModel.session.id },
                         set: { id in
-                            if let s = viewModel.sessions.first(where: { $0.id == id }) {
+                            if let selectedId = id, let s = viewModel.sessions.first(where: { $0.id == selectedId }) {
                                 viewModel.selectSession(s)
                             }
                         }
                     )) {
-                        let filteredSessions = viewModel.sessions.filter { s in
-                            searchText.isEmpty || s.messages.compactMap { content -> String? in
-                                if case .text(let t) = content { return t }
-                                return nil
-                            }.joined(separator: " ").localizedCaseInsensitiveContains(searchText)
-                        }
-
                         if filteredSessions.isEmpty {
                             Text("No chats found")
                                 .font(.caption)
@@ -64,12 +67,7 @@ public struct AgentChatView: View {
                                 HStack {
                                     Label {
                                         VStack(alignment: .leading, spacing: 2) {
-                                            let firstMsg = s.messages.first(where: { $0.role == .user })?.content.compactMap { content -> String? in
-                                                if case .text(let t) = content { return t }
-                                                return nil
-                                            }.first ?? "New Conversation"
-
-                                            Text(firstMsg)
+                                            Text(s.firstUserMessageText)
                                                 .font(.body)
                                                 .lineLimit(1)
 
