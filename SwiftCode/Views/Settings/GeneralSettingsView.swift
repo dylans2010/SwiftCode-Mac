@@ -2090,141 +2090,242 @@ struct GitHubConfigView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                // Git Identity
-                Section {
-                    TextField("Name (e.g. Jane Doe)", text: $settings.gitUserName)
-                        .autocorrectionDisabled()
-                    TextField("Email (e.g. jane@example.com)", text: $settings.gitUserEmail)
-                        .autocorrectionDisabled()
-                } header: {
-                    Label("Git Identity", systemImage: "person.fill")
-                } footer: {
-                    Text("Used in commit messages across all repositories.")
-                }
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Git Identity
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Git Identity", systemImage: "person.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
+                            }
 
-                // Key Recommendation
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Recommended: Personal Access Token (Classic)")
-                            .font(.subheadline.bold())
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Name")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                TextField("Name (e.g. Jane Doe)", text: $settings.gitUserName)
+                                    .textFieldStyle(.roundedBorder)
+                                    .autocorrectionDisabled()
+                            }
 
-                        Text("For full integration with SwiftCode (repository creation, commits, and deployments), we recommend using a 'Classic' token (ghp_).")
-                            .font(.caption)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Email")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                TextField("Email (e.g. jane@example.com)", text: $settings.gitUserEmail)
+                                    .textFieldStyle(.roundedBorder)
+                                    .autocorrectionDisabled()
+                            }
 
-                        Divider()
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Classic (ghp_):")
-                                .font(.caption.bold())
-                            Text("Supports all repository operations and is generally more reliable for full developer workflows.")
-                                .font(.caption2)
+                            Text("Used in commit messages across all repositories.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Fine-grained (github_pat_):")
-                                .font(.caption.bold())
-                            Text("Good for limiting access to specific repositories, but may cause permission issues with automated deployments.")
-                                .font(.caption2)
-                        }
+                        .padding()
                     }
-                    .padding(.vertical, 4)
-                } header: {
-                    Label("Which GitHub Key Is Recommended", systemImage: "lightbulb.fill")
-                }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                // SSH & HTTPS Authentication
-                Section {
-                    TextField("SSH Key Path", text: $settings.sshKeyPath)
-                        .autocorrectionDisabled()
-                    TextField("HTTPS Auth Token", text: $settings.httpsAuthToken)
-                        .autocorrectionDisabled()
-                } header: {
-                    Label("Authentication", systemImage: "lock.shield.fill")
-                } footer: {
-                    Text("Configure SSH key path or HTTPS authentication token for Git operations.")
-                }
+                    // Key Recommendation
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Which GitHub Key Is Recommended", systemImage: "lightbulb.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.yellow)
+                                Spacer()
+                            }
 
-                // Advanced Git Options
-                Section {
-                    Toggle("Auto Fetch Repositories", isOn: $settings.autoFetchRepositories)
-                    Toggle("Auto Pull Before Commit", isOn: $settings.autoPullBeforeCommit)
-                    Toggle("Workflow Monitoring", isOn: $settings.workflowMonitoringEnabled)
-                } header: {
-                    Label("Git Automation", systemImage: "gearshape.2.fill")
-                } footer: {
-                    Text("Automatic fetch keeps your local copy in sync. Auto pull before commit prevents merge conflicts.")
-                }
+                            Text("Recommended: Personal Access Token (Classic)")
+                                .font(.subheadline.bold())
 
-                // Commit Message Template
-                Section {
-                    TextField("e.g. [Feature] {message}", text: $settings.commitMessageTemplate)
-                        .autocorrectionDisabled()
-                } header: {
-                    Label("Commit Template", systemImage: "text.badge.checkmark")
-                } footer: {
-                    Text("Define a template for commit messages. Use {message} as a placeholder for the actual message.")
-                }
-
-                // Repository Permissions
-                Section {
-                    if permManager.isLoading {
-                        HStack(spacing: 10) {
-                            ProgressView()
-                            Text("Checking Permissions…")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else if permManager.hasChecked {
-                        if let error = permManager.errorMessage {
-                            Label(error, systemImage: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.red)
-                                .font(.caption)
-                        } else if permManager.permissions.isEmpty {
-                            Text("No scopes detected. Your token may have no listed scopes or uses fine-grained permissions.")
+                            Text("For full integration with SwiftCode (repository creation, commits, and deployments), we recommend using a 'Classic' token (ghp_).")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(permManager.permissions) { perm in
-                                HStack(spacing: 12) {
-                                    Image(systemName: perm.icon)
-                                        .foregroundStyle(.blue)
-                                        .frame(width: 22)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(perm.scope)
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(.primary)
-                                            .fontDesign(.monospaced)
-                                        Text(perm.humanReadable)
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                .padding(.vertical, 2)
+
+                            Divider()
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Classic (ghp_):")
+                                    .font(.caption.bold())
+                                Text("Supports all repository operations and is generally more reliable for full developer workflows.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Fine-grained (github_pat_):")
+                                    .font(.caption.bold())
+                                Text("Good for limiting access to specific repositories, but may cause permission issues with automated deployments.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             }
                         }
-                        Button {
-                            Task { await permManager.fetchPermissions() }
-                        } label: {
-                            Label("Check Permissions", systemImage: "arrow.clockwise")
-                                .font(.callout)
-                        }
-                    } else {
-                        Button {
-                            Task { await permManager.fetchPermissions() }
-                        } label: {
-                            Label("Check Permissions", systemImage: "checkmark.shield.fill")
-                                .foregroundStyle(.blue)
-                        }
-                        Text("Tap here to see what scopes your current GitHub token has.")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+                        .padding()
                     }
-                } header: {
-                    Label("Repository Permissions", systemImage: "lock.open.fill")
-                } footer: {
-                    Text("Permissions are determined by your GitHub token's OAuth scopes.")
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // SSH & HTTPS Authentication
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Authentication", systemImage: "lock.shield.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("SSH Key Path")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                TextField("SSH Key Path", text: $settings.sshKeyPath)
+                                    .textFieldStyle(.roundedBorder)
+                                    .autocorrectionDisabled()
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("HTTPS Auth Token")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                TextField("HTTPS Auth Token", text: $settings.httpsAuthToken)
+                                    .textFieldStyle(.roundedBorder)
+                                    .autocorrectionDisabled()
+                            }
+
+                            Text("Configure SSH key path or HTTPS authentication token for Git operations.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Advanced Git Options
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Git Automation", systemImage: "gearshape.2.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.purple)
+                                Spacer()
+                            }
+
+                            Toggle("Auto Fetch Repositories", isOn: $settings.autoFetchRepositories)
+                            Toggle("Auto Pull Before Commit", isOn: $settings.autoPullBeforeCommit)
+                            Toggle("Workflow Monitoring", isOn: $settings.workflowMonitoringEnabled)
+
+                            Text("Automatic fetch keeps your local copy in sync. Auto pull before commit prevents merge conflicts.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Commit Message Template
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Commit Template", systemImage: "text.badge.checkmark")
+                                    .font(.headline)
+                                    .foregroundColor(.green)
+                                Spacer()
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Template")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                TextField("e.g. [Feature] {message}", text: $settings.commitMessageTemplate)
+                                    .textFieldStyle(.roundedBorder)
+                                    .autocorrectionDisabled()
+                            }
+
+                            Text("Define a template for commit messages. Use {message} as a placeholder for the actual message.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Repository Permissions
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Repository Permissions", systemImage: "lock.open.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.red)
+                                Spacer()
+                            }
+
+                            if permManager.isLoading {
+                                HStack(spacing: 10) {
+                                    ProgressView().scaleEffect(0.8)
+                                    Text("Checking Permissions…")
+                                        .font(.callout)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } else if permManager.hasChecked {
+                                if let error = permManager.errorMessage {
+                                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.red)
+                                        .font(.caption)
+                                } else if permManager.permissions.isEmpty {
+                                    Text("No scopes detected. Your token may have no listed scopes or uses fine-grained permissions.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        ForEach(permManager.permissions) { perm in
+                                            HStack(spacing: 12) {
+                                                Image(systemName: perm.icon)
+                                                    .foregroundStyle(.blue)
+                                                    .frame(width: 22)
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(perm.scope)
+                                                        .font(.caption.weight(.semibold))
+                                                        .foregroundStyle(.primary)
+                                                        .fontDesign(.monospaced)
+                                                    Text(perm.humanReadable)
+                                                        .font(.caption2)
+                                                        .foregroundStyle(.secondary)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Button(action: {
+                                    Task { await permManager.fetchPermissions() }
+                                }) {
+                                    Label("Check Permissions Again", systemImage: "arrow.clockwise")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.bordered)
+                            } else {
+                                Button(action: {
+                                    Task { await permManager.fetchPermissions() }
+                                }) {
+                                    Label("Check Permissions", systemImage: "checkmark.shield.fill")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
+
+                                Text("Tap here to see what scopes your current GitHub token has.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
+                .padding(24)
             }
             .navigationTitle("GitHub & Git Config")
             .toolbar {
