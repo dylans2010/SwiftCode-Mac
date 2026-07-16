@@ -6,6 +6,7 @@ import Observation
 @MainActor
 public class AgentViewModel {
     public var session: AgentSession
+    public var sessions: [AgentSession] = []
     public var attachments: [AgentAttachment] = []
     
     public var isProcessing: Bool {
@@ -21,6 +22,26 @@ public class AgentViewModel {
 
     public init(session: AgentSession = .init()) {
         self.session = session
+        self.sessions = [session]
+    }
+
+    public func startNewSession(mode: AgentChatMode = .chat) {
+        let newSession = AgentSession(mode: mode)
+        sessions.append(newSession)
+        session = newSession
+    }
+
+    public func selectSession(_ session: AgentSession) {
+        self.session = session
+    }
+
+    public func deleteSession(_ session: AgentSession) {
+        sessions.removeAll { $0.id == session.id }
+        if sessions.isEmpty {
+            startNewSession(mode: .chat)
+        } else if self.session.id == session.id {
+            self.session = sessions.last!
+        }
     }
 
     public func sendUserMessage(_ text: String) async {
@@ -28,9 +49,7 @@ public class AgentViewModel {
         attachments.removeAll()
         
         do {
-            var localSession = session
-            try await orchestrator.runTurn(session: &localSession, userMessage: text, attachments: currentAttachments)
-            session = localSession
+            try await orchestrator.runTurn(session: session, userMessage: text, attachments: currentAttachments)
         } catch {
             session.turnState = .failed(.unknown(error.localizedDescription))
         }
@@ -39,9 +58,7 @@ public class AgentViewModel {
     public func sendMessage(_ text: String, attachments: [AgentAttachment] = []) {
         Task {
             do {
-                var localSession = session
-                try await orchestrator.runTurn(session: &localSession, userMessage: text, attachments: attachments)
-                session = localSession
+                try await orchestrator.runTurn(session: session, userMessage: text, attachments: attachments)
             } catch {
                 session.turnState = .failed(.unknown(error.localizedDescription))
             }
@@ -60,9 +77,7 @@ public class AgentViewModel {
         guard let lastToolCall = findLastUnansweredToolCall() else { return }
         Task {
             do {
-                var localSession = session
-                try await orchestrator.resumeTurn(session: &localSession, result: answer, toolCallId: lastToolCall.id)
-                session = localSession
+                try await orchestrator.resumeTurn(session: session, result: answer, toolCallId: lastToolCall.id)
             } catch {
                 session.turnState = .failed(.unknown(error.localizedDescription))
             }
@@ -76,9 +91,7 @@ public class AgentViewModel {
 
         Task {
             do {
-                var localSession = session
-                try await orchestrator.resumeTurn(session: &localSession, result: result, toolCallId: lastToolCall.id)
-                session = localSession
+                try await orchestrator.resumeTurn(session: session, result: result, toolCallId: lastToolCall.id)
             } catch {
                 session.turnState = .failed(.unknown(error.localizedDescription))
             }
