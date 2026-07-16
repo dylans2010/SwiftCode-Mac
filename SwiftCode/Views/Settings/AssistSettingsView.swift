@@ -1,4 +1,7 @@
 import SwiftUI
+import os
+
+private let logger = Logger(subsystem: "com.swiftcode.AssistSettings", category: "AssistSettings")
 
 // MARK: - HeaderItem Helper
 
@@ -33,15 +36,15 @@ public final class FreeModelsFallback {
             return try await task(currentDefaultModel)
         }
 
-        print("[FreeModelsFallback] fallback-rotation is active. Free models identified: \(freeModels.map { $0.id })")
+        logger.log("[FreeModelsFallback] fallback-rotation is active. Free models identified: \(freeModels.map { $0.id })")
 
         var lastError: Error? = nil
         for model in freeModels {
             do {
-                print("[FreeModelsFallback] Attempting request utilizing free model: \(model.id)")
+                logger.log("[FreeModelsFallback] Attempting request utilizing free model: \(model.id)")
                 return try await task(model.id)
             } catch {
-                print("[FreeModelsFallback] Request failed on model: \(model.id) due to error: \(error.localizedDescription). Proceeding to next fallback model.")
+                logger.error("[FreeModelsFallback] Request failed on model: \(model.id) due to error: \(error.localizedDescription, privacy: .public). Proceeding to next fallback model.")
                 lastError = error
             }
         }
@@ -120,51 +123,179 @@ struct FreeORModels: View {
 
 struct FoundationModelsView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var manager = FoundationModels.shared
+    @Bindable private var manager = FoundationModels.shared
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Native Swift Foundation Model") {
-                    Toggle("Enable Private On-Device Models", isOn: Binding(
-                        get: { manager.isEnabled },
-                        set: { manager.isEnabled = $0 }
-                    ))
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "apple.logo")
+                                .font(.title)
+                                .foregroundStyle(.green)
+                            Text("Third-Gen Apple Foundation Models")
+                                .font(.headline)
+                        }
 
-                    Text("Process natural language and translation commands fully locally using Apple iOS & macOS platform system foundation frameworks.")
+                        Text("Configure on-device and server-side intelligence using Apple's native secure architecture (AFM 3).")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                Section {
+                    Toggle("Enable Private On-Device Models", isOn: $manager.isEnabled)
+                        .toggleStyle(.switch)
+
+                    Text("Process natural language commands locally on Apple Silicon and route complex sessions through Private Cloud Compute.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Model Diagnostics & Capabilities") {
-                    HStack {
-                        Text("Apple Translation Native API")
-                        Spacer()
-                        if #available(macOS 15.0, *) {
-                            Text("Available")
-                                .font(.caption.bold())
-                                .foregroundStyle(.green)
-                        } else {
-                            Text("Requires macOS 15+")
-                                .font(.caption.bold())
-                                .foregroundStyle(.red)
+                if manager.isEnabled {
+                    Section("Active Model Select (AFM 3 Series)") {
+                        ForEach(AppleFoundationModel.allCases) { model in
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(spacing: 6) {
+                                        Text(model.rawValue)
+                                            .font(.body.bold())
+
+                                        if model.isServerBased {
+                                            Text("PCC Server")
+                                                .font(.system(size: 9, weight: .bold))
+                                                .padding(.horizontal, 4)
+                                                .padding(.vertical, 1)
+                                                .background(Color.blue.opacity(0.15))
+                                                .foregroundStyle(.blue)
+                                                .cornerRadius(3)
+                                        } else {
+                                            Text("On-Device")
+                                                .font(.system(size: 9, weight: .bold))
+                                                .padding(.horizontal, 4)
+                                                .padding(.vertical, 1)
+                                                .background(Color.green.opacity(0.15))
+                                                .foregroundStyle(.green)
+                                                .cornerRadius(3)
+                                        }
+                                    }
+
+                                    Text(model.description)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+
+                                if manager.selectedModel == model {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(Color.accentColor)
+                                } else {
+                                    Circle()
+                                        .strokeBorder(Color.secondary.opacity(0.5), lineWidth: 1)
+                                        .frame(width: 16, height: 16)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                manager.selectedModel = model
+                                // Automatically toggle PCC routing if server model is selected
+                                manager.isPccEnabled = model.isServerBased
+                            }
+                            .padding(.vertical, 4)
                         }
                     }
 
-                    HStack {
-                        Text("Natural Language Processor")
-                        Spacer()
-                        Text("Ready")
-                            .font(.caption.bold())
-                            .foregroundStyle(.green)
+                    Section("Reasoning Level") {
+                        Picker("Reasoning Effort", selection: $manager.reasoningLevel) {
+                            ForEach(AppReasoningLevel.allCases) { level in
+                                Text(level.rawValue.capitalized).tag(level)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        Text(manager.reasoningLevel.description)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
 
-                    HStack {
-                        Text("macOS 26+ Future-Proof Safeguard")
-                        Spacer()
-                        Text("Fully Compatible")
-                            .font(.caption.bold())
-                            .foregroundStyle(.blue)
+                    Section("Private Cloud Compute (PCC) Status") {
+                        Toggle("Route through Private Cloud Compute", isOn: $manager.isPccEnabled)
+                            .disabled(!manager.selectedModel.isServerBased)
+
+                        Text("Directs sessions to secure PCC servers for a 32K token context window. Falls back to on-device models if network is unavailable.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        if manager.isPccEnabled {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Divider()
+
+                                HStack {
+                                    Text("PCC Quota Status:")
+                                        .font(.caption.bold())
+                                    Spacer()
+                                    if manager.simulatedQuotaLimitReached {
+                                        Text("Usage limit exceeded")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(.red)
+                                    } else if manager.simulatedApproachingLimit {
+                                        Text("Nearing usage limit")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(.orange)
+                                    } else {
+                                        Text("Below daily limit")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(.green)
+                                    }
+                                }
+
+                                if manager.simulatedQuotaLimitReached {
+                                    HStack {
+                                        Text("Daily reasoning quota exhausted. Limits reset at midnight.")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                        Button("Show Options") {
+                                            // Simulated upgrade
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                    }
+                                } else if manager.simulatedApproachingLimit {
+                                    Text("Nearing quota limit. Moderate your reasoning effort to avoid depletion.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Divider()
+
+                                Text("Quota Simulation (For testing and evaluation)")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+
+                                HStack(spacing: 20) {
+                                    Toggle("Simulate Limit Reached", isOn: Binding(
+                                        get: { manager.simulatedQuotaLimitReached },
+                                        set: {
+                                            manager.simulatedQuotaLimitReached = $0
+                                            if $0 { manager.simulatedApproachingLimit = false }
+                                        }
+                                    ))
+                                    Toggle("Simulate Approaching Limit", isOn: Binding(
+                                        get: { manager.simulatedApproachingLimit },
+                                        set: {
+                                            manager.simulatedApproachingLimit = $0
+                                            if $0 { manager.simulatedQuotaLimitReached = false }
+                                        }
+                                    ))
+                                }
+                                .toggleStyle(.checkbox)
+                            }
+                            .padding(.vertical, 4)
+                        }
                     }
                 }
             }
@@ -175,7 +306,7 @@ struct FoundationModelsView: View {
                 }
             }
         }
-        .frame(width: 460, height: 360)
+        .frame(width: 520, height: 620)
     }
 }
 
