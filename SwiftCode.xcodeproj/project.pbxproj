@@ -7,6 +7,30 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CE705E1EC3604FFEEB031075 /* FoundationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE68646614763378D91E7012 /* FoundationModels.swift */; };
+		CE3EAC5E7C71DB9CA457E7AE /* CreateSkillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CED266A16F67FF4A960CF451 /* CreateSkillView.swift */; };
+		CE3CDC8FCF4BBB848CB8E5CF /* BrowseSkillsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7B94A26F5E53ED2C136F7B /* BrowseSkillsView.swift */; };
+		CEB1145BBC6B959F2E4E8FBD /* DraftSkillWithAIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEF6AD3498FEF1AA327AD28A /* DraftSkillWithAIView.swift */; };
+		CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE700506F3352368A41893BA /* avfoundation_processing.SKILLS.md */; };
+		CE50540DF71B53AE4E31F0E6 /* combine_streams.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE2382C7D0FFFA5316E68400 /* combine_streams.SKILLS.md */; };
+		CEE311274FEC87A5EF2D657E /* core_graphics.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CEE85EFE04F3F2842521049C /* core_graphics.SKILLS.md */; };
+		CED46E99F28DF277D722E61F /* coredata_thread_safety.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE1B376934CDFBB257A32095 /* coredata_thread_safety.SKILLS.md */; };
+		CEBB092CED919F6029B75A8A /* custom_layouts.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE2338213A255B35EF3E194E /* custom_layouts.SKILLS.md */; };
+		CE459D6E62E413726B9A84BC /* gcd_vs_async_await.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE2D4C655313CA36270BEB31 /* gcd_vs_async_await.SKILLS.md */; };
+		CE7EA3C9FED5E1D1D770229A /* instruments_profiling.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CEB71CBFC11CCBA944F935A1 /* instruments_profiling.SKILLS.md */; };
+		CED879AE5A41E92B3129EC80 /* keychain_security.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE3FEE6719618869537C9994 /* keychain_security.SKILLS.md */; };
+		CEC84BC8ADBBC970E03ADC55 /* localization_catalogs.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE317C21CBC00AB979406DA6 /* localization_catalogs.SKILLS.md */; };
+		CE336E4560C63A2133330F59 /* memory_management.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE2319264473BA9E2D0270D7 /* memory_management.SKILLS.md */; };
+		CE4B1B136F76CE1C5A41FD4B /* objc_interop.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE682E48AA5348FCD988C68E /* objc_interop.SKILLS.md */; };
+		CEB0CCAC5D75C206D7C9728E /* push_notifications.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE3CBEFDE21F0DFB5636D695 /* push_notifications.SKILLS.md */; };
+		CEED14A2B7B3087BC85CA565 /* sandbox_permissions.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CEA8FE33A0944C1752EECD66 /* sandbox_permissions.SKILLS.md */; };
+		CE2FF47A04855607CF2D5620 /* spm_integration.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CEF8D4187FAC064E03792C74 /* spm_integration.SKILLS.md */; };
+		CE5FE91E20082E8C703CB953 /* swift6_concurrency.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE9C6DC3123BCFDEE3D5EDE8 /* swift6_concurrency.SKILLS.md */; };
+		CE50AF7B50BB9C16C5DAD941 /* swiftdata_integration.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CEA1191D45CD322B983C5F76 /* swiftdata_integration.SKILLS.md */; };
+		CE62BDE06D4B945C230FF2E9 /* swiftui_performance.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE63527DEB5C1DB019E30C23 /* swiftui_performance.SKILLS.md */; };
+		CE3A20F327C8EC5038B9A46C /* swiftui_state_isolation.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE53668CF30CE1238D858196 /* swiftui_state_isolation.SKILLS.md */; };
+		CEC8854776F555EB692B8BED /* urlsession_networking.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE2EC435FD747262182FF340 /* urlsession_networking.SKILLS.md */; };
+		CE43AE9FADD711CD053F5D77 /* xctest_unit_testing.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE4F7C94C5DE105D11CC20BD /* xctest_unit_testing.SKILLS.md */; };
 		775C17DFAC2EE718919A321 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 775C17DFAC2EE718919A322 /* SettingsView.swift */; };
 		12095A22ECC64B12B6DEC8A6 /* RepositoryExplorerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C4B5F1F12214C359ACD8CCA /* RepositoryExplorerView.swift */; };
 		B5BBAC4D7E5740458D5ED6D2 /* RepositoryAutomationBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 159C4D4C5E8C495FA5D92D5B /* RepositoryAutomationBuilderView.swift */; };
@@ -1134,6 +1158,30 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		CE68646614763378D91E7012 /* FoundationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModels.swift; sourceTree = "<group>"; };
+		CED266A16F67FF4A960CF451 /* CreateSkillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateSkillView.swift; sourceTree = "<group>"; };
+		CE7B94A26F5E53ED2C136F7B /* BrowseSkillsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseSkillsView.swift; sourceTree = "<group>"; };
+		CEF6AD3498FEF1AA327AD28A /* DraftSkillWithAIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DraftSkillWithAIView.swift; sourceTree = "<group>"; };
+		CE700506F3352368A41893BA /* avfoundation_processing.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = avfoundation_processing.SKILLS.md; sourceTree = "<group>"; };
+		CE2382C7D0FFFA5316E68400 /* combine_streams.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = combine_streams.SKILLS.md; sourceTree = "<group>"; };
+		CEE85EFE04F3F2842521049C /* core_graphics.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = core_graphics.SKILLS.md; sourceTree = "<group>"; };
+		CE1B376934CDFBB257A32095 /* coredata_thread_safety.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = coredata_thread_safety.SKILLS.md; sourceTree = "<group>"; };
+		CE2338213A255B35EF3E194E /* custom_layouts.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = custom_layouts.SKILLS.md; sourceTree = "<group>"; };
+		CE2D4C655313CA36270BEB31 /* gcd_vs_async_await.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = gcd_vs_async_await.SKILLS.md; sourceTree = "<group>"; };
+		CEB71CBFC11CCBA944F935A1 /* instruments_profiling.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = instruments_profiling.SKILLS.md; sourceTree = "<group>"; };
+		CE3FEE6719618869537C9994 /* keychain_security.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = keychain_security.SKILLS.md; sourceTree = "<group>"; };
+		CE317C21CBC00AB979406DA6 /* localization_catalogs.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = localization_catalogs.SKILLS.md; sourceTree = "<group>"; };
+		CE2319264473BA9E2D0270D7 /* memory_management.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = memory_management.SKILLS.md; sourceTree = "<group>"; };
+		CE682E48AA5348FCD988C68E /* objc_interop.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = objc_interop.SKILLS.md; sourceTree = "<group>"; };
+		CE3CBEFDE21F0DFB5636D695 /* push_notifications.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = push_notifications.SKILLS.md; sourceTree = "<group>"; };
+		CEA8FE33A0944C1752EECD66 /* sandbox_permissions.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = sandbox_permissions.SKILLS.md; sourceTree = "<group>"; };
+		CEF8D4187FAC064E03792C74 /* spm_integration.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = spm_integration.SKILLS.md; sourceTree = "<group>"; };
+		CE9C6DC3123BCFDEE3D5EDE8 /* swift6_concurrency.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = swift6_concurrency.SKILLS.md; sourceTree = "<group>"; };
+		CEA1191D45CD322B983C5F76 /* swiftdata_integration.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = swiftdata_integration.SKILLS.md; sourceTree = "<group>"; };
+		CE63527DEB5C1DB019E30C23 /* swiftui_performance.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = swiftui_performance.SKILLS.md; sourceTree = "<group>"; };
+		CE53668CF30CE1238D858196 /* swiftui_state_isolation.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = swiftui_state_isolation.SKILLS.md; sourceTree = "<group>"; };
+		CE2EC435FD747262182FF340 /* urlsession_networking.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = urlsession_networking.SKILLS.md; sourceTree = "<group>"; };
+		CE4F7C94C5DE105D11CC20BD /* xctest_unit_testing.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = xctest_unit_testing.SKILLS.md; sourceTree = "<group>"; };
 		775C17DFAC2EE718919A322 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		8C4B5F1F12214C359ACD8CCA /* RepositoryExplorerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RepositoryExplorerView.swift"; sourceTree = "<group>"; };
 		159C4D4C5E8C495FA5D92D5B /* RepositoryAutomationBuilderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RepositoryAutomationBuilderView.swift"; sourceTree = "<group>"; };
@@ -3135,6 +3183,7 @@
 		57AFC04E569B8BDE2658ECD4 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				CE68646614763378D91E7012 /* FoundationModels.swift */,
 				BB362A061CA144FC9EB1A0FC /* AgentSkillManager.swift */,
 				10F0D87A99B6FE8E88BEDFFA /* FolderManager.swift */,
 				1C4A32C40B7DCC2C9C01DCD2 /* ProjectBuilderManager.swift */,
@@ -3189,6 +3238,10 @@
 		61D456F04F5F6358FD6ACB2D /* Skills */ = {
 			isa = PBXGroup;
 			children = (
+				CED266A16F67FF4A960CF451 /* CreateSkillView.swift */,
+				CE7B94A26F5E53ED2C136F7B /* BrowseSkillsView.swift */,
+				CEF6AD3498FEF1AA327AD28A /* DraftSkillWithAIView.swift */,
+				CEF5FC0244969C6E0DCAA8B4 /* Presets */,
 				64C8322A1218BF6AAE171EBE /* SkillsView.swift */,
 				B9E5EDB0B600624C35CA347D /* SkillsAddView.swift */,
 				60AC2D4C28DFAB7C4DA01E8E /* SkillsInfoView.swift */,
@@ -4504,6 +4557,33 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		CEF5FC0244969C6E0DCAA8B4 /* Presets */ = {
+			isa = PBXGroup;
+			children = (
+				CE700506F3352368A41893BA /* avfoundation_processing.SKILLS.md */,
+				CE2382C7D0FFFA5316E68400 /* combine_streams.SKILLS.md */,
+				CEE85EFE04F3F2842521049C /* core_graphics.SKILLS.md */,
+				CE1B376934CDFBB257A32095 /* coredata_thread_safety.SKILLS.md */,
+				CE2338213A255B35EF3E194E /* custom_layouts.SKILLS.md */,
+				CE2D4C655313CA36270BEB31 /* gcd_vs_async_await.SKILLS.md */,
+				CEB71CBFC11CCBA944F935A1 /* instruments_profiling.SKILLS.md */,
+				CE3FEE6719618869537C9994 /* keychain_security.SKILLS.md */,
+				CE317C21CBC00AB979406DA6 /* localization_catalogs.SKILLS.md */,
+				CE2319264473BA9E2D0270D7 /* memory_management.SKILLS.md */,
+				CE682E48AA5348FCD988C68E /* objc_interop.SKILLS.md */,
+				CE3CBEFDE21F0DFB5636D695 /* push_notifications.SKILLS.md */,
+				CEA8FE33A0944C1752EECD66 /* sandbox_permissions.SKILLS.md */,
+				CEF8D4187FAC064E03792C74 /* spm_integration.SKILLS.md */,
+				CE9C6DC3123BCFDEE3D5EDE8 /* swift6_concurrency.SKILLS.md */,
+				CEA1191D45CD322B983C5F76 /* swiftdata_integration.SKILLS.md */,
+				CE63527DEB5C1DB019E30C23 /* swiftui_performance.SKILLS.md */,
+				CE53668CF30CE1238D858196 /* swiftui_state_isolation.SKILLS.md */,
+				CE2EC435FD747262182FF340 /* urlsession_networking.SKILLS.md */,
+				CE4F7C94C5DE105D11CC20BD /* xctest_unit_testing.SKILLS.md */,
+			);
+			path = Presets;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -4579,6 +4659,26 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
+				CE50540DF71B53AE4E31F0E6 /* combine_streams.SKILLS.md in Resources */,
+				CEE311274FEC87A5EF2D657E /* core_graphics.SKILLS.md in Resources */,
+				CED46E99F28DF277D722E61F /* coredata_thread_safety.SKILLS.md in Resources */,
+				CEBB092CED919F6029B75A8A /* custom_layouts.SKILLS.md in Resources */,
+				CE459D6E62E413726B9A84BC /* gcd_vs_async_await.SKILLS.md in Resources */,
+				CE7EA3C9FED5E1D1D770229A /* instruments_profiling.SKILLS.md in Resources */,
+				CED879AE5A41E92B3129EC80 /* keychain_security.SKILLS.md in Resources */,
+				CEC84BC8ADBBC970E03ADC55 /* localization_catalogs.SKILLS.md in Resources */,
+				CE336E4560C63A2133330F59 /* memory_management.SKILLS.md in Resources */,
+				CE4B1B136F76CE1C5A41FD4B /* objc_interop.SKILLS.md in Resources */,
+				CEB0CCAC5D75C206D7C9728E /* push_notifications.SKILLS.md in Resources */,
+				CEED14A2B7B3087BC85CA565 /* sandbox_permissions.SKILLS.md in Resources */,
+				CE2FF47A04855607CF2D5620 /* spm_integration.SKILLS.md in Resources */,
+				CE5FE91E20082E8C703CB953 /* swift6_concurrency.SKILLS.md in Resources */,
+				CE50AF7B50BB9C16C5DAD941 /* swiftdata_integration.SKILLS.md in Resources */,
+				CE62BDE06D4B945C230FF2E9 /* swiftui_performance.SKILLS.md in Resources */,
+				CE3A20F327C8EC5038B9A46C /* swiftui_state_isolation.SKILLS.md in Resources */,
+				CEC8854776F555EB692B8BED /* urlsession_networking.SKILLS.md in Resources */,
+				CE43AE9FADD711CD053F5D77 /* xctest_unit_testing.SKILLS.md in Resources */,
 				ECAAA1260294B0DD15620204 /* sfsymbol4.txt in Resources */,
 				ECAAA1260294B0DD15620205 /* sfsymbol5.txt in Resources */,
 				ECAAA1260294B0DD15620206 /* sfsymbol6.txt in Resources */,
@@ -4680,6 +4780,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CE705E1EC3604FFEEB031075 /* FoundationModels.swift in Sources */,
+				CE3EAC5E7C71DB9CA457E7AE /* CreateSkillView.swift in Sources */,
+				CE3CDC8FCF4BBB848CB8E5CF /* BrowseSkillsView.swift in Sources */,
+				CEB1145BBC6B959F2E4E8FBD /* DraftSkillWithAIView.swift in Sources */,
 				775C17DFAC2EE718919A321 /* SettingsView.swift in Sources */,
 				12095A22ECC64B12B6DEC8A6 /* RepositoryExplorerView.swift in Sources */,
 				B5BBAC4D7E5740458D5ED6D2 /* RepositoryAutomationBuilderView.swift in Sources */,

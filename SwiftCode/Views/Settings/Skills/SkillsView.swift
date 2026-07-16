@@ -36,28 +36,59 @@ struct SkillsView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Preset Skills") {
-                    ForEach(filteredPresets) { skill in
-                        NavigationLink(skill.scheme.name) {
-                            SkillsInfoView(skill: skill)
+                Section(header: Text("PRESET SKILLS")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)) {
+                    if filteredPresets.isEmpty {
+                        HStack {
+                            Image(systemName: "info.circle")
+                                .foregroundColor(.secondary)
+                            Text("No matching preset skills found.")
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    } else {
+                        ForEach(filteredPresets) { skill in
+                            NavigationLink {
+                                SkillsInfoView(skill: skill)
+                            } label: {
+                                skillRow(skill)
+                            }
                         }
                     }
                 }
 
-                Section("Uploaded Skills") {
+                Section(header: Text("UPLOADED SKILLS")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)) {
                     if filteredUploaded.isEmpty {
-                        Text("No Uploaded Skills")
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(filteredUploaded) { skill in
-                        NavigationLink(skill.scheme.name) {
-                            SkillsInfoView(skill: skill)
+                        // FIX: Explicitly render an empty state row inside the section to guarantee it shows
+                        HStack(spacing: 8) {
+                            Image(systemName: "brain.slash")
+                                .foregroundColor(.secondary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("No Uploaded Skills")
+                                    .fontWeight(.medium)
+                                Text("Upload or draft custom coding skills using the add panel.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 6)
+                    } else {
+                        ForEach(filteredUploaded) { skill in
+                            NavigationLink {
+                                SkillsInfoView(skill: skill)
+                            } label: {
+                                skillRow(skill)
+                            }
                         }
                     }
                 }
             }
-            .navigationTitle("Skills")
-            .searchable(text: $searchText)
+            .listStyle(.sidebar)
+            .navigationTitle("Agent Skills")
+            .searchable(text: $searchText, prompt: "Search agent skills...")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -66,7 +97,7 @@ struct SkillsView: View {
                     Button {
                         showAddView = true
                     } label: {
-                        Label("Add", systemImage: "plus.circle.fill")
+                        Label("Add Skill Pack", systemImage: "plus.circle.fill")
                     }
                 }
             }
@@ -76,41 +107,21 @@ struct SkillsView: View {
         }
     }
 
-    private func tagPill(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 12, weight: .medium))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(isSelected ? Color.orange.opacity(0.2) : Color.white.opacity(0.06))
-                )
-                .overlay(
-                    Capsule()
-                        .stroke(isSelected ? Color.orange.opacity(0.5) : Color.clear, lineWidth: 1)
-                )
-                .foregroundStyle(isSelected ? .orange : .secondary)
-        }
-        .buttonStyle(.plain)
-    }
-
     private func skillRow(_ skill: AgentSkillBundle) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(skill.scheme.name)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
                 Spacer()
                 Text("v\(skill.scheme.version)")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
             Text(skill.scheme.summary)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 Image(systemName: "wrench.and.screwdriver")
                     .font(.system(size: 9))
                     .foregroundStyle(.orange)

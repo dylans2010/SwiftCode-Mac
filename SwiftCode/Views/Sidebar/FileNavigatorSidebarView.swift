@@ -1,18 +1,20 @@
 import SwiftUI
 import AppKit
 
-// MARK: - FileSymbolsShow (Central symbol registry)
+// MARK: - FileSymbolsShow (Central symbol registry with AppSettings integration)
 
 public struct FileSymbolsShow {
     public static func symbol(forPathExtension ext: String, isFolder: Bool = false) -> String {
         if isFolder {
-            return "folder.fill"
+            return AppSettings.shared.fileNavigatorFolderSymbol.isEmpty ? "folder.fill" : AppSettings.shared.fileNavigatorFolderSymbol
         }
 
         let cleaned = ext.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned == "swift" {
+            return AppSettings.shared.fileNavigatorFileSymbol.isEmpty ? "swift" : AppSettings.shared.fileNavigatorFileSymbol
+        }
+
         switch cleaned {
-        case "swift":
-            return "swift"
         case "md":
             return "doc.text.fill"
         case "txt":
@@ -62,6 +64,17 @@ public struct FileSymbolsShow {
             return "doc.fill"
         }
     }
+
+    public static func color(forPathExtension ext: String, isFolder: Bool = false) -> Color {
+        if isFolder {
+            return Color(hex: AppSettings.shared.fileNavigatorFolderColorHex)
+        }
+        let cleaned = ext.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned == "swift" {
+            return Color(hex: AppSettings.shared.fileNavigatorSwiftFileColorHex)
+        }
+        return Color(hex: AppSettings.shared.fileNavigatorDefaultFileColorHex)
+    }
 }
 
 // MARK: - Reusable Trackpad Double Click Interaction Modifier
@@ -89,6 +102,7 @@ extension View {
 struct FileNavigatorSidebarView: View {
     @Bindable var viewModel: ProjectTreeViewModel
     @Environment(WorkspaceViewModel.self) var workspaceViewModel
+    @EnvironmentObject private var settings: AppSettings
 
     @State private var searchText = ""
     @State private var favorites: [String] = []
@@ -111,6 +125,22 @@ struct FileNavigatorSidebarView: View {
 
     private static let favoritesKey = "com.swiftcode.sidebar.favorites"
     private static let recentsKey = "com.swiftcode.sidebar.recents"
+
+    private var activeAnimation: Animation {
+        let speed = settings.fileNavigatorAnimationSpeed
+        switch settings.fileNavigatorAnimationStyle {
+        case .spring:
+            return .spring(response: speed, dampingFraction: 0.8)
+        case .bouncy:
+            return .bouncy(duration: speed)
+        case .easeInOut:
+            return .easeInOut(duration: speed)
+        }
+    }
+
+    private var verticalPadding: CGFloat {
+        settings.fileNavigatorLayoutStyle == .expanded ? 8 : 4
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -266,7 +296,7 @@ struct FileNavigatorSidebarView: View {
                 }
             }
             .listStyle(.sidebar)
-            .animation(.easeInOut(duration: 0.2), value: viewModel.expandedNodeIDs)
+            .animation(activeAnimation, value: viewModel.expandedNodeIDs)
         }
         .onAppear {
             loadFavoritesAndRecents()
@@ -341,7 +371,7 @@ struct FileNavigatorSidebarView: View {
     private func fileRow(for node: ProjectNode, indent: CGFloat) -> some View {
         HStack(spacing: 8) {
             Image(systemName: FileSymbolsShow.symbol(forPathExtension: node.url.pathExtension, isFolder: node.kind == .folder))
-                .foregroundStyle(node.kind == .folder ? .blue : .orange)
+                .foregroundStyle(FileSymbolsShow.color(forPathExtension: node.url.pathExtension, isFolder: node.kind == .folder))
                 .font(.subheadline)
                 .frame(width: 16)
 
@@ -381,7 +411,7 @@ struct FileNavigatorSidebarView: View {
             }
         }
         .padding(.leading, indent)
-        .padding(.vertical, 3)
+        .padding(.vertical, verticalPadding)
         .contentShape(Rectangle())
         .onFileDoubleClick {
             selectedNodeForWorkflow = node
@@ -534,6 +564,8 @@ struct ProjectTreeNodeView: View {
     let onDelete: (ProjectNode) -> Void
     let onDoubleClick: (ProjectNode) -> Void
 
+    @EnvironmentObject private var settings: AppSettings
+
     private var isExpanded: Binding<Bool> {
         Binding(
             get: { viewModel.expandedNodeIDs.contains(node.url.path) },
@@ -545,6 +577,10 @@ struct ProjectTreeNodeView: View {
                 }
             }
         )
+    }
+
+    private var verticalPadding: CGFloat {
+        settings.fileNavigatorLayoutStyle == .expanded ? 8 : 4
     }
 
     var body: some View {
@@ -587,7 +623,7 @@ struct ProjectTreeNodeView: View {
                     .frame(width: 16)
             } else {
                 Image(systemName: FileSymbolsShow.symbol(forPathExtension: node.url.pathExtension, isFolder: node.kind == .folder))
-                    .foregroundStyle(node.kind == .folder ? .blue : .orange)
+                    .foregroundStyle(FileSymbolsShow.color(forPathExtension: node.url.pathExtension, isFolder: node.kind == .folder))
                     .font(.subheadline)
                     .frame(width: 16)
             }
@@ -627,7 +663,7 @@ struct ProjectTreeNodeView: View {
                     .foregroundStyle(.yellow)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, verticalPadding)
         .padding(.horizontal, 6)
         .contentShape(Rectangle())
         .onFileDoubleClick {

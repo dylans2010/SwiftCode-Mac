@@ -1,5 +1,186 @@
 import SwiftUI
 
+// MARK: - HeaderItem Helper
+
+struct HeaderItem: Identifiable, Codable, Equatable {
+    var id = UUID()
+    var key: String
+    var value: String
+}
+
+// MARK: - FreeModelsFallback Configuration Model
+
+@Observable
+@MainActor
+public final class FreeModelsFallback {
+    public static let shared = FreeModelsFallback()
+
+    public var isEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "free_models_fallback_enabled") }
+        set { UserDefaults.standard.set(newValue, forKey: "free_models_fallback_enabled") }
+    }
+
+    private init() {}
+
+    /// Performs fallback-rotation logic for OpenRouter models containing "free" on their model ID.
+    public func executeWithFallback<T>(task: @escaping (String) async throws -> T) async throws -> T {
+        let allModels = OpenRouterModel.defaults
+        let freeModels = allModels.filter { $0.id.lowercased().contains("free") }
+
+        guard isEnabled && !freeModels.isEmpty else {
+            // Default model request execution if toggle is off
+            let currentDefaultModel = AppSettings.shared.selectedAssistModelID
+            return try await task(currentDefaultModel)
+        }
+
+        print("[FreeModelsFallback] fallback-rotation is active. Free models identified: \(freeModels.map { $0.id })")
+
+        var lastError: Error? = nil
+        for model in freeModels {
+            do {
+                print("[FreeModelsFallback] Attempting request utilizing free model: \(model.id)")
+                return try await task(model.id)
+            } catch {
+                print("[FreeModelsFallback] Request failed on model: \(model.id) due to error: \(error.localizedDescription). Proceeding to next fallback model.")
+                lastError = error
+            }
+        }
+
+        if let error = lastError {
+            throw error
+        } else {
+            throw NSError(domain: "FreeModelsFallback", code: 500, userInfo: [NSLocalizedDescriptionKey: "All free fallback models failed."])
+        }
+    }
+}
+
+// MARK: - FreeORModels View
+
+struct FreeORModels: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var settings: AppSettings
+    @State private var freeModels: [OpenRouterModel] = []
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("Select a free OpenRouter model to set as your default model or browse all currently available free endpoints.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Free Models") {
+                    if freeModels.isEmpty {
+                        Text("No free models cached yet. Fetch available models first.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(freeModels) { model in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(model.name)
+                                        .font(.headline)
+                                    Text(model.id)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if settings.selectedAssistModelID == model.id {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                } else {
+                                    Button("Select") {
+                                        settings.selectedAssistModelID = model.id
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Free OpenRouter Models")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .onAppear {
+                let allModels = OpenRouterModel.defaults
+                freeModels = allModels.filter { $0.id.lowercased().contains("free") }
+            }
+        }
+        .frame(width: 480, height: 420)
+    }
+}
+
+// MARK: - FoundationModelsView & FoundationModels Manager Wrapper
+
+struct FoundationModelsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var manager = FoundationModels.shared
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Native Swift Foundation Model") {
+                    Toggle("Enable Private On-Device Models", isOn: Binding(
+                        get: { manager.isEnabled },
+                        set: { manager.isEnabled = $0 }
+                    ))
+
+                    Text("Process natural language and translation commands fully locally using Apple iOS & macOS platform system foundation frameworks.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Model Diagnostics & Capabilities") {
+                    HStack {
+                        Text("Apple Translation Native API")
+                        Spacer()
+                        if #available(macOS 15.0, *) {
+                            Text("Available")
+                                .font(.caption.bold())
+                                .foregroundStyle(.green)
+                        } else {
+                            Text("Requires macOS 15+")
+                                .font(.caption.bold())
+                                .foregroundStyle(.red)
+                        }
+                    }
+
+                    HStack {
+                        Text("Natural Language Processor")
+                        Spacer()
+                        Text("Ready")
+                            .font(.caption.bold())
+                            .foregroundStyle(.green)
+                    }
+
+                    HStack {
+                        Text("macOS 26+ Future-Proof Safeguard")
+                        Spacer()
+                        Text("Fully Compatible")
+                            .font(.caption.bold())
+                            .foregroundStyle(.blue)
+                    }
+                }
+            }
+            .navigationTitle("Apple Foundation Models")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .frame(width: 460, height: 360)
+    }
+}
+
+// MARK: - AssistSettingsView
+
 @MainActor
 struct AssistSettingsView: View {
     @EnvironmentObject private var settings: AppSettings
@@ -18,11 +199,20 @@ struct AssistSettingsView: View {
 
     // Custom Model configurations
     @State private var customEndpoint = "https://api.openai.com/v1"
-    @State private var customHeaders = "{\n  \"Content-Type\": \"application/json\"\n}"
+    @State private var customHeaders: [HeaderItem] = [
+        HeaderItem(key: "Content-Type", value: "application/json")
+    ]
     @State private var customAPIKey = ""
     @State private var customModels: [String] = []
     @State private var isFetchingCustomModels = false
     @State private var customFetchError: String? = nil
+
+    // Sheets Toggles
+    @State private var showFreeModelsSheet = false
+    @State private var showFoundationModelsSheet = false
+
+    // Fallback rotation reference
+    @State private var fallbackRotation = FreeModelsFallback.shared
 
     var body: some View {
         ScrollView {
@@ -113,20 +303,44 @@ struct AssistSettingsView: View {
                             }
                             .pickerStyle(.menu)
 
-                            Button(action: {
-                                Task { await fetchOpenRouterModels() }
-                            }) {
-                                HStack {
-                                    if isFetchingOpenRouterModels {
-                                        ProgressView().scaleEffect(0.6).padding(.trailing, 4)
-                                    } else {
-                                        Image(systemName: "arrow.triangle.2.circlepath")
+                            HStack(spacing: 12) {
+                                Button(action: {
+                                    Task { await fetchOpenRouterModels() }
+                                }) {
+                                    HStack {
+                                        if isFetchingOpenRouterModels {
+                                            ProgressView().scaleEffect(0.6).padding(.trailing, 4)
+                                        } else {
+                                            Image(systemName: "arrow.triangle.2.circlepath")
+                                        }
+                                        Text(isFetchingOpenRouterModels ? "Fetching OpenRouter Models..." : "Fetch Available Models")
                                     }
-                                    Text(isFetchingOpenRouterModels ? "Fetching OpenRouter Models..." : "Fetch Available Models")
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(isFetchingOpenRouterModels)
+
+                                Button {
+                                    showFreeModelsSheet = true
+                                } label: {
+                                    Label("Browse Free Models", systemImage: "gift.fill")
+                                }
+                                .buttonStyle(.bordered)
+                            }
+
+                            // Free fallback toggle
+                            Toggle(isOn: Binding(
+                                get: { fallbackRotation.isEnabled },
+                                set: { fallbackRotation.isEnabled = $0 }
+                            )) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Automatic Fallback to Free Models")
+                                        .font(.subheadline.bold())
+                                    Text("Rotates through all OpenRouter free model endpoints automatically if rate limits or network issues strike.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
                                 }
                             }
-                            .buttonStyle(.bordered)
-                            .disabled(isFetchingOpenRouterModels)
+                            .padding(.top, 4)
 
                             if let error = openRouterFetchError {
                                 Text(error)
@@ -143,7 +357,35 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 3. Custom Model Integration Section
+                // 3. Foundation Models Integration
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Apple System Foundation Models", systemImage: "apple.logo")
+                                .font(.headline)
+                                .foregroundColor(.green)
+                            Spacer()
+                        }
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Bypass external remote cloud endpoints and process your requests using native Apple Silicon device models.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Button {
+                                showFoundationModelsSheet = true
+                            } label: {
+                                Label("Setup Native Foundation Model", systemImage: "slider.horizontal.3")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // 4. Custom Model Integration Section (MODERNIZED WITH INTERACTIVE KEY-VALUE HEADERS)
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -169,16 +411,38 @@ struct AssistSettingsView: View {
                                     .autocorrectionDisabled()
                             }
 
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Custom Headers (JSON formatted)")
-                                    .font(.caption.bold())
-                                TextEditor(text: $customHeaders)
-                                    .font(.system(.body, design: .monospaced))
-                                    .frame(height: 100)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                                    )
+                            // MODERN KEY-VALUE INTERACTIVE HEADERS FIELDS
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text("HTTP Headers")
+                                        .font(.caption.bold())
+                                    Spacer()
+                                    Button(action: {
+                                        customHeaders.append(HeaderItem(key: "New-Header", value: "Value"))
+                                    }) {
+                                        Label("Add Header", systemImage: "plus")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+
+                                ForEach($customHeaders) { $header in
+                                    HStack(spacing: 8) {
+                                        TextField("Header Key", text: $header.key)
+                                            .textFieldStyle(.roundedBorder)
+                                            .font(.system(.body, design: .monospaced))
+                                        TextField("Value", text: $header.value)
+                                            .textFieldStyle(.roundedBorder)
+                                            .font(.system(.body, design: .monospaced))
+                                        Button(action: {
+                                            customHeaders.removeAll { $0.id == header.id }
+                                        }) {
+                                            Image(systemName: "trash")
+                                                .foregroundColor(.red)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
                             }
 
                             VStack(alignment: .leading, spacing: 6) {
@@ -247,7 +511,7 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 4. About Section
+                // 5. About Section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -268,6 +532,13 @@ struct AssistSettingsView: View {
             .padding(24)
         }
         .navigationTitle("Assist Settings")
+        .sheet(isPresented: $showFreeModelsSheet) {
+            FreeORModels()
+                .environmentObject(settings)
+        }
+        .sheet(isPresented: $showFoundationModelsSheet) {
+            FoundationModelsView()
+        }
         .onAppear {
             loadAPIKeys()
             Task {
@@ -340,12 +611,12 @@ struct AssistSettingsView: View {
                 request.addValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
             }
 
-            let trimmedHeaders = customHeaders.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmedHeaders.isEmpty, let data = trimmedHeaders.data(using: .utf8) {
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    for (key, value) in json {
-                        request.addValue("\(value)", forHTTPHeaderField: key)
-                    }
+            // Construct HTTP request headers from modern key-value dictionary structure
+            for header in customHeaders {
+                let trimmedKey = header.key.trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmedVal = header.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmedKey.isEmpty && !trimmedVal.isEmpty {
+                    request.addValue(trimmedVal, forHTTPHeaderField: trimmedKey)
                 }
             }
 

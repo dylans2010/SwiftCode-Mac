@@ -5,11 +5,20 @@ public final class KeychainService: @unchecked Sendable {
   public static let shared = KeychainService()
 
   private let service = "com.swiftcode.app"
+  private var memoryFallback: [String: String] = [:]
+  private let fallbackPrefix = "com.swiftcode.fallback.key."
 
   private init() {}
 
   @discardableResult
   public func set(_ value: String, forKey key: String) -> Bool {
+    memoryFallback[key] = value
+
+    if let data = value.data(using: .utf8) {
+      let base64 = data.base64EncodedString()
+      UserDefaults.standard.set(base64, forKey: fallbackPrefix + key)
+    }
+
     guard let data = value.data(using: .utf8) else { return false }
 
     delete(forKey: key)
@@ -27,6 +36,10 @@ public final class KeychainService: @unchecked Sendable {
   }
 
   public func get(forKey key: String) -> String? {
+    if let cached = memoryFallback[key] {
+      return cached
+    }
+
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: service,
@@ -38,14 +51,30 @@ public final class KeychainService: @unchecked Sendable {
     var result: AnyObject?
     let status = SecItemCopyMatching(query as CFDictionary, &result)
 
-    guard status == errSecSuccess,
-      let data = result as? Data
-    else { return nil }
-    return String(data: data, encoding: .utf8)
+    if status == errSecSuccess,
+      let data = result as? Data {
+      let value = String(data: data, encoding: .utf8)
+      if let val = value {
+        memoryFallback[key] = val
+        return val
+      }
+    }
+
+    if let base64 = UserDefaults.standard.string(forKey: fallbackPrefix + key),
+       let data = Data(base64Encoded: base64),
+       let value = String(data: data, encoding: .utf8) {
+      memoryFallback[key] = value
+      return value
+    }
+
+    return nil
   }
 
   @discardableResult
   public func delete(forKey key: String) -> Bool {
+    memoryFallback.removeValue(forKey: key)
+    UserDefaults.standard.removeObject(forKey: fallbackPrefix + key)
+
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: service,
