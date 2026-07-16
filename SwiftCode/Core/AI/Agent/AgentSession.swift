@@ -3,7 +3,7 @@ import Observation
 
 @Observable
 @MainActor
-public final class AgentSession: Identifiable, Codable, @unchecked Sendable {
+public final class AgentSession: Identifiable, @MainActor Decodable, @MainActor Encodable, @unchecked Sendable {
     public let id: UUID
     public var messages: [AgentMessage]
     public var checklist: AgentChecklistState
