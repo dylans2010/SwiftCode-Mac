@@ -40,11 +40,18 @@ public actor OpenRouterClient {
     }
 
     public func streamChatCompletion(request: AIAssistantRequest) async throws -> AsyncThrowingStream<String, Error> {
+        logger.log("[streamChatCompletion] Routing request centrally through LLMService.")
+        return try await MainActor.run {
+            try await LLMService.shared.streamChatCompletion(request: request)
+        }
+    }
+
+    public func streamChatCompletionDirect(request: AIAssistantRequest) async throws -> AsyncThrowingStream<String, Error> {
         let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled }
-        logger.log("[streamChatCompletion] Requested model: \(request.model, privacy: .public). FoundationModels enabled: \(isFMEnabled).")
+        logger.log("[streamChatCompletionDirect] Requested model: \(request.model, privacy: .public). FoundationModels enabled: \(isFMEnabled).")
 
         if isFMEnabled {
-            logger.log("[streamChatCompletion] Routing request to local Apple Foundation Models.")
+            logger.log("[streamChatCompletionDirect] Routing request to local Apple Foundation Models.")
             return AsyncThrowingStream { continuation in
                 Task {
                     do {
@@ -54,7 +61,7 @@ public actor OpenRouterClient {
                         }
                         continuation.finish()
                     } catch {
-                        logger.error("[streamChatCompletion] FoundationModels streaming error: \(error.localizedDescription, privacy: .public)")
+                        logger.error("[streamChatCompletionDirect] FoundationModels streaming error: \(error.localizedDescription, privacy: .public)")
                         continuation.finish(throwing: error)
                     }
                 }
@@ -63,7 +70,7 @@ public actor OpenRouterClient {
 
         let apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
         guard !apiKey.isEmpty else {
-            logger.error("[streamChatCompletion] Missing API key for OpenRouter.")
+            logger.error("[streamChatCompletionDirect] Missing API key for OpenRouter.")
             throw AppError.aiError("No OpenRouter API key found. Please add your key in Settings.")
         }
 
@@ -80,16 +87,16 @@ public actor OpenRouterClient {
         ]
         urlRequest.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        logger.log("[streamChatCompletion] Connecting to OpenRouter API endpoint...")
+        logger.log("[streamChatCompletionDirect] Connecting to OpenRouter API endpoint...")
         let (result, response) = try await URLSession.shared.bytes(for: urlRequest)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            logger.error("[streamChatCompletion] Received non-HTTP response.")
+            logger.error("[streamChatCompletionDirect] Received non-HTTP response.")
             throw AppError.aiError("Failed to connect to OpenRouter: Invalid response received.")
         }
 
         guard httpResponse.statusCode == 200 else {
-            logger.error("[streamChatCompletion] Received status code: \(httpResponse.statusCode)")
+            logger.error("[streamChatCompletionDirect] Received status code: \(httpResponse.statusCode)")
             var bodyText = ""
             do {
                 for try await line in result.lines {
@@ -105,7 +112,7 @@ public actor OpenRouterClient {
             throw AppError.aiError("Failed to connect to OpenRouter (Status: \(httpResponse.statusCode))")
         }
 
-        logger.log("[streamChatCompletion] Connection established. Starting stream consumption.")
+        logger.log("[streamChatCompletionDirect] Connection established. Starting stream consumption.")
         return AsyncThrowingStream { continuation in
             Task {
                 do {
@@ -113,7 +120,7 @@ public actor OpenRouterClient {
                         if line.hasPrefix("data: ") {
                             let dataStr = String(line.dropFirst(6)).trimmingCharacters(in: .whitespacesAndNewlines)
                             if dataStr == "[DONE]" {
-                                logger.log("[streamChatCompletion] SSE stream ended naturally.")
+                                logger.log("[streamChatCompletionDirect] SSE stream ended naturally.")
                                 continuation.finish()
                                 return
                             }
@@ -123,7 +130,7 @@ public actor OpenRouterClient {
                                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                                let errorDict = json["error"] as? [String: Any],
                                let errorMessage = errorDict["message"] as? String {
-                                logger.error("[streamChatCompletion] SSE stream contained error: \(errorMessage, privacy: .public)")
+                                logger.error("[streamChatCompletionDirect] SSE stream contained error: \(errorMessage, privacy: .public)")
                                 continuation.finish(throwing: AppError.aiError(errorMessage))
                                 return
                             }
@@ -135,7 +142,7 @@ public actor OpenRouterClient {
                     }
                     continuation.finish()
                 } catch {
-                    logger.error("[streamChatCompletion] Error reading line: \(error.localizedDescription, privacy: .public)")
+                    logger.error("[streamChatCompletionDirect] Error reading line: \(error.localizedDescription, privacy: .public)")
                     continuation.finish(throwing: error)
                 }
             }

@@ -65,8 +65,7 @@ struct WorkspaceView: View {
                                 }
                         )
 
-                    AgentChatView()
-                        .environment(viewModel.ai)
+                    AssistMainView()
                         .frame(width: agentInspectorWidth)
                         .transition(.move(edge: .trailing))
                 }
