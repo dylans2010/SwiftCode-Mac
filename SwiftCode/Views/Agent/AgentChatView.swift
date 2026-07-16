@@ -71,17 +71,24 @@ public struct AgentChatView: View {
                                                 .font(.body)
                                                 .lineLimit(1)
 
+                                            // Break up ternaries to help the type-checker
+                                            let isAgent = (s.mode == .agent)
+                                            let badgeBaseColor: Color = isAgent ? .purple : .blue
+                                            let badgeBackground: Color = badgeBaseColor.opacity(0.2)
+
                                             Text(s.mode.rawValue)
                                                 .font(.system(size: 9, weight: .bold))
                                                 .padding(.horizontal, 4)
                                                 .padding(.vertical, 1)
-                                                .background(s.mode == .agent ? Color.purple.opacity(0.2) : Color.blue.opacity(0.2))
-                                                .foregroundStyle(s.mode == .agent ? Color.purple : Color.blue)
+                                                .background(badgeBackground)
+                                                .foregroundStyle(badgeBaseColor)
                                                 .cornerRadius(3)
                                         }
                                     } icon: {
-                                        Image(systemName: s.mode == .agent ? "sparkles" : "bubble.left.and.bubble.right")
-                                            .foregroundStyle(viewModel.session.id == s.id ? .accentColor : .secondary)
+                                        let iconName: String = (s.mode == .agent) ? "sparkles" : "bubble.left.and.bubble.right"
+                                        let isSelected = (viewModel.session.id == s.id)
+                                        Image(systemName: iconName)
+                                            .foregroundStyle(isSelected ? .accentColor : .secondary)
                                     }
 
                                     Spacer()
