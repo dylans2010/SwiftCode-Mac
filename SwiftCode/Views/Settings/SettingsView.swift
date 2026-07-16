@@ -402,7 +402,7 @@ public final class SettingsSidebarViewController: NSViewController, NSOutlineVie
         }
     }
 
-    private func rebuildNodes() {
+    func rebuildNodes() {
         nodes = buildSettingsSidebarNodes(coordinator: coordinator)
         outlineView?.reloadData()
         expandAllGroups()
@@ -807,3 +807,4 @@ struct SettingsMainWrapper: View {
         }
     }
 }
+
