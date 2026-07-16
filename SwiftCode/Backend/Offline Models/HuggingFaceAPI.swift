@@ -20,7 +20,7 @@ final class HuggingFaceAPI: @unchecked Sendable {
             URLQueryItem(name: "search", value: "mlx"),
             URLQueryItem(name: "sort", value: "downloads"),
             URLQueryItem(name: "direction", value: "-1"),
-            URLQueryItem(name: "limit", value: "20")
+            URLQueryItem(name: "limit", value: "25")
         ]
 
         let (data, response) = try await URLSession.shared.data(from: components.url!)

@@ -211,6 +211,22 @@ public final class FoundationModels {
         """
         #endif
     }
+
+    /// Executes streaming language processing using native or simulated response generation.
+    public func streamPrivateResponse(prompt: String, onToken: @escaping @Sendable (String) async -> Void) async throws {
+        guard isEnabled else {
+            throw NSError(domain: "FoundationModels", code: 400, userInfo: [NSLocalizedDescriptionKey: "Apple Foundation Models are disabled."])
+        }
+
+        let fullResponse = try await generatePrivateResponse(prompt: prompt)
+        // Simulate streaming of words
+        let words = fullResponse.split(separator: " ", omittingEmptySubsequences: false).map { String($0) }
+        for (index, word) in words.enumerated() {
+            let token = word + (index == words.count - 1 ? "" : " ")
+            try await Task.sleep(nanoseconds: 30_000_000) // 30ms delay
+            await onToken(token)
+        }
+    }
 }
 
 #if !canImport(FoundationModels)

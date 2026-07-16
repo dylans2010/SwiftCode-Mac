@@ -160,6 +160,9 @@ final class LLMService: Sendable {
 
     @MainActor
     func generateResponse(prompt: String, useContext: Bool, modelOverride: String? = nil, providerOverride: LLMProvider? = nil) async throws -> String {
+        if FoundationModels.shared.isEnabled {
+            return try await FoundationModels.shared.generatePrivateResponse(prompt: prompt)
+        }
         if modelOverride == nil && providerOverride == nil && OnDeviceModelRouter.shared.useOnDeviceAI() {
             return try await OnDeviceModelRouter.shared.generateResponse(prompt: prompt, useContext: useContext)
         }
@@ -168,6 +171,9 @@ final class LLMService: Sendable {
 
     @MainActor
     func generateExternalResponse(prompt: String, useContext: Bool, modelOverride: String? = nil, providerOverride: LLMProvider? = nil) async throws -> String {
+        if FoundationModels.shared.isEnabled {
+            return try await FoundationModels.shared.generatePrivateResponse(prompt: prompt)
+        }
         let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPrompt.isEmpty else { return "" }
 
@@ -337,6 +343,10 @@ final class LLMService: Sendable {
         systemPrompt: String,
         onToken: @escaping @Sendable (String) async -> Void
     ) async throws {
+        if await FoundationModels.shared.isEnabled {
+            try await FoundationModels.shared.streamPrivateResponse(prompt: messages.last?.content ?? "", onToken: onToken)
+            return
+        }
         let provider = try await resolvedRoutingProvider()
 
         if provider == .offline {

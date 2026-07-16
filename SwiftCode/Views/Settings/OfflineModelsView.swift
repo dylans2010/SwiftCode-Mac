@@ -41,35 +41,49 @@ struct OfflineModelsView: View {
 
                         if recommendations.isEmpty {
                             Text("No Recommendations Available")
+                                .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         } else {
-                            ForEach(recommendations) { recommendation in
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text(recommendation.modelName)
-                                        .font(.headline)
+                            VStack(spacing: 12) {
+                                ForEach(recommendations) { recommendation in
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        HStack {
+                                            Text(recommendation.modelName)
+                                                .font(.headline)
+                                                .foregroundStyle(.primary)
+                                            Spacer()
 
-                                    Text(recommendation.description)
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-
-                                    Text("Compatibility: \(recommendation.compatibility)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-
-                                    HStack {
-                                        Text(recommendation.estimatedSize)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                        Spacer()
-                                        Button("Download") {
-                                            Task { await startRecommendedDownload(recommendation) }
+                                            Text(recommendation.estimatedSize)
+                                                .font(.caption.bold())
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 3)
+                                                .background(Color.purple.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                                                .foregroundStyle(.purple)
                                         }
-                                        .buttonStyle(.borderedProminent)
+
+                                        Text(recommendation.description)
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+
+                                        HStack {
+                                            Label("Compatibility: \(recommendation.compatibility)", systemImage: "cpu")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                            Spacer()
+                                            Button("Download") {
+                                                Task { await startRecommendedDownload(recommendation) }
+                                            }
+                                            .buttonStyle(.borderedProminent)
+                                        }
                                     }
+                                    .padding(14)
+                                    .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                                    .cornerRadius(10)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+                                    )
                                 }
-                                .padding()
-                                .background(Color.primary.opacity(0.04))
-                                .cornerRadius(10)
                             }
                         }
                     }
@@ -95,6 +109,7 @@ struct OfflineModelsView: View {
                             isPresentingInstallGuide = true
                         }
                         .buttonStyle(.bordered)
+                        .controlSize(.large)
                     }
                     .padding()
                 }
@@ -127,32 +142,54 @@ struct OfflineModelsView: View {
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
+                            .padding(.vertical, 12)
                         } else {
-                            ForEach(availableModels) { model in
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text(model.modelName)
-                                        .font(.headline)
-                                    Text(model.description)
-                                        .font(.caption)
-                                        .lineLimit(2)
+                            VStack(spacing: 12) {
+                                ForEach(availableModels) { model in
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        HStack {
+                                            Text(model.modelName)
+                                                .font(.headline)
+                                                .foregroundStyle(.primary)
+                                            Spacer()
 
-                                    HStack {
-                                        Text(model.modelSize)
+                                            Text(model.modelSize)
+                                                .font(.caption.bold())
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 3)
+                                                .background(Color.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                                                .foregroundStyle(.green)
+                                        }
+
+                                        Text(model.description)
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
-                                        Spacer()
-                                        Button {
-                                            startDownload(model)
-                                        } label: {
-                                            Text("Download")
+                                            .lineLimit(2)
+
+                                        HStack {
+                                            if model.isQuantized {
+                                                Label("Quantized", systemImage: "scalemass")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            Spacer()
+                                            Button {
+                                                startDownload(model)
+                                            } label: {
+                                                Text("Download")
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .disabled(manager.isModelInstalled(model.modelName) || model.preferredDownloadFile == nil)
                                         }
-                                        .buttonStyle(.bordered)
-                                        .disabled(manager.isModelInstalled(model.modelName) || model.preferredDownloadFile == nil)
                                     }
+                                    .padding(14)
+                                    .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                                    .cornerRadius(10)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+                                    )
                                 }
-                                .padding()
-                                .background(Color.primary.opacity(0.04))
-                                .cornerRadius(10)
                             }
                         }
                     }
