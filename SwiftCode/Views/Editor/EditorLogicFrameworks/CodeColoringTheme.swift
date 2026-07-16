@@ -83,9 +83,74 @@ struct CodeColoringTheme: Identifiable, Equatable {
         cursorColor: .black
     )
 
-    static let allThemes: [CodeColoringTheme] = [.dark, .monokai, .solarizedDark, .github]
+    static let dracula = CodeColoringTheme(
+        id: "dracula",
+        name: "Dracula",
+        backgroundColor: Color(hex: "#282A36"),
+        plainColor: Color(hex: "#F8F8F2"),
+        keywordColor: Color(hex: "#FF79C6"),
+        stringColor: Color(hex: "#F1FA8C"),
+        commentColor: Color(hex: "#6272A4"),
+        numberColor: Color(hex: "#BD93F9"),
+        typeColor: Color(hex: "#8BE9FD"),
+        functionColor: Color(hex: "#50FA7B"),
+        lineHighlightColor: Color.white.opacity(0.05),
+        selectionColor: Color.blue.opacity(0.2),
+        cursorColor: Color(hex: "#BD93F9")
+    )
+
+    static let oneDark = CodeColoringTheme(
+        id: "one_dark",
+        name: "One Dark",
+        backgroundColor: Color(hex: "#282C34"),
+        plainColor: Color(hex: "#ABB2BF"),
+        keywordColor: Color(hex: "#C678DD"),
+        stringColor: Color(hex: "#98C379"),
+        commentColor: Color(hex: "#5C6370"),
+        numberColor: Color(hex: "#D19A66"),
+        typeColor: Color(hex: "#61AFEF"),
+        functionColor: Color(hex: "#E5C07B"),
+        lineHighlightColor: Color.white.opacity(0.04),
+        selectionColor: Color.blue.opacity(0.2),
+        cursorColor: Color(hex: "#C678DD")
+    )
+
+    static let allThemes: [CodeColoringTheme] = [.dark, .monokai, .solarizedDark, .github, .dracula, .oneDark]
 
     static func theme(for id: String) -> CodeColoringTheme {
-        allThemes.first { $0.id == id } ?? .dark
+        // First try to resolve custom Theme colors dynamically in real-time
+        if let appTheme = ThemeManager.shared.theme(for: id) {
+            return CodeColoringTheme(
+                id: appTheme.id,
+                name: appTheme.name,
+                backgroundColor: Color(hex: appTheme.colors.background),
+                plainColor: Color(hex: appTheme.colors.editorText),
+                keywordColor: Color(hex: appTheme.colors.syntaxKeyword),
+                stringColor: Color(hex: appTheme.colors.syntaxString),
+                commentColor: Color(hex: appTheme.colors.syntaxComment),
+                numberColor: Color(hex: appTheme.colors.syntaxKeyword),
+                typeColor: Color(hex: appTheme.colors.syntaxType),
+                functionColor: Color(hex: appTheme.colors.accent),
+                lineHighlightColor: Color(hex: appTheme.colors.panelBackground).opacity(0.3),
+                selectionColor: Color(hex: appTheme.colors.accent).opacity(0.25),
+                cursorColor: Color(hex: appTheme.colors.accent)
+            )
+        }
+
+        // Fallback to presets
+        switch id {
+        case "light":
+            return .github
+        case "dracula":
+            return .dracula
+        case "one_dark":
+            return .oneDark
+        case "solarized":
+            return .solarizedDark
+        case "monokai":
+            return .monokai
+        default:
+            return allThemes.first { $0.id == id } ?? .dark
+        }
     }
 }

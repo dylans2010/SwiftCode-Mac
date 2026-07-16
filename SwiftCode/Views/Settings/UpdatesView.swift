@@ -6,27 +6,61 @@ struct UpdatesView: View {
     @State private var isChecking = false
     @State private var checkResult: GitHubReleaseCheckResult?
     @State private var errorMessage: String?
+    @State private var showingErrorAlert = false
+    @State private var diagnosticLogs = ""
 
     private var currentBuild: Int {
         Int(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0") ?? 0
     }
 
+    private var appVersionString: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // 1. Current Version GroupBox
+                // Header Panel
+                HStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.15))
+                            .frame(width: 56, height: 56)
+                        Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundColor(.blue)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Software Updates")
+                            .font(.title2.bold())
+                        Text("Keep your IDE secure and optimized with the latest builds.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 4)
+
+                // 1. Current Version Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
-                            Label("Current Version", systemImage: "info.circle")
+                            Label("Current Version Details", systemImage: "info.circle.fill")
                                 .font(.headline)
                                 .foregroundColor(.blue)
                             Spacer()
+                            Text("Local System")
+                                .font(.caption.bold())
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color.blue.opacity(0.12), in: Capsule())
+                                .foregroundStyle(.blue)
                         }
 
-                        VStack(spacing: 10) {
+                        VStack(spacing: 12) {
                             HStack {
-                                Text("App")
+                                Text("Application Name")
                                     .fontWeight(.medium)
                                 Spacer()
                                 Text("SwiftCode")
@@ -34,10 +68,19 @@ struct UpdatesView: View {
                             }
                             Divider()
                             HStack {
-                                Text("Build")
+                                Text("Version")
+                                    .fontWeight(.medium)
+                                Spacer()
+                                Text(appVersionString)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Divider()
+                            HStack {
+                                Text("Build Number")
                                     .fontWeight(.medium)
                                 Spacer()
                                 Text("\(currentBuild)")
+                                    .font(.system(.body, design: .monospaced))
                                     .foregroundStyle(.secondary)
                             }
                         }
@@ -47,95 +90,143 @@ struct UpdatesView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 2. Latest GitHub Build GroupBox
+                // 2. Update Status Card
                 GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 16) {
                         HStack {
-                            Label("GitHub Release Status", systemImage: "arrow.triangle.2.circlepath.circle.fill")
+                            Label("Update Check Status", systemImage: "sparkles.rectangle.stack.fill")
                                 .font(.headline)
                                 .foregroundColor(.green)
                             Spacer()
                         }
 
                         if isChecking {
-                            HStack(spacing: 12) {
+                            VStack(spacing: 14) {
                                 ProgressView()
-                                Text("Checking Latest Build…")
+                                    .progressViewStyle(.circular)
+                                Text("Querying server for build-* release artifacts...")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
-                            .padding(.vertical, 8)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 20)
                         } else if let result = checkResult {
-                            VStack(spacing: 12) {
+                            let hasUpdate = result.isUpdateAvailable(currentBuild: currentBuild)
+
+                            VStack(spacing: 14) {
                                 HStack {
-                                    Text("Latest Tag")
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(hasUpdate ? "New Update Available!" : "You're Fully Up To Date")
+                                            .font(.headline)
+                                            .foregroundColor(hasUpdate ? .orange : .green)
+                                        Text(hasUpdate ? "A newer build is ready to be installed." : "SwiftCode is running the latest build version.")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: hasUpdate ? "arrow.down.circle.fill" : "checkmark.seal.fill")
+                                        .font(.title)
+                                        .foregroundColor(hasUpdate ? .orange : .green)
+                                }
+                                .padding(.bottom, 6)
+
+                                Divider()
+
+                                HStack {
+                                    Text("Latest Tag Name")
                                         .fontWeight(.medium)
                                     Spacer()
                                     Text(result.latestTag)
+                                        .font(.system(.body, design: .monospaced))
                                         .foregroundStyle(.secondary)
                                 }
+
                                 Divider()
+
                                 HStack {
-                                    Text("Latest Build")
+                                    Text("Latest Build Number")
                                         .fontWeight(.medium)
                                     Spacer()
                                     Text("\(result.latestBuildNumber)")
+                                        .font(.system(.body, design: .monospaced))
                                         .foregroundStyle(.secondary)
                                 }
-                                Divider()
-                                HStack {
-                                    Text("Status")
-                                        .fontWeight(.medium)
-                                    Spacer()
-                                    Text(result.isUpdateAvailable(currentBuild: currentBuild) ? "Update Available" : "You're Up To Date")
-                                        .font(.caption.weight(.semibold))
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 4)
-                                        .background(result.isUpdateAvailable(currentBuild: currentBuild) ? Color.orange.opacity(0.2) : Color.green.opacity(0.2))
-                                        .foregroundStyle(result.isUpdateAvailable(currentBuild: currentBuild) ? .orange : .green)
-                                        .clipShape(Capsule())
-                                }
-                            }
-                            .padding(.vertical, 4)
 
-                            if let releaseURL = result.releaseURL {
-                                Link(destination: releaseURL) {
-                                    Label("Open Release on GitHub", systemImage: "arrow.up.right.square")
-                                        .font(.subheadline.weight(.semibold))
+                                if let releaseURL = result.releaseURL {
+                                    Divider()
+                                    Link(destination: releaseURL) {
+                                        HStack {
+                                            Label("Download Release on GitHub", systemImage: "arrow.up.right.square.fill")
+                                                .font(.subheadline.weight(.bold))
+                                            Spacer()
+                                            Image(systemName: "chevron.right")
+                                        }
+                                        .padding()
+                                        .background(Color.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                                        .foregroundStyle(.green)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                .padding(.top, 4)
                             }
                         } else if let errorMessage {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Label("Update Check Failed", systemImage: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(.orange)
-                                    .font(.headline)
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Label("Connection Interrupted", systemImage: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.red)
+                                        .font(.headline)
+                                    Spacer()
+                                }
+
                                 Text(errorMessage)
-                                    .foregroundStyle(.red)
                                     .font(.subheadline)
+                                    .foregroundColor(.red)
+                                    .padding()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.red.opacity(0.08))
+                                    .cornerRadius(8)
+
+                                if !diagnosticLogs.isEmpty {
+                                    DisclosureGroup("Show Diagnostic Connection Logs") {
+                                        ScrollView {
+                                            Text(diagnosticLogs)
+                                                .font(.system(.caption, design: .monospaced))
+                                                .padding(8)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                        }
+                                        .frame(height: 100)
+                                        .background(Color.black.opacity(0.15))
+                                        .cornerRadius(6)
+                                    }
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                }
                             }
                         } else {
-                            Text("Tap the button below to check for new build-* releases.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                            VStack(spacing: 8) {
+                                Text("Check for updates to download the latest builds of SwiftCode.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
                         }
 
                         Divider()
 
-                        Button {
-                            Task { await checkForUpdates() }
-                        } label: {
-                            HStack {
-                                Spacer()
-                                Label("Check For Updates", systemImage: "arrow.clockwise")
-                                    .font(.subheadline.weight(.semibold))
-                                Spacer()
+                        HStack(spacing: 12) {
+                            Button {
+                                Task { await checkForUpdates() }
+                            } label: {
+                                Label(errorMessage != nil ? "Retry Check" : "Check for Updates Now", systemImage: "arrow.clockwise")
+                                    .fontWeight(.semibold)
+                                    .frame(maxWidth: .infinity)
                             }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                            .tint(.blue)
+                            .disabled(isChecking)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .tint(.green)
-                        .disabled(isChecking)
                     }
                     .padding()
                 }
@@ -144,22 +235,50 @@ struct UpdatesView: View {
             .padding(24)
         }
         .navigationTitle("Updates")
+        .alert(isPresented: $showingErrorAlert) {
+            Alert(
+                title: Text("Update Check Failed"),
+                message: Text(errorMessage ?? "An unknown network error occurred. Please check your internet connection."),
+                dismissButton: .default(Text("Dismiss"))
+            )
+        }
     }
 
     private func checkForUpdates() async {
         isChecking = true
         errorMessage = nil
+        diagnosticLogs = ""
         defer { isChecking = false }
 
+        diagnosticLogs += "[Network] Constructing API query for github releases...\n"
         do {
             checkResult = try await GitHubReleaseCheck.shared.checkLatestBuild()
+            diagnosticLogs += "[Network] Successfully retrieved and parsed release data!\n"
         } catch {
             checkResult = nil
+            showingErrorAlert = true
             if let checkError = error as? GitHubReleaseCheckError {
                 errorMessage = checkError.localizedDescription
+                diagnosticLogs += "[Error] Specialized GitHubReleaseCheckError occurred: \(checkError.localizedDescription)\n"
             } else {
                 errorMessage = "Unable to check updates. \(error.localizedDescription)"
+                diagnosticLogs += "[Error] Standard error occurred: \(error.localizedDescription)\n"
             }
         }
+    }
+}
+
+// Ensure modern group box styling fallback
+struct ModernGroupBoxStyle: GroupBoxStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(NSColor.controlBackgroundColor))
+            .cornerRadius(12)
+            .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+            )
     }
 }

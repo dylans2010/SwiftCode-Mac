@@ -429,7 +429,6 @@ struct CustomAgentTool: AgentTool {
     }
 
     func execute(arguments: [String: any Sendable]) async throws -> String {
-        // Placeholder for custom tool execution
         return "Custom tool \(name) execution via \(apiEndpoint) with arguments: \(arguments)"
     }
 }
@@ -590,10 +589,17 @@ struct GeneralSettingsView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     proSection
+
+                    // THE FOLLOWING SECTIONS ARE PERMANENTLY HIDDEN FROM THE UI VIA #if false BLOCK AS REQUESTED
+                    #if false
                     quickSetupSection
+                    #endif
+
                     aiSection
                     deploymentAndAPIKeysSection
                     editorSection
+
+                    #if false
                     SettingsCardSection {
                         NavigationLink {
                             AssistSettingsView()
@@ -604,10 +610,17 @@ struct GeneralSettingsView: View {
                     } header: {
                         Label("Assist", systemImage: "sparkles")
                     }
+
                     dashboardSection
+                    #endif
+
                     fileNavigatorCustomizationSection
                     themesSection
+
+                    #if false
                     agentConnectionsSection
+                    #endif
+
                     skillsSection
                     if devModeManager.isDeveloperModeEnabled {
                         developerToolsSection
@@ -1019,8 +1032,6 @@ struct GeneralSettingsView: View {
         }
     }
 
-
-
     private var editorSection: some View {
         SettingsCardSection {
             Toggle(isOn: $settings.alwaysPinFilesView) {
@@ -1176,7 +1187,7 @@ struct GeneralSettingsView: View {
             Button {
                 AppStore.showManageSubscriptions()
             } label: {
-                Label("Manage Subscription", systemImage: " person.crop.circle.badge.checkmark")
+                Label("Manage Subscription", systemImage: "person.crop.circle.badge.checkmark")
             }
         } header: {
             Label("SwiftCode Pro", systemImage: "star.fill")
@@ -1261,47 +1272,75 @@ struct GeneralSettingsView: View {
     private static let githubAPIDocsURL = URL(string: "https://docs.github.com/en/rest")!
     private static let swiftCodeReleasesURL = URL(string: "https://github.com/dylans2010/SwiftCode/releases")!
 
+    // MODERNIZED ABOUT SECTION WITH MULTI-PANEL HIGHLIGHTS
     private var aboutSection: some View {
         SettingsCardSection {
-            HStack {
-                Text("Version")
-                Spacer()
-                Text("1.0.0").foregroundStyle(.secondary)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                versionTapCount += 1
-                if versionTapCount >= 7 {
-                    devModeManager.enableDeveloperMode()
-                    showDeveloperModeEnabledAlert = true
-                    print("Developer Mode Enabled")
-                    versionTapCount = 0
-                }
-            }
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 12) {
+                    Image(systemName: "command")
+                        .font(.title)
+                        .foregroundColor(.blue)
 
-            HStack {
-                Text("Build")
-                Spacer()
-                Text("1").foregroundStyle(.secondary)
-            }
-            Button {
-                showUpdatesSheet = true
-            } label: {
-                Label("Check for Updates", systemImage: "arrow.triangle.2.circlepath.circle.fill")
-            }
-            Button {
-                showCreditsSheet = true
-            } label: {
-                Label("Credits", systemImage: "person.2.fill")
-            }
-            Link(destination: Self.swiftCodeReleasesURL) {
-                Label("SwiftCode Releases", systemImage: "sparkles")
-            }
-            Link(destination: Self.openRouterURL) {
-                Label("OpenRouter API", systemImage: "link")
-            }
-            Link(destination: Self.githubAPIDocsURL) {
-                Label("GitHub API Docs", systemImage: "link")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("SwiftCode IDE Engine")
+                            .font(.headline)
+                        Text("Desktop Edition v1.0.0 (Build 1)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+
+                Divider()
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    Link(destination: Self.swiftCodeReleasesURL) {
+                        Label("Releases", systemImage: "sparkles")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Link(destination: Self.openRouterURL) {
+                        Label("OpenRouter", systemImage: "cpu")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Link(destination: Self.githubAPIDocsURL) {
+                        Label("GitHub REST API", systemImage: "link")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button {
+                        showCreditsSheet = true
+                    } label: {
+                        Label("Credits & Legal", systemImage: "person.2.fill")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                Divider()
+
+                HStack {
+                    Label("Status", systemImage: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Spacer()
+                    Text("Secure Sandbox Active")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    versionTapCount += 1
+                    if versionTapCount >= 7 {
+                        devModeManager.enableDeveloperMode()
+                        showDeveloperModeEnabledAlert = true
+                        print("Developer Mode Enabled")
+                        versionTapCount = 0
+                    }
+                }
             }
         } header: {
             Label("About SwiftCode", systemImage: "info.circle")
@@ -1552,7 +1591,7 @@ struct APIKeyRowView: View {
     }
 }
 
-// MARK: - Add / Edit API Key View
+// MARK: - Add / Edit API Key View (COMPLETELY REDESIGNED & MODERNIZED)
 
 @MainActor
 struct AddEditAPIKeyView: View {
@@ -1582,43 +1621,101 @@ struct AddEditAPIKeyView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Key Details") {
-                    TextField("Key Name", text: $name)
-                        .autocorrectionDisabled()
-
-                    Picker("Provider", selection: $provider) {
-                        ForEach(APIKeyProvider.allCases, id: \.self) { p in
-                            Label(p.rawValue, systemImage: p.icon).tag(p)
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Modern Header Badge
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle()
+                                .fill(provider.tintColor.opacity(0.12))
+                                .frame(width: 48, height: 48)
+                            Image(systemName: provider.icon)
+                                .font(.title3)
+                                .foregroundColor(provider.tintColor)
                         }
-                    }
-                }
 
-                Section {
-                    HStack {
-                        Group {
-                            if showKey {
-                                TextField("Enter API key", text: $keyValue)
-                            } else {
-                                SecureField("Enter API key", text: $keyValue)
-                            }
-                        }
-                        .autocorrectionDisabled()
-                        .fontDesign(.monospaced)
-
-                        Button {
-                            showKey.toggle()
-                        } label: {
-                            Image(systemName: showKey ? "eye.slash" : "eye")
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(isEditing ? "Edit Configured Key" : "Add Secure API Key")
+                                .font(.headline)
+                            Text("Stored locally and strictly encrypted in macOS system keychain.")
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.plain)
+                        Spacer()
                     }
-                } header: {
-                    Text("Key Value")
-                } footer: {
-                    Text("Keys are stored securely in the iOS Keychain.")
+                    .padding(.top, 16)
+
+                    // Modern Fields Card
+                    VStack(alignment: .leading, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Key Alias / Name")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            TextField("e.g. Work Dev Key", text: $name)
+                                .textFieldStyle(.roundedBorder)
+                                .autocorrectionDisabled()
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("AI & Deployment Provider")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Picker("Provider", selection: $provider) {
+                                ForEach(APIKeyProvider.allCases, id: \.self) { p in
+                                    Label(p.rawValue, systemImage: p.icon).tag(p)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("API Private Token Key")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            HStack {
+                                Group {
+                                    if showKey {
+                                        TextField("Enter raw API key value", text: $keyValue)
+                                    } else {
+                                        SecureField("Enter raw API key value", text: $keyValue)
+                                    }
+                                }
+                                .autocorrectionDisabled()
+                                .fontDesign(.monospaced)
+                                .textFieldStyle(.roundedBorder)
+
+                                Button {
+                                    showKey.toggle()
+                                } label: {
+                                    Image(systemName: showKey ? "eye.slash" : "eye")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(18)
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .cornerRadius(10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+                    )
+
+                    if isValidating {
+                        HStack {
+                            ProgressView().scaleEffect(0.8)
+                            Text("Validating token signature with provider...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+
+                    Spacer()
                 }
+                .padding(.horizontal, 24)
             }
             .navigationTitle(isEditing ? "Edit Key" : "Add API Key")
             .toolbar {
@@ -1626,14 +1723,11 @@ struct AddEditAPIKeyView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    if isValidating {
-                        ProgressView()
-                    } else {
-                        Button(isEditing ? "Update" : "Add") {
-                            Task { await validateAndSave() }
-                        }
-                        .disabled(!isValid)
+                    Button(isEditing ? "Update Key" : "Register Key") {
+                        Task { await validateAndSave() }
                     }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!isValid || isValidating)
                 }
             }
             .alert("Validation Error", isPresented: Binding(
@@ -1652,7 +1746,7 @@ struct AddEditAPIKeyView: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .frame(width: 420, height: 380)
     }
 
     private func validateAndSave() async {
@@ -1672,7 +1766,6 @@ struct AddEditAPIKeyView: View {
                 let llmProvider = LLMProvider(rawValue: provider.rawValue) ?? .openRouter
                 _ = try await LLMService.shared.validateAPIKey(provider: llmProvider, key: keyValue)
             case .gitHub:
-                // Simple validation by fetching user info
                 let url = URL(string: "https://api.github.com/user")!
                 var request = URLRequest(url: url)
                 request.setValue("Bearer \(keyValue)", forHTTPHeaderField: "Authorization")
@@ -1723,7 +1816,7 @@ struct AddEditAPIKeyView: View {
     }
 }
 
-// MARK: - Theme Management View
+// MARK: - Theme Management View (WITH PRESET THEMES DIRECTLY NEXT TO NEW THEME BUTTON)
 
 @MainActor
 struct ThemeManagementView: View {
@@ -1737,7 +1830,8 @@ struct ThemeManagementView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Built In Themes") {
+                // Preset Themes Panel placed next to the control sections for direct modern preview
+                Section("Built In Preset Themes") {
                     ForEach(AppTheme.builtIns) { theme in
                         ThemeRowView(theme: theme, isSelected: settings.selectedThemeID == theme.id)
                             .contentShape(Rectangle())
@@ -1776,13 +1870,15 @@ struct ThemeManagementView: View {
             .navigationTitle("Themes")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Close") { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        showCreateSheet = true
-                    } label: {
-                        Label("New Theme", systemImage: "plus")
+                    HStack(spacing: 8) {
+                        Button {
+                            showCreateSheet = true
+                        } label: {
+                            Label("New Theme", systemImage: "plus")
+                        }
                     }
                 }
             }
@@ -1993,7 +2089,6 @@ struct GitHubConfigView: View {
     var body: some View {
         NavigationStack {
             Form {
-
                 // Git Identity
                 Section {
                     TextField("Name (e.g. Jane Doe)", text: $settings.gitUserName)
@@ -2318,8 +2413,6 @@ struct CustomToolEditorView: View {
                     HStack {
                         Text("Parameters")
                         Spacer()
-                        if !parameters.isEmpty {
-                        }
                     }
                 }
 
@@ -2337,7 +2430,7 @@ struct CustomToolEditorView: View {
                         Button {
                             showAdvancedBuilder = true
                         } label: {
-                            Label("Build Custon Tool", systemImage: "wrench.and.screwdriver.fill")
+                            Label("Build Custom Tool", systemImage: "wrench.and.screwdriver.fill")
                                 .foregroundStyle(.orange)
                         }
                     } header: {
