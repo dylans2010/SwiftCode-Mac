@@ -18,18 +18,32 @@ final class OpenRouterService: Sendable {
         model: String,
         systemPrompt: String
     ) async throws -> String {
+        logger.log("[chat] Centralizing request through LLMService.")
+        return try await LLMService.shared.generateResponse(
+            prompt: messages.last?.content ?? "",
+            useContext: true,
+            modelOverride: model,
+            providerOverride: .openRouter
+        )
+    }
+
+    func chatDirect(
+        messages: [AIMessage],
+        model: String,
+        systemPrompt: String
+    ) async throws -> String {
         let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled }
-        logger.log("[chat] Requested model: \(model, privacy: .public). FoundationModels enabled: \(isFMEnabled).")
+        logger.log("[chatDirect] Requested model: \(model, privacy: .public). FoundationModels enabled: \(isFMEnabled).")
 
         if isFMEnabled {
-            logger.log("[chat] Routing request to local Apple Foundation Models.")
+            logger.log("[chatDirect] Routing request to local Apple Foundation Models.")
             let lastPrompt = messages.last?.content ?? ""
             return try await FoundationModels.shared.generatePrivateResponse(prompt: lastPrompt)
         }
 
         guard let apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey),
               !apiKey.isEmpty else {
-            logger.error("[chat] Missing API key for OpenRouter.")
+            logger.error("[chatDirect] Missing API key for OpenRouter.")
             throw OpenRouterError.missingAPIKey
         }
 
@@ -93,11 +107,26 @@ final class OpenRouterService: Sendable {
         systemPrompt: String,
         onToken: @escaping @Sendable (String) async -> Void
     ) async throws {
+        logger.log("[streamChat] Centralizing streaming request through LLMService.")
+        try await LLMService.shared.streamChat(
+            messages: messages,
+            model: model,
+            systemPrompt: systemPrompt,
+            onToken: onToken
+        )
+    }
+
+    func streamChatDirect(
+        messages: [AIMessage],
+        model: String,
+        systemPrompt: String,
+        onToken: @escaping @Sendable (String) async -> Void
+    ) async throws {
         let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled }
-        logger.log("[streamChat] Requested model: \(model, privacy: .public). FoundationModels enabled: \(isFMEnabled).")
+        logger.log("[streamChatDirect] Requested model: \(model, privacy: .public). FoundationModels enabled: \(isFMEnabled).")
 
         if isFMEnabled {
-            logger.log("[streamChat] Routing request to local Apple Foundation Models.")
+            logger.log("[streamChatDirect] Routing request to local Apple Foundation Models.")
             let lastPrompt = messages.last?.content ?? ""
             try await FoundationModels.shared.streamPrivateResponse(prompt: lastPrompt) { token in
                 await onToken(token)
@@ -107,7 +136,7 @@ final class OpenRouterService: Sendable {
 
         guard let apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey),
               !apiKey.isEmpty else {
-            logger.error("[streamChat] Missing API key for OpenRouter.")
+            logger.error("[streamChatDirect] Missing API key for OpenRouter.")
             throw OpenRouterError.missingAPIKey
         }
 
