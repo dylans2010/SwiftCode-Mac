@@ -10,11 +10,20 @@ public struct AgentChatView: View {
 
     @MainActor
     private var filteredSessions: [AgentSession] {
-        viewModel.sessions.filter { s in
-            searchText.isEmpty || s.messages.compactMap { content -> String? in
-                if case .text(let t) = content { return t }
-                return nil
-            }.joined(separator: " ").localizedCaseInsensitiveContains(searchText)
+        if searchText.isEmpty {
+            return viewModel.sessions
+        }
+        return viewModel.sessions.filter { s in
+            for message in s.messages {
+                for content in message.content {
+                    if case .text(let t) = content {
+                        if t.localizedCaseInsensitiveContains(searchText) {
+                            return true
+                        }
+                    }
+                }
+            }
+            return false
         }
     }
 
@@ -88,7 +97,7 @@ public struct AgentChatView: View {
                                         let iconName: String = (s.mode == .agent) ? "sparkles" : "bubble.left.and.bubble.right"
                                         let isSelected = (viewModel.session.id == s.id)
                                         Image(systemName: iconName)
-                                            .foregroundStyle(isSelected ? .accentColor : .secondary)
+                                            .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                                     }
 
                                     Spacer()
