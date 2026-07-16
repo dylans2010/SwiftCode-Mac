@@ -29,46 +29,23 @@ struct WorkspaceView: View {
 
     var body: some View {
         AdaptivePage {
-            HStack(spacing: 0) {
-                HSplitView {
-                    FileNavigatorSidebarView(viewModel: viewModel.projectTree)
-                        .frame(minWidth: 200, idealWidth: 260, maxWidth: 500)
+            HSplitView {
+                FileNavigatorSidebarView(viewModel: viewModel.projectTree)
+                    .frame(minWidth: 200, idealWidth: 260, maxWidth: 400)
+                    .layoutPriority(1)
 
-                    EditorTextView(workspaceViewModel: viewModel)
-                }
+                EditorTextView(workspaceViewModel: viewModel)
+                    .layoutPriority(2)
 
                 if showAgentInspector {
-                    // Custom drag handle divider
-                    Rectangle()
-                        .fill(Color.secondary.opacity(0.2))
-                        .frame(width: 4)
-                        .contentShape(Rectangle())
-                        .onHover { isHovered in
-                            if isHovered {
-                                NSCursor.resizeLeftRight.push()
-                            } else {
-                                NSCursor.pop()
-                            }
-                        }
-                        .gesture(
-                            DragGesture()
-                                .onChanged { value in
-                                    if dragStartWidth == nil {
-                                        dragStartWidth = agentInspectorWidth
-                                    }
-                                    let delta = value.translation.width
-                                    let newWidth = (dragStartWidth ?? 320.0) - delta
-                                    agentInspectorWidth = max(280, min(600, newWidth))
-                                }
-                                .onEnded { _ in
-                                    dragStartWidth = nil
-                                }
-                        )
-
                     AgentChatView()
                         .environment(viewModel.ai)
-                        .frame(width: agentInspectorWidth)
-                        .transition(.move(edge: .trailing))
+                        .frame(minWidth: 350, idealWidth: 500, maxWidth: .infinity)
+                        .layoutPriority(3)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .trailing),
+                            removal: .opacity
+                        ))
                 }
             }
         }
