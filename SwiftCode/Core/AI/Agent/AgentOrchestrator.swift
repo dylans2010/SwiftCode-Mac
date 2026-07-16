@@ -1,6 +1,8 @@
 import Foundation
+import os
 
 public actor AgentOrchestrator {
+    private let pipelineLogger = Logger(subsystem: "com.swiftcode.app", category: "AgentPipeline")
     private let provider: AIProvider
     private let contextBuilder = AgentContextBuilder()
     private let toolRegistry = AgentToolRegistry.shared
@@ -13,9 +15,11 @@ public actor AgentOrchestrator {
 
     public func runTurn(session: AgentSession, userMessage: String, attachments: [AgentAttachment] = []) async throws {
         isCancelled = false
+        pipelineLogger.info("[runTurn] Starting turn. User message: \(userMessage, privacy: .public). Attachments count: \(attachments.count).")
 
         // Ensure skills are discovered
         let projectRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        pipelineLogger.info("[runTurn] Discovering skills in directory: \(projectRoot.path).")
         try await SkillsRuntime.shared.discoverSkills(in: projectRoot)
 
         await MainActor.run {
@@ -24,6 +28,7 @@ public actor AgentOrchestrator {
 
         var contents: [AgentMessageContent] = [.text(userMessage)]
         for attachment in attachments {
+            pipelineLogger.info("[runTurn] Processing attachment: \(attachment.name, privacy: .public).")
             if attachment.type == .image {
                 let data = try Data(contentsOf: attachment.url)
                 contents.append(.image(data: data, mimeType: "image/jpeg"))
@@ -42,6 +47,7 @@ public actor AgentOrchestrator {
     }
 
     public func resumeTurn(session: AgentSession, result: String, toolCallId: String) async throws {
+        pipelineLogger.info("[resumeTurn] Resuming turn for toolCallId: \(toolCallId, privacy: .public).")
         let toolResultMessage = AgentMessage(role: .assistant, content: [.toolResult(AgentToolResult(toolCallId: toolCallId, content: result))])
         await MainActor.run {
             session.messages.append(toolResultMessage)
@@ -50,12 +56,15 @@ public actor AgentOrchestrator {
     }
 
     public func cancel() {
+        pipelineLogger.info("[cancel] Cancelling active turn.")
         isCancelled = true
     }
 
     private func runLoop(session: AgentSession) async throws {
         var shouldContinue = true
         let model = OpenRouterModel(id: "openai/gpt-4o", name: "GPT-4o", description: "Internal Model", contextLength: 1048576, pricing: .init(prompt: "0", completion: "0"))
+
+        pipelineLogger.info("[runLoop] Entering run loop.")
 
         while shouldContinue && !isCancelled {
             await MainActor.run {
@@ -65,6 +74,7 @@ public actor AgentOrchestrator {
             let isChatMode = await MainActor.run { session.mode == .chat }
             let sessionMessages = await MainActor.run { session.messages }
 
+            pipelineLogger.info("[runLoop] Building context. Total message count: \(sessionMessages.count). Mode: \(isChatMode ? "Chat" : "Agent", privacy: .public).")
             let messages = await contextBuilder.buildContext(messages: sessionMessages, model: model, includeCodebaseContext: true)
             let tools = toolRegistry.schema()
 
@@ -75,6 +85,7 @@ public actor AgentOrchestrator {
             let stream: AsyncThrowingStream<AgentStreamEvent, Error>
 
             if isFMEnabled {
+                pipelineLogger.info("[runLoop] Foundation Models are enabled. Routing to Apple private on-device reasoning.")
                 stream = AsyncThrowingStream { continuation in
                     Task {
                         do {
@@ -95,6 +106,7 @@ public actor AgentOrchestrator {
             } else {
                 let selectedModel = await MainActor.run { AppSettings.shared.selectedAssistModelID }
                 let actualModel = selectedModel == "swiftcode-balanced" ? "openai/gpt-4o" : selectedModel
+                pipelineLogger.info("[runLoop] OpenRouter provider selected. Selected Model: \(selectedModel, privacy: .public). Actual Model: \(actualModel, privacy: .public). Calling streaming API.")
                 stream = try await provider.streamAgentTurn(model: actualModel, messages: messages, tools: isChatMode ? nil : tools)
             }
 
@@ -107,8 +119,12 @@ public actor AgentOrchestrator {
                 session.messages.append(initialMessage)
             }
 
+            pipelineLogger.info("[runLoop] Consuming stream events...")
             for try await event in stream {
-                if isCancelled { break }
+                if isCancelled {
+                    pipelineLogger.info("[runLoop] Cancellation detected during stream consumption.")
+                    break
+                }
 
                 switch event {
                 case .text(let delta):
@@ -120,15 +136,20 @@ public actor AgentOrchestrator {
                         }
                     }
                 case .toolCall(let toolCalls):
+                    pipelineLogger.info("[runLoop] Received tool calls count: \(toolCalls.count).")
                     for call in toolCalls {
                         assistantContent.append(.toolCall(call))
                     }
                 }
             }
 
-            if isCancelled { break }
+            if isCancelled {
+                pipelineLogger.info("[runLoop] Cancellation detected before finalizing content.")
+                break
+            }
 
             // Finalize the content
+            pipelineLogger.info("[runLoop] Stream consumed. Finalizing assistant content on the main actor.")
             await MainActor.run {
                 if let index = session.messages.firstIndex(where: { $0.id == assistantMessageId }) {
                     var finalContent: [AgentMessageContent] = []
@@ -146,18 +167,25 @@ public actor AgentOrchestrator {
             }
 
             if toolCalls.isEmpty || isChatMode {
+                pipelineLogger.info("[runLoop] No tool calls parsed or running in Chat Mode. Loop termination imminent.")
                 shouldContinue = false
             } else {
+                pipelineLogger.info("[runLoop] Parsing and executing \(toolCalls.count) tool calls.")
                 await MainActor.run {
                     session.turnState = .executingTools
                 }
                 for call in toolCalls {
-                    if isCancelled { break }
+                    if isCancelled {
+                        pipelineLogger.info("[runLoop] Cancellation detected during tool execution.")
+                        break
+                    }
 
                     let args = decodeArguments(call.arguments)
+                    pipelineLogger.info("[runLoop] Executing tool: \(call.name, privacy: .public). Arguments: \(call.arguments, privacy: .public).")
 
                     // Special Tool Handling
                     if call.name == "ask_user" {
+                        pipelineLogger.info("[runLoop] Tool 'ask_user' detected. Awaiting user response.")
                         await MainActor.run {
                             handleAskUser(call, args, session)
                             session.turnState = .awaitingUserAnswer
@@ -165,6 +193,7 @@ public actor AgentOrchestrator {
                         shouldContinue = false
                         break
                     } else if call.name == "questions_handle" {
+                        pipelineLogger.info("[runLoop] Tool 'questions_handle' detected. Awaiting user responses.")
                         await MainActor.run {
                             handleQuestionsHandle(call, args, session)
                             session.turnState = .awaitingUserAnswer
@@ -172,6 +201,7 @@ public actor AgentOrchestrator {
                         shouldContinue = false
                         break
                     } else if call.name == "checklist_plan" {
+                        pipelineLogger.info("[runLoop] Tool 'checklist_plan' detected. Updating plan.")
                         await MainActor.run {
                             handleChecklistPlan(args, session)
                         }
@@ -179,10 +209,12 @@ public actor AgentOrchestrator {
 
                     do {
                         let result = try await toolRegistry.execute(name: call.name, arguments: args)
+                        pipelineLogger.info("[runLoop] Tool \(call.name, privacy: .public) executed successfully.")
                         await MainActor.run {
                             session.messages.append(AgentMessage(role: .assistant, content: [.toolResult(AgentToolResult(toolCallId: call.id, content: result))]))
                         }
                     } catch {
+                        pipelineLogger.error("[runLoop] Tool \(call.name, privacy: .public) failed with error: \(error.localizedDescription, privacy: .public).")
                         await MainActor.run {
                             session.messages.append(AgentMessage(role: .assistant, content: [.toolResult(AgentToolResult(toolCallId: call.id, content: error.localizedDescription, isError: true))]))
                         }
@@ -191,6 +223,7 @@ public actor AgentOrchestrator {
             }
         }
 
+        pipelineLogger.info("[runLoop] Exiting loop. Finalizing state.")
         await MainActor.run {
             if !shouldContinue && session.turnState != .awaitingUserAnswer {
                 session.turnState = .idle

@@ -2,148 +2,26 @@ import SwiftUI
 
 public struct AgentChatView: View {
     @Environment(AgentViewModel.self) var viewModel
-    @State private var showSidebar = true
     @State private var showChecklist = true
-    @State private var searchText = ""
+    @State private var showHistorySheet = false
 
     public init() {}
 
-    @MainActor
-    private var filteredSessions: [AgentSession] {
-        if searchText.isEmpty {
-            return viewModel.sessions
-        }
-        return viewModel.sessions.filter { s in
-            for message in s.messages {
-                for content in message.content {
-                    if case .text(let t) = content {
-                        if t.localizedCaseInsensitiveContains(searchText) {
-                            return true
-                        }
-                    }
-                }
-            }
-            return false
-        }
-    }
-
     public var body: some View {
         HSplitView {
-            // Column 1: Left Sidebar (Conversation History)
-            if showSidebar {
-                VStack(spacing: 0) {
-                    HStack {
-                        // Search field for filtering sessions
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.secondary)
-                        TextField("Search Chats...", text: $searchText)
-                            .textFieldStyle(.plain)
-
-                        Button {
-                            withAnimation(.spring()) {
-                                viewModel.startNewSession(mode: viewModel.session.mode)
-                            }
-                        } label: {
-                            Image(systemName: "square.and.pencil")
-                                .font(.system(size: 13, weight: .semibold))
-                        }
-                        .buttonStyle(.plain)
-                        .help("New Chat")
-                    }
-                    .padding(8)
-                    .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
-                    .cornerRadius(6)
-                    .padding(8)
-
-                    Divider()
-
-                    // Sessions List
-                    List(selection: Binding<UUID?>(
-                        get: { viewModel.session.id },
-                        set: { id in
-                            if let selectedId = id, let s = viewModel.sessions.first(where: { $0.id == selectedId }) {
-                                viewModel.selectSession(s)
-                            }
-                        }
-                    )) {
-                        if filteredSessions.isEmpty {
-                            Text("No chats found")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .padding()
-                        } else {
-                            ForEach(filteredSessions) { s in
-                                HStack {
-                                    Label {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(s.firstUserMessageText)
-                                                .font(.body)
-                                                .lineLimit(1)
-
-                                            // Break up ternaries to help the type-checker
-                                            let isAgent = (s.mode == .agent)
-                                            let badgeBaseColor: Color = isAgent ? .purple : .blue
-                                            let badgeBackground: Color = badgeBaseColor.opacity(0.2)
-
-                                            Text(s.mode.rawValue)
-                                                .font(.system(size: 9, weight: .bold))
-                                                .padding(.horizontal, 4)
-                                                .padding(.vertical, 1)
-                                                .background(badgeBackground)
-                                                .foregroundStyle(badgeBaseColor)
-                                                .cornerRadius(3)
-                                        }
-                                    } icon: {
-                                        let iconName: String = (s.mode == .agent) ? "sparkles" : "bubble.left.and.bubble.right"
-                                        let isSelected = (viewModel.session.id == s.id)
-                                        Image(systemName: iconName)
-                                            .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                                    }
-
-                                    Spacer()
-
-                                    // Delete Button on Hover or Context Menu
-                                    Button {
-                                        withAnimation(.spring()) {
-                                            viewModel.deleteSession(s)
-                                        }
-                                    } label: {
-                                        Image(systemName: "trash")
-                                            .font(.system(size: 11))
-                                            .foregroundStyle(.red.opacity(0.8))
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                                .tag(s.id)
-                                .padding(.vertical, 4)
-                                .contextMenu {
-                                    Button("Delete Chat", role: .destructive) {
-                                        viewModel.deleteSession(s)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .listStyle(.sidebar)
-                }
-                .frame(minWidth: 160, idealWidth: 200, maxWidth: 300)
-                .background(Color(NSColor.windowBackgroundColor))
-            }
-
-            // Column 2: Center Conversation (Main Chat Panel)
+            // Column 1: Conversation Area (Takes majority space)
             VStack(spacing: 0) {
                 // Mode Segmented Picker and Controls
                 HStack(spacing: 12) {
+                    // Chat History Browser Button (replaces sidebar left toggle)
                     Button {
-                        withAnimation(.spring()) {
-                            showSidebar.toggle()
-                        }
+                        showHistorySheet = true
                     } label: {
-                        Image(systemName: "sidebar.left")
-                            .foregroundColor(showSidebar ? .accentColor : .secondary)
+                        Label("History", systemImage: "clock.arrow.circlepath")
+                            .foregroundColor(.accentColor)
                     }
                     .buttonStyle(.plain)
-                    .help("Toggle Chat Sidebar")
+                    .help("Browse previous conversations")
 
                     // Segmented Picker for Chat/Agent Mode
                     Picker("Mode", selection: Binding(
@@ -216,13 +94,83 @@ public struct AgentChatView: View {
                     .transition(.opacity)
                 }
 
+                // Visual Error Banner Overlay
+                if case .failed(let error) = viewModel.session.turnState {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.title3)
+                                .foregroundStyle(.red)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Request Failed")
+                                    .font(.subheadline)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.red)
+                                Text(error.localizedDescription)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            Button {
+                                withAnimation(.spring()) {
+                                    viewModel.session.turnState = .idle
+                                }
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        HStack {
+                            Spacer()
+                            Button("Dismiss") {
+                                withAnimation(.spring()) {
+                                    viewModel.session.turnState = .idle
+                                }
+                            }
+                            .buttonStyle(.bordered)
+
+                            if let lastUserMessage = viewModel.session.messages.last(where: { $0.role == .user }),
+                               let firstContent = lastUserMessage.content.first,
+                               case .text(let prompt) = firstContent {
+                                Button("Retry") {
+                                    let retryPrompt = prompt
+                                    withAnimation(.spring()) {
+                                        viewModel.session.turnState = .idle
+                                        Task {
+                                            await viewModel.sendUserMessage(retryPrompt)
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.red)
+                            }
+                        }
+                    }
+                    .padding(14)
+                    .background(Color.red.opacity(0.06))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.red.opacity(0.2), lineWidth: 1)
+                    )
+                    .cornerRadius(10)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+
                 // Input Bar (Attachments picker + textfield + Send)
                 AgentInputBarView(viewModel: viewModel)
             }
             .frame(minWidth: 400)
             .layoutPriority(1) // High layout priority ensures Center is highest priority and takes majority space!
 
-            // Column 3: Right "Plan & Tasks" Checklist Inspector
+            // Column 2: Right "Plan & Tasks" Checklist Inspector
             if showChecklist {
                 VStack(spacing: 0) {
                     HStack {
@@ -251,6 +199,276 @@ public struct AgentChatView: View {
                 .background(Color(NSColor.controlBackgroundColor))
             }
         }
+        .sheet(isPresented: $showHistorySheet) {
+            ChatHistoryBrowserSheet(viewModel: viewModel, isPresented: $showHistorySheet)
+        }
         .macDesktopOptimized()
+    }
+}
+
+// MARK: - ChatHistoryBrowserSheet
+
+struct ChatHistoryBrowserSheet: View {
+    @Bindable var viewModel: AgentViewModel
+    @Binding var isPresented: Bool
+
+    @State private var searchText = ""
+    @State private var sortOption: SortOption = .recent
+
+    // For Rename alert
+    @State private var sessionToRename: AgentSession? = nil
+    @State private var renameText = ""
+    @State private var showingRenameAlert = false
+
+    enum SortOption: String, CaseIterable, Identifiable {
+        case recent = "Recent"
+        case alphabetical = "Name"
+        case pinned = "Pinned First"
+
+        var id: String { self.rawValue }
+    }
+
+    var sortedAndFilteredSessions: [AgentSession] {
+        var filtered = viewModel.sessions
+        if !searchText.isEmpty {
+            filtered = filtered.filter { s in
+                if let title = s.title, title.localizedCaseInsensitiveContains(searchText) {
+                    return true
+                }
+                return s.firstUserMessageText.localizedCaseInsensitiveContains(searchText)
+            }
+        }
+
+        switch sortOption {
+        case .recent:
+            filtered.sort { $0.lastModified > $1.lastModified }
+        case .alphabetical:
+            filtered.sort { $0.firstUserMessageText.localizedCaseInsensitiveCompare($1.firstUserMessageText) == .orderedAscending }
+        case .pinned:
+            filtered.sort {
+                if $0.isPinned == $1.isPinned {
+                    return $0.lastModified > $1.lastModified
+                }
+                return $0.isPinned && !$1.isPinned
+            }
+        }
+
+        return filtered
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Conversation Browser")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                Spacer()
+
+                Button {
+                    isPresented = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 15)
+
+            Divider()
+
+            // Search & Sort Bar
+            HStack(spacing: 12) {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search previous chats...", text: $searchText)
+                        .textFieldStyle(.plain)
+                }
+                .padding(8)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(8)
+
+                Picker("Sort", selection: $sortOption) {
+                    ForEach(SortOption.allCases) { option in
+                        Text(option.rawValue).tag(option)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(width: 140)
+
+                Button {
+                    viewModel.startNewSession(mode: viewModel.session.mode)
+                    isPresented = false
+                } label: {
+                    Label("New Chat", systemImage: "plus")
+                        .fontWeight(.medium)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(15)
+            .background(Color(NSColor.windowBackgroundColor).opacity(0.4))
+
+            Divider()
+
+            // Document Browser List
+            ScrollView {
+                VStack(spacing: 10) {
+                    if sortedAndFilteredSessions.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "bubble.left.and.bubble.right")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.secondary)
+                            Text("No Conversations Found")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.top, 60)
+                    } else {
+                        ForEach(sortedAndFilteredSessions) { s in
+                            let isSelected = s.id == viewModel.session.id
+
+                            HStack(alignment: .center, spacing: 14) {
+                                // Pinned status indicator or pin button
+                                Button {
+                                    viewModel.togglePinSession(s)
+                                } label: {
+                                    Image(systemName: s.isPinned ? "pin.fill" : "pin")
+                                        .foregroundStyle(s.isPinned ? .orange : .secondary)
+                                        .font(.system(size: 14))
+                                }
+                                .buttonStyle(.plain)
+                                .help(s.isPinned ? "Unpin" : "Pin")
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(spacing: 8) {
+                                        Text(s.firstUserMessageText)
+                                            .font(.body)
+                                            .fontWeight(isSelected ? .bold : .regular)
+                                            .lineLimit(1)
+
+                                        Spacer()
+
+                                        Text(s.lastModified.formatted(date: .abbreviated, time: .shortened))
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    HStack(spacing: 8) {
+                                        // Mode Badge
+                                        let isAgent = (s.mode == .agent)
+                                        let badgeColor: Color = isAgent ? .purple : .blue
+                                        Text(s.mode.rawValue.uppercased())
+                                            .font(.system(size: 8, weight: .bold))
+                                            .padding(.horizontal, 4)
+                                            .padding(.vertical, 1)
+                                            .background(badgeColor.opacity(0.15))
+                                            .foregroundStyle(badgeColor)
+                                            .cornerRadius(3)
+
+                                        if isSelected {
+                                            Text("Active")
+                                                .font(.system(size: 8, weight: .bold))
+                                                .padding(.horizontal, 4)
+                                                .padding(.vertical, 1)
+                                                .background(Color.green.opacity(0.15))
+                                                .foregroundStyle(.green)
+                                                .cornerRadius(3)
+                                        }
+
+                                        Spacer()
+                                    }
+                                }
+
+                                // Operations actions
+                                HStack(spacing: 12) {
+                                    Button {
+                                        sessionToRename = s
+                                        renameText = s.title ?? ""
+                                        showingRenameAlert = true
+                                    } label: {
+                                        Image(systemName: "pencil")
+                                            .foregroundStyle(.blue)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Rename")
+
+                                    Button {
+                                        viewModel.duplicateSession(s)
+                                    } label: {
+                                        Image(systemName: "doc.on.doc")
+                                            .foregroundStyle(.purple)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Duplicate")
+
+                                    Button {
+                                        viewModel.deleteSession(s)
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .foregroundStyle(.red)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Delete")
+                                }
+                            }
+                            .padding(12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(isSelected ? Color.accentColor.opacity(0.08) : Color(NSColor.controlBackgroundColor).opacity(0.4))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(isSelected ? Color.accentColor.opacity(0.3) : Color.secondary.opacity(0.12), lineWidth: 1)
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                viewModel.selectSession(s)
+                                isPresented = false
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+            }
+        }
+        .frame(width: 580, height: 480)
+        .sheet(isPresented: $showingRenameAlert) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Rename Conversation")
+                    .font(.headline)
+                    .fontWeight(.bold)
+
+                TextField("Enter conversation name...", text: $renameText)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit {
+                        if let s = sessionToRename {
+                            viewModel.renameSession(id: s.id, newTitle: renameText)
+                        }
+                        showingRenameAlert = false
+                    }
+
+                HStack {
+                    Spacer()
+                    Button("Cancel") {
+                        showingRenameAlert = false
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Rename") {
+                        if let s = sessionToRename {
+                            viewModel.renameSession(id: s.id, newTitle: renameText)
+                        }
+                        showingRenameAlert = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+            .padding(20)
+            .frame(width: 320)
+        }
     }
 }
