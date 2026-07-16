@@ -19,11 +19,14 @@ public final class FreeModelsFallback {
     public static let shared = FreeModelsFallback()
 
     public var isEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: "free_models_fallback_enabled") }
-        set { UserDefaults.standard.set(newValue, forKey: "free_models_fallback_enabled") }
+        didSet {
+            UserDefaults.standard.set(isEnabled, forKey: "free_models_fallback_enabled")
+        }
     }
 
-    private init() {}
+    private init() {
+        self.isEnabled = UserDefaults.standard.bool(forKey: "free_models_fallback_enabled")
+    }
 
     /// Performs fallback-rotation logic for OpenRouter models containing "free" on their model ID.
     public func executeWithFallback<T>(task: @escaping (String) async throws -> T) async throws -> T {
@@ -127,177 +130,238 @@ struct FoundationModelsView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "apple.logo")
-                                .font(.title)
-                                .foregroundStyle(.green)
-                            Text("Third-Gen Apple Foundation Models")
-                                .font(.headline)
-                        }
-
-                        Text("Configure on-device and server-side intelligence using Apple's native secure architecture (AFM 3).")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 4)
-                }
-
-                Section {
-                    Toggle("Enable Private On-Device Models", isOn: $manager.isEnabled)
-                        .toggleStyle(.switch)
-
-                    Text("Process natural language commands locally on Apple Silicon and route complex sessions through Private Cloud Compute.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                if manager.isEnabled {
-                    Section("Active Model Select (AFM 3 Series)") {
-                        ForEach(AppleFoundationModel.allCases) { model in
-                            HStack(alignment: .top) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack(spacing: 6) {
-                                        Text(model.rawValue)
-                                            .font(.body.bold())
-
-                                        if model.isServerBased {
-                                            Text("PCC Server")
-                                                .font(.system(size: 9, weight: .bold))
-                                                .padding(.horizontal, 4)
-                                                .padding(.vertical, 1)
-                                                .background(Color.blue.opacity(0.15))
-                                                .foregroundStyle(.blue)
-                                                .cornerRadius(3)
-                                        } else {
-                                            Text("On-Device")
-                                                .font(.system(size: 9, weight: .bold))
-                                                .padding(.horizontal, 4)
-                                                .padding(.vertical, 1)
-                                                .background(Color.green.opacity(0.15))
-                                                .foregroundStyle(.green)
-                                                .cornerRadius(3)
-                                        }
-                                    }
-
-                                    Text(model.description)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-
+            ScrollView {
+                VStack(spacing: 24) {
+                    // GroupBox 1: Overview & Status
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Apple Foundation Models", systemImage: "apple.logo")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
                                 Spacer()
-
-                                if manager.selectedModel == model {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(Color.accentColor)
-                                } else {
-                                    Circle()
-                                        .strokeBorder(Color.secondary.opacity(0.5), lineWidth: 1)
-                                        .frame(width: 16, height: 16)
-                                }
                             }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                manager.selectedModel = model
-                                // Automatically toggle PCC routing if server model is selected
-                                manager.isPccEnabled = model.isServerBased
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
 
-                    Section("Reasoning Level") {
-                        Picker("Reasoning Effort", selection: $manager.reasoningLevel) {
-                            ForEach(AppReasoningLevel.allCases) { level in
-                                Text(level.rawValue.capitalized).tag(level)
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Third-Gen Apple Foundation Models")
+                                    .font(.headline)
+                                Text("Configure on-device and server-side intelligence using Apple's native secure architecture (AFM 3).")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
                             }
                         }
-                        .pickerStyle(.segmented)
-
-                        Text(manager.reasoningLevel.description)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        .padding()
                     }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                    Section("Private Cloud Compute (PCC) Status") {
-                        Toggle("Route through Private Cloud Compute", isOn: $manager.isPccEnabled)
-                            .disabled(!manager.selectedModel.isServerBased)
+                    // GroupBox 2: Configuration
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Configuration", systemImage: "gearshape")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
 
-                        Text("Directs sessions to secure PCC servers for a 32K token context window. Falls back to on-device models if network is unavailable.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            Toggle("Enable Private On-Device Models", isOn: $manager.isEnabled)
+                                .toggleStyle(.switch)
 
-                        if manager.isPccEnabled {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Divider()
+                            Text("Process natural language commands locally on Apple Silicon and route complex sessions through Private Cloud Compute.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
+                    if manager.isEnabled {
+                        // GroupBox 3: Active Model Select
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
                                 HStack {
-                                    Text("PCC Quota Status:")
-                                        .font(.caption.bold())
+                                    Label("Active Model Select (AFM 3 Series)", systemImage: "play.circle")
+                                        .font(.headline)
+                                        .foregroundColor(.green)
                                     Spacer()
-                                    if manager.simulatedQuotaLimitReached {
-                                        Text("Usage limit exceeded")
-                                            .font(.caption.bold())
-                                            .foregroundStyle(.red)
-                                    } else if manager.simulatedApproachingLimit {
-                                        Text("Nearing usage limit")
-                                            .font(.caption.bold())
-                                            .foregroundStyle(.orange)
-                                    } else {
-                                        Text("Below daily limit")
-                                            .font(.caption.bold())
-                                            .foregroundStyle(.green)
-                                    }
                                 }
 
-                                if manager.simulatedQuotaLimitReached {
-                                    HStack {
-                                        Text("Daily reasoning quota exhausted. Limits reset at midnight.")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                        Spacer()
-                                        Button("Show Options") {
-                                            // Simulated upgrade
+                                VStack(spacing: 12) {
+                                    ForEach(AppleFoundationModel.allCases) { model in
+                                        HStack(alignment: .top) {
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                HStack(spacing: 6) {
+                                                    Text(model.rawValue)
+                                                        .font(.body.bold())
+
+                                                    if model.isServerBased {
+                                                        Text("PCC Server")
+                                                            .font(.system(size: 9, weight: .bold))
+                                                            .padding(.horizontal, 4)
+                                                            .padding(.vertical, 1)
+                                                            .background(Color.blue.opacity(0.15))
+                                                            .foregroundStyle(.blue)
+                                                            .cornerRadius(3)
+                                                    } else {
+                                                        Text("On-Device")
+                                                            .font(.system(size: 9, weight: .bold))
+                                                            .padding(.horizontal, 4)
+                                                            .padding(.vertical, 1)
+                                                            .background(Color.green.opacity(0.15))
+                                                            .foregroundStyle(.green)
+                                                            .cornerRadius(3)
+                                                    }
+                                                }
+
+                                                Text(model.description)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+
+                                            Spacer()
+
+                                            if manager.selectedModel == model {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .foregroundStyle(Color.accentColor)
+                                            } else {
+                                                Circle()
+                                                    .strokeBorder(Color.secondary.opacity(0.5), lineWidth: 1)
+                                                    .frame(width: 16, height: 16)
+                                            }
                                         }
-                                        .buttonStyle(.bordered)
-                                        .controlSize(.small)
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            manager.selectedModel = model
+                                            manager.isPccEnabled = model.isServerBased
+                                        }
+                                        .padding(.vertical, 4)
+
+                                        if model != AppleFoundationModel.allCases.last {
+                                            Divider()
+                                        }
                                     }
-                                } else if manager.simulatedApproachingLimit {
-                                    Text("Nearing quota limit. Moderate your reasoning effort to avoid depletion.")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+
+                        // GroupBox 4: Reasoning Level
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Label("Reasoning Level", systemImage: "brain.head.profile")
+                                        .font(.headline)
+                                        .foregroundColor(.purple)
+                                    Spacer()
                                 }
 
-                                Divider()
+                                Picker("Reasoning Effort", selection: $manager.reasoningLevel) {
+                                    ForEach(AppReasoningLevel.allCases) { level in
+                                        Text(level.rawValue.capitalized).tag(level)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
 
-                                Text("Quota Simulation (For testing and evaluation)")
-                                    .font(.caption.bold())
+                                Text(manager.reasoningLevel.description)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+
+                        // GroupBox 5: Private Cloud Compute Status
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Label("Private Cloud Compute (PCC) Status", systemImage: "network")
+                                        .font(.headline)
+                                        .foregroundColor(.cyan)
+                                    Spacer()
+                                }
+
+                                Toggle("Route through Private Cloud Compute", isOn: $manager.isPccEnabled)
+                                    .disabled(!manager.selectedModel.isServerBased)
+
+                                Text("Directs sessions to secure PCC servers for a 32K token context window. Falls back to on-device models if network is unavailable.")
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
 
-                                HStack(spacing: 20) {
-                                    Toggle("Simulate Limit Reached", isOn: Binding(
-                                        get: { manager.simulatedQuotaLimitReached },
-                                        set: {
-                                            manager.simulatedQuotaLimitReached = $0
-                                            if $0 { manager.simulatedApproachingLimit = false }
+                                if manager.isPccEnabled {
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        Divider()
+
+                                        HStack {
+                                            Text("PCC Quota Status:")
+                                                .font(.caption.bold())
+                                            Spacer()
+                                            if manager.simulatedQuotaLimitReached {
+                                                Text("Usage limit exceeded")
+                                                    .font(.caption.bold())
+                                                    .foregroundStyle(.red)
+                                            } else if manager.simulatedApproachingLimit {
+                                                Text("Nearing usage limit")
+                                                    .font(.caption.bold())
+                                                    .foregroundStyle(.orange)
+                                            } else {
+                                                Text("Below daily limit")
+                                                    .font(.caption.bold())
+                                                    .foregroundStyle(.green)
+                                            }
                                         }
-                                    ))
-                                    Toggle("Simulate Approaching Limit", isOn: Binding(
-                                        get: { manager.simulatedApproachingLimit },
-                                        set: {
-                                            manager.simulatedApproachingLimit = $0
-                                            if $0 { manager.simulatedQuotaLimitReached = false }
+
+                                        if manager.simulatedQuotaLimitReached {
+                                            HStack {
+                                                Text("Daily reasoning quota exhausted. Limits reset at midnight.")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                                Spacer()
+                                                Button("Show Options") {
+                                                    // Simulated upgrade
+                                                }
+                                                .buttonStyle(.bordered)
+                                                .controlSize(.small)
+                                            }
+                                        } else if manager.simulatedApproachingLimit {
+                                            Text("Nearing quota limit. Moderate your reasoning effort to avoid depletion.")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
                                         }
-                                    ))
+
+                                        Divider()
+
+                                        Text("Quota Simulation (For testing and evaluation)")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(.secondary)
+
+                                        HStack(spacing: 20) {
+                                            Toggle("Simulate Limit Reached", isOn: Binding(
+                                                get: { manager.simulatedQuotaLimitReached },
+                                                set: {
+                                                    manager.simulatedQuotaLimitReached = $0
+                                                    if $0 { manager.simulatedApproachingLimit = false }
+                                                }
+                                            ))
+                                            Toggle("Simulate Approaching Limit", isOn: Binding(
+                                                get: { manager.simulatedApproachingLimit },
+                                                set: {
+                                                    manager.simulatedApproachingLimit = $0
+                                                    if $0 { manager.simulatedQuotaLimitReached = false }
+                                                }
+                                            ))
+                                        }
+                                        .toggleStyle(.checkbox)
+                                    }
+                                    .padding(.vertical, 4)
                                 }
-                                .toggleStyle(.checkbox)
                             }
-                            .padding(.vertical, 4)
+                            .padding()
                         }
+                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
                 }
+                .padding(24)
             }
             .navigationTitle("Apple Foundation Models")
             .toolbar {
@@ -691,9 +755,16 @@ struct AssistSettingsView: View {
         APIKeyManager.shared.storeKey(service: .anthropic, key: anthropicKey)
         APIKeyManager.shared.storeKey(service: .google, key: geminiKey)
 
+        // Directly store to keychain to ensure instant access across all routing frameworks
+        KeychainService.shared.set(openRouterKey, forKey: "openrouter-api-key")
+
         hasSavedKeys = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             hasSavedKeys = false
+        }
+
+        Task {
+            await fetchOpenRouterModels()
         }
     }
 

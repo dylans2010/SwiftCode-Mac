@@ -140,31 +140,58 @@ public final class SettingsWindowController: NSWindowController {
     }
 }
 
+extension NSToolbarItem.Identifier {
+    static let searchItem = NSToolbarItem.Identifier("SettingsToolbarSearchItem")
+    static let optionsMenu = NSToolbarItem.Identifier("SettingsToolbarOptionsMenu")
+}
+
 extension SettingsWindowController: NSToolbarDelegate {
     public func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
-        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-
-        switch itemIdentifier {
-        case .toggleSidebar:
+        if itemIdentifier == .toggleSidebar {
+            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
             item.label = "Toggle Sidebar"
             item.paletteLabel = "Toggle Sidebar"
             item.toolTip = "Toggle Settings Categories Sidebar"
             item.image = NSImage(systemSymbolName: "sidebar.left", accessibilityDescription: nil)
             item.target = self
             item.action = #selector(toggleSidebarAction(_:))
+            return item
+        } else if itemIdentifier == .searchItem {
+            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+            item.label = "Search"
+            item.paletteLabel = "Search Field"
+            item.toolTip = "Search Preferences"
 
-        default:
-            return nil
+            let searchField = NSSearchField()
+            searchField.placeholderString = "Search settings..."
+            searchField.target = self
+            searchField.action = #selector(searchFieldDidChange(_:))
+            searchField.widthAnchor.constraint(equalToConstant: 200).isActive = true
+            item.view = searchField
+            return item
+        } else if itemIdentifier == .optionsMenu {
+            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+            item.label = "Options"
+            item.paletteLabel = "Options Menu"
+            item.toolTip = "More Options"
+
+            let button = NSButton()
+            button.bezelStyle = .texturedRounded
+            button.image = NSImage(systemSymbolName: "ellipsis.circle", accessibilityDescription: nil)
+            button.target = self
+            button.action = #selector(showOptionsMenu(_:))
+            item.view = button
+            return item
         }
-        return item
+        return nil
     }
 
     public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace]
+        return [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .searchItem, .optionsMenu]
     }
 
     public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .space]
+        return [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .space, .searchItem, .optionsMenu]
     }
 }
 
@@ -172,6 +199,50 @@ extension SettingsWindowController {
     @objc private func toggleSidebarAction(_ sender: Any?) {
         if let splitVC = contentViewController as? SettingsSplitViewController {
             splitVC.toggleSidebar(sender)
+        }
+    }
+
+    @objc private func searchFieldDidChange(_ sender: NSSearchField) {
+        coordinator.searchText = sender.stringValue
+        if let splitVC = contentViewController as? SettingsSplitViewController,
+           let sidebarVC = splitVC.splitViewItems.first?.viewController as? SettingsSidebarViewController {
+            sidebarVC.rebuildNodes()
+        }
+    }
+
+    @objc private func showOptionsMenu(_ sender: NSButton) {
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "Reset All Preferences", action: #selector(resetPreferences), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Clear Cache", action: #selector(clearCachesAction), keyEquivalent: ""))
+
+        let event = NSApplication.shared.currentEvent
+        NSMenu.popUpContextMenu(menu, with: event ?? NSEvent(), for: sender)
+    }
+
+    @objc private func clearCachesAction() {
+        let alert = NSAlert()
+        alert.messageText = "Clear Caches"
+        alert.informativeText = "Are you sure you want to clear cached system files?"
+        alert.addButton(withTitle: "Clear")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn {
+            let cacheURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            if let url = cacheURL {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+    }
+
+    @objc private func resetPreferences() {
+        let alert = NSAlert()
+        alert.messageText = "Reset All Preferences"
+        alert.informativeText = "Are you sure you want to reset all preferences to defaults? This action cannot be undone."
+        alert.addButton(withTitle: "Reset")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn {
+            if let bundleID = Bundle.main.bundleIdentifier {
+                UserDefaults.standard.removePersistentDomain(forName: bundleID)
+            }
         }
     }
 }
@@ -280,17 +351,6 @@ public final class SettingsSidebarViewController: NSViewController, NSOutlineVie
         visualEffectView.state = .active
         visualEffectView.autoresizingMask = [.width, .height]
 
-        let searchContainer = NSView()
-        searchContainer.translatesAutoresizingMaskIntoConstraints = false
-        visualEffectView.addSubview(searchContainer)
-
-        let searchField = NSSearchField()
-        searchField.placeholderString = "Search settings..."
-        searchField.delegate = self
-        searchField.bezelStyle = .roundedBezel
-        searchField.translatesAutoresizingMaskIntoConstraints = false
-        searchContainer.addSubview(searchField)
-
         let scroll = NSScrollView()
         scroll.drawsBackground = false
         scroll.hasVerticalScroller = true
@@ -320,18 +380,9 @@ public final class SettingsSidebarViewController: NSViewController, NSOutlineVie
         visualEffectView.addSubview(scroll)
 
         NSLayoutConstraint.activate([
-            searchContainer.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor),
-            searchContainer.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor),
-            searchContainer.topAnchor.constraint(equalTo: visualEffectView.topAnchor),
-            searchContainer.heightAnchor.constraint(equalToConstant: 44),
-
-            searchField.leadingAnchor.constraint(equalTo: searchContainer.leadingAnchor, constant: 14),
-            searchField.trailingAnchor.constraint(equalTo: searchContainer.trailingAnchor, constant: -14),
-            searchField.centerYAnchor.constraint(equalTo: searchContainer.centerYAnchor),
-
             scroll.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor),
-            scroll.topAnchor.constraint(equalTo: searchContainer.bottomAnchor),
+            scroll.topAnchor.constraint(equalTo: visualEffectView.topAnchor, constant: 40),
             scroll.bottomAnchor.constraint(equalTo: visualEffectView.bottomAnchor)
         ])
 
@@ -475,13 +526,6 @@ public final class SettingsSidebarViewController: NSViewController, NSOutlineVie
     }
 }
 
-extension SettingsSidebarViewController: NSSearchFieldDelegate {
-    public func controlTextDidChange(_ obj: Notification) {
-        guard let searchField = obj.object as? NSSearchField else { return }
-        coordinator.searchText = searchField.stringValue
-        rebuildNodes()
-    }
-}
 
 // MARK: - AppKit Settings Sidebar Node & Cell View
 
@@ -593,16 +637,6 @@ private let settingsRegistryList: [SettingsItem] = [
         sortOrder: 30,
         keywords: "offline models local coreml download storage model weight install local model manager",
         helpDoc: "Download, manage, and cache on-device local models for private, zero-latency secure codebase reasoning."
-    ),
-    SettingsItem(
-        id: "templates",
-        title: "Project Templates",
-        icon: "doc.badge.plus",
-        iconBgColor: .teal,
-        category: "A.I. & Tools",
-        sortOrder: 40,
-        keywords: "templates project custom scaffold boilerplates ios app macos framework library structure boilerplate",
-        helpDoc: "Build and organize custom project scaffolds, code boilerplates, target architectures, and standard workspace structures."
     ),
     SettingsItem(
         id: "plugins",
@@ -761,8 +795,6 @@ struct SettingsMainWrapper: View {
             AssistSettingsView()
         case "offline_models":
             OfflineModelsView()
-        case "templates":
-            ProjectTemplateView()
         case "plugins":
             PluginManagerView()
         case "updates":

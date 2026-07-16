@@ -5,51 +5,78 @@ struct InstalledOfflineModelsView: View {
 
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateStyle = .short
+        formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter
     }()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             if manager.installedModelRecords.isEmpty {
-                Text("No Local Models Installed")
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 8)
+                HStack {
+                    Spacer()
+                    VStack(spacing: 8) {
+                        Image(systemName: "externaldrive.badge.xmark")
+                            .font(.system(size: 32))
+                            .foregroundStyle(.secondary)
+                        Text("No Local Models Installed")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                        Text("Download models from Hugging Face or via direct link.")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.vertical, 24)
+                    Spacer()
+                }
             } else {
                 ForEach(manager.installedModelRecords) { model in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text(model.modelName)
-                                .font(.headline)
-                            Spacer()
-                            Text(model.sizeDescription)
-                                .font(.subheadline)
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(model.modelName)
+                                    .font(.title3.bold())
+                                    .foregroundStyle(.primary)
+
+                                HStack(spacing: 8) {
+                                    Label(model.folderName, systemImage: "folder")
+                                    Text("•")
+                                    Label("Tokens: \(model.metadata.tokenCount)", systemImage: "number")
+                                }
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+
+                            Text(model.sizeDescription)
+                                .font(.subheadline.bold())
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                                .foregroundStyle(.blue)
                         }
 
-                        HStack(spacing: 16) {
-                            Label(model.folderName, systemImage: "folder")
-                            Spacer()
-                            Label("Tokens: \(model.metadata.tokenCount)", systemImage: "number")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        Divider()
 
                         HStack {
-                            Label("Added: \(dateFormatter.string(from: model.installDate))", systemImage: "calendar")
+                            Label("Installed: \(dateFormatter.string(from: model.installDate))", systemImage: "calendar")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                             Spacer()
                         }
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
 
                         if let validation = model.validationStatus {
-                            Text(validation)
-                                .font(.caption2)
-                                .foregroundStyle(validation.hasPrefix("Error") ? .red : .secondary)
-                                .padding(6)
-                                .background(validation.hasPrefix("Error") ? Color.red.opacity(0.12) : Color.primary.opacity(0.06))
-                                .cornerRadius(6)
+                            HStack(spacing: 6) {
+                                Image(systemName: validation.hasPrefix("Error") ? "exclamationmark.octagon.fill" : "checkmark.circle.fill")
+                                    .foregroundStyle(validation.hasPrefix("Error") ? .red : .green)
+                                Text(validation)
+                                    .font(.caption)
+                                    .foregroundStyle(validation.hasPrefix("Error") ? .red : .secondary)
+                            }
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(validation.hasPrefix("Error") ? Color.red.opacity(0.08) : Color.green.opacity(0.06))
+                            .cornerRadius(8)
                         }
 
                         HStack(spacing: 12) {
@@ -58,22 +85,31 @@ struct InstalledOfflineModelsView: View {
                                     await testModel(model)
                                 }
                             } label: {
-                                Label("Test", systemImage: "waveform.path.ecg")
+                                Label("Run Diagnostics", systemImage: "waveform.path.ecg")
+                                    .font(.subheadline.bold())
                             }
                             .buttonStyle(.bordered)
+                            .controlSize(.regular)
 
                             Button(role: .destructive) {
                                 deleteModel(model)
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                Label("Remove Model", systemImage: "trash")
+                                    .font(.subheadline.bold())
                             }
                             .buttonStyle(.bordered)
+                            .controlSize(.regular)
                         }
                         .padding(.top, 4)
                     }
-                    .padding()
-                    .background(Color.secondary.opacity(0.08))
-                    .cornerRadius(10)
+                    .padding(16)
+                    .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
+                    )
+                    .cornerRadius(12)
+                    .shadow(color: Color.black.opacity(0.02), radius: 4, x: 0, y: 2)
                 }
             }
         }

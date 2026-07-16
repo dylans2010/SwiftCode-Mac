@@ -22,6 +22,13 @@ struct BrowseSkillsView: View {
             }
             .navigationTitle("Preset Library")
             .listStyle(.sidebar)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+            }
         } detail: {
             if let skill = selectedSkill {
                 ScrollView {

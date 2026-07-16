@@ -218,6 +218,7 @@ final class APIKeyManager {
         switch entry.provider {
         case .openRouter:
             KeychainService.shared.set(value, forKey: KeychainService.openRouterAPIKey)
+            KeychainService.shared.set(value, forKey: "openrouter-api-key")
         case .anthropic:
             KeychainService.shared.set(value, forKey: "anthropic_api_key")
         case .openai:
@@ -241,6 +242,7 @@ final class APIKeyManager {
         switch provider {
         case .openRouter:
             KeychainService.shared.delete(forKey: KeychainService.openRouterAPIKey)
+            KeychainService.shared.delete(forKey: "openrouter-api-key")
         case .anthropic:
             KeychainService.shared.delete(forKey: "anthropic_api_key")
         case .openai:
