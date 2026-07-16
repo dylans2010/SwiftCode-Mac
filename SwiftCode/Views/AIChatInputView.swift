@@ -1,4 +1,7 @@
 import SwiftUI
+import os
+
+private let logger = Logger(subsystem: "com.swiftcode.app", category: "AIChatInputView")
 
 struct AIChatInputView: View {
     @Binding var text: String
@@ -8,7 +11,14 @@ struct AIChatInputView: View {
         HStack {
             TextField("Ask AI...", text: $text)
                 .textFieldStyle(.roundedBorder)
-            Button(action: onSend) {
+                .onSubmit {
+                    logger.log("[onSubmit] Return key pressed. Triggering send.")
+                    onSend()
+                }
+            Button(action: {
+                logger.log("[Button] Send button pressed. Triggering send.")
+                onSend()
+            }) {
                 Image(systemName: "paperplane.fill")
             }
             .disabled(text.isEmpty)

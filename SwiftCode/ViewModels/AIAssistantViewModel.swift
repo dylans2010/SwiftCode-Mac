@@ -30,6 +30,7 @@ public class AIAssistantViewModel {
             }
         } catch {
             LoggingTool.error("AI error: \(error)")
+            conversation.messages[assistantIdx].content = "Failed to generate response: \(error.localizedDescription)"
         }
 
         isSending = false
