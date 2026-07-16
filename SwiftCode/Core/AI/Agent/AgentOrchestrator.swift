@@ -11,14 +11,16 @@ public actor AgentOrchestrator {
         self.provider = provider
     }
 
-    public func runTurn(session: inout AgentSession, userMessage: String, attachments: [AgentAttachment] = []) async throws {
+    public func runTurn(session: AgentSession, userMessage: String, attachments: [AgentAttachment] = []) async throws {
         isCancelled = false
 
         // Ensure skills are discovered
         let projectRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         try await SkillsRuntime.shared.discoverSkills(in: projectRoot)
 
-        session.turnState = .awaitingModel
+        await MainActor.run {
+            session.turnState = .awaitingModel
+        }
 
         var contents: [AgentMessageContent] = [.text(userMessage)]
         for attachment in attachments {
@@ -32,40 +34,91 @@ public actor AgentOrchestrator {
         }
 
         let message = AgentMessage(role: .user, content: contents)
-        session.messages.append(message)
+        await MainActor.run {
+            session.messages.append(message)
+        }
 
-        try await runLoop(session: &session)
+        try await runLoop(session: session)
     }
 
-    public func resumeTurn(session: inout AgentSession, result: String, toolCallId: String) async throws {
+    public func resumeTurn(session: AgentSession, result: String, toolCallId: String) async throws {
         let toolResultMessage = AgentMessage(role: .assistant, content: [.toolResult(AgentToolResult(toolCallId: toolCallId, content: result))])
-        session.messages.append(toolResultMessage)
-        try await runLoop(session: &session)
+        await MainActor.run {
+            session.messages.append(toolResultMessage)
+        }
+        try await runLoop(session: session)
     }
 
     public func cancel() {
         isCancelled = true
     }
 
-    private func runLoop(session: inout AgentSession) async throws {
+    private func runLoop(session: AgentSession) async throws {
         var shouldContinue = true
-        let model = OpenRouterModel(id: "openai/gpt-4.1", name: "GPT-4.1", description: "Internal Model", contextLength: 1048576, pricing: .init(prompt: "0", completion: "0"))
+        let model = OpenRouterModel(id: "openai/gpt-4o", name: "GPT-4o", description: "Internal Model", contextLength: 1048576, pricing: .init(prompt: "0", completion: "0"))
 
         while shouldContinue && !isCancelled {
-            session.turnState = .awaitingModel
-            let messages = await contextBuilder.buildContext(messages: session.messages, model: model)
+            await MainActor.run {
+                session.turnState = .awaitingModel
+            }
+
+            let isChatMode = await MainActor.run { session.mode == .chat }
+            let sessionMessages = await MainActor.run { session.messages }
+
+            let messages = await contextBuilder.buildContext(messages: sessionMessages, model: model, includeCodebaseContext: true)
             let tools = toolRegistry.schema()
 
             var assistantContent: [AgentMessageContent] = []
-            let stream = try await provider.streamAgentTurn(model: model.id, messages: messages, tools: tools)
+
+            // Model Routing Selection Single Source of Truth
+            let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled }
+            let stream: AsyncThrowingStream<AgentStreamEvent, Error>
+
+            if isFMEnabled {
+                stream = AsyncThrowingStream { continuation in
+                    Task {
+                        do {
+                            let lastPrompt = messages.last?.content.compactMap { content -> String? in
+                                if case .text(let text) = content { return text }
+                                return nil
+                            }.joined(separator: " ") ?? ""
+
+                            try await FoundationModels.shared.streamPrivateResponse(prompt: lastPrompt) { token in
+                                continuation.yield(.text(token))
+                            }
+                            continuation.finish()
+                        } catch {
+                            continuation.finish(throwing: error)
+                        }
+                    }
+                }
+            } else {
+                let selectedModel = await MainActor.run { AppSettings.shared.selectedAssistModelID }
+                let actualModel = selectedModel == "swiftcode-balanced" ? "openai/gpt-4o" : selectedModel
+                stream = try await provider.streamAgentTurn(model: actualModel, messages: messages, tools: isChatMode ? nil : tools)
+            }
 
             var currentText = ""
+
+            // Create a placeholder assistant message that we append tokens to in real-time
+            let assistantMessageId = UUID()
+            await MainActor.run {
+                let initialMessage = AgentMessage(id: assistantMessageId, role: .assistant, content: [.text("")])
+                session.messages.append(initialMessage)
+            }
+
             for try await event in stream {
                 if isCancelled { break }
 
                 switch event {
                 case .text(let delta):
                     currentText += delta
+                    // Update assistant message with streaming tokens in real-time!
+                    await MainActor.run {
+                        if let index = session.messages.firstIndex(where: { $0.id == assistantMessageId }) {
+                            session.messages[index].content = [.text(currentText)]
+                        }
+                    }
                 case .toolCall(let toolCalls):
                     for call in toolCalls {
                         assistantContent.append(.toolCall(call))
@@ -73,24 +126,31 @@ public actor AgentOrchestrator {
                 }
             }
 
-            if !currentText.isEmpty {
-                assistantContent.insert(.text(currentText), at: 0)
-            }
-
-            let assistantMessage = AgentMessage(role: .assistant, content: assistantContent)
-            session.messages.append(assistantMessage)
-
             if isCancelled { break }
+
+            // Finalize the content
+            await MainActor.run {
+                if let index = session.messages.firstIndex(where: { $0.id == assistantMessageId }) {
+                    var finalContent: [AgentMessageContent] = []
+                    if !currentText.isEmpty {
+                        finalContent.append(.text(currentText))
+                    }
+                    finalContent.append(contentsOf: assistantContent)
+                    session.messages[index].content = finalContent
+                }
+            }
 
             let toolCalls = assistantContent.compactMap { content -> AgentToolCall? in
                 if case .toolCall(let call) = content { return call }
                 return nil
             }
 
-            if toolCalls.isEmpty {
+            if toolCalls.isEmpty || isChatMode {
                 shouldContinue = false
             } else {
-                session.turnState = .executingTools
+                await MainActor.run {
+                    session.turnState = .executingTools
+                }
                 for call in toolCalls {
                     if isCancelled { break }
 
@@ -98,34 +158,47 @@ public actor AgentOrchestrator {
 
                     // Special Tool Handling
                     if call.name == "ask_user" {
-                        handleAskUser(call, args, &session)
+                        await MainActor.run {
+                            handleAskUser(call, args, session)
+                            session.turnState = .awaitingUserAnswer
+                        }
                         shouldContinue = false
                         break
                     } else if call.name == "questions_handle" {
-                        handleQuestionsHandle(call, args, &session)
+                        await MainActor.run {
+                            handleQuestionsHandle(call, args, session)
+                            session.turnState = .awaitingUserAnswer
+                        }
                         shouldContinue = false
                         break
                     } else if call.name == "checklist_plan" {
-                        handleChecklistPlan(args, &session)
+                        await MainActor.run {
+                            handleChecklistPlan(args, session)
+                        }
                     }
 
                     do {
                         let result = try await toolRegistry.execute(name: call.name, arguments: args)
-                        session.messages.append(AgentMessage(role: .assistant, content: [.toolResult(AgentToolResult(toolCallId: call.id, content: result))]))
+                        await MainActor.run {
+                            session.messages.append(AgentMessage(role: .assistant, content: [.toolResult(AgentToolResult(toolCallId: call.id, content: result))]))
+                        }
                     } catch {
-                        session.messages.append(AgentMessage(role: .assistant, content: [.toolResult(AgentToolResult(toolCallId: call.id, content: error.localizedDescription, isError: true))]))
-                        // If a tool fails, we still want the model to see the error and decide next steps
+                        await MainActor.run {
+                            session.messages.append(AgentMessage(role: .assistant, content: [.toolResult(AgentToolResult(toolCallId: call.id, content: error.localizedDescription, isError: true))]))
+                        }
                     }
                 }
             }
         }
 
-        if !shouldContinue && session.turnState != .awaitingUserAnswer {
-            session.turnState = .idle
+        await MainActor.run {
+            if !shouldContinue && session.turnState != .awaitingUserAnswer {
+                session.turnState = .idle
+            }
         }
     }
 
-    private func handleAskUser(_ call: AgentToolCall, _ args: [String: any Sendable], _ session: inout AgentSession) {
+    private func handleAskUser(_ call: AgentToolCall, _ args: [String: any Sendable], _ session: AgentSession) {
         if let questionText = args["question"] as? String {
             let inputTypeStr = args["input_type"] as? String
             let inputType: AgentPendingQuestion.InputType = inputTypeStr == "selection" ? .selection(options: args["options"] as? [String] ?? []) : .text
@@ -134,11 +207,10 @@ public actor AgentOrchestrator {
             if let index = session.messages.indices.last {
                 session.messages[index].content.append(.pendingQuestion(question))
             }
-            session.turnState = .awaitingUserAnswer
         }
     }
 
-    private func handleQuestionsHandle(_ call: AgentToolCall, _ args: [String: any Sendable], _ session: inout AgentSession) {
+    private func handleQuestionsHandle(_ call: AgentToolCall, _ args: [String: any Sendable], _ session: AgentSession) {
         if let questionsData = args["questions"] as? [[String: any Sendable]] {
             let questions = questionsData.compactMap { qDict -> AgentPendingQuestion? in
                 guard let prompt = qDict["prompt"] as? String,
@@ -151,11 +223,10 @@ public actor AgentOrchestrator {
             if let index = session.messages.indices.last {
                 session.messages[index].content.append(.pendingQuestionSet(set))
             }
-            session.turnState = .awaitingUserAnswer
         }
     }
 
-    private func handleChecklistPlan(_ args: [String: any Sendable], _ session: inout AgentSession) {
+    private func handleChecklistPlan(_ args: [String: any Sendable], _ session: AgentSession) {
         if let tasksData = args["tasks"] as? [[String: any Sendable]] {
             let tasks = tasksData.compactMap { tDict -> AgentChecklistTask? in
                 guard let id = tDict["id"] as? String,
