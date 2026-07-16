@@ -74,10 +74,20 @@ struct SwiftCodeWelcomeView: View {
         .sheet(isPresented: $showingNewProject) {
             NewProjectSheetView(viewModel: WelcomeViewModel())
         }
-        .sheet(isPresented: $showingSettings) {
-            SettingsView()
-                .environmentObject(AppSettings.shared)
-        }
+        .background(
+            Group {
+                if showingSettings {
+                    SettingsView()
+                        .environmentObject(AppSettings.shared)
+                        .frame(width: 0, height: 0)
+                        .opacity(0)
+                        .allowsHitTesting(false)
+                        .onAppear {
+                            showingSettings = false
+                        }
+                }
+            }
+        )
         .sheet(isPresented: $showCreateFolderSheet) {
             createFolderSheet
         }

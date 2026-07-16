@@ -5,6 +5,16 @@ public struct SettingsView: View {
     public init() {}
 
     public var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onAppear {
+                SettingsWindowManager.shared.showSettings()
+            }
+    }
+
+    // Keep the original body as a reference/important component, but never shown on UI
+    @ViewBuilder
+    private var originalBody: some View {
         VStack(spacing: 16) {
             Image(systemName: "gearshape.2.fill")
                 .font(.system(size: 48))
@@ -24,8 +34,5 @@ public struct SettingsView: View {
         }
         .padding(40)
         .frame(width: 500, height: 400)
-        .onAppear {
-            SettingsWindowManager.shared.showSettings()
-        }
     }
 }
