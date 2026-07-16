@@ -262,17 +262,21 @@ struct DraftSkillWithAIView: View {
         do {
             let parsed = try parser.parse(content: currentDraft)
             let filename = parsed.name.lowercased().replacingOccurrences(of: " ", with: "_") + ".SKILLS.md"
-            let targetURL = await SkillsRuntime.shared.getBaseSkillsDirectory().appendingPathComponent(filename)
 
-            try await SkillsRuntime.shared.saveSkill(parsed, at: targetURL)
+            Task {
+                do {
+                    let targetURL = await SkillsRuntime.shared.getBaseSkillsDirectory().appendingPathComponent(filename)
+                    try await SkillsRuntime.shared.saveSkill(parsed, at: targetURL)
+                    let loaded = await SkillsRuntime.shared.getAllSkills()
 
-            let loaded = await SkillsRuntime.shared.getAllSkills()
-            await MainActor.run {
-                manager.uploadedSkills = loaded
-                dismiss()
+                    manager.uploadedSkills = loaded
+                    dismiss()
+                } catch {
+                    errorMessage = "Failed to save generated draft: \(error.localizedDescription)"
+                }
             }
         } catch {
-            errorMessage = "Failed to parse or save generated draft: \(error.localizedDescription)"
+            errorMessage = "Failed to parse generated draft: \(error.localizedDescription)"
         }
     }
 }

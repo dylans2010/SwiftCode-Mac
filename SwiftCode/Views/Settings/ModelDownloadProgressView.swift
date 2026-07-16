@@ -105,7 +105,7 @@ struct ModelDownloadProgressView: View {
                     .tint(.orange)
 
                 // Sub-metrics grid
-                LazyVGrid(columns: [GridItem(.flexibility()), GridItem(.flexibility())], spacing: 10) {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     HStack {
                         Image(systemName: "speedometer")
                             .foregroundColor(.secondary)

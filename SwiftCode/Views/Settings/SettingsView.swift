@@ -87,6 +87,19 @@ public final class SettingsWindowManager: NSObject, NSWindowDelegate {
     }
 }
 
+// MARK: - SwiftUI SettingsView Fallback
+
+@MainActor
+public struct SettingsView: View {
+    @State private var coordinator = SettingsCoordinator()
+
+    public init() {}
+
+    public var body: some View {
+        SettingsMainWrapper(coordinator: coordinator)
+    }
+}
+
 // MARK: - Native Settings Window Controller
 
 @MainActor

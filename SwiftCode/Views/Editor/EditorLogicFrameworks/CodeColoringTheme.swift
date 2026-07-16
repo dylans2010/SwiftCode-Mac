@@ -117,6 +117,7 @@ struct CodeColoringTheme: Identifiable, Equatable {
 
     static let allThemes: [CodeColoringTheme] = [.dark, .monokai, .solarizedDark, .github, .dracula, .oneDark]
 
+    @MainActor
     static func theme(for id: String) -> CodeColoringTheme {
         // First try to resolve custom Theme colors dynamically in real-time
         if let appTheme = ThemeManager.shared.theme(for: id) {

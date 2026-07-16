@@ -1,11 +1,11 @@
 import Foundation
 
-public enum SkillSource: String, Codable, Sendable {
+public enum SkillSource: String, Codable, Sendable, Hashable {
     case preset
     case uploaded
 }
 
-public struct SkillScheme: Codable, Sendable {
+public struct SkillScheme: Codable, Sendable, Hashable {
     public let name: String
     public let summary: String
     public let version: String
@@ -33,7 +33,7 @@ public struct SkillScheme: Codable, Sendable {
     }
 }
 
-public struct AgentSkillBundle: Identifiable, Sendable {
+public struct AgentSkillBundle: Identifiable, Sendable, Hashable {
     public let id: UUID
     public let scheme: SkillScheme
     public let markdown: String
