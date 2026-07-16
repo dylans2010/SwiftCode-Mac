@@ -181,7 +181,7 @@ public final class FoundationModels {
 
         let contextOpts = ContextOptions(reasoningLevel: reasoningLevel.toNative())
         let response = try await session.respond(to: prompt, contextOptions: contextOpts)
-        return response
+        return response.content
         #else
         logger.log("Executing response using high-fidelity FoundationModels simulation.")
         try await Task.sleep(nanoseconds: 300_000_000) // Realistic delay
