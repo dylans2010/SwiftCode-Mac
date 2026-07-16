@@ -4,7 +4,7 @@ public actor OpenRouterClient {
     public static let shared = OpenRouterClient()
 
     public func fetchModels() async throws -> [OpenRouterModel] {
-        let apiKey = try await KeychainService.shared.get(account: "openrouter-api-key") ?? ""
+        let apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
         // SAFETY: The URL is a valid constant string.
         var urlRequest = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/models")!)
         urlRequest.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -24,7 +24,7 @@ public actor OpenRouterClient {
     }
 
     public func streamChatCompletion(request: AIAssistantRequest) async throws -> AsyncThrowingStream<String, Error> {
-        let apiKey = try await KeychainService.shared.get(account: "openrouter-api-key") ?? ""
+        let apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
         // SAFETY: The URL is a valid constant string.
         var urlRequest = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
         urlRequest.httpMethod = "POST"
@@ -68,7 +68,7 @@ public actor OpenRouterClient {
     }
 
     public func streamAgentTurn(model: String, messages: [AgentMessage], tools: [[String: any Sendable]]?) async throws -> AsyncThrowingStream<AgentStreamEvent, Error> {
-        let apiKey = try await KeychainService.shared.get(account: "openrouter-api-key") ?? ""
+        let apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
         // SAFETY: The URL is a valid constant string.
         var urlRequest = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
         urlRequest.httpMethod = "POST"

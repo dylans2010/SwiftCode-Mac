@@ -47,6 +47,7 @@ struct AgentInputBarView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(text.isEmpty && !viewModel.isProcessing)
+                .keyboardShortcut(.return, modifiers: [.command])
             }
             .padding()
         }
