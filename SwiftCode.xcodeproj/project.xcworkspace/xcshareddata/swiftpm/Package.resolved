@@ -1,5 +1,5 @@
 {
-  "originHash" : "62570ba84ba2a46d48a0f864a9620f88f35827b7f329f9ef0a398428ef1d2a1e",
+  "originHash" : "62b1d5b723452fd0fe29472e6141be2ea7dcde49f86c4dcd0fcfbb7b024811d4",
   "pins" : [
     {
       "identity" : "mlx-swift",
@@ -29,12 +29,39 @@
       }
     },
     {
+      "identity" : "swift-cmark",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-cmark.git",
+      "state" : {
+        "revision" : "924936d0427cb25a61169739a7660230bffa6ea6",
+        "version" : "0.8.0"
+      }
+    },
+    {
+      "identity" : "swift-markdown",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-markdown.git",
+      "state" : {
+        "revision" : "3c6f9523da3a1ec2fd829673e472d95b8097a3b8",
+        "version" : "0.8.0"
+      }
+    },
+    {
       "identity" : "swift-numerics",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-numerics",
       "state" : {
         "revision" : "0c0290ff6b24942dadb83a929ffaaa1481df04a2",
         "version" : "1.1.1"
+      }
+    },
+    {
+      "identity" : "welcomeview",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/timi2506/WelcomeView.git",
+      "state" : {
+        "revision" : "8871c5e83cb112c5b5ca2137d32ad81de08a611c",
+        "version" : "2.0.0"
       }
     },
     {

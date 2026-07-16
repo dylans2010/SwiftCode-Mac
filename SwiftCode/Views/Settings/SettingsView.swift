@@ -90,7 +90,7 @@ public final class SettingsWindowManager: NSObject, NSWindowDelegate {
 // MARK: - SwiftUI SettingsView Fallback
 
 @MainActor
-public struct SettingsView: View {
+public struct DebugSettingsView: View {
     @State private var coordinator = SettingsCoordinator()
 
     public init() {}
