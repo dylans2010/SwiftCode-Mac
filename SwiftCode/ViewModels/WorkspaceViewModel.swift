@@ -22,6 +22,7 @@ public class WorkspaceViewModel: Sendable {
 
     public init(projectURL: URL) {
         self.projectURL = projectURL
+        self.ai.projectURL = projectURL
         self.git.repositoryURL = projectURL
         self.loadingTask = Task {
             await git.refreshInstallationStatus()

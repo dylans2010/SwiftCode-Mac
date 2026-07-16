@@ -3,44 +3,104 @@ import SwiftUI
 struct AgentMessageBubbleView: View {
     let message: AgentMessage
     @Bindable var viewModel: AgentViewModel
+    @State private var isHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
+            // Header: Author identity and timestamp
             HStack(alignment: .center, spacing: 8) {
-                Image(systemName: message.role == .user ? "person.circle.fill" : "cpu.fill")
+                Image(systemName: message.role == .user ? "person.crop.circle.fill" : "sparkles")
                     .font(.title3)
-                    .foregroundColor(message.role == .user ? .accentColor : .secondary)
+                    .foregroundColor(message.role == .user ? .accentColor : .orange)
 
-                Text(message.role == .user ? "You" : "SwiftCode Agent")
+                Text(message.role == .user ? "You" : (viewModel.mode == .chat ? "SwiftCode Assistant" : "SwiftCode Agent"))
                     .font(.subheadline)
                     .bold()
 
                 Spacer()
 
-                Text(Date().formatted(date: .omitted, time: .shortened))
+                Text(message.timestamp.formatted(date: .omitted, time: .shortened))
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
+            .padding(.horizontal, 4)
 
-            VStack(alignment: .leading, spacing: 8) {
+            // Content container
+            VStack(alignment: .leading, spacing: 10) {
                 ForEach(0..<message.content.count, id: \.self) { index in
                     contentView(message.content[index])
                 }
             }
-            .padding(12)
-            .background(message.role == .user ? Color.accentColor.opacity(0.1) : Color.secondary.opacity(0.1))
+            .padding(14)
+            .background(
+                message.role == .user
+                ? Color.accentColor.opacity(0.08)
+                : Color(NSColor.controlBackgroundColor).opacity(0.85)
+            )
             .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(
+                        message.role == .user
+                        ? Color.accentColor.opacity(0.2)
+                        : Color.secondary.opacity(0.15),
+                        lineWidth: 1
+                    )
+            )
+            .shadow(color: Color.black.opacity(0.02), radius: 3, x: 0, y: 1)
+            // Hover actions overlay
+            .overlay(alignment: .topTrailing) {
+                if isHovered {
+                    HStack(spacing: 6) {
+                        Button(action: copyToClipboard) {
+                            Image(systemName: "doc.on.doc.fill")
+                                .font(.caption2)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .help("Copy Message Content")
+
+                        Button(action: deleteMessage) {
+                            Image(systemName: "trash.fill")
+                                .font(.caption2)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .help("Delete Message")
+                    }
+                    .padding(6)
+                    .transition(.opacity)
+                }
+            }
         }
-        .padding(.horizontal)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
         .id(message.id)
+        .onHover { hover in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hover
+            }
+        }
+        // Native Context Menu
+        .contextMenu {
+            Button("Copy Message") {
+                copyToClipboard()
+            }
+            Button("Copy as Markdown") {
+                copyAsMarkdown()
+            }
+            Divider()
+            Button("Delete", role: .destructive) {
+                deleteMessage()
+            }
+        }
     }
 
     @ViewBuilder
     private func contentView(_ content: AgentMessageContent) -> some View {
         switch content {
         case .text(let text):
-            Text(MarkdownRenderer.shared.render(text))
+            MarkdownBlockListView(blocks: MarkdownRenderer.shared.parse(text))
                 .textSelection(.enabled)
         case .image(let data, _):
             if let nsImage = NSImage(data: data) {
@@ -66,7 +126,7 @@ struct AgentMessageBubbleView: View {
                 Text(result.content)
                     .font(.system(.caption, design: .monospaced))
                     .padding(8)
-                    .background(Color.black.opacity(0.05))
+                    .background(Color.black.opacity(0.15))
                     .cornerRadius(4)
             }
         case .pendingQuestion(let question):
@@ -75,6 +135,36 @@ struct AgentMessageBubbleView: View {
             QuestionsHandleView(questionSet: set, viewModel: viewModel)
         case .checklistUpdate:
             EmptyView()
+        }
+    }
+
+    private func extractRawText() -> String {
+        return message.content.compactMap { content -> String? in
+            switch content {
+            case .text(let t): return t
+            case .toolResult(let r): return "[Tool Result] \(r.content)"
+            default: return nil
+            }
+        }.joined(separator: "\n")
+    }
+
+    private func copyToClipboard() {
+        let text = extractRawText()
+        let pasteboard = NSPasteboard.general
+        pasteboard.declareTypes([.string], owner: nil)
+        pasteboard.setString(text, forType: .string)
+    }
+
+    private func copyAsMarkdown() {
+        let text = extractRawText()
+        let pasteboard = NSPasteboard.general
+        pasteboard.declareTypes([.string], owner: nil)
+        pasteboard.setString("```markdown\n\(text)\n```", forType: .string)
+    }
+
+    private func deleteMessage() {
+        withAnimation {
+            viewModel.session.messages.removeAll { $0.id == message.id }
         }
     }
 }

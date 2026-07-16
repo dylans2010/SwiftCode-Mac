@@ -2,12 +2,19 @@ import SwiftUI
 import Combine
 import Observation
 
+public enum AIAssistantMode: String, CaseIterable, Codable, Sendable {
+    case chat = "Chat"
+    case agent = "Agent"
+}
+
 @Observable
 @MainActor
 public class AgentViewModel {
     public var session: AgentSession
     public var attachments: [AgentAttachment] = []
-    
+    public var mode: AIAssistantMode = .chat
+    public var projectURL: URL?
+
     public var isProcessing: Bool {
         switch session.turnState {
         case .awaitingModel, .executingTools:
@@ -27,10 +34,16 @@ public class AgentViewModel {
         let currentAttachments = attachments
         attachments.removeAll()
         
+        var queryText = text
+        if mode == .chat {
+            let context = await gatherCodebaseContext(for: text)
+            if !context.isEmpty {
+                queryText += context
+            }
+        }
+
         do {
-            var localSession = session
-            try await orchestrator.runTurn(session: &localSession, userMessage: text, attachments: currentAttachments)
-            session = localSession
+            try await orchestrator.runTurn(session: session, userMessage: queryText, attachments: currentAttachments, mode: mode)
         } catch {
             session.turnState = .failed(.unknown(error.localizedDescription))
         }
@@ -38,17 +51,39 @@ public class AgentViewModel {
 
     public func sendMessage(_ text: String, attachments: [AgentAttachment] = []) {
         Task {
+            var queryText = text
+            if mode == .chat {
+                let context = await gatherCodebaseContext(for: text)
+                if !context.isEmpty {
+                    queryText += context
+                }
+            }
             do {
-                var localSession = session
-                try await orchestrator.runTurn(session: &localSession, userMessage: text, attachments: attachments)
-                session = localSession
+                try await orchestrator.runTurn(session: session, userMessage: queryText, attachments: attachments, mode: mode)
             } catch {
                 session.turnState = .failed(.unknown(error.localizedDescription))
             }
         }
     }
 
+    private func gatherCodebaseContext(for query: String) async -> String {
+        guard let projectURL = self.projectURL else { return "" }
+
+        let searchResults = await CodeIndexService.shared.searchProject(query: query, at: projectURL)
+        if searchResults.isEmpty { return "" }
+
+        // Take top 5 search results to avoid hitting token limits, and format them nicely
+        var context = "\n\n[Codebase Context Integration]\nRelevant files found in the project:\n"
+        for result in searchResults.prefix(5) {
+            context += "• File: \(result.filePath) (Line \(result.lineNumber)):\n```swift\n\(result.snippet)\n```\n"
+        }
+        return context
+    }
+
     public func cancelTurn() {
+        Task {
+            await orchestrator.cancel()
+        }
         session.turnState = .cancelled
     }
 
@@ -60,9 +95,7 @@ public class AgentViewModel {
         guard let lastToolCall = findLastUnansweredToolCall() else { return }
         Task {
             do {
-                var localSession = session
-                try await orchestrator.resumeTurn(session: &localSession, result: answer, toolCallId: lastToolCall.id)
-                session = localSession
+                try await orchestrator.resumeTurn(session: session, result: answer, toolCallId: lastToolCall.id)
             } catch {
                 session.turnState = .failed(.unknown(error.localizedDescription))
             }
@@ -76,9 +109,7 @@ public class AgentViewModel {
 
         Task {
             do {
-                var localSession = session
-                try await orchestrator.resumeTurn(session: &localSession, result: result, toolCallId: lastToolCall.id)
-                session = localSession
+                try await orchestrator.resumeTurn(session: session, result: result, toolCallId: lastToolCall.id)
             } catch {
                 session.turnState = .failed(.unknown(error.localizedDescription))
             }
