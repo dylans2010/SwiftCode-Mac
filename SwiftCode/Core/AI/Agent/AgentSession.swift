@@ -8,7 +8,7 @@ public enum AgentChatMode: String, Codable, Sendable, CaseIterable {
 
 @Observable
 @MainActor
-public final class AgentSession: Identifiable, Codable, Sendable {
+public final class AgentSession: Identifiable, @MainActor Codable, Sendable {
     public let id: UUID
     public var messages: [AgentMessage]
     public var checklist: AgentChecklistState
@@ -46,5 +46,13 @@ public final class AgentSession: Identifiable, Codable, Sendable {
         try container.encode(checklist, forKey: .checklist)
         try container.encode(turnState, forKey: .turnState)
         try container.encode(mode, forKey: .mode)
+    }
+
+    @MainActor
+    public var firstUserMessageText: String {
+        messages.first(where: { $0.role == .user })?.content.compactMap { content -> String? in
+            if case .text(let t) = content { return t }
+            return nil
+        }.first ?? "New Conversation"
     }
 }

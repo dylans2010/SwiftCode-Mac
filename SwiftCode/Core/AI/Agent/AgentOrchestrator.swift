@@ -198,6 +198,7 @@ public actor AgentOrchestrator {
         }
     }
 
+    @MainActor
     private func handleAskUser(_ call: AgentToolCall, _ args: [String: any Sendable], _ session: AgentSession) {
         if let questionText = args["question"] as? String {
             let inputTypeStr = args["input_type"] as? String
@@ -210,6 +211,7 @@ public actor AgentOrchestrator {
         }
     }
 
+    @MainActor
     private func handleQuestionsHandle(_ call: AgentToolCall, _ args: [String: any Sendable], _ session: AgentSession) {
         if let questionsData = args["questions"] as? [[String: any Sendable]] {
             let questions = questionsData.compactMap { qDict -> AgentPendingQuestion? in
@@ -226,6 +228,7 @@ public actor AgentOrchestrator {
         }
     }
 
+    @MainActor
     private func handleChecklistPlan(_ args: [String: any Sendable], _ session: AgentSession) {
         if let tasksData = args["tasks"] as? [[String: any Sendable]] {
             let tasks = tasksData.compactMap { tDict -> AgentChecklistTask? in
