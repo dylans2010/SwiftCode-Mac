@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5C5E70000000000000000104 /* AssistErrorBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000103 /* AssistErrorBubble.swift */; };
+		5C5E70000000000000000106 /* MiniLogFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000105 /* MiniLogFeed.swift */; };
 		5C5E70000000000000000102 /* CodexSignInFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000101 /* CodexSignInFlow.swift */; };
 		990C413DAFE7B52CFA3EB0D0 /* CodexBridgeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CA7A848357D2ACAAAD50481 /* CodexBridgeManager.swift */; };
 		600B4ED1612FABB403A598E2 /* package.json in Resources */ = {isa = PBXBuildFile; fileRef = 29C60ECD32101A5FE6B4271A /* package.json */; };
@@ -1279,6 +1281,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		5C5E70000000000000000103 /* AssistErrorBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistErrorBubble.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000105 /* MiniLogFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniLogFeed.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000101 /* CodexSignInFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexSignInFlow.swift; sourceTree = "<group>"; };
 		6CA7A848357D2ACAAAD50481 /* CodexBridgeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBridgeManager.swift; sourceTree = "<group>"; };
 		29C60ECD32101A5FE6B4271A /* package.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = package.json; path = package.json; sourceTree = "<group>"; };
@@ -2752,6 +2756,8 @@
 		27749D21083D1692F60CF1D2 /* Assist */ = {
 			isa = PBXGroup;
 			children = (
+				5C5E70000000000000000103 /* AssistErrorBubble.swift */,
+				5C5E70000000000000000105 /* MiniLogFeed.swift */,
 				5C5E70000000000000000101 /* CodexSignInFlow.swift */,
 				6D3F79ABA55559EF6F44BF84 /* AssistDiffView.swift */,
 				1E9D7E2F8F62E029750AD8AA /* AssistMainView.swift */,
@@ -5225,6 +5231,8 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5C5E70000000000000000104 /* AssistErrorBubble.swift in Sources */,
+				5C5E70000000000000000106 /* MiniLogFeed.swift in Sources */,
 				5C5E70000000000000000102 /* CodexSignInFlow.swift in Sources */,
 												990C413DAFE7B52CFA3EB0D0 /* CodexBridgeManager.swift in Sources */,
 791600170C32BE22533FF1DB /* AssistCapability.swift in Sources */,
