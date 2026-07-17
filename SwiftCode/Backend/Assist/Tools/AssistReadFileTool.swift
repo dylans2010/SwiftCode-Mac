@@ -5,6 +5,17 @@ public struct AssistReadFileTool: AssistTool {
     public let name = "Read File"
     public let description = "Reads the content of a file at the specified path."
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Reads the content of a file at the specified path.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "The relative path to the file from the workspace root.")
+            ],
+            required: ["path"]
+        )
+    }
+
     public init() {}
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {

@@ -84,19 +84,6 @@ public struct AssistLLMService {
     }
 }
 
-// MARK: - Core Protocols
-
-/// Protocol for all Assist tools.
-/// All tools must be prefixed with 'Assist'.
-@MainActor
-public protocol AssistTool {
-    var id: String { get }
-    var name: String { get }
-    var description: String { get }
-
-    func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult
-}
-
 // MARK: - Assist Context & State
 
 /// Shared context provided to tools during execution.

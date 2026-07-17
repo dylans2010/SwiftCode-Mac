@@ -5,6 +5,18 @@ public struct AssistWriteFileTool: AssistTool {
     public let name = "Write File"
     public let description = "Writes or overwrites a file with the specified content."
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Writes or overwrites a file with the specified content.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "The relative path to write the file."),
+                "content": JSONSchema(type: "string", description: "The content to write into the file.")
+            ],
+            required: ["path", "content"]
+        )
+    }
+
     public init() {}
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {

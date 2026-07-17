@@ -96,4 +96,19 @@ public final class AssistToolRegistry {
     public var allTools: [AssistTool] {
         return Array(tools.values).sorted(by: { $0.id < $1.id })
     }
+
+    /// Generates LLM function-calling JSON schemas for all registered tools.
+    public func getToolSchemas() -> [[String: Any]] {
+        return allTools.map { tool in
+            var schemaDict: [String: Any] = [
+                "name": tool.id,
+                "description": tool.description
+            ]
+            if let schemaData = try? JSONEncoder().encode(tool.parametersSchema),
+               let paramObj = try? JSONSerialization.jsonObject(with: schemaData) as? [String: Any] {
+                schemaDict["parameters"] = paramObj
+            }
+            return schemaDict
+        }
+    }
 }

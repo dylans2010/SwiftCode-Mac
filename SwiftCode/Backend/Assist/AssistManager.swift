@@ -12,6 +12,7 @@ public final class AssistManager: ObservableObject {
 
     public let logger = AssistLogger()
     public let session = AssistSession()
+    public let agentSession = AgentSession()
     public let registry = AssistToolRegistry()
     private let permissions = AssistPermissionsManager()
     private let memory = AssistMemoryGraph()
@@ -70,6 +71,27 @@ public final class AssistManager: ObservableObject {
                 messages.append(AssistMessage(role: .system, content: error))
                 isProcessing = false
                 saveHistory()
+            }
+            return
+        }
+
+        let isAgentMode = UserDefaults.standard.bool(forKey: "com.swiftcode.assist.mode")
+        if isAgentMode {
+            let context = buildContext()
+            do {
+                try await agentSession.start(objective: trimmed, context: context)
+                await MainActor.run {
+                    messages.append(AssistMessage(role: .assistant, content: "Autonomous task execution finished."))
+                    isProcessing = false
+                    saveHistory()
+                }
+            } catch {
+                await MainActor.run {
+                    lastError = "Agent execution failed: \(error.localizedDescription)"
+                    messages.append(AssistMessage(role: .system, content: error.localizedDescription))
+                    isProcessing = false
+                    saveHistory()
+                }
             }
             return
         }

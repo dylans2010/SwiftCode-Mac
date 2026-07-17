@@ -5,6 +5,19 @@ public struct AssistVersionControlOperator: AssistTool {
     public let name = "Version Control Operator"
     public let description = "Performs branch, commit, rollback, and diff operations using git."
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Performs branch, commit, rollback, and diff operations using git.",
+            properties: [
+                "action": JSONSchema(type: "string", description: "The git action to perform: status, commit, branch, rollback, or diff."),
+                "message": JSONSchema(type: "string", description: "The commit message (used for commit action)."),
+                "name": JSONSchema(type: "string", description: "The branch name (used for branch action).")
+            ],
+            required: ["action"]
+        )
+    }
+
     public init() {}
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
