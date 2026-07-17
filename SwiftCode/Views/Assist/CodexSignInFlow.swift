@@ -87,7 +87,7 @@ public struct CodexSignInFlow: View {
                                 .font(.headline)
                                 .foregroundColor(.orange)
 
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.trailing())], spacing: 8) {
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible(), alignment: .trailing)], spacing: 8) {
                                 statusRow(title: "CLI Installation", value: bridgeManager.cliLocation == "Not Detected" ? "Missing" : "Installed", isOk: bridgeManager.cliLocation != "Not Detected")
                                 statusRow(title: "CLI Version", value: bridgeManager.cliVersion, isOk: bridgeManager.cliVersion != "N/A" && bridgeManager.cliVersion != "Unknown")
                                 statusRow(title: "Location", value: bridgeManager.cliLocation, isOk: true)
