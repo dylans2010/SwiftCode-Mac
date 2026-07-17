@@ -12,7 +12,7 @@ public final class AssistManager: ObservableObject {
 
     public let logger = AssistLogger()
     public let session = AssistSession()
-    public let agentSession = AgentSession()
+    public let agentSession = AssistAgentSession()
     public let registry = AssistToolRegistry()
     private let permissions = AssistPermissionsManager()
     private let memory = AssistMemoryGraph()

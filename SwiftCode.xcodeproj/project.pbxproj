@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		F88A9F6F8A8054EB73E78D7B /* AssistTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8671939AE117A1B8ED8D013 /* AssistTool.swift */; };
 		F85D175494DC762767F06782 /* AgentSessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F859731420AEAAE5ADDF29A8 /* AgentSessionState.swift */; };
-		F88394C7F3BD2FC871A90379 /* AgentSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = F858A66D2BAE541D0C07EF9D /* AgentSession.swift */; };
+		F88394C7F3BD2FC871A90379 /* AssistAgentSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = F858A66D2BAE541D0C07EF9D /* AssistAgentSession.swift */; };
 		F8664D91D7947C80A7039D42 /* AgentContextManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F460B8425C1D4175E5EB16 /* AgentContextManager.swift */; };
 		F8C9C1B89AE3521C8014B11C /* AgentTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F852C009A90B3CC08411A4B6 /* AgentTimelineView.swift */; };
 		F8B4CA69FDE7E88677440067 /* ToolExecutionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8304153802789C34488D395 /* ToolExecutionView.swift */; };
@@ -1294,7 +1294,7 @@
 /* Begin PBXFileReference section */
 		F8671939AE117A1B8ED8D013 /* AssistTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTool.swift; sourceTree = "<group>"; };
 		F859731420AEAAE5ADDF29A8 /* AgentSessionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSessionState.swift; sourceTree = "<group>"; };
-		F858A66D2BAE541D0C07EF9D /* AgentSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSession.swift; sourceTree = "<group>"; };
+		F858A66D2BAE541D0C07EF9D /* AssistAgentSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistAgentSession.swift; sourceTree = "<group>"; };
 		F8F460B8425C1D4175E5EB16 /* AgentContextManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentContextManager.swift; sourceTree = "<group>"; };
 		F852C009A90B3CC08411A4B6 /* AgentTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTimelineView.swift; sourceTree = "<group>"; };
 		F8304153802789C34488D395 /* ToolExecutionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolExecutionView.swift; sourceTree = "<group>"; };
@@ -2611,7 +2611,7 @@
 			isa = PBXGroup;
 			children = (
 				F859731420AEAAE5ADDF29A8 /* AgentSessionState.swift */,
-				F858A66D2BAE541D0C07EF9D /* AgentSession.swift */,
+				F858A66D2BAE541D0C07EF9D /* AssistAgentSession.swift */,
 				F8F460B8425C1D4175E5EB16 /* AgentContextManager.swift */,
 				8B856F3ACC7B114CD06B04F3 /* API */,
 				0552912968A227D7F9DBDAD8 /* Assist Frameworks */,
@@ -5266,7 +5266,7 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			files = (
 				F88A9F6F8A8054EB73E78D7B /* AssistTool.swift in Sources */,
 				F85D175494DC762767F06782 /* AgentSessionState.swift in Sources */,
-				F88394C7F3BD2FC871A90379 /* AgentSession.swift in Sources */,
+				F88394C7F3BD2FC871A90379 /* AssistAgentSession.swift in Sources */,
 				F8664D91D7947C80A7039D42 /* AgentContextManager.swift in Sources */,
 				F8C9C1B89AE3521C8014B11C /* AgentTimelineView.swift in Sources */,
 				F8B4CA69FDE7E88677440067 /* ToolExecutionView.swift in Sources */,

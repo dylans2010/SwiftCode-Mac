@@ -4,8 +4,8 @@ import os
 
 @Observable
 @MainActor
-public final class AgentSession: Sendable {
-    private let pipelineLogger = Logger(subsystem: "com.swiftcode.app", category: "AgentSession")
+public final class AssistAgentSession: Sendable {
+    private let pipelineLogger = Logger(subsystem: "com.swiftcode.app", category: "AssistAgentSession")
 
     public var state = AgentSessionState()
     private var isCancelled = false
@@ -152,7 +152,7 @@ public final class AgentSession: Sendable {
                 // Security path checks
                 if let path = toolInput["path"] {
                     if path.contains("..") || path.hasPrefix("/") {
-                        throw NSError(domain: "AgentSession", code: 403, userInfo: [NSLocalizedDescriptionKey: "Security sandbox violation: Relative path traversals or root-level modifications are restricted."])
+                        throw NSError(domain: "AssistAgentSession", code: 403, userInfo: [NSLocalizedDescriptionKey: "Security sandbox violation: Relative path traversals or root-level modifications are restricted."])
                     }
                 }
 
