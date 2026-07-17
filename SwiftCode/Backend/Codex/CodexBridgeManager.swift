@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import os
 import Observation
 
@@ -378,7 +379,7 @@ public final class CodexBridgeManager: Sendable {
         // Stage 12: Verify Streaming
         onProgress(.verifyStreaming, "Verifying streaming event channels...")
         var testResult = ""
-        try await streamPrompt(promptStr) { token in
+        try await streamPrompt(promptStr) { @MainActor token in
             testResult += token
             self.appendLog("Received token stream chunk: \"\(token)\"")
         }

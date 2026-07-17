@@ -21,7 +21,7 @@ public final class AssistManager: ObservableObject {
 
     public var selectedModel: AssistModelOption {
         let modelID = AssistModelManager.shared.selectedModelID
-        return AssistModelOption.all.first(where: { $0.id == modelID }) ?? .gpt4oMini
+        return AssistModelOption.all.first(where: { $0.id == modelID }) ?? .swiftCodeBalanced
     }
 
     private var selectedProvider: AssistModelProvider {
@@ -46,8 +46,8 @@ public final class AssistManager: ObservableObject {
             logger: logger,
             permissions: permissions,
             memory: memory,
-            fileSystem: AssistFileSystem(workspaceRoot: ProjectManager.shared.currentProject?.directoryURL ?? URL(fileURLWithPath: "/")),
-            git: AssistGitManager(project: ProjectManager.shared.currentProject)
+            fileSystem: AssistFileSystem(workspaceRoot: ProjectSessionStore.shared.activeProject?.directoryURL ?? URL(fileURLWithPath: "/")),
+            git: AssistGitManager(project: ProjectSessionStore.shared.activeProject)
         )
         return builder.buildContext(sessionId: session.id)
     }

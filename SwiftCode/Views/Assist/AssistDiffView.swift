@@ -33,7 +33,6 @@ public struct AssistDiffView: View {
                 }
             }
             .navigationTitle("Diff Preview")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }

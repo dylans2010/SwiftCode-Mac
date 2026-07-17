@@ -1,6 +1,6 @@
 import Foundation
 
-public struct AssistModelOption: Identifiable, Sendable, Codable {
+public struct AssistModelOption: Identifiable, Sendable, Codable, Hashable {
     public let id: String
     public let displayName: String
     public let provider: String
@@ -28,26 +28,4 @@ public struct AssistModelOption: Identifiable, Sendable, Codable {
         .gpt4o,
         .claude35Sonnet
     ]
-}
-
-public enum AssistCapabilityKind: String, Codable {
-    case `extension` = "extension"
-    case skill = "skill"
-    case tool = "tool"
-}
-
-public struct AssistCapability {
-    public static let toolIdentifier = "com.swiftcode.assist.capability"
-
-    public static func identifiers(enabled: Bool) -> [String] {
-        enabled ? [toolIdentifier] : []
-    }
-}
-
-public struct AssistCapabilityExecutor {
-    @MainActor
-    public static func executeIfNeeded(kind: AssistCapabilityKind, name: String, identifiers: [String], payload: [String: String]) {
-        guard identifiers.contains(AssistCapability.toolIdentifier) else { return }
-        print("[AssistCapabilityExecutor] Executing \(kind.rawValue) '\(name)' with payload: \(payload)")
-    }
 }

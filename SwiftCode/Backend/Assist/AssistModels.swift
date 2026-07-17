@@ -227,20 +227,6 @@ public enum AssistExecutionStatus: String, Codable {
 
 // MARK: - Legacy / UI Compatibility Models
 
-/// Maintained for UI compatibility during transition
-public struct AssistModelOption: Identifiable, Codable, Hashable {
-    public let id: String
-    public let displayName: String
-    public let provider: String
-
-    public static let swiftCodeBalanced = AssistModelOption(id: "swiftcode.assist.balanced", displayName: "SwiftCode Balanced", provider: "SwiftCode")
-    public static let swiftCodeReasoning = AssistModelOption(id: "swiftcode.assist.reasoning", displayName: "SwiftCode Reasoning", provider: "SwiftCode")
-    public static let gpt4oMini = AssistModelOption(id: "openai.gpt-4o-mini", displayName: "GPT-4o mini", provider: "OpenAI")
-    public static let claudeSonnet = AssistModelOption(id: "anthropic.claude-sonnet", displayName: "Claude Sonnet", provider: "Anthropic")
-
-    public static let all: [AssistModelOption] = [.swiftCodeBalanced, .swiftCodeReasoning, .gpt4oMini, .claudeSonnet]
-}
-
 /// Maintained for UI compatibility
 public enum AssistStatus: String, Codable {
     case pending

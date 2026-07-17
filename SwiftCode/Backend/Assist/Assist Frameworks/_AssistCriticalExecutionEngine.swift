@@ -30,8 +30,8 @@ public final class _AssistCriticalExecutionEngine {
         try await baseEngine.execute(plan: &plan)
 
         // After execution, force a refresh of the project state to ensure UI and file system are in sync.
-        if let project = ProjectManager.shared.activeProject {
-            ProjectManager.shared.refreshFileTree(for: project)
+        if let project = await ProjectSessionStore.shared.activeProject {
+            await ProjectSessionStore.shared.refreshFileTree(for: project)
         }
     }
 

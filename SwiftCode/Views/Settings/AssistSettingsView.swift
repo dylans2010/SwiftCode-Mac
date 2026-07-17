@@ -550,7 +550,7 @@ struct FoundationModelsView: View {
             var generatedText = ""
             do {
                 let streamStartTime = Date()
-                try await FoundationModels.shared.streamPrivateResponse(prompt: prompt) { token in
+                try await FoundationModels.shared.streamPrivateResponse(prompt: prompt) { @MainActor token in
                     generatedText += token
                     testResponse = generatedText
                     appendLog("[Streaming] Received token: \"\(token.trimmingCharacters(in: .whitespacesAndNewlines))\"")

@@ -19,7 +19,7 @@ public struct AssistRefactorTool: AssistTool {
             let content = try context.fileSystem.readFile(at: path)
 
             let provider = AssistModelProvider.openAI // Default for now
-            let apiKey = APIKeyManager.shared.retrieveKey(service: provider.apiKeyProvider)
+            let apiKey = await APIKeyManager.shared.retrieveKey(service: provider.apiKeyProvider)
 
             let prompt = """
             You are a refactoring engine. Apply the following refactoring action to the code.

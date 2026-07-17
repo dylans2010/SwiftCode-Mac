@@ -15,7 +15,7 @@ public final class AssistGoalExpansionEngine {
 
         let providerRawValue = UserDefaults.standard.string(forKey: "assist.selectedProvider") ?? AssistModelProvider.openAI.rawValue
         let provider = AssistModelProvider(rawValue: providerRawValue) ?? .openAI
-        let apiKey = APIKeyManager.shared.retrieveKey(service: provider.apiKeyProvider)
+        let apiKey = await APIKeyManager.shared.retrieveKey(service: provider.apiKeyProvider)
 
         let prompt = """
         \(AssistAgenticPrompt.systemPrompt)
