@@ -29,7 +29,10 @@ public final class AssistExecutionEngine {
                     throw AssistExecutionError.toolNotFound(step.toolId)
                 }
 
-                await context.logger.info("Executing tool: \(tool.name)", toolId: step.toolId)
+                await self.context.logger.info("Executing tool: \(tool.name)", toolId: step.toolId)
+                let executeToolOnMain: @MainActor (_ input: [String: Any]) async throws -> AssistToolResult = { [self] input in
+                    try await tool.execute(input: input, context: self.context)
+                }
 
                 // Map the input to [String: Any] as required by AssistTool protocol
                 var toolInput = step.input as [String: Any]
@@ -43,13 +46,16 @@ public final class AssistExecutionEngine {
                 }
                 if let path = toolInput["path"] as? String,
                    ["code_refactor", "file_read", "file_append"].contains(step.toolId),
-                   !context.fileSystem.exists(at: path),
-                   let createFileTool = registry.getTool("file_create") {
-                    _ = try await createFileTool.execute(input: ["path": path, "content": "", "overwrite": false], context: context)
-                    await context.logger.info("Auto-created missing file at \(path) before executing \(step.toolId)", toolId: "file_create")
+                   !self.context.fileSystem.exists(at: path),
+                   let createFileTool = self.registry.getTool("file_create") {
+                    let executeCreateFileOnMain: @MainActor (_ input: [String: Any]) async throws -> AssistToolResult = { [self] input in
+                        try await createFileTool.execute(input: input, context: self.context)
+                    }
+                    _ = try await executeCreateFileOnMain(["path": path, "content": "", "overwrite": false])
+                    await self.context.logger.info("Auto-created missing file at \(path) before executing \(step.toolId)", toolId: "file_create")
                 }
 
-                let result = try await tool.execute(input: toolInput, context: context)
+                let result = try await executeToolOnMain(toolInput)
 
                 step.result = result
                 step.status = result.success ? .completed : .failed
