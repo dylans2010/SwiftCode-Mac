@@ -11,11 +11,20 @@ public struct AssistMainView: View {
     @State private var showSettings = false
     @State private var showDiagnosticsSheet = false
     @State private var showExecutionModeSheet = false
+    @State private var showApprovalSheet = false
     @State private var searchConversationText = ""
 
-    // Codex onboarding trigger states
+    // Codex Integration
+    @Bindable private var bridgeManager = CodexBridgeManager.shared
+
+    // Onboarding / Connection triggers
     @State private var showConnectCodex = false
     @State private var showingCodexSetup = false
+
+    // Destructive Actions Approval Workflow
+    @State private var pendingActionName: String = "Terminal Execution"
+    @State private var pendingActionDetails: String = "rm -rf build/"
+    @State private var alwaysAllowThisSession: Bool = false
 
     // Mode selection: Chat Mode (Read-Only) vs. Agent Mode (Autonomous)
     @AppStorage("com.swiftcode.assist.mode") private var isAgentMode = false
@@ -37,7 +46,7 @@ public struct AssistMainView: View {
 
                 Spacer()
 
-                // Execution Mode Button (opens as Sheet)
+                // Execution Mode Button
                 Button {
                     showExecutionModeSheet = true
                 } label: {
@@ -65,7 +74,7 @@ public struct AssistMainView: View {
                 } label: {
                     Image(systemName: "terminal.fill")
                         .font(.body)
-                        .foregroundStyle(manager.isProcessing ? .orange : .secondary)
+                        .foregroundStyle((manager.isProcessing || bridgeManager.streamStatus == "Streaming") ? .orange : .secondary)
                 }
                 .buttonStyle(.plain)
                 .help("System Diagnostics")
@@ -111,22 +120,23 @@ public struct AssistMainView: View {
                         .padding(.horizontal, 12)
                         .padding(.top, 8)
 
+                        // Codex Onboarding Prompt
                         if showConnectCodex {
                             GroupBox {
                                 VStack(alignment: .leading, spacing: 8) {
                                     HStack {
-                                        Label("Connect OpenAI Codex", systemImage: "sparkles")
+                                        Label("Connect OpenAI Codex CLI", systemImage: "sparkles")
                                             .font(.subheadline.bold())
                                             .foregroundStyle(.orange)
                                         Spacer()
                                     }
-                                    Text("Setup Codex provider to run native, ultra-fast model inference.")
+                                    Text("Leverage the official OpenAI Codex CLI as SwiftCode's complete reasoning & backend agent engine.")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                     Button {
                                         showingCodexSetup = true
                                     } label: {
-                                        Text("Connect Codex")
+                                        Text("Integrate Codex CLI")
                                             .frame(maxWidth: .infinity)
                                     }
                                     .buttonStyle(.borderedProminent)
@@ -144,6 +154,35 @@ public struct AssistMainView: View {
                             AssistChatBubble(message: message)
                         }
 
+                        // Tool Timeline widget
+                        if bridgeManager.activeToolName != "None" {
+                            GroupBox {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        ProgressView()
+                                            .scaleEffect(0.5)
+                                            .tint(.orange)
+                                        Text("Codex Tool Execution in Progress")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(.orange)
+                                        Spacer()
+                                        Text(bridgeManager.activeToolName)
+                                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color.orange.opacity(0.12), in: Capsule())
+                                    }
+                                    Text(bridgeManager.activeToolDetails)
+                                        .font(.system(size: 11, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                }
+                                .padding(4)
+                            }
+                            .groupBoxStyle(ModernGroupBoxStyle())
+                            .padding(.horizontal, 12)
+                        }
+
                         if isAgentMode {
                             AssistPlannerView()
                         }
@@ -152,7 +191,7 @@ public struct AssistMainView: View {
                             AssistErrorBubble(error: error)
                         }
 
-                        if manager.isProcessing {
+                        if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
                             thinkingIndicator
                         }
                     }
@@ -180,6 +219,61 @@ public struct AssistMainView: View {
             }
 
             Divider()
+
+            // Destructive Action Approval Overlay
+            if showApprovalSheet {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text("Action Requires User Approval")
+                            .font(.headline)
+                        Spacer()
+                        Button {
+                            showApprovalSheet = false
+                        } label: {
+                            Image(systemName: "xmark")
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Text("Codex CLI requested permission to execute potentially destructive command:")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    Text(pendingActionDetails)
+                        .font(.system(.body, design: .monospaced))
+                        .padding(8)
+                        .background(Color.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    HStack {
+                        Button("Approve") {
+                            showApprovalSheet = false
+                            bridgeManager.appendLog("User approved action: \(pendingActionDetails)")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+
+                        Button("Reject") {
+                            showApprovalSheet = false
+                            bridgeManager.appendLog("User rejected action: \(pendingActionDetails)")
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.red)
+
+                        Button("Always Allow for This Session") {
+                            alwaysAllowThisSession = true
+                            showApprovalSheet = false
+                            bridgeManager.appendLog("User configured session-wide trust for: \(pendingActionDetails)")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+                .padding()
+                .background(.ultraThinMaterial)
+                .transition(.move(edge: .bottom))
+            }
 
             // Bottom input controls
             VStack(spacing: 8) {
@@ -216,15 +310,25 @@ public struct AssistMainView: View {
                 }
             }
         }
+        .onChange(of: bridgeManager.activeToolName) { _, newTool in
+            // Intercept potentially destructive actions
+            if isAgentMode && !alwaysAllowThisSession {
+                let destructive = ["command_execution", "file_change", "terminal", "delete", "remove"]
+                if destructive.contains(newTool.lowercased()) {
+                    pendingActionName = newTool
+                    pendingActionDetails = bridgeManager.activeToolDetails
+                    showApprovalSheet = true
+                }
+            }
+        }
     }
 
     private func updateCodexButtonVisibility() async {
         let hasKey = !(KeychainService.shared.get(forKey: KeychainService.codexUserAPIKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let bridgeLocated = (try? CodexBridgeManager.shared.locateResources()) != nil
-        let isHealthy = await CodexBridgeManager.shared.isBridgeHealthy()
+        let cliDetected = bridgeManager.discoverCLIPath() != nil
         let completedSetup = UserDefaults.standard.bool(forKey: "com.swiftcode.codex.completedSetup")
 
-        showConnectCodex = !hasKey || !bridgeLocated || !isHealthy || !completedSetup
+        showConnectCodex = !hasKey && (!cliDetected || !completedSetup)
     }
 
     private var filteredMessages: [AssistMessage] {
@@ -240,16 +344,14 @@ public struct AssistMainView: View {
                 .tint(.orange)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(manager.isProcessing ? "Agent executing tools..." : "Planning next steps...")
+                Text(bridgeManager.activeToolName != "None" ? "Agent executing tools (\(bridgeManager.activeToolName))..." : "Planning next steps...")
                     .font(.caption.bold())
                     .foregroundStyle(.orange)
 
-                if let lastLog = manager.logger.logs.last {
-                    Text(lastLog.message)
-                        .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                Text(bridgeManager.activeToolDetails.isEmpty ? "Awaiting stream..." : bridgeManager.activeToolDetails)
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             Spacer()
         }
@@ -273,7 +375,7 @@ public struct AssistMainView: View {
                         in: Circle()
                     )
             }
-            .disabled(inputText.isEmpty || manager.isProcessing)
+            .disabled(inputText.isEmpty || manager.isProcessing || bridgeManager.streamStatus == "Streaming")
             .help("Enhance prompt with Apple Intelligence")
 
             ZStack {
@@ -281,7 +383,7 @@ public struct AssistMainView: View {
                     .padding(8)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
                     .lineLimit(1...5)
-                    .disabled(manager.isProcessing || isEnhancingPrompt)
+                    .disabled(manager.isProcessing || isEnhancingPrompt || bridgeManager.streamStatus == "Streaming")
                     .onSubmit {
                         submitMessage()
                     }
@@ -303,7 +405,7 @@ public struct AssistMainView: View {
 
             Button(action: submitMessage) {
                 Group {
-                    if manager.isProcessing {
+                    if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
                         ProgressView()
                             .progressViewStyle(.circular)
                             .scaleEffect(0.6)
@@ -313,7 +415,7 @@ public struct AssistMainView: View {
                     }
                 }
             }
-            .disabled(inputText.isEmpty || manager.isProcessing)
+            .disabled(inputText.isEmpty || manager.isProcessing || bridgeManager.streamStatus == "Streaming")
             .keyboardShortcut(.return, modifiers: [.command])
             .buttonStyle(.plain)
         }
@@ -321,7 +423,7 @@ public struct AssistMainView: View {
 
     private func submitMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty && !manager.isProcessing else { return }
+        guard !text.isEmpty && !manager.isProcessing && bridgeManager.streamStatus != "Streaming" else { return }
         inputText = ""
 
         // In Chat Mode, we strip any potential destructive commands before sending
@@ -446,6 +548,7 @@ struct ExecutionModeSheet: View {
 struct DiagnosticsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var manager: AssistManager
+    @Bindable private var bridgeManager = CodexBridgeManager.shared
 
     var body: some View {
         VStack(spacing: 16) {
@@ -477,7 +580,7 @@ struct DiagnosticsSheet: View {
                                 .font(.caption)
 
                             if provider == .codex {
-                                Text("OpenAI Codex SDK connection established via local bridge server port 3003.")
+                                Text("OpenAI Codex CLI integrated as first-class reasoning engine.")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             } else if FoundationModels.shared.isEnabled {
@@ -504,8 +607,10 @@ struct DiagnosticsSheet: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Platform: macOS (Darwin 24+)")
                                 Text("Thread Isolation: Strict @MainActor")
-                                Text("Memory Allocation: Automatic Graph")
-                                Text("Sandbox Mode: Source-Control Embedded")
+                                Text("CLI Version: \(bridgeManager.cliVersion)")
+                                Text("CLI Location: \(bridgeManager.cliLocation)")
+                                Text("Auth Status: \(bridgeManager.isAuthenticated ? "Authenticated" : "Required")")
+                                Text("Uptime Duration: \(String(format: "%.1f", bridgeManager.connectionDuration))s")
                             }
                             .font(.system(size: 10, design: .monospaced))
                             .foregroundStyle(.secondary)
@@ -523,13 +628,13 @@ struct DiagnosticsSheet: View {
 
                             ScrollView {
                                 VStack(alignment: .leading, spacing: 6) {
-                                    if manager.logger.logs.isEmpty {
+                                    if bridgeManager.liveLogs.isEmpty {
                                         Text("Pipeline standby. Initiate prompt request.")
                                             .font(.system(.caption2, design: .monospaced))
                                             .foregroundStyle(.secondary)
                                     } else {
-                                        ForEach(manager.logger.logs) { log in
-                                            Text("[\(log.toolId ?? "system")] \(log.message)")
+                                        ForEach(bridgeManager.liveLogs, id: \.self) { log in
+                                            Text(log)
                                                 .font(.system(.caption2, design: .monospaced))
                                                 .foregroundStyle(.secondary)
                                                 .frame(maxWidth: .infinity, alignment: .leading)
