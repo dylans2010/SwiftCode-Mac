@@ -84,6 +84,7 @@ public final class AssistToolRegistry {
         register(AssistExternalResourceGateway())
         register(AssistDependencyResolutionEngine())
         register(AssistAutonomousReviewEngine())
+        register(CodeReview())
     }
 
     public func register(_ tool: AssistTool) {

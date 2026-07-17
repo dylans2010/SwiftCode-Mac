@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E94576AB04264FABAE632835 /* CodeReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C86F1D43534422697C2209E /* CodeReview.swift */; };
+		5A218C6921DA4803A19F8831 /* CodeReviewSystemAsset.md in Resources */ = {isa = PBXBuildFile; fileRef = C25E63C0C3F147AD9AFB057B /* CodeReviewSystemAsset.md */; };
+		AC6F519FB2C940D087A32BE2 /* CodeAssistUserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3891332787254C0784D1C5AF /* CodeAssistUserView.swift */; };
 		5C5E70000000000000000501 /* AgentSystemAsset.md in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000502 /* AgentSystemAsset.md */; };
 		5C5E70000000000000000503 /* UseTermFunction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000504 /* UseTermFunction.swift */; };
 		F88A9F6F8A8054EB73E78D7B /* AssistTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8671939AE117A1B8ED8D013 /* AssistTool.swift */; };
@@ -1294,6 +1297,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		5C86F1D43534422697C2209E /* CodeReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeReview.swift; sourceTree = "<group>"; };
+		C25E63C0C3F147AD9AFB057B /* CodeReviewSystemAsset.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = CodeReviewSystemAsset.md; sourceTree = "<group>"; };
+		3891332787254C0784D1C5AF /* CodeAssistUserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeAssistUserView.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000502 /* AgentSystemAsset.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = AgentSystemAsset.md; sourceTree = "<group>"; };
 		5C5E70000000000000000504 /* UseTermFunction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UseTermFunction.swift; sourceTree = "<group>"; };
 		F8671939AE117A1B8ED8D013 /* AssistTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTool.swift; sourceTree = "<group>"; };
@@ -2698,6 +2704,7 @@
 		0F1DC5DB2603AC1C199C51B4 /* Functions */ = {
 			isa = PBXGroup;
 			children = (
+				C25E63C0C3F147AD9AFB057B /* CodeReviewSystemAsset.md */,
 				5C5E70000000000000000502 /* AgentSystemAsset.md */,
 				70B77B2DA5337218E8C99F32 /* AssistCIFunctions.swift */,
 				18CF30B32C4FDB2D67687DEF /* AssistCodeFunctions.swift */,
@@ -2721,6 +2728,7 @@
 		0AD835D66CAA78EC371E60BF /* Tools */ = {
 			isa = PBXGroup;
 			children = (
+				5C86F1D43534422697C2209E /* CodeReview.swift */,
 				5C5E70000000000000000504 /* UseTermFunction.swift */,
 				F8671939AE117A1B8ED8D013 /* AssistTool.swift */,
 				FBB200E77D8947F2430853AC /* AssistAppendFileTool.swift */,
@@ -2789,6 +2797,7 @@
 		27749D21083D1692F60CF1D2 /* Assist */ = {
 			isa = PBXGroup;
 			children = (
+				3891332787254C0784D1C5AF /* CodeAssistUserView.swift */,
 				F852C009A90B3CC08411A4B6 /* AgentTimelineView.swift */,
 				F8304153802789C34488D395 /* ToolExecutionView.swift */,
 				F8A83FA9469EB821F44AFE87 /* TaskProgressView.swift */,
@@ -5147,6 +5156,7 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A218C6921DA4803A19F8831 /* CodeReviewSystemAsset.md in Resources */,
 				5C5E70000000000000000501 /* AgentSystemAsset.md in Resources */,
 								600B4ED1612FABB403A598E2 /* package.json in Resources */,
 				4B170D36F9DA274C8C143C69 /* bridge.js in Resources */,
@@ -5271,6 +5281,8 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E94576AB04264FABAE632835 /* CodeReview.swift in Sources */,
+				AC6F519FB2C940D087A32BE2 /* CodeAssistUserView.swift in Sources */,
 				5C5E70000000000000000503 /* UseTermFunction.swift in Sources */,
 				F88A9F6F8A8054EB73E78D7B /* AssistTool.swift in Sources */,
 				F85D175494DC762767F06782 /* AgentSessionState.swift in Sources */,
