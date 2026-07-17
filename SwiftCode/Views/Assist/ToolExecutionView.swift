@@ -2,9 +2,9 @@ import SwiftUI
 
 @MainActor
 public struct ToolExecutionView: View {
-    let agentSession: AgentSession
+    let agentSession: AssistAgentSession
 
-    public init(agentSession: AgentSession) {
+    public init(agentSession: AssistAgentSession) {
         self.agentSession = agentSession
     }
 
