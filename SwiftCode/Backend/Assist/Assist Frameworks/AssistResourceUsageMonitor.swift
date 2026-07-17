@@ -1,6 +1,7 @@
 import Foundation
 
 /// Monitors resource usage during autonomous execution
+@MainActor
 public final class AssistResourceUsageMonitor {
     private let context: AssistContext
     private var startMemory: UInt64 = 0

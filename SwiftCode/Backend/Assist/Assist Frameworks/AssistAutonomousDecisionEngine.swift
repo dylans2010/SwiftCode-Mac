@@ -1,6 +1,7 @@
 import Foundation
 
 /// Makes intelligent decisions about execution flow: continue, retry, re-plan, or escalate
+@MainActor
 public final class AssistAutonomousDecisionEngine {
     private let context: AssistContext
 

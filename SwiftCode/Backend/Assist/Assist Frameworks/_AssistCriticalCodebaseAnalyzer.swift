@@ -2,6 +2,7 @@ import Foundation
 
 /// [CRITICAL SYSTEM FILE] - HIGH RISK
 /// Scans the project structure, analyzes dependencies, and identifies code quality issues.
+@MainActor
 public final class _AssistCriticalCodebaseAnalyzer {
     private let context: AssistContext
 

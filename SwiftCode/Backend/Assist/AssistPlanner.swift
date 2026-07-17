@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 public final class AssistPlanner {
     private let context: AssistContext
 

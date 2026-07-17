@@ -1,6 +1,7 @@
 import Foundation
 
 /// Analyzes failures to determine root causes for better recovery
+@MainActor
 public final class AssistFailureRootCauseAnalyzer {
     private let context: AssistContext
 

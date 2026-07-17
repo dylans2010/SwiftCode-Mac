@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 public final class AssistExecutionEngine {
     private let context: AssistContext
     private let registry: AssistToolRegistry
@@ -9,7 +10,6 @@ public final class AssistExecutionEngine {
         self.registry = registry
     }
 
-    @MainActor
     public func execute(plan: inout AssistExecutionPlan) async throws {
         await context.logger.info("Executing plan: \(plan.goal)")
         plan.status = .running

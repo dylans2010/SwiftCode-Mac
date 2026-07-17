@@ -1,6 +1,7 @@
 import Foundation
 
 /// Profiles performance of autonomous execution
+@MainActor
 public final class AssistPerformanceProfilingEngine {
     private let context: AssistContext
     private var profiles: [PerformanceProfile] = []

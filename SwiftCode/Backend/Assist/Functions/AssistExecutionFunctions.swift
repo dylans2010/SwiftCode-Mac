@@ -2,7 +2,7 @@ import Foundation
 
 @MainActor
 public struct AssistExecutionFunctions {
-    public typealias ExecutionTask = (AssistContext) async throws -> String
+    public typealias ExecutionTask = @Sendable (AssistContext) async throws -> String
 
     private static var registry: [String: ExecutionTask] = [:]
 

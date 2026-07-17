@@ -1,6 +1,7 @@
 import Foundation
 
 /// Tracks and evaluates progress across autonomous execution iterations
+@MainActor
 public final class AssistProgressEvaluator {
     private let context: AssistContext
     private var progressHistory: [ProgressSnapshot] = []

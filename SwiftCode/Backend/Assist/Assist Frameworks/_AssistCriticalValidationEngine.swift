@@ -2,6 +2,7 @@ import Foundation
 
 /// [CRITICAL SYSTEM FILE] - HIGH RISK
 /// Validates the outputs of an autonomous execution iteration to ensure requirements are met.
+@MainActor
 public final class _AssistCriticalValidationEngine {
     private let context: AssistContext
 

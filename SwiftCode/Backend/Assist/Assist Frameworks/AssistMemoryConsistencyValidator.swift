@@ -1,6 +1,7 @@
 import Foundation
 
 /// Validates consistency of memory and context throughout execution
+@MainActor
 public final class AssistMemoryConsistencyValidator {
     private let context: AssistContext
 

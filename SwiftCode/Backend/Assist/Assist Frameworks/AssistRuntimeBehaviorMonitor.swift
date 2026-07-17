@@ -1,6 +1,7 @@
 import Foundation
 
 /// Monitors runtime behavior of autonomous execution
+@MainActor
 public final class AssistRuntimeBehaviorMonitor {
     private let context: AssistContext
     private var startTime: Date?

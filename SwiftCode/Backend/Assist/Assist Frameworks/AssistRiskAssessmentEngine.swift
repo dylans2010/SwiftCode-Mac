@@ -1,6 +1,7 @@
 import Foundation
 
 /// Assesses risks in planned operations before execution
+@MainActor
 public final class AssistRiskAssessmentEngine {
     private let context: AssistContext
 

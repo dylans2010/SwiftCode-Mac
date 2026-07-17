@@ -2,6 +2,7 @@ import Foundation
 
 /// [CRITICAL SYSTEM FILE] - HIGH RISK
 /// The primary execution bridge for file and project operations. Ensures all changes are real and integrated.
+@MainActor
 public final class _AssistCriticalExecutionEngine {
     private let context: AssistContext
     private let baseEngine: AssistExecutionEngine
@@ -12,7 +13,6 @@ public final class _AssistCriticalExecutionEngine {
     }
 
     /// Executes a plan and ensures all new files are visible to the project.
-    @MainActor
     public func execute(plan: inout AssistExecutionPlan) async throws {
         await context.logger.info("Executing via Critical Execution Engine", toolId: "CriticalExecution")
 

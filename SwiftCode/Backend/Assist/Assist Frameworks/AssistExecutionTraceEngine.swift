@@ -1,6 +1,7 @@
 import Foundation
 
 /// Traces execution path for debugging and analysis
+@MainActor
 public final class AssistExecutionTraceEngine {
     private let context: AssistContext
     private var trace: [TraceEntry] = []
