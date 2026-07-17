@@ -8,7 +8,6 @@ public struct AssistMainView: View {
     @StateObject private var manager = AssistManager.shared
     @State private var inputText: String = ""
     @State private var isEnhancingPrompt = false
-    @State private var showSettings = false
     @State private var showDiagnosticsSheet = false
     @State private var showExecutionModeSheet = false
     @State private var showApprovalSheet = false
@@ -79,15 +78,16 @@ public struct AssistMainView: View {
                 .buttonStyle(.plain)
                 .help("System Diagnostics")
 
-                // Settings Trigger
+                // Codex Setup Trigger
                 Button {
-                    showSettings = true
+                    showingCodexSetup = true
                 } label: {
-                    Image(systemName: "gearshape")
+                    Image(systemName: "sparkles")
                         .font(.body)
+                        .foregroundStyle(.orange)
                 }
                 .buttonStyle(.plain)
-                .help("Assist Settings")
+                .help("Configure Codex CLI")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
@@ -286,11 +286,6 @@ public struct AssistMainView: View {
             .background(.thinMaterial)
         }
         .background(.windowBackground)
-        .sheet(isPresented: $showSettings) {
-            NavigationStack {
-                AssistSettingsView()
-            }
-        }
         .sheet(isPresented: $showingCodexSetup) {
             CodexSignInFlow()
         }

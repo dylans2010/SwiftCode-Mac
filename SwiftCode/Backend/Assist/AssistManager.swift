@@ -63,20 +63,6 @@ public final class AssistManager: ObservableObject {
             saveHistory()
         }
 
-        let provider = selectedProvider
-        let apiKey = APIKeyManager.shared.retrieveKey(service: provider.apiKeyProvider)
-
-        if apiKey == nil || apiKey?.isEmpty == true {
-            let error = "Missing API key for \(provider.rawValue). Add a key in Assist Settings."
-            await MainActor.run {
-                lastError = error
-                messages.append(AssistMessage(role: .system, content: error))
-                isProcessing = false
-                saveHistory()
-            }
-            return
-        }
-
         guard let agent = self.agent else {
             let error = "Assist agent is unavailable."
             await MainActor.run {
