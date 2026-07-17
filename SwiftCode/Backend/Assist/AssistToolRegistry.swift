@@ -55,6 +55,7 @@ public final class AssistToolRegistry {
         register(AssistTestRunnerTool())
         register(AssistLogCaptureTool())
         register(AssistEnvironmentInfoTool())
+        register(UseTermFunction())
 
         // Intelligence
         register(AssistPlanTaskTool())

@@ -20,6 +20,89 @@ public final class AssistManager: ObservableObject {
     private var agent: AssistAgent?
     private let api = AssistAPI.shared
 
+    // Cache for bundled system prompt
+    private var cachedSystemPrompt: String?
+
+    // Terminal Approval state variables
+    @Published public var pendingTerminalRequest: TerminalApprovalRequest?
+    public var terminalContinuation: CheckedContinuation<Bool, Never>?
+    @Published public var terminalLiveOutput: String = ""
+    @Published public var terminalRunning: Bool = false
+    @Published public var terminalExitCode: Int? = nil
+    @Published public var terminalCompleted: Bool = false
+    @Published public var activeProcess: Process?
+
+    public func getSystemPrompt() throws -> String {
+        if let cached = cachedSystemPrompt {
+            return cached
+        }
+
+        guard let url = Bundle.main.url(forResource: "AgentSystemAsset", withExtension: "md") else {
+            let errorMsg = "Failed to locate AgentSystemAsset.md in application bundle."
+            logger.error(errorMsg, toolId: nil)
+            throw NSError(domain: "AssistManager", code: 404, userInfo: [NSLocalizedDescriptionKey: errorMsg])
+        }
+
+        do {
+            let prompt = try String(contentsOf: url, encoding: .utf8)
+            cachedSystemPrompt = prompt
+            return prompt
+        } catch {
+            let errorMsg = "Failed to load AgentSystemAsset.md from bundle: \(error.localizedDescription)"
+            logger.error(errorMsg, toolId: nil)
+            throw NSError(domain: "AssistManager", code: 500, userInfo: [NSLocalizedDescriptionKey: errorMsg])
+        }
+    }
+
+    @MainActor
+    public func requestTerminalApproval(_ request: TerminalApprovalRequest) async -> Bool {
+        self.pendingTerminalRequest = request
+        self.terminalLiveOutput = ""
+        self.terminalRunning = false
+        self.terminalExitCode = nil
+        self.terminalCompleted = false
+
+        return await withCheckedContinuation { continuation in
+            self.terminalContinuation = continuation
+        }
+    }
+
+    @MainActor
+    public func approveTerminalRequest() {
+        guard let continuation = terminalContinuation else { return }
+        terminalContinuation = nil
+        self.terminalRunning = true
+        continuation.resume(returning: true)
+    }
+
+    @MainActor
+    public func denyTerminalRequest() {
+        guard let continuation = terminalContinuation else { return }
+        terminalContinuation = nil
+        self.pendingTerminalRequest = nil
+        continuation.resume(returning: false)
+    }
+
+    @MainActor
+    public func cancelTerminalExecution() {
+        if let process = activeProcess, process.isRunning {
+            process.terminate()
+            appendTerminalOutput("\n[Execution cancelled by user]")
+        }
+        if let continuation = terminalContinuation {
+            terminalContinuation = nil
+            continuation.resume(returning: false)
+        }
+        self.pendingTerminalRequest = nil
+        self.terminalRunning = false
+        self.activeProcess = nil
+    }
+
+    @MainActor
+    public func appendTerminalOutput(_ text: String) {
+        self.terminalLiveOutput += text
+    }
+
     public var selectedModel: AssistModelOption {
         let modelID = AssistModelManager.shared.selectedModelID
         return AssistModelOption.all.first(where: { $0.id == modelID }) ?? .swiftCodeBalanced
@@ -69,6 +152,20 @@ public final class AssistManager: ObservableObject {
             await MainActor.run {
                 lastError = error
                 messages.append(AssistMessage(role: .system, content: error))
+                isProcessing = false
+                saveHistory()
+            }
+            return
+        }
+
+        // Verify system prompt is available
+        do {
+            _ = try getSystemPrompt()
+        } catch {
+            await MainActor.run {
+                let errorMsg = "Runtime Configuration Error: The required system prompt 'AgentSystemAsset.md' could not be loaded: \(error.localizedDescription)"
+                lastError = errorMsg
+                messages.append(AssistMessage(role: .system, content: errorMsg))
                 isProcessing = false
                 saveHistory()
             }
