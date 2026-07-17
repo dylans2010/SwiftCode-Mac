@@ -1,6 +1,14 @@
 import SwiftUI
 import AppKit
 
+public struct HandshakeDiagnostics: Identifiable, Sendable {
+    public var id: UUID = UUID()
+    public let stage: String
+    public let failureReason: String
+    public let providerResponse: String?
+    public let recommendedResolution: String
+}
+
 @MainActor
 public struct CodexSignInFlow: View {
     @Environment(\.dismiss) private var dismiss
@@ -23,11 +31,25 @@ public struct CodexSignInFlow: View {
     @State private var testDuration: TimeInterval = 0
     @State private var testStatus: String = "Standby"
     @State private var testError: String? = nil
+    @State private var handshakeDiagnostics: HandshakeDiagnostics? = nil
 
     public init() {}
 
     private var hasStoredKey: Bool {
         !(KeychainService.shared.get(forKey: KeychainService.codexUserAPIKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var isAuthenticatedWithAPIKey: Bool {
+        hasStoredKey
+    }
+
+    private var isAuthenticatedWithChatGPT: Bool {
+        // Authenticated but does not have a saved API Key in Keychain
+        bridgeManager.isAuthenticated && !hasStoredKey
+    }
+
+    private var isAnyAuthenticated: Bool {
+        isAuthenticatedWithAPIKey || isAuthenticatedWithChatGPT
     }
 
     public var body: some View {
@@ -132,123 +154,170 @@ public struct CodexSignInFlow: View {
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
 
-                    // Section 3: ChatGPT Authentication
+                    // Section 3: ChatGPT Authentication & State Changes
                     GroupBox {
                         VStack(alignment: .leading, spacing: 12) {
                             Label("ChatGPT Authentication", systemImage: "person.crop.circle.badge.checkmark")
                                 .font(.headline)
                                 .foregroundColor(.green)
 
-                            Text("Connect using your official ChatGPT account. No API Keys are required. SwiftCode will launch the browser validation and the CLI will safely persist your credentials in auth.json.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            if isAnyAuthenticated {
+                                Text("You are already authenticated!")
+                                    .font(.headline)
+                                    .foregroundColor(.green)
+                                    .padding(.vertical, 4)
 
-                            HStack(spacing: 12) {
-                                Button {
-                                    Task {
-                                        try? await bridgeManager.loginWithChatGPT()
-                                    }
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "safari")
-                                        Text("Continue with ChatGPT")
-                                    }
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.green)
-                                .disabled(bridgeManager.cliLocation == "Not Detected" || bridgeManager.isConnecting)
+                                Text(isAuthenticatedWithAPIKey ? "Authenticated using OpenAI API Key stored securely in Keychain." : "Authenticated using official ChatGPT OAuth session.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
 
                                 Button {
                                     Task {
-                                        try? await bridgeManager.loginWithDeviceCode { url, code in
-                                            self.deviceUrl = url
-                                            self.deviceCode = code
-                                            self.showDeviceCodeSheet = true
-                                        }
-                                    }
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "tv")
-                                        Text("Device Code Login")
-                                    }
-                                }
-                                .buttonStyle(.bordered)
-                                .disabled(bridgeManager.cliLocation == "Not Detected" || bridgeManager.isConnecting)
-                            }
-                        }
-                        .padding(8)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Section 4: Alternative API Key Integration
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Label("OpenAI API Key Integration (Alternative)", systemImage: "key.fill")
-                                .font(.headline)
-                                .foregroundColor(.cyan)
-
-                            HStack {
-                                Group {
-                                    if showKey {
-                                        TextField("sk-...", text: $apiKey)
-                                    } else {
-                                        SecureField("sk-...", text: $apiKey)
-                                    }
-                                }
-                                .textFieldStyle(.roundedBorder)
-                                .fontDesign(.monospaced)
-
-                                Button {
-                                    showKey.toggle()
-                                } label: {
-                                    Image(systemName: showKey ? "eye.slash" : "eye")
-                                }
-                                .buttonStyle(.plain)
-
-                                Button("Paste") {
-                                    if let string = NSPasteboard.general.string(forType: .string) {
-                                        apiKey = string.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    }
-                                }
-                                .buttonStyle(.bordered)
-                            }
-
-                            HStack {
-                                Button("Save and Validate API Key") {
-                                    let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    guard !trimmed.isEmpty else { return }
-                                    Task {
-                                        let valid = await bridgeManager.validateAPIKey(trimmed)
-                                        if valid {
-                                            KeychainService.shared.set(trimmed, forKey: KeychainService.codexUserAPIKey)
-                                            bridgeManager.appendLog("API Key verified and stored in KeyChain.")
-                                            apiKey = ""
-                                            await bridgeManager.auditEnvironment()
+                                        if isAuthenticatedWithAPIKey {
+                                            // Sign out API Key
+                                            KeychainService.shared.delete(forKey: KeychainService.codexUserAPIKey)
+                                            bridgeManager.appendLog("API Key removed from Keychain.")
                                         } else {
-                                            bridgeManager.appendLog("API Key validation failed.")
+                                            // Sign out ChatGPT
+                                            await bridgeManager.logout()
+                                            bridgeManager.appendLog("ChatGPT OAuth session cleared.")
                                         }
+                                        await bridgeManager.auditEnvironment()
+                                    }
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "power")
+                                        Text("Sign Out")
                                     }
                                 }
                                 .buttonStyle(.borderedProminent)
-                                .tint(.cyan)
-                                .disabled(apiKey.isEmpty || bridgeManager.cliLocation == "Not Detected")
+                                .tint(.red)
+                            } else {
+                                Text("Connect using your official ChatGPT account. No API Keys are required. SwiftCode will launch the browser validation and the CLI will safely persist your credentials in auth.json.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
 
-                                if hasStoredKey {
-                                    Button("Remove Saved Key") {
-                                        KeychainService.shared.delete(forKey: KeychainService.codexUserAPIKey)
-                                        bridgeManager.appendLog("API Key removed from Keychain.")
+                                HStack(spacing: 12) {
+                                    Button {
                                         Task {
-                                            await bridgeManager.auditEnvironment()
+                                            if hasStoredKey {
+                                                let proceed = await confirmChatGPTTransition()
+                                                if !proceed { return }
+                                                KeychainService.shared.delete(forKey: KeychainService.codexUserAPIKey)
+                                                await bridgeManager.auditEnvironment()
+                                            }
+                                            try? await bridgeManager.loginWithChatGPT()
+                                        }
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: "safari")
+                                            Text("Continue with ChatGPT")
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.green)
+                                    .disabled(bridgeManager.cliLocation == "Not Detected" || bridgeManager.isConnecting)
+
+                                    Button {
+                                        Task {
+                                            if hasStoredKey {
+                                                let proceed = await confirmChatGPTTransition()
+                                                if !proceed { return }
+                                                KeychainService.shared.delete(forKey: KeychainService.codexUserAPIKey)
+                                                await bridgeManager.auditEnvironment()
+                                            }
+                                            try? await bridgeManager.loginWithDeviceCode { url, code in
+                                                self.deviceUrl = url
+                                                self.deviceCode = code
+                                                self.showDeviceCodeSheet = true
+                                            }
+                                        }
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: "tv")
+                                            Text("Device Code Login")
                                         }
                                     }
                                     .buttonStyle(.bordered)
-                                    .tint(.red)
+                                    .disabled(bridgeManager.cliLocation == "Not Detected" || bridgeManager.isConnecting)
                                 }
                             }
                         }
                         .padding(8)
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Section 4: Alternative API Key Integration (Hidden if authenticated)
+                    if !isAnyAuthenticated {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Label("OpenAI API Key Integration (Alternative)", systemImage: "key.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.cyan)
+
+                                HStack {
+                                    Group {
+                                        if showKey {
+                                            TextField("sk-...", text: $apiKey)
+                                        } else {
+                                            SecureField("sk-...", text: $apiKey)
+                                        }
+                                    }
+                                    .textFieldStyle(.roundedBorder)
+                                    .fontDesign(.monospaced)
+
+                                    Button {
+                                        showKey.toggle()
+                                    } label: {
+                                        Image(systemName: showKey ? "eye.slash" : "eye")
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    Button("Paste") {
+                                        if let string = NSPasteboard.general.string(forType: .string) {
+                                            apiKey = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        }
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+
+                                HStack {
+                                    Button("Save and Validate API Key") {
+                                        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        guard !trimmed.isEmpty else { return }
+                                        Task {
+                                            let valid = await bridgeManager.validateAPIKey(trimmed)
+                                            if valid {
+                                                KeychainService.shared.set(trimmed, forKey: KeychainService.codexUserAPIKey)
+                                                bridgeManager.appendLog("API Key verified and stored in KeyChain.")
+                                                apiKey = ""
+                                                await bridgeManager.auditEnvironment()
+                                            } else {
+                                                bridgeManager.appendLog("API Key validation failed.")
+                                            }
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.cyan)
+                                    .disabled(apiKey.isEmpty || bridgeManager.cliLocation == "Not Detected")
+
+                                    if hasStoredKey {
+                                        Button("Remove Saved Key") {
+                                            KeychainService.shared.delete(forKey: KeychainService.codexUserAPIKey)
+                                            bridgeManager.appendLog("API Key removed from Keychain.")
+                                            Task {
+                                                await bridgeManager.auditEnvironment()
+                                            }
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .tint(.red)
+                                    }
+                                }
+                            }
+                            .padding(8)
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+                    }
 
                     // Section 5: Diagnostics Console logs
                     GroupBox {
@@ -339,6 +408,33 @@ public struct CodexSignInFlow: View {
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                             }
+
+                            if let diags = handshakeDiagnostics {
+                                GroupBox {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        HStack {
+                                            Image(systemName: "exclamationmark.octagon.fill")
+                                                .foregroundColor(.red)
+                                            Text("Detailed Handshake Diagnostic Report")
+                                                .font(.headline)
+                                                .foregroundColor(.red)
+                                        }
+
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Text("Connection Stage: ").bold() + Text(diags.stage)
+                                            Text("Failure Reason: ").bold() + Text(diags.failureReason).foregroundStyle(.red)
+                                            if let resp = diags.providerResponse {
+                                                Text("Provider Response: ").bold() + Text(resp).fontDesign(.monospaced)
+                                            }
+                                            Divider()
+                                            Text("Recommended Resolution: ").bold() + Text(diags.recommendedResolution).foregroundColor(.green)
+                                        }
+                                        .font(.caption)
+                                    }
+                                    .padding(8)
+                                }
+                                .groupBoxStyle(ModernGroupBoxStyle())
+                            }
                         }
                         .padding(8)
                     }
@@ -411,24 +507,93 @@ public struct CodexSignInFlow: View {
         }
     }
 
+    private func confirmChatGPTTransition() async -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Switch to ChatGPT Authentication?"
+        alert.informativeText = "Continuing with ChatGPT authentication will remove the currently saved API key authentication."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Continue with ChatGPT")
+        alert.addButton(withTitle: "Cancel")
+
+        let response = alert.runModal()
+        return response == .alertFirstButtonReturn
+    }
+
     private func runConnectionTest() {
         isTesting = true
         testResponse = ""
         testStatus = "Executing Handshake..."
         testDuration = 0
+        testError = nil
+        handshakeDiagnostics = nil
         let startTime = Date()
 
         Task {
+            // Stage 1: CLI Discovery
+            bridgeManager.appendLog("[Handshake] Stage 1: Verifying CLI discovery...")
+            guard let _ = bridgeManager.discoverCLIPath() else {
+                testStatus = "Handshake Failed"
+                handshakeDiagnostics = HandshakeDiagnostics(
+                    stage: "Binary Verification & CLI Discovery",
+                    failureReason: "Official OpenAI Codex CLI executable was not found on this machine.",
+                    providerResponse: nil,
+                    recommendedResolution: "Please run the Managed Installer above to set up the official Codex CLI."
+                )
+                isTesting = false
+                return
+            }
+
+            // Stage 2: Authentication Verification
+            bridgeManager.appendLog("[Handshake] Stage 2: Auditing authentication credentials...")
+            await bridgeManager.auditEnvironment()
+            if !bridgeManager.isAuthenticated {
+                testStatus = "Handshake Failed"
+                handshakeDiagnostics = HandshakeDiagnostics(
+                    stage: "Authentication Handshake",
+                    failureReason: "Codex CLI lacks authorized credentials. Both OpenAI API Key and ChatGPT session are inactive.",
+                    providerResponse: nil,
+                    recommendedResolution: "Please save a valid OpenAI API key or sign in via 'Continue with ChatGPT' to authorize the CLI."
+                )
+                isTesting = false
+                return
+            }
+
+            // Stage 3: Request Payload & Execution Pipeline
+            bridgeManager.appendLog("[Handshake] Stage 3: Initializing stream connection to backend...")
             do {
+                testStatus = "Executing prompt..."
+                var receivedText = ""
                 try await bridgeManager.streamPrompt("Respond with 'Codex Connection Success'") { @MainActor token in
-                    testResponse += token
+                    receivedText += token
+                    testResponse = receivedText
                     testStatus = "Streaming..."
                 }
+
+                if receivedText.isEmpty {
+                    throw NSError(domain: "CodexHandshake", code: 1001, userInfo: [NSLocalizedDescriptionKey: "Received an empty response stream from the Codex backend."])
+                }
+
                 testDuration = Date().timeIntervalSince(startTime)
                 testStatus = "Success"
+                bridgeManager.appendLog("[Handshake] Connection successfully verified! Latency: \(String(format: "%.2f", testDuration))s")
             } catch {
                 testStatus = "Handshake Failed"
-                testError = error.localizedDescription
+                let exitCodeMessage = error.localizedDescription
+                bridgeManager.appendLog("[Handshake] Connection test threw error: \(exitCodeMessage)")
+
+                var resolution = "Ensure you have a stable internet connection. If using ChatGPT auth, try running a manual terminal command 'codex login status' to diagnose, or Sign Out and try a fresh login."
+                if exitCodeMessage.contains("1") {
+                    resolution = "The CLI exited with code 1. This often indicates expired credentials or a billing limit reached. Please verify your OpenAI key/account status."
+                } else if exitCodeMessage.contains("401") || exitCodeMessage.contains("unauthorized") {
+                    resolution = "The request was unauthorized. Please verify that your OpenAI API Key has correct permissions and is active."
+                }
+
+                handshakeDiagnostics = HandshakeDiagnostics(
+                    stage: "Execution Pipeline Initialization",
+                    failureReason: "Stream connection failed with error: \(exitCodeMessage)",
+                    providerResponse: testResponse.isEmpty ? nil : testResponse,
+                    recommendedResolution: resolution
+                )
             }
             isTesting = false
         }
