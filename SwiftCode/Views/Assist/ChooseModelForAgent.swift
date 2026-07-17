@@ -3,22 +3,6 @@ import os
 
 private let logger = Logger(subsystem: "com.swiftcode.ChooseModelForAgent", category: "ChooseModelForAgent")
 
-public struct DynamicModelOption: Identifiable, Hashable {
-    public var id: String { modelID }
-    public let modelID: String
-    public let name: String
-    public let provider: String
-    public let status: String
-    public let isAvailable: Bool
-    public let category: ModelCategory
-
-    public enum ModelCategory: String, CaseIterable, Sendable {
-        case apple = "Apple Foundation Models"
-        case local = "HuggingFace Local Models"
-        case openRouter = "OpenRouter Cloud Models"
-        case custom = "Custom Models"
-    }
-}
 
 @MainActor
 public struct ChooseModelForAgent: View {

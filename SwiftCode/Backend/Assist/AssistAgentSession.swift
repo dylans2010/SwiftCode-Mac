@@ -15,7 +15,7 @@ public final class AssistAgentSession: Sendable {
 
     public init() {}
 
-    public func start(objective: String, context: AssistContext) async throws {
+    public func start(objective: String, attachments: [AgentFileContext] = [], context: AssistContext) async throws {
         self.isCancelled = false
         self.state.objective = objective
         self.state.status = .planning
@@ -56,11 +56,27 @@ public final class AssistAgentSession: Sendable {
 
             let assetSystemPrompt = try AssistManager.shared.getSystemPrompt()
 
+            var attachmentsBlock = ""
+            if !attachments.isEmpty {
+                attachmentsBlock = "\n# ATTACHED FILES FOR THIS TASK (READ-ONLY REFERENCE)\n"
+                for file in attachments {
+                    attachmentsBlock += "Filename: \(file.filename)\n"
+                    attachmentsBlock += "Extension: \(file.extension)\n"
+                    attachmentsBlock += "MIME Type: \(file.mimeType)\n"
+                    attachmentsBlock += "Size: \(file.size) bytes\n"
+                    attachmentsBlock += "Base64 Content:\n\(file.base64Content)\n"
+                    attachmentsBlock += "-----------------------------\n"
+                }
+            }
+
             let systemPrompt = """
             # SYSTEM PROMPT (OPERATING POLICY)
             \(assetSystemPrompt)
 
             # HIDDEN RUNTIME INSTRUCTIONS & ROLE
+            Execution Key: com.SwiftCode.Assist-Agent
+            Execution Mode: com.SwiftCode.Assist-Agent
+
             You are an autonomous Swift/macOS coding agent working in SwiftCode.
             Your goal is: "\(objective)"
 
@@ -77,6 +93,8 @@ public final class AssistAgentSession: Sendable {
             {
               "finalResponse": "A clear, detailed description of your achievements and the files modified"
             }
+
+            \(attachmentsBlock)
 
             # CONVERSATION CONTEXT & WORKSPACE
             \(manifest)

@@ -229,12 +229,14 @@ public struct AssistMessage: Codable, Identifiable {
     public let role: AssistRole
     public let content: String
     public let timestamp: Date
+    public var attachments: [AgentFileContext]?
 
-    public init(role: AssistRole, content: String) {
+    public init(role: AssistRole, content: String, attachments: [AgentFileContext]? = nil) {
         self.id = UUID()
         self.role = role
         self.content = content
         self.timestamp = Date()
+        self.attachments = attachments
     }
 }
 
@@ -319,4 +321,32 @@ public extension AssistExecutionPlan {
 
 public extension AssistExecutionStep {
     var actions: [AssistAction] { [] }
+}
+
+// MARK: - Dynamic Model Options
+
+public struct DynamicModelOption: Identifiable, Hashable, Sendable {
+    public var id: String { modelID }
+    public let modelID: String
+    public let name: String
+    public let provider: String
+    public let status: String
+    public let isAvailable: Bool
+    public let category: ModelCategory
+
+    public enum ModelCategory: String, CaseIterable, Sendable {
+        case apple = "Apple Foundation Models"
+        case local = "HuggingFace Local Models"
+        case openRouter = "OpenRouter Cloud Models"
+        case custom = "Custom Models"
+    }
+
+    public init(modelID: String, name: String, provider: String, status: String, isAvailable: Bool, category: ModelCategory) {
+        self.modelID = modelID
+        self.name = name
+        self.provider = provider
+        self.status = status
+        self.isAvailable = isAvailable
+        self.category = category
+    }
 }

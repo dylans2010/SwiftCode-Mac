@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import os
 
 private let logger = Logger(subsystem: "com.swiftcode.app", category: "AssistMainView")
@@ -12,10 +13,10 @@ public struct AssistMainView: View {
     @State private var showExecutionModeSheet = false
     @State private var showApprovalSheet = false
     @State private var searchConversationText = ""
-    @State private var showingModelPickerPopover = false
     @State private var attachedFiles: [AgentFileContext] = []
     @State private var showingFilePickerSheet = false
     @State private var isProcessingFiles = false
+    @State private var fetchedOpenRouterModels: [OpenRouterModel] = []
 
     // Codex Integration
     @Bindable private var bridgeManager = CodexBridgeManager.shared
@@ -31,6 +32,9 @@ public struct AssistMainView: View {
 
     // Mode selection: Chat Mode (Read-Only) vs. Agent Mode (Autonomous)
     @AppStorage("com.swiftcode.assist.mode") private var isAgentMode = false
+
+    // Glowing border pulse state for Apple Intelligence
+    @State private var pulseGlow = false
 
     public init() {}
 
@@ -429,11 +433,23 @@ public struct AssistMainView: View {
         }
         .task {
             await updateCodexButtonVisibility()
+            await fetchOpenRouterModelsBackground()
         }
         .onChange(of: showingCodexSetup) { _, newValue in
             if !newValue {
                 Task {
                     await updateCodexButtonVisibility()
+                }
+            }
+        }
+        .onChange(of: isEnhancingPrompt) { _, newValue in
+            if newValue {
+                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                    pulseGlow = true
+                }
+            } else {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    pulseGlow = false
                 }
             }
         }
@@ -458,6 +474,17 @@ public struct AssistMainView: View {
         showConnectCodex = !hasKey && (!cliDetected || !completedSetup)
     }
 
+    private func fetchOpenRouterModelsBackground() async {
+        do {
+            let liveModels = try await OpenRouterService.shared.fetchModels()
+            await MainActor.run {
+                self.fetchedOpenRouterModels = liveModels
+            }
+        } catch {
+            logger.warning("[fetchOpenRouterModelsBackground] Synchronous preset models fallback active.")
+        }
+    }
+
     private var filteredMessages: [AssistMessage] {
         let text = searchConversationText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if text.isEmpty { return manager.messages }
@@ -471,7 +498,7 @@ public struct AssistMainView: View {
                 .tint(.orange)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(bridgeManager.activeToolName != "None" ? "Agent executing tools (\(bridgeManager.activeToolName))..." : "Planning next steps...")
+                Text(bridgeManager.activeToolName != "None" ? "Agent executing tools (\(bridgeManager.activeToolName))...." : "Planning next steps...")
                     .font(.caption.bold())
                     .foregroundStyle(.orange)
 
@@ -505,8 +532,14 @@ public struct AssistMainView: View {
             }
             .help("Attach Files to Context")
 
+            // Dynamic model selector via native AppKit popup menu
             Button {
-                showingModelPickerPopover = true
+                let event = NSApplication.shared.currentEvent
+                let models = loadDynamicModels()
+                let activeID = currentActiveModelID()
+                ModelPopupMenuHelper.showMenu(event: event, models: models, activeModelID: activeID) { option in
+                    selectModel(option)
+                }
             } label: {
                 Image(systemName: "cpu")
                     .font(.system(size: 14, weight: .semibold))
@@ -515,9 +548,6 @@ public struct AssistMainView: View {
                     .background(Color.orange.opacity(0.12), in: Circle())
             }
             .buttonStyle(.plain)
-            .popover(isPresented: $showingModelPickerPopover, arrowEdge: .bottom) {
-                ChooseModelForAgent()
-            }
             .help("Choose Model for Assist Agent")
 
             Button {
@@ -538,27 +568,35 @@ public struct AssistMainView: View {
             ZStack {
                 TextField("What should I build next?", text: $inputText, axis: .vertical)
                     .padding(8)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(.regularMaterial)
+                    )
                     .lineLimit(1...5)
                     .disabled(manager.isProcessing || isEnhancingPrompt || bridgeManager.streamStatus == "Streaming" || isProcessingFiles)
                     .onSubmit {
                         submitMessage()
                     }
-
+            }
+            .scaleEffect(isEnhancingPrompt ? 1.015 : 1.0)
+            .overlay {
                 if isEnhancingPrompt {
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(.ultraThinMaterial)
-                        .overlay(
-                            HStack(spacing: 8) {
-                                ProgressView()
-                                    .scaleEffect(0.6)
-                                    .tint(.purple)
-                                Text("Enhancing...")
-                                    .font(.caption.weight(.semibold))
-                            }
+                        .stroke(
+                            LinearGradient(
+                                colors: [.blue, .purple, .pink, .orange],
+                                startPoint: pulseGlow ? .topLeading : .bottomTrailing,
+                                endPoint: pulseGlow ? .bottomTrailing : .topLeading
+                            ),
+                            lineWidth: 2
+                        )
+                        .shadow(
+                            color: .purple.opacity(pulseGlow ? 0.6 : 0.2),
+                            radius: pulseGlow ? 8 : 3
                         )
                 }
             }
+            .animation(.easeInOut(duration: 0.3), value: isEnhancingPrompt)
 
             Button(action: submitMessage) {
                 Group {
@@ -583,30 +621,11 @@ public struct AssistMainView: View {
         guard !text.isEmpty && !manager.isProcessing && bridgeManager.streamStatus != "Streaming" && !isProcessingFiles else { return }
         inputText = ""
 
-        // Process attached files into structured context
-        var finalPrompt = text
-        if !attachedFiles.isEmpty {
-            var fileContextBlock = "--- ATTACHED FILES CONTEXT ---\n"
-            for file in attachedFiles {
-                fileContextBlock += "Filename: \(file.filename)\n"
-                fileContextBlock += "Extension: \(file.extension)\n"
-                fileContextBlock += "MIME Type: \(file.mimeType)\n"
-                fileContextBlock += "Size: \(file.size) bytes\n"
-                fileContextBlock += "Base64 Content:\n\(file.base64Content)\n"
-                fileContextBlock += "-----------------------------\n"
-            }
-            finalPrompt = fileContextBlock + "\n" + finalPrompt
-            // Clear attachments after sending
-            attachedFiles = []
-        }
-
-        // In Chat Mode, we strip any potential destructive commands before sending
-        if !isAgentMode {
-            finalPrompt = "[Execute in Read-Only Chat Mode. Inform the user you cannot execute tools or write files.]\n\n" + finalPrompt
-        }
+        let filesToSend = attachedFiles
+        attachedFiles = []
 
         Task {
-            await manager.sendMessage(finalPrompt)
+            await manager.sendMessage(text, attachments: filesToSend)
         }
     }
 
@@ -624,6 +643,109 @@ public struct AssistMainView: View {
                     isEnhancingPrompt = false
                 }
             }
+        }
+    }
+
+    private func loadDynamicModels() -> [DynamicModelOption] {
+        var modelsList: [DynamicModelOption] = []
+
+        // 1. Apple Foundation Models
+        modelsList.append(DynamicModelOption(
+            modelID: AppleFoundationModel.afm3Core.rawValue,
+            name: "Apple AFM 3 Core",
+            provider: "Apple Private on-device reasoning",
+            status: "On-Device",
+            isAvailable: true,
+            category: .apple
+        ))
+        modelsList.append(DynamicModelOption(
+            modelID: AppleFoundationModel.afm3CoreAdvanced.rawValue,
+            name: "Apple AFM 3 Core Advanced",
+            provider: "Apple Private on-device reasoning (voice)",
+            status: "On-Device",
+            isAvailable: true,
+            category: .apple
+        ))
+
+        // 2. HuggingFace Local Models
+        let localModels = OfflineModelManager.shared.installedModels
+        for m in localModels {
+            modelsList.append(DynamicModelOption(
+                modelID: m.modelName,
+                name: m.modelName,
+                provider: "HuggingFace Local",
+                status: "Downloaded",
+                isAvailable: true,
+                category: .local
+            ))
+        }
+
+        // 3. Custom endpoint/link models
+        if !AppSettings.shared.customModel.isEmpty {
+            modelsList.append(DynamicModelOption(
+                modelID: AppSettings.shared.customModel,
+                name: "Custom (Endpoint)",
+                provider: "Custom API Provider",
+                status: "Cloud",
+                isAvailable: true,
+                category: .custom
+            ))
+        }
+
+        // 4. OpenRouter Cloud Models (Fallback Presets or fetched)
+        if !fetchedOpenRouterModels.isEmpty {
+            for m in fetchedOpenRouterModels {
+                modelsList.append(DynamicModelOption(
+                    modelID: m.id,
+                    name: m.name,
+                    provider: "OpenRouter Cloud",
+                    status: "Cloud",
+                    isAvailable: true,
+                    category: .openRouter
+                ))
+            }
+        } else {
+            let openRouterPresets = [
+                ("openai/gpt-4o", "GPT-4o"),
+                ("anthropic/claude-3.5-sonnet", "Claude 3.5 Sonnet"),
+                ("google/gemini-2.5-pro", "Gemini 2.5 Pro"),
+                ("meta-llama/llama-3-70b-instruct", "Llama 3 70B"),
+                ("openai/gpt-4o-mini", "GPT-4o Mini")
+            ]
+            for preset in openRouterPresets {
+                modelsList.append(DynamicModelOption(
+                    modelID: preset.0,
+                    name: preset.1,
+                    provider: "OpenRouter Cloud",
+                    status: "Cloud",
+                    isAvailable: true,
+                    category: .openRouter
+                ))
+            }
+        }
+
+        return modelsList
+    }
+
+    private func currentActiveModelID() -> String {
+        if FoundationModels.shared.isEnabled {
+            return FoundationModels.shared.selectedModel.rawValue
+        }
+        return AssistModelManager.shared.customModelID.isEmpty ? AppSettings.shared.selectedModel : AssistModelManager.shared.customModelID
+    }
+
+    private func selectModel(_ option: DynamicModelOption) {
+        logger.log("[selectModel] Selecting model: \(option.modelID)")
+
+        if option.category == .apple {
+            FoundationModels.shared.isEnabled = true
+            if let appleModel = AppleFoundationModel(rawValue: option.modelID) {
+                FoundationModels.shared.selectedModel = appleModel
+            }
+        } else {
+            FoundationModels.shared.isEnabled = false
+            AppSettings.shared.selectedModel = option.modelID
+            AssistModelManager.shared.customModelID = option.modelID
         }
     }
 }
@@ -656,181 +778,102 @@ private struct AssistChatBubble: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text(message.content)
-                .font(.body)
-                .textSelection(.enabled)
-                .padding(10)
-                .background(bubbleColor, in: RoundedRectangle(cornerRadius: 10))
+            VStack(alignment: .leading, spacing: 8) {
+                MarkdownBlockListView(blocks: MarkdownParser.shared.parse(message.content))
+                    .textSelection(.enabled)
+
+                if let attachments = message.attachments, !attachments.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("ATTACHMENTS")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.secondary)
+
+                        ForEach(attachments) { file in
+                            HStack(spacing: 8) {
+                                Image(systemName: "doc.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(file.filename)
+                                        .font(.caption.bold())
+                                        .foregroundColor(.primary)
+                                    Text("\(file.mimeType.uppercased()) • \(ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file)) • Attached")
+                                        .font(.system(size: 9))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+            }
+            .padding(12)
+            .background(bubbleColor, in: RoundedRectangle(cornerRadius: 12))
         }
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
     }
 }
 
-// MARK: - Execution Mode Sheet View
+// MARK: - AppKit Popup Menu Helpers
 
-struct ExecutionModeSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @AppStorage("com.swiftcode.assist.mode") private var isAgentMode = false
+@MainActor
+final class ModelPopupMenuHelper {
+    static func showMenu(event: NSEvent?, models: [DynamicModelOption], activeModelID: String, onSelect: @escaping (DynamicModelOption) -> Void) {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
 
-    var body: some View {
-        VStack(spacing: 16) {
-            HStack {
-                Text("Execution Mode")
-                    .font(.headline)
-                Spacer()
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+        var currentCategory: DynamicModelOption.ModelCategory? = nil
+
+        for option in models {
+            if option.category != currentCategory {
+                if currentCategory != nil {
+                    menu.addItem(NSMenuItem.separator())
                 }
-                .buttonStyle(.plain)
+                currentCategory = option.category
+                let headerItem = NSMenuItem(title: option.category.rawValue.uppercased(), action: nil, keyEquivalent: "")
+                headerItem.isEnabled = false
+                headerItem.font = .systemFont(ofSize: 10, weight: .bold)
+                menu.addItem(headerItem)
             }
 
-            Picker("Mode", selection: $isAgentMode) {
-                Text("Chat Mode").tag(false)
-                Text("Agent Mode").tag(true)
-            }
-            .pickerStyle(.segmented)
+            let isSelected = (option.modelID == activeModelID)
+            let title = isSelected ? "✓ \(option.name)" : "   \(option.name)"
+            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            item.representedObject = option
+            item.isEnabled = true
+            item.target = ModelMenuTarget.shared
+            item.action = #selector(ModelMenuTarget.itemSelected(_:))
 
-            Text(isAgentMode ? "Allows full autonomy to run terminal commands, create, edit, or delete files, and run builds (with user approval)." : "Read-only access to explain code, analyze layouts, and answer questions. No write or run tools.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(4)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 4)
-
-            Button("Done") {
-                dismiss()
+            if isSelected {
+                item.state = .on
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .frame(maxWidth: .infinity)
+
+            menu.addItem(item)
         }
-        .padding()
-        .frame(width: 320)
+
+        ModelMenuTarget.shared.onSelect = onSelect
+
+        if let event = event {
+            NSMenu.popUpContextMenu(menu, with: event, for: NSApp.keyWindow?.contentView ?? NSView())
+        } else {
+            menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+        }
     }
 }
 
-// MARK: - Diagnostics Sheet View
+@MainActor
+private final class ModelMenuTarget: NSObject {
+    static let shared = ModelMenuTarget()
 
-struct DiagnosticsSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @ObservedObject var manager: AssistManager
-    @Bindable private var bridgeManager = CodexBridgeManager.shared
+    var onSelect: ((DynamicModelOption) -> Void)?
 
-    var body: some View {
-        VStack(spacing: 16) {
-            HStack {
-                Label("System Telemetry", systemImage: "waveform.path.ecg")
-                    .font(.headline)
-                    .foregroundStyle(.orange)
-                Spacer()
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // GroupBox: Current Active Provider
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label("Active Provider Status", systemImage: "network")
-                                .font(.subheadline.bold())
-                                .foregroundStyle(.cyan)
-
-                            let provider = (try? LLMService.shared.resolvedRoutingProvider()) ?? .openRouter
-                            Text("Routing directly to: \(provider.rawValue)")
-                                .font(.caption)
-
-                            if provider == .codex {
-                                Text("OpenAI Codex CLI integrated as first-class reasoning engine.")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            } else if FoundationModels.shared.isEnabled {
-                                Text("Bypassing cloud endpoints. Native third-gen AFM 3 on-device reasoning is active.")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                Text("Cloud processing via secure OpenRouter/Anthropic key integrations.")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(4)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // GroupBox: Process and Thread Telemetry
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label("Process Diagnostics", systemImage: "cpu")
-                                .font(.subheadline.bold())
-                                .foregroundStyle(.green)
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Platform: macOS (Darwin 24+)")
-                                Text("Thread Isolation: Strict @MainActor")
-                                Text("CLI Version: \(bridgeManager.cliVersion)")
-                                Text("CLI Location: \(bridgeManager.cliLocation)")
-                                Text("Auth Status: \(bridgeManager.isAuthenticated ? "Authenticated" : "Required")")
-                                Text("Uptime Duration: \(String(format: "%.1f", bridgeManager.connectionDuration))s")
-                            }
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                        }
-                        .padding(4)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // GroupBox: Live Telemetry Logs
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label("Inference Pipeline Logs", systemImage: "terminal.fill")
-                                .font(.subheadline.bold())
-                                .foregroundStyle(.yellow)
-
-                            ScrollView {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    if bridgeManager.liveLogs.isEmpty {
-                                        Text("Pipeline standby. Initiate prompt request.")
-                                            .font(.system(.caption2, design: .monospaced))
-                                            .foregroundStyle(.secondary)
-                                    } else {
-                                        ForEach(bridgeManager.liveLogs, id: \.self) { log in
-                                            Text(log)
-                                                .font(.system(.caption2, design: .monospaced))
-                                                .foregroundStyle(.secondary)
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                        }
-                                    }
-                                }
-                                .padding(6)
-                            }
-                            .frame(height: 180)
-                            .background(Color.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                        }
-                        .padding(4)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-                }
-            }
-
-            Button("Done") {
-                dismiss()
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .frame(maxWidth: .infinity)
+    @objc func itemSelected(_ sender: NSMenuItem) {
+        if let option = sender.representedObject as? DynamicModelOption {
+            onSelect?(option)
         }
-        .padding()
-        .frame(width: 420, height: 540)
     }
 }
