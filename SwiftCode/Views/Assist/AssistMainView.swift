@@ -12,6 +12,10 @@ public struct AssistMainView: View {
     @State private var showExecutionModeSheet = false
     @State private var showApprovalSheet = false
     @State private var searchConversationText = ""
+    @State private var showingModelPickerPopover = false
+    @State private var attachedFiles: [AgentFileContext] = []
+    @State private var showingFilePickerSheet = false
+    @State private var isProcessingFiles = false
 
     // Codex Integration
     @Bindable private var bridgeManager = CodexBridgeManager.shared
@@ -277,6 +281,34 @@ public struct AssistMainView: View {
 
             // Bottom input controls
             VStack(spacing: 8) {
+                if !attachedFiles.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(attachedFiles) { file in
+                                HStack(spacing: 6) {
+                                    Image(systemName: "doc.fill")
+                                        .font(.caption)
+                                        .foregroundColor(.orange)
+                                    Text(file.filename)
+                                        .font(.caption)
+                                    Button {
+                                        attachedFiles.removeAll { $0.id == file.id }
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.secondary.opacity(0.12), in: Capsule())
+                            }
+                        }
+                        .padding(.horizontal, 4)
+                    }
+                    .frame(height: 28)
+                }
+
                 if !manager.logger.logs.isEmpty {
                     MiniLogFeed(logger: manager.logger)
                 }
@@ -359,6 +391,36 @@ public struct AssistMainView: View {
     private var inputArea: some View {
         HStack(spacing: 8) {
             Button {
+                showingFilePickerSheet = true
+            } label: {
+                Image(systemName: "paperclip")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.orange)
+                    .padding(7)
+                    .background(Color.orange.opacity(0.12), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .sheet(isPresented: $showingFilePickerSheet) {
+                AddFilesAgentContext(attachedFiles: $attachedFiles, isProcessingFiles: $isProcessingFiles)
+            }
+            .help("Attach Files to Context")
+
+            Button {
+                showingModelPickerPopover = true
+            } label: {
+                Image(systemName: "cpu")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.orange)
+                    .padding(7)
+                    .background(Color.orange.opacity(0.12), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $showingModelPickerPopover, arrowEdge: .bottom) {
+                ChooseModelForAgent()
+            }
+            .help("Choose Model for Assist Agent")
+
+            Button {
                 expandPrompt()
             } label: {
                 Image(systemName: "apple.intelligence")
@@ -370,7 +432,7 @@ public struct AssistMainView: View {
                         in: Circle()
                     )
             }
-            .disabled(inputText.isEmpty || manager.isProcessing || bridgeManager.streamStatus == "Streaming")
+            .disabled(inputText.isEmpty || manager.isProcessing || bridgeManager.streamStatus == "Streaming" || isProcessingFiles)
             .help("Enhance prompt with Apple Intelligence")
 
             ZStack {
@@ -378,7 +440,7 @@ public struct AssistMainView: View {
                     .padding(8)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
                     .lineLimit(1...5)
-                    .disabled(manager.isProcessing || isEnhancingPrompt || bridgeManager.streamStatus == "Streaming")
+                    .disabled(manager.isProcessing || isEnhancingPrompt || bridgeManager.streamStatus == "Streaming" || isProcessingFiles)
                     .onSubmit {
                         submitMessage()
                     }
@@ -400,7 +462,7 @@ public struct AssistMainView: View {
 
             Button(action: submitMessage) {
                 Group {
-                    if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
+                    if manager.isProcessing || bridgeManager.streamStatus == "Streaming" || isProcessingFiles {
                         ProgressView()
                             .progressViewStyle(.circular)
                             .scaleEffect(0.6)
@@ -410,7 +472,7 @@ public struct AssistMainView: View {
                     }
                 }
             }
-            .disabled(inputText.isEmpty || manager.isProcessing || bridgeManager.streamStatus == "Streaming")
+            .disabled(inputText.isEmpty || manager.isProcessing || bridgeManager.streamStatus == "Streaming" || isProcessingFiles)
             .keyboardShortcut(.return, modifiers: [.command])
             .buttonStyle(.plain)
         }
@@ -418,15 +480,29 @@ public struct AssistMainView: View {
 
     private func submitMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty && !manager.isProcessing && bridgeManager.streamStatus != "Streaming" else { return }
+        guard !text.isEmpty && !manager.isProcessing && bridgeManager.streamStatus != "Streaming" && !isProcessingFiles else { return }
         inputText = ""
 
+        // Process attached files into structured context
+        var finalPrompt = text
+        if !attachedFiles.isEmpty {
+            var fileContextBlock = "--- ATTACHED FILES CONTEXT ---\n"
+            for file in attachedFiles {
+                fileContextBlock += "Filename: \(file.filename)\n"
+                fileContextBlock += "Extension: \(file.extension)\n"
+                fileContextBlock += "MIME Type: \(file.mimeType)\n"
+                fileContextBlock += "Size: \(file.size) bytes\n"
+                fileContextBlock += "Base64 Content:\n\(file.base64Content)\n"
+                fileContextBlock += "-----------------------------\n"
+            }
+            finalPrompt = fileContextBlock + "\n" + finalPrompt
+            // Clear attachments after sending
+            attachedFiles = []
+        }
+
         // In Chat Mode, we strip any potential destructive commands before sending
-        let finalPrompt: String
         if !isAgentMode {
-            finalPrompt = "[Execute in Read-Only Chat Mode. Inform the user you cannot execute tools or write files.]\n\n" + text
-        } else {
-            finalPrompt = text
+            finalPrompt = "[Execute in Read-Only Chat Mode. Inform the user you cannot execute tools or write files.]\n\n" + finalPrompt
         }
 
         Task {

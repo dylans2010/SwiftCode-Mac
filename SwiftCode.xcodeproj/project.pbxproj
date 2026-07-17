@@ -10,6 +10,9 @@
 		5C5E70000000000000000104 /* AssistErrorBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000103 /* AssistErrorBubble.swift */; };
 		5C5E70000000000000000106 /* MiniLogFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000105 /* MiniLogFeed.swift */; };
 		5C5E70000000000000000102 /* CodexSignInFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000101 /* CodexSignInFlow.swift */; };
+		5C5E70000000000000000202 /* ChooseModelForAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000201 /* ChooseModelForAgent.swift */; };
+		5C5E70000000000000000204 /* AddFilesAgentContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000203 /* AddFilesAgentContext.swift */; };
+		5C5E70000000000000000206 /* FileAgentHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000205 /* FileAgentHelper.swift */; };
 		990C413DAFE7B52CFA3EB0D0 /* CodexBridgeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CA7A848357D2ACAAAD50481 /* CodexBridgeManager.swift */; };
 		600B4ED1612FABB403A598E2 /* package.json in Resources */ = {isa = PBXBuildFile; fileRef = 29C60ECD32101A5FE6B4271A /* package.json */; };
 		4B170D36F9DA274C8C143C69 /* bridge.js in Resources */ = {isa = PBXBuildFile; fileRef = 5EB7416AC1DA9A702248C120 /* bridge.js */; };
@@ -1284,6 +1287,9 @@
 		5C5E70000000000000000103 /* AssistErrorBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistErrorBubble.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000105 /* MiniLogFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniLogFeed.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000101 /* CodexSignInFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexSignInFlow.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000201 /* ChooseModelForAgent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChooseModelForAgent.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000203 /* AddFilesAgentContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddFilesAgentContext.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000205 /* FileAgentHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileAgentHelper.swift; sourceTree = "<group>"; };
 		6CA7A848357D2ACAAAD50481 /* CodexBridgeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBridgeManager.swift; sourceTree = "<group>"; };
 		29C60ECD32101A5FE6B4271A /* package.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = package.json; path = package.json; sourceTree = "<group>"; };
 		5EB7416AC1DA9A702248C120 /* bridge.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = bridge.js; path = bridge.js; sourceTree = "<group>"; };
@@ -2675,6 +2681,7 @@
 				B821B529A13EDB527190DD5B /* AssistFileFunctions.swift */,
 				C14D36938B998E1273BAFF59 /* AssistSearchFunctions.swift */,
 				62203D00D433D41E8DBBF1AA /* AssistSnapshotFunctions.swift */,
+				5C5E70000000000000000205 /* FileAgentHelper.swift */,
 			);
 			path = Functions;
 			sourceTree = "<group>";
@@ -2759,6 +2766,8 @@
 				5C5E70000000000000000103 /* AssistErrorBubble.swift */,
 				5C5E70000000000000000105 /* MiniLogFeed.swift */,
 				5C5E70000000000000000101 /* CodexSignInFlow.swift */,
+				5C5E70000000000000000201 /* ChooseModelForAgent.swift */,
+				5C5E70000000000000000203 /* AddFilesAgentContext.swift */,
 				6D3F79ABA55559EF6F44BF84 /* AssistDiffView.swift */,
 				1E9D7E2F8F62E029750AD8AA /* AssistMainView.swift */,
 				C46493C840B09DCD68F12134 /* AssistPlanView.swift */,
@@ -5234,6 +5243,9 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 				5C5E70000000000000000104 /* AssistErrorBubble.swift in Sources */,
 				5C5E70000000000000000106 /* MiniLogFeed.swift in Sources */,
 				5C5E70000000000000000102 /* CodexSignInFlow.swift in Sources */,
+				5C5E70000000000000000202 /* ChooseModelForAgent.swift in Sources */,
+				5C5E70000000000000000204 /* AddFilesAgentContext.swift in Sources */,
+				5C5E70000000000000000206 /* FileAgentHelper.swift in Sources */,
 												990C413DAFE7B52CFA3EB0D0 /* CodexBridgeManager.swift in Sources */,
 791600170C32BE22533FF1DB /* AssistCapability.swift in Sources */,
 				8622C2C562A21B5A09BD00F1 /* AssistCapabilityExecutor.swift in Sources */,
