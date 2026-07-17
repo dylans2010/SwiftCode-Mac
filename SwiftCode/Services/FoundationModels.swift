@@ -21,24 +21,12 @@ public struct Generable<T>: Sendable where T: Sendable {
     }
 }
 
-/// The five core Apple Foundation Models from the AFM 3 family.
+/// The core Apple Foundation Models from the AFM 3 family.
 public enum AppleFoundationModel: String, CaseIterable, Identifiable, Codable {
     case afm3Core = "AFM 3 Core"
     case afm3CoreAdvanced = "AFM 3 Core Advanced"
-    case afm3Cloud = "AFM 3 Cloud"
-    case afm3CloudPro = "AFM 3 Cloud Pro"
-    case adm3Cloud = "ADM 3 Cloud"
 
     public var id: String { self.rawValue }
-
-    public var isServerBased: Bool {
-        switch self {
-        case .afm3Core, .afm3CoreAdvanced:
-            return false
-        case .afm3Cloud, .afm3CloudPro, .adm3Cloud:
-            return true
-        }
-    }
 
     public var description: String {
         switch self {
@@ -46,12 +34,6 @@ public enum AppleFoundationModel: String, CaseIterable, Identifiable, Codable {
             return "On-device 3-billion-parameter dense model for responsive everyday tasks."
         case .afm3CoreAdvanced:
             return "On-device 20-billion-parameter sparse model (natively multimodal, expressive voice/dictation)."
-        case .afm3Cloud:
-            return "Server-side PCC model optimized for speed, efficiency, and high-quality performance."
-        case .afm3CloudPro:
-            return "Server-side PCC model for demanding agentic tool use and deep multi-step reasoning."
-        case .adm3Cloud:
-            return "Server-side PCC model for creative photo-editing, Image Playground, and Genmoji."
         }
     }
 }
@@ -115,11 +97,6 @@ public final class FoundationModels: Sendable {
         }
     }
 
-    public var isPccEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: "apple_foundation_model_pcc_enabled") }
-        set { UserDefaults.standard.set(newValue, forKey: "apple_foundation_model_pcc_enabled") }
-    }
-
     public var reasoningLevel: AppReasoningLevel {
         get {
             if let string = UserDefaults.standard.string(forKey: "apple_foundation_model_reasoning_level"),
@@ -133,29 +110,9 @@ public final class FoundationModels: Sendable {
         }
     }
 
-    public var simulatedQuotaLimitReached: Bool {
-        get { UserDefaults.standard.bool(forKey: "apple_foundation_model_quota_limit_reached") }
-        set { UserDefaults.standard.set(newValue, forKey: "apple_foundation_model_quota_limit_reached") }
-    }
-
-    public var simulatedApproachingLimit: Bool {
-        get { UserDefaults.standard.bool(forKey: "apple_foundation_model_approaching_limit") }
-        set { UserDefaults.standard.set(newValue, forKey: "apple_foundation_model_approaching_limit") }
-    }
-
     public var statusDescription: String {
         guard isEnabled else { return "Disabled" }
-        if isPccEnabled && selectedModel.isServerBased {
-            if simulatedQuotaLimitReached {
-                return "Quota Exceeded (Private Cloud Compute)"
-            } else if simulatedApproachingLimit {
-                return "Nearing Daily Limit (Private Cloud Compute)"
-            } else {
-                return "Connected (Private Cloud Compute)"
-            }
-        } else {
-            return "Ready (On-Device)"
-        }
+        return "Ready (On-Device)"
     }
 
     private init() {}
@@ -172,23 +129,7 @@ public final class FoundationModels: Sendable {
 
         #if canImport(FoundationModels)
         logger.log("[generatePrivateResponse] Creating generation session (Native).")
-        let session: LanguageModelSession
-        if #available(iOS 27.0, macOS 27.0, watchOS 27.0, visionOS 27.0, *), isPccEnabled {
-            let model = PrivateCloudComputeLanguageModel()
-            switch model.availability {
-            case .available:
-                if model.quotaUsage.isLimitReached || simulatedQuotaLimitReached {
-                    logger.warning("[generatePrivateResponse] Private Cloud Compute daily quota exceeded.")
-                    throw NSError(domain: "FoundationModels.PCC", code: 429, userInfo: [NSLocalizedDescriptionKey: "Private Cloud Compute usage quota limit reached."])
-                }
-                session = LanguageModelSession(model: model)
-            case .unavailable:
-                logger.log("[generatePrivateResponse] Private Cloud Compute is unavailable. Falling back to SystemLanguageModel.")
-                session = LanguageModelSession(model: SystemLanguageModel())
-            }
-        } else {
-            session = LanguageModelSession(model: SystemLanguageModel())
-        }
+        let session = LanguageModelSession(model: SystemLanguageModel())
 
         logger.log("[generatePrivateResponse] Building prompt and setting context options.")
         let contextOpts = ContextOptions(reasoningLevel: reasoningLevel.toNative())
@@ -203,19 +144,8 @@ public final class FoundationModels: Sendable {
         logger.log("[generatePrivateResponse] Creating generation session (Simulation).")
         try await Task.sleep(nanoseconds: 300_000_000) // Realistic delay
 
-        if isPccEnabled && selectedModel.isServerBased && simulatedQuotaLimitReached {
-            logger.error("[generatePrivateResponse] Simulated quota limit reached.")
-            throw NSError(domain: "FoundationModels.PCC", code: 429, userInfo: [NSLocalizedDescriptionKey: "Private Cloud Compute daily reasoning allotment exceeded."])
-        }
-
         logger.log("[generatePrivateResponse] Building simulated response contents.")
-        var responsePrefix = "[On-Device \(selectedModel.rawValue)]\n"
-        if isPccEnabled && selectedModel.isServerBased {
-            responsePrefix = "[Private Cloud Compute: \(selectedModel.rawValue)]\n"
-            if simulatedApproachingLimit {
-                responsePrefix += "[PCC Status: Nearing daily reasoning limit]\n"
-            }
-        }
+        let responsePrefix = "[On-Device \(selectedModel.rawValue)]\n"
 
         // Language detection as supplementary utility
         let recognizer = NLLanguageRecognizer()
@@ -226,7 +156,7 @@ public final class FoundationModels: Sendable {
         \(responsePrefix)Processed query with complete on-device local privacy guarantees.
         Input Language: \(dominantLanguage)
         Reasoning Effort: \(reasoningLevel.rawValue.uppercased())
-        Response: Understood and successfully completed generation for prompt: "\(prompt.prefix(60))..."
+        Response: Understood and successfully completed generation for prompt: "\(prompt.prefix(60))...."
         """
 
         let duration = Date().timeIntervalSince(startTime)
@@ -273,50 +203,6 @@ public protocol LanguageModel {}
 
 public struct SystemLanguageModel: LanguageModel {
     public init() {}
-}
-
-public struct PrivateCloudComputeLanguageModel: LanguageModel {
-    public init() {}
-
-    public enum Availability {
-        case available
-        case unavailable(UnavailableReason)
-    }
-
-    public enum UnavailableReason {
-        case deviceNotEligible
-        case systemNotReady
-        case other
-    }
-
-    public var availability: Availability {
-        return .available
-    }
-
-    public struct QuotaUsage {
-        public var isLimitReached: Bool = false
-        public var status: QuotaStatus = .belowLimit(BelowLimitInfo(isApproachingLimit: false))
-        public var limitIncreaseSuggestion: LimitIncreaseSuggestion? = nil
-        public var resetDate: Date? = nil
-    }
-
-    public enum QuotaStatus {
-        case belowLimit(BelowLimitInfo)
-    }
-
-    public struct BelowLimitInfo {
-        public var isApproachingLimit: Bool
-    }
-
-    public struct LimitIncreaseSuggestion {
-        public func show() {
-            // Simulated upgrade presentation
-        }
-    }
-
-    public var quotaUsage: QuotaUsage {
-        return QuotaUsage()
-    }
 }
 
 public struct Instructions {

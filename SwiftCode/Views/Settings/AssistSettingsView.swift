@@ -212,23 +212,13 @@ struct FoundationModelsView: View {
                                                     Text(model.rawValue)
                                                         .font(.body.bold())
 
-                                                    if model.isServerBased {
-                                                        Text("PCC Server")
-                                                            .font(.system(size: 9, weight: .bold))
-                                                            .padding(.horizontal, 4)
-                                                            .padding(.vertical, 1)
-                                                            .background(Color.blue.opacity(0.15))
-                                                            .foregroundStyle(.blue)
-                                                            .cornerRadius(3)
-                                                    } else {
-                                                        Text("On-Device")
-                                                            .font(.system(size: 9, weight: .bold))
-                                                            .padding(.horizontal, 4)
-                                                            .padding(.vertical, 1)
-                                                            .background(Color.green.opacity(0.15))
-                                                            .foregroundStyle(.green)
-                                                            .cornerRadius(3)
-                                                    }
+                                                    Text("On-Device")
+                                                        .font(.system(size: 9, weight: .bold))
+                                                        .padding(.horizontal, 4)
+                                                        .padding(.vertical, 1)
+                                                        .background(Color.green.opacity(0.15))
+                                                        .foregroundStyle(.green)
+                                                        .cornerRadius(3)
                                                 }
 
                                                 Text(model.description)
@@ -250,7 +240,6 @@ struct FoundationModelsView: View {
                                         .contentShape(Rectangle())
                                         .onTapGesture {
                                             manager.selectedModel = model
-                                            manager.isPccEnabled = model.isServerBased
                                         }
                                         .padding(.vertical, 4)
 
@@ -289,94 +278,6 @@ struct FoundationModelsView: View {
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
 
-                        // GroupBox 5: Private Cloud Compute Status
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 14) {
-                                HStack {
-                                    Label("Private Cloud Compute (PCC) Status", systemImage: "network")
-                                        .font(.headline)
-                                        .foregroundColor(.cyan)
-                                    Spacer()
-                                }
-
-                                Toggle("Route through Private Cloud Compute", isOn: $manager.isPccEnabled)
-                                    .disabled(!manager.selectedModel.isServerBased)
-
-                                Text("Directs sessions to secure PCC servers for a 32K token context window. Falls back to on-device models if network is unavailable.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-
-                                if manager.isPccEnabled {
-                                    VStack(alignment: .leading, spacing: 10) {
-                                        Divider()
-
-                                        HStack {
-                                            Text("PCC Quota Status:")
-                                                .font(.caption.bold())
-                                            Spacer()
-                                            if manager.simulatedQuotaLimitReached {
-                                                Text("Usage limit exceeded")
-                                                    .font(.caption.bold())
-                                                    .foregroundStyle(.red)
-                                            } else if manager.simulatedApproachingLimit {
-                                                Text("Nearing usage limit")
-                                                    .font(.caption.bold())
-                                                    .foregroundStyle(.orange)
-                                            } else {
-                                                Text("Below daily limit")
-                                                    .font(.caption.bold())
-                                                    .foregroundStyle(.green)
-                                            }
-                                        }
-
-                                        if manager.simulatedQuotaLimitReached {
-                                            HStack {
-                                                Text("Daily reasoning quota exhausted. Limits reset at midnight.")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                                Spacer()
-                                                Button("Show Options") {
-                                                    // Simulated upgrade
-                                                }
-                                                .buttonStyle(.bordered)
-                                                .controlSize(.small)
-                                            }
-                                        } else if manager.simulatedApproachingLimit {
-                                            Text("Nearing quota limit. Moderate your reasoning effort to avoid depletion.")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-
-                                        Divider()
-
-                                        Text("Quota Simulation (For testing and evaluation)")
-                                            .font(.caption.bold())
-                                            .foregroundStyle(.secondary)
-
-                                        HStack(spacing: 20) {
-                                            Toggle("Simulate Limit Reached", isOn: Binding(
-                                                get: { manager.simulatedQuotaLimitReached },
-                                                set: {
-                                                    manager.simulatedQuotaLimitReached = $0
-                                                    if $0 { manager.simulatedApproachingLimit = false }
-                                                }
-                                            ))
-                                            Toggle("Simulate Approaching Limit", isOn: Binding(
-                                                get: { manager.simulatedApproachingLimit },
-                                                set: {
-                                                    manager.simulatedApproachingLimit = $0
-                                                    if $0 { manager.simulatedQuotaLimitReached = false }
-                                                }
-                                            ))
-                                        }
-                                        .toggleStyle(.checkbox)
-                                    }
-                                    .padding(.vertical, 4)
-                                }
-                            }
-                            .padding()
-                        }
-                        .groupBoxStyle(ModernGroupBoxStyle())
 
                         // GroupBox 6: Test Models Diagnostics Console
                         GroupBox {
@@ -541,15 +442,6 @@ struct FoundationModelsView: View {
 
             // Stage 4: Starting generation
             appendLog("[Info] Starting generation with reasoning level: \(FoundationModels.shared.reasoningLevel.rawValue)...")
-
-            // Warnings checking
-            if FoundationModels.shared.isPccEnabled {
-                if FoundationModels.shared.simulatedQuotaLimitReached {
-                    appendLog("[Warning] Simulated Quota Limit Reached on Private Cloud Compute!")
-                } else if FoundationModels.shared.simulatedApproachingLimit {
-                    appendLog("[Warning] Simulated Approaching Quota Limit on Private Cloud Compute!")
-                }
-            }
 
             // Stage 5: Receiving streamed output
             appendLog("[Info] Connecting to streaming response generation...")
