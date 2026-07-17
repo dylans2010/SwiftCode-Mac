@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ToolExecutionView: View {
+struct AIToolExecutionView: View {
     @State private var logger = AgentLogger.shared
 
     var body: some View {
