@@ -54,12 +54,16 @@ public final class AssistAgentSession: Sendable {
                 return "- id: \(tool.id)\n  Description: \(tool.description)\n  Schema: \(schemaStr)"
             }.joined(separator: "\n\n")
 
+            let assetSystemPrompt = try AssistManager.shared.getSystemPrompt()
+
             let systemPrompt = """
-            # ROLE
+            # SYSTEM PROMPT (OPERATING POLICY)
+            \(assetSystemPrompt)
+
+            # HIDDEN RUNTIME INSTRUCTIONS & ROLE
             You are an autonomous Swift/macOS coding agent working in SwiftCode.
             Your goal is: "\(objective)"
 
-            # SYSTEM INSTRUCTION
             You can execute local actions by outputting a JSON object.
             Choose one of the available tools, or output a final response when the task is complete.
 
@@ -74,7 +78,7 @@ public final class AssistAgentSession: Sendable {
               "finalResponse": "A clear, detailed description of your achievements and the files modified"
             }
 
-            # CURRENT WORKSPACE CONTEXT
+            # CONVERSATION CONTEXT & WORKSPACE
             \(manifest)
 
             # ACTIVE FILE CONTENTS

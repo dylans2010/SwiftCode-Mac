@@ -227,58 +227,155 @@ public struct AssistMainView: View {
 
             Divider()
 
-            // Destructive Action Approval Overlay
-            if showApprovalSheet {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(.orange)
-                        Text("Action Requires User Approval")
-                            .font(.headline)
-                        Spacer()
-                        Button {
-                            showApprovalSheet = false
-                        } label: {
-                            Image(systemName: "xmark")
+            // Terminal Execution Approval Overlay
+            if let request = manager.pendingTerminalRequest {
+                VStack(alignment: .leading, spacing: 14) {
+                    let isDestructive = request.modifiesRepo || request.command.contains("rm ") || request.command.contains("git reset") || request.command.contains("git clean") || request.command.contains("delete") || request.command.contains("remove")
+
+                    HStack(spacing: 8) {
+                        Image(systemName: isDestructive ? "exclamationmark.shield.fill" : "checkmark.shield.fill")
+                            .foregroundColor(isDestructive ? .red : .green)
+                            .font(.title2)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(isDestructive ? "Destructive Terminal Request" : "Terminal Execution Request")
+                                .font(.headline)
+                            Text("Awaiting Developer Authorization")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
-                        .buttonStyle(.plain)
+
+                        Spacer()
+
+                        Text(isDestructive ? "High Risk" : "Safe")
+                            .font(.system(size: 10, weight: .bold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(isDestructive ? Color.red.opacity(0.15) : Color.green.opacity(0.15), in: Capsule())
+                            .foregroundColor(isDestructive ? .red : .green)
                     }
 
-                    Text("Codex CLI requested permission to execute potentially destructive command:")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Command:")
+                                    .font(.caption.bold())
+                                    .foregroundColor(.secondary)
+                                Text(request.command)
+                                    .font(.system(.body, design: .monospaced))
+                                    .foregroundColor(.primary)
+                            }
 
-                    Text(pendingActionDetails)
-                        .font(.system(.body, design: .monospaced))
-                        .padding(8)
-                        .background(Color.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                            HStack {
+                                Text("Working Directory:")
+                                    .font(.caption.bold())
+                                    .foregroundColor(.secondary)
+                                Text(request.workingDirectory)
+                                    .font(.system(.body, design: .monospaced))
+                                    .foregroundColor(.primary)
+                            }
+
+                            HStack {
+                                Text("Explanation:")
+                                    .font(.caption.bold())
+                                    .foregroundColor(.secondary)
+                                Text(request.explanation)
+                                    .font(.subheadline)
+                            }
+
+                            HStack {
+                                Text("Impact Detail:")
+                                    .font(.caption.bold())
+                                    .foregroundColor(.secondary)
+                                Text(request.estimatedImpact)
+                                    .font(.subheadline)
+                            }
+                        }
+                        .padding(4)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                    HStack {
-                        Button("Approve") {
-                            showApprovalSheet = false
-                            bridgeManager.appendLog("User approved action: \(pendingActionDetails)")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.green)
+                    if manager.terminalRunning || manager.terminalCompleted {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                if manager.terminalRunning {
+                                    ProgressView()
+                                        .scaleEffect(0.5)
+                                        .padding(.trailing, 4)
+                                    Text("Executing Command...")
+                                        .font(.caption.bold())
+                                        .foregroundColor(.orange)
+                                } else {
+                                    Image(systemName: manager.terminalExitCode == 0 ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                        .foregroundColor(manager.terminalExitCode == 0 ? .green : .red)
+                                    Text(manager.terminalExitCode == 0 ? "Execution Succeeded (Exit code 0)" : "Execution Failed (Exit code \(manager.terminalExitCode ?? -1))")
+                                        .font(.caption.bold())
+                                        .foregroundColor(manager.terminalExitCode == 0 ? .green : .red)
+                                }
+                                Spacer()
+                            }
 
-                        Button("Reject") {
-                            showApprovalSheet = false
-                            bridgeManager.appendLog("User rejected action: \(pendingActionDetails)")
+                            ScrollView {
+                                Text(manager.terminalLiveOutput.isEmpty ? "Initializing process stream..." : manager.terminalLiveOutput)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .padding(8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .foregroundColor(.white)
+                                    .background(Color.black)
+                            }
+                            .frame(height: 120)
+                            .cornerRadius(6)
                         }
-                        .buttonStyle(.bordered)
-                        .tint(.red)
+                    }
 
-                        Button("Always Allow for This Session") {
-                            alwaysAllowThisSession = true
-                            showApprovalSheet = false
-                            bridgeManager.appendLog("User configured session-wide trust for: \(pendingActionDetails)")
+                    HStack(spacing: 12) {
+                        if !manager.terminalRunning && !manager.terminalCompleted {
+                            Button {
+                                manager.approveTerminalRequest()
+                            } label: {
+                                Label("Approve & Execute", systemImage: "play.fill")
+                                    .font(.subheadline.bold())
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(isDestructive ? .red : .green)
+
+                            Button {
+                                manager.denyTerminalRequest()
+                            } label: {
+                                Text("Deny Request")
+                                    .font(.subheadline)
+                            }
+                            .buttonStyle(.bordered)
+                        } else if manager.terminalRunning {
+                            Button {
+                                manager.cancelTerminalExecution()
+                            } label: {
+                                Label("Cancel Execution", systemImage: "stop.fill")
+                                    .font(.subheadline.bold())
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.red)
+                        } else if manager.terminalCompleted {
+                            Button {
+                                manager.pendingTerminalRequest = nil
+                            } label: {
+                                Text("Dismiss")
+                                    .font(.subheadline.bold())
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        .buttonStyle(.bordered)
                     }
                 }
-                .padding()
+                .padding(16)
                 .background(.ultraThinMaterial)
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isDestructive ? Color.red.opacity(0.3) : Color.green.opacity(0.3), lineWidth: 1)
+                )
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
                 .transition(.move(edge: .bottom))
             }
 
