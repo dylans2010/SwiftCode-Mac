@@ -5,26 +5,24 @@ import AppKit
 public struct CodexSignInFlow: View {
     @Environment(\.dismiss) private var dismiss
 
-    // Setup state
+    // Binding to CodexBridgeManager
+    @Bindable private var bridgeManager = CodexBridgeManager.shared
+
+    // Authentication Key inputs
     @State private var apiKey: String = ""
     @State private var showKey: Bool = false
-    @State private var isRunningSequence: Bool = false
-    @State private var currentStage: CodexStartupStage? = nil
-    @State private var stageDescription: String = ""
-    @State private var sequenceError: String? = nil
-    @State private var sequenceSuccess: Bool = false
 
-    // Testing state
+    // Device Auth state
+    @State private var deviceUrl: String = ""
+    @State private var deviceCode: String = ""
+    @State private var showDeviceCodeSheet: Bool = false
+
+    // Verification Connection test states
     @State private var isTesting: Bool = false
-    @State private var testPrompt: String = "Respond with \"Codex connection successful.\""
     @State private var testResponse: String = ""
     @State private var testDuration: TimeInterval = 0
     @State private var testStatus: String = "Standby"
     @State private var testError: String? = nil
-    @State private var testWarnings: [String] = []
-
-    // Reference to managers
-    @Bindable private var bridgeManager = CodexBridgeManager.shared
 
     public init() {}
 
@@ -46,9 +44,9 @@ public struct CodexSignInFlow: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("OpenAI Codex Onboarding")
+                    Text("OpenAI Codex Integration")
                         .font(.title2.bold())
-                    Text("Complete setup to register Codex as a native assistant provider.")
+                    Text("Configure, install, and authenticate the official Codex CLI backend.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -61,19 +59,19 @@ public struct CodexSignInFlow: View {
 
             ScrollView {
                 VStack(spacing: 20) {
-                    // Stage Status Banner
-                    if isRunningSequence, let stage = currentStage {
+                    // Installer State Alert
+                    if bridgeManager.isInstalling {
                         GroupBox {
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack {
                                     ProgressView()
                                         .scaleEffect(0.6)
                                         .padding(.trailing, 4)
-                                    Text("Active Stage: \(stage.rawValue)")
+                                    Text("Installing Official OpenAI Codex CLI...")
                                         .font(.headline)
                                         .foregroundStyle(.orange)
                                 }
-                                Text(stageDescription)
+                                Text(bridgeManager.installProgress)
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
@@ -82,65 +80,122 @@ public struct CodexSignInFlow: View {
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
 
-                    if let error = sequenceError {
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Image(systemName: "xmark.octagon.fill")
-                                        .foregroundColor(.red)
-                                    Text("Setup Failed")
-                                        .font(.headline)
-                                        .foregroundStyle(.red)
-                                }
-                                Text(error)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-
-                                Divider()
-
-                                Text("Recovery Suggestions:")
-                                    .font(.caption.bold())
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("• Verify that your OpenAI API Key has access to the gpt-4o and gpt-5-codex models.")
-                                    Text("• Ensure Node.js runtime is installed on your Mac by running 'node -v' in your terminal.")
-                                    Text("• Check your network connections and try launching the bridge again.")
-                                }
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            }
-                            .padding(8)
-                        }
-                        .groupBoxStyle(ModernGroupBoxStyle())
-                    }
-
-                    // Section 1: OpenAI Authentication
+                    // Section 1: Live CLI Status Panel
                     GroupBox {
                         VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Label("OpenAI Authentication", systemImage: "key.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.orange)
-                                Spacer()
-                                if hasStoredKey {
-                                    Text("Key Stored in Keychain")
-                                        .font(.caption)
-                                        .foregroundStyle(.green)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color.green.opacity(0.12), in: Capsule())
-                                }
+                            Label("Live CLI Status", systemImage: "info.circle.fill")
+                                .font(.headline)
+                                .foregroundColor(.orange)
+
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.trailing())], spacing: 8) {
+                                statusRow(title: "CLI Installation", value: bridgeManager.cliLocation == "Not Detected" ? "Missing" : "Installed", isOk: bridgeManager.cliLocation != "Not Detected")
+                                statusRow(title: "CLI Version", value: bridgeManager.cliVersion, isOk: bridgeManager.cliVersion != "N/A" && bridgeManager.cliVersion != "Unknown")
+                                statusRow(title: "Location", value: bridgeManager.cliLocation, isOk: true)
+                                statusRow(title: "Authentication", value: bridgeManager.isAuthenticated ? "Authenticated" : "Required", isOk: bridgeManager.isAuthenticated)
+                                statusRow(title: "Auth Mode", value: bridgeManager.authModeString, isOk: true)
+                                statusRow(title: "Connection Status", value: bridgeManager.bridgeStatus.rawValue, isOk: bridgeManager.bridgeStatus == .running)
+                                statusRow(title: "Active Stream", value: bridgeManager.streamStatus, isOk: true)
                             }
+                        }
+                        .padding(8)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Section 2: Install CLI (if not detected or management requested)
+                    if bridgeManager.cliLocation == "Not Detected" {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label("Managed Installer", systemImage: "square.and.arrow.down.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+
+                                Text("The official stand-alone installer will download, configure, and install OpenAI's Codex CLI onto your Mac securely.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+
+                                Button {
+                                    Task {
+                                        try? await bridgeManager.installCLI()
+                                    }
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "icloud.and.arrow.down")
+                                        Text("Install CLI")
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.blue)
+                                .disabled(bridgeManager.isInstalling)
+                            }
+                            .padding(8)
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+                    }
+
+                    // Section 3: ChatGPT Authentication
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Label("ChatGPT Authentication", systemImage: "person.crop.circle.badge.checkmark")
+                                .font(.headline)
+                                .foregroundColor(.green)
+
+                            Text("Connect using your official ChatGPT account. No API Keys are required. SwiftCode will launch the browser validation and the CLI will safely persist your credentials in auth.json.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 12) {
+                                Button {
+                                    Task {
+                                        try? await bridgeManager.loginWithChatGPT()
+                                    }
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "safari")
+                                        Text("Continue with ChatGPT")
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.green)
+                                .disabled(bridgeManager.cliLocation == "Not Detected" || bridgeManager.isConnecting)
+
+                                Button {
+                                    Task {
+                                        try? await bridgeManager.loginWithDeviceCode { url, code in
+                                            self.deviceUrl = url
+                                            self.deviceCode = code
+                                            self.showDeviceCodeSheet = true
+                                        }
+                                    }
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "tv")
+                                        Text("Device Code Login")
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(bridgeManager.cliLocation == "Not Detected" || bridgeManager.isConnecting)
+                            }
+                        }
+                        .padding(8)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Section 4: Alternative API Key Integration
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Label("OpenAI API Key Integration (Alternative)", systemImage: "key.fill")
+                                .font(.headline)
+                                .foregroundColor(.cyan)
 
                             HStack {
                                 Group {
                                     if showKey {
-                                        TextField("Enter OpenAI API Key (sk-...)", text: $apiKey)
+                                        TextField("sk-...", text: $apiKey)
                                     } else {
-                                        SecureField("Enter OpenAI API Key (sk-...)", text: $apiKey)
+                                        SecureField("sk-...", text: $apiKey)
                                     }
                                 }
                                 .textFieldStyle(.roundedBorder)
-                                .autocorrectionDisabled()
                                 .fontDesign(.monospaced)
 
                                 Button {
@@ -149,7 +204,6 @@ public struct CodexSignInFlow: View {
                                     Image(systemName: showKey ? "eye.slash" : "eye")
                                 }
                                 .buttonStyle(.plain)
-                                .help(showKey ? "Hide API Key" : "Show API Key")
 
                                 Button("Paste") {
                                     if let string = NSPasteboard.general.string(forType: .string) {
@@ -157,129 +211,54 @@ public struct CodexSignInFlow: View {
                                     }
                                 }
                                 .buttonStyle(.bordered)
-
-                                Button("Clear") {
-                                    apiKey = ""
-                                }
-                                .buttonStyle(.bordered)
-                                .disabled(apiKey.isEmpty)
                             }
 
                             HStack {
-                                Button("Save Key") {
+                                Button("Save and Validate API Key") {
                                     let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    if !trimmed.isEmpty {
-                                        KeychainService.shared.set(trimmed, forKey: KeychainService.codexUserAPIKey)
-                                        KeychainService.shared.set(trimmed, forKey: "openai_api_key")
-                                        apiKey = ""
-                                        bridgeManager.appendLog("API Key manually saved to Keychain.")
-                                    }
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                                Button("Validate Key") {
+                                    guard !trimmed.isEmpty else { return }
                                     Task {
-                                        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-                                        let success = await bridgeManager.validateAPIKey(trimmed)
-                                        if success {
-                                            bridgeManager.appendLog("Key manually validated successfully.")
+                                        let valid = await bridgeManager.validateAPIKey(trimmed)
+                                        if valid {
+                                            KeychainService.shared.set(trimmed, forKey: KeychainService.codexUserAPIKey)
+                                            bridgeManager.appendLog("API Key verified and stored in KeyChain.")
+                                            apiKey = ""
+                                            await bridgeManager.auditEnvironment()
                                         } else {
-                                            bridgeManager.appendLog("Key manual validation failed.")
+                                            bridgeManager.appendLog("API Key validation failed.")
                                         }
                                     }
                                 }
-                                .buttonStyle(.bordered)
-                                .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            }
-                        }
-                        .padding(8)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Section 2: Bridge Status
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Label("Bridge Status", systemImage: "network")
-                                    .font(.headline)
-                                    .foregroundColor(.blue)
-                                Spacer()
-                                HStack(spacing: 6) {
-                                    Circle()
-                                        .fill(statusColor(bridgeManager.bridgeStatus))
-                                        .frame(width: 8, height: 8)
-                                    Text(bridgeManager.bridgeStatus.rawValue)
-                                        .font(.caption.bold())
-                                        .foregroundColor(statusColor(bridgeManager.bridgeStatus))
-                                }
-                            }
-
-                            HStack {
-                                Text("Local Port: \(3003)")
-                                Spacer()
-                                Text("PID: \(bridgeManager.bridgePID.map { String($0) } ?? "N/A")")
-                                Spacer()
-                                if let launchTime = bridgeManager.launchTime {
-                                    Text("Uptime: \(String(format: "%.1f", Date().timeIntervalSince(launchTime)))s")
-                                }
-                            }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                            Divider()
-
-                            HStack {
-                                Button(action: {
-                                    Task {
-                                        await bridgeManager.ensureBridgeRunning()
-                                    }
-                                }) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "play.fill")
-                                        Text("Start Bridge")
-                                    }
-                                }
                                 .buttonStyle(.borderedProminent)
-                                .tint(.blue)
-                                .disabled(bridgeManager.bridgeStatus == .running || bridgeManager.bridgeStatus == .starting)
+                                .tint(.cyan)
+                                .disabled(apiKey.isEmpty || bridgeManager.cliLocation == "Not Detected")
 
-                                Spacer()
+                                if hasStoredKey {
+                                    Button("Remove Saved Key") {
+                                        KeychainService.shared.delete(forKey: KeychainService.codexUserAPIKey)
+                                        bridgeManager.appendLog("API Key removed from Keychain.")
+                                        Task {
+                                            await bridgeManager.auditEnvironment()
+                                        }
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .tint(.red)
+                                }
                             }
                         }
                         .padding(8)
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Section 3: Connection Status
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Label("Connection Pipeline Status", systemImage: "bolt.horizontal.fill")
-                                .font(.headline)
-                                .foregroundColor(.green)
-
-                            VStack(spacing: 8) {
-                                statusRow(title: "API Key Configured", value: hasStoredKey ? "Ready" : "Missing", isOk: hasStoredKey)
-                                statusRow(title: "Bridge Server Connected", value: bridgeManager.bridgeStatus == .running ? "Online" : "Offline", isOk: bridgeManager.bridgeStatus == .running)
-                                statusRow(title: "Codex SDK Initialized", value: bridgeManager.bridgeStatus == .running ? "Loaded" : "Not Loaded", isOk: bridgeManager.bridgeStatus == .running)
-                                statusRow(title: "Inference Provider", value: bridgeManager.bridgeStatus == .running ? "Active" : "Standby", isOk: bridgeManager.bridgeStatus == .running)
-                                statusRow(title: "Stream Session Integrity", value: bridgeManager.streamStatus == "Streaming" ? "Active Stream" : "Standby", isOk: true)
-                                statusRow(title: "Current Selected Model", value: bridgeManager.currentModel, isOk: true)
-                            }
-                        }
-                        .padding(8)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Section 4: Diagnostics Console
+                    // Section 5: Diagnostics Console logs
                     GroupBox {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                Label("Diagnostics Console Logs", systemImage: "terminal.fill")
+                                Label("Diagnostics Logs", systemImage: "terminal.fill")
                                     .font(.headline)
                                     .foregroundColor(.purple)
                                 Spacer()
-                                Button("Clear Logs") {
+                                Button("Clear") {
                                     bridgeManager.liveLogs.removeAll()
                                 }
                                 .buttonStyle(.plain)
@@ -291,7 +270,7 @@ public struct CodexSignInFlow: View {
                                 ScrollView {
                                     VStack(alignment: .leading, spacing: 4) {
                                         if bridgeManager.liveLogs.isEmpty {
-                                            Text("Standby. Start the onboarding sequence to populate logs.")
+                                            Text("Awaiting logs...")
                                                 .font(.system(.caption2, design: .monospaced))
                                                 .foregroundStyle(.secondary)
                                         } else {
@@ -305,7 +284,7 @@ public struct CodexSignInFlow: View {
                                     }
                                     .padding(8)
                                 }
-                                .frame(height: 160)
+                                .frame(height: 140)
                                 .background(Color.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
                                 .onChange(of: bridgeManager.liveLogs.count) { _, _ in
                                     if let last = bridgeManager.liveLogs.last {
@@ -318,31 +297,31 @@ public struct CodexSignInFlow: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Section 5: Test Codex
+                    // Section 6: Testing & HANDSHAKE
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
-                            Label("Verification & Connection Testing", systemImage: "checkmark.circle.fill")
+                            Label("Verification and Handshake Test", systemImage: "checkmark.seal.fill")
                                 .font(.headline)
-                                .foregroundColor(.cyan)
+                                .foregroundColor(.yellow)
 
-                            Text("Perform a real completion request to verify connection integrity, stream latency, and response token parsing.")
+                            Text("Perform a live integration check. This executes a fast completion request to the CLI backend to check latency, communication stream, and tool registry.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
 
                             HStack {
-                                Button("Test Codex") {
+                                Button("Test Connection") {
                                     runConnectionTest()
                                 }
                                 .buttonStyle(.borderedProminent)
-                                .tint(.cyan)
-                                .disabled(isTesting || bridgeManager.bridgeStatus != .running)
+                                .tint(.yellow)
+                                .disabled(isTesting || !bridgeManager.isAuthenticated)
 
                                 Spacer()
 
                                 VStack(alignment: .trailing) {
-                                    Text("Test Status: \(testStatus)")
+                                    Text("Handshake: \(testStatus)")
                                     if testDuration > 0 {
-                                        Text("Response Latency: \(String(format: "%.2f", testDuration))s")
+                                        Text("Latency: \(String(format: "%.2f", testDuration))s")
                                     }
                                 }
                                 .font(.caption)
@@ -351,7 +330,7 @@ public struct CodexSignInFlow: View {
 
                             if !testResponse.isEmpty {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Streamed Response:")
+                                    Text("Response payload:")
                                         .font(.caption.bold())
                                     Text(testResponse)
                                         .font(.system(.body, design: .monospaced))
@@ -359,12 +338,6 @@ public struct CodexSignInFlow: View {
                                         .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
-                            }
-
-                            if let error = testError {
-                                Text("Test Error: \(error)")
-                                    .font(.caption)
-                                    .foregroundColor(.red)
                             }
                         }
                         .padding(8)
@@ -376,125 +349,103 @@ public struct CodexSignInFlow: View {
 
             Divider()
 
-            // Footer / Control Action bar
+            // Footer
             HStack {
                 Button("Close Setup") {
                     dismiss()
                 }
                 .buttonStyle(.bordered)
-                .disabled(isRunningSequence)
 
                 Spacer()
 
                 Button {
                     Task {
-                        await startSetupSequence()
+                        try? await bridgeManager.startStartupSequence(apiKey: "") { _, _ in }
+                        dismiss()
                     }
                 } label: {
-                    HStack {
-                        if isRunningSequence {
-                            ProgressView()
-                                .scaleEffect(0.5)
-                        } else {
-                            Image(systemName: "bolt.fill")
-                        }
-                        Text(isRunningSequence ? "Executing Onboarding..." : "Connect Codex")
-                    }
+                    Text("Auto Connect Codex")
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.orange)
-                .disabled(isRunningSequence)
+                .disabled(bridgeManager.cliLocation == "Not Detected" || !bridgeManager.isAuthenticated)
             }
             .padding()
             .background(.thinMaterial)
         }
         .frame(width: 580, height: 720)
-    }
+        .sheet(isPresented: $showDeviceCodeSheet) {
+            VStack(spacing: 16) {
+                Text("Device Authentication")
+                    .font(.headline)
+                Text("Open the OpenAI link and enter the following verification code:")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
 
-    private func startSetupSequence() async {
-        isRunningSequence = true
-        sequenceError = nil
-        sequenceSuccess = false
+                Text(deviceCode)
+                    .font(.system(size: 28, weight: .bold, design: .monospaced))
+                    .foregroundColor(.orange)
+                    .padding()
+                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
 
-        let inputKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedKey = inputKey.isEmpty ? (KeychainService.shared.get(forKey: KeychainService.codexUserAPIKey) ?? "") : inputKey
+                Button("Open Link in Browser") {
+                    if let url = URL(string: deviceUrl) {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
 
-        guard !resolvedKey.isEmpty else {
-            sequenceError = "API Key cannot be empty. Please enter an OpenAI API Key."
-            isRunningSequence = false
-            return
-        }
-
-        do {
-            try await bridgeManager.startStartupSequence(apiKey: resolvedKey) { stage, description in
-                self.currentStage = stage
-                self.stageDescription = description
-                self.bridgeManager.appendLog("STAGE [\(stage.rawValue)]: \(description)")
+                Button("Done") {
+                    showDeviceCodeSheet = false
+                    Task {
+                        await bridgeManager.auditEnvironment()
+                    }
+                }
+                .buttonStyle(.bordered)
             }
-            sequenceSuccess = true
-            UserDefaults.standard.set(true, forKey: "com.swiftcode.codex.completedSetup")
-
-            // Auto select Codex as preferred provider
-            UserDefaults.standard.set("Codex", forKey: "assist.selectedProvider")
-
-            // Dismiss after slight delay
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            dismiss()
-        } catch {
-            sequenceError = error.localizedDescription
-            bridgeManager.appendLog("Onboarding failed at stage '\(currentStage?.rawValue ?? "Unknown")' with error: \(error.localizedDescription)")
+            .padding()
+            .frame(width: 320, height: 260)
         }
-
-        isRunningSequence = false
+        .task {
+            await bridgeManager.auditEnvironment()
+        }
     }
 
     private func runConnectionTest() {
         isTesting = true
         testResponse = ""
-        testError = nil
-        testStatus = "Connecting..."
+        testStatus = "Executing Handshake..."
         testDuration = 0
         let startTime = Date()
 
         Task {
             do {
-                try await bridgeManager.streamPrompt(testPrompt) { @MainActor token in
+                try await bridgeManager.streamPrompt("Respond with 'Codex Connection Success'") { @MainActor token in
                     testResponse += token
                     testStatus = "Streaming..."
                 }
                 testDuration = Date().timeIntervalSince(startTime)
                 testStatus = "Success"
             } catch {
+                testStatus = "Handshake Failed"
                 testError = error.localizedDescription
-                testStatus = "Failed"
             }
             isTesting = false
         }
     }
 
-    private func statusColor(_ status: CodexBridgeStatus) -> Color {
-        switch status {
-        case .running: return .green
-        case .starting, .reconnecting: return .orange
-        case .failed: return .red
-        default: return .secondary
-        }
-    }
-
     @ViewBuilder
     private func statusRow(title: String, value: String, isOk: Bool) -> some View {
-        HStack {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer()
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(isOk ? Color.green : Color.red)
-                    .frame(width: 6, height: 6)
-                Text(value)
-                    .font(.caption.monospaced())
-            }
+        Text(title)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(spacing: 4) {
+            Circle()
+                .fill(isOk ? Color.green : Color.red)
+                .frame(width: 6, height: 6)
+            Text(value)
+                .font(.caption.monospaced())
         }
     }
 }

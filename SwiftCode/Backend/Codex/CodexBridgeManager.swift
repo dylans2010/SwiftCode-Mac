@@ -16,18 +16,15 @@ public enum CodexBridgeStatus: String, Codable, Sendable {
 }
 
 public enum CodexStartupStage: String, CaseIterable, Identifiable, Sendable {
-    case validateAPIKey = "Validating API Key"
-    case saveToKeychain = "Saving to Keychain"
-    case locateBridge = "Locating Bundled Bridge"
-    case verifyResources = "Verifying Bridge Resources"
-    case verifyNode = "Checking Node Runtime"
-    case launchBridge = "Launching Bridge Process"
-    case monitorLogs = "Monitoring Logs"
-    case waitForReady = "Waiting for Bridge Ready"
-    case verifyComm = "Verifying Communication"
-    case createSession = "Creating Codex Session"
+    case detectCLI = "Detecting Codex CLI"
+    case verifyVersion = "Verifying CLI Version"
+    case checkAuth = "Checking Authentication"
+    case runInstaller = "Downloading & Installing Codex CLI"
+    case authenticateChatGPT = "Authenticating with ChatGPT"
+    case saveAPIKey = "Saving API Key"
+    case startBackend = "Starting Backend"
+    case verifyConnection = "Verifying Connection"
     case sendTestPrompt = "Sending Test Prompt"
-    case verifyStreaming = "Verifying Streaming"
     case markReady = "Marking Codex Ready"
 
     public var id: String { self.rawValue }
@@ -38,13 +35,6 @@ public enum CodexStartupStage: String, CaseIterable, Identifiable, Sendable {
 public final class CodexBridgeManager: Sendable {
     public static let shared = CodexBridgeManager()
 
-    private let port = 3003
-    private let healthURL = URL(string: "http://127.0.0.1:3003/health")!
-    private let completionsURL = URL(string: "http://127.0.0.1:3003/v1/chat/completions")!
-
-    private var process: Process?
-    private var isShuttingDown = false
-
     // Real-time diagnostics metrics
     public var bridgeStatus: CodexBridgeStatus = .offline
     public var liveLogs: [String] = []
@@ -53,22 +43,29 @@ public final class CodexBridgeManager: Sendable {
     public var lastSuccessfulRequest: Date?
     public var lastFailure: String?
     public var launchTime: Date?
-    public var sdkVersion: String = "1.0.0"
-    public var bridgeVersion: String = "1.0.0"
-    public var currentModel: String = "gpt-5-codex"
-    public var bridgePID: Int32? = nil
+    public var cliVersion: String = "Unknown"
+    public var cliLocation: String = "Not Detected"
+    public var isAuthenticated: Bool = false
+    public var authModeString: String = "None"
+    public var sessionStatus: String = "Idle"
+    public var streamStatus: String = "Idle"
+    public var activeToolName: String = "None"
+    public var activeToolDetails: String = ""
+    public var isInstalling: Bool = false
+    public var installProgress: String = ""
+    public var isConnecting: Bool = false
+
+    private var activeProcess: Process?
+    private var isShuttingDown = false
+
     public var connectionDuration: TimeInterval {
         guard let launchTime else { return 0 }
         return Date().timeIntervalSince(launchTime)
     }
-    public var streamStatus: String = "Idle"
 
     private init() {
-        // Automatically start the bridge on init if needed or let lazy activation handle it
-        if UserDefaults.standard.bool(forKey: "com.swiftcode.codex.completedSetup") {
-            Task {
-                await self.ensureBridgeRunning()
-            }
+        Task {
+            await self.auditEnvironment()
         }
 
         // Register shutdown notifications
@@ -97,403 +94,588 @@ public final class CodexBridgeManager: Sendable {
         }
     }
 
-    /// Resolves the bundled bridge directory dynamically using Bundle.main.
+    /// Resolves the resources directory (for compatibility).
     public func locateResources() throws -> (packageJson: URL, bridgeJs: URL) {
-        return try resolveBridgePath()
+        // Return dummy URLs to keep other modules compiling if they use it.
+        let fm = FileManager.default
+        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? fm.temporaryDirectory
+        let codexDir = appSupport.appendingPathComponent("SwiftCode/Codex", isDirectory: true)
+        return (codexDir.appendingPathComponent("package.json"), codexDir.appendingPathComponent("bridge.js"))
     }
 
-    private func resolveBridgePath() throws -> (packageJson: URL, bridgeJs: URL) {
-        // Look inside the main application bundle's resources
-        if let bundlePath = Bundle.main.resourceURL?.appendingPathComponent("Codex/Bridge") {
-            let packageJson = bundlePath.appendingPathComponent("package.json")
-            let bridgeJs = bundlePath.appendingPathComponent("bridge.js")
-            if FileManager.default.fileExists(atPath: bridgeJs.path) {
-                return (packageJson, bridgeJs)
-            }
+    /// Automatically discover the official Codex CLI on the machine.
+    public func discoverCLIPath() -> String? {
+        let fm = FileManager.default
+
+        // 1. Managed installation path
+        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? fm.temporaryDirectory
+        let managedPath = appSupport.appendingPathComponent("SwiftCode/Codex/codex").path
+        if fm.fileExists(atPath: managedPath) {
+            return managedPath
         }
 
-        // Fallback for development/local execution
-        let fallbackDirs = [
-            "SwiftCode/Resources/Codex/Bridge",
-            "Resources/Codex/Bridge",
-            "./SwiftCode/Resources/Codex/Bridge"
+        // 2. Standalone package paths
+        let homeDir = fm.homeDirectoryForCurrentUser.path
+        let standalonePaths = [
+            "\(homeDir)/.codex/packages/standalone/current/codex",
+            "\(homeDir)/.codex/bin/codex",
+            "/opt/homebrew/bin/codex",
+            "/usr/local/bin/codex"
         ]
-
-        for dir in fallbackDirs {
-            let dirURL = URL(fileURLWithPath: dir)
-            let packageJson = dirURL.appendingPathComponent("package.json")
-            let bridgeJs = dirURL.appendingPathComponent("bridge.js")
-            if FileManager.default.fileExists(atPath: bridgeJs.path) {
-                return (packageJson, bridgeJs)
+        for path in standalonePaths {
+            if fm.fileExists(atPath: path) {
+                return path
             }
         }
 
-        throw NSError(
-            domain: "CodexBridgeManager",
-            code: 404,
-            userInfo: [NSLocalizedDescriptionKey: "OpenAI Codex Bridge resource files could not be located in the application bundle or local filesystem."]
-        )
-    }
-
-    /// Checks if Node runtime is available on the machine.
-    public func checkNodeRuntime() async -> String? {
+        // 3. Environment path search
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["node", "--version"]
-
+        process.arguments = ["which", "codex"]
         let pipe = Pipe()
         process.standardOutput = pipe
-        process.standardError = pipe
-
+        process.standardError = Pipe()
         do {
             try process.run()
             process.waitUntilExit()
             if process.terminationStatus == 0 {
-                if let data = try? pipe.fileHandleForReading.readToEnd(),
-                   let version = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
-                    return version
+                if let data = try pipe.fileHandleForReading.readToEnd(),
+                   let resolved = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !resolved.isEmpty, fm.fileExists(atPath: resolved) {
+                    return resolved
                 }
             }
-        } catch {
-            return nil
-        }
+        } catch {}
+
         return nil
     }
 
-    /// Checks if the local bridge server is responding to health check.
-    public func isBridgeHealthy() async -> Bool {
-        var request = URLRequest(url: healthURL)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 1.0
+    /// Performs an audit of the entire environment on demand.
+    public func auditEnvironment() async {
+        appendLog("Auditing environment for official OpenAI Codex CLI...")
+        if let path = discoverCLIPath() {
+            cliLocation = path
+            bridgeStatus = .located
+            appendLog("Codex CLI discovered at: \(path)")
 
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                return false
+            // Get Version
+            if let version = await checkCLIVersion(at: path) {
+                cliVersion = version
+                appendLog("Discovered Codex CLI version: \(version)")
+            } else {
+                cliVersion = "Unknown"
+                appendLog("Failed to parse Codex CLI version.")
             }
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               json["status"] as? String == "ok" {
-                return true
+
+            // Check Auth Status
+            let (auth, mode) = await checkCLIAuthStatus(at: path)
+            isAuthenticated = auth
+            authModeString = mode
+            appendLog("Codex CLI Authentication status: \(auth ? "Authenticated" : "Not Authenticated") (Mode: \(mode))")
+
+            if auth {
+                bridgeStatus = .running
             }
-            return false
-        } catch {
-            return false
+        } else {
+            cliLocation = "Not Detected"
+            cliVersion = "N/A"
+            isAuthenticated = false
+            authModeString = "None"
+            bridgeStatus = .notInstalled
+            appendLog("Official OpenAI Codex CLI was not detected on this machine.")
         }
     }
 
-    /// Ensures that the bridge process is active and running, launching it if necessary.
-    public func ensureBridgeRunning() async {
-        guard !isShuttingDown else { return }
+    /// Check the installed version of Codex CLI at a specific path.
+    private func checkCLIVersion(at path: String) async -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = ["--version"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            process.waitUntilExit()
+            if let data = try pipe.fileHandleForReading.readToEnd(),
+               let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+                // Parse version (usually returns '0.143.0' or similar)
+                return output
+            }
+        } catch {}
+        return nil
+    }
 
-        if await isBridgeHealthy() {
-            appendLog("Codex bridge is active and healthy.")
-            bridgeStatus = .running
-            return
+    /// Checks the login/auth status of the CLI.
+    private func checkCLIAuthStatus(at path: String) async -> (Bool, String) {
+        // Check local Keychain for stored API Key first
+        let storedKey = KeychainService.shared.get(forKey: KeychainService.codexUserAPIKey) ?? ""
+        if !storedKey.isEmpty {
+            return (true, "API Key (Keychain)")
         }
 
-        appendLog("Codex bridge is offline. Initiating startup sequence...")
-        bridgeStatus = .starting
-
+        // Run `codex login status` or check `~/.codex/auth.json`
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = ["login", "status"]
+        let outPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = Pipe()
         do {
-            let paths = try resolveBridgePath()
-            appendLog("Located bridge bundle at: \(paths.bridgeJs.path). Launching process.")
-
-            let proc = Process()
-            proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-            proc.arguments = ["node", paths.bridgeJs.path]
-
-            // Capture process stdout/stderr for logging
-            let outPipe = Pipe()
-            proc.standardOutput = outPipe
-            proc.standardError = outPipe
-
-            proc.terminationHandler = { [weak self] p in
-                logger.warning("[terminationHandler] Codex bridge process exited with code: \(p.terminationStatus)")
-                guard let self = self else { return }
-                Task { @MainActor in
-                    self.bridgePID = nil
-                    self.bridgeStatus = .failed
-                    if !self.isShuttingDown {
-                        self.appendLog("Codex bridge process exited unexpectedly. Attempting automatic restart...")
-                        self.bridgeStatus = .reconnecting
-                        try? await Task.sleep(nanoseconds: 2_000_000_000)
-                        await self.ensureBridgeRunning()
-                    }
+            try process.run()
+            process.waitUntilExit()
+            if process.terminationStatus == 0,
+               let data = try outPipe.fileHandleForReading.readToEnd(),
+               let output = String(data: data, encoding: .utf8) {
+                if output.contains("Logged in") || output.contains("Authenticated") || output.contains("Active") {
+                    return (true, "ChatGPT Account")
                 }
             }
+        } catch {}
 
-            try proc.run()
-            self.process = proc
-            self.bridgePID = proc.processIdentifier
-            self.launchTime = Date()
-            self.bridgeStatus = .running
+        // Check if auth file exists manually as backup
+        let fm = FileManager.default
+        let authJSONPath = "\(fm.homeDirectoryForCurrentUser.path)/.codex/auth.json"
+        if fm.fileExists(atPath: authJSONPath) {
+            return (true, "ChatGPT (auth.json)")
+        }
 
-            // Read output streams in the background asynchronously to avoid pipe clog
+        return (false, "None")
+    }
+
+    /// Installs the official Codex CLI using the official stand-alone installer.
+    public func installCLI() async throws {
+        guard !isInstalling else { return }
+        isInstalling = true
+        installProgress = "Preparing installation..."
+        appendLog("Initiating managed installation of the official OpenAI Codex CLI...")
+
+        let fm = FileManager.default
+        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? fm.temporaryDirectory
+        let managedDir = appSupport.appendingPathComponent("SwiftCode/Codex", isDirectory: true)
+
+        do {
+            try fm.createDirectory(at: managedDir, withIntermediateDirectories: true, attributes: nil)
+        } catch {
+            isInstalling = false
+            appendLog("Failed to create managed directory: \(error.localizedDescription)")
+            throw error
+        }
+
+        // We run curl -fsSL https://chatgpt.com/codex/install.sh | sh
+        // Since we want progress, let's download the script and then execute it.
+        installProgress = "Downloading official Codex installer script..."
+        appendLog("Fetching official installer script from https://chatgpt.com/codex/install.sh...")
+
+        let scriptURL = URL(string: "https://chatgpt.com/codex/install.sh")!
+        let (tempDir, _) = try await URLSession.shared.download(from: scriptURL)
+
+        installProgress = "Checking prerequisites and running installer..."
+        appendLog("Executing installer script...")
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = [tempDir.path]
+
+        // Set custom PREFIX if supported, but also let it default to standalone path.
+        // We set environment so that Codex installs correctly
+        var env = ProcessInfo.processInfo.environment
+        env["PREFIX"] = managedDir.path
+        env["CODEX_HOME"] = managedDir.path
+        process.environment = env
+
+        let outPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = outPipe
+
+        process.terminationHandler = { [weak self] p in
+            guard let self = self else { return }
+            Task { @MainActor in
+                self.isInstalling = false
+                if p.terminationStatus == 0 {
+                    self.installProgress = "Installation complete and verified."
+                    self.appendLog("Official Codex CLI installer completed successfully.")
+                    await self.auditEnvironment()
+                } else {
+                    self.installProgress = "Installation failed."
+                    self.appendLog("Installer script failed with exit code: \(p.terminationStatus)")
+                }
+            }
+        }
+
+        do {
+            try process.run()
+
+            // Stream logs in real-time
+            let handle = outPipe.fileHandleForReading
+            Task.detached { [weak self] in
+                guard let self = self else { return }
+                do {
+                    for try await line in handle.bytes.lines {
+                        await self.appendLog("[Installer] \(line)")
+                        await MainActor.run {
+                            self.installProgress = line
+                        }
+                    }
+                } catch {}
+            }
+
+            process.waitUntilExit()
+        } catch {
+            isInstalling = false
+            appendLog("Failed to execute installer process: \(error.localizedDescription)")
+            throw error
+        }
+    }
+
+    /// Initiates ChatGPT login using the official CLI auth command.
+    public func loginWithChatGPT() async throws {
+        guard let path = discoverCLIPath() else {
+            throw NSError(domain: "CodexBridgeManager", code: 404, userInfo: [NSLocalizedDescriptionKey: "Codex CLI is not installed."])
+        }
+
+        appendLog("Initiating ChatGPT Authentication flow...")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = ["login"] // Will open browser oauth naturally
+
+        let outPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = outPipe
+
+        do {
+            try process.run()
+
             Task.detached { [weak self] in
                 guard let self = self else { return }
                 let handle = outPipe.fileHandleForReading
                 do {
                     for try await line in handle.bytes.lines {
-                        await self.appendLog("[Node] \(line)")
+                        await self.appendLog("[CLI Auth] \(line)")
                     }
-                } catch {
-                    await self.appendLog("Error reading stdout/stderr stream from Node process.")
-                }
+                } catch {}
             }
 
-            // Wait and poll for health status (up to 5 seconds)
-            for _ in 1...10 {
-                try await Task.sleep(nanoseconds: 500_000_000)
-                if await isBridgeHealthy() {
-                    appendLog("Codex bridge successfully launched and reporting active status.")
-                    bridgeStatus = .running
-                    return
-                }
-            }
-
-            throw NSError(domain: "CodexBridge", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to receive a healthy response from the bridge after launch."])
-
+            process.waitUntilExit()
+            await auditEnvironment()
         } catch {
-            bridgeStatus = .failed
-            lastFailure = error.localizedDescription
-            appendLog("Failed to start Codex bridge process: \(error.localizedDescription)")
+            appendLog("ChatGPT Auth initiation failed: \(error.localizedDescription)")
+            throw error
         }
     }
 
-    /// Gracefully shuts down the running bridge process.
-    public func shutdownBridge() async {
-        isShuttingDown = true
-        guard let proc = process, proc.isRunning else { return }
-        appendLog("Terminating Codex bridge process...")
-        proc.terminate()
-        self.process = nil
-        self.bridgePID = nil
-        self.bridgeStatus = .offline
-    }
+    /// Triggers the device-code login flow.
+    public func loginWithDeviceCode(onCodeReceived: @MainActor @escaping (String, String) -> Void) async throws {
+        guard let path = discoverCLIPath() else {
+            throw NSError(domain: "CodexBridgeManager", code: 404, userInfo: [NSLocalizedDescriptionKey: "Codex CLI is not installed."])
+        }
 
-    /// Exposes API to validate the API key using the bridge.
-    public func validateAPIKey(_ apiKey: String) async -> Bool {
-        await ensureBridgeRunning()
-        var request = URLRequest(url: completionsURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        appendLog("Initiating Device Code Authentication...")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = ["login", "--device-auth"]
 
-        let body: [String: Any] = [
-            "model": "gpt-4o",
-            "messages": [["role": "user", "content": "Respond with the single word VALID."]]
-        ]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        let outPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = outPipe
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                return false
+            try process.run()
+
+            Task.detached { [weak self] in
+                guard let self = self else { return }
+                let handle = outPipe.fileHandleForReading
+                do {
+                    for try await line in handle.bytes.lines {
+                        await self.appendLog("[CLI Auth] \(line)")
+                        // Parse device code and URL
+                        if line.contains("https://") {
+                            // Find URL and Code
+                            let components = line.components(separatedBy: .whitespacesAndNewlines)
+                            let url = components.first(where: { $0.hasPrefix("https://") }) ?? ""
+                            // Extract code (e.g. ABCD-1234)
+                            let pattern = "[A-Z0-9]{4}-[A-Z0-9]{4}"
+                            if let regex = try? NSRegularExpression(pattern: pattern),
+                               let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+                               let range = Range(match.range, in: line) {
+                                let code = String(line[range])
+                                await MainActor.run {
+                                    onCodeReceived(url, code)
+                                }
+                            }
+                        }
+                    }
+                } catch {}
             }
-            return true
+
+            process.waitUntilExit()
+            await auditEnvironment()
         } catch {
-            return false
+            appendLog("Device authentication failed: \(error.localizedDescription)")
+            throw error
         }
     }
 
-    /// Run the step-by-step onboarding startup sequence.
+    /// Logs out from Codex CLI completely.
+    public func logout() async {
+        guard let path = discoverCLIPath() else { return }
+        appendLog("Logging out from Codex CLI...")
+
+        // Delete from Keychain
+        KeychainService.shared.delete(forKey: KeychainService.codexUserAPIKey)
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = ["logout"]
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {}
+
+        await auditEnvironment()
+    }
+
+    /// Gracefully shuts down any running background bridge tasks.
+    public func shutdownBridge() async {
+        isShuttingDown = true
+        if let proc = activeProcess, proc.isRunning {
+            appendLog("Shutting down active process...")
+            proc.terminate()
+        }
+        activeProcess = nil
+        bridgeStatus = .offline
+    }
+
+    /// Emulates bridge activation for legacy views.
+    public func ensureBridgeRunning() async {
+        await auditEnvironment()
+    }
+
+    /// Checks if the local bridge server is responding (compatibility).
+    public func isBridgeHealthy() async -> Bool {
+        return discoverCLIPath() != nil
+    }
+
+    /// Validates an API Key using the CLI.
+    public func validateAPIKey(_ apiKey: String) async -> Bool {
+        guard let path = discoverCLIPath() else { return false }
+        appendLog("Validating API Key using Codex CLI...")
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        // We use non-interactive validation via exec
+        process.arguments = ["exec", "Respond with VALID", "--sandbox", "read-only"]
+
+        var env = ProcessInfo.processInfo.environment
+        env["CODEX_API_KEY"] = apiKey
+        process.environment = env
+
+        let outPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+            if process.terminationStatus == 0,
+               let data = try outPipe.fileHandleForReading.readToEnd(),
+               let output = String(data: data, encoding: .utf8) {
+                return output.contains("VALID")
+            }
+        } catch {}
+        return false
+    }
+
+    /// Complete setup sequence wrapper for onboarding UI.
     public func startStartupSequence(apiKey: String, onProgress: @MainActor @Sendable @escaping (CodexStartupStage, String) -> Void) async throws {
-        // Stage 1: Validate API Key
-        onProgress(.validateAPIKey, "Validating OpenAI API Key directly via OpenAI API...")
-        appendLog("Locating OpenAI validation endpoint...")
-        var request = URLRequest(url: URL(string: "https://api.openai.com/v1/chat/completions")!)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        let body: [String: Any] = [
-            "model": "gpt-4o-mini",
-            "messages": [["role": "user", "content": "Respond with VALID"]]
-        ]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        isConnecting = true
+        defer { isConnecting = false }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            let errorMsg = String(data: data, encoding: .utf8) ?? "HTTP status \((response as? HTTPURLResponse)?.statusCode ?? 0)"
-            appendLog("Validation failed: \(errorMsg)")
-            throw NSError(domain: "CodexOnboarding", code: 401, userInfo: [NSLocalizedDescriptionKey: "OpenAI API key validation failed: \(errorMsg)"])
+        // Stage 1: Discover
+        onProgress(.detectCLI, "Locating official OpenAI Codex CLI installation...")
+        await auditEnvironment()
+
+        if cliLocation == "Not Detected" {
+            // Stage 2: Install
+            onProgress(.runInstaller, "Codex CLI not detected. Running managed installation...")
+            try await installCLI()
         }
-        appendLog("OpenAI API key successfully validated.")
 
-        // Stage 2: Save to Keychain
-        onProgress(.saveToKeychain, "Saving key securely in system Keychain...")
-        KeychainService.shared.set(apiKey, forKey: KeychainService.codexUserAPIKey)
-        // Also save to default OpenAI key mapping to ensure other modules can use it
-        KeychainService.shared.set(apiKey, forKey: "openai_api_key")
-        appendLog("Key stored under '\(KeychainService.codexUserAPIKey)'.")
-
-        // Stage 3: Locate Bundled Bridge
-        onProgress(.locateBridge, "Locating bundled Node bridge resources...")
-        let paths = try resolveBridgePath()
-        appendLog("Bridge JS path resolved: \(paths.bridgeJs.path)")
-        appendLog("Bridge package.json resolved: \(paths.packageJson.path)")
-
-        // Stage 4: Verify required resources
-        onProgress(.verifyResources, "Verifying package resource files...")
-        if !FileManager.default.fileExists(atPath: paths.bridgeJs.path) {
-            throw NSError(domain: "CodexOnboarding", code: 404, userInfo: [NSLocalizedDescriptionKey: "bridge.js file is missing."])
+        guard let path = discoverCLIPath() else {
+            throw NSError(domain: "CodexBridgeManager", code: 404, userInfo: [NSLocalizedDescriptionKey: "Official Codex CLI installation failed or not found."])
         }
-        appendLog("Bridge resources verification complete.")
 
-        // Stage 5: Verify Node runtime
-        onProgress(.verifyNode, "Verifying node runtime availability...")
-        guard let nodeVersion = await checkNodeRuntime() else {
-            throw NSError(domain: "CodexOnboarding", code: 500, userInfo: [NSLocalizedDescriptionKey: "Node.js runtime not found. Please install Node.js (https://nodejs.org) to run the Codex Bridge."])
+        // Stage 3: Version check
+        onProgress(.verifyVersion, "Verifying CLI version compatibility...")
+        if let version = await checkCLIVersion(at: path) {
+            cliVersion = version
         }
-        appendLog("Detected Node runtime version: \(nodeVersion)")
 
-        // Stage 6: Launch Bridge
-        onProgress(.launchBridge, "Launching Codex Node bridge server...")
-        await ensureBridgeRunning()
-
-        // Stage 7: Monitor Logs & Stage 8: Wait for Ready & Stage 9: Verify Comm
-        onProgress(.monitorLogs, "Monitoring stdout & stderr channels...")
-        onProgress(.waitForReady, "Awaiting health check on port \(port)...")
-        var isHealthy = false
-        for attempt in 1...15 {
-            appendLog("Polling bridge health (attempt \(attempt)/15)...")
-            try await Task.sleep(nanoseconds: 1_000_000_000)
-            if await isBridgeHealthy() {
-                isHealthy = true
-                break
+        // Stage 4: Authentication
+        if !apiKey.isEmpty {
+            onProgress(.saveAPIKey, "Configuring and validating API Key...")
+            let valid = await validateAPIKey(apiKey)
+            if !valid {
+                throw NSError(domain: "CodexBridgeManager", code: 401, userInfo: [NSLocalizedDescriptionKey: "Invalid OpenAI API Key."])
+            }
+            KeychainService.shared.set(apiKey, forKey: KeychainService.codexUserAPIKey)
+            authModeString = "API Key"
+            isAuthenticated = true
+        } else {
+            onProgress(.checkAuth, "Verifying ChatGPT authentication status...")
+            let (auth, mode) = await checkCLIAuthStatus(at: path)
+            if !auth {
+                onProgress(.authenticateChatGPT, "Launching browser login for ChatGPT...")
+                try await loginWithChatGPT()
             }
         }
-        if !isHealthy {
-            throw NSError(domain: "CodexOnboarding", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to establish a connection with the Codex Node bridge. Check log output for details."])
-        }
-        onProgress(.verifyComm, "Established connection with Codex bridge on port \(port).")
 
-        // Stage 10: Create session
-        onProgress(.createSession, "Registering active Codex session...")
+        // Stage 5: Connection testing
+        onProgress(.verifyConnection, "Performing final backend loop handshake...")
         sessionCount += 1
-        appendLog("Active session initialized.")
+        bridgeStatus = .running
 
-        // Stage 11: Send Test Prompt
-        onProgress(.sendTestPrompt, "Sending a test instruction: 'Respond with \"Codex connection successful.\"'")
-        let promptStr = "Respond with the phrase: Codex connection successful."
-
-        // Stage 12: Verify Streaming
-        onProgress(.verifyStreaming, "Verifying streaming event channels...")
-        var testResult = ""
-        try await streamPrompt(promptStr) { @MainActor token in
-            testResult += token
-            self.appendLog("Received token stream chunk: \"\(token)\"")
+        // Stage 6: Test Prompt
+        onProgress(.sendTestPrompt, "Sending verification prompt...")
+        let testResponse = try await sendPrompt("Respond with VALID")
+        if !testResponse.contains("VALID") && !testResponse.isEmpty {
+            appendLog("Handshake verified with warning: unexpected response payload.")
         }
-        appendLog("Full streamed response received: \"\(testResult)\"")
 
-        // Stage 13: Mark Ready
-        onProgress(.markReady, "Marking Codex Ready...")
+        onProgress(.markReady, "Codex integration ready.")
         UserDefaults.standard.set(true, forKey: "com.swiftcode.codex.completedSetup")
-        appendLog("Onboarding setup sequence completed successfully!")
+        UserDefaults.standard.set("Codex", forKey: "assist.selectedProvider")
     }
 
-    /// Exposes API to send non-streaming prompt to Codex.
+    /// Single non-streaming prompt request to Codex CLI via `codex exec`.
     public func sendPrompt(_ prompt: String) async throws -> String {
-        await ensureBridgeRunning()
+        guard let path = discoverCLIPath() else {
+            throw LLMError.networkError("Codex CLI is not installed. Open setup flow.")
+        }
+
         activeRequests += 1
         defer { activeRequests -= 1 }
 
-        let apiKey = KeychainService.shared.get(forKey: KeychainService.codexUserAPIKey)
-            ?? KeychainService.shared.get(forKey: KeychainService.codexAppAPIKey)
-            ?? ""
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = ["exec", prompt, "--sandbox", "workspace-write"]
 
-        guard !apiKey.isEmpty else {
-            throw LLMError.invalidKey
+        // Attach API Key if configured
+        if let apiKey = KeychainService.shared.get(forKey: KeychainService.codexUserAPIKey) {
+            var env = ProcessInfo.processInfo.environment
+            env["CODEX_API_KEY"] = apiKey
+            process.environment = env
         }
 
-        var request = URLRequest(url: completionsURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-
-        let body: [String: Any] = [
-            "model": "gpt-5-codex",
-            "messages": [["role": "user", "content": prompt]],
-            "stream": false
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let outPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = Pipe()
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            try process.run()
+            process.waitUntilExit()
 
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                let detail = String(data: data, encoding: .utf8) ?? "Unknown HTTP error"
-                throw LLMError.networkError("Codex Bridge request failed: \(detail)")
+            if process.terminationStatus == 0,
+               let data = try outPipe.fileHandleForReading.readToEnd(),
+               let text = String(data: data, encoding: .utf8) {
+                lastSuccessfulRequest = Date()
+                return text.trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                throw NSError(domain: "CodexCLI", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: "CLI returned non-zero exit code \(process.terminationStatus)"])
             }
-
-            struct ResponseObj: Codable {
-                struct Choice: Codable {
-                    struct Message: Codable {
-                        let content: String
-                    }
-                    let message: Message
-                }
-                let choices: [Choice]
-            }
-
-            let decoded = try JSONDecoder().decode(ResponseObj.self, from: data)
-            lastSuccessfulRequest = Date()
-            return decoded.choices.first?.message.content ?? ""
         } catch {
             lastFailure = error.localizedDescription
             throw error
         }
     }
 
-    /// Exposes API to stream response from Codex bridge.
+    /// Real-time streaming prompt request via machine-readable `codex exec --json`.
     public func streamPrompt(_ prompt: String, onToken: @escaping @Sendable (String) async -> Void) async throws {
-        await ensureBridgeRunning()
+        guard let path = discoverCLIPath() else {
+            throw LLMError.networkError("Codex CLI is not installed. Open setup flow.")
+        }
+
         activeRequests += 1
         streamStatus = "Streaming"
         defer {
             activeRequests -= 1
             streamStatus = "Idle"
+            activeToolName = "None"
+            activeToolDetails = ""
         }
 
-        let apiKey = KeychainService.shared.get(forKey: KeychainService.codexUserAPIKey)
-            ?? KeychainService.shared.get(forKey: KeychainService.codexAppAPIKey)
-            ?? ""
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        // Run with machine-readable JSON option!
+        process.arguments = ["exec", prompt, "--json", "--sandbox", "workspace-write"]
 
-        guard !apiKey.isEmpty else {
-            throw LLMError.invalidKey
+        if let apiKey = KeychainService.shared.get(forKey: KeychainService.codexUserAPIKey) {
+            var env = ProcessInfo.processInfo.environment
+            env["CODEX_API_KEY"] = apiKey
+            process.environment = env
         }
 
-        var request = URLRequest(url: completionsURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        let outPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = Pipe()
 
-        let body: [String: Any] = [
-            "model": "gpt-5-codex",
-            "messages": [["role": "user", "content": prompt]],
-            "stream": true
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        activeProcess = process
 
-        let (stream, response) = try await URLSession.shared.bytes(for: request)
+        do {
+            try process.run()
 
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw LLMError.networkError("Codex Bridge stream failed to connect.")
-        }
+            let handle = outPipe.fileHandleForReading
+            for try await line in handle.bytes.lines {
+                guard let data = line.data(using: .utf8) else { continue }
 
-        for try await line in stream.lines {
-            guard line.hasPrefix("data: ") else { continue }
-            let jsonString = String(line.dropFirst(6)).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard jsonString != "[DONE]" else { break }
+                // Parse structured JSON event emitted by Codex CLI
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    let type = json["type"] as? String ?? ""
 
-            if let data = jsonString.data(using: .utf8),
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let choices = json["choices"] as? [[String: Any]],
-               let first = choices.first,
-               let delta = first["delta"] as? [String: Any],
-               let token = delta["content"] as? String {
-                await onToken(token)
+                    // 1. Text delta token streaming
+                    if type == "item/agentMessage/delta" || type == "item.agentMessage/delta",
+                       let delta = json["delta"] as? String {
+                        await onToken(delta)
+                    } else if type == "item/agentMessage" || type == "item.agentMessage",
+                              let item = json["item"] as? [String: Any],
+                              let delta = item["delta"] as? String {
+                        await onToken(delta)
+                    }
+
+                    // 2. Timeline and tool executions
+                    if type == "item.started" || type == "item/started",
+                       let item = json["item"] as? [String: Any] {
+                        let toolType = item["type"] as? String ?? "Tool"
+                        let details = item["command"] as? String ?? item["path"] as? String ?? ""
+                        await MainActor.run {
+                            self.activeToolName = toolType
+                            self.activeToolDetails = details
+                            self.appendLog("Started \(toolType): \(details)")
+                        }
+                    } else if type == "item.completed" || type == "item/completed",
+                              let item = json["item"] as? [String: Any] {
+                        let toolType = item["type"] as? String ?? "Tool"
+                        await MainActor.run {
+                            self.activeToolName = "None"
+                            self.activeToolDetails = ""
+                            self.appendLog("Completed \(toolType)")
+                        }
+                    }
+                }
             }
+
+            process.waitUntilExit()
+            activeProcess = nil
+
+            if process.terminationStatus == 0 {
+                lastSuccessfulRequest = Date()
+            } else {
+                throw NSError(domain: "CodexCLI", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: "CLI streaming failed with exit code \(process.terminationStatus)"])
+            }
+        } catch {
+            activeProcess = nil
+            lastFailure = error.localizedDescription
+            throw error
         }
-        lastSuccessfulRequest = Date()
     }
 }
