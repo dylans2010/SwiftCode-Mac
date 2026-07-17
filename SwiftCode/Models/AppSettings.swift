@@ -225,7 +225,7 @@ class AppSettings: ObservableObject {
 
 
     private init() {
-        selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? OpenRouterModel.defaults.first?.id ?? ""
+        selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "openai/gpt-4o"
         customModel   = UserDefaults.standard.string(forKey: "customModel") ?? ""
         selectedAssistModelID = UserDefaults.standard.string(forKey: "selectedAssistModelID") ?? AssistModelOption.swiftCodeBalanced.id
         autoSave = UserDefaults.standard.object(forKey: "autoSave") as? Bool ?? true

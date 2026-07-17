@@ -30,7 +30,7 @@ public final class FreeModelsFallback {
 
     /// Performs fallback-rotation logic for OpenRouter models containing "free" on their model ID.
     public func executeWithFallback<T>(task: @escaping (String) async throws -> T) async throws -> T {
-        let allModels = OpenRouterModel.defaults
+        let allModels = (try? await OpenRouterClient.shared.fetchModels()) ?? []
         let freeModels = allModels.filter { $0.id.lowercased().contains("free") }
 
         guard isEnabled && !freeModels.isEmpty else {
@@ -114,8 +114,14 @@ struct FreeORModels: View {
                 }
             }
             .onAppear {
-                let allModels = OpenRouterModel.defaults
-                freeModels = allModels.filter { $0.id.lowercased().contains("free") }
+                Task {
+                    do {
+                        let allModels = try await OpenRouterClient.shared.fetchModels()
+                        freeModels = allModels.filter { $0.id.lowercased().contains("free") }
+                    } catch {
+                        logger.error("[FreeORModels] Failed to fetch free models dynamically: \(error.localizedDescription)")
+                    }
+                }
             }
         }
         .frame(width: 480, height: 420)
@@ -124,6 +130,7 @@ struct FreeORModels: View {
 
 // MARK: - FoundationModelsView & FoundationModels Manager Wrapper
 
+@MainActor
 struct FoundationModelsView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable private var manager = FoundationModels.shared
@@ -599,7 +606,7 @@ struct AssistSettingsView: View {
     @State private var hasSavedKeys = false
 
     // OpenRouter models state
-    @State private var openRouterModels: [OpenRouterModel] = OpenRouterModel.defaults
+    @State private var openRouterModels: [OpenRouterModel] = []
     @State private var isFetchingOpenRouterModels = false
     @State private var openRouterFetchError: String? = nil
 

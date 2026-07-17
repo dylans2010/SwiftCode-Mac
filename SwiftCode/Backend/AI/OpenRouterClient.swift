@@ -5,13 +5,19 @@ private let logger = Logger(subsystem: "com.swiftcode.app", category: "OpenRoute
 
 public actor OpenRouterClient {
     public static let shared = OpenRouterClient()
+    private var cachedModels: [OpenRouterModel] = []
 
     public func fetchModels() async throws -> [OpenRouterModel] {
+        if !cachedModels.isEmpty {
+            return cachedModels
+        }
         logger.log("[fetchModels] Fetching models from OpenRouter.")
         let apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
         // SAFETY: The URL is a valid constant string.
         var urlRequest = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/models")!)
-        urlRequest.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        if !apiKey.isEmpty {
+            urlRequest.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
 
@@ -36,6 +42,7 @@ public actor OpenRouterClient {
 
         let decodedResponse = try JSONDecoder().decode(ModelsResponse.self, from: data)
         logger.log("[fetchModels] Successfully fetched \(decodedResponse.data.count) models.")
+        self.cachedModels = decodedResponse.data
         return decodedResponse.data
     }
 
