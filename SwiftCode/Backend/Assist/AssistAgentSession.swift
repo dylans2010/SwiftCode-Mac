@@ -98,7 +98,7 @@ public final class AssistAgentSession: Sendable {
             emitEvent(state: .selectingTool, summary: "Reasoning about next actions based on tool schema specifications...")
 
             // Query Model dynamically!
-            let response = await LLMService.shared.generateResponse(prompt: conversationPrompt, useContext: false)
+            let response = try await LLMService.shared.generateResponse(prompt: conversationPrompt, useContext: false)
             guard response.count > 0 else {
                 emitEvent(state: .failed, summary: "Model returned an empty response.")
                 state.status = .failed
