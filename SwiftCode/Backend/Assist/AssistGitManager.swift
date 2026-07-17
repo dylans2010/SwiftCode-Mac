@@ -1,6 +1,7 @@
 import Foundation
 
-public final class AssistGitManager: AssistGitManagerProtocol {
+// Thread-safe as its only property is immutable and Sendable.
+public final class AssistGitManager: Sendable, AssistGitManagerProtocol {
     private let project: Project?
 
     public init(project: Project?) {

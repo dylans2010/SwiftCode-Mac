@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 public final class AssistToolRegistry {
     private var tools: [String: AssistTool] = [:]
 

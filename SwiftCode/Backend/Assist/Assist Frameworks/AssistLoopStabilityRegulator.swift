@@ -1,6 +1,7 @@
 import Foundation
 
 /// Regulates autonomous loop behavior to prevent instability
+@MainActor
 public final class AssistLoopStabilityRegulator {
     private let context: AssistContext
     private var executionHistory: [ExecutionRecord] = []

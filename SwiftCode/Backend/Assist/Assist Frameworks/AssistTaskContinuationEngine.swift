@@ -1,6 +1,7 @@
 import Foundation
 
 /// Determines whether to continue autonomous execution and generates next tasks
+@MainActor
 public final class AssistTaskContinuationEngine {
     private let context: AssistContext
     private var completedTaskCount = 0

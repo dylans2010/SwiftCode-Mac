@@ -1,6 +1,7 @@
 import Foundation
 
-public final class AssistFileSystem: AssistFileSystemProtocol {
+// Implements standard file-system operations using FileManager. Immutable and safe for concurrent access.
+public final class AssistFileSystem: @unchecked Sendable, AssistFileSystemProtocol {
     private let fileManager = FileManager.default
     private let workspaceRoot: URL
 

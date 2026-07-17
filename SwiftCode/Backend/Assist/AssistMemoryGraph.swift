@@ -1,6 +1,7 @@
 import Foundation
 
-public final class AssistMemoryGraph: AssistMemoryGraphProtocol {
+// Thread-safe wrapper with NSLock ensuring concurrency safety
+public final class AssistMemoryGraph: @unchecked Sendable, AssistMemoryGraphProtocol {
     private var storage: [String: String] = [:]
     private let lock = NSLock()
 

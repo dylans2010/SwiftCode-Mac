@@ -1,6 +1,7 @@
 import Foundation
 
 /// Verifies that generated outputs are complete and correct
+@MainActor
 public final class AssistOutputVerificationEngine {
     private let context: AssistContext
 

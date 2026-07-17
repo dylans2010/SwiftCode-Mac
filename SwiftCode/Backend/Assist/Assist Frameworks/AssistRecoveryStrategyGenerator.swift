@@ -1,6 +1,7 @@
 import Foundation
 
 /// Generates recovery strategies for failed operations
+@MainActor
 public final class AssistRecoveryStrategyGenerator {
     private let context: AssistContext
 

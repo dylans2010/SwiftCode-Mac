@@ -2,6 +2,7 @@ import Foundation
 
 /// Automatically generates follow-up goals and expands task scope beyond the original request.
 /// Enables true autonomous operation by continuously generating new work.
+@MainActor
 public final class AssistGoalExpansionEngine {
     private let context: AssistContext
 

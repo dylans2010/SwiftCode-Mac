@@ -1,6 +1,7 @@
 import Foundation
 
 /// Scans generated code for integrity issues and potential problems
+@MainActor
 public final class AssistCodeIntegrityScanner {
     private let context: AssistContext
 

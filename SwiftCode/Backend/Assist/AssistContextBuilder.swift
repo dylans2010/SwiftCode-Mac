@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 public final class AssistContextBuilder {
     private let logger: AssistLoggerProtocol
     private let permissions: AssistPermissionsManagerProtocol
@@ -21,7 +22,6 @@ public final class AssistContextBuilder {
         self.git = git
     }
 
-    @MainActor
     public func buildContext(sessionId: UUID) -> AssistContext {
         let project = ProjectSessionStore.shared.activeProject
         let workspaceRoot = project?.directoryURL ?? URL(fileURLWithPath: "/")

@@ -1,6 +1,7 @@
 import Foundation
 
 /// Stores and retrieves persistent context across execution sessions
+@MainActor
 public final class AssistExecutionContextPersistenceStore {
     private let context: AssistContext
     private let storageKey = "com.swiftcode.assist.persistentContext"

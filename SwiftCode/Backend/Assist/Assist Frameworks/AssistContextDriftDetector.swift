@@ -1,6 +1,7 @@
 import Foundation
 
 /// Detects context drift from original objectives
+@MainActor
 public final class AssistContextDriftDetector {
     private let context: AssistContext
 

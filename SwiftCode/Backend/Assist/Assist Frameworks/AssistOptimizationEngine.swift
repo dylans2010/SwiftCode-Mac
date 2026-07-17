@@ -1,6 +1,7 @@
 import Foundation
 
 /// Optimizes execution strategies and outputs
+@MainActor
 public final class AssistOptimizationEngine {
     private let context: AssistContext
 
