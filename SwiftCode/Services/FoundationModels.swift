@@ -38,41 +38,6 @@ public enum AppleFoundationModel: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-/// Reasoning levels configured to optimize latency and model accuracy.
-public enum AppReasoningLevel: String, CaseIterable, Identifiable, Codable {
-    case light
-    case moderate
-    case deep
-
-    public var id: String { self.rawValue }
-
-    public var description: String {
-        switch self {
-        case .light:
-            return "Lower reasoning effort. Reduces response latency."
-        case .moderate:
-            return "Standard level of reasoning. Good balance of latency and correctness."
-        case .deep:
-            return "Deeper reasoning effort. Trades latency for more analysis on complex problems."
-        }
-    }
-}
-
-#if canImport(FoundationModels)
-extension AppReasoningLevel {
-    func toNative() -> ContextOptions.ReasoningLevel {
-        switch self {
-        case .light:
-            return .light
-        case .moderate:
-            return .moderate
-        case .deep:
-            return .deep
-        }
-    }
-}
-#endif
-
 /// Safe, high-performance, private local Apple Foundation model manager.
 @Observable
 @MainActor
@@ -97,19 +62,6 @@ public final class FoundationModels: Sendable {
         }
     }
 
-    public var reasoningLevel: AppReasoningLevel {
-        get {
-            if let string = UserDefaults.standard.string(forKey: "apple_foundation_model_reasoning_level"),
-               let level = AppReasoningLevel(rawValue: string) {
-                return level
-            }
-            return .moderate
-        }
-        set {
-            UserDefaults.standard.set(newValue.rawValue, forKey: "apple_foundation_model_reasoning_level")
-        }
-    }
-
     public var statusDescription: String {
         guard isEnabled else { return "Disabled" }
         return "Ready (On-Device)"
@@ -131,11 +83,8 @@ public final class FoundationModels: Sendable {
         logger.log("[generatePrivateResponse] Creating generation session (Native).")
         let session = LanguageModelSession(model: SystemLanguageModel())
 
-        logger.log("[generatePrivateResponse] Building prompt and setting context options.")
-        let contextOpts = ContextOptions(reasoningLevel: reasoningLevel.toNative())
-
         logger.log("[generatePrivateResponse] Starting native generation request.")
-        let response = try await session.respond(to: prompt, contextOptions: contextOpts)
+        let response = try await session.respond(to: prompt)
 
         let duration = Date().timeIntervalSince(startTime)
         logger.log("[generatePrivateResponse] Native generation completed. Duration: \(duration)s.")
@@ -155,7 +104,6 @@ public final class FoundationModels: Sendable {
         let finalResponse = """
         \(responsePrefix)Processed query with complete on-device local privacy guarantees.
         Input Language: \(dominantLanguage)
-        Reasoning Effort: \(reasoningLevel.rawValue.uppercased())
         Response: Understood and successfully completed generation for prompt: "\(prompt.prefix(60))...."
         """
 
@@ -209,25 +157,13 @@ public struct Instructions {
     public init() {}
 }
 
-public struct ContextOptions {
-    public enum ReasoningLevel {
-        case light
-        case moderate
-        case deep
-    }
-    public var reasoningLevel: ReasoningLevel
-    public init(reasoningLevel: ReasoningLevel) {
-        self.reasoningLevel = reasoningLevel
-    }
-}
-
 public struct LanguageModelSession {
     private let model: LanguageModel
     public init(model: LanguageModel, tools: [Any] = [], instructions: Instructions? = nil) {
         self.model = model
     }
 
-    public func respond(to prompt: String, contextOptions: ContextOptions? = nil) async throws -> String {
+    public func respond(to prompt: String) async throws -> String {
         return "Simulated response"
     }
 }

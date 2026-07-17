@@ -163,7 +163,7 @@ struct FoundationModelsView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Third-Gen Apple Foundation Models")
                                     .font(.headline)
-                                Text("Configure on-device and server-side intelligence using Apple's native secure architecture (AFM 3).")
+                                Text("Configure on-device intelligence using Apple's native secure architecture (AFM 3).")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
@@ -185,7 +185,7 @@ struct FoundationModelsView: View {
                             Toggle("Enable Private On-Device Models", isOn: $manager.isEnabled)
                                 .toggleStyle(.switch)
 
-                            Text("Process natural language commands locally on Apple Silicon and route complex sessions through Private Cloud Compute.")
+                            Text("Process natural language commands locally on Apple Silicon.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -252,32 +252,6 @@ struct FoundationModelsView: View {
                             .padding()
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
-
-                        // GroupBox 4: Reasoning Level
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 14) {
-                                HStack {
-                                    Label("Reasoning Level", systemImage: "brain.head.profile")
-                                        .font(.headline)
-                                        .foregroundColor(.purple)
-                                    Spacer()
-                                }
-
-                                Picker("Reasoning Effort", selection: $manager.reasoningLevel) {
-                                    ForEach(AppReasoningLevel.allCases) { level in
-                                        Text(level.rawValue.capitalized).tag(level)
-                                    }
-                                }
-                                .pickerStyle(.segmented)
-
-                                Text(manager.reasoningLevel.description)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding()
-                        }
-                        .groupBoxStyle(ModernGroupBoxStyle())
-
 
                         // GroupBox 6: Test Models Diagnostics Console
                         GroupBox {
@@ -441,7 +415,7 @@ struct FoundationModelsView: View {
             try? await Task.sleep(nanoseconds: 500_000_000)
 
             // Stage 4: Starting generation
-            appendLog("[Info] Starting generation with reasoning level: \(FoundationModels.shared.reasoningLevel.rawValue)...")
+            appendLog("[Info] Starting generation...")
 
             // Stage 5: Receiving streamed output
             appendLog("[Info] Connecting to streaming response generation...")
