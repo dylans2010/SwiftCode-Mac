@@ -2631,7 +2631,7 @@
 				B677BC8749E2E39D89B0DE2A /* AssistAPIResponse.swift */,
 				2DE2AD52D7CB1DE3A9C82F5C /* AssistAPIRouter.swift */,
 			);
-			path = Internal API;
+			path = "Internal API";
 			sourceTree = "<group>";
 		};
 		0552912968A227D7F9DBDAD8 /* Assist Frameworks */ = {
@@ -2661,7 +2661,7 @@
 				1AFD3002EF3BE3C91A830189 /* _AssistCriticalTaskOrchestrator.swift */,
 				00573C77C75B8076494A575A /* _AssistCriticalValidationEngine.swift */,
 			);
-			path = Assist Frameworks;
+			path = "Assist Frameworks";
 			sourceTree = "<group>";
 		};
 		0F1DC5DB2603AC1C199C51B4 /* Functions */ = {
