@@ -139,7 +139,7 @@ public struct AssistContext: Sendable {
 }
 
 /// Safety levels for autonomous execution.
-public enum AssistSafetyLevel: String, Codable, CaseIterable {
+public enum AssistSafetyLevel: String, Codable, CaseIterable, Sendable {
     case conservative = "Conservative"
     case balanced = "Balanced"
     case aggressive = "Aggressive"

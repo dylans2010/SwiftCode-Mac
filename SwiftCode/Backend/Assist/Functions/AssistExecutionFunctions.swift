@@ -48,7 +48,7 @@ public struct AssistExecutionFunctions {
         }
     }
 
-    private static func collectSwiftFindings(root: URL) -> [String] {
+    nonisolated private static func collectSwiftFindings(root: URL) -> [String] {
         let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles])
         var findings: [String] = []
 
@@ -73,7 +73,7 @@ public struct AssistExecutionFunctions {
         return findings
     }
 
-    private static func discoverTestFiles(root: URL) -> [String] {
+    nonisolated private static func discoverTestFiles(root: URL) -> [String] {
         let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles])
         var testFiles: [String] = []
 
