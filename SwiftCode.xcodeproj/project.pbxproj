@@ -1071,7 +1071,7 @@
 		CDBFF9EE2B1747CEA175B1C7 /* AIAssistantViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 792F4711DDE954D40A2B1B7B /* AIAssistantViewModel.swift */; };
 		CDC3FBD146F02F95AC4B7BCD /* BranchWorkspaceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5DB0585DE4D60B47997A942 /* BranchWorkspaceManager.swift */; };
 		CDDC45D9884B4BA1BE143A31 /* ChecklistPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4010B741810480399A66ABE /* ChecklistPlan.swift */; };
-		CDE730DEB8284EF2B6A74077 /* ToolExecutionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24ABC0198989436E1FF60CEF /* ToolExecutionView.swift */; };
+		CDE730DEB8284EF2B6A74077 /* AIToolExecutionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24ABC0198989436E1FF60CEF /* AIToolExecutionView.swift */; };
 		CDE8F8CAEB91D32FC992136E /* GitHubGistService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7AE27AF40D4718C28633EC5 /* GitHubGistService.swift */; };
 		CE101002E34BBDA370490001 /* ProjectEditorCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE101001E34BBDA370490001 /* ProjectEditorCoordinator.swift */; };
 		CE101004E34BBDA370490001 /* InfoPlistEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE101003E34BBDA370490001 /* InfoPlistEditor.swift */; };
@@ -1687,7 +1687,7 @@
 		23D1A98ADFF247ABBEEC7E8A /* DockerBuild.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerBuild.swift; sourceTree = "<group>"; };
 		23FD14921CD050FBA75251B7 /* ProjectFilesExtracter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectFilesExtracter.swift; sourceTree = "<group>"; };
 		241955EBD8DC62F897293D99 /* AIChatMessageListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatMessageListView.swift; sourceTree = "<group>"; };
-		24ABC0198989436E1FF60CEF /* ToolExecutionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolExecutionView.swift; sourceTree = "<group>"; };
+		24ABC0198989436E1FF60CEF /* AIToolExecutionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIToolExecutionView.swift; sourceTree = "<group>"; };
 		2519829B6414CC2099B00125 /* CodexRequestBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexRequestBuilder.swift; sourceTree = "<group>"; };
 		25379D97984683C3F0FBF856 /* GitChangesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/GitHub/Legacy/GitChangesView.swift; sourceTree = SOURCE_ROOT; };
 		25D3415C6252428ABAFE40CE /* SQLFormatterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLFormatterView.swift; sourceTree = "<group>"; };
@@ -4228,7 +4228,7 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 				A3A636A4CE544A9E85E3A992 /* AgentToolbar.swift */,
 				4343BE17C8E44C48A819A30F /* AgentModeView.swift */,
 				BBB4061A4B61B8DA3324F1C3 /* CodeChangesView.swift */,
-				24ABC0198989436E1FF60CEF /* ToolExecutionView.swift */,
+				24ABC0198989436E1FF60CEF /* AIToolExecutionView.swift */,
 				57D8446A55F333AEC1C328A2 /* Codex UIs */,
 				FA6C9FEA3B0617FEA151EA5C /* AICodeReviewView.swift */,
 				0682DDF5D10B82E7529C7A9C /* AICoreView.swift */,
@@ -5653,7 +5653,7 @@ CE705E1EC3604FFEEB031075 /* FoundationModels.swift in Sources */,
 				B1C10CF2FDE12F18EB6CF980 /* PrepareCompileWaitingView.swift in Sources */,
 				792ED704397F071D5181C47C /* AISuggestionEngine.swift in Sources */,
 				66D0CBEBDB8D87760FF9A84A /* CodeChangesView.swift in Sources */,
-				CDE730DEB8284EF2B6A74077 /* ToolExecutionView.swift in Sources */,
+				CDE730DEB8284EF2B6A74077 /* AIToolExecutionView.swift in Sources */,
 				228C5A6A1ECF513F6BE95689 /* CodexDiffViewer.swift in Sources */,
 				381C90725EEC69D7046FCAD7 /* CodexPullRequestView.swift in Sources */,
 				B9B2EC623B35AEB595A55A53 /* CodexErrorView.swift in Sources */,
