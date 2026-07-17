@@ -24,6 +24,9 @@ public final class AssistAgentSession: Sendable {
         self.state.events = []
         self.state.completedActions = []
         self.conversationHistory = []
+        AssistManager.shared.currentCodeReview = nil
+        AssistManager.shared.hasCodeReviewBeenInvoked = false
+        AssistManager.shared.isCodeReviewRunning = false
 
         self.contextManager = AgentContextManager(context: context)
 
@@ -139,10 +142,54 @@ public final class AssistAgentSession: Sendable {
                 state.status = .validating
                 emitEvent(state: .validating, summary: "Running code integrity, syntactic check, and compiler validation...")
 
-                // Transition to Completed!
-                state.status = .completed
-                emitEvent(state: .completed, summary: "Task completed: \(finalResponse)")
-                return
+                emitEvent(state: .validating, summary: "Initiating Code Review Validation...")
+                guard let reviewTool = registry.getTool("code_review") else {
+                    emitEvent(state: .failed, summary: "Required 'code_review' tool not found in registry.")
+                    state.status = .failed
+                    return
+                }
+
+                do {
+                    let reviewResult = try await reviewTool.execute(input: [:], context: context)
+
+                    if let reviewState = AssistManager.shared.currentCodeReview {
+                        if reviewState.status == "task_ready" {
+                            // Succeeded! Transition to Completed!
+                            state.status = .completed
+                            emitEvent(state: .completed, summary: "Code Review Approved! Task completed: \(finalResponse)\nReviewer: \(reviewState.userSee)")
+                            return
+                        } else {
+                            // Failed! Loop and continue
+                            emitEvent(state: .planning, summary: "Code Review Rejected. Continuing implementation with reviewer feedback.")
+
+                            // Inject reviewer feedback into conversation history
+                            let feedbackStr = """
+                            - Action: Final Response. Code Review Result: FAILED - Revisions required.
+                              Strengths:
+                              \(reviewState.strengths.isEmpty ? "- None" : "- " + reviewState.strengths.joined(separator: "\n  - "))
+                              Issues detected:
+                              \(reviewState.issues.isEmpty ? "- None" : "- " + reviewState.issues.joined(separator: "\n  - "))
+                              Recommended Fixes:
+                              \(reviewState.recommendedFixes.isEmpty ? "- None" : "- " + reviewState.recommendedFixes.joined(separator: "\n  - "))
+
+                              Please review these issues, update your plan, make the required modifications to the codebase, verify them, and call `code_review` again.
+                            """
+                            conversationHistory.append(feedbackStr)
+
+                            consecutiveNoOps = 0
+                            previousStateSignature = ""
+                            continue
+                        }
+                    } else {
+                        emitEvent(state: .failed, summary: "Code Review did not produce review results.")
+                        state.status = .failed
+                        return
+                    }
+                } catch {
+                    emitEvent(state: .failed, summary: "Code Review failed to execute: \(error.localizedDescription)")
+                    state.status = .failed
+                    return
+                }
             }
 
             // Check for tool call

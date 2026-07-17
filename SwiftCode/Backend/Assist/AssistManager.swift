@@ -9,6 +9,9 @@ public final class AssistManager: ObservableObject {
     @Published public var isProcessing = false
     @Published public var lastError: String?
     @Published public var takeoverReason: String?
+    @Published public var currentCodeReview: CodeReviewInternalResult?
+    @Published public var isCodeReviewRunning: Bool = false
+    @Published public var hasCodeReviewBeenInvoked: Bool = false
 
     public let logger = AssistLogger()
     public let session = AssistSession()

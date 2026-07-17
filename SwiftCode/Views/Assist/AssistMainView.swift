@@ -192,6 +192,7 @@ public struct AssistMainView: View {
                         }
 
                         if isAgentMode {
+                            CodeAssistUserView()
                             TaskProgressView(agentSession: manager.agentSession)
                             ToolExecutionView(agentSession: manager.agentSession)
                             AgentTimelineView(agentSession: manager.agentSession)
