@@ -21,7 +21,7 @@ public struct AssistAutoFixErrorsTool: AssistTool {
             // LLM-powered fix
             let original = try context.fileSystem.readFile(at: path)
             let provider = AssistModelProvider.openAI
-            let apiKey = APIKeyManager.shared.retrieveKey(service: provider.apiKeyProvider)
+            let apiKey = await APIKeyManager.shared.retrieveKey(service: provider.apiKeyProvider)
 
             let prompt = """
             Fix the linting issues in this Swift file.

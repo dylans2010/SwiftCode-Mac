@@ -17,7 +17,7 @@ public struct AssistExplainCodeTool: AssistTool {
 
             // LLM-powered explanation
             let provider = AssistModelProvider.openAI // Default for now
-            let apiKey = APIKeyManager.shared.retrieveKey(service: provider.apiKeyProvider)
+            let apiKey = await APIKeyManager.shared.retrieveKey(service: provider.apiKeyProvider)
 
             let prompt = """
             You are a Swift expert. Explain the following code file in detail.

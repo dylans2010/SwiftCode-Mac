@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 public struct AssistExecutionFunctions {
     public typealias ExecutionTask = (AssistContext) async throws -> String
 

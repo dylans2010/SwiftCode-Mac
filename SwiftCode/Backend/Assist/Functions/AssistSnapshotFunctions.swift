@@ -1,7 +1,9 @@
 import Foundation
 
 public struct AssistSnapshotFunctions {
-    private static let fileManager = FileManager.default
+    private static var fileManager: FileManager {
+        FileManager.default
+    }
 
     public static func createSnapshot(project: URL, message: String) throws -> URL {
         let snapshotsDir = try getSnapshotsDirectory()

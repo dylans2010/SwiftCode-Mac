@@ -438,7 +438,7 @@ public struct CodexSignInFlow: View {
 
         Task {
             do {
-                try await bridgeManager.streamPrompt(testPrompt) { token in
+                try await bridgeManager.streamPrompt(testPrompt) { @MainActor token in
                     testResponse += token
                     testStatus = "Streaming..."
                 }

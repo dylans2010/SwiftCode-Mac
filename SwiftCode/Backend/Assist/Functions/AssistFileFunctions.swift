@@ -1,7 +1,9 @@
 import Foundation
 
 public struct AssistFileFunctions {
-    private static let fileManager = FileManager.default
+    private static var fileManager: FileManager {
+        FileManager.default
+    }
 
     public static func readFile(at url: URL) throws -> String {
         return try String(contentsOf: url, encoding: .utf8)

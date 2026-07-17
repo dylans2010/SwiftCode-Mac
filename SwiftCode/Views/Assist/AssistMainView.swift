@@ -536,3 +536,56 @@ private struct AssistChatBubble: View {
         .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
     }
 }
+
+// MARK: - Helper Views
+
+struct AssistErrorBubble: View {
+    let error: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+            Text(error)
+                .font(.callout)
+                .foregroundStyle(.red)
+            Spacer()
+        }
+        .padding()
+        .background(Color.red.opacity(0.1))
+        .cornerRadius(10)
+    }
+}
+
+struct MiniLogFeed: View {
+    @ObservedObject var logger: AssistLogger
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let lastLog = logger.logs.last {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(logColor(for: lastLog.level))
+                        .frame(width: 6, height: 6)
+                    Text("[\(lastLog.toolId ?? "system")] \(lastLog.message)")
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(Color.black.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func logColor(for level: AssistLogLevel) -> Color {
+        switch level {
+        case .info: return .blue
+        case .warning: return .yellow
+        case .error: return .red
+        case .debug: return .gray
+        }
+    }
+}

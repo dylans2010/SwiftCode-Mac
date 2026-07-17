@@ -41,9 +41,7 @@ public actor OpenRouterClient {
 
     public func streamChatCompletion(request: AIAssistantRequest) async throws -> AsyncThrowingStream<String, Error> {
         logger.log("[streamChatCompletion] Routing request centrally through LLMService.")
-        return try await MainActor.run {
-            try await LLMService.shared.streamChatCompletion(request: request)
-        }
+        return try await LLMService.shared.streamChatCompletion(request: request)
     }
 
     public func streamChatCompletionDirect(request: AIAssistantRequest) async throws -> AsyncThrowingStream<String, Error> {

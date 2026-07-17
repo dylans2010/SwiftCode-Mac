@@ -65,8 +65,8 @@ public final class AssistExecutionEngine {
                 } else {
                     // Force project refresh on successful file writes or modifications
                     if ["file_write", "code_refactor", "file_create", "file_append"].contains(step.toolId) {
-                        if let project = ProjectManager.shared.activeProject {
-                            ProjectManager.shared.refreshFileTree(for: project)
+                        if let project = await ProjectSessionStore.shared.activeProject {
+                            await ProjectSessionStore.shared.refreshFileTree(for: project)
                         }
                     }
                 }
