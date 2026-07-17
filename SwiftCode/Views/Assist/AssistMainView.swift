@@ -188,7 +188,10 @@ public struct AssistMainView: View {
                         }
 
                         if isAgentMode {
-                            AssistPlannerView()
+                            TaskProgressView(agentSession: manager.agentSession)
+                            ToolExecutionView(agentSession: manager.agentSession)
+                            AgentTimelineView(agentSession: manager.agentSession)
+                            AgentControlsView(agentSession: manager.agentSession)
                         }
 
                         if let error = manager.lastError {

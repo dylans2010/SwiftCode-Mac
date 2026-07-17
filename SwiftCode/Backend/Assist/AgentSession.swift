@@ -1,0 +1,260 @@
+import Foundation
+import Observation
+import os
+
+@Observable
+@MainActor
+public final class AgentSession: Sendable {
+    private let pipelineLogger = Logger(subsystem: "com.swiftcode.app", category: "AgentSession")
+
+    public var state = AgentSessionState()
+    private var isCancelled = false
+    private let registry = AssistToolRegistry()
+    private var contextManager: AgentContextManager?
+    private var conversationHistory: [String] = []
+
+    public init() {}
+
+    public func start(objective: String, context: AssistContext) async throws {
+        self.isCancelled = false
+        self.state.objective = objective
+        self.state.status = .planning
+        self.state.toolCallCount = 0
+        self.state.plan = []
+        self.state.events = []
+        self.state.completedActions = []
+        self.conversationHistory = []
+
+        self.contextManager = AgentContextManager(context: context)
+
+        emitEvent(state: .planning, summary: "Decomposing task objective and constructing project context budget...")
+
+        // Loop limit guard
+        let maxIterations = 25
+        var consecutiveNoOps = 0
+        var previousStateSignature = ""
+
+        while !isCancelled {
+            if state.toolCallCount >= maxIterations {
+                emitEvent(state: .stalled, summary: "Agent loop ceiling reached (25 tools executed). Suspending for safety.")
+                state.status = .stalled
+                return
+            }
+
+            // PHASE 1: Collect Context & Prompt LLM
+            state.status = .planning
+            let contextPayload = await contextManager?.buildContext(for: objective)
+            let manifest = contextPayload?.repoManifestSummary ?? ""
+            let activeFiles = contextPayload?.activeFileContents.map { "\($0.key):\n\($0.value)" }.joined(separator: "\n\n") ?? ""
+
+            // Build dynamic tool list from registry with actual schemas
+            let toolSchemas = registry.allTools.map { tool in
+                let schemaData = (try? JSONEncoder().encode(tool.parametersSchema)) ?? Data()
+                let schemaStr = String(data: schemaData, encoding: .utf8) ?? "{}"
+                return "- id: \(tool.id)\n  Description: \(tool.description)\n  Schema: \(schemaStr)"
+            }.joined(separator: "\n\n")
+
+            let systemPrompt = """
+            # ROLE
+            You are an autonomous Swift/macOS coding agent working in SwiftCode.
+            Your goal is: "\(objective)"
+
+            # SYSTEM INSTRUCTION
+            You can execute local actions by outputting a JSON object.
+            Choose one of the available tools, or output a final response when the task is complete.
+
+            You MUST respond in exactly this JSON format (no markdown backticks, no text outside the JSON):
+            {
+              "toolId": "the_tool_id",
+              "input": { "key": "value" },
+              "explanation": "Why you are using this tool"
+            }
+            OR, if the goal is fully achieved and no more tools are needed:
+            {
+              "finalResponse": "A clear, detailed description of your achievements and the files modified"
+            }
+
+            # CURRENT WORKSPACE CONTEXT
+            \(manifest)
+
+            # ACTIVE FILE CONTENTS
+            \(activeFiles)
+
+            # AVAILABLE TOOLS
+            \(toolSchemas)
+
+            # SECURITY CONSTRAINTS
+            - Never use relative traversal (e.g. "..") or root paths (e.g. "/").
+            - Always double check file paths before reading/writing.
+            """
+
+            var conversationPrompt = systemPrompt
+            if !conversationHistory.isEmpty {
+                conversationPrompt += "\n\n# HISTORY OF RECENT TOOL EXECUTION RESULTS\n"
+                conversationPrompt += conversationHistory.joined(separator: "\n")
+            }
+            conversationPrompt += "\n\nChoose the next best tool to run or provide your finalResponse. Respond ONLY with valid JSON."
+
+            emitEvent(state: .selectingTool, summary: "Reasoning about next actions based on tool schema specifications...")
+
+            // Query Model dynamically!
+            let response = await LLMService.shared.generateResponse(prompt: conversationPrompt, useContext: false)
+            guard response.count > 0 else {
+                emitEvent(state: .failed, summary: "Model returned an empty response.")
+                state.status = .failed
+                return
+            }
+
+            // Parse response
+            guard let jsonBlock = extractJSON(from: response) else {
+                emitEvent(state: .failed, summary: "Failed to parse valid JSON command from model output.")
+                state.status = .failed
+                return
+            }
+
+            // Check if final response was reached
+            if let finalResponse = jsonBlock["finalResponse"] as? String {
+                state.status = .validating
+                emitEvent(state: .validating, summary: "Running code integrity, syntactic check, and compiler validation...")
+
+                // Transition to Completed!
+                state.status = .completed
+                emitEvent(state: .completed, summary: "Task completed: \(finalResponse)")
+                return
+            }
+
+            // Check for tool call
+            guard let toolId = jsonBlock["toolId"] as? String,
+                  let toolInput = jsonBlock["input"] as? [String: String] else {
+                emitEvent(state: .failed, summary: "Model JSON output missing toolId or input arguments.")
+                state.status = .failed
+                return
+            }
+
+            let explanation = jsonBlock["explanation"] as? String ?? ""
+
+            // Add dynamic step to plan so UI updates check-list dynamically!
+            let newStep = PlanStep(toolId: toolId, description: explanation.isEmpty ? "Running \(toolId)" : explanation, input: toolInput)
+            state.plan.append(newStep)
+
+            state.status = .executingTool
+            emitEvent(state: .executingTool, summary: "Executing tool [\(toolId)] - Reason: \(explanation)")
+
+            guard let tool = registry.getTool(toolId) else {
+                emitEvent(state: .failed, summary: "Tool not found in registry: \(toolId)")
+                state.status = .failed
+                return
+            }
+
+            state.toolCallCount += 1
+
+            do {
+                // Security path checks
+                if let path = toolInput["path"] {
+                    if path.contains("..") || path.hasPrefix("/") {
+                        throw NSError(domain: "AgentSession", code: 403, userInfo: [NSLocalizedDescriptionKey: "Security sandbox violation: Relative path traversals or root-level modifications are restricted."])
+                    }
+                }
+
+                // Execute tool
+                let result = try await tool.execute(input: toolInput, context: context)
+
+                state.status = .inspectingResult
+
+                if result.success {
+                    emitEvent(state: .inspectingResult, summary: "Step completed: \(result.output)", toolResult: result.output)
+                    state.completedActions.append(newStep.description)
+
+                    // Update dynamic step status in plan
+                    if let index = state.plan.firstIndex(where: { $0.id == newStep.id }) {
+                        state.plan[index].status = .completed
+                    }
+
+                    // Append to conversation history so model knows the result next turn!
+                    conversationHistory.append("- Action: Run \(toolId) with \(toolInput). Result: SUCCESS - Output: \(result.output)")
+
+                    // Force refresh if file mutated
+                    if ["file_write", "code_refactor", "file_create", "file_append"].contains(toolId) {
+                        if let project = await ProjectSessionStore.shared.activeProject {
+                            await ProjectSessionStore.shared.refreshFileTree(for: project)
+                        }
+                    }
+                } else {
+                    emitEvent(state: .failed, summary: "Tool execution failed: \(result.error ?? "Unknown error")")
+
+                    if let index = state.plan.firstIndex(where: { $0.id == newStep.id }) {
+                        state.plan[index].status = .failed
+                    }
+
+                    conversationHistory.append("- Action: Run \(toolId) with \(toolInput). Result: FAILED - Error: \(result.error ?? "Unknown error")")
+
+                    // Stagnation/No-op detection
+                    let stateSignature = "\(toolId)-\(result.error ?? "")"
+                    if stateSignature == previousStateSignature {
+                        consecutiveNoOps += 1
+                    } else {
+                        consecutiveNoOps = 1
+                        previousStateSignature = stateSignature
+                    }
+
+                    if consecutiveNoOps >= 3 {
+                        emitEvent(state: .stalled, summary: "Stagnation loop detected. Tool output unchanged for 3 consecutive cycles.")
+                        state.status = .stalled
+                        return
+                    }
+
+                    if context.safetyLevel == .conservative {
+                        state.status = .failed
+                        return
+                    }
+                }
+            } catch {
+                emitEvent(state: .failed, summary: "Engine error during execution: \(error.localizedDescription)")
+                state.status = .failed
+                return
+            }
+        }
+
+        if isCancelled {
+            state.status = .cancelled
+            emitEvent(state: .cancelled, summary: "Task execution cancelled by user takeover.")
+        }
+    }
+
+    public func cancel() {
+        self.isCancelled = true
+        self.state.status = .cancelled
+        emitEvent(state: .cancelled, summary: "Operation aborted.")
+    }
+
+    public func retryLastStep() {
+        self.isCancelled = false
+        if self.state.status == .failed || self.state.status == .stalled {
+            self.state.status = .planning
+            emitEvent(state: .planning, summary: "Retrying failed/stalled agent cycle.")
+        }
+    }
+
+    private func emitEvent(state: AgentSessionStatus, summary: String, toolResult: String? = nil) {
+        let event = AgentEvent(state: state, summary: summary, toolResult: toolResult)
+        self.state.events.append(event)
+        self.pipelineLogger.info("[\(state.rawValue)] \(summary)")
+    }
+
+    private func extractJSON(from response: String) -> [String: Any]? {
+        var cleaned = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Strip markdown fences if any
+        if cleaned.hasPrefix("```json") {
+            cleaned = String(cleaned.dropFirst(7))
+        } else if cleaned.hasPrefix("```") {
+            cleaned = String(cleaned.dropFirst(3))
+        }
+        if cleaned.hasSuffix("```") {
+            cleaned = String(cleaned.dropLast(3))
+        }
+        cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let data = cleaned.data(using: .utf8) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    }
+}
