@@ -256,24 +256,45 @@ public struct MarkdownBlockView: View {
                 .lineSpacing(4)
 
         case .codeBlock(let language, let code):
-            VStack(alignment: .leading, spacing: 4) {
-                if let language {
-                    Text(language.uppercased())
-                        .font(.caption2.bold())
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Color.white.opacity(0.08))
-                        .cornerRadius(4)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    if let language {
+                        Text(language.uppercased())
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("CODE")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(code, forType: .string)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "doc.on.doc")
+                                .font(.caption2)
+                            Text("Copy")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.secondary.opacity(0.1))
+
                 ScrollView(.horizontal) {
                     Text(code)
                         .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
                         .padding(10)
                 }
                 .background(Color.black.opacity(0.3))
-                .cornerRadius(6)
             }
+            .cornerRadius(6)
             .padding(.vertical, 4)
 
         case .blockQuote(let text):
