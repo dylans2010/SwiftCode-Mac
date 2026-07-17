@@ -30,9 +30,6 @@ public final class AssistExecutionEngine {
                 }
 
                 await self.context.logger.info("Executing tool: \(tool.name)", toolId: step.toolId)
-                let executeToolOnMain: @MainActor (_ input: [String: Any]) async throws -> AssistToolResult = { [self] input in
-                    try await tool.execute(input: input, context: self.context)
-                }
 
                 // Map the input to [String: Any] as required by AssistTool protocol
                 var toolInput = step.input as [String: Any]
@@ -48,14 +45,11 @@ public final class AssistExecutionEngine {
                    ["code_refactor", "file_read", "file_append"].contains(step.toolId),
                    !self.context.fileSystem.exists(at: path),
                    let createFileTool = self.registry.getTool("file_create") {
-                    let executeCreateFileOnMain: @MainActor (_ input: [String: Any]) async throws -> AssistToolResult = { [self] input in
-                        try await createFileTool.execute(input: input, context: self.context)
-                    }
-                    _ = try await executeCreateFileOnMain(["path": path, "content": "", "overwrite": false])
+                    _ = try await createFileTool.execute(input: ["path": path, "content": "", "overwrite": false], context: self.context)
                     await self.context.logger.info("Auto-created missing file at \(path) before executing \(step.toolId)", toolId: "file_create")
                 }
 
-                let result = try await executeToolOnMain(toolInput)
+                let result = try await tool.execute(input: toolInput, context: self.context)
 
                 step.result = result
                 step.status = result.success ? .completed : .failed

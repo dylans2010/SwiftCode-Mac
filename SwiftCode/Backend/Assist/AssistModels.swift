@@ -88,6 +88,7 @@ public struct AssistLLMService {
 
 /// Protocol for all Assist tools.
 /// All tools must be prefixed with 'Assist'.
+@MainActor
 public protocol AssistTool {
     var id: String { get }
     var name: String { get }
