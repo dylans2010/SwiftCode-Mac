@@ -12,6 +12,10 @@ public struct AssistMainView: View {
     @State private var showDiagnostics = true
     @State private var searchConversationText = ""
 
+    // Codex onboarding trigger states
+    @State private var showConnectCodex = false
+    @State private var showingCodexSetup = false
+
     // Mode selection: Chat Mode (Read-Only) vs. Agent Mode (Autonomous)
     @AppStorage("com.swiftcode.assist.mode") private var isAgentMode = false
 
@@ -67,6 +71,34 @@ public struct AssistMainView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
                 .padding(.horizontal)
+
+                if showConnectCodex {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Label("Connect OpenAI Codex", systemImage: "sparkles")
+                                    .font(.headline)
+                                    .foregroundStyle(.orange)
+                                Spacer()
+                            }
+                            Text("Setup Codex provider to run native, ultra-fast model inference.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Button {
+                                showingCodexSetup = true
+                            } label: {
+                                Text("Connect Codex")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.orange)
+                        }
+                        .padding(8)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+                    .padding(.horizontal)
+                    .transition(.opacity)
+                }
 
                 Divider()
                     .padding(.vertical)
@@ -317,6 +349,28 @@ public struct AssistMainView: View {
                 AssistSettingsView()
             }
         }
+        .sheet(isPresented: $showingCodexSetup) {
+            CodexSignInFlow()
+        }
+        .task {
+            await updateCodexButtonVisibility()
+        }
+        .onChange(of: showingCodexSetup) { _, newValue in
+            if !newValue {
+                Task {
+                    await updateCodexButtonVisibility()
+                }
+            }
+        }
+    }
+
+    private func updateCodexButtonVisibility() async {
+        let hasKey = !(KeychainService.shared.get(forKey: KeychainService.codexUserAPIKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let bridgeLocated = (try? CodexBridgeManager.shared.locateResources()) != nil
+        let isHealthy = await CodexBridgeManager.shared.isBridgeHealthy()
+        let completedSetup = UserDefaults.standard.bool(forKey: "com.swiftcode.codex.completedSetup")
+
+        showConnectCodex = !hasKey || !bridgeLocated || !isHealthy || !completedSetup
     }
 
     private var filteredMessages: [AssistMessage] {

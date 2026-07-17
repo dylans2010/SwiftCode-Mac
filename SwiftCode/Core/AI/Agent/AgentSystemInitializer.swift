@@ -19,6 +19,11 @@ public final class AgentSystemInitializer: Sendable {
                 _ = try await SkillsRuntime.shared.discoverSkills(in: baseDir)
 
                 LoggingTool.info("Agent system initialized successfully.")
+
+                // Automatically launch the bridge if Codex setup was completed previously
+                if UserDefaults.standard.bool(forKey: "com.swiftcode.codex.completedSetup") {
+                    await CodexBridgeManager.shared.ensureBridgeRunning()
+                }
             } catch {
                 LoggingTool.error("Failed to initialize Agent System: \(error)")
             }
