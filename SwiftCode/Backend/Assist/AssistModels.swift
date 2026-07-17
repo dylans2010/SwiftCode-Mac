@@ -11,6 +11,7 @@ public enum AssistModelProvider: String, Codable, CaseIterable {
     case meta = "Meta AI"
     case kimi = "Kimi"
     case openRouter = "OpenRouter"
+    case codex = "Codex"
 
     var apiKeyProvider: APIKeyProvider {
         switch self {
@@ -20,6 +21,7 @@ public enum AssistModelProvider: String, Codable, CaseIterable {
         case .mistral: return .mistral
         case .meta, .kimi: return .openRouter
         case .openRouter: return .openRouter
+        case .codex: return .openai
         }
     }
 
@@ -30,6 +32,7 @@ public enum AssistModelProvider: String, Codable, CaseIterable {
         case .gemini: return .google
         case .mistral: return .mistral
         case .meta, .kimi, .openRouter: return .openRouter
+        case .codex: return .codex
         }
     }
 
@@ -42,6 +45,7 @@ public enum AssistModelProvider: String, Codable, CaseIterable {
         case .meta: return URL(string: "https://api.meta.ai/v1/chat/completions") // Example
         case .kimi: return URL(string: "https://api.moonshot.cn/v1/chat/completions")
         case .openRouter: return URL(string: "https://openrouter.ai/api/v1/chat/completions")
+        case .codex: return URL(string: "http://localhost:3003/v1/chat/completions")
         }
     }
 }
