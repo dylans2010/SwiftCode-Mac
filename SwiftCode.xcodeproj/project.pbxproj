@@ -698,7 +698,6 @@
 		762173A787B6B73BEF37CB14 /* SemVerCheckerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38D77A97C2FB96D0A652F1E9 /* SemVerCheckerView.swift */; };
 		76499C4C6373C13A7E25408E /* SwiftLintRunnerExtensionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90A14F8825EA8F4E2475C4B /* SwiftLintRunnerExtensionView.swift */; };
 		765B81F0087603867A4A283C /* PaywallDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEF6D1600977E5E379BA762 /* PaywallDebugView.swift */; };
-		77B43DCE400F4545BE986643 /* AssistCIFunctions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BE22505D0004FE0B4358328 /* AssistCIFunctions.swift */; };
 		77BCA66E82BE4E0BA9848DA9 /* StopRunningProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 515C9B1EFC434E7DBF9311C6 /* StopRunningProcess.swift */; };
 		77D8B2B2DE3DDB0268EF2387 /* ProjectScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54792A364538E5DFCDC395E8 /* ProjectScanner.swift */; };
 		780B1B0409D047628A0565FE /* TemplatePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD4100FC6872866E61CBC096 /* TemplatePickerView.swift */; };
@@ -1734,7 +1733,6 @@
 		2B4E02E0765F74EF375F126E /* ActivityLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLogView.swift; sourceTree = "<group>"; };
 		2B7DE79CF3E249F885CA3B3B /* GenerateIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerateIntegrationTests.swift; sourceTree = "<group>"; };
 		2BBD505DDB534D1996088E96 /* UploadFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadFile.swift; sourceTree = "<group>"; };
-		2BE22505D0004FE0B4358328 /* AssistCIFunctions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistCIFunctions.swift; sourceTree = "<group>"; };
 		2BE3FC41B13119FD20865576 /* CollaborationCodeReviewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollaborationCodeReviewManager.swift; sourceTree = "<group>"; };
 		2C54A3B3678E7B9DD8CA3A7B /* TestCoverageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestCoverageManager.swift; sourceTree = "<group>"; };
 		2CDCDFAC1915F09664DA4907 /* SimulatorDiscoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorDiscoveryService.swift; sourceTree = "<group>"; };
@@ -3405,7 +3403,6 @@
 		36DFCDAA84A519209996D746 /* Build */ = {
 			isa = PBXGroup;
 			children = (
-				2BE22505D0004FE0B4358328 /* AssistCIFunctions.swift */,
 				6AB2D1AD681BC048CB097303 /* BuildDiagnostic.swift */,
 				8AE57462B0B5E506FA9CC059 /* BuildTargetInfo.swift */,
 				978D23E75B01ECDFDDE58E37 /* BuildScheme.swift */,
@@ -5588,7 +5585,6 @@ CE705E1EC3604FFEEB031075 /* FoundationModels.swift in Sources */,
 				07377823BA0D465E8B8AE3BE /* AgentModeView.swift in Sources */,
 				AEF3A27D385B4F42AD46509E /* CoreModels.swift in Sources */,
 				D1D1D1D1D1D1D1D1D1D1D1D1 /* PackageDependency.swift in Sources */,
-				77B43DCE400F4545BE986643 /* AssistCIFunctions.swift in Sources */,
 				662EEBC461982F43E3AEDF10 /* MLXModelContainer.swift in Sources */,
 				B7420BD5E70499A641004656 /* OnDeviceAIManager.swift in Sources */,
 				9E0C2AAF744606CC811F93ED /* DeploymentKeychainManager.swift in Sources */,
