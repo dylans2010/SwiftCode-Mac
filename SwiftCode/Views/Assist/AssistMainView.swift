@@ -9,7 +9,8 @@ public struct AssistMainView: View {
     @State private var inputText: String = ""
     @State private var isEnhancingPrompt = false
     @State private var showSettings = false
-    @State private var showDiagnostics = true
+    @State private var showDiagnosticsSheet = false
+    @State private var showExecutionModeSheet = false
     @State private var searchConversationText = ""
 
     // Codex onboarding trigger states
@@ -22,328 +23,175 @@ public struct AssistMainView: View {
     public init() {}
 
     public var body: some View {
-        HSplitView {
-            // Left split: Sidebar for Conversations and Search
-            VStack(spacing: 0) {
-                // Search bar
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("Search chats...", text: $searchConversationText)
-                        .textFieldStyle(.plain)
-                    if !searchConversationText.isEmpty {
-                        Button {
-                            searchConversationText = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
+        VStack(spacing: 0) {
+            // Header Bar
+            HStack(spacing: 12) {
+                Button {
+                    manager.clearChat()
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.body)
                 }
-                .padding(8)
-                .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
-                .padding()
-
-                // Mode Selector Card
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            Label("Execution Mode", systemImage: isAgentMode ? "cpu.fill" : "text.bubble.fill")
-                                .font(.headline)
-                                .foregroundStyle(isAgentMode ? .orange : .blue)
-                            Spacer()
-                        }
-
-                        Picker("Mode", selection: $isAgentMode) {
-                            Text("Chat Mode (Read)").tag(false)
-                            Text("Agent Mode (Write)").tag(true)
-                        }
-                        .pickerStyle(.segmented)
-
-                        Text(isAgentMode ? "Allows full autonomy to run terminal commands, create, edit, or delete files, and run builds (with user approval)." : "Read-only access to explain code, analyze layouts, and answer questions. No write or run tools.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(4)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(8)
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
-                .padding(.horizontal)
-
-                if showConnectCodex {
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Label("Connect OpenAI Codex", systemImage: "sparkles")
-                                    .font(.headline)
-                                    .foregroundStyle(.orange)
-                                Spacer()
-                            }
-                            Text("Setup Codex provider to run native, ultra-fast model inference.")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Button {
-                                showingCodexSetup = true
-                            } label: {
-                                Text("Connect Codex")
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(.orange)
-                        }
-                        .padding(8)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-                    .padding(.horizontal)
-                    .transition(.opacity)
-                }
-
-                Divider()
-                    .padding(.vertical)
-
-                // Quick stats / Info
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("Status Panel", systemImage: "bolt.fill")
-                        .font(.headline)
-                        .foregroundStyle(.yellow)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Active Model:")
-                                .font(.caption.bold())
-                            Spacer()
-                            Text(manager.selectedModel.displayName)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        HStack {
-                            Text("Process Health:")
-                                .font(.caption.bold())
-                            Spacer()
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(manager.isProcessing ? Color.orange : Color.green)
-                                    .frame(width: 8, height: 8)
-                                Text(manager.isProcessing ? "Executing" : "Idle")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .padding(10)
-                    .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
-                }
-                .padding()
+                .buttonStyle(.plain)
+                .help("Clear Chat History (⌘K)")
 
                 Spacer()
 
-                // Clear and resets
-                Button(action: { manager.clearChat() }) {
-                    Label("Clear Chat History", systemImage: "trash")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .tint(.red)
-                .keyboardShortcut("k", modifiers: [.command])
-                .padding()
-            }
-            .frame(minWidth: 260, idealWidth: 300, maxWidth: 350)
-            .background(.windowBackground)
-
-            // Center Panel: Chat logs
-            VStack(spacing: 0) {
-                // Header status
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(isAgentMode ? "Agent Workspace" : "Chat Assistant")
-                            .font(.headline)
-                        Text(manager.isProcessing ? "Processing message context..." : "Ready for instructions")
-                            .font(.subheadline)
+                // Execution Mode Button (opens as Sheet)
+                Button {
+                    showExecutionModeSheet = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: isAgentMode ? "cpu.fill" : "text.bubble.fill")
+                            .foregroundStyle(isAgentMode ? .orange : .blue)
+                        Text(isAgentMode ? "Agent Mode" : "Chat Mode")
+                            .font(.subheadline.bold())
+                        Image(systemName: "chevron.down")
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
-                    Spacer()
-
-                    Button {
-                        withAnimation {
-                            showDiagnostics.toggle()
-                        }
-                    } label: {
-                        Label("Diagnostics", systemImage: "terminal.fill")
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(showDiagnostics ? .orange : .secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.secondary.opacity(0.12), in: Capsule())
                 }
-                .padding()
-                .background(.ultraThinMaterial)
+                .buttonStyle(.plain)
+                .help("Toggle Execution Mode")
 
-                // Messages ScrollView
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 20) {
-                            ForEach(filteredMessages) { message in
-                                AssistChatBubble(message: message)
-                            }
+                Spacer()
 
-                            if isAgentMode {
-                                AssistPlannerView()
-                            }
-
-                            if let error = manager.lastError {
-                                AssistErrorBubble(error: error)
-                            }
-
-                            if manager.isProcessing {
-                                thinkingIndicator
-                            }
-                        }
-                        .padding(24)
-                        .blur(radius: manager.takeoverReason != nil ? 8 : 0)
-                        .overlay {
-                            if let reason = manager.takeoverReason {
-                                AssistUserTakeover(
-                                    reason: reason,
-                                    onResume: {
-                                        manager.takeoverReason = nil
-                                    },
-                                    onAbort: {
-                                        manager.takeoverReason = nil
-                                        manager.clearChat()
-                                    }
-                                )
-                            }
-                        }
-                        .id("Bottom")
-                    }
-                    .onChange(of: manager.messages.count) { _, _ in
-                        withAnimation { proxy.scrollTo("Bottom", anchor: .bottom) }
-                    }
+                // Diagnostics Trigger
+                Button {
+                    showDiagnosticsSheet = true
+                } label: {
+                    Image(systemName: "terminal.fill")
+                        .font(.body)
+                        .foregroundStyle(manager.isProcessing ? .orange : .secondary)
                 }
+                .buttonStyle(.plain)
+                .help("System Diagnostics")
 
-                // Input bar area
-                VStack(spacing: 12) {
-                    if !manager.logger.logs.isEmpty {
-                        MiniLogFeed(logger: manager.logger)
-                    }
-                    inputArea
-                }
-                .padding(20)
-                .background(.ultraThinMaterial)
-            }
-            .frame(minWidth: 500, idealWidth: 700)
-
-            // Right Panel: Diagnostics/Inspector
-            if showDiagnostics {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack {
-                        Label("System Telemetry", systemImage: "waveform.path.ecg")
-                            .font(.headline)
-                            .foregroundStyle(.orange)
-                        Spacer()
-                    }
-                    .padding()
-                    .background(.ultraThinMaterial)
-
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 20) {
-                            // GroupBox: Current Active Provider
-                            GroupBox {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    Label("Active Provider Status", systemImage: "network")
-                                        .font(.subheadline.bold())
-                                        .foregroundStyle(.cyan)
-
-                                    let provider = (try? LLMService.shared.resolvedRoutingProvider()) ?? .openRouter
-                                    Text("Routing directly to: \(provider.rawValue)")
-                                        .font(.caption)
-
-                                    if provider == .codex {
-                                        Text("OpenAI Codex SDK connection established via local bridge server port 3003.")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    } else if FoundationModels.shared.isEnabled {
-                                        Text("Bypassing cloud endpoints. Native third-gen AFM 3 on-device reasoning is active.")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    } else {
-                                        Text("Cloud processing via secure OpenRouter/Anthropic key integrations.")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                .padding(8)
-                            }
-                            .groupBoxStyle(ModernGroupBoxStyle())
-
-                            // GroupBox: Process and Thread Telemetry
-                            GroupBox {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    Label("Process Diagnostics", systemImage: "cpu")
-                                        .font(.subheadline.bold())
-                                        .foregroundStyle(.green)
-
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Text("Platform: macOS (Darwin 24+)")
-                                        Text("Thread Isolation: Strict @MainActor")
-                                        Text("Memory Allocation: Automatic Graph")
-                                        Text("Sandbox Mode: Source-Control Embedded")
-                                    }
-                                    .font(.system(size: 10, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                                }
-                                .padding(8)
-                            }
-                            .groupBoxStyle(ModernGroupBoxStyle())
-
-                            // GroupBox: Live Telemetry Logs
-                            GroupBox {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    Label("Inference Pipeline Logs", systemImage: "terminal.fill")
-                                        .font(.subheadline.bold())
-                                        .foregroundStyle(.yellow)
-
-                                    ScrollView {
-                                        VStack(alignment: .leading, spacing: 6) {
-                                            if manager.logger.logs.isEmpty {
-                                                Text("Pipeline standby. Initiate prompt request.")
-                                                    .font(.system(.caption2, design: .monospaced))
-                                                    .foregroundStyle(.secondary)
-                                            } else {
-                                                ForEach(manager.logger.logs) { log in
-                                                    Text("[\(log.toolId ?? "system")] \(log.message)")
-                                                        .font(.system(.caption2, design: .monospaced))
-                                                        .foregroundStyle(.secondary)
-                                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                                }
-                                            }
-                                        }
-                                        .padding(8)
-                                    }
-                                    .frame(height: 200)
-                                    .background(Color.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                                }
-                                .padding(8)
-                            }
-                            .groupBoxStyle(ModernGroupBoxStyle())
-                        }
-                        .padding()
-                    }
-                }
-                .frame(minWidth: 260, idealWidth: 300, maxWidth: 350)
-                .background(.windowBackground)
-            }
-        }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+                // Settings Trigger
                 Button {
                     showSettings = true
                 } label: {
-                    Label("Assist Settings", systemImage: "gearshape")
+                    Image(systemName: "gearshape")
+                        .font(.body)
+                }
+                .buttonStyle(.plain)
+                .help("Assist Settings")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(.thinMaterial)
+
+            Divider()
+
+            // Chat Messages scroll block
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 16) {
+                        // Search bar
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundStyle(.secondary)
+                            TextField("Search chats...", text: $searchConversationText)
+                                .textFieldStyle(.plain)
+                            if !searchConversationText.isEmpty {
+                                Button {
+                                    searchConversationText = ""
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(6)
+                        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                        .padding(.horizontal, 12)
+                        .padding(.top, 8)
+
+                        if showConnectCodex {
+                            GroupBox {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Label("Connect OpenAI Codex", systemImage: "sparkles")
+                                            .font(.subheadline.bold())
+                                            .foregroundStyle(.orange)
+                                        Spacer()
+                                    }
+                                    Text("Setup Codex provider to run native, ultra-fast model inference.")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Button {
+                                        showingCodexSetup = true
+                                    } label: {
+                                        Text("Connect Codex")
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.orange)
+                                    .controlSize(.small)
+                                }
+                                .padding(4)
+                            }
+                            .groupBoxStyle(ModernGroupBoxStyle())
+                            .padding(.horizontal, 12)
+                        }
+
+                        // Chat bubbles
+                        ForEach(filteredMessages) { message in
+                            AssistChatBubble(message: message)
+                        }
+
+                        if isAgentMode {
+                            AssistPlannerView()
+                        }
+
+                        if let error = manager.lastError {
+                            AssistErrorBubble(error: error)
+                        }
+
+                        if manager.isProcessing {
+                            thinkingIndicator
+                        }
+                    }
+                    .padding(.bottom, 12)
+                    .blur(radius: manager.takeoverReason != nil ? 8 : 0)
+                    .overlay {
+                        if let reason = manager.takeoverReason {
+                            AssistUserTakeover(
+                                reason: reason,
+                                onResume: {
+                                    manager.takeoverReason = nil
+                                },
+                                onAbort: {
+                                    manager.takeoverReason = nil
+                                    manager.clearChat()
+                                }
+                            )
+                        }
+                    }
+                    .id("Bottom")
+                }
+                .onChange(of: manager.messages.count) { _, _ in
+                    withAnimation { proxy.scrollTo("Bottom", anchor: .bottom) }
                 }
             }
+
+            Divider()
+
+            // Bottom input controls
+            VStack(spacing: 8) {
+                if !manager.logger.logs.isEmpty {
+                    MiniLogFeed(logger: manager.logger)
+                }
+                inputArea
+            }
+            .padding(12)
+            .background(.thinMaterial)
         }
+        .background(.windowBackground)
         .sheet(isPresented: $showSettings) {
             NavigationStack {
                 AssistSettingsView()
@@ -351,6 +199,12 @@ public struct AssistMainView: View {
         }
         .sheet(isPresented: $showingCodexSetup) {
             CodexSignInFlow()
+        }
+        .sheet(isPresented: $showExecutionModeSheet) {
+            ExecutionModeSheet()
+        }
+        .sheet(isPresented: $showDiagnosticsSheet) {
+            DiagnosticsSheet(manager: manager)
         }
         .task {
             await updateCodexButtonVisibility()
@@ -380,9 +234,9 @@ public struct AssistMainView: View {
     }
 
     private var thinkingIndicator: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             ProgressView()
-                .scaleEffect(0.8)
+                .scaleEffect(0.6)
                 .tint(.orange)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -392,27 +246,28 @@ public struct AssistMainView: View {
 
                 if let lastLog = manager.logger.logs.last {
                     Text(lastLog.message)
-                        .font(.system(size: 10))
+                        .font(.system(size: 9))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
             Spacer()
         }
-        .padding(12)
-        .background(Color.orange.opacity(0.1))
-        .cornerRadius(10)
+        .padding(10)
+        .background(Color.orange.opacity(0.08))
+        .cornerRadius(8)
+        .padding(.horizontal, 12)
     }
 
     private var inputArea: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             Button {
                 expandPrompt()
             } label: {
                 Image(systemName: "apple.intelligence")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.white)
-                    .padding(8)
+                    .padding(6)
                     .background(
                         LinearGradient(colors: [.blue, .purple, .pink], startPoint: .topLeading, endPoint: .bottomTrailing),
                         in: Circle()
@@ -423,23 +278,24 @@ public struct AssistMainView: View {
 
             ZStack {
                 TextField("What should I build next?", text: $inputText, axis: .vertical)
-                    .padding(10)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-                    .lineLimit(1...6)
+                    .padding(8)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    .lineLimit(1...5)
                     .disabled(manager.isProcessing || isEnhancingPrompt)
                     .onSubmit {
                         submitMessage()
                     }
 
                 if isEnhancingPrompt {
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 10)
                         .fill(.ultraThinMaterial)
                         .overlay(
-                            HStack(spacing: 10) {
+                            HStack(spacing: 8) {
                                 ProgressView()
+                                    .scaleEffect(0.6)
                                     .tint(.purple)
-                                Text("Enhancing prompt...")
-                                    .font(.subheadline.weight(.semibold))
+                                Text("Enhancing...")
+                                    .font(.caption.weight(.semibold))
                             }
                         )
                 }
@@ -450,10 +306,10 @@ public struct AssistMainView: View {
                     if manager.isProcessing {
                         ProgressView()
                             .progressViewStyle(.circular)
-                            .scaleEffect(0.8)
+                            .scaleEffect(0.6)
                     } else {
                         Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 26))
+                            .font(.system(size: 24))
                     }
                 }
             }
@@ -530,62 +386,175 @@ private struct AssistChatBubble: View {
             Text(message.content)
                 .font(.body)
                 .textSelection(.enabled)
-                .padding(12)
-                .background(bubbleColor, in: RoundedRectangle(cornerRadius: 12))
+                .padding(10)
+                .background(bubbleColor, in: RoundedRectangle(cornerRadius: 10))
         }
+        .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
     }
 }
 
-// MARK: - Helper Views
+// MARK: - Execution Mode Sheet View
 
-struct AssistErrorBubble: View {
-    let error: String
+struct ExecutionModeSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("com.swiftcode.assist.mode") private var isAgentMode = false
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
-            Text(error)
-                .font(.callout)
-                .foregroundStyle(.red)
-            Spacer()
+        VStack(spacing: 16) {
+            HStack {
+                Text("Execution Mode")
+                    .font(.headline)
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Picker("Mode", selection: $isAgentMode) {
+                Text("Chat Mode").tag(false)
+                Text("Agent Mode").tag(true)
+            }
+            .pickerStyle(.segmented)
+
+            Text(isAgentMode ? "Allows full autonomy to run terminal commands, create, edit, or delete files, and run builds (with user approval)." : "Read-only access to explain code, analyze layouts, and answer questions. No write or run tools.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(4)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 4)
+
+            Button("Done") {
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .frame(maxWidth: .infinity)
         }
         .padding()
-        .background(Color.red.opacity(0.1))
-        .cornerRadius(10)
+        .frame(width: 320)
     }
 }
 
-struct MiniLogFeed: View {
-    @ObservedObject var logger: AssistLogger
+// MARK: - Diagnostics Sheet View
+
+struct DiagnosticsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var manager: AssistManager
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if let lastLog = logger.logs.last {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(logColor(for: lastLog.level))
-                        .frame(width: 6, height: 6)
-                    Text("[\(lastLog.toolId ?? "system")] \(lastLog.message)")
-                        .font(.system(.caption2, design: .monospaced))
+        VStack(spacing: 16) {
+            HStack {
+                Label("System Telemetry", systemImage: "waveform.path.ecg")
+                    .font(.headline)
+                    .foregroundStyle(.orange)
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+            }
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    // GroupBox: Current Active Provider
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Active Provider Status", systemImage: "network")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.cyan)
+
+                            let provider = (try? LLMService.shared.resolvedRoutingProvider()) ?? .openRouter
+                            Text("Routing directly to: \(provider.rawValue)")
+                                .font(.caption)
+
+                            if provider == .codex {
+                                Text("OpenAI Codex SDK connection established via local bridge server port 3003.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            } else if FoundationModels.shared.isEnabled {
+                                Text("Bypassing cloud endpoints. Native third-gen AFM 3 on-device reasoning is active.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("Cloud processing via secure OpenRouter/Anthropic key integrations.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(4)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // GroupBox: Process and Thread Telemetry
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Process Diagnostics", systemImage: "cpu")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.green)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Platform: macOS (Darwin 24+)")
+                                Text("Thread Isolation: Strict @MainActor")
+                                Text("Memory Allocation: Automatic Graph")
+                                Text("Sandbox Mode: Source-Control Embedded")
+                            }
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                        }
+                        .padding(4)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // GroupBox: Live Telemetry Logs
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Inference Pipeline Logs", systemImage: "terminal.fill")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.yellow)
+
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    if manager.logger.logs.isEmpty {
+                                        Text("Pipeline standby. Initiate prompt request.")
+                                            .font(.system(.caption2, design: .monospaced))
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        ForEach(manager.logger.logs) { log in
+                                            Text("[\(log.toolId ?? "system")] \(log.message)")
+                                                .font(.system(.caption2, design: .monospaced))
+                                                .foregroundStyle(.secondary)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                        }
+                                    }
+                                }
+                                .padding(6)
+                            }
+                            .frame(height: 180)
+                            .background(Color.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                        }
+                        .padding(4)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
             }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .background(Color.black.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
 
-    private func logColor(for level: AssistLogLevel) -> Color {
-        switch level {
-        case .info: return .blue
-        case .warning: return .yellow
-        case .error: return .red
-        case .debug: return .gray
+            Button("Done") {
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .frame(maxWidth: .infinity)
         }
+        .padding()
+        .frame(width: 420, height: 540)
     }
 }

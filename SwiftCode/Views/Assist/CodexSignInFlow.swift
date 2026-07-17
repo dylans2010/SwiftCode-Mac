@@ -226,6 +226,26 @@ public struct CodexSignInFlow: View {
                             }
                             .font(.caption)
                             .foregroundStyle(.secondary)
+
+                            Divider()
+
+                            HStack {
+                                Button(action: {
+                                    Task {
+                                        await bridgeManager.ensureBridgeRunning()
+                                    }
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "play.fill")
+                                        Text("Start Bridge")
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.blue)
+                                .disabled(bridgeManager.bridgeStatus == .running || bridgeManager.bridgeStatus == .starting)
+
+                                Spacer()
+                            }
                         }
                         .padding(8)
                     }

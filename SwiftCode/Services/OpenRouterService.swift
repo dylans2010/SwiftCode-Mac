@@ -211,30 +211,7 @@ final class OpenRouterService: Sendable {
     // MARK: - Fetch Available Models
 
     func fetchModels() async throws -> [OpenRouterModel] {
-        let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled }
-        if isFMEnabled {
-            return OpenRouterModel.defaults
-        }
-
-        guard let apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey),
-              !apiKey.isEmpty else {
-            return OpenRouterModel.defaults
-        }
-
-        let url = baseURL.appendingPathComponent("models")
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            return OpenRouterModel.defaults
-        }
-
-        let decoded = try JSONDecoder().decode(OpenRouterModelsResponse.self, from: data)
-        return decoded.data.map {
-            OpenRouterModel(id: $0.id, name: $0.name ?? $0.id, description: $0.description ?? "")
-        }
+        return try await OpenRouterClient.shared.fetchModels()
     }
 }
 
