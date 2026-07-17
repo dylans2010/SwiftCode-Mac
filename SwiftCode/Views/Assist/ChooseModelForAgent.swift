@@ -25,8 +25,8 @@ public struct ChooseModelForAgent: View {
     @Environment(\.dismiss) private var dismiss
 
     @ObservedObject private var settings = AppSettings.shared
-    @Bindable private var foundationModels = FoundationModels.shared
-    @Bindable private var assistModelManager = AssistModelManager.shared
+    private var foundationModels = FoundationModels.shared
+    @ObservedObject private var assistModelManager = AssistModelManager.shared
 
     @State private var searchText: String = ""
     @State private var dynamicModels: [DynamicModelOption] = []
