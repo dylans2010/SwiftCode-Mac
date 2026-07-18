@@ -1,5 +1,6 @@
 import SwiftUI
 
+@available(*, deprecated, renamed: "AssistMainView")
 public struct AgentChatView: View {
     @Environment(AgentViewModel.self) var viewModel
     @State private var showChecklist = true

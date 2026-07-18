@@ -6,6 +6,7 @@ public enum AgentChatMode: String, Codable, Sendable, CaseIterable {
     case agent = "Agent"
 }
 
+@available(*, deprecated, renamed: "AssistAgentSession")
 @Observable
 @MainActor
 public final class AgentSession: Identifiable, @MainActor Codable, Sendable {

@@ -80,8 +80,7 @@ struct SidebarMainView: View {
                     case .debug:
                         DebugSessionsSidebarView(viewModel: workspaceViewModel.debug)
                     case .agent:
-                        AgentChatView()
-                            .environment(workspaceViewModel.ai)
+                        AssistMainView()
                     case .workflows:
                         GitHubWorkflowsSidebarView()
                     case .terminal:

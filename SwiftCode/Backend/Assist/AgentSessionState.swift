@@ -3,23 +3,53 @@ import Observation
 
 public enum AgentSessionStatus: String, Codable, Sendable {
     case idle = "Idle"
+    case receivingRequest = "Receiving Request"
+    case analyzingRepository = "Analyzing Repository"
+    case collectingContext = "Collecting Context"
+    case planning = "Planning"
+    case planningReview = "Planning Review"
+    case awaitingApproval = "Awaiting Approval"
+    case executingStrategy = "Executing Strategy"
+    case selectingTools = "Selecting Tools"
+    case executingTools = "Executing Tools"
+    case updatingRepository = "Updating Repository"
+    case validating = "Validating"
+    case reviewing = "Reviewing"
+    case reviewFailed = "Review Failed"
+    case recovering = "Recovering"
+    case generatingSummary = "Generating Summary"
+    case completing = "Completing"
+    case terminated = "Terminated"
+
+    // Backward compatibility cases
     case initializing = "Initializing"
     case understandingRequest = "Understanding Request"
-    case planning = "Planning"
     case gatheringContext = "Gathering Context"
     case selectingTool = "Selecting Tool"
     case executingTool = "Executing Tool"
     case waitingForUserApproval = "Waiting For User Approval"
-    case updatingRepository = "Updating Repository"
     case inspectingResult = "Inspecting Result"
-    case validating = "Validating"
-    case reviewing = "Reviewing"
-    case completing = "Completing"
     case finished = "Finished"
-    case completed = "Completed" // Keep for backward compatibility
+    case completed = "Completed"
     case failed = "Failed"
     case cancelled = "Cancelled"
     case stalled = "Stalled"
+}
+
+public struct StateTransition: Codable, Sendable, Identifiable {
+    public let id: UUID
+    public let fromState: AgentSessionStatus
+    public let toState: AgentSessionStatus
+    public let reason: String
+    public let timestamp: Date
+
+    public init(id: UUID = UUID(), fromState: AgentSessionStatus, toState: AgentSessionStatus, reason: String, timestamp: Date = Date()) {
+        self.id = id
+        self.fromState = fromState
+        self.toState = toState
+        self.reason = reason
+        self.timestamp = timestamp
+    }
 }
 
 public struct AgentEvent: Identifiable, Codable, Sendable {
@@ -116,6 +146,7 @@ public final class AgentSessionState: Sendable {
     public var toolCallCount: Int = 0
     public var status: AgentSessionStatus = .idle
     public var events: [AgentEvent] = []
+    public var stateHistory: [StateTransition] = []
     public var changeSummary = AgentChangeSummary()
 
     public init() {}

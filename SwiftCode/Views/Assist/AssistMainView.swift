@@ -186,6 +186,7 @@ public struct AssistMainView: View {
                                 TaskProgressView(agentSession: manager.agentSession)
                                 ToolExecutionView(agentSession: manager.agentSession)
                                 AgentChangeSummaryView(agentSession: manager.agentSession)
+                                AgentSummaryStatisticsView(agentSession: manager.agentSession)
                                 AgentTimelineView(agentSession: manager.agentSession)
                                 AgentControlsView(agentSession: manager.agentSession)
                             }
@@ -863,6 +864,63 @@ public struct AssistMainView: View {
         Task {
             await ModelSessionManager.shared.switchModel(to: option.modelID)
         }
+    }
+}
+
+// MARK: - Agent Summary Statistics View
+
+struct AgentSummaryStatisticsView: View {
+    let agentSession: AssistAgentSession
+
+    var body: some View {
+        if let summary = agentSession.executionSummary {
+            GroupBox {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "chart.bar.doc.horizontal.fill")
+                            .foregroundStyle(.orange)
+                        Text("Execution Statistics Dashboard")
+                            .font(.subheadline.bold())
+                        Spacer()
+                    }
+
+                    Divider()
+
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        statCard(title: "Execution Duration", value: String(format: "%.1fs", summary.totalDuration), icon: "clock", color: .blue)
+                        statCard(title: "Tool Executions", value: "\(summary.toolCallCount)", icon: "wrench.and.screwdriver", color: .orange)
+                        statCard(title: "Files Affected", value: "\(summary.filesCreatedCount + summary.filesModifiedCount + summary.filesDeletedCount)", icon: "doc.fill", color: .green)
+                        statCard(title: "Validation Passes", value: "\(summary.validationCount)", icon: "checkmark.shield", color: .purple)
+                    }
+                    .padding(.top, 4)
+                }
+                .padding(4)
+            }
+            .groupBoxStyle(ModernGroupBoxStyle())
+            .padding(.horizontal, 12)
+        }
+    }
+
+    private func statCard(title: String, value: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+                .font(.body)
+                .frame(width: 24, height: 24)
+                .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.caption.bold())
+                    .foregroundStyle(.primary)
+            }
+            Spacer()
+        }
+        .padding(8)
+        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
