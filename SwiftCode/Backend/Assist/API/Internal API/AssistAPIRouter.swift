@@ -95,7 +95,11 @@ public final class AssistAPIRouter {
         guard let userInput = request.payload["userInput"] else {
             return .failure(error: "Missing userInput in payload")
         }
-        let enhancedPrompt = await PromptEnhancer.enhancePrompt(userInput: userInput)
-        return .successful(data: ["enhancedPrompt": enhancedPrompt], markdown: "## Prompt Enhanced\nOriginal: \(userInput)\nEnhanced: \(enhancedPrompt)")
+        do {
+            let enhancedPrompt = try await PromptEnhancer.enhancePrompt(userInput: userInput)
+            return .successful(data: ["enhancedPrompt": enhancedPrompt], markdown: "## Prompt Enhanced\nOriginal: \(userInput)\nEnhanced: \(enhancedPrompt)")
+        } catch {
+            return .failure(error: error.localizedDescription)
+        }
     }
 }
