@@ -185,6 +185,7 @@ public struct AssistMainView: View {
                                 CodeAssistUserView()
                                 TaskProgressView(agentSession: manager.agentSession)
                                 ToolExecutionView(agentSession: manager.agentSession)
+                                AgentChangeSummaryView(agentSession: manager.agentSession)
                                 AgentTimelineView(agentSession: manager.agentSession)
                                 AgentControlsView(agentSession: manager.agentSession)
                             }
@@ -492,6 +493,45 @@ public struct AssistMainView: View {
         return manager.messages.filter { $0.content.lowercased().contains(text) }
     }
 
+    private func statusUserDescription(for status: AgentSessionStatus) -> String {
+        switch status {
+        case .idle:
+            return "Idle"
+        case .initializing:
+            return "Initializing session..."
+        case .understandingRequest:
+            return "Analyzing the repository..."
+        case .gatheringContext:
+            return "Reviewing project structure..."
+        case .planning:
+            return "Building execution strategy..."
+        case .selectingTool:
+            return "Selecting the best tool for the task..."
+        case .executingTool:
+            return "Updating project files..."
+        case .waitingForUserApproval:
+            return "Waiting for terminal execution approval..."
+        case .updatingRepository:
+            return "Applying repository updates..."
+        case .inspectingResult:
+            return "Reviewing action result..."
+        case .validating:
+            return "Running validation..."
+        case .reviewing:
+            return "Reviewing implementation quality..."
+        case .completing:
+            return "Preparing final response..."
+        case .finished, .completed:
+            return "Task completed successfully."
+        case .failed:
+            return "Task failed."
+        case .cancelled:
+            return "Task cancelled."
+        case .stalled:
+            return "Task execution stalled."
+        }
+    }
+
     private var thinkingIndicator: some View {
         HStack(spacing: 10) {
             ProgressView()
@@ -499,14 +539,16 @@ public struct AssistMainView: View {
                 .tint(.orange)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(bridgeManager.activeToolName != "None" ? "Agent executing tools (\(bridgeManager.activeToolName))...." : "Planning next steps...")
+                Text(statusUserDescription(for: manager.agentSession.state.status))
                     .font(.caption.bold())
                     .foregroundStyle(.orange)
 
-                Text(bridgeManager.activeToolDetails.isEmpty ? "Awaiting stream..." : bridgeManager.activeToolDetails)
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                if bridgeManager.activeToolName != "None" {
+                    Text("Executing: \(bridgeManager.activeToolName)")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
             Spacer()
         }
@@ -820,6 +862,146 @@ public struct AssistMainView: View {
         // Ensure a completely new URLSession is created via ModelSessionManager to avoid using cached connections or older models
         Task {
             await ModelSessionManager.shared.switchModel(to: option.modelID)
+        }
+    }
+}
+
+// MARK: - Agent Change Summary View
+
+struct AgentChangeSummaryView: View {
+    let agentSession: AssistAgentSession
+    @State private var isExpanded = true
+
+    var body: some View {
+        let summary = agentSession.state.changeSummary
+        let hasChanges = !summary.modifiedFiles.isEmpty ||
+                          !summary.createdFiles.isEmpty ||
+                          !summary.deletedFiles.isEmpty ||
+                          !summary.renamedFiles.isEmpty ||
+                          !summary.movedFiles.isEmpty ||
+                          !summary.configChanges.isEmpty ||
+                          !summary.toolActivities.isEmpty
+
+        if !hasChanges {
+            EmptyView()
+        } else {
+            GroupBox {
+                DisclosureGroup(isExpanded: $isExpanded) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Divider()
+                            .padding(.vertical, 4)
+
+                        if !summary.createdFiles.isEmpty {
+                            changeSection(title: "Created Files", icon: "doc.badge.plus", color: .green, items: summary.createdFiles)
+                        }
+
+                        if !summary.modifiedFiles.isEmpty {
+                            changeSection(title: "Modified Files", icon: "doc.badge.gearshape", color: .blue, items: summary.modifiedFiles)
+                        }
+
+                        if !summary.deletedFiles.isEmpty {
+                            changeSection(title: "Deleted Files", icon: "doc.badge.ellipsis", color: .red, items: summary.deletedFiles)
+                        }
+
+                        if !summary.renamedFiles.isEmpty {
+                            changeSection(title: "Renamed Files", icon: "pencil.and.outline", color: .purple, items: summary.renamedFiles)
+                        }
+
+                        if !summary.movedFiles.isEmpty {
+                            changeSection(title: "Moved Files", icon: "arrow.right.doc.on.clipboard", color: .orange, items: summary.movedFiles)
+                        }
+
+                        if !summary.configChanges.isEmpty {
+                            changeSection(title: "Project Configuration Changes", icon: "gearshape.2", color: .yellow, items: summary.configChanges)
+                        }
+
+                        if !summary.toolActivities.isEmpty {
+                            DisclosureGroup {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    ForEach(summary.toolActivities) { activity in
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            HStack {
+                                                Text(activity.toolId)
+                                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                                    .foregroundStyle(.orange)
+                                                Spacer()
+                                                Text(activity.timestamp, style: .time)
+                                                    .font(.system(size: 8))
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            Text(activity.purpose)
+                                                .font(.caption2)
+                                                .foregroundStyle(.primary)
+                                            Text(activity.result)
+                                                .font(.system(size: 8, design: .monospaced))
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(2)
+                                        }
+                                        .padding(.vertical, 2)
+                                        Divider()
+                                    }
+                                }
+                                .padding(.top, 4)
+                            } label: {
+                                HStack {
+                                    Image(systemName: "wrench.and.screwdriver.fill")
+                                        .foregroundStyle(.gray)
+                                    Text("Tool Activity Log (\(summary.toolActivities.count))")
+                                        .font(.caption.bold())
+                                }
+                            }
+                        }
+                    }
+                    .padding(.top, 4)
+                } label: {
+                    HStack {
+                        Image(systemName: "checklist.checked")
+                            .foregroundStyle(.green)
+                        Text("Repository Changes Summary")
+                            .font(.subheadline.bold())
+                        Spacer()
+                    }
+                }
+                .padding(4)
+            }
+            .groupBoxStyle(ModernGroupBoxStyle())
+            .padding(.horizontal, 12)
+        }
+    }
+
+    private func changeSection(title: String, icon: String, color: Color, items: [FileChangeItem]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: icon)
+                    .foregroundStyle(color)
+                Text(title)
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(items.count)")
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(color.opacity(0.12), in: Capsule())
+                    .foregroundStyle(color)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(items) { item in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.filename)
+                            .font(.system(.caption, design: .monospaced).bold())
+                            .foregroundStyle(.primary)
+                        Text(item.details)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.leading, 12)
+                    .padding(.vertical, 2)
+                }
+            }
+            Divider()
+                .padding(.vertical, 2)
         }
     }
 }

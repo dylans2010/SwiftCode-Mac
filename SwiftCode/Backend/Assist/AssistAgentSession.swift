@@ -16,6 +16,11 @@ public final class AssistAgentSession: Sendable {
     public init() {}
 
     public func start(objective: String, attachments: [AgentFileContext] = [], context: AssistContext) async throws {
+        // PHASE 1: Initializing
+        self.state.status = .initializing
+        emitEvent(state: .initializing, summary: "Production orchestrator initializing session.")
+        self.state.changeSummary.clear()
+
         // --- COMPREHENSIVE SESSION STATE VALIDATION ---
         let selectedModel = AssistModelManager.shared.selectedModelID
         let selectedProvider = LLMService.shared.provider(for: selectedModel)
@@ -79,7 +84,6 @@ public final class AssistAgentSession: Sendable {
 
         self.isCancelled = false
         self.state.objective = objective
-        self.state.status = .planning
         self.state.toolCallCount = 0
         self.state.plan = []
         self.state.events = []
@@ -91,21 +95,27 @@ public final class AssistAgentSession: Sendable {
 
         self.contextManager = AgentContextManager(context: context)
 
-        emitEvent(state: .planning, summary: "Decomposing task objective and constructing project context budget...")
+        // PHASE 2: Understanding Request
+        self.state.status = .understandingRequest
+        emitEvent(state: .understandingRequest, summary: "Analyzing user objective and formulating strategy: '\(objective)'")
 
-        // Loop limit guard
-        let maxIterations = 25
+        // PHASE 3: Gathering Context
+        self.state.status = .gatheringContext
+        emitEvent(state: .gatheringContext, summary: "Constructing system-level repository and dependency map...")
+
+        // Stagnation / safety ceiling limits (Respecting runtime safety mechanisms)
+        let absoluteLimit = 35
         var consecutiveNoOps = 0
         var previousStateSignature = ""
 
         while !isCancelled {
-            if state.toolCallCount >= maxIterations {
-                emitEvent(state: .stalled, summary: "Agent loop ceiling reached (25 tools executed). Suspending for safety.")
+            if state.toolCallCount >= absoluteLimit {
+                emitEvent(state: .stalled, summary: "Agent loop ceiling reached (\(absoluteLimit) tools executed). Suspending for safety.")
                 state.status = .stalled
                 return
             }
 
-            // PHASE 1: Collect Context & Prompt LLM
+            // PHASE 4: Planning
             state.status = .planning
             let contextPayload = await contextManager?.buildContext(for: objective)
             let manifest = contextPayload?.repoManifestSummary ?? ""
@@ -200,6 +210,8 @@ public final class AssistAgentSession: Sendable {
             }
             conversationPrompt += "\n\nChoose the next best tool to run or provide your finalResponse. Respond ONLY with valid JSON."
 
+            // PHASE 5: Selecting Tool
+            state.status = .selectingTool
             emitEvent(state: .selectingTool, summary: "Reasoning about next actions based on tool schema specifications...")
 
             // Query Model dynamically!
@@ -220,10 +232,13 @@ public final class AssistAgentSession: Sendable {
 
             // Check if final response was reached
             if let finalResponse = jsonBlock["finalResponse"] as? String {
+                // PHASE 9: Validating
                 state.status = .validating
                 emitEvent(state: .validating, summary: "Running code integrity, syntactic check, and compiler validation...")
 
-                emitEvent(state: .validating, summary: "Initiating Code Review Validation...")
+                // PHASE 10: Reviewing
+                state.status = .reviewing
+                emitEvent(state: .reviewing, summary: "Initiating Autonomous Code Review Verification...")
                 guard let reviewTool = registry.getTool("code_review") else {
                     emitEvent(state: .failed, summary: "Required 'code_review' tool not found in registry.")
                     state.status = .failed
@@ -235,12 +250,16 @@ public final class AssistAgentSession: Sendable {
 
                     if let reviewState = AssistManager.shared.currentCodeReview {
                         if reviewState.status == "task_ready" {
-                            // Succeeded! Transition to Completed!
-                            state.status = .completed
-                            emitEvent(state: .completed, summary: "Code Review Approved! Task completed: \(finalResponse)\nReviewer: \(reviewState.userSee)")
+                            // Succeeded! Transition to Completing then Finished!
+                            state.status = .completing
+                            emitEvent(state: .completing, summary: "Preparing final response...")
+
+                            state.status = .finished
+                            emitEvent(state: .finished, summary: "Code Review Approved! Task completed: \(finalResponse)\nReviewer: \(reviewState.userSee)")
                             return
                         } else {
                             // Failed! Loop and continue
+                            state.status = .planning
                             emitEvent(state: .planning, summary: "Code Review Rejected. Continuing implementation with reviewer feedback.")
 
                             // Inject reviewer feedback into conversation history
@@ -287,8 +306,17 @@ public final class AssistAgentSession: Sendable {
             let newStep = PlanStep(toolId: toolId, description: explanation.isEmpty ? "Running \(toolId)" : explanation, input: toolInput)
             state.plan.append(newStep)
 
-            state.status = .executingTool
-            emitEvent(state: .executingTool, summary: "Executing tool [\(toolId)] - Reason: \(explanation)")
+            // Transition to Waiting For User Approval if it's terminal
+            if toolId == "use_terminal" || toolId == "terminal_command" || toolId == "execute_command" {
+                state.status = .waitingForUserApproval
+                emitEvent(state: .waitingForUserApproval, summary: "Awaiting developer approval to execute terminal command.")
+            } else if ["file_write", "code_refactor", "file_create", "file_append", "patch_apply", "file_delete", "directory_delete", "file_rename", "file_move"].contains(toolId) {
+                state.status = .updatingRepository
+                emitEvent(state: .updatingRepository, summary: "Modifying file-system contents: \(toolInput["path"] ?? "")")
+            } else {
+                state.status = .executingTool
+                emitEvent(state: .executingTool, summary: "Executing tool [\(toolId)] - Reason: \(explanation)")
+            }
 
             guard let tool = registry.getTool(toolId) else {
                 emitEvent(state: .failed, summary: "Tool not found in registry: \(toolId)")
@@ -320,11 +348,14 @@ public final class AssistAgentSession: Sendable {
                         state.plan[index].status = .completed
                     }
 
+                    // Log to live change tracking summary
+                    logChangeToSummary(toolId: toolId, input: toolInput, explanation: explanation, output: result.output)
+
                     // Append to conversation history so model knows the result next turn!
                     conversationHistory.append("- Action: Run \(toolId) with \(toolInput). Result: SUCCESS - Output: \(result.output)")
 
                     // Force refresh if file mutated
-                    if ["file_write", "code_refactor", "file_create", "file_append"].contains(toolId) {
+                    if ["file_write", "code_refactor", "file_create", "file_append", "patch_apply", "file_delete"].contains(toolId) {
                         if let project = await ProjectSessionStore.shared.activeProject {
                             await ProjectSessionStore.shared.refreshFileTree(for: project)
                         }
@@ -371,6 +402,57 @@ public final class AssistAgentSession: Sendable {
         }
     }
 
+    @MainActor
+    private func logChangeToSummary(toolId: String, input: [String: String], explanation: String, output: String) {
+        let path = input["path"] ?? input["filepath"] ?? input["target"] ?? "Unknown"
+        let reason = explanation.isEmpty ? "Requested by task" : explanation
+
+        // Log Tool Activity
+        let activity = ToolActivityItem(toolId: toolId, purpose: reason, result: output.prefix(200) + (output.count > 200 ? "..." : ""))
+        state.changeSummary.toolActivities.append(activity)
+
+        // Check if config change
+        let isConfig = path.hasSuffix("Package.swift") || path.hasSuffix("project.pbxproj") || path.hasSuffix("Info.plist") || path.hasSuffix(".json")
+
+        if isConfig && path != "Unknown" {
+            let item = FileChangeItem(filename: path, details: "Modified configuration: \(reason)")
+            if !state.changeSummary.configChanges.contains(where: { $0.filename == path }) {
+                state.changeSummary.configChanges.append(item)
+            }
+        }
+
+        switch toolId {
+        case "file_create":
+            let item = FileChangeItem(filename: path, details: reason)
+            state.changeSummary.createdFiles.append(item)
+
+        case "file_write", "code_refactor", "file_append", "patch_apply", "insert_code_block":
+            let item = FileChangeItem(filename: path, details: "Modified: \(reason)")
+            if !state.changeSummary.modifiedFiles.contains(where: { $0.filename == path }) {
+                state.changeSummary.modifiedFiles.append(item)
+            }
+
+        case "file_delete", "directory_delete":
+            let item = FileChangeItem(filename: path, details: reason)
+            state.changeSummary.deletedFiles.append(item)
+
+        case "file_rename":
+            let source = input["source"] ?? input["oldPath"] ?? "source"
+            let dest = input["destination"] ?? input["newPath"] ?? "destination"
+            let item = FileChangeItem(filename: dest, details: "Renamed from \(source)")
+            state.changeSummary.renamedFiles.append(item)
+
+        case "file_move":
+            let source = input["source"] ?? "source"
+            let dest = input["destination"] ?? "destination"
+            let item = FileChangeItem(filename: dest, details: "Moved from \(source)")
+            state.changeSummary.movedFiles.append(item)
+
+        default:
+            break
+        }
+    }
+
     public func cancel() {
         self.isCancelled = true
         self.state.status = .cancelled
@@ -394,30 +476,23 @@ public final class AssistAgentSession: Sendable {
     private func extractJSON(from response: String) -> [String: Any]? {
         let parseLogger = Logger(subsystem: "com.swiftcode.app", category: "agent.parsing.diagnostics")
 
-        // --- 7 REQUIRED AUDIT FINDINGS (FEATURE-2) ---
-        // Finding 1: Capture exact raw string
+        // --- 7 REQUIRED AUDIT FINDINGS ---
         parseLogger.info("[Check 1] Capture exact raw string: '\(response)'")
 
-        // Finding 2: Compare raw string against JSON schema
         let matchesSchema = response.contains("toolId") || response.contains("finalResponse")
-        parseLogger.info("[Check 2] JSON schema check: \(matchesSchema ? "PASS" : "FAIL") (expected keys 'toolId' or 'finalResponse')")
+        parseLogger.info("[Check 2] JSON schema check: \(matchesSchema ? "PASS" : "FAIL")")
 
-        // Finding 3: Inspect system/hidden prompt sent to model
-        parseLogger.info("[Check 3] System/hidden prompt check: PASS (system prompt contains instructions to only reply with valid JSON)")
+        parseLogger.info("[Check 3] System/hidden prompt check: PASS")
 
-        // Finding 4: Streaming completeness verification
         let isStreamingCompleted = !response.isEmpty
-        parseLogger.info("[Check 4] Streaming completeness check: \(isStreamingCompleted ? "PASS" : "FAIL") (buffer is populated)")
+        parseLogger.info("[Check 4] Streaming completeness check: \(isStreamingCompleted ? "PASS" : "FAIL")")
 
-        // Finding 5: Code-fence wrapping verification
         let hasCodeFence = response.contains("```")
-        parseLogger.info("[Check 5] Markdown code fence wrap check: \(hasCodeFence ? "PASS (needs stripping)" : "PASS (none detected)")")
+        parseLogger.info("[Check 5] Markdown code fence wrap check: \(hasCodeFence ? "PASS" : "PASS (none)")")
 
-        // Finding 6: Tool response concatenation check
         let hasInterference = response.components(separatedBy: "}{").count > 1
-        parseLogger.info("[Check 6] Tool response interference check: \(hasInterference ? "FAIL (multiple objects detected)" : "PASS (single object)")")
+        parseLogger.info("[Check 6] Tool response interference check: \(hasInterference ? "FAIL" : "PASS")")
 
-        // Finding 7: Record findings summary
         parseLogger.info("[Check 7] Recorded diagnostic parsing findings successfully.")
 
         DiagnosticEventBus.shared.logEvent(
@@ -429,13 +504,11 @@ public final class AssistAgentSession: Sendable {
 
         var cleaned = response.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // 1. Try parsing directly first
         if let data = cleaned.data(using: .utf8),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             return json
         }
 
-        // 2. Strip markdown fences if any
         if cleaned.hasPrefix("```json") {
             cleaned = String(cleaned.dropFirst(7))
         } else if cleaned.hasPrefix("```") {
@@ -451,7 +524,6 @@ public final class AssistAgentSession: Sendable {
             return json
         }
 
-        // 3. Search for JSON boundary `{` and `}` to extract the inner JSON string
         if let firstBrace = response.firstIndex(of: "{"),
            let lastBrace = response.lastIndex(of: "}") {
             let candidate = String(response[firstBrace...lastBrace]).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -461,7 +533,6 @@ public final class AssistAgentSession: Sendable {
             }
         }
 
-        // Log extraction failure
         DiagnosticEventBus.shared.logEvent(
             component: "AgentCommandParser",
             severity: "ERROR",
