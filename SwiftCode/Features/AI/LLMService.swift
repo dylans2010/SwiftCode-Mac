@@ -149,12 +149,28 @@ public final class LLMService: Sendable {
         }
     }
 
+    private func retrieveAPIKey(for provider: LLMProvider, from keyOverride: String? = nil) -> String {
+        if let keyOverride { return keyOverride }
+        var key = APIKeyManager.shared.retrieveKey(service: apiKeyProvider(for: provider))
+            ?? KeychainService.shared.get(forKey: provider.keychainKey)
+            ?? ""
+        if key.isEmpty && provider == .openRouter {
+            key = KeychainService.shared.get(forKey: "openrouter-api-key") ?? ""
+        }
+        return key
+    }
+
+    private func findCustomEndpoint(for model: String) -> SavedCustomEndpoint? {
+        let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        return CustomEndpointManager.shared.endpoints.first { endpoint in
+            endpoint.models.contains(trimmedModel)
+        }
+    }
+
     private func hasServerAPIKey(for provider: LLMProvider) -> Bool {
         guard provider != .offline else { return false }
         if provider == .codex { return true } // Managed by bridge token setup
-        let key = APIKeyManager.shared.retrieveKey(service: apiKeyProvider(for: provider))
-            ?? KeychainService.shared.get(forKey: provider.keychainKey)
-            ?? ""
+        let key = retrieveAPIKey(for: provider)
         return !key.isEmpty
     }
 
@@ -331,6 +347,63 @@ public final class LLMService: Sendable {
     }
 
     public func sendChatRequest(model: String, messages: [AIMessage], key: String? = nil, providerOverride: LLMProvider? = nil) async throws -> LLMResponse {
+        if let customEndpoint = findCustomEndpoint(for: model) {
+            logger.log("[sendChatRequest] Routing to custom endpoint: \(customEndpoint.endpoint) for model: \(model)")
+            let startTime = Date()
+
+            var urlString = customEndpoint.isLocal ? "http://localhost:\(customEndpoint.localPort.trimmingCharacters(in: .whitespacesAndNewlines))/v1" : customEndpoint.endpoint
+            urlString = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !urlString.lowercased().hasSuffix("/chat/completions") {
+                if urlString.hasSuffix("/") {
+                    urlString += "chat/completions"
+                } else {
+                    urlString += "/chat/completions"
+                }
+            }
+
+            guard let url = URL(string: urlString) else {
+                throw NSError(domain: "LLMService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid custom endpoint URL: \(urlString)"])
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+            let apiKey = customEndpoint.isLocal ? "" : customEndpoint.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !apiKey.isEmpty {
+                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            }
+
+            for header in customEndpoint.headers {
+                let k = header.key.trimmingCharacters(in: .whitespacesAndNewlines)
+                let v = header.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !k.isEmpty && !v.isEmpty {
+                    request.setValue(v, forHTTPHeaderField: k)
+                }
+            }
+
+            var apiMessages: [[String: String]] = []
+            apiMessages += messages.map { ["role": $0.role.rawValue, "content": $0.content] }
+            let body: [String: Any] = [
+                "model": model,
+                "messages": apiMessages,
+                "stream": false
+            ]
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            try handleHTTPError(response, data: data)
+
+            let decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
+            let latency = Date().timeIntervalSince(startTime)
+            return LLMResponse(
+                modelName: decoded.model,
+                completionText: decoded.choices.first?.message.content ?? "",
+                tokenUsage: decoded.usage.map { LLMResponse.TokenUsage(promptTokens: $0.prompt_tokens, completionTokens: $0.completion_tokens, totalTokens: $0.total_tokens) },
+                latency: latency
+            )
+        }
+
         let provider: LLMProvider
         if let providerOverride {
             provider = providerOverride
@@ -357,7 +430,7 @@ public final class LLMService: Sendable {
             return try await runOfflineResponse(messages: messages)
         }
 
-        let actualKey = key ?? APIKeyManager.shared.retrieveKey(service: apiKeyProvider(for: provider)) ?? KeychainService.shared.get(forKey: provider.keychainKey) ?? ""
+        let actualKey = retrieveAPIKey(for: provider, from: key)
         guard !actualKey.isEmpty else {
             logger.error("[sendChatRequest] Missing API key for \(provider.rawValue).")
             throw LLMError.invalidKey
@@ -425,6 +498,70 @@ public final class LLMService: Sendable {
         systemPrompt: String,
         onToken: @escaping @Sendable (String) async -> Void
     ) async throws {
+        if let customEndpoint = findCustomEndpoint(for: model) {
+            logger.log("[streamChat] Routing stream to custom endpoint: \(customEndpoint.endpoint) for model: \(model)")
+
+            var urlString = customEndpoint.isLocal ? "http://localhost:\(customEndpoint.localPort.trimmingCharacters(in: .whitespacesAndNewlines))/v1" : customEndpoint.endpoint
+            urlString = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !urlString.lowercased().hasSuffix("/chat/completions") {
+                if urlString.hasSuffix("/") {
+                    urlString += "chat/completions"
+                } else {
+                    urlString += "/chat/completions"
+                }
+            }
+
+            guard let url = URL(string: urlString) else {
+                throw NSError(domain: "LLMService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid custom endpoint URL"])
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+            let apiKey = customEndpoint.isLocal ? "" : customEndpoint.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !apiKey.isEmpty {
+                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            }
+
+            for header in customEndpoint.headers {
+                let k = header.key.trimmingCharacters(in: .whitespacesAndNewlines)
+                let v = header.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !k.isEmpty && !v.isEmpty {
+                    request.setValue(v, forHTTPHeaderField: k)
+                }
+            }
+
+            var apiMessages: [[String: String]] = []
+            if !systemPrompt.isEmpty {
+                apiMessages.append(["role": "system", "content": systemPrompt])
+            }
+            apiMessages += messages.map { ["role": $0.role.rawValue, "content": $0.content] }
+            let body: [String: Any] = [
+                "model": model,
+                "messages": apiMessages,
+                "stream": true
+            ]
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+            let (stream, response) = try await URLSession.shared.bytes(for: request)
+            try handleHTTPError(response, data: nil)
+
+            for try await line in stream.lines {
+                guard line.hasPrefix("data: ") else { continue }
+                let jsonString = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
+                guard jsonString != "[DONE]" else { break }
+
+                if let data = jsonString.data(using: .utf8) {
+                    if let chunk = try? JSONDecoder().decode(ChatCompletionChunk.self, from: data),
+                       let token = chunk.choices.first?.delta.content {
+                        await onToken(token)
+                    }
+                }
+            }
+            return
+        }
+
         let isFMEnabled = await FoundationModels.shared.isEnabled
         logger.log("[streamChat] Starting stream request. FoundationModels enabled: \(isFMEnabled).")
 
@@ -466,7 +603,7 @@ public final class LLMService: Sendable {
                 return
             }
 
-            let key = APIKeyManager.shared.retrieveKey(service: apiKeyProvider(for: provider)) ?? KeychainService.shared.get(forKey: provider.keychainKey) ?? ""
+            let key = retrieveAPIKey(for: provider)
             guard !key.isEmpty else {
                 logger.error("[streamChat] Missing API key for stream.")
                 throw LLMError.invalidKey

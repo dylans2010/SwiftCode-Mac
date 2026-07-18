@@ -943,6 +943,7 @@
 		AE9995D4F381ADFD65E7E7F5 /* ComplexityAnalyzerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F3348ED62AE285D2C6EC0AA /* ComplexityAnalyzerView.swift */; };
 		AE9F786998FD4D4B8C443003 /* RunTypeChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 090CE6FDB54D4C8FBB11B3D0 /* RunTypeChecker.swift */; };
 		AEE5D783017DC6485D89C62A /* BcryptHashGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12BF322195AA9383CBF3C428 /* BcryptHashGeneratorView.swift */; };
+		C2B1145BBC6B959F2E4E8FCD /* CustomEndpointManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C23CDC8FCF4BBB848CB8E5CD /* CustomEndpointManager.swift */; };
 		AEF3A27D385B4F42AD46509E /* CoreModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F02183BE1140B1B9E4D376 /* CoreModels.swift */; };
 		AF1234567890ABCDEF000013 /* CodeAnalysisTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000007 /* CodeAnalysisTool.swift */; };
 		AF1234567890ABCDEF000015 /* ProjectIndexingTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000009 /* ProjectIndexingTool.swift */; };
@@ -2267,6 +2268,7 @@
 		B82F81DB2C00E00100000006 /* AppleSignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppleSignInView.swift; path = "Xcode Build/AppleSignInView.swift"; sourceTree = "<group>"; };
 		B8D320501619BE7BA05ED7B3 /* CronGeneratorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CronGeneratorView.swift; sourceTree = "<group>"; };
 		B8DD1FD745ECC23DEC52C8C0 /* TextBufferEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextBufferEngine.swift; sourceTree = "<group>"; };
+		C23CDC8FCF4BBB848CB8E5CD /* CustomEndpointManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomEndpointManager.swift; sourceTree = "<group>"; };
 		B8F02183BE1140B1B9E4D376 /* CoreModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreModels.swift; sourceTree = "<group>"; };
 		B8F5DFA425F117A054A6D071 /* BuildConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildConfiguration.swift; sourceTree = "<group>"; };
 		B8F81DC5DD48A017149D290B /* GzipCompressorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GzipCompressorView.swift; sourceTree = "<group>"; };
@@ -3226,6 +3228,7 @@
 		2B21AC80A9DC86CB7D9BD14F /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				C23CDC8FCF4BBB848CB8E5CD /* CustomEndpointManager.swift */,
 				B8F02183BE1140B1B9E4D376 /* CoreModels.swift */,
 				D2D2D2D2D2D2D2D2D2D2D2D2 /* PackageDependency.swift */,
 				BAE6C0AFC77474E588519FF8 /* Project.swift */,
@@ -5655,6 +5658,7 @@ CE705E1EC3604FFEEB031075 /* FoundationModels.swift in Sources */,
 				955A05A8ABD2498CB26E8F43 /* ToolSource.swift in Sources */,
 				C5762BC298DC4971ABF5C713 /* AgentToolbar.swift in Sources */,
 				07377823BA0D465E8B8AE3BE /* AgentModeView.swift in Sources */,
+				C2B1145BBC6B959F2E4E8FCD /* CustomEndpointManager.swift in Sources */,
 				AEF3A27D385B4F42AD46509E /* CoreModels.swift in Sources */,
 				D1D1D1D1D1D1D1D1D1D1D1D1 /* PackageDependency.swift in Sources */,
 				662EEBC461982F43E3AEDF10 /* MLXModelContainer.swift in Sources */,
