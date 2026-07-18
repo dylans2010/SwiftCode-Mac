@@ -267,34 +267,35 @@ public final class _AssistCriticalAutonomousEngine {
                 await context.logger.warning("❌ Validation failed: \(validationResult.feedback)", toolId: "AutonomousEngine")
                 previousValidationFeedbacks.append(validationResult.feedback)
 
-                // PHASE 13: Stability Detection
+                // PHASE 13: Stability Detection & Adaptive Loop-Breaking
                 let stabilityIssue = await stabilityRegulator.detectStabilityIssues()
                 switch stabilityIssue {
                 case .infiniteLoop(let reason):
-                    await triggerTakeover(reason: "Infinite loop: \(reason)")
-                    throw AutonomousError.infiniteLoopDetected
-
+                    await context.logger.warning("⚠️ Potential infinite loop detected: \(reason). Attempting to break the loop by adjusting strategy.", toolId: "AutonomousEngine")
+                    currentIntent = "Break out of loop/stagnation. Try a completely different technique for: \(currentIntent)"
                 case .oscillation(let pattern):
-                    await triggerTakeover(reason: "Oscillation: \(pattern)")
-                    throw AutonomousError.oscillationDetected
-
+                    await context.logger.warning("⚠️ Potential oscillation detected: \(pattern). Attempting to break the cycle by adjusting strategy.", toolId: "AutonomousEngine")
+                    currentIntent = "Alternative approach to avoid oscillation: \(currentIntent)"
                 case .noProgress(let iterations):
-                    await triggerTakeover(reason: "No progress after \(iterations) iterations")
-                    throw AutonomousError.noProgressCycle
-
+                    if iterations >= 15 {
+                        await triggerTakeover(reason: "Unrecoverable stagnation: No progress after \(iterations) iterations")
+                        throw AutonomousError.noProgressCycle
+                    } else {
+                        await context.logger.warning("⚠️ No progress after \(iterations) iterations. Adjusting plan to resolve build/test failures.", toolId: "AutonomousEngine")
+                        currentIntent = "Resolve previous build/test failure with fresh context: \(currentIntent)"
+                    }
                 case .repetitiveActions:
                     await context.logger.warning("⚠️ Repetitive actions detected - adjusting strategy", toolId: "AutonomousEngine")
-                    // Try to break the pattern by altering the approach
-                    currentIntent = "Take a different approach: \(currentIntent)"
-
+                    currentIntent = "Alternative approach to break repetitive cycle: \(currentIntent)"
                 case .none:
                     break
                 }
 
-                // Check if progress is being made overall
-                if !progressEvaluator.isProgressBeingMade() {
-                    await context.logger.error("⛔ No meaningful progress detected", toolId: "AutonomousEngine")
-                    await triggerTakeover(reason: "No meaningful progress after multiple attempts")
+                // Check if progress is being made overall (adaptive evaluation)
+                let progressPossible = progressEvaluator.isProgressBeingMade() || iterationCount < 15
+                if !progressPossible {
+                    await context.logger.error("⛔ Unrecoverable state: No progress detected after multiple diverse replanning attempts.", toolId: "AutonomousEngine")
+                    await triggerTakeover(reason: "No meaningful progress after 15 diverse attempts")
                     throw AutonomousError.noProgressCycle
                 }
 
@@ -355,10 +356,10 @@ public final class _AssistCriticalAutonomousEngine {
                     throw AutonomousError.unhealthyBehavior
                 }
 
-                // Safety check: enforce iteration limit per task (even with takeover)
-                if iterationCount >= 20 {
-                    await context.logger.error("⛔ Maximum iterations per task reached", toolId: "AutonomousEngine")
-                    await triggerTakeover(reason: "Maximum iterations (\(iterationCount)) reached for current task without success")
+                // Safety check: prevent completely runaway loop in extreme edge conditions
+                if iterationCount >= 50 {
+                    await context.logger.error("⛔ Safe execution guardrail reached (50 iterations)", toolId: "AutonomousEngine")
+                    await triggerTakeover(reason: "Runaway safety guardrail (50 iterations) reached for current task.")
                     throw AutonomousError.maxIterationsReached
                 }
             }
