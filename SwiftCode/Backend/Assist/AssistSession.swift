@@ -1,10 +1,13 @@
 import Foundation
+import Observation
 
-public final class AssistSession: ObservableObject {
+@Observable
+@MainActor
+public final class AssistSession: Sendable {
     public let id: UUID
     public let startTime: Date
-    @Published public var currentPlan: AssistExecutionPlan?
-    @Published public var history: [AssistExecutionPlan] = []
+    public var currentPlan: AssistExecutionPlan?
+    public var history: [AssistExecutionPlan] = []
 
     public init() {
         self.id = UUID()

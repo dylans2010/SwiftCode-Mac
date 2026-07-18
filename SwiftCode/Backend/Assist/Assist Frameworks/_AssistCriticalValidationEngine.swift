@@ -3,7 +3,7 @@ import Foundation
 /// [CRITICAL SYSTEM FILE] - HIGH RISK
 /// Validates the outputs of an autonomous execution iteration to ensure requirements are met.
 @MainActor
-public final class _AssistCriticalValidationEngine {
+public final class _AssistCriticalValidationEngine: Sendable {
     private let context: AssistContext
 
     public init(context: AssistContext) {
@@ -52,16 +52,32 @@ public final class _AssistCriticalValidationEngine {
     }
 
     private func parseValidation(from content: String) -> ValidationResult {
-        var jsonStr = content
-        if let range = content.range(of: "\\{.*\\}", options: .regularExpression) {
-            jsonStr = String(content[range])
+        var cleaned = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.hasPrefix("```json") {
+            cleaned = String(cleaned.dropFirst(7))
+        } else if cleaned.hasPrefix("```") {
+            cleaned = String(cleaned.dropFirst(3))
+        }
+        if cleaned.hasSuffix("```") {
+            cleaned = String(cleaned.dropLast(3))
+        }
+        cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let firstBrace = cleaned.firstIndex(of: "{"),
+           let lastBrace = cleaned.lastIndex(of: "}") {
+            let candidate = String(cleaned[firstBrace...lastBrace])
+            if let data = candidate.data(using: .utf8),
+               let result = try? JSONDecoder().decode(ValidationResult.self, from: data) {
+                return result
+            }
         }
 
-        guard let data = jsonStr.data(using: .utf8),
-              let result = try? JSONDecoder().decode(ValidationResult.self, from: data) else {
-            return .success // Default to success to avoid loops if JSON is unparseable but execute reached end
+        if let data = cleaned.data(using: .utf8),
+           let result = try? JSONDecoder().decode(ValidationResult.self, from: data) {
+            return result
         }
-        return result
+
+        return .success // Default to success if JSON remains absolutely unparseable
     }
 }
 
