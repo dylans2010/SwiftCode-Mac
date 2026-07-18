@@ -111,6 +111,21 @@ public final class LLMService: Sendable {
 
     private let aiRoutingModeKey = "ai.routingMode"
 
+    private func logInfo(_ message: String) {
+        logger.log("\(message)")
+        InternalLoggingManager.shared.log(message, category: .aiProcessing)
+    }
+
+    private func logError(_ message: String) {
+        logger.error("\(message)")
+        InternalLoggingManager.shared.log("[ERROR] \(message)", category: .aiProcessing)
+    }
+
+    private func logWarning(_ message: String) {
+        logger.warning("\(message)")
+        InternalLoggingManager.shared.log("[WARN] \(message)", category: .aiProcessing)
+    }
+
     @MainActor
     public func resolvedRoutingProvider() throws -> LLMProvider {
         let isFMEnabled = FoundationModels.shared.isEnabled
@@ -122,7 +137,7 @@ public final class LLMService: Sendable {
         let mode = AIRoutingMode.from(rawValue: UserDefaults.standard.string(forKey: aiRoutingModeKey))
         let preferredProvider = LLMProvider.from(rawValue: UserDefaults.standard.string(forKey: "ai.selectedProvider"))
 
-        logger.log("[resolvedRoutingProvider] Routing Mode: \(mode.rawValue). Preferred Provider: \(preferredProvider.rawValue).")
+        logInfo("[resolvedRoutingProvider] Routing Mode: \(mode.rawValue). Preferred Provider: \(preferredProvider.rawValue).")
 
         switch mode {
         case .alwaysLocal:
@@ -210,21 +225,21 @@ public final class LLMService: Sendable {
     @MainActor
     public func generateResponse(prompt: String, useContext: Bool, modelOverride: String? = nil, providerOverride: LLMProvider? = nil) async throws -> String {
         let isFMEnabled = FoundationModels.shared.isEnabled
-        logger.log("[generateResponse] Starting response generation. FoundationModels enabled: \(isFMEnabled).")
+        logInfo("[generateResponse] Starting response generation. FoundationModels enabled: \(isFMEnabled).")
 
         if isFMEnabled {
-            logger.log("[generateResponse] Foundation Models are enabled. Routing to Apple private on-device reasoning.")
+            logInfo("[generateResponse] Foundation Models are enabled. Routing to Apple private on-device reasoning.")
             return try await FoundationModels.shared.generatePrivateResponse(prompt: prompt)
         }
 
         let provider = try providerOverride ?? resolvedRoutingProvider()
         if provider == .codex {
-            logger.log("[generateResponse] Routing response generation to OpenAI Codex.")
+            logInfo("[generateResponse] Routing response generation to OpenAI Codex.")
             return try await CodexBridgeManager.shared.sendPrompt(prompt)
         }
 
         if modelOverride == nil && providerOverride == nil && OnDeviceModelRouter.shared.useOnDeviceAI() {
-            logger.log("[generateResponse] OnDeviceModelRouter enabled. Routing to on-device AI.")
+            logInfo("[generateResponse] OnDeviceModelRouter enabled. Routing to on-device AI.")
             return try await OnDeviceModelRouter.shared.generateResponse(prompt: prompt, useContext: useContext)
         }
         return try await generateExternalResponse(prompt: prompt, useContext: useContext, modelOverride: modelOverride, providerOverride: providerOverride)
@@ -233,16 +248,16 @@ public final class LLMService: Sendable {
     @MainActor
     public func generateExternalResponse(prompt: String, useContext: Bool, modelOverride: String? = nil, providerOverride: LLMProvider? = nil) async throws -> String {
         let isFMEnabled = FoundationModels.shared.isEnabled
-        logger.log("[generateExternalResponse] Starting external generation. FoundationModels enabled: \(isFMEnabled).")
+        logInfo("[generateExternalResponse] Starting external generation. FoundationModels enabled: \(isFMEnabled).")
 
         if isFMEnabled {
-            logger.log("[generateExternalResponse] Foundation Models are enabled. Routing to Apple private on-device reasoning.")
+            logInfo("[generateExternalResponse] Foundation Models are enabled. Routing to Apple private on-device reasoning.")
             return try await FoundationModels.shared.generatePrivateResponse(prompt: prompt)
         }
 
         let provider = try providerOverride ?? resolvedRoutingProvider()
         if provider == .codex {
-            logger.log("[generateExternalResponse] Routing external generation to OpenAI Codex.")
+            logInfo("[generateExternalResponse] Routing external generation to OpenAI Codex.")
             return try await CodexBridgeManager.shared.sendPrompt(prompt)
         }
 
@@ -265,14 +280,14 @@ public final class LLMService: Sendable {
             model = selected.isEmpty ? "openai/gpt-4o-mini" : selected
         }
 
-        logger.log("[generateExternalResponse] Request constructed. Provider: \(provider.rawValue). Model: \(model). Sending chat request.")
+        logInfo("[generateExternalResponse] Request constructed. Provider: \(provider.rawValue). Model: \(model). Sending chat request.")
         let response = try await sendChatRequest(
             model: model,
             messages: [AIMessage(role: .user, content: messageContent)],
             providerOverride: providerOverride
         )
 
-        logger.log("[generateExternalResponse] Chat request successful. Response completed.")
+        logInfo("[generateExternalResponse] Chat request successful. Response completed.")
         return response.completionText
     }
 
@@ -312,7 +327,7 @@ public final class LLMService: Sendable {
     }
 
     public func validateAPIKey(provider: LLMProvider, key: String) async throws -> Bool {
-        logger.log("[validateAPIKey] Validating API key for provider: \(provider.rawValue).")
+        logInfo("[validateAPIKey] Validating API key for provider: \(provider.rawValue).")
         if provider == .codex {
             return await CodexBridgeManager.shared.validateAPIKey(key)
         }
@@ -320,7 +335,7 @@ public final class LLMService: Sendable {
             _ = try await fetchAvailableModels(provider: provider, key: key)
             return true
         } catch {
-            logger.error("[validateAPIKey] Key validation failed: \(error.localizedDescription)")
+            logError("[validateAPIKey] Key validation failed: \(error.localizedDescription)")
             throw error
         }
     }
@@ -348,7 +363,7 @@ public final class LLMService: Sendable {
 
     public func sendChatRequest(model: String, messages: [AIMessage], key: String? = nil, providerOverride: LLMProvider? = nil) async throws -> LLMResponse {
         if let customEndpoint = findCustomEndpoint(for: model) {
-            logger.log("[sendChatRequest] Routing to custom endpoint: \(customEndpoint.endpoint) for model: \(model)")
+            logInfo("[sendChatRequest] Routing to custom endpoint: \(customEndpoint.endpoint) for model: \(model)")
             let startTime = Date()
 
             var urlString = customEndpoint.isLocal ? "http://localhost:\(customEndpoint.localPort.trimmingCharacters(in: .whitespacesAndNewlines))/v1" : customEndpoint.endpoint
@@ -411,10 +426,10 @@ public final class LLMService: Sendable {
             provider = try await resolvedRoutingProvider()
         }
 
-        logger.log("[sendChatRequest] Starting generation request. Provider: \(provider.rawValue). Model: \(model).")
+        logInfo("[sendChatRequest] Starting generation request. Provider: \(provider.rawValue). Model: \(model).")
 
         if provider == .codex {
-            logger.log("[sendChatRequest] Delegating request to OpenAI Codex.")
+            logInfo("[sendChatRequest] Delegating request to OpenAI Codex.")
             let prompt = messages.last?.content ?? ""
             let startTime = Date()
             let content = try await CodexBridgeManager.shared.sendPrompt(prompt)
@@ -432,7 +447,7 @@ public final class LLMService: Sendable {
 
         let actualKey = retrieveAPIKey(for: provider, from: key)
         guard !actualKey.isEmpty else {
-            logger.error("[sendChatRequest] Missing API key for \(provider.rawValue).")
+            logError("[sendChatRequest] Missing API key for \(provider.rawValue).")
             throw LLMError.invalidKey
         }
 
@@ -448,12 +463,12 @@ public final class LLMService: Sendable {
             let body = try buildRequestBody(provider: provider, model: model, messages: messages, stream: false)
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-            logger.log("[sendChatRequest] Sending non-streaming API request to \(provider.rawValue)...")
+            logInfo("[sendChatRequest] Sending non-streaming API request to \(provider.rawValue)...")
             let (data, response) = try await URLSession.shared.data(for: request)
             try handleHTTPError(response, data: data)
 
             let latency = Date().timeIntervalSince(startTime)
-            logger.log("[sendChatRequest] Request finished in \(latency) seconds.")
+            logInfo("[sendChatRequest] Request finished in \(latency) seconds.")
 
             if provider == .anthropic {
                 let decoded = try JSONDecoder().decode(AnthropicResponse.self, from: data)
@@ -477,9 +492,9 @@ public final class LLMService: Sendable {
                 )
             }
         } catch {
-            logger.warning("[sendChatRequest] Request failed: \(error.localizedDescription). Checking fallback eligibility.")
+            logWarning("[sendChatRequest] Request failed: \(error.localizedDescription). Checking fallback eligibility.")
             if await shouldFallbackToOffline(for: provider) {
-                logger.log("[sendChatRequest] Falling back to offline runner.")
+                logInfo("[sendChatRequest] Falling back to offline runner.")
                 return try await runOfflineResponse(messages: messages)
             }
             throw error
@@ -499,7 +514,7 @@ public final class LLMService: Sendable {
         onToken: @escaping @Sendable (String) async -> Void
     ) async throws {
         if let customEndpoint = findCustomEndpoint(for: model) {
-            logger.log("[streamChat] Routing stream to custom endpoint: \(customEndpoint.endpoint) for model: \(model)")
+            logInfo("[streamChat] Routing stream to custom endpoint: \(customEndpoint.endpoint) for model: \(model)")
 
             var urlString = customEndpoint.isLocal ? "http://localhost:\(customEndpoint.localPort.trimmingCharacters(in: .whitespacesAndNewlines))/v1" : customEndpoint.endpoint
             urlString = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -563,10 +578,10 @@ public final class LLMService: Sendable {
         }
 
         let isFMEnabled = await FoundationModels.shared.isEnabled
-        logger.log("[streamChat] Starting stream request. FoundationModels enabled: \(isFMEnabled).")
+        logInfo("[streamChat] Starting stream request. FoundationModels enabled: \(isFMEnabled).")
 
         if isFMEnabled {
-            logger.log("[streamChat] Foundation Models are enabled. Routing to Apple private on-device reasoning.")
+            logInfo("[streamChat] Foundation Models are enabled. Routing to Apple private on-device reasoning.")
             try await FoundationModels.shared.streamPrivateResponse(prompt: messages.last?.content ?? "", onToken: onToken)
             return
         }
@@ -574,13 +589,13 @@ public final class LLMService: Sendable {
         let provider = try await resolvedRoutingProvider()
 
         if provider == .codex {
-            logger.log("[streamChat] Routing stream to OpenAI Codex bridge.")
+            logInfo("[streamChat] Routing stream to OpenAI Codex bridge.")
             try await CodexBridgeManager.shared.streamPrompt(messages.last?.content ?? "", onToken: onToken)
             return
         }
 
         if provider == .offline {
-            logger.log("[streamChat] Routing stream to offline model.")
+            logInfo("[streamChat] Routing stream to offline model.")
             _ = try await defaultOfflineModelName()
             try await OfflineModelRunner.shared.loadModel(at: try await defaultOfflineModelDirectory())
             try await OfflineModelRunner.shared.streamResponse(prompt: messages.last?.content ?? "") { token in
@@ -593,7 +608,7 @@ public final class LLMService: Sendable {
 
         do {
             if provider == .openRouter {
-                logger.log("[streamChat] Streaming with OpenRouter via direct connection.")
+                logInfo("[streamChat] Streaming with OpenRouter via direct connection.")
                 try await OpenRouterService.shared.streamChatDirect(
                     messages: messages,
                     model: model,
@@ -605,7 +620,7 @@ public final class LLMService: Sendable {
 
             let key = retrieveAPIKey(for: provider)
             guard !key.isEmpty else {
-                logger.error("[streamChat] Missing API key for stream.")
+                logError("[streamChat] Missing API key for stream.")
                 throw LLMError.invalidKey
             }
 
@@ -619,11 +634,11 @@ public final class LLMService: Sendable {
             let body = try buildRequestBody(provider: provider, model: model, messages: messages, systemPrompt: systemPrompt, stream: true)
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-            logger.log("[streamChat] Connecting to stream at \(provider.rawValue)...")
+            logInfo("[streamChat] Connecting to stream at \(provider.rawValue)...")
             let (stream, response) = try await URLSession.shared.bytes(for: request)
             try handleHTTPError(response, data: nil)
 
-            logger.log("[streamChat] Stream connected. Consuming lines.")
+            logInfo("[streamChat] Stream connected. Consuming lines.")
             for try await line in stream.lines {
                 guard line.hasPrefix("data: ") else { continue }
                 let jsonString = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
@@ -644,9 +659,9 @@ public final class LLMService: Sendable {
                 }
             }
         } catch {
-            logger.warning("[streamChat] Stream failed: \(error.localizedDescription). Checking fallback eligibility.")
+            logWarning("[streamChat] Stream failed: \(error.localizedDescription). Checking fallback eligibility.")
             if await shouldFallbackToOffline(for: provider) {
-                logger.log("[streamChat] Falling back to offline runner stream.")
+                logInfo("[streamChat] Falling back to offline runner stream.")
                 _ = try await defaultOfflineModelName()
                 try await OfflineModelRunner.shared.loadModel(at: try await defaultOfflineModelDirectory())
                 try await OfflineModelRunner.shared.streamResponse(prompt: messages.last?.content ?? "") { token in
@@ -661,10 +676,10 @@ public final class LLMService: Sendable {
     @MainActor
     public func streamChatCompletion(request: AIAssistantRequest) async throws -> AsyncThrowingStream<String, Error> {
         let isFMEnabled = FoundationModels.shared.isEnabled
-        logger.log("[streamChatCompletion] FoundationModels enabled: \(isFMEnabled).")
+        logInfo("[streamChatCompletion] FoundationModels enabled: \(isFMEnabled).")
 
         if isFMEnabled {
-            logger.log("[streamChatCompletion] Streaming via Apple Foundation Models.")
+            logInfo("[streamChatCompletion] Streaming via Apple Foundation Models.")
             return AsyncThrowingStream { continuation in
                 Task {
                     do {
@@ -682,7 +697,7 @@ public final class LLMService: Sendable {
 
         let provider = try await resolvedRoutingProvider()
         if provider == .codex {
-            logger.log("[streamChatCompletion] Streaming via OpenAI Codex bridge.")
+            logInfo("[streamChatCompletion] Streaming via OpenAI Codex bridge.")
             return AsyncThrowingStream { continuation in
                 Task {
                     do {
@@ -699,7 +714,7 @@ public final class LLMService: Sendable {
         }
 
         if provider == .offline {
-            logger.log("[streamChatCompletion] Streaming via offline model.")
+            logInfo("[streamChatCompletion] Streaming via offline model.")
             return AsyncThrowingStream { continuation in
                 Task {
                     do {
@@ -718,7 +733,7 @@ public final class LLMService: Sendable {
         }
 
         // Default: OpenRouter / standard streaming
-        logger.log("[streamChatCompletion] Streaming via default provider \(provider.rawValue).")
+        logInfo("[streamChatCompletion] Streaming via default provider \(provider.rawValue).")
         return AsyncThrowingStream { continuation in
             Task {
                 do {

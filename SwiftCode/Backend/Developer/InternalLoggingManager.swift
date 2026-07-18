@@ -38,8 +38,6 @@ final class InternalLoggingManager: ObservableObject, @unchecked Sendable {
     private init() {}
 
     func log(_ message: String, category: LogCategory) {
-        guard FeatureFlags.shared.verbose_logging else { return }
-
         DispatchQueue.main.async {
             let entry = LogEntry(timestamp: Date(), category: category, message: message)
             self.logs.append(entry)

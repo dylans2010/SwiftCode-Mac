@@ -116,40 +116,47 @@ public struct ChooseModelForAgent: View {
 
     private func loadModels() {
         var modelsList: [DynamicModelOption] = []
+        let filter = AssistModelFilter.shared
 
         // 1. Apple Foundation Models
-        modelsList.append(DynamicModelOption(
-            modelID: AppleFoundationModel.afm3Core.rawValue,
-            name: "Apple AFM 3 Core",
-            provider: "Apple Private on-device reasoning",
-            status: "On-Device",
-            isAvailable: true,
-            category: .apple
-        ))
-        modelsList.append(DynamicModelOption(
-            modelID: AppleFoundationModel.afm3CoreAdvanced.rawValue,
-            name: "Apple AFM 3 Core Advanced",
-            provider: "Apple Private on-device reasoning (voice)",
-            status: "On-Device",
-            isAvailable: true,
-            category: .apple
-        ))
+        if filter.isEnabled(AppleFoundationModel.afm3Core.rawValue) {
+            modelsList.append(DynamicModelOption(
+                modelID: AppleFoundationModel.afm3Core.rawValue,
+                name: "Apple AFM 3 Core",
+                provider: "Apple Private on-device reasoning",
+                status: "On-Device",
+                isAvailable: true,
+                category: .apple
+            ))
+        }
+        if filter.isEnabled(AppleFoundationModel.afm3CoreAdvanced.rawValue) {
+            modelsList.append(DynamicModelOption(
+                modelID: AppleFoundationModel.afm3CoreAdvanced.rawValue,
+                name: "Apple AFM 3 Core Advanced",
+                provider: "Apple Private on-device reasoning (voice)",
+                status: "On-Device",
+                isAvailable: true,
+                category: .apple
+            ))
+        }
 
         // 2. HuggingFace Local Models
         let localModels = OfflineModelManager.shared.installedModels
         for m in localModels {
-            modelsList.append(DynamicModelOption(
-                modelID: m.modelName,
-                name: m.modelName,
-                provider: "HuggingFace Local",
-                status: "Downloaded",
-                isAvailable: true,
-                category: .local
-            ))
+            if filter.isEnabled(m.modelName) {
+                modelsList.append(DynamicModelOption(
+                    modelID: m.modelName,
+                    name: m.modelName,
+                    provider: "HuggingFace Local",
+                    status: "Downloaded",
+                    isAvailable: true,
+                    category: .local
+                ))
+            }
         }
 
         // 3. Custom endpoint/link models
-        if !settings.customModel.isEmpty {
+        if !settings.customModel.isEmpty && filter.isEnabled(settings.customModel) {
             modelsList.append(DynamicModelOption(
                 modelID: settings.customModel,
                 name: "Custom (Endpoint)",
@@ -169,14 +176,16 @@ public struct ChooseModelForAgent: View {
             ("openai/gpt-4o-mini", "GPT-4o Mini")
         ]
         for preset in openRouterPresets {
-            modelsList.append(DynamicModelOption(
-                modelID: preset.0,
-                name: preset.1,
-                provider: "OpenRouter Cloud",
-                status: "Cloud",
-                isAvailable: true,
-                category: .openRouter
-            ))
+            if filter.isEnabled(preset.0) {
+                modelsList.append(DynamicModelOption(
+                    modelID: preset.0,
+                    name: preset.1,
+                    provider: "OpenRouter Cloud",
+                    status: "Cloud",
+                    isAvailable: true,
+                    category: .openRouter
+                ))
+            }
         }
 
         self.dynamicModels = modelsList
@@ -189,14 +198,16 @@ public struct ChooseModelForAgent: View {
                 await MainActor.run {
                     var updatedList = self.dynamicModels.filter { $0.category != .openRouter }
                     for m in liveModels {
-                        updatedList.append(DynamicModelOption(
-                            modelID: m.id,
-                            name: m.name,
-                            provider: "OpenRouter Cloud",
-                            status: "Cloud",
-                            isAvailable: true,
-                            category: .openRouter
-                        ))
+                        if filter.isEnabled(m.id) {
+                            updatedList.append(DynamicModelOption(
+                                modelID: m.id,
+                                name: m.name,
+                                provider: "OpenRouter Cloud",
+                                status: "Cloud",
+                                isAvailable: true,
+                                category: .openRouter
+                            ))
+                        }
                     }
                     self.dynamicModels = updatedList
                     self.isFetching = false
