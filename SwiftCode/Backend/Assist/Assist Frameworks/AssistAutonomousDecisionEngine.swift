@@ -31,16 +31,15 @@ public final class AssistAutonomousDecisionEngine {
             return .continueExecution
         }
 
-        // 2. Check for infinite loop (same feedback repeating)
+        // 2. Check for potential loop (same feedback repeating)
         let feedbackOccurrences = previousFeedbacks.filter { $0 == validationResult.feedback }.count
-        if feedbackOccurrences >= 3 {
-            return .triggerTakeover(reason: "Infinite loop detected: Same validation feedback repeated \(feedbackOccurrences) times")
+        if feedbackOccurrences >= 5 {
+            // After 5 identical errors, we try to replan by explicitly instructing a change in approach to break the loop.
+            return .replanTask(feedback: "Self-Correction: The same failure '\(validationResult.feedback)' has repeated \(feedbackOccurrences) times. You must alter your approach, verify file paths, or gather more context to break the stagnation loop.")
         }
 
-        // 3. Check for excessive iterations without progress
-        if iterationCount > 10 {
-            return .triggerTakeover(reason: "No progress after \(iterationCount) iterations")
-        }
+        // 3. Check for excessive iterations without progress - Removed hardcoded cap.
+        // Production-grade adaptive orchestration allows execution to continue as long as progress is still possible.
 
         // 4. Analyze step failures
         let failedSteps = plan.steps.enumerated().filter { $0.element.status == .failed }

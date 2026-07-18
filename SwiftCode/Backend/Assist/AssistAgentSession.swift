@@ -171,17 +171,14 @@ public final class AssistAgentSession: Sendable {
             message: "Validation 1/3 Passed: Base project paths are valid."
         )
 
-        // Stagnation / safety ceiling limits (Respecting runtime safety mechanisms)
-        let absoluteLimit = 35
-        var consecutiveNoOps = 0
-        var previousStateSignature = ""
+        // Production-grade adaptive orchestration trackers
+        var lastRepoModificationCount = 0
+        var lastSuccessfulToolCallCount = 0
+        var lastValidationCount = 0
+        var consecutiveNoProgressCycles = 0
         var codeReviewAttempts = 0
 
         while !isCancelled {
-            if state.toolCallCount >= absoluteLimit {
-                transition(to: .stalled, reason: "Agent loop ceiling reached (\(absoluteLimit) tools executed). Suspending for safety.")
-                return
-            }
 
             // PHASE 4: Planning
             transition(to: .planning, reason: "Constructing system-level repository plan and formulating strategy...")
@@ -285,14 +282,16 @@ public final class AssistAgentSession: Sendable {
             let activeModel = AssistModelManager.shared.selectedModelID
             let response = try await LLMService.shared.generateResponse(prompt: conversationPrompt, useContext: false, modelOverride: activeModel)
             guard response.count > 0 else {
-                transition(to: .failed, reason: "Model returned an empty response.")
-                return
+                pipelineLogger.warning("Model returned empty response. Retrying with instruction...")
+                conversationHistory.append("- System note: Your previous response was empty. Please provide a valid tool call or finalResponse JSON block.")
+                continue
             }
 
             // Parse response
             guard let jsonBlock = extractJSON(from: response) else {
-                transition(to: .failed, reason: "Failed to parse valid JSON command from model output.")
-                return
+                pipelineLogger.warning("Model returned invalid JSON command. Retrying with instructions...")
+                conversationHistory.append("- System note: Your previous response was not valid JSON. Ensure you respond with exactly the specified JSON structure, containing either 'toolId' and 'input' or 'finalResponse'. Do not wrap in extra markdown or prose outside the JSON block.")
+                continue
             }
 
             // Check if final response was reached
@@ -352,14 +351,9 @@ public final class AssistAgentSession: Sendable {
                             transition(to: .terminated, reason: "Code Review Approved! Task completed: \(finalResponse)\nReviewer Notes: \(reviewState.userSee)")
                             return
                         } else {
-                            // --- STEP 6: CODE REVIEW FAILURE Loop & ESCALATION GATE ---
+                            // --- STEP 6: ADAPTIVE CODE REVIEW CONTINUATION (NO PROTOTYPE ITERATION CAPS) ---
                             codeReviewAttempts += 1
-                            if codeReviewAttempts >= 3 {
-                                transition(to: .reviewFailed, reason: "Autonomous Code Review rejected implementation 3 consecutive times. Escalating to developer for manual resolution.")
-                                return
-                            }
-
-                            transition(to: .planning, reason: "Code Review Rejected (Attempt \(codeReviewAttempts)/3). Continuing implementation with reviewer feedback.")
+                            transition(to: .planning, reason: "Code Review Rejected (Iteration \(codeReviewAttempts)). Continuing implementation with reviewer feedback.")
 
                             // Inject reviewer feedback into conversation history
                             let feedbackStr = """
@@ -375,17 +369,19 @@ public final class AssistAgentSession: Sendable {
                             """
                             conversationHistory.append(feedbackStr)
 
-                            consecutiveNoOps = 0
-                            previousStateSignature = ""
+                            consecutiveNoProgressCycles = 0
                             continue
                         }
                     } else {
-                        transition(to: .failed, reason: "Code Review did not produce review results.")
-                        return
+                        pipelineLogger.warning("Code Review did not produce review results. Continuing planning.")
+                        transition(to: .planning, reason: "Code Review results missing. Retrying planning loop.")
+                        continue
                     }
                 } catch {
-                    transition(to: .failed, reason: "Code Review failed to execute: \(error.localizedDescription)")
-                    return
+                    pipelineLogger.error("Code Review failed to execute: \(error.localizedDescription)")
+                    conversationHistory.append("- Action: Run code_review. Result: FAILED - Error: \(error.localizedDescription). Retrying planning.")
+                    transition(to: .planning, reason: "Code Review execution failed. Continuing implementation.")
+                    continue
                 }
             }
 
@@ -412,8 +408,9 @@ public final class AssistAgentSession: Sendable {
             }
 
             guard let tool = registry.getTool(toolId) else {
-                transition(to: .failed, reason: "Tool not found in registry: \(toolId)")
-                return
+                pipelineLogger.warning("Tool not found in registry: \(toolId)")
+                conversationHistory.append("- Action: Run \(toolId). Result: FAILED - Error: Tool not found in registry. Please choose from the available tools list.")
+                continue
             }
 
             state.toolCallCount += 1
@@ -473,27 +470,42 @@ public final class AssistAgentSession: Sendable {
 
                     conversationHistory.append("- Action: Run \(toolId) with \(toolInput). Result: FAILED - Error: \(result.error ?? "Unknown error")")
 
-                    // Stagnation/No-op detection
-                    let stateSignature = "\(toolId)-\(result.error ?? "")"
-                    if stateSignature == previousStateSignature {
-                        consecutiveNoOps += 1
-                    } else {
-                        consecutiveNoOps = 1
-                        previousStateSignature = stateSignature
-                    }
-
-                    if consecutiveNoOps >= 3 {
-                        transition(to: .stalled, reason: "Stagnation loop detected. Tool output unchanged for 3 consecutive cycles.")
-                        return
-                    }
-
                     if context.safetyLevel == .conservative {
                         transition(to: .failed, reason: "Conservative safety policy: Terminating due to tool failure.")
                         return
                     }
                 }
             } catch {
+                pipelineLogger.error("Tool execution threw an error: \(error.localizedDescription)")
+                conversationHistory.append("- Action: Run \(toolId) with \(toolInput). Result: FAILED - Exception: \(error.localizedDescription)")
                 transition(to: .failed, reason: "Engine error during execution: \(error.localizedDescription)")
+            }
+
+            // --- PRODUCTION-GRADE ADAPTIVE PROGRESS EVALUATION ---
+            let currentRepoModificationCount = self.state.changeSummary.createdFiles.count +
+                self.state.changeSummary.modifiedFiles.count +
+                self.state.changeSummary.deletedFiles.count +
+                self.state.changeSummary.renamedFiles.count +
+                self.state.changeSummary.movedFiles.count +
+                self.state.changeSummary.configChanges.count
+
+            let hasRepoModifications = currentRepoModificationCount > lastRepoModificationCount
+            let hasNewSuccessfulTool = self.state.toolCallCount > lastSuccessfulToolCallCount
+            let hasNewValidation = self.validationCount > lastValidationCount
+
+            if hasRepoModifications || hasNewSuccessfulTool || hasNewValidation {
+                consecutiveNoProgressCycles = 0
+                if hasRepoModifications { lastRepoModificationCount = currentRepoModificationCount }
+                if hasNewSuccessfulTool { lastSuccessfulToolCallCount = self.state.toolCallCount }
+                if hasNewValidation { lastValidationCount = self.validationCount }
+            } else {
+                consecutiveNoProgressCycles += 1
+            }
+
+            // Safety check for unrecoverable stagnation (where absolutely no progress can be made)
+            if consecutiveNoProgressCycles >= 15 {
+                let errorMsg = "Unrecoverable Error: The runtime has detected 15 consecutive execution cycles with zero progress (no successful tools, no repository changes, and no validation updates). Suspending to prevent runaway execution."
+                transition(to: .stalled, reason: errorMsg)
                 return
             }
         }

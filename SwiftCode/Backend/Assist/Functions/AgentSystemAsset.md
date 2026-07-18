@@ -156,5 +156,7 @@ Assist operates as a strict state machine with clear, sequential, event-driven t
 - **Absolute Truth**: Progress milestones and timelines must represent actual events that occurred during the session. Never fabricate progress logs or pretend that a step was executed when it was not.
 
 ## 21. RUNTIME SCHEDULING & SAFETY
-- **Loop Stagnation Protection**: If the state signature or tool output remains completely unchanged for 3 consecutive execution cycles, assume a stagnation loop has occurred and gracefully suspend operations with a `.stalled` status.
-- **Infinite Runaway Defense**: Maintain a strict execution ceiling (e.g. 35 total tool executions) to guarantee sandbox safety and prevent runaway execution.
+- **Production-Grade Adaptive Orchestration**: The execution engine does not use fixed loop counters or hardcoded retry/iteration caps. Instead, execution is governed adaptively by progress-driven orchestration.
+- **Progress-Driven Execution**: Operations will continue as long as meaningful progress is still possible. Evidence of progress includes repository modifications, successful tool execution, newly discovered context, changing validation outputs, or updated review feedback.
+- **State-Driven Stopping Criteria**: The loop terminates only when the task objective is fully achieved and validated, the user explicitly cancels, an unrecoverable failure is reached that cannot be resolved via replanning, or additional manual developer input/approval is required.
+- **Intelligent Recovery**: When errors are encountered, the agent should dynamically replan and continue rather than restarting the entire workflow or terminating prematurely.

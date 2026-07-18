@@ -51,15 +51,15 @@ public final class AssistLoopStabilityRegulator {
         guard executionHistory.count >= 3 else { return .none }
 
         // Check 1: Infinite loop (identical plans repeating)
-        let recentPlans = Array(executionHistory.suffix(5))
+        let recentPlans = Array(executionHistory.suffix(8))
         let planHashes = recentPlans.map { $0.planHash }
-        if Set(planHashes).count == 1 {
+        if Set(planHashes).count == 1 && recentPlans.count >= 8 {
             await context.logger.error("Infinite loop detected: Identical plans repeating", toolId: "StabilityRegulator")
-            return .infiniteLoop(reason: "Same plan generated 5 times in a row")
+            return .infiniteLoop(reason: "Same plan generated 8 times in a row")
         }
 
         // Check 2: Oscillation (alternating between 2-3 states)
-        if recentPlans.count >= 4 {
+        if recentPlans.count >= 6 {
             let pattern = recentPlans.map { $0.planHash }
             if isOscillating(pattern) {
                 await context.logger.error("Oscillation detected: Plans alternating between states", toolId: "StabilityRegulator")
@@ -68,17 +68,17 @@ public final class AssistLoopStabilityRegulator {
         }
 
         // Check 3: No progress (all recent iterations failing)
-        let recentResults = Array(executionHistory.suffix(10))
+        let recentResults = Array(executionHistory.suffix(15))
         let allFailing = recentResults.allSatisfy { !$0.wasSuccessful }
-        if allFailing && recentResults.count >= 5 {
+        if allFailing && recentResults.count >= 15 {
             await context.logger.error("No progress: \(recentResults.count) consecutive failures", toolId: "StabilityRegulator")
             return .noProgress(iterations: recentResults.count)
         }
 
         // Check 4: Repetitive feedback (same errors repeating)
-        let recentFeedbacks = Array(executionHistory.suffix(5)).map { $0.validationFeedback }
+        let recentFeedbacks = Array(executionHistory.suffix(8)).map { $0.validationFeedback }
         let uniqueFeedbacks = Set(recentFeedbacks)
-        if uniqueFeedbacks.count == 1 && recentFeedbacks.count >= 3 {
+        if uniqueFeedbacks.count == 1 && recentFeedbacks.count >= 5 {
             await context.logger.warning("Repetitive actions detected: Same feedback repeating", toolId: "StabilityRegulator")
             return .repetitiveActions
         }
