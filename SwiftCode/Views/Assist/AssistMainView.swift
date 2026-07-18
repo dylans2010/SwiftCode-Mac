@@ -878,7 +878,7 @@ struct DiagnosticsSheet: View {
                                 Text("Selected Model:")
                                     .fontWeight(.semibold)
                                 Spacer()
-                                Text(manager.selectedModel.name)
+                                Text(manager.selectedModel.displayName)
                                     .font(.system(.body, design: .monospaced))
                             }
                             HStack {
