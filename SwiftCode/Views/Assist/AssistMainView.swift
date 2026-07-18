@@ -18,6 +18,10 @@ public struct AssistMainView: View {
     @State private var isProcessingFiles = false
     @State private var fetchedOpenRouterModels: [OpenRouterModel] = []
 
+    // Apple Intelligence Prompt Enhancement Alert
+    @State private var showEnhancementError = false
+    @State private var enhancementErrorMessage: String? = nil
+
     // Codex Integration
     @Bindable private var bridgeManager = CodexBridgeManager.shared
 
@@ -423,6 +427,11 @@ public struct AssistMainView: View {
         .sheet(isPresented: $showDiagnosticsSheet) {
             DiagnosticsSheet(manager: manager)
         }
+        .alert("Prompt Enhancement Error", isPresented: $showEnhancementError, presenting: enhancementErrorMessage) { _ in
+            Button("OK") {}
+        } message: { msg in
+            Text(msg)
+        }
         .task {
             await updateCodexButtonVisibility()
             await fetchOpenRouterModelsBackground()
@@ -667,11 +676,21 @@ public struct AssistMainView: View {
             isEnhancingPrompt = true
         }
         Task {
-            let enhancedPrompt = await PromptEnhancer.enhancePrompt(userInput: currentPrompt)
-            await MainActor.run {
-                inputText = enhancedPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-                withAnimation {
-                    isEnhancingPrompt = false
+            do {
+                let enhancedPrompt = try await PromptEnhancer.enhancePrompt(userInput: currentPrompt)
+                await MainActor.run {
+                    inputText = enhancedPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+                    withAnimation {
+                        isEnhancingPrompt = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    withAnimation {
+                        isEnhancingPrompt = false
+                    }
+                    self.enhancementErrorMessage = "There was an issue on this request: \(error.localizedDescription)"
+                    self.showEnhancementError = true
                 }
             }
         }

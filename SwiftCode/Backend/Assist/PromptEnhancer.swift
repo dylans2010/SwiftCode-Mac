@@ -3,6 +3,20 @@ import os
 
 private let logger = Logger(subsystem: "com.swiftcode.PromptEnhancer", category: "PromptEnhancer")
 
+public enum PromptEnhancerError: LocalizedError {
+    case serviceError(String)
+    case parsingFailed(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .serviceError(let message):
+            return message
+        case .parsingFailed(let message):
+            return message
+        }
+    }
+}
+
 public final class PromptEnhancer {
 
     struct EnhancedPromptJSON: Codable {
@@ -10,7 +24,7 @@ public final class PromptEnhancer {
     }
 
     @MainActor
-    public static func enhancePrompt(userInput: String) async -> String {
+    public static func enhancePrompt(userInput: String) async throws -> String {
         let trimmedInput = userInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedInput.isEmpty else { return userInput }
 
@@ -35,17 +49,15 @@ public final class PromptEnhancer {
                 logger.log("[enhancePrompt] Successfully decoded enhanced prompt.")
                 return parsed
             } else {
-                logger.warning("[enhancePrompt] Safe JSON parsing failed. Falling back to raw response.")
-                // If it's not JSON but seems like an enhanced text block, return it directly if clean, otherwise fall back to user input
-                let cleanedRaw = rawResponse.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !cleanedRaw.isEmpty && !cleanedRaw.contains("{") {
-                    return cleanedRaw
-                }
-                return userInput
+                logger.warning("[enhancePrompt] Safe JSON parsing failed.")
+                throw PromptEnhancerError.parsingFailed("Safe JSON parsing failed. Expected JSON schema keys were not found in response: \(rawResponse)")
             }
         } catch {
             logger.error("[enhancePrompt] LLMService generateResponse threw error: \(error.localizedDescription)")
-            return userInput
+            if let enhancerError = error as? PromptEnhancerError {
+                throw enhancerError
+            }
+            throw PromptEnhancerError.serviceError(error.localizedDescription)
         }
     }
 
