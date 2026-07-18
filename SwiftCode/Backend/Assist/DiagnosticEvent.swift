@@ -17,11 +17,11 @@ public struct DiagnosticEvent: Identifiable, Codable, Equatable {
 @Observable
 @MainActor
 public final class DiagnosticEventBus {
-    public static let shared = DiagnosticEventBus()
+    nonisolated public static let shared = DiagnosticEventBus()
 
     public var events: [DiagnosticEvent] = []
 
-    private init() {}
+    nonisolated private init() {}
 
     nonisolated public func logEvent(
         component: String,

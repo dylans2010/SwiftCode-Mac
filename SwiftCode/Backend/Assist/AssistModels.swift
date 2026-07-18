@@ -13,6 +13,17 @@ public enum AssistModelProvider: String, Codable, CaseIterable {
     case openRouter = "OpenRouter"
     case codex = "Codex"
 
+    public static func from(llmProvider: LLMProvider) -> AssistModelProvider {
+        switch llmProvider {
+        case .openai: return .openAI
+        case .anthropic: return .anthropic
+        case .google: return .gemini
+        case .mistral: return .mistral
+        case .openRouter, .qwen, .offline: return .openRouter
+        case .codex: return .codex
+        }
+    }
+
     var apiKeyProvider: APIKeyProvider {
         switch self {
         case .openAI: return .openai

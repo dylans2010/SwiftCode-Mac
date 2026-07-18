@@ -173,7 +173,7 @@ public final class LLMService: Sendable {
         }
     }
 
-    private func retrieveAPIKey(for provider: LLMProvider, from keyOverride: String? = nil) -> String {
+    public func retrieveAPIKey(for provider: LLMProvider, from keyOverride: String? = nil) -> String {
         if let keyOverride, !keyOverride.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return keyOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         }
