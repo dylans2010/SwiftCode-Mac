@@ -55,6 +55,42 @@ public struct AgentTimelineView: View {
             case .idle:
                 Image(systemName: "circle")
                     .foregroundStyle(.secondary)
+            case .receivingRequest:
+                Image(systemName: "bubble.left.and.bubble.right.fill")
+                    .foregroundStyle(.blue)
+            case .analyzingRepository:
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.purple)
+            case .collectingContext:
+                Image(systemName: "folder.fill")
+                    .foregroundStyle(.yellow)
+            case .planningReview:
+                Image(systemName: "doc.text.magnifyingglass")
+                    .foregroundStyle(.indigo)
+            case .awaitingApproval:
+                Image(systemName: "lock.shield.fill")
+                    .foregroundStyle(.red)
+            case .executingStrategy:
+                Image(systemName: "play.fill")
+                    .foregroundStyle(.blue)
+            case .selectingTools:
+                Image(systemName: "hand.tap.fill")
+                    .foregroundStyle(.blue)
+            case .executingTools:
+                Image(systemName: "gearshape.fill")
+                    .foregroundStyle(.orange)
+            case .reviewFailed:
+                Image(systemName: "exclamationmark.octagon.fill")
+                    .foregroundStyle(.red)
+            case .recovering:
+                Image(systemName: "arrow.counterclockwise.shield.fill")
+                    .foregroundStyle(.orange)
+            case .generatingSummary:
+                Image(systemName: "doc.richtext.fill")
+                    .foregroundStyle(.blue)
+            case .terminated:
+                Image(systemName: "xmark.octagon.fill")
+                    .foregroundStyle(.gray)
             case .initializing:
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .foregroundStyle(.blue)

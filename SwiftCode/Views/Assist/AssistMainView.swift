@@ -498,6 +498,30 @@ public struct AssistMainView: View {
         switch status {
         case .idle:
             return "Idle"
+        case .receivingRequest:
+            return "Receiving new request..."
+        case .analyzingRepository:
+            return "Analyzing the codebase..."
+        case .collectingContext:
+            return "Collecting code context..."
+        case .planningReview:
+            return "Reviewing execution plan..."
+        case .awaitingApproval:
+            return "Awaiting developer approval..."
+        case .executingStrategy:
+            return "Executing plan strategy..."
+        case .selectingTools:
+            return "Selecting available tools..."
+        case .executingTools:
+            return "Executing tools..."
+        case .reviewFailed:
+            return "Code review failed, retrying..."
+        case .recovering:
+            return "Recovering from error..."
+        case .generatingSummary:
+            return "Generating session summary..."
+        case .terminated:
+            return "Session terminated."
         case .initializing:
             return "Initializing session..."
         case .understandingRequest:
