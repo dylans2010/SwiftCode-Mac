@@ -86,11 +86,18 @@ public struct TaskProgressView: View {
 
     private func badgeColor(_ status: AgentSessionStatus) -> Color {
         switch status {
-        case .idle, .cancelled: return .gray
-        case .planning, .selectingTool, .executingTool, .inspectingResult: return .orange
-        case .validating: return .purple
-        case .completed: return .green
-        case .failed, .stalled: return .red
+        case .idle, .cancelled, .terminated:
+            return .gray
+        case .planning, .planningReview, .selectingTools, .executingTools, .selectingTool, .executingTool, .inspectingResult, .executingStrategy, .updatingRepository, .gatheringContext, .collectingContext, .analyzingRepository, .receivingRequest, .generatingSummary:
+            return .orange
+        case .validating, .reviewing, .initializing:
+            return .purple
+        case .finished, .completed:
+            return .green
+        case .failed, .reviewFailed, .recovering, .stalled:
+            return .red
+        case .awaitingApproval, .waitingForUserApproval:
+            return .blue
         }
     }
 }
