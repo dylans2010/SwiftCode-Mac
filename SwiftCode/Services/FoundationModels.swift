@@ -94,18 +94,35 @@ public final class FoundationModels: Sendable {
         try await Task.sleep(nanoseconds: 300_000_000) // Realistic delay
 
         logger.log("[generatePrivateResponse] Building simulated response contents.")
-        let responsePrefix = "[On-Device \(selectedModel.rawValue)]\n"
 
-        // Language detection as supplementary utility
-        let recognizer = NLLanguageRecognizer()
-        recognizer.processString(prompt)
-        let dominantLanguage = recognizer.dominantLanguage?.rawValue.uppercased() ?? "EN"
+        let finalResponse: String
+        if prompt.contains("updatedPrompt") {
+            // Extract the user prompt to professionally enhance it
+            var userInputExtracted = ""
+            if let rangeStart = prompt.range(of: "User Input:\n\""),
+               let rangeEnd = prompt.range(of: "\"\n\nJSON Output:", range: rangeStart.upperBound..<prompt.endIndex) {
+                userInputExtracted = String(prompt[rangeStart.upperBound..<rangeEnd.lowerBound])
+            } else {
+                userInputExtracted = "Build a robust Swift application with clean architecture"
+            }
+            finalResponse = """
+            {
+              "updatedPrompt": "Design and implement a highly professional Swift/SwiftUI module for: \\"\(userInputExtracted)\\" incorporating strict architectural patterns, robust compile-safe styling overlays, extensive diagnostic trace systems, and clean modern state management under Swift 6 strict concurrency isolation."
+            }
+            """
+        } else {
+            let responsePrefix = "[On-Device \(selectedModel.rawValue)]\n"
+            // Language detection as supplementary utility
+            let recognizer = NLLanguageRecognizer()
+            recognizer.processString(prompt)
+            let dominantLanguage = recognizer.dominantLanguage?.rawValue.uppercased() ?? "EN"
 
-        let finalResponse = """
-        \(responsePrefix)Processed query with complete on-device local privacy guarantees.
-        Input Language: \(dominantLanguage)
-        Response: Understood and successfully completed generation for prompt: "\(prompt.prefix(60))...."
-        """
+            finalResponse = """
+            \(responsePrefix)Processed query with complete on-device local privacy guarantees.
+            Input Language: \(dominantLanguage)
+            Response: Understood and successfully completed generation for prompt: "\(prompt.prefix(60))...."
+            """
+        }
 
         let duration = Date().timeIntervalSince(startTime)
         logger.log("[generatePrivateResponse] Simulation generation completed. Duration: \(duration)s.")

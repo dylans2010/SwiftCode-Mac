@@ -312,7 +312,14 @@ public final class AssistAgentSession: Sendable {
 
     private func extractJSON(from response: String) -> [String: Any]? {
         var cleaned = response.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Strip markdown fences if any
+
+        // 1. Try parsing directly first
+        if let data = cleaned.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return json
+        }
+
+        // 2. Strip markdown fences if any
         if cleaned.hasPrefix("```json") {
             cleaned = String(cleaned.dropFirst(7))
         } else if cleaned.hasPrefix("```") {
@@ -323,7 +330,21 @@ public final class AssistAgentSession: Sendable {
         }
         cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard let data = cleaned.data(using: .utf8) else { return nil }
-        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        if let data = cleaned.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return json
+        }
+
+        // 3. Search for JSON boundary `{` and `}` to extract the inner JSON string
+        if let firstBrace = response.firstIndex(of: "{"),
+           let lastBrace = response.lastIndex(of: "}") {
+            let candidate = String(response[firstBrace...lastBrace]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if let data = candidate.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                return json
+            }
+        }
+
+        return nil
     }
 }

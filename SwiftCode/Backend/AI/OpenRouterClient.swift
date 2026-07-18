@@ -12,7 +12,11 @@ public actor OpenRouterClient {
             return cachedModels
         }
         logger.log("[fetchModels] Fetching models from OpenRouter.")
-        let apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
+        var apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
+        if apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            apiKey = try await KeychainService.shared.get(account: "openrouter-api-key") ?? ""
+        }
+        apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         // SAFETY: The URL is a valid constant string.
         var urlRequest = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/models")!)
         if !apiKey.isEmpty {
@@ -27,7 +31,10 @@ public actor OpenRouterClient {
         }
 
         guard httpResponse.statusCode == 200 else {
-            logger.error("[fetchModels] Non-200 status code: \(httpResponse.statusCode)")
+            let errorText = String(data: data, encoding: .utf8) ?? "Unknown response payload"
+            let errMsg = "[OpenRouter Client fetchModels Error] Status: \(httpResponse.statusCode). Response: \(errorText)"
+            logger.error("\(errMsg)")
+            InternalLoggingManager.shared.log("[ERROR] \(errMsg)", category: .aiProcessing)
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let errorDict = json["error"] as? [String: Any],
                let errorMessage = errorDict["message"] as? String {
@@ -73,7 +80,11 @@ public actor OpenRouterClient {
             }
         }
 
-        let apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
+        var apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
+        if apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            apiKey = try await KeychainService.shared.get(account: "openrouter-api-key") ?? ""
+        }
+        apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !apiKey.isEmpty else {
             logger.error("[streamChatCompletionDirect] Missing API key for OpenRouter.")
             throw AppError.aiError("No OpenRouter API key found. Please add your key in Settings.")
@@ -101,13 +112,15 @@ public actor OpenRouterClient {
         }
 
         guard httpResponse.statusCode == 200 else {
-            logger.error("[streamChatCompletionDirect] Received status code: \(httpResponse.statusCode)")
             var bodyText = ""
             do {
                 for try await line in result.lines {
                     bodyText += line + "\n"
                 }
             } catch {}
+            let errMsg = "[OpenRouter Client streamChat Error] Status: \(httpResponse.statusCode). Response: \(bodyText)"
+            logger.error("\(errMsg)")
+            InternalLoggingManager.shared.log("[ERROR] \(errMsg)", category: .aiProcessing)
             if let data = bodyText.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let errorDict = json["error"] as? [String: Any],
@@ -180,7 +193,11 @@ public actor OpenRouterClient {
             }
         }
 
-        let apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
+        var apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
+        if apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            apiKey = try await KeychainService.shared.get(account: "openrouter-api-key") ?? ""
+        }
+        apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !apiKey.isEmpty else {
             logger.error("[streamAgentTurn] Missing API key for OpenRouter.")
             throw AppError.aiError("No OpenRouter API key found. Please add your key in Settings.")
@@ -204,13 +221,15 @@ public actor OpenRouterClient {
         }
 
         guard httpResponse.statusCode == 200 else {
-            logger.error("[streamAgentTurn] Received status code: \(httpResponse.statusCode)")
             var bodyText = ""
             do {
                 for try await line in result.lines {
                     bodyText += line + "\n"
                 }
             } catch {}
+            let errMsg = "[OpenRouter Client streamAgentTurn Error] Status: \(httpResponse.statusCode). Response: \(bodyText)"
+            logger.error("\(errMsg)")
+            InternalLoggingManager.shared.log("[ERROR] \(errMsg)", category: .aiProcessing)
             if let data = bodyText.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let errorDict = json["error"] as? [String: Any],

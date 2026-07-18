@@ -41,8 +41,12 @@ final class OpenRouterService: Sendable {
             return try await FoundationModels.shared.generatePrivateResponse(prompt: lastPrompt)
         }
 
-        guard let apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey),
-              !apiKey.isEmpty else {
+        var apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey) ?? ""
+        if apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            apiKey = KeychainService.shared.get(forKey: "openrouter-api-key") ?? ""
+        }
+        apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apiKey.isEmpty else {
             logger.error("[chatDirect] Missing API key for OpenRouter.")
             throw OpenRouterError.missingAPIKey
         }
@@ -82,6 +86,9 @@ final class OpenRouterService: Sendable {
 
         guard httpResponse.statusCode == 200 else {
             let errorBody = String(data: data, encoding: .utf8) ?? "Unknown error"
+            let msg = "[OpenRouter API Error] Status: \(httpResponse.statusCode). Response: \(errorBody)"
+            logger.error("\(msg)")
+            InternalLoggingManager.shared.log("[ERROR] \(msg)", category: .aiProcessing)
             throw OpenRouterError.apiError(statusCode: httpResponse.statusCode, body: errorBody)
         }
 
@@ -134,8 +141,12 @@ final class OpenRouterService: Sendable {
             return
         }
 
-        guard let apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey),
-              !apiKey.isEmpty else {
+        var apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey) ?? ""
+        if apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            apiKey = KeychainService.shared.get(forKey: "openrouter-api-key") ?? ""
+        }
+        apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apiKey.isEmpty else {
             logger.error("[streamChatDirect] Missing API key for OpenRouter.")
             throw OpenRouterError.missingAPIKey
         }
@@ -183,6 +194,9 @@ final class OpenRouterService: Sendable {
                 if bodyData.count > 4096 { break }
             }
             let errorBody = String(data: bodyData, encoding: .utf8) ?? "Unknown error"
+            let msg = "[OpenRouter Stream API Error] Status: \(httpResponse.statusCode). Response: \(errorBody)"
+            logger.error("\(msg)")
+            InternalLoggingManager.shared.log("[ERROR] \(msg)", category: .aiProcessing)
             throw OpenRouterError.apiError(statusCode: httpResponse.statusCode, body: errorBody)
         }
 

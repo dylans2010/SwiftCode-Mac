@@ -19,7 +19,7 @@ public final class PromptEnhancer {
 
         You MUST return ONLY a valid JSON object matching this schema, with absolutely no other text, markdown formatting blocks (like ```json), explanations, or surrounding commentary:
         {
-          "updatedPrompt": "string"
+          "updatedPrompt": "your enhanced prompt here"
         }
         """
 
