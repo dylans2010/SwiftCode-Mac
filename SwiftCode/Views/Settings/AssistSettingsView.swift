@@ -1262,7 +1262,7 @@ struct AssistSettingsView: View {
 // MARK: - Models For Assist Selection Card
 
 struct ModelsForAssist: View {
-    @Bindable var settings: AppSettings
+    @ObservedObject var settings: AppSettings
     @State private var filter = AssistModelFilter.shared
 
     var cachedModels: [CachedModel]
