@@ -1,6 +1,7 @@
 import Foundation
 import os
 
+@available(*, deprecated, renamed: "AssistAgentSession")
 public actor AgentOrchestrator {
     private let pipelineLogger = Logger(subsystem: "com.swiftcode.app", category: "AgentPipeline")
     private let provider: AIProvider

@@ -3,6 +3,7 @@ import Combine
 import Observation
 import os
 
+@available(*, deprecated, renamed: "AssistManager")
 @Observable
 @MainActor
 public class AgentViewModel {
