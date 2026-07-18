@@ -88,7 +88,7 @@ public struct TaskProgressView: View {
         switch status {
         case .idle, .cancelled, .terminated:
             return .gray
-        case .planning, .planningReview, .selectingTools, .executingTools, .selectingTool, .executingTool, .inspectingResult, .executingStrategy, .updatingRepository, .gatheringContext, .collectingContext, .analyzingRepository, .receivingRequest, .generatingSummary:
+        case .planning, .planningReview, .selectingTools, .executingTools, .selectingTool, .executingTool, .inspectingResult, .executingStrategy, .updatingRepository, .gatheringContext, .collectingContext, .analyzingRepository, .receivingRequest, .generatingSummary, .completing, .understandingRequest:
             return .orange
         case .validating, .reviewing, .initializing:
             return .purple
