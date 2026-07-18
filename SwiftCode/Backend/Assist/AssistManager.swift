@@ -198,6 +198,38 @@ public final class AssistManager: ObservableObject {
 
         // Processing through Chat Mode: Query Model directly and conversationally (no tools/planning)
         do {
+            // --- COMPREHENSIVE CHAT MODE STATE VALIDATION ---
+            let selectedModel = AssistModelManager.shared.selectedModelID
+            let selectedProvider = LLMService.shared.provider(for: selectedModel)
+
+            logger.log("[ChatMode] Validating session state. Model: \(selectedModel), Provider: \(selectedProvider.rawValue)")
+
+            if selectedProvider != .offline && selectedProvider != .codex {
+                let key = LLMService.shared.retrieveAPIKey(for: selectedProvider)
+                guard !key.isEmpty else {
+                    let errorMsg = "Chat Validation Failed: Missing API key / credentials for provider \(selectedProvider.rawValue). Please configure your key in Assist Settings."
+                    await MainActor.run {
+                        lastError = errorMsg
+                        messages.append(AssistMessage(role: .system, content: errorMsg))
+                        isProcessing = false
+                        saveHistory()
+                    }
+                    return
+                }
+            } else if selectedProvider == .offline {
+                guard FoundationModels.shared.isEnabled else {
+                    let errorMsg = "Chat Validation Failed: Local Apple Foundation Models are selected but disabled. Please enable them in Assist Settings."
+                    await MainActor.run {
+                        lastError = errorMsg
+                        messages.append(AssistMessage(role: .system, content: errorMsg))
+                        isProcessing = false
+                        saveHistory()
+                    }
+                    return
+                }
+            }
+            // ------------------------------------------------
+
             let assetSystemPrompt = try getSystemPrompt()
 
             var prompt = """

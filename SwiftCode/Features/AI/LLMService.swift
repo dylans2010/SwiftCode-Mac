@@ -178,6 +178,10 @@ public final class LLMService: Sendable {
             return keyOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
+        if provider == .openRouter {
+            return OpenRouterClient.resolveOpenRouterAPIKey()
+        }
+
         var key = ""
         if let managerKey = APIKeyManager.shared.retrieveKey(service: apiKeyProvider(for: provider)),
            !managerKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -188,13 +192,6 @@ public final class LLMService: Sendable {
             if let keychainKey = KeychainService.shared.get(forKey: provider.keychainKey),
                !keychainKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 key = keychainKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
-
-        if key.isEmpty && provider == .openRouter {
-            if let hyphenatedKey = KeychainService.shared.get(forKey: "openrouter-api-key"),
-               !hyphenatedKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                key = hyphenatedKey.trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }
 
@@ -246,20 +243,44 @@ public final class LLMService: Sendable {
         }
     }
 
+    public func provider(for modelID: String) -> LLMProvider {
+        let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed == "AFM 3 Core" || trimmed == "AFM 3 Core Advanced" {
+            return .offline
+        }
+        if trimmed.hasPrefix("gpt-5-codex") || trimmed.hasPrefix("gpt-4-codex") || trimmed == "Codex" {
+            return .codex
+        }
+        if trimmed.contains("/") {
+            return .openRouter
+        }
+        if trimmed.hasPrefix("claude-") {
+            return .anthropic
+        }
+        if trimmed.hasPrefix("gpt-") {
+            return .openai
+        }
+        if trimmed.hasPrefix("gemini-") {
+            return .google
+        }
+        return (try? resolvedRoutingProvider()) ?? .openRouter
+    }
+
     // MARK: - Core Methods
 
     @MainActor
     public func generateResponse(prompt: String, useContext: Bool, modelOverride: String? = nil, providerOverride: LLMProvider? = nil) async throws -> String {
-        let isFMEnabled = FoundationModels.shared.isEnabled
-        logInfo("[generateResponse] Starting response generation. FoundationModels enabled: \(isFMEnabled).")
+        let model = modelOverride ?? AppSettings.shared.selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedProvider = providerOverride ?? provider(for: model)
 
-        if isFMEnabled {
-            logInfo("[generateResponse] Foundation Models are enabled. Routing to Apple private on-device reasoning.")
+        logInfo("[generateResponse] Authoritative Routing. Provider: \(resolvedProvider.rawValue), Model: \(model).")
+
+        if model == "AFM 3 Core" || model == "AFM 3 Core Advanced" {
+            logInfo("[generateResponse] Routing to Apple private on-device reasoning.")
             return try await FoundationModels.shared.generatePrivateResponse(prompt: prompt)
         }
 
-        let provider = try providerOverride ?? resolvedRoutingProvider()
-        if provider == .codex {
+        if resolvedProvider == .codex {
             logInfo("[generateResponse] Routing response generation to OpenAI Codex.")
             return try await CodexBridgeManager.shared.sendPrompt(prompt)
         }
@@ -268,21 +289,22 @@ public final class LLMService: Sendable {
             logInfo("[generateResponse] OnDeviceModelRouter enabled. Routing to on-device AI.")
             return try await OnDeviceModelRouter.shared.generateResponse(prompt: prompt, useContext: useContext)
         }
-        return try await generateExternalResponse(prompt: prompt, useContext: useContext, modelOverride: modelOverride, providerOverride: providerOverride)
+        return try await generateExternalResponse(prompt: prompt, useContext: useContext, modelOverride: model, providerOverride: resolvedProvider)
     }
 
     @MainActor
     public func generateExternalResponse(prompt: String, useContext: Bool, modelOverride: String? = nil, providerOverride: LLMProvider? = nil) async throws -> String {
-        let isFMEnabled = FoundationModels.shared.isEnabled
-        logInfo("[generateExternalResponse] Starting external generation. FoundationModels enabled: \(isFMEnabled).")
+        let model = modelOverride ?? AppSettings.shared.selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedProvider = providerOverride ?? provider(for: model)
 
-        if isFMEnabled {
-            logInfo("[generateExternalResponse] Foundation Models are enabled. Routing to Apple private on-device reasoning.")
+        logInfo("[generateExternalResponse] Authoritative Routing. Provider: \(resolvedProvider.rawValue), Model: \(model).")
+
+        if model == "AFM 3 Core" || model == "AFM 3 Core Advanced" {
+            logInfo("[generateExternalResponse] Routing to Apple private on-device reasoning.")
             return try await FoundationModels.shared.generatePrivateResponse(prompt: prompt)
         }
 
-        let provider = try providerOverride ?? resolvedRoutingProvider()
-        if provider == .codex {
+        if resolvedProvider == .codex {
             logInfo("[generateExternalResponse] Routing external generation to OpenAI Codex.")
             return try await CodexBridgeManager.shared.sendPrompt(prompt)
         }
@@ -298,15 +320,7 @@ public final class LLMService: Sendable {
             messageContent = "[\(antiRepeatInstruction)]\n\n\(trimmedPrompt)"
         }
 
-        let model: String
-        if provider == .offline {
-            model = try await defaultOfflineModelName()
-        } else {
-            let selected = modelOverride ?? AppSettings.shared.selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
-            model = selected.isEmpty ? "openai/gpt-4o-mini" : selected
-        }
-
-        logInfo("[generateExternalResponse] Request constructed. Provider: \(provider.rawValue). Model: \(model). Sending chat request.")
+        logInfo("[generateExternalResponse] Request constructed. Provider: \(resolvedProvider.rawValue). Model: \(model). Sending chat request.")
         let response = try await sendChatRequest(
             model: model,
             messages: [AIMessage(role: .user, content: messageContent)],
@@ -603,16 +617,16 @@ public final class LLMService: Sendable {
             return
         }
 
-        let isFMEnabled = await FoundationModels.shared.isEnabled
-        logInfo("[streamChat] Starting stream request. FoundationModels enabled: \(isFMEnabled).")
+        let resolvedProvider = provider(for: model)
+        logInfo("[streamChat] Authoritative Routing. Provider: \(resolvedProvider.rawValue), Model: \(model).")
 
-        if isFMEnabled {
-            logInfo("[streamChat] Foundation Models are enabled. Routing to Apple private on-device reasoning.")
+        if model == "AFM 3 Core" || model == "AFM 3 Core Advanced" {
+            logInfo("[streamChat] Routing stream to Apple private on-device reasoning.")
             try await FoundationModels.shared.streamPrivateResponse(prompt: messages.last?.content ?? "", onToken: onToken)
             return
         }
 
-        let provider = try await resolvedRoutingProvider()
+        let provider = resolvedProvider
 
         if provider == .codex {
             logInfo("[streamChat] Routing stream to OpenAI Codex bridge.")
@@ -701,10 +715,11 @@ public final class LLMService: Sendable {
 
     @MainActor
     public func streamChatCompletion(request: AIAssistantRequest) async throws -> AsyncThrowingStream<String, Error> {
-        let isFMEnabled = FoundationModels.shared.isEnabled
-        logInfo("[streamChatCompletion] FoundationModels enabled: \(isFMEnabled).")
+        let model = request.model.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedProvider = provider(for: model)
+        logInfo("[streamChatCompletion] Authoritative Routing. Provider: \(resolvedProvider.rawValue), Model: \(model).")
 
-        if isFMEnabled {
+        if model == "AFM 3 Core" || model == "AFM 3 Core Advanced" {
             logInfo("[streamChatCompletion] Streaming via Apple Foundation Models.")
             return AsyncThrowingStream { continuation in
                 Task {
@@ -721,7 +736,7 @@ public final class LLMService: Sendable {
             }
         }
 
-        let provider = try await resolvedRoutingProvider()
+        let provider = resolvedProvider
         if provider == .codex {
             logInfo("[streamChatCompletion] Streaming via OpenAI Codex bridge.")
             return AsyncThrowingStream { continuation in

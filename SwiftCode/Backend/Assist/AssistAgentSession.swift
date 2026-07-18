@@ -16,6 +16,67 @@ public final class AssistAgentSession: Sendable {
     public init() {}
 
     public func start(objective: String, attachments: [AgentFileContext] = [], context: AssistContext) async throws {
+        // --- COMPREHENSIVE SESSION STATE VALIDATION ---
+        let selectedModel = AssistModelManager.shared.selectedModelID
+        let selectedProvider = LLMService.shared.provider(for: selectedModel)
+        let isAgentMode = UserDefaults.standard.bool(forKey: "com.swiftcode.assist.mode")
+
+        pipelineLogger.log("[start] Validating Assist session configuration. Selected Model: \(selectedModel), Selected Provider: \(selectedProvider.rawValue), Mode: \(isAgentMode ? "Agent" : "Chat")")
+        DiagnosticEventBus.shared.logEvent(
+            component: "AssistAgentSession",
+            model: selectedModel,
+            severity: "INFO",
+            category: "session",
+            message: "Validating session state. Provider: \(selectedProvider.rawValue), Model: \(selectedModel), Mode: \(isAgentMode ? "Agent" : "Chat")"
+        )
+
+        // 1. Verify selected model is not empty
+        guard !selectedModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            let errorMsg = "Session State Error: No model has been selected for this session."
+            emitEvent(state: .failed, summary: errorMsg)
+            state.status = .failed
+            throw NSError(domain: "AssistAgentSession", code: 400, userInfo: [NSLocalizedDescriptionKey: errorMsg])
+        }
+
+        // 2. Verify runtime execution mode is correct (Agent Mode must be active)
+        guard isAgentMode else {
+            let errorMsg = "Session State Error: Attempted to run Agent session while execution mode is not set to Agent Mode."
+            emitEvent(state: .failed, summary: errorMsg)
+            state.status = .failed
+            throw NSError(domain: "AssistAgentSession", code: 400, userInfo: [NSLocalizedDescriptionKey: errorMsg])
+        }
+
+        // 3. Verify Authentication state and capabilities
+        if selectedProvider != .offline && selectedProvider != .codex {
+            let key = LLMService.shared.retrieveAPIKey(for: selectedProvider)
+            guard !key.isEmpty else {
+                let errorMsg = "Session Validation Failed: Missing API key / credentials for provider \(selectedProvider.rawValue). Please configure your key in Assist Settings."
+                emitEvent(state: .failed, summary: errorMsg)
+                state.status = .failed
+                throw NSError(domain: "AssistAgentSession", code: 401, userInfo: [NSLocalizedDescriptionKey: errorMsg])
+            }
+            pipelineLogger.log("[start] Authentication state verified. API key is present.")
+        } else if selectedProvider == .offline {
+            // Apple Foundation Models validation
+            guard FoundationModels.shared.isEnabled else {
+                let errorMsg = "Session Validation Failed: Local Apple Foundation Models are selected but disabled. Please enable them in Assist Settings."
+                emitEvent(state: .failed, summary: errorMsg)
+                state.status = .failed
+                throw NSError(domain: "AssistAgentSession", code: 400, userInfo: [NSLocalizedDescriptionKey: errorMsg])
+            }
+            pipelineLogger.log("[start] Local capabilities verified. Foundation Models are enabled.")
+        }
+
+        pipelineLogger.log("[start] Session validation succeeded. Proceeding to autonomous execution loop.")
+        DiagnosticEventBus.shared.logEvent(
+            component: "AssistAgentSession",
+            model: selectedModel,
+            severity: "SUCCESS",
+            category: "session",
+            message: "Session state validated successfully. Selected provider matches the authoritative runtime configuration."
+        )
+        // ----------------------------------------------
+
         self.isCancelled = false
         self.state.objective = objective
         self.state.status = .planning
@@ -142,7 +203,8 @@ public final class AssistAgentSession: Sendable {
             emitEvent(state: .selectingTool, summary: "Reasoning about next actions based on tool schema specifications...")
 
             // Query Model dynamically!
-            let response = try await LLMService.shared.generateResponse(prompt: conversationPrompt, useContext: false)
+            let activeModel = AssistModelManager.shared.selectedModelID
+            let response = try await LLMService.shared.generateResponse(prompt: conversationPrompt, useContext: false, modelOverride: activeModel)
             guard response.count > 0 else {
                 emitEvent(state: .failed, summary: "Model returned an empty response.")
                 state.status = .failed
