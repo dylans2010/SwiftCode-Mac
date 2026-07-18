@@ -11,6 +11,14 @@ struct HeaderItem: Identifiable, Codable, Equatable {
     var value: String
 }
 
+// MARK: - CachedModel Struct
+
+struct CachedModel: Codable, Identifiable, Equatable {
+    var id: String { modelID }
+    let modelID: String
+    let providerName: String // "OpenAI", "Anthropic", "Gemini"
+}
+
 // MARK: - FreeModelsFallback Configuration Model
 
 @Observable
@@ -477,6 +485,11 @@ struct AssistSettingsView: View {
     @State private var openRouterFetchError: String? = nil
 
     // Custom Model configurations
+    @State private var customEndpointsManager = CustomEndpointManager.shared
+    @State private var selectedEndpoint: SavedCustomEndpoint? = nil
+    @State private var isEditingEndpoint = false
+    @State private var isNewEndpoint = false
+    @State private var customEndpointName = ""
     @State private var customEndpoint = "https://api.openai.com/v1"
     @State private var customHeaders: [HeaderItem] = [
         HeaderItem(key: "Content-Type", value: "application/json")
@@ -485,6 +498,14 @@ struct AssistSettingsView: View {
     @State private var customModels: [String] = []
     @State private var isFetchingCustomModels = false
     @State private var customFetchError: String? = nil
+    @State private var isEndpointLocal = false
+    @State private var localEndpointPort = "11434"
+    @State private var endpointShowInPopup = true
+
+    // Cached Available Models configurations
+    @State private var cachedModels: [CachedModel] = []
+    @State private var isFetchingAvailableModels = false
+    @State private var availableModelsFetchError: String? = nil
 
     // Sheets Toggles
     @State private var showFreeModelsSheet = false
@@ -515,29 +536,61 @@ struct AssistSettingsView: View {
                                 .padding(.vertical, 4)
 
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("OpenRouter API Key")
-                                    .font(.caption.bold())
+                                HStack {
+                                    Text("OpenRouter API Key")
+                                        .font(.caption.bold())
+                                    Spacer()
+                                    Link(destination: URL(string: "https://openrouter.ai/keys")!) {
+                                        Label("Get Key", systemImage: "arrow.up.right")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                                 SecureField("sk-or-v1-...", text: $openRouterKey)
                                     .textFieldStyle(.roundedBorder)
                             }
 
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("OpenAI API Key")
-                                    .font(.caption.bold())
+                                HStack {
+                                    Text("OpenAI API Key")
+                                        .font(.caption.bold())
+                                    Spacer()
+                                    Link(destination: URL(string: "https://platform.openai.com/api-keys")!) {
+                                        Label("Get Key", systemImage: "arrow.up.right")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                                 SecureField("sk-...", text: $openaiKey)
                                     .textFieldStyle(.roundedBorder)
                             }
 
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("Anthropic API Key")
-                                    .font(.caption.bold())
+                                HStack {
+                                    Text("Anthropic API Key")
+                                        .font(.caption.bold())
+                                    Spacer()
+                                    Link(destination: URL(string: "https://console.anthropic.com/settings/keys")!) {
+                                        Label("Get Key", systemImage: "arrow.up.right")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                                 SecureField("sk-ant-...", text: $anthropicKey)
                                     .textFieldStyle(.roundedBorder)
                             }
 
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("Gemini (Google) API Key")
-                                    .font(.caption.bold())
+                                HStack {
+                                    Text("Gemini (Google) API Key")
+                                        .font(.caption.bold())
+                                    Spacer()
+                                    Link(destination: URL(string: "https://aistudio.google.com/app/apikey")!) {
+                                        Label("Get Key", systemImage: "arrow.up.right")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                                 SecureField("Enter Gemini API key", text: $geminiKey)
                                     .textFieldStyle(.roundedBorder)
                             }
@@ -563,40 +616,40 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 2. OpenRouter Selection Section
+                // 2. Available Models Section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
-                            Label("OpenRouter Model Selection", systemImage: "sparkles")
+                            Label("Available Models", systemImage: "sparkles")
                                 .font(.headline)
                                 .foregroundColor(.purple)
                             Spacer()
                         }
 
                         VStack(alignment: .leading, spacing: 12) {
-                            Picker("Default OpenRouter Model", selection: $settings.selectedAssistModelID) {
-                                ForEach(openRouterModels) { model in
-                                    Text("\(model.name) (\(model.id))")
-                                        .tag(model.id)
+                            Picker("Default Model", selection: $settings.selectedAssistModelID) {
+                                ForEach(cachedModels) { model in
+                                    Text("\(model.modelID) (\(model.providerName))")
+                                        .tag(model.modelID)
                                 }
                             }
                             .pickerStyle(.menu)
 
                             HStack(spacing: 12) {
                                 Button(action: {
-                                    Task { await fetchOpenRouterModels() }
+                                    Task { await fetchAvailableModels() }
                                 }) {
                                     HStack {
-                                        if isFetchingOpenRouterModels {
+                                        if isFetchingAvailableModels {
                                             ProgressView().scaleEffect(0.6).padding(.trailing, 4)
                                         } else {
                                             Image(systemName: "arrow.triangle.2.circlepath")
                                         }
-                                        Text(isFetchingOpenRouterModels ? "Fetching OpenRouter Models..." : "Fetch Available Models")
+                                        Text(isFetchingAvailableModels ? "Fetching Models..." : "Fetch Models")
                                     }
                                 }
                                 .buttonStyle(.bordered)
-                                .disabled(isFetchingOpenRouterModels)
+                                .disabled(isFetchingAvailableModels)
 
                                 Button {
                                     showFreeModelsSheet = true
@@ -621,7 +674,7 @@ struct AssistSettingsView: View {
                             }
                             .padding(.top, 4)
 
-                            if let error = openRouterFetchError {
+                            if let error = availableModelsFetchError {
                                 Text(error)
                                     .font(.caption)
                                     .foregroundStyle(.red)
@@ -672,116 +725,241 @@ struct AssistSettingsView: View {
                                 .font(.headline)
                                 .foregroundColor(.cyan)
                             Spacer()
+
+                            Button(action: openAddEndpoint) {
+                                Label("Add Custom", systemImage: "plus")
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(isEditingEndpoint)
                         }
 
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Connect to any OpenAI-compatible API endpoint (e.g. Together AI, DeepInfra, Ollama, LM Studio, etc.) to list and use custom models.")
+                            Text("Connect to any OpenAI-compatible API endpoint (e.g. Together AI, DeepInfra, Ollama, LM Studio, etc.) or local inference port to use custom models.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
 
                             Divider()
                                 .padding(.vertical, 4)
 
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("API Endpoint URL")
-                                    .font(.caption.bold())
-                                TextField("https://api.openai.com/v1", text: $customEndpoint)
-                                    .textFieldStyle(.roundedBorder)
-                                    .autocorrectionDisabled()
-                            }
-
-                            // KEY-VALUE INTERACTIVE HEADERS FIELDS
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Text("HTTP Headers")
-                                        .font(.caption.bold())
-                                    Spacer()
-                                    Button(action: {
-                                        customHeaders.append(HeaderItem(key: "New-Header", value: "Value"))
-                                    }) {
-                                        Label("Add Header", systemImage: "plus")
-                                            .font(.caption)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-
-                                ForEach($customHeaders) { $header in
-                                    HStack(spacing: 8) {
-                                        TextField("Header Key", text: $header.key)
-                                            .textFieldStyle(.roundedBorder)
-                                            .font(.system(.body, design: .monospaced))
-                                        TextField("Value", text: $header.value)
-                                            .textFieldStyle(.roundedBorder)
-                                            .font(.system(.body, design: .monospaced))
-                                        Button(action: {
-                                            customHeaders.removeAll { $0.id == header.id }
-                                        }) {
-                                            Image(systemName: "trash")
-                                                .foregroundColor(.red)
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                            }
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Custom API Key")
-                                    .font(.caption.bold())
-                                SecureField("Enter custom provider API key", text: $customAPIKey)
-                                    .textFieldStyle(.roundedBorder)
-                            }
-
-                            Button(action: {
-                                Task { await fetchCustomModels() }
-                            }) {
-                                HStack {
-                                    if isFetchingCustomModels {
-                                        ProgressView().scaleEffect(0.6).padding(.trailing, 4)
-                                    } else {
-                                        Image(systemName: "play.fill")
-                                    }
-                                    Text(isFetchingCustomModels ? "Connecting..." : "Fetch Custom Models")
-                                        .fontWeight(.semibold)
-                                }
-                                .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.large)
-                            .disabled(isFetchingCustomModels)
-
-                            if let error = customFetchError {
-                                Text(error)
+                            // 1. Saved Endpoints List
+                            if customEndpointsManager.endpoints.isEmpty {
+                                Text("No custom endpoints configured. Click 'Add Custom' to register one.")
                                     .font(.caption)
-                                    .foregroundStyle(.red)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.vertical, 4)
+                            } else {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Saved Endpoints")
+                                        .font(.subheadline.bold())
+
+                                    ForEach($customEndpointsManager.endpoints) { $endpoint in
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Button {
+                                                    openEditEndpoint(endpoint)
+                                                } label: {
+                                                    HStack {
+                                                        Text(endpoint.name)
+                                                            .font(.headline)
+                                                            .foregroundStyle(.blue)
+                                                        Text(endpoint.isLocal ? "(Local Port: \(endpoint.localPort))" : "(Remote URL: \(endpoint.endpoint))")
+                                                            .font(.caption2)
+                                                            .foregroundStyle(.secondary)
+                                                    }
+                                                }
+                                                .buttonStyle(.plain)
+
+                                                if !endpoint.models.isEmpty {
+                                                    Text("Models: \(endpoint.models.joined(separator: ", "))")
+                                                        .font(.caption2)
+                                                        .foregroundStyle(.secondary)
+                                                        .lineLimit(1)
+                                                } else {
+                                                    Text("No models fetched yet")
+                                                        .font(.caption2)
+                                                        .foregroundStyle(.secondary)
+                                                }
+                                            }
+
+                                            Spacer()
+
+                                            Toggle("Show in Popup", isOn: $endpoint.showInPopup)
+                                                .toggleStyle(.switch)
+                                                .labelsHidden()
+                                                .controlSize(.small)
+                                        }
+                                        .padding(.vertical, 4)
+                                        Divider()
+                                    }
+                                }
                             }
 
-                            if !customModels.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Available Models:")
-                                        .font(.subheadline.bold())
-                                        .padding(.top, 8)
+                            // 2. Editing Form
+                            if isEditingEndpoint {
+                                Divider()
+                                    .padding(.vertical, 8)
 
-                                    ScrollView {
+                                Text(isNewEndpoint ? "New Custom Endpoint" : "Edit Custom Endpoint")
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(.cyan)
+
+                                Picker("Type", selection: $isEndpointLocal) {
+                                    Text("Custom Endpoint").tag(false)
+                                    Text("Local").tag(true)
+                                }
+                                .pickerStyle(.segmented)
+
+                                VStack(alignment: .leading, spacing: 10) {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text("Name")
+                                            .font(.caption.bold())
+                                        TextField("e.g. My Local Llama", text: $customEndpointName)
+                                            .textFieldStyle(.roundedBorder)
+                                            .autocorrectionDisabled()
+                                    }
+
+                                    if isEndpointLocal {
                                         VStack(alignment: .leading, spacing: 6) {
-                                            ForEach(customModels, id: \.self) { model in
-                                                HStack {
-                                                    Image(systemName: "cube.fill")
-                                                        .foregroundStyle(.blue)
-                                                    Text(model)
-                                                        .font(.caption.monospaced())
-                                                    Spacer()
-                                                    Button("Set as Default") {
-                                                        settings.selectedAssistModelID = model
-                                                    }
-                                                    .buttonStyle(.bordered)
-                                                    .controlSize(.small)
+                                            Text("Localhost Port")
+                                                .font(.caption.bold())
+                                            TextField("11434", text: $localEndpointPort)
+                                                .textFieldStyle(.roundedBorder)
+                                                .autocorrectionDisabled()
+                                        }
+                                    } else {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Text("API Endpoint URL")
+                                                .font(.caption.bold())
+                                            TextField("https://api.openai.com/v1", text: $customEndpoint)
+                                                .textFieldStyle(.roundedBorder)
+                                                .autocorrectionDisabled()
+                                        }
+
+                                        // KEY-VALUE INTERACTIVE HEADERS FIELDS
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            HStack {
+                                                Text("HTTP Headers")
+                                                    .font(.caption.bold())
+                                                Spacer()
+                                                Button(action: {
+                                                    customHeaders.append(HeaderItem(key: "New-Header", value: "Value"))
+                                                }) {
+                                                    Label("Add Header", systemImage: "plus")
+                                                        .font(.caption)
                                                 }
-                                                .padding(.vertical, 4)
-                                                Divider()
+                                                .buttonStyle(.plain)
+                                            }
+
+                                            ForEach($customHeaders) { $header in
+                                                HStack(spacing: 8) {
+                                                    TextField("Header Key", text: $header.key)
+                                                        .textFieldStyle(.roundedBorder)
+                                                        .font(.system(.body, design: .monospaced))
+                                                    TextField("Value", text: $header.value)
+                                                        .textFieldStyle(.roundedBorder)
+                                                        .font(.system(.body, design: .monospaced))
+                                                    Button(action: {
+                                                        customHeaders.removeAll { $0.id == header.id }
+                                                    }) {
+                                                        Image(systemName: "trash")
+                                                            .foregroundColor(.red)
+                                                    }
+                                                    .buttonStyle(.plain)
+                                                }
                                             }
                                         }
+
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Text("Custom API Key")
+                                                .font(.caption.bold())
+                                            SecureField("Enter custom provider API key", text: $customAPIKey)
+                                                .textFieldStyle(.roundedBorder)
+                                        }
                                     }
-                                    .frame(maxHeight: 200)
+
+                                    Toggle("Display on Model Popup Menu", isOn: $endpointShowInPopup)
+                                        .toggleStyle(.switch)
+
+                                    HStack(spacing: 12) {
+                                        Button(action: {
+                                            Task { await fetchCustomModels() }
+                                        }) {
+                                            HStack {
+                                                if isFetchingCustomModels {
+                                                    ProgressView().scaleEffect(0.6).padding(.trailing, 4)
+                                                } else {
+                                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                                }
+                                                Text(isFetchingCustomModels ? "Connecting..." : "Fetch Available Models")
+                                                    .fontWeight(.semibold)
+                                            }
+                                            .frame(maxWidth: .infinity)
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.regular)
+                                        .disabled(isFetchingCustomModels)
+                                    }
+                                    .padding(.top, 4)
+
+                                    if let error = customFetchError {
+                                        Text(error)
+                                            .font(.caption)
+                                            .foregroundStyle(.red)
+                                    }
+
+                                    if !customModels.isEmpty {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Text("Detected Models (\(customModels.count)):")
+                                                .font(.subheadline.bold())
+
+                                            ScrollView {
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    ForEach(customModels, id: \.self) { m in
+                                                        HStack {
+                                                            Image(systemName: "cube.fill")
+                                                                .foregroundStyle(.blue)
+                                                            Text(m)
+                                                                .font(.caption.monospaced())
+                                                            Spacer()
+                                                            Button("Set as Default") {
+                                                                settings.selectedAssistModelID = m
+                                                            }
+                                                            .buttonStyle(.bordered)
+                                                            .controlSize(.small)
+                                                        }
+                                                        .padding(.vertical, 2)
+                                                        Divider()
+                                                    }
+                                                }
+                                            }
+                                            .frame(maxHeight: 120)
+                                        }
+                                    }
+
+                                    HStack(spacing: 12) {
+                                        Button(action: saveEndpoint) {
+                                            Text(isNewEndpoint ? "Save Endpoint" : "Update Endpoint")
+                                                .frame(maxWidth: .infinity)
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .tint(.cyan)
+
+                                        if !isNewEndpoint, let endpoint = selectedEndpoint {
+                                            Button(role: .destructive) {
+                                                deleteEndpoint(endpoint)
+                                            } label: {
+                                                Text("Delete")
+                                            }
+                                            .buttonStyle(.bordered)
+                                        }
+
+                                        Button("Cancel") {
+                                            isEditingEndpoint = false
+                                            selectedEndpoint = nil
+                                        }
+                                        .buttonStyle(.bordered)
+                                    }
+                                    .padding(.top, 8)
                                 }
                             }
                         }
@@ -820,6 +998,7 @@ struct AssistSettingsView: View {
         }
         .onAppear {
             loadAPIKeys()
+            loadCachedModels()
             Task {
                 await fetchOpenRouterModels()
             }
@@ -841,6 +1020,7 @@ struct AssistSettingsView: View {
 
         // Directly store to keychain to ensure instant access across all routing frameworks
         KeychainService.shared.set(openRouterKey, forKey: "openrouter-api-key")
+        KeychainService.shared.set(openRouterKey, forKey: KeychainService.openRouterAPIKey)
 
         hasSavedKeys = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
@@ -872,41 +1052,64 @@ struct AssistSettingsView: View {
         customModels = []
 
         do {
-            var urlString = customEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let _ = URL(string: urlString) else {
-                throw NSError(domain: "Invalid URL", code: 0, userInfo: [NSLocalizedDescriptionKey: "The custom endpoint URL is invalid."])
-            }
-
-            if !urlString.lowercased().hasSuffix("/models") {
-                if urlString.hasSuffix("/") {
-                    urlString += "models"
-                } else {
-                    urlString += "/models"
+            var urlString = ""
+            if isEndpointLocal {
+                urlString = "http://localhost:\(localEndpointPort.trimmingCharacters(in: .whitespacesAndNewlines))/v1/models"
+            } else {
+                urlString = customEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !urlString.lowercased().hasSuffix("/models") {
+                    if urlString.hasSuffix("/") {
+                        urlString += "models"
+                    } else {
+                        urlString += "/models"
+                    }
                 }
             }
 
             guard let url = URL(string: urlString) else {
-                throw NSError(domain: "Invalid URL", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to construct the models endpoint URL."])
+                throw NSError(domain: "Invalid URL", code: 0, userInfo: [NSLocalizedDescriptionKey: "The constructed models URL is invalid."])
             }
 
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
+            request.timeoutInterval = 10.0
 
-            let trimmedKey = customAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmedKey.isEmpty {
-                request.addValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
-            }
+            if !isEndpointLocal {
+                let trimmedKey = customAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmedKey.isEmpty {
+                    request.addValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
+                }
 
-            // Construct HTTP request headers
-            for header in customHeaders {
-                let trimmedKey = header.key.trimmingCharacters(in: .whitespacesAndNewlines)
-                let trimmedVal = header.value.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmedKey.isEmpty && !trimmedVal.isEmpty {
-                    request.addValue(trimmedVal, forHTTPHeaderField: trimmedKey)
+                // Construct HTTP request headers
+                for header in customHeaders {
+                    let trimmedKey = header.key.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let trimmedVal = header.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmedKey.isEmpty && !trimmedVal.isEmpty {
+                        request.addValue(trimmedVal, forHTTPHeaderField: trimmedKey)
+                    }
                 }
             }
 
-            let (data, response) = try await URLSession.shared.data(for: request)
+            var data: Data
+            var response: URLResponse
+            do {
+                (data, response) = try await URLSession.shared.data(for: request)
+            } catch {
+                if isEndpointLocal {
+                    // Try alternative local path http://localhost:port/models
+                    let fallbackUrlString = "http://localhost:\(localEndpointPort.trimmingCharacters(in: .whitespacesAndNewlines))/models"
+                    if let fallbackUrl = URL(string: fallbackUrlString) {
+                        var fallbackRequest = URLRequest(url: fallbackUrl)
+                        fallbackRequest.httpMethod = "GET"
+                        fallbackRequest.timeoutInterval = 10.0
+                        (data, response) = try await URLSession.shared.data(for: fallbackRequest)
+                    } else {
+                        throw error
+                    }
+                } else {
+                    throw error
+                }
+            }
 
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                 let code = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -933,5 +1136,144 @@ struct AssistSettingsView: View {
         }
 
         isFetchingCustomModels = false
+    }
+
+    private func openAddEndpoint() {
+        isNewEndpoint = true
+        customEndpointName = ""
+        customEndpoint = "https://api.openai.com/v1"
+        customAPIKey = ""
+        customHeaders = [HeaderItem(key: "Content-Type", value: "application/json")]
+        customModels = []
+        isEndpointLocal = false
+        localEndpointPort = "11434"
+        endpointShowInPopup = true
+        selectedEndpoint = nil
+        isEditingEndpoint = true
+    }
+
+    private func openEditEndpoint(_ endpoint: SavedCustomEndpoint) {
+        isNewEndpoint = false
+        selectedEndpoint = endpoint
+        customEndpointName = endpoint.name
+        customEndpoint = endpoint.endpoint
+        customAPIKey = endpoint.apiKey
+        customHeaders = endpoint.headers
+        customModels = endpoint.models
+        isEndpointLocal = endpoint.isLocal
+        localEndpointPort = endpoint.localPort
+        endpointShowInPopup = endpoint.showInPopup
+        isEditingEndpoint = true
+    }
+
+    private func saveEndpoint() {
+        let nameToSave = customEndpointName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Custom Endpoint" : customEndpointName
+
+        let newOrUpdated = SavedCustomEndpoint(
+            id: selectedEndpoint?.id ?? UUID(),
+            name: nameToSave,
+            endpoint: customEndpoint,
+            apiKey: customAPIKey,
+            headers: customHeaders,
+            models: customModels,
+            showInPopup: endpointShowInPopup,
+            isLocal: isEndpointLocal,
+            localPort: localEndpointPort
+        )
+
+        if isNewEndpoint {
+            customEndpointsManager.endpoints.append(newOrUpdated)
+        } else if let selected = selectedEndpoint {
+            if let index = customEndpointsManager.endpoints.firstIndex(where: { $0.id == selected.id }) {
+                customEndpointsManager.endpoints[index] = newOrUpdated
+            }
+        }
+
+        isEditingEndpoint = false
+        selectedEndpoint = nil
+    }
+
+    private func deleteEndpoint(_ endpoint: SavedCustomEndpoint) {
+        customEndpointsManager.endpoints.removeAll { $0.id == endpoint.id }
+        isEditingEndpoint = false
+        selectedEndpoint = nil
+    }
+
+    private func loadCachedModels() {
+        if let data = UserDefaults.standard.data(forKey: "com.swiftcode.cached_available_models"),
+           let decoded = try? JSONDecoder().decode([CachedModel].self, from: data) {
+            cachedModels = decoded
+        } else {
+            // Default presets before first fetch
+            cachedModels = [
+                CachedModel(modelID: "openai/gpt-4o", providerName: "OpenAI"),
+                CachedModel(modelID: "openai/gpt-4o-mini", providerName: "OpenAI"),
+                CachedModel(modelID: "anthropic/claude-3.5-sonnet", providerName: "Anthropic"),
+                CachedModel(modelID: "google/gemini-2.5-pro", providerName: "Gemini"),
+                CachedModel(modelID: "google/gemini-1.5-flash", providerName: "Gemini")
+            ]
+        }
+    }
+
+    private func saveCachedModels() {
+        if let data = try? JSONEncoder().encode(cachedModels) {
+            UserDefaults.standard.set(data, forKey: "com.swiftcode.cached_available_models")
+        }
+    }
+
+    private func fetchAvailableModels() async {
+        isFetchingAvailableModels = true
+        availableModelsFetchError = nil
+
+        var fetchedList: [CachedModel] = []
+
+        // 1. Fetch OpenAI
+        let trimmedOpenaiKey = openaiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedOpenaiKey.isEmpty {
+            do {
+                let models = try await LLMService.shared.fetchAvailableModels(provider: .openai, key: trimmedOpenaiKey)
+                for m in models {
+                    fetchedList.append(CachedModel(modelID: m, providerName: "OpenAI"))
+                }
+            } catch {
+                logger.warning("[fetchAvailableModels] OpenAI fetch failed: \(error.localizedDescription)")
+            }
+        }
+
+        // 2. Fetch Anthropic
+        let trimmedAnthropicKey = anthropicKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedAnthropicKey.isEmpty {
+            do {
+                let models = try await LLMService.shared.fetchAvailableModels(provider: .anthropic, key: trimmedAnthropicKey)
+                for m in models {
+                    fetchedList.append(CachedModel(modelID: m, providerName: "Anthropic"))
+                }
+            } catch {
+                logger.warning("[fetchAvailableModels] Anthropic fetch failed: \(error.localizedDescription)")
+            }
+        }
+
+        // 3. Fetch Gemini
+        let trimmedGeminiKey = geminiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedGeminiKey.isEmpty {
+            do {
+                let models = try await LLMService.shared.fetchAvailableModels(provider: .google, key: trimmedGeminiKey)
+                for m in models {
+                    fetchedList.append(CachedModel(modelID: m, providerName: "Gemini"))
+                }
+            } catch {
+                logger.warning("[fetchAvailableModels] Gemini fetch failed: \(error.localizedDescription)")
+            }
+        }
+
+        if fetchedList.isEmpty {
+            availableModelsFetchError = "Failed to fetch models from any configured provider. Please ensure your API keys are correct and active."
+        } else {
+            // Delete cached models and cache the new results
+            cachedModels = fetchedList
+            saveCachedModels()
+        }
+
+        isFetchingAvailableModels = false
     }
 }

@@ -682,15 +682,20 @@ public struct AssistMainView: View {
         }
 
         // 3. Custom endpoint/link models
-        if !AppSettings.shared.customModel.isEmpty {
-            modelsList.append(DynamicModelOption(
-                modelID: AppSettings.shared.customModel,
-                name: "Custom (Endpoint)",
-                provider: "Custom API Provider",
-                status: "Cloud",
-                isAvailable: true,
-                category: .custom
-            ))
+        let customEndpoints = CustomEndpointManager.shared.endpoints
+        for endpoint in customEndpoints {
+            if endpoint.showInPopup {
+                for m in endpoint.models {
+                    modelsList.append(DynamicModelOption(
+                        modelID: m,
+                        name: "\(m) (\(endpoint.name))",
+                        provider: endpoint.name,
+                        status: endpoint.isLocal ? "Local" : "Cloud",
+                        isAvailable: true,
+                        category: .custom
+                    ))
+                }
+            }
         }
 
         // 4. OpenRouter Cloud Models (Fallback Presets or fetched)
@@ -993,8 +998,16 @@ private struct AssistChatBubble: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                MarkdownBlockListView(blocks: MarkdownParser.shared.parse(message.content))
-                    .textSelection(.enabled)
+                let blocks = MarkdownParser.shared.parse(message.content)
+                if blocks.isEmpty && !message.content.isEmpty {
+                    Text(message.content)
+                        .font(.body)
+                        .lineSpacing(4)
+                        .textSelection(.enabled)
+                } else {
+                    MarkdownBlockListView(blocks: blocks)
+                        .textSelection(.enabled)
+                }
 
                 if let attachments = message.attachments, !attachments.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
