@@ -3,7 +3,7 @@ import Foundation
 /// [CRITICAL SYSTEM FILE] - HIGH RISK
 /// Scans the project structure, analyzes dependencies, and identifies code quality issues.
 @MainActor
-public final class _AssistCriticalCodebaseAnalyzer {
+public final class _AssistCriticalCodebaseAnalyzer: Sendable {
     private let context: AssistContext
 
     public init(context: AssistContext) {
@@ -15,7 +15,11 @@ public final class _AssistCriticalCodebaseAnalyzer {
         let root = context.workspaceRoot
         await context.logger.info("Analyzing codebase at \(root.path)", toolId: "CodebaseAnalyzer")
 
-        let allFiles = try scanDirectory(at: root)
+        // Offload disk-intensive file walking to background thread to avoid blocking main UI thread
+        let allFiles = try await Task.detached(priority: .userInitiated) { [root] in
+            try self.scanDirectory(at: root)
+        }.value
+
         let swiftFiles = allFiles.filter { $0.hasSuffix(".swift") }
 
         // Find key project files
@@ -29,11 +33,10 @@ public final class _AssistCriticalCodebaseAnalyzer {
         )
     }
 
-    private func scanDirectory(at url: URL) throws -> [String] {
+    nonisolated private func scanDirectory(at url: URL) throws -> [String] {
         let fm = FileManager.default
         let resourceKeys: [URLResourceKey] = [.isRegularFileKey, .isDirectoryKey]
 
-        // Only scan up to 3 levels deep for efficiency in summary
         guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: resourceKeys, options: [.skipsHiddenFiles, .skipsPackageDescendants]) else {
             return []
         }

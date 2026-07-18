@@ -3,7 +3,7 @@ import Foundation
 /// [CRITICAL SYSTEM FILE] - HIGH RISK
 /// The primary execution bridge for file and project operations. Ensures all changes are real and integrated.
 @MainActor
-public final class _AssistCriticalExecutionEngine {
+public final class _AssistCriticalExecutionEngine: Sendable {
     private let context: AssistContext
     private let baseEngine: AssistExecutionEngine
 
@@ -18,7 +18,7 @@ public final class _AssistCriticalExecutionEngine {
 
         for i in 0..<plan.steps.count {
             let step = plan.steps[i]
-            if step.toolId == "file_write" || step.toolId == "createFile" {
+            if step.toolId == "file_write" || step.toolId == "createFile" || step.toolId == "file_create" {
                 if let path = step.input["path"] {
                     if !context.fileSystem.exists(at: path) {
                         try await createMissingFile(path: path)
@@ -66,49 +66,109 @@ struct \( (path as NSString).lastPathComponent.replacingOccurrences(of: ".swift"
         await registerInXcode(path: path)
     }
 
-    private func registerInXcode(path: String) async {
-        // IDs for registration must be 24-character hex strings
+    public func registerInXcode(path: String) async {
+        let pbxPath = "SwiftCode.xcodeproj/project.pbxproj"
+        let fileName = (path as NSString).lastPathComponent
         let fileId = generateRandomHexID()
         let buildFileId = generateRandomHexID()
-        let fileName = (path as NSString).lastPathComponent
 
-        let pbxPath = "SwiftCode.xcodeproj/project.pbxproj"
+        // 1. Map path to group UUID
+        let groupUUID: String
+        if path.contains("Core/AI/Agent") {
+            groupUUID = "9FAB492FE3914F789AA58201"
+        } else if path.contains("Core/AI") {
+            groupUUID = "DA941B6FA862048858B975DF"
+        } else if path.contains("Tools/Agentic") {
+            groupUUID = "D3C76C44A71C4A3EB65045B1"
+        } else if path.contains("ViewModels") {
+            groupUUID = "C38806164DD566333A92A410"
+        } else if path.contains("Views/Dashboard") {
+            groupUUID = "EA26B0E5D067B5922CF6F2C8"
+        } else if path.contains("Views/Dev Tools") || path.contains("Dev Tools") {
+            groupUUID = "2B4CEE860D734A23837F5302"
+        } else if path.contains("Views") {
+            groupUUID = "FE18E54E76741F54A82CD586"
+        } else if path.contains("Utilities") {
+            groupUUID = "576E45E47FC5098A3A96ECB8"
+        } else if path.contains("Backend/AI") {
+            groupUUID = "DF6B1A5F79682983F71C7E7E"
+        } else if path.contains("Backend/Git") {
+            groupUUID = "E063E218D13ACDDD0B728F8D"
+        } else if path.contains("Persistence/Templates") {
+            groupUUID = "265E9A432B28B39C005F9A10"
+        } else if path.contains("Models") {
+            groupUUID = "2B21AC80A9DC86CB7D9BD14F"
+        } else if path.contains("Services") {
+            groupUUID = "57AFC04E569B8BDE2658ECD4"
+        } else if path.contains("GitHub") {
+            groupUUID = "718173758FBD56C156A0D0F5"
+        } else if path.contains("UI/Styles/Styling") {
+            groupUUID = "B0020001B0020001B0020001"
+        } else {
+            // Fallback group: Core/AI
+            groupUUID = "DA941B6FA862048858B975DF"
+        }
 
-        // 1. Add to PBXFileReference
-        let fileRefEntry = "\t\t\(fileId) /* \(fileName) */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = \"\(path)\"; sourceTree = \"<group>\"; };"
-        // macOS sed -i '' compatibility
-        let addFileRefCmd = "sed -i '' '/\\/* Begin PBXFileReference section *\\//a\\\\\\n\(fileRefEntry)' \(pbxPath)"
-
-        // 2. Add to PBXBuildFile
-        let buildFileEntry = "\t\t\(buildFileId) /* \(fileName) in Sources */ = {isa = PBXBuildFile; fileRef = \(fileId) /* \(fileName) */; };"
-        let addBuildFileCmd = "sed -i '' '/\\/* Begin PBXBuildFile section *\\//a\\\\\\n\(buildFileEntry)' \(pbxPath)"
-
-        // 3. Add to Assist Group (ASBG0000000000000000001)
-        let addGroupChildCmd = "sed -i '' '/ASBG0000000000000000001 \\/* Assist *\\/ = {/,/};/ s/children = (/children = (\\\\\\n\\\\t\\\\t\\\\t\\\\t\(fileId) \\/* \(fileName) *\\\\/,/' \(pbxPath)"
-
-        // 4. Add to Sources Build Phase (AA000001000000000000000B_SRC)
-        let addBuildPhaseCmd = "sed -i '' '/AA000001000000000000000B_SRC \\/* Sources *\\/ = {/,/};/ s/files = (/files = (\\\\\\n\\\\t\\\\t\\\\t\\\\t\(buildFileId) \\/* \(fileName) in Sources *\\\\/,/' \(pbxPath)"
-
-        let fullCmd = "\(addFileRefCmd) && \(addBuildFileCmd) && \(addGroupChildCmd) && \(addBuildPhaseCmd)"
-
-        #if os(macOS)
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = ["-c", fullCmd]
         do {
-            try process.run()
-            process.waitUntilExit()
-            if process.terminationStatus == 0 {
-                await context.logger.info("Registered \(fileName) in Xcode project with ID \(fileId)", toolId: "CriticalExecution")
-            } else {
-                await context.logger.error("Failed to register \(fileName) in Xcode project (exit code: \(process.terminationStatus))", toolId: "CriticalExecution")
+            var content = try context.fileSystem.readFile(at: pbxPath)
+
+            // Avoid duplicate registration
+            if content.contains(path) || content.contains(fileName) {
+                await context.logger.info("File \(fileName) already appears to be registered in project.pbxproj. Skipping.", toolId: "CriticalExecution")
+                return
             }
+
+            // 1. Add to PBXBuildFile section
+            let buildFileEntry = "\t\t\(buildFileId) /* \(fileName) in Sources */ = {isa = PBXBuildFile; fileRef = \(fileId) /* \(fileName) */; };\n"
+            if let buildFileRange = content.range(of: "/* Begin PBXBuildFile section */") {
+                content.insert(contentsOf: buildFileEntry, at: buildFileRange.upperBound)
+            } else {
+                throw NSError(domain: "CriticalExecution", code: 500, userInfo: [NSLocalizedDescriptionKey: "PBXBuildFile section not found"])
+            }
+
+            // 2. Add to PBXFileReference section
+            let fileRefEntry = "\t\t\(fileId) /* \(fileName) */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = \"\(path)\"; sourceTree = SOURCE_ROOT; };\n"
+            if let fileRefRange = content.range(of: "/* Begin PBXFileReference section */") {
+                content.insert(contentsOf: fileRefEntry, at: fileRefRange.upperBound)
+            } else {
+                throw NSError(domain: "CriticalExecution", code: 500, userInfo: [NSLocalizedDescriptionKey: "PBXFileReference section not found"])
+            }
+
+            // 3. Add to target group's children array
+            let groupStartStr = "\(groupUUID) /*"
+            if let groupIndex = content.range(of: groupStartStr) {
+                let searchRange = groupIndex.lowerBound..<content.endIndex
+                if let childrenRange = content.range(of: "children = (\n", options: [], range: searchRange) {
+                    let childrenEntry = "\t\t\t\t\(fileId) /* \(fileName) */,\n"
+                    content.insert(contentsOf: childrenEntry, at: childrenRange.upperBound)
+                } else {
+                    throw NSError(domain: "CriticalExecution", code: 500, userInfo: [NSLocalizedDescriptionKey: "children block not found in group \(groupUUID)"])
+                }
+            } else {
+                throw NSError(domain: "CriticalExecution", code: 500, userInfo: [NSLocalizedDescriptionKey: "Group definition not found: \(groupUUID)"])
+            }
+
+            // 4. Add to Sources Build Phase
+            let sourcesPhaseStr = "9BF8BFB9B87ED46BDA700029 /* Sources */ = {"
+            if let phaseIndex = content.range(of: sourcesPhaseStr) {
+                let searchRange = phaseIndex.lowerBound..<content.endIndex
+                if let filesRange = content.range(of: "files = (\n", options: [], range: searchRange) {
+                    let filesEntry = "\t\t\t\t\(buildFileId) /* \(fileName) in Sources */,\n"
+                    content.insert(contentsOf: filesEntry, at: filesRange.upperBound)
+                } else {
+                    throw NSError(domain: "CriticalExecution", code: 500, userInfo: [NSLocalizedDescriptionKey: "files block not found in Sources build phase"])
+                }
+            } else {
+                throw NSError(domain: "CriticalExecution", code: 500, userInfo: [NSLocalizedDescriptionKey: "Sources build phase 9BF8BFB9B87ED46BDA700029 not found"])
+            }
+
+            // Save project file
+            try context.fileSystem.writeFile(at: pbxPath, content: content)
+            await context.logger.info("Successfully registered \(fileName) inside Xcode project (Group: \(groupUUID), BuildPhase: 9BF8BFB9B87ED46BDA700029)", toolId: "CriticalExecution")
+
         } catch {
             await context.logger.error("Failed to execute Xcode registration for \(fileName): \(error.localizedDescription)", toolId: "CriticalExecution")
         }
-        #else
-        await context.logger.warning("Skipping Xcode registration for \(fileName): Process is only supported on macOS.", toolId: "CriticalExecution")
-        #endif
     }
 
     private func generateRandomHexID() -> String {
