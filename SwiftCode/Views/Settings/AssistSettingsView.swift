@@ -1302,20 +1302,6 @@ struct ModelsForAssist: View {
             list.append(AvailableModelItem(modelID: m.modelID, name: "\(m.modelID) (\(m.providerName))", category: "Cloud Models"))
         }
 
-        // Fallback OpenRouter presets if cloud list is empty
-        if cachedModels.isEmpty {
-            let openRouterPresets = [
-                ("openai/gpt-4o", "GPT-4o (OpenRouter)"),
-                ("anthropic/claude-3.5-sonnet", "Claude 3.5 Sonnet (OpenRouter)"),
-                ("google/gemini-2.5-pro", "Gemini 2.5 Pro (OpenRouter)"),
-                ("meta-llama/llama-3-70b-instruct", "Llama 3 70B (OpenRouter)"),
-                ("openai/gpt-4o-mini", "GPT-4o Mini (OpenRouter)")
-            ]
-            for preset in openRouterPresets {
-                list.append(AvailableModelItem(modelID: preset.0, name: preset.1, category: "Cloud Models"))
-            }
-        }
-
         return list
     }
 

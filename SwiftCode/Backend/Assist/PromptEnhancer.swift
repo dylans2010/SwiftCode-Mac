@@ -1,11 +1,16 @@
 import Foundation
 import os
 
-private let logger = Logger(subsystem: "com.swiftcode.PromptEnhancer", category: "PromptEnhancer")
+private let logger = Logger(subsystem: "com.swiftcode.app", category: "promptEnhancer")
 
-public enum PromptEnhancerError: LocalizedError {
+public enum PromptEnhancementError: LocalizedError {
     case serviceError(String)
     case parsingFailed(String)
+    case invalidResponse
+    case authenticationFailed
+    case networkTimeout
+    case invalidConfiguration
+    case modelUnavailable
 
     public var errorDescription: String? {
         switch self {
@@ -13,6 +18,16 @@ public enum PromptEnhancerError: LocalizedError {
             return message
         case .parsingFailed(let message):
             return message
+        case .invalidResponse:
+            return "The response from the model was invalid or empty."
+        case .authenticationFailed:
+            return "Authentication failed. Please verify your API key."
+        case .networkTimeout:
+            return "The request timed out. Please check your network connection."
+        case .invalidConfiguration:
+            return "The provider configuration is invalid."
+        case .modelUnavailable:
+            return "The selected model is currently unavailable."
         }
     }
 }
@@ -24,9 +39,9 @@ public final class PromptEnhancer {
     }
 
     @MainActor
-    public static func enhancePrompt(userInput: String) async throws -> String {
+    public static func enhancePrompt(userInput: String, modelID: String) async -> Result<String, PromptEnhancementError> {
         let trimmedInput = userInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedInput.isEmpty else { return userInput }
+        guard !trimmedInput.isEmpty else { return .success(userInput) }
 
         let systemPrompt = """
         You are a highly professional prompt enhancer. Your task is to rewrite the user's input prompt into an enhanced, technically clear, structured, and professional instruction for an AI coding agent while preserving their original intent.
@@ -39,25 +54,73 @@ public final class PromptEnhancer {
 
         let finalPrompt = "\(systemPrompt)\n\nUser Input:\n\"\(trimmedInput)\"\n\nJSON Output:"
 
-        logger.log("[enhancePrompt] Requesting prompt enhancement from central LLMService...")
+        logger.log("[enhancePrompt] Requesting prompt enhancement from central LLMService using model \(modelID)...")
+        DiagnosticEventBus.shared.logEvent(
+            component: "PromptEnhancer",
+            model: modelID,
+            severity: "INFO",
+            category: "json",
+            message: "Requesting prompt enhancement from central LLMService using model \(modelID)"
+        )
+
         do {
             // Send request to LLMService using currently selected model
-            let rawResponse = try await LLMService.shared.generateResponse(prompt: finalPrompt, useContext: false)
+            let rawResponse = try await LLMService.shared.generateResponse(prompt: finalPrompt, useContext: false, modelOverride: modelID)
             logger.log("[enhancePrompt] Received response. Parsing JSON result...")
 
             if let parsed = parseEnhancedPrompt(from: rawResponse) {
+                if parsed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    logger.warning("[enhancePrompt] Decoded prompt is empty.")
+                    return .failure(.invalidResponse)
+                }
                 logger.log("[enhancePrompt] Successfully decoded enhanced prompt.")
-                return parsed
+                DiagnosticEventBus.shared.logEvent(
+                    component: "PromptEnhancer",
+                    model: modelID,
+                    severity: "SUCCESS",
+                    category: "json",
+                    message: "Successfully decoded enhanced prompt"
+                )
+                return .success(parsed)
             } else {
                 logger.warning("[enhancePrompt] Safe JSON parsing failed.")
-                throw PromptEnhancerError.parsingFailed("Safe JSON parsing failed. Expected JSON schema keys were not found in response: \(rawResponse)")
+                DiagnosticEventBus.shared.logEvent(
+                    component: "PromptEnhancer",
+                    model: modelID,
+                    severity: "ERROR",
+                    category: "json",
+                    message: "Safe JSON parsing failed. Missing expected updatedPrompt key."
+                )
+                return .failure(.parsingFailed("Safe JSON parsing failed. Expected JSON schema keys were not found in response: \(rawResponse)"))
             }
         } catch {
             logger.error("[enhancePrompt] LLMService generateResponse threw error: \(error.localizedDescription)")
-            if let enhancerError = error as? PromptEnhancerError {
-                throw enhancerError
+            DiagnosticEventBus.shared.logEvent(
+                component: "PromptEnhancer",
+                model: modelID,
+                severity: "ERROR",
+                errorDescription: error.localizedDescription,
+                category: "network",
+                message: "LLMService generateResponse threw error: \(error.localizedDescription)"
+            )
+
+            if let llmError = error as? LLMError {
+                switch llmError {
+                case .invalidKey:
+                    return .failure(.authenticationFailed)
+                case .rateLimited:
+                    return .failure(.modelUnavailable)
+                case .networkError(let desc):
+                    return .failure(.serviceError(desc))
+                case .modelNotFound:
+                    return .failure(.modelUnavailable)
+                case .missingOfflineDefaultModel, .offlineFallbackUnavailable:
+                    return .failure(.invalidConfiguration)
+                case .unknown(let desc):
+                    return .failure(.serviceError(desc))
+                }
             }
-            throw PromptEnhancerError.serviceError(error.localizedDescription)
+            return .failure(.serviceError(error.localizedDescription))
         }
     }
 
