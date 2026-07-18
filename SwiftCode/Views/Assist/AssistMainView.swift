@@ -234,9 +234,9 @@ public struct AssistMainView: View {
 
             // Terminal Execution Approval Overlay
             if let request = manager.pendingTerminalRequest {
-                VStack(alignment: .leading, spacing: 14) {
-                    let isDestructive = request.modifiesRepo || request.command.contains("rm ") || request.command.contains("git reset") || request.command.contains("git clean") || request.command.contains("delete") || request.command.contains("remove")
+                let isDestructive = request.modifiesRepo || request.command.contains("rm ") || request.command.contains("git reset") || request.command.contains("git clean") || request.command.contains("delete") || request.command.contains("remove")
 
+                VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 8) {
                         Image(systemName: isDestructive ? "exclamationmark.shield.fill" : "checkmark.shield.fill")
                             .foregroundColor(isDestructive ? .red : .green)
@@ -751,6 +751,219 @@ public struct AssistMainView: View {
     }
 }
 
+// MARK: - Execution Mode Sheet
+
+struct ExecutionModeSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("com.swiftcode.assist.mode") private var isAgentMode = false
+
+    var body: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("Select Execution Mode")
+                    .font(.headline)
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.bottom, 8)
+
+            VStack(spacing: 12) {
+                // Chat Mode Button
+                Button {
+                    isAgentMode = false
+                    dismiss()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "text.bubble.fill")
+                            .font(.title)
+                            .foregroundColor(.blue)
+                            .frame(width: 40)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Chat Mode")
+                                .font(.subheadline.bold())
+                            Text("A conversational assistant. Safe, read-only, and will not make autonomous changes to your project.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.leading)
+                        }
+                        Spacer()
+                        if !isAgentMode {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.secondary.opacity(0.08))
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+
+                // Agent Mode Button
+                Button {
+                    isAgentMode = true
+                    dismiss()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "cpu.fill")
+                            .font(.title)
+                            .foregroundColor(.orange)
+                            .frame(width: 40)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Agent Mode")
+                                .font(.subheadline.bold())
+                            Text("An autonomous software engineering agent. Can build, test, repair, and apply plans with your permission.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.leading)
+                        }
+                        Spacer()
+                        if isAgentMode {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.orange)
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.secondary.opacity(0.08))
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding()
+        .frame(width: 400)
+    }
+}
+
+// MARK: - Diagnostics Sheet
+
+struct DiagnosticsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var manager: AssistManager
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Label("System Telemetry & Diagnostics", systemImage: "terminal.fill")
+                    .font(.headline)
+                    .foregroundColor(.orange)
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+            .background(.thinMaterial)
+
+            Divider()
+
+            // Telemetry / Status Cards
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    GroupBox("Active Engine Status") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Selected Model:")
+                                    .fontWeight(.semibold)
+                                Spacer()
+                                Text(manager.selectedModel.name)
+                                    .font(.system(.body, design: .monospaced))
+                            }
+                            HStack {
+                                Text("Active Tool ID:")
+                                    .fontWeight(.semibold)
+                                Spacer()
+                                Text(CodexBridgeManager.shared.activeToolName)
+                                    .font(.system(.body, design: .monospaced))
+                                    .foregroundColor(.orange)
+                            }
+                            HStack {
+                                Text("Running State:")
+                                    .fontWeight(.semibold)
+                                Spacer()
+                                Text(manager.isProcessing ? "Processing (Active)" : "Idle")
+                                    .foregroundColor(manager.isProcessing ? .green : .secondary)
+                            }
+                        }
+                        .padding(4)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+                    .padding(.horizontal)
+
+                    GroupBox("Diagnostics Logs") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Recent Events (\(manager.logger.logs.count))")
+                                    .font(.caption.bold())
+                                Spacer()
+                                Button("Clear Logs") {
+                                    manager.logger.clear()
+                                }
+                                .buttonStyle(.borderless)
+                                .controlSize(.small)
+                            }
+
+                            if manager.logger.logs.isEmpty {
+                                Text("No recent diagnostic logs captured.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                                    .padding(.vertical, 20)
+                            } else {
+                                ScrollView {
+                                    LazyVStack(alignment: .leading, spacing: 4) {
+                                        ForEach(manager.logger.logs) { entry in
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                HStack {
+                                                    Text("[\(entry.level.rawValue)]")
+                                                        .foregroundColor(entry.level == .error ? .red : (entry.level == .warning ? .orange : .blue))
+                                                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                                    Text(entry.timestamp.formatted(.dateTime.hour().minute().second()))
+                                                        .font(.system(size: 9, design: .monospaced))
+                                                        .foregroundColor(.secondary)
+                                                    if let toolId = entry.toolId {
+                                                        Text("[\(toolId)]")
+                                                            .font(.system(size: 9, design: .monospaced))
+                                                            .foregroundColor(.purple)
+                                                    }
+                                                }
+                                                Text(entry.message)
+                                                    .font(.system(size: 10, design: .monospaced))
+                                                    .foregroundColor(.primary)
+                                            }
+                                            .padding(.bottom, 4)
+                                        }
+                                    }
+                                }
+                                .frame(height: 200)
+                                .background(Color.black.opacity(0.05))
+                                .cornerRadius(6)
+                            }
+                        }
+                        .padding(4)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+                    .padding(.horizontal)
+                }
+                .padding(.vertical)
+            }
+        }
+        .frame(width: 450, height: 450)
+    }
+}
+
 // MARK: - Subviews
 
 private struct AssistChatBubble: View {
@@ -837,7 +1050,10 @@ final class ModelPopupMenuHelper {
                 currentCategory = option.category
                 let headerItem = NSMenuItem(title: option.category.rawValue.uppercased(), action: nil, keyEquivalent: "")
                 headerItem.isEnabled = false
-                headerItem.font = .systemFont(ofSize: 10, weight: .bold)
+                let attrs: [NSAttributedString.Key: Any] = [
+                    .font: NSFont.systemFont(ofSize: 10, weight: .bold)
+                ]
+                headerItem.attributedTitle = NSAttributedString(string: option.category.rawValue.uppercased(), attributes: attrs)
                 menu.addItem(headerItem)
             }
 

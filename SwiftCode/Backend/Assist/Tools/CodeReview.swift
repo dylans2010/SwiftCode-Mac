@@ -4,7 +4,7 @@ import os
 private let logger = Logger(subsystem: "com.swiftcode.app", category: "CodeReviewTool")
 
 @MainActor
-public struct CodeReview: AssistTool {
+public struct CodeReviewTool: AssistTool {
     public let id = "code_review"
     public let name = "Code Review Validation"
     public let description = "Validates the completed implementation using an independent AI reviewer stage before finishing the task."
@@ -262,6 +262,7 @@ public struct CodeReviewInternalResult: Codable, Sendable {
     public let confidence: Double
 }
 
+@MainActor
 public final class CodeReviewSystemLoader {
     private static var cachedPrompt: String?
 
