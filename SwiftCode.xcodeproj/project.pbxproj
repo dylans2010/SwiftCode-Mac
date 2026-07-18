@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5C5E70000000000000000F42 /* ModelSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000F41 /* ModelSessionManager.swift */; };
+		5C5E70000000000000000F44 /* DiagnosticEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000F43 /* DiagnosticEvent.swift */; };
+		5C5E70000000000000000F46 /* AssistSkillsCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000F45 /* AssistSkillsCheck.swift */; };
 		E94576AB04264FABAE632835 /* CodeReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C86F1D43534422697C2209E /* CodeReview.swift */; };
 		5A218C6921DA4803A19F8831 /* CodeReviewSystemAsset.md in Resources */ = {isa = PBXBuildFile; fileRef = C25E63C0C3F147AD9AFB057B /* CodeReviewSystemAsset.md */; };
 		AC6F519FB2C940D087A32BE2 /* CodeAssistUserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3891332787254C0784D1C5AF /* CodeAssistUserView.swift */; };
@@ -1298,6 +1301,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		5C5E70000000000000000F41 /* ModelSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSessionManager.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000F43 /* DiagnosticEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticEvent.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000F45 /* AssistSkillsCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSkillsCheck.swift; sourceTree = "<group>"; };
 		5C86F1D43534422697C2209E /* CodeReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeReview.swift; sourceTree = "<group>"; };
 		C25E63C0C3F147AD9AFB057B /* CodeReviewSystemAsset.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = CodeReviewSystemAsset.md; sourceTree = "<group>"; };
 		3891332787254C0784D1C5AF /* CodeAssistUserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeAssistUserView.swift; sourceTree = "<group>"; };
@@ -2622,6 +2628,8 @@
 		8D9EEDCDE1FB450488F4CF12 /* Assist */ = {
 			isa = PBXGroup;
 			children = (
+				5C5E70000000000000000F41 /* ModelSessionManager.swift */,
+				5C5E70000000000000000F43 /* DiagnosticEvent.swift */,
 				F859731420AEAAE5ADDF29A8 /* AgentSessionState.swift */,
 				F858A66D2BAE541D0C07EF9D /* AssistAgentSession.swift */,
 				F8F460B8425C1D4175E5EB16 /* AgentContextManager.swift */,
@@ -2706,6 +2714,7 @@
 		0F1DC5DB2603AC1C199C51B4 /* Functions */ = {
 			isa = PBXGroup;
 			children = (
+				5C5E70000000000000000F45 /* AssistSkillsCheck.swift */,
 				C25E63C0C3F147AD9AFB057B /* CodeReviewSystemAsset.md */,
 				5C5E70000000000000000502 /* AgentSystemAsset.md */,
 				70B77B2DA5337218E8C99F32 /* AssistCIFunctions.swift */,
@@ -5284,6 +5293,9 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5C5E70000000000000000F42 /* ModelSessionManager.swift in Sources */,
+				5C5E70000000000000000F44 /* DiagnosticEvent.swift in Sources */,
+				5C5E70000000000000000F46 /* AssistSkillsCheck.swift in Sources */,
 				E94576AB04264FABAE632835 /* CodeReview.swift in Sources */,
 				AC6F519FB2C940D087A32BE2 /* CodeAssistUserView.swift in Sources */,
 				5C5E70000000000000000503 /* UseTermFunction.swift in Sources */,

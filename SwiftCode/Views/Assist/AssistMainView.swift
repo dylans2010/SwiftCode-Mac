@@ -427,7 +427,7 @@ public struct AssistMainView: View {
         .sheet(isPresented: $showDiagnosticsSheet) {
             DiagnosticsSheet(manager: manager)
         }
-        .alert("Prompt Enhancement Error", isPresented: $showEnhancementError, presenting: enhancementErrorMessage) { _ in
+        .alert("There was an issue on this request:", isPresented: $showEnhancementError, presenting: enhancementErrorMessage) { _ in
             Button("OK") {}
         } message: { msg in
             Text(msg)
@@ -602,7 +602,7 @@ public struct AssistMainView: View {
                         in: Circle()
                     )
             }
-            .disabled(inputText.isEmpty || manager.isProcessing || bridgeManager.streamStatus == "Streaming" || isProcessingFiles)
+            .disabled(isEnhancingPrompt || inputText.isEmpty || manager.isProcessing || bridgeManager.streamStatus == "Streaming" || isProcessingFiles)
             .help("Enhance prompt with Apple Intelligence")
 
             ZStack {
@@ -670,26 +670,27 @@ public struct AssistMainView: View {
     }
 
     private func expandPrompt() {
+        guard !isEnhancingPrompt else { return }
         let currentPrompt = inputText
         guard !currentPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
         withAnimation {
             isEnhancingPrompt = true
         }
+
         Task {
-            do {
-                let enhancedPrompt = try await PromptEnhancer.enhancePrompt(userInput: currentPrompt)
-                await MainActor.run {
-                    inputText = enhancedPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-                    withAnimation {
-                        isEnhancingPrompt = false
-                    }
+            let activeModel = currentActiveModelID()
+            let result = await PromptEnhancer.enhancePrompt(userInput: currentPrompt, modelID: activeModel)
+
+            await MainActor.run {
+                withAnimation {
+                    isEnhancingPrompt = false
                 }
-            } catch {
-                await MainActor.run {
-                    withAnimation {
-                        isEnhancingPrompt = false
-                    }
-                    self.enhancementErrorMessage = "There was an issue on this request: \(error.localizedDescription)"
+                switch result {
+                case .success(let enhancedPrompt):
+                    inputText = enhancedPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+                case .failure(let error):
+                    self.enhancementErrorMessage = error.localizedDescription
                     self.showEnhancementError = true
                 }
             }
@@ -816,8 +817,10 @@ public struct AssistMainView: View {
             AssistModelManager.shared.customModelID = option.modelID
         }
 
-        // Ensure a completely new URLSession is created on LLMService to avoid using cached connections or older models
-        LLMService.shared.recreateSession(for: option.modelID)
+        // Ensure a completely new URLSession is created via ModelSessionManager to avoid using cached connections or older models
+        Task {
+            await ModelSessionManager.shared.switchModel(to: option.modelID)
+        }
     }
 }
 
@@ -926,70 +929,53 @@ struct UnifiedLogEntry: Identifiable, Equatable {
 struct DiagnosticsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var manager: AssistManager
-    @ObservedObject private var internalLogging = InternalLoggingManager.shared
-    @ObservedObject private var deploymentLogging = LogManager.shared
-
     @State private var searchText = ""
+    @State private var selectedSeverity = "All"
+    @State private var selectedProvider = "All"
 
-    private var unifiedLogs: [UnifiedLogEntry] {
-        var all: [UnifiedLogEntry] = []
+    private let severities = ["All", "INFO", "WARN", "ERROR", "DEBUG", "SUCCESS"]
+    private let providers = ["All", "OpenRouter", "OpenAI", "Anthropic", "Gemini", "Apple", "None"]
 
-        // 1. Assist Agent Logs
-        all += manager.logger.logs.map { entry in
-            UnifiedLogEntry(
-                id: entry.id,
-                timestamp: entry.timestamp,
-                source: "Assist",
-                level: entry.level.rawValue,
-                category: entry.toolId,
-                message: entry.message
-            )
-        }
+    private var filteredEventsGrouped: [String: [DiagnosticEvent]] {
+        let events = DiagnosticEventBus.shared.events
 
-        // 2. Internal / General System Logs
-        all += internalLogging.logs.map { entry in
-            UnifiedLogEntry(
-                id: entry.id,
-                timestamp: entry.timestamp,
-                source: "SwiftCode",
-                level: "INFO",
-                category: entry.category.rawValue,
-                message: entry.message
-            )
-        }
-
-        // 3. Deployment Logs
-        all += deploymentLogging.deploymentLogs.map { entry in
-            UnifiedLogEntry(
-                id: entry.id,
-                timestamp: entry.timestamp,
-                source: "Deployment",
-                level: entry.isError ? "ERROR" : "INFO",
-                category: nil,
-                message: entry.message
-            )
-        }
-
-        // Sort chronologically (latest first)
-        let sorted = all.sorted { $0.timestamp > $1.timestamp }
-
-        // Filter by searchText
-        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return sorted
-        } else {
-            let term = searchText.lowercased()
-            return sorted.filter {
-                $0.message.lowercased().contains(term) ||
-                $0.source.lowercased().contains(term) ||
-                ($0.category?.lowercased().contains(term) ?? false)
+        let filtered = events.filter { event in
+            // Search text filter
+            if !searchText.isEmpty {
+                let term = searchText.lowercased()
+                guard event.message.lowercased().contains(term) ||
+                      event.component.lowercased().contains(term) ||
+                      (event.errorDescription?.lowercased().contains(term) ?? false) else {
+                    return false
+                }
             }
+
+            // Severity filter
+            if selectedSeverity != "All" {
+                guard event.severity == selectedSeverity else { return false }
+            }
+
+            // Provider filter
+            if selectedProvider != "All" {
+                guard event.provider.lowercased().contains(selectedProvider.lowercased()) else { return false }
+            }
+
+            return true
         }
+
+        // Group by category, order most-recent-first (chronologically descending)
+        let sorted = filtered.sorted { $0.timestamp > $1.timestamp }
+        return Dictionary(grouping: sorted, by: { $0.category })
     }
 
-    private func clearAllLogs() {
-        manager.logger.clear()
-        internalLogging.clearLogs()
-        deploymentLogging.clearDeploymentLogs()
+    private func severityColor(_ severity: String) -> Color {
+        switch severity {
+        case "ERROR": return .red
+        case "WARN": return .orange
+        case "SUCCESS": return .green
+        case "DEBUG": return .gray
+        default: return .blue
+        }
     }
 
     var body: some View {
@@ -1049,13 +1035,32 @@ struct DiagnosticsSheet: View {
                     GroupBox("Diagnostics Logs") {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                Text("Recent Events (\(unifiedLogs.count))")
+                                Text("Recent Events")
                                     .font(.caption.bold())
                                 Spacer()
                                 Button("Clear All Logs") {
-                                    clearAllLogs()
+                                    DiagnosticEventBus.shared.clear()
                                 }
                                 .buttonStyle(.borderless)
+                                .controlSize(.small)
+                            }
+
+                            // Interactive Filters
+                            HStack(spacing: 12) {
+                                Picker("Severity:", selection: $selectedSeverity) {
+                                    ForEach(severities, id: \.self) { sev in
+                                        Text(sev).tag(sev)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .controlSize(.small)
+
+                                Picker("Provider:", selection: $selectedProvider) {
+                                    ForEach(providers, id: \.self) { prov in
+                                        Text(prov).tag(prov)
+                                    }
+                                }
+                                .pickerStyle(.menu)
                                 .controlSize(.small)
                             }
 
@@ -1079,42 +1084,59 @@ struct DiagnosticsSheet: View {
                             .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
                             .padding(.bottom, 4)
 
-                            if unifiedLogs.isEmpty {
-                                Text("No matching diagnostic logs captured.")
+                            let grouped = filteredEventsGrouped
+                            if grouped.isEmpty {
+                                Text("No matching diagnostic events captured.")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                     .frame(maxWidth: .infinity, alignment: .center)
                                     .padding(.vertical, 20)
                             } else {
                                 ScrollView {
-                                    LazyVStack(alignment: .leading, spacing: 4) {
-                                        ForEach(unifiedLogs) { entry in
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                HStack {
-                                                    Text("[\(entry.source)]")
-                                                        .foregroundColor(.orange)
-                                                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                                    Text("[\(entry.level)]")
-                                                        .foregroundColor(entry.level.contains("ERROR") ? .red : (entry.level.contains("WARN") ? .orange : .blue))
-                                                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                                    Text(entry.timestamp.formatted(.dateTime.hour().minute().second()))
-                                                        .font(.system(size: 9, design: .monospaced))
-                                                        .foregroundColor(.secondary)
-                                                    if let cat = entry.category {
-                                                        Text("[\(cat)]")
-                                                            .font(.system(size: 9, design: .monospaced))
-                                                            .foregroundColor(.purple)
+                                    LazyVStack(alignment: .leading, spacing: 8) {
+                                        ForEach(grouped.keys.sorted(), id: \.self) { category in
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(category.uppercased())
+                                                    .font(.caption2.bold())
+                                                    .foregroundColor(.purple)
+                                                    .padding(.top, 4)
+
+                                                ForEach(grouped[category] ?? []) { event in
+                                                    VStack(alignment: .leading, spacing: 2) {
+                                                        HStack {
+                                                            Text("[\(event.component)]")
+                                                                .foregroundColor(.orange)
+                                                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                                            Text("[\(event.severity)]")
+                                                                .foregroundColor(severityColor(event.severity))
+                                                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                                            Text(event.timestamp.formatted(.dateTime.hour().minute().second()))
+                                                                .font(.system(size: 9, design: .monospaced))
+                                                                .foregroundColor(.secondary)
+                                                            if event.provider != "None" {
+                                                                Text("[\(event.provider)]")
+                                                                    .font(.system(size: 9, design: .monospaced))
+                                                                    .foregroundColor(.blue)
+                                                            }
+                                                        }
+                                                        Text(event.message)
+                                                            .font(.system(size: 10, design: .monospaced))
+                                                            .foregroundColor(.primary)
+                                                        if let desc = event.errorDescription {
+                                                            Text(desc)
+                                                                .font(.system(size: 9, design: .monospaced))
+                                                                .foregroundColor(.secondary)
+                                                                .padding(.leading, 8)
+                                                        }
                                                     }
+                                                    .padding(.bottom, 4)
                                                 }
-                                                Text(entry.message)
-                                                    .font(.system(size: 10, design: .monospaced))
-                                                    .foregroundColor(.primary)
+                                                Divider()
                                             }
-                                            .padding(.bottom, 4)
                                         }
                                     }
                                 }
-                                .frame(height: 200)
+                                .frame(height: 250)
                                 .background(Color.black.opacity(0.05))
                                 .cornerRadius(6)
                             }
@@ -1127,7 +1149,7 @@ struct DiagnosticsSheet: View {
                 .padding(.vertical)
             }
         }
-        .frame(width: 500, height: 500)
+        .frame(width: 520, height: 550)
     }
 }
 
