@@ -81,7 +81,9 @@ public actor AgentOrchestrator {
             var assistantContent: [AgentMessageContent] = []
 
             // Model Routing Selection Single Source of Truth
-            let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled }
+            let selectedModel = await MainActor.run { AppSettings.shared.selectedAssistModelID }
+            let isAppleModel = selectedModel == "AFM 3 Core" || selectedModel == "AFM 3 Core Advanced"
+            let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled } && isAppleModel
             let stream: AsyncThrowingStream<AgentStreamEvent, Error>
 
             if isFMEnabled {
@@ -104,7 +106,6 @@ public actor AgentOrchestrator {
                     }
                 }
             } else {
-                let selectedModel = await MainActor.run { AppSettings.shared.selectedAssistModelID }
                 let actualModel = selectedModel == "swiftcode-balanced" ? "openai/gpt-4o" : selectedModel
                 pipelineLogger.info("[runLoop] OpenRouter provider selected. Selected Model: \(selectedModel, privacy: .public). Actual Model: \(actualModel, privacy: .public). Calling streaming API.")
                 stream = try await provider.streamAgentTurn(model: actualModel, messages: messages, tools: isChatMode ? nil : tools)

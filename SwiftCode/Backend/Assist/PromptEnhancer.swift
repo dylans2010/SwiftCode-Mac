@@ -38,10 +38,50 @@ public final class PromptEnhancer {
         let updatedPrompt: String
     }
 
+    /// Primary async-throwing entry point for AssistAPIRouter compatibility.
     @MainActor
-    public static func enhancePrompt(userInput: String, modelID: String) async -> Result<String, PromptEnhancementError> {
+    public static func enhancePrompt(userInput: String) async throws -> String {
+        let result = await enhancePrompt(userInput: userInput, modelID: nil)
+        switch result {
+        case .success(let prompt):
+            return prompt
+        case .failure(let error):
+            throw error
+        }
+    }
+
+    /// Primary Result-returning entry point for AssistMainView compatibility.
+    @MainActor
+    public static func enhancePrompt(userInput: String, modelID: String? = nil) async -> Result<String, PromptEnhancementError> {
         let trimmedInput = userInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedInput.isEmpty else { return .success(userInput) }
+
+        logger.log("[enhancePrompt] Initiating prompt enhancement. Validating Apple Foundation Models configuration...")
+        DiagnosticEventBus.shared.logEvent(
+            component: "PromptEnhancer",
+            model: "AFM 3 Core",
+            severity: "INFO",
+            category: "validation",
+            message: "Validating Apple Foundation Models availability and required capabilities."
+        )
+
+        // --- 8. FOUNDATION MODELS VALIDATION ---
+        // Verify Apple Foundation Models are available/enabled
+        guard FoundationModels.shared.isEnabled else {
+            logger.error("[enhancePrompt] Apple Foundation Models are not enabled.")
+            DiagnosticEventBus.shared.logEvent(
+                component: "PromptEnhancer",
+                model: "AFM 3 Core",
+                severity: "ERROR",
+                category: "validation",
+                message: "Apple Foundation Models are disabled."
+            )
+            return .failure(.modelUnavailable)
+        }
+
+        // Verify Core Model (afm3Core) can be initialized
+        let coreModel = AppleFoundationModel.afm3Core
+        logger.log("[enhancePrompt] Apple Foundation Models are available. Initializing Core model: \(coreModel.rawValue).")
 
         let systemPrompt = """
         You are a highly professional prompt enhancer. Your task is to rewrite the user's input prompt into an enhanced, technically clear, structured, and professional instruction for an AI coding agent while preserving their original intent.
@@ -54,18 +94,28 @@ public final class PromptEnhancer {
 
         let finalPrompt = "\(systemPrompt)\n\nUser Input:\n\"\(trimmedInput)\"\n\nJSON Output:"
 
-        logger.log("[enhancePrompt] Requesting prompt enhancement from central LLMService using model \(modelID)...")
+        logger.log("[enhancePrompt] Temporarily binding active Foundation Model to Core model \(coreModel.rawValue)...")
+
+        // Temporarily bind active on-device model to afm3Core
+        let originalModel = FoundationModels.shared.selectedModel
+        FoundationModels.shared.selectedModel = .afm3Core
+
+        defer {
+            logger.log("[enhancePrompt] Restoring original Foundation Model selection: \(originalModel.rawValue)")
+            FoundationModels.shared.selectedModel = originalModel
+        }
+
         DiagnosticEventBus.shared.logEvent(
             component: "PromptEnhancer",
-            model: modelID,
+            model: "AFM 3 Core",
             severity: "INFO",
-            category: "json",
-            message: "Requesting prompt enhancement from central LLMService using model \(modelID)"
+            category: "generation",
+            message: "Requesting prompt enhancement directly from Apple Foundation Models Core Model (\(coreModel.rawValue))"
         )
 
         do {
-            // Send request to LLMService using currently selected model
-            let rawResponse = try await LLMService.shared.generateResponse(prompt: finalPrompt, useContext: false, modelOverride: modelID)
+            // Generate private response directly using Apple Foundation Models
+            let rawResponse = try await FoundationModels.shared.generatePrivateResponse(prompt: finalPrompt)
             logger.log("[enhancePrompt] Received response. Parsing JSON result...")
 
             if let parsed = parseEnhancedPrompt(from: rawResponse) {
@@ -76,17 +126,17 @@ public final class PromptEnhancer {
                 logger.log("[enhancePrompt] Successfully decoded enhanced prompt.")
                 DiagnosticEventBus.shared.logEvent(
                     component: "PromptEnhancer",
-                    model: modelID,
+                    model: "AFM 3 Core",
                     severity: "SUCCESS",
-                    category: "json",
-                    message: "Successfully decoded enhanced prompt"
+                    category: "generation",
+                    message: "Successfully decoded enhanced prompt."
                 )
                 return .success(parsed)
             } else {
                 logger.warning("[enhancePrompt] Safe JSON parsing failed.")
                 DiagnosticEventBus.shared.logEvent(
                     component: "PromptEnhancer",
-                    model: modelID,
+                    model: "AFM 3 Core",
                     severity: "ERROR",
                     category: "json",
                     message: "Safe JSON parsing failed. Missing expected updatedPrompt key."
@@ -94,32 +144,15 @@ public final class PromptEnhancer {
                 return .failure(.parsingFailed("Safe JSON parsing failed. Expected JSON schema keys were not found in response: \(rawResponse)"))
             }
         } catch {
-            logger.error("[enhancePrompt] LLMService generateResponse threw error: \(error.localizedDescription)")
+            logger.error("[enhancePrompt] Direct Apple Foundation Models generation failed: \(error.localizedDescription)")
             DiagnosticEventBus.shared.logEvent(
                 component: "PromptEnhancer",
-                model: modelID,
+                model: "AFM 3 Core",
                 severity: "ERROR",
                 errorDescription: error.localizedDescription,
-                category: "network",
-                message: "LLMService generateResponse threw error: \(error.localizedDescription)"
+                category: "generation",
+                message: "Direct Apple Foundation Models generation failed: \(error.localizedDescription)"
             )
-
-            if let llmError = error as? LLMError {
-                switch llmError {
-                case .invalidKey:
-                    return .failure(.authenticationFailed)
-                case .rateLimited:
-                    return .failure(.modelUnavailable)
-                case .networkError(let desc):
-                    return .failure(.serviceError(desc))
-                case .modelNotFound:
-                    return .failure(.modelUnavailable)
-                case .missingOfflineDefaultModel, .offlineFallbackUnavailable:
-                    return .failure(.invalidConfiguration)
-                case .unknown(let desc):
-                    return .failure(.serviceError(desc))
-                }
-            }
             return .failure(.serviceError(error.localizedDescription))
         }
     }

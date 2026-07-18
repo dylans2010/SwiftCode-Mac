@@ -32,7 +32,8 @@ final class OpenRouterService: Sendable {
         model: String,
         systemPrompt: String
     ) async throws -> String {
-        let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled }
+        let isAppleModel = model == "AFM 3 Core" || model == "AFM 3 Core Advanced"
+        let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled } && isAppleModel
         logger.log("[chatDirect] Requested model: \(model, privacy: .public). FoundationModels enabled: \(isFMEnabled).")
 
         if isFMEnabled {
@@ -41,18 +42,7 @@ final class OpenRouterService: Sendable {
             return try await FoundationModels.shared.generatePrivateResponse(prompt: lastPrompt)
         }
 
-        var apiKey = ""
-        if let managerKey = await MainActor.run(body: { APIKeyManager.shared.retrieveKey(service: .openRouter) }),
-           !managerKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            apiKey = managerKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        if apiKey.isEmpty {
-            apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey) ?? ""
-        }
-        if apiKey.isEmpty {
-            apiKey = KeychainService.shared.get(forKey: "openrouter-api-key") ?? ""
-        }
-        apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let apiKey = await MainActor.run { OpenRouterClient.resolveOpenRouterAPIKey() }
 
         let authLogger = Logger(subsystem: "com.swiftcode.app", category: "assist.auth.diagnostics")
         authLogger.info("[Audit 1] Tracing retrieval of OpenRouter key: \(apiKey.isEmpty ? "FAIL" : "PASS")")
@@ -160,7 +150,8 @@ final class OpenRouterService: Sendable {
         systemPrompt: String,
         onToken: @escaping @Sendable (String) async -> Void
     ) async throws {
-        let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled }
+        let isAppleModel = model == "AFM 3 Core" || model == "AFM 3 Core Advanced"
+        let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled } && isAppleModel
         logger.log("[streamChatDirect] Requested model: \(model, privacy: .public). FoundationModels enabled: \(isFMEnabled).")
 
         if isFMEnabled {
@@ -172,18 +163,7 @@ final class OpenRouterService: Sendable {
             return
         }
 
-        var apiKey = ""
-        if let managerKey = await MainActor.run(body: { APIKeyManager.shared.retrieveKey(service: .openRouter) }),
-           !managerKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            apiKey = managerKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        if apiKey.isEmpty {
-            apiKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey) ?? ""
-        }
-        if apiKey.isEmpty {
-            apiKey = KeychainService.shared.get(forKey: "openrouter-api-key") ?? ""
-        }
-        apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let apiKey = await MainActor.run { OpenRouterClient.resolveOpenRouterAPIKey() }
 
         let streamAuthLogger = Logger(subsystem: "com.swiftcode.app", category: "assist.auth.diagnostics")
         streamAuthLogger.info("[Audit 1] Tracing retrieval of OpenRouter key for stream: \(apiKey.isEmpty ? "FAIL" : "PASS")")

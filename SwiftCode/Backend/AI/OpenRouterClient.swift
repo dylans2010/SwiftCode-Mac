@@ -7,23 +7,34 @@ public actor OpenRouterClient {
     public static let shared = OpenRouterClient()
     private var cachedModels: [OpenRouterModel] = []
 
+    @MainActor
+    public static func resolveOpenRouterAPIKey() -> String {
+        var key = ""
+        if let managerKey = APIKeyManager.shared.retrieveKey(service: .openRouter),
+           !managerKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            key = managerKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if key.isEmpty {
+            if let keychainKey = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey),
+               !keychainKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                key = keychainKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        if key.isEmpty {
+            if let hyphenatedKey = KeychainService.shared.get(forKey: "openrouter-api-key"),
+               !hyphenatedKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                key = hyphenatedKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        return key.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     public func fetchModels() async throws -> [OpenRouterModel] {
         if !cachedModels.isEmpty {
             return cachedModels
         }
         logger.log("[fetchModels] Fetching models from OpenRouter.")
-        var apiKey = ""
-        if let managerKey = await MainActor.run(body: { APIKeyManager.shared.retrieveKey(service: .openRouter) }),
-           !managerKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            apiKey = managerKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        if apiKey.isEmpty {
-            apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
-        }
-        if apiKey.isEmpty {
-            apiKey = try await KeychainService.shared.get(account: "openrouter-api-key") ?? ""
-        }
-        apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let apiKey = await MainActor.run { OpenRouterClient.resolveOpenRouterAPIKey() }
 
         let authLogger = Logger(subsystem: "com.swiftcode.app", category: "assist.auth.diagnostics")
         authLogger.info("[Audit 1] Tracing retrieval of OpenRouter key in Client: \(apiKey.isEmpty ? "FAIL" : "PASS")")
@@ -84,7 +95,8 @@ public actor OpenRouterClient {
     }
 
     public func streamChatCompletionDirect(request: AIAssistantRequest) async throws -> AsyncThrowingStream<String, Error> {
-        let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled }
+        let isAppleModel = request.model == "AFM 3 Core" || request.model == "AFM 3 Core Advanced"
+        let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled } && isAppleModel
         logger.log("[streamChatCompletionDirect] Requested model: \(request.model, privacy: .public). FoundationModels enabled: \(isFMEnabled).")
 
         if isFMEnabled {
@@ -105,18 +117,7 @@ public actor OpenRouterClient {
             }
         }
 
-        var apiKey = ""
-        if let managerKey = await MainActor.run(body: { APIKeyManager.shared.retrieveKey(service: .openRouter) }),
-           !managerKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            apiKey = managerKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        if apiKey.isEmpty {
-            apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
-        }
-        if apiKey.isEmpty {
-            apiKey = try await KeychainService.shared.get(account: "openrouter-api-key") ?? ""
-        }
-        apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let apiKey = await MainActor.run { OpenRouterClient.resolveOpenRouterAPIKey() }
 
         let streamAuthLogger = Logger(subsystem: "com.swiftcode.app", category: "assist.auth.diagnostics")
         streamAuthLogger.info("[Audit 1] Tracing retrieval of OpenRouter key in Client stream: \(apiKey.isEmpty ? "FAIL" : "PASS")")
@@ -218,7 +219,8 @@ public actor OpenRouterClient {
     }
 
     public func streamAgentTurn(model: String, messages: [AgentMessage], tools: [[String: any Sendable]]?) async throws -> AsyncThrowingStream<AgentStreamEvent, Error> {
-        let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled }
+        let isAppleModel = model == "AFM 3 Core" || model == "AFM 3 Core Advanced"
+        let isFMEnabled = await MainActor.run { FoundationModels.shared.isEnabled } && isAppleModel
         logger.log("[streamAgentTurn] Requested model: \(model, privacy: .public). FoundationModels enabled: \(isFMEnabled).")
 
         if isFMEnabled {
@@ -243,18 +245,7 @@ public actor OpenRouterClient {
             }
         }
 
-        var apiKey = ""
-        if let managerKey = await MainActor.run(body: { APIKeyManager.shared.retrieveKey(service: .openRouter) }),
-           !managerKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            apiKey = managerKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        if apiKey.isEmpty {
-            apiKey = try await KeychainService.shared.get(account: KeychainService.openRouterAPIKey) ?? ""
-        }
-        if apiKey.isEmpty {
-            apiKey = try await KeychainService.shared.get(account: "openrouter-api-key") ?? ""
-        }
-        apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let apiKey = await MainActor.run { OpenRouterClient.resolveOpenRouterAPIKey() }
 
         let agentAuthLogger = Logger(subsystem: "com.swiftcode.app", category: "assist.auth.diagnostics")
         agentAuthLogger.info("[Audit 1] Tracing retrieval of OpenRouter key in Client agent: \(apiKey.isEmpty ? "FAIL" : "PASS")")
