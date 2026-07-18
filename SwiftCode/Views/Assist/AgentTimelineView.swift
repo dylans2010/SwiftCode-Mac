@@ -55,6 +55,15 @@ public struct AgentTimelineView: View {
             case .idle:
                 Image(systemName: "circle")
                     .foregroundStyle(.secondary)
+            case .initializing:
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .foregroundStyle(.blue)
+            case .understandingRequest:
+                Image(systemName: "questionmark.circle")
+                    .foregroundStyle(.purple)
+            case .gatheringContext:
+                Image(systemName: "folder.fill")
+                    .foregroundStyle(.yellow)
             case .planning:
                 Image(systemName: "brain.head.profile")
                     .foregroundStyle(.purple)
@@ -64,13 +73,25 @@ public struct AgentTimelineView: View {
             case .executingTool:
                 Image(systemName: "gearshape.fill")
                     .foregroundStyle(.orange)
+            case .waitingForUserApproval:
+                Image(systemName: "lock.shield.fill")
+                    .foregroundStyle(.red)
+            case .updatingRepository:
+                Image(systemName: "doc.badge.gearshape.fill")
+                    .foregroundStyle(.green)
             case .inspectingResult:
                 Image(systemName: "eye.fill")
                     .foregroundStyle(.cyan)
             case .validating:
                 Image(systemName: "checkmark.shield.fill")
                     .foregroundStyle(.green)
-            case .completed:
+            case .reviewing:
+                Image(systemName: "eye.circle")
+                    .foregroundStyle(.indigo)
+            case .completing:
+                Image(systemName: "ellipsis.circle")
+                    .foregroundStyle(.blue)
+            case .finished, .completed:
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
             case .failed:

@@ -3,12 +3,20 @@ import Observation
 
 public enum AgentSessionStatus: String, Codable, Sendable {
     case idle = "Idle"
+    case initializing = "Initializing"
+    case understandingRequest = "Understanding Request"
     case planning = "Planning"
+    case gatheringContext = "Gathering Context"
     case selectingTool = "Selecting Tool"
     case executingTool = "Executing Tool"
+    case waitingForUserApproval = "Waiting For User Approval"
+    case updatingRepository = "Updating Repository"
     case inspectingResult = "Inspecting Result"
     case validating = "Validating"
-    case completed = "Completed"
+    case reviewing = "Reviewing"
+    case completing = "Completing"
+    case finished = "Finished"
+    case completed = "Completed" // Keep for backward compatibility
     case failed = "Failed"
     case cancelled = "Cancelled"
     case stalled = "Stalled"
@@ -46,6 +54,58 @@ public struct PlanStep: Identifiable, Codable, Sendable {
     }
 }
 
+public struct FileChangeItem: Identifiable, Codable, Sendable, Hashable {
+    public let id: UUID
+    public let filename: String
+    public let details: String
+
+    public init(id: UUID = UUID(), filename: String, details: String) {
+        self.id = id
+        self.filename = filename
+        self.details = details
+    }
+}
+
+public struct ToolActivityItem: Identifiable, Codable, Sendable, Hashable {
+    public let id: UUID
+    public let toolId: String
+    public let purpose: String
+    public let result: String
+    public let timestamp: Date
+
+    public init(id: UUID = UUID(), toolId: String, purpose: String, result: String, timestamp: Date = Date()) {
+        self.id = id
+        self.toolId = toolId
+        self.purpose = purpose
+        self.result = result
+        self.timestamp = timestamp
+    }
+}
+
+@Observable
+@MainActor
+public final class AgentChangeSummary: Sendable {
+    public var modifiedFiles: [FileChangeItem] = []
+    public var createdFiles: [FileChangeItem] = []
+    public var deletedFiles: [FileChangeItem] = []
+    public var renamedFiles: [FileChangeItem] = []
+    public var movedFiles: [FileChangeItem] = []
+    public var configChanges: [FileChangeItem] = []
+    public var toolActivities: [ToolActivityItem] = []
+
+    public init() {}
+
+    public func clear() {
+        modifiedFiles.removeAll()
+        createdFiles.removeAll()
+        deletedFiles.removeAll()
+        renamedFiles.removeAll()
+        movedFiles.removeAll()
+        configChanges.removeAll()
+        toolActivities.removeAll()
+    }
+}
+
 @Observable
 @MainActor
 public final class AgentSessionState: Sendable {
@@ -56,6 +116,7 @@ public final class AgentSessionState: Sendable {
     public var toolCallCount: Int = 0
     public var status: AgentSessionStatus = .idle
     public var events: [AgentEvent] = []
+    public var changeSummary = AgentChangeSummary()
 
     public init() {}
 }
