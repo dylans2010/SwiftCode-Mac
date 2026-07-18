@@ -224,7 +224,7 @@ public enum AssistStatus: String, Codable {
     case rejected
 }
 
-public struct AssistMessage: Codable, Identifiable {
+public struct AssistMessage: Codable, Identifiable, Sendable {
     public let id: UUID
     public let role: AssistRole
     public let content: String
@@ -240,7 +240,7 @@ public struct AssistMessage: Codable, Identifiable {
     }
 }
 
-public enum AssistRole: String, Codable {
+public enum AssistRole: String, Codable, Sendable {
     case user
     case assistant
     case system

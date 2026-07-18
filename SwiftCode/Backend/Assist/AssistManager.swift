@@ -42,7 +42,7 @@ public final class AssistManager: ObservableObject {
 
         guard let url = Bundle.main.url(forResource: "AgentSystemAsset", withExtension: "md") else {
             let errorMsg = "Failed to locate AgentSystemAsset.md in application bundle."
-            logger.error(errorMsg, toolId: nil)
+            Task { await logger.error(errorMsg, toolId: nil) }
             throw NSError(domain: "AssistManager", code: 404, userInfo: [NSLocalizedDescriptionKey: errorMsg])
         }
 
@@ -52,7 +52,7 @@ public final class AssistManager: ObservableObject {
             return prompt
         } catch {
             let errorMsg = "Failed to load AgentSystemAsset.md from bundle: \(error.localizedDescription)"
-            logger.error(errorMsg, toolId: nil)
+            Task { await logger.error(errorMsg, toolId: nil) }
             throw NSError(domain: "AssistManager", code: 500, userInfo: [NSLocalizedDescriptionKey: errorMsg])
         }
     }
