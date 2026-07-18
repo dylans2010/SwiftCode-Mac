@@ -103,130 +103,114 @@ public struct AssistMainView: View {
 
             Divider()
 
-            // Chat Messages scroll block
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(spacing: 16) {
-                        // Search bar
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundStyle(.secondary)
-                            TextField("Search chats...", text: $searchConversationText)
-                                .textFieldStyle(.plain)
-                            if !searchConversationText.isEmpty {
-                                Button {
-                                    searchConversationText = ""
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(6)
-                        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                        .padding(.horizontal, 12)
-                        .padding(.top, 8)
-
-                        // Codex Onboarding Prompt
-                        if showConnectCodex {
-                            GroupBox {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        Label("Connect OpenAI Codex CLI", systemImage: "sparkles")
-                                            .font(.subheadline.bold())
-                                            .foregroundStyle(.orange)
-                                        Spacer()
-                                    }
-                                    Text("Leverage the official OpenAI Codex CLI as SwiftCode's complete reasoning & backend agent engine.")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                    Button {
-                                        showingCodexSetup = true
-                                    } label: {
-                                        Text("Integrate Codex CLI")
-                                            .frame(maxWidth: .infinity)
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .tint(.orange)
-                                    .controlSize(.small)
-                                }
-                                .padding(4)
-                            }
-                            .groupBoxStyle(ModernGroupBoxStyle())
-                            .padding(.horizontal, 12)
-                        }
-
-                        // Chat bubbles
-                        ForEach(filteredMessages) { message in
-                            AssistChatBubble(message: message)
-                        }
-
-                        // Tool Timeline widget
-                        if bridgeManager.activeToolName != "None" {
-                            GroupBox {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        ProgressView()
-                                            .scaleEffect(0.5)
-                                            .tint(.orange)
-                                        Text("Codex Tool Execution in Progress")
-                                            .font(.caption.bold())
-                                            .foregroundStyle(.orange)
-                                        Spacer()
-                                        Text(bridgeManager.activeToolName)
-                                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(Color.orange.opacity(0.12), in: Capsule())
-                                    }
-                                    Text(bridgeManager.activeToolDetails)
-                                        .font(.system(size: 11, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(2)
-                                }
-                                .padding(4)
-                            }
-                            .groupBoxStyle(ModernGroupBoxStyle())
-                            .padding(.horizontal, 12)
-                        }
-
-                        if isAgentMode {
-                            CodeAssistUserView()
-                            TaskProgressView(agentSession: manager.agentSession)
-                            ToolExecutionView(agentSession: manager.agentSession)
-                            AgentTimelineView(agentSession: manager.agentSession)
-                            AgentControlsView(agentSession: manager.agentSession)
-                        }
-
-                        if let error = manager.lastError {
-                            AssistErrorBubble(error: error)
-                        }
-
-                        if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
-                            thinkingIndicator
-                        }
-                    }
-                    .padding(.bottom, 12)
-                    .blur(radius: manager.takeoverReason != nil ? 8 : 0)
-                    .overlay {
-                        if let reason = manager.takeoverReason {
-                            AssistUserTakeover(
-                                reason: reason,
-                                onResume: {
-                                    manager.takeoverReason = nil
-                                },
-                                onAbort: {
-                                    manager.takeoverReason = nil
-                                    manager.clearChat()
-                                }
-                            )
-                        }
-                    }
-                    .id("Bottom")
+            if manager.messages.isEmpty {
+                VStack {
+                    Spacer()
+                    ContentUnavailableView(
+                        "No Conversation",
+                        systemImage: "bubble.left.and.bubble.right.fill",
+                        description: Text("Chat history cleared. Send a prompt to begin.")
+                    )
+                    .foregroundStyle(.secondary)
+                    Spacer()
                 }
-                .onChange(of: manager.messages.count) { _, _ in
-                    withAnimation { proxy.scrollTo("Bottom", anchor: .bottom) }
+            } else {
+                // Chat Messages scroll block
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            // Search bar
+                            HStack {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundStyle(.secondary)
+                                TextField("Search chats...", text: $searchConversationText)
+                                        .textFieldStyle(.plain)
+                                if !searchConversationText.isEmpty {
+                                    Button {
+                                        searchConversationText = ""
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(6)
+                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                            .padding(.horizontal, 12)
+                            .padding(.top, 8)
+
+                            // Chat bubbles
+                            ForEach(filteredMessages) { message in
+                                AssistChatBubble(message: message)
+                            }
+
+                            // Tool Timeline widget
+                            if bridgeManager.activeToolName != "None" {
+                                GroupBox {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        HStack {
+                                            ProgressView()
+                                                .scaleEffect(0.5)
+                                                .tint(.orange)
+                                            Text("Codex Tool Execution in Progress")
+                                                .font(.caption.bold())
+                                                .foregroundStyle(.orange)
+                                            Spacer()
+                                            Text(bridgeManager.activeToolName)
+                                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(Color.orange.opacity(0.12), in: Capsule())
+                                        }
+                                        Text(bridgeManager.activeToolDetails)
+                                            .font(.system(size: 11, design: .monospaced))
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                    }
+                                    .padding(4)
+                                }
+                                .groupBoxStyle(ModernGroupBoxStyle())
+                                .padding(.horizontal, 12)
+                            }
+
+                            if isAgentMode {
+                                CodeAssistUserView()
+                                TaskProgressView(agentSession: manager.agentSession)
+                                ToolExecutionView(agentSession: manager.agentSession)
+                                AgentTimelineView(agentSession: manager.agentSession)
+                                AgentControlsView(agentSession: manager.agentSession)
+                            }
+
+                            if let error = manager.lastError {
+                                AssistErrorBubble(error: error)
+                            }
+
+                            if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
+                                thinkingIndicator
+                            }
+                        }
+                        .padding(.bottom, 12)
+                        .blur(radius: manager.takeoverReason != nil ? 8 : 0)
+                        .overlay {
+                            if let reason = manager.takeoverReason {
+                                AssistUserTakeover(
+                                    reason: reason,
+                                    onResume: {
+                                        manager.takeoverReason = nil
+                                    },
+                                    onAbort: {
+                                        manager.takeoverReason = nil
+                                        manager.clearChat()
+                                    }
+                                )
+                            }
+                        }
+                        .id("Bottom")
+                    }
+                    .onChange(of: manager.messages.count) { _, _ in
+                        withAnimation { proxy.scrollTo("Bottom", anchor: .bottom) }
+                    }
                 }
             }
 
@@ -649,36 +633,43 @@ public struct AssistMainView: View {
 
     private func loadDynamicModels() -> [DynamicModelOption] {
         var modelsList: [DynamicModelOption] = []
+        let filter = AssistModelFilter.shared
 
         // 1. Apple Foundation Models
-        modelsList.append(DynamicModelOption(
-            modelID: AppleFoundationModel.afm3Core.rawValue,
-            name: "Apple AFM 3 Core",
-            provider: "Apple Private on-device reasoning",
-            status: "On-Device",
-            isAvailable: true,
-            category: .apple
-        ))
-        modelsList.append(DynamicModelOption(
-            modelID: AppleFoundationModel.afm3CoreAdvanced.rawValue,
-            name: "Apple AFM 3 Core Advanced",
-            provider: "Apple Private on-device reasoning (voice)",
-            status: "On-Device",
-            isAvailable: true,
-            category: .apple
-        ))
+        if filter.isEnabled(AppleFoundationModel.afm3Core.rawValue) {
+            modelsList.append(DynamicModelOption(
+                modelID: AppleFoundationModel.afm3Core.rawValue,
+                name: "Apple AFM 3 Core",
+                provider: "Apple Private on-device reasoning",
+                status: "On-Device",
+                isAvailable: true,
+                category: .apple
+            ))
+        }
+        if filter.isEnabled(AppleFoundationModel.afm3CoreAdvanced.rawValue) {
+            modelsList.append(DynamicModelOption(
+                modelID: AppleFoundationModel.afm3CoreAdvanced.rawValue,
+                name: "Apple AFM 3 Core Advanced",
+                provider: "Apple Private on-device reasoning (voice)",
+                status: "On-Device",
+                isAvailable: true,
+                category: .apple
+            ))
+        }
 
         // 2. HuggingFace Local Models
         let localModels = OfflineModelManager.shared.installedModels
         for m in localModels {
-            modelsList.append(DynamicModelOption(
-                modelID: m.modelName,
-                name: m.modelName,
-                provider: "HuggingFace Local",
-                status: "Downloaded",
-                isAvailable: true,
-                category: .local
-            ))
+            if filter.isEnabled(m.modelName) {
+                modelsList.append(DynamicModelOption(
+                    modelID: m.modelName,
+                    name: m.modelName,
+                    provider: "HuggingFace Local",
+                    status: "Downloaded",
+                    isAvailable: true,
+                    category: .local
+                ))
+            }
         }
 
         // 3. Custom endpoint/link models
@@ -686,14 +677,16 @@ public struct AssistMainView: View {
         for endpoint in customEndpoints {
             if endpoint.showInPopup {
                 for m in endpoint.models {
-                    modelsList.append(DynamicModelOption(
-                        modelID: m,
-                        name: "\(m) (\(endpoint.name))",
-                        provider: endpoint.name,
-                        status: endpoint.isLocal ? "Local" : "Cloud",
-                        isAvailable: true,
-                        category: .custom
-                    ))
+                    if filter.isEnabled(m) {
+                        modelsList.append(DynamicModelOption(
+                            modelID: m,
+                            name: "\(m) (\(endpoint.name))",
+                            provider: endpoint.name,
+                            status: endpoint.isLocal ? "Local" : "Cloud",
+                            isAvailable: true,
+                            category: .custom
+                        ))
+                    }
                 }
             }
         }
@@ -701,14 +694,16 @@ public struct AssistMainView: View {
         // 4. OpenRouter Cloud Models (Fallback Presets or fetched)
         if !fetchedOpenRouterModels.isEmpty {
             for m in fetchedOpenRouterModels {
-                modelsList.append(DynamicModelOption(
-                    modelID: m.id,
-                    name: m.name,
-                    provider: "OpenRouter Cloud",
-                    status: "Cloud",
-                    isAvailable: true,
-                    category: .openRouter
-                ))
+                if filter.isEnabled(m.id) {
+                    modelsList.append(DynamicModelOption(
+                        modelID: m.id,
+                        name: m.name,
+                        provider: "OpenRouter Cloud",
+                        status: "Cloud",
+                        isAvailable: true,
+                        category: .openRouter
+                    ))
+                }
             }
         } else {
             let openRouterPresets = [
@@ -719,14 +714,16 @@ public struct AssistMainView: View {
                 ("openai/gpt-4o-mini", "GPT-4o Mini")
             ]
             for preset in openRouterPresets {
-                modelsList.append(DynamicModelOption(
-                    modelID: preset.0,
-                    name: preset.1,
-                    provider: "OpenRouter Cloud",
-                    status: "Cloud",
-                    isAvailable: true,
-                    category: .openRouter
-                ))
+                if filter.isEnabled(preset.0) {
+                    modelsList.append(DynamicModelOption(
+                        modelID: preset.0,
+                        name: preset.1,
+                        provider: "OpenRouter Cloud",
+                        status: "Cloud",
+                        isAvailable: true,
+                        category: .openRouter
+                    ))
+                }
             }
         }
 
@@ -849,9 +846,83 @@ struct ExecutionModeSheet: View {
 
 // MARK: - Diagnostics Sheet
 
+struct UnifiedLogEntry: Identifiable, Equatable {
+    let id: UUID
+    let timestamp: Date
+    let source: String      // "Assist", "SwiftCode", "Deployment"
+    let level: String       // "INFO", "WARN", "ERROR", "DEBUG", "SUCCESS"
+    let category: String?   // Category or tool ID
+    let message: String
+}
+
 struct DiagnosticsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var manager: AssistManager
+    @ObservedObject private var internalLogging = InternalLoggingManager.shared
+    @ObservedObject private var deploymentLogging = LogManager.shared
+
+    @State private var searchText = ""
+
+    private var unifiedLogs: [UnifiedLogEntry] {
+        var all: [UnifiedLogEntry] = []
+
+        // 1. Assist Agent Logs
+        all += manager.logger.logs.map { entry in
+            UnifiedLogEntry(
+                id: entry.id,
+                timestamp: entry.timestamp,
+                source: "Assist",
+                level: entry.level.rawValue,
+                category: entry.toolId,
+                message: entry.message
+            )
+        }
+
+        // 2. Internal / General System Logs
+        all += internalLogging.logs.map { entry in
+            UnifiedLogEntry(
+                id: entry.id,
+                timestamp: entry.timestamp,
+                source: "SwiftCode",
+                level: "INFO",
+                category: entry.category.rawValue,
+                message: entry.message
+            )
+        }
+
+        // 3. Deployment Logs
+        all += deploymentLogging.deploymentLogs.map { entry in
+            UnifiedLogEntry(
+                id: entry.id,
+                timestamp: entry.timestamp,
+                source: "Deployment",
+                level: entry.isError ? "ERROR" : "INFO",
+                category: nil,
+                message: entry.message
+            )
+        }
+
+        // Sort chronologically (latest first)
+        let sorted = all.sorted { $0.timestamp > $1.timestamp }
+
+        // Filter by searchText
+        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return sorted
+        } else {
+            let term = searchText.lowercased()
+            return sorted.filter {
+                $0.message.lowercased().contains(term) ||
+                $0.source.lowercased().contains(term) ||
+                ($0.category?.lowercased().contains(term) ?? false)
+            }
+        }
+    }
+
+    private func clearAllLogs() {
+        manager.logger.clear()
+        internalLogging.clearLogs()
+        deploymentLogging.clearDeploymentLogs()
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -910,18 +981,38 @@ struct DiagnosticsSheet: View {
                     GroupBox("Diagnostics Logs") {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                Text("Recent Events (\(manager.logger.logs.count))")
+                                Text("Recent Events (\(unifiedLogs.count))")
                                     .font(.caption.bold())
                                 Spacer()
-                                Button("Clear Logs") {
-                                    manager.logger.clear()
+                                Button("Clear All Logs") {
+                                    clearAllLogs()
                                 }
                                 .buttonStyle(.borderless)
                                 .controlSize(.small)
                             }
 
-                            if manager.logger.logs.isEmpty {
-                                Text("No recent diagnostic logs captured.")
+                            // Unified Log Search Filter
+                            HStack {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundColor(.secondary)
+                                TextField("Filter logs...", text: $searchText)
+                                    .textFieldStyle(.plain)
+                                if !searchText.isEmpty {
+                                    Button {
+                                        searchText = ""
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(6)
+                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                            .padding(.bottom, 4)
+
+                            if unifiedLogs.isEmpty {
+                                Text("No matching diagnostic logs captured.")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                     .frame(maxWidth: .infinity, alignment: .center)
@@ -929,17 +1020,20 @@ struct DiagnosticsSheet: View {
                             } else {
                                 ScrollView {
                                     LazyVStack(alignment: .leading, spacing: 4) {
-                                        ForEach(manager.logger.logs) { entry in
+                                        ForEach(unifiedLogs) { entry in
                                             VStack(alignment: .leading, spacing: 2) {
                                                 HStack {
-                                                    Text("[\(entry.level.rawValue)]")
-                                                        .foregroundColor(entry.level == .error ? .red : (entry.level == .warning ? .orange : .blue))
+                                                    Text("[\(entry.source)]")
+                                                        .foregroundColor(.orange)
+                                                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                                    Text("[\(entry.level)]")
+                                                        .foregroundColor(entry.level.contains("ERROR") ? .red : (entry.level.contains("WARN") ? .orange : .blue))
                                                         .font(.system(size: 9, weight: .bold, design: .monospaced))
                                                     Text(entry.timestamp.formatted(.dateTime.hour().minute().second()))
                                                         .font(.system(size: 9, design: .monospaced))
                                                         .foregroundColor(.secondary)
-                                                    if let toolId = entry.toolId {
-                                                        Text("[\(toolId)]")
+                                                    if let cat = entry.category {
+                                                        Text("[\(cat)]")
                                                             .font(.system(size: 9, design: .monospaced))
                                                             .foregroundColor(.purple)
                                                     }
@@ -965,7 +1059,7 @@ struct DiagnosticsSheet: View {
                 .padding(.vertical)
             }
         }
-        .frame(width: 450, height: 450)
+        .frame(width: 500, height: 500)
     }
 }
 

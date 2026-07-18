@@ -350,3 +350,36 @@ public struct DynamicModelOption: Identifiable, Hashable, Sendable {
         self.category = category
     }
 }
+
+// MARK: - Assist Model Filter
+
+@MainActor
+public final class AssistModelFilter {
+    public static let shared = AssistModelFilter()
+
+    private init() {}
+
+    public var disabledModelIDs: Set<String> {
+        get {
+            let array = UserDefaults.standard.stringArray(forKey: "com.swiftcode.assist.disabled_models") ?? []
+            return Set(array)
+        }
+        set {
+            UserDefaults.standard.set(Array(newValue), forKey: "com.swiftcode.assist.disabled_models")
+        }
+    }
+
+    public func isEnabled(_ modelID: String) -> Bool {
+        return !disabledModelIDs.contains(modelID)
+    }
+
+    public func toggleModel(_ modelID: String, enabled: Bool) {
+        var current = disabledModelIDs
+        if enabled {
+            current.remove(modelID)
+        } else {
+            current.insert(modelID)
+        }
+        disabledModelIDs = current
+    }
+}

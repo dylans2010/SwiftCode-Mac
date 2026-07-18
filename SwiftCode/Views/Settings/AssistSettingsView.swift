@@ -636,9 +636,26 @@ struct AssistSettingsView: View {
                             .pickerStyle(.menu)
 
                             HStack(spacing: 12) {
-                                Button(action: {
-                                    Task { await fetchAvailableModels() }
-                                }) {
+                                Menu {
+                                    Button("All Configured APIs") {
+                                        Task { await fetchAvailableModels() }
+                                    }
+
+                                    Button("OpenAI") {
+                                        Task { await fetchAvailableModels(onlyProvider: .openai) }
+                                    }
+                                    .disabled(openaiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                                    Button("Anthropic") {
+                                        Task { await fetchAvailableModels(onlyProvider: .anthropic) }
+                                    }
+                                    .disabled(anthropicKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                                    Button("Gemini") {
+                                        Task { await fetchAvailableModels(onlyProvider: .google) }
+                                    }
+                                    .disabled(geminiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                } label: {
                                     HStack {
                                         if isFetchingAvailableModels {
                                             ProgressView().scaleEffect(0.6).padding(.trailing, 4)
@@ -648,7 +665,7 @@ struct AssistSettingsView: View {
                                         Text(isFetchingAvailableModels ? "Fetching Models..." : "Fetch Models")
                                     }
                                 }
-                                .buttonStyle(.bordered)
+                                .menuStyle(.borderedButton)
                                 .disabled(isFetchingAvailableModels)
 
                                 Button {
@@ -688,6 +705,9 @@ struct AssistSettingsView: View {
                     .padding()
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
+
+                // Models for Assist Selection Card
+                ModelsForAssist(settings: settings, cachedModels: cachedModels, customEndpoints: customEndpointsManager.endpoints)
 
                 // 3. Foundation Models Integration
                 GroupBox {
@@ -799,20 +819,26 @@ struct AssistSettingsView: View {
                                 Divider()
                                     .padding(.vertical, 8)
 
-                                Text(isNewEndpoint ? "New Custom Endpoint" : "Edit Custom Endpoint")
-                                    .font(.subheadline.bold())
-                                    .foregroundStyle(.cyan)
+                                HStack(spacing: 6) {
+                                    Image(systemName: isNewEndpoint ? "plus.circle.fill" : "pencil.circle.fill")
+                                        .foregroundStyle(.cyan)
+                                    Text(isNewEndpoint ? "New Custom Endpoint" : "Edit Custom Endpoint")
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(.cyan)
+                                }
 
                                 Picker("Type", selection: $isEndpointLocal) {
-                                    Text("Custom Endpoint").tag(false)
-                                    Text("Local").tag(true)
+                                    Label("Remote API", systemImage: "globe").tag(false)
+                                    Label("Local Host", systemImage: "laptopcomputer").tag(true)
                                 }
                                 .pickerStyle(.segmented)
+                                .tint(.cyan)
 
-                                VStack(alignment: .leading, spacing: 10) {
+                                VStack(alignment: .leading, spacing: 14) {
                                     VStack(alignment: .leading, spacing: 6) {
-                                        Text("Name")
+                                        Label("Endpoint Alias Name", systemImage: "tag")
                                             .font(.caption.bold())
+                                            .foregroundStyle(.cyan)
                                         TextField("e.g. My Local Llama", text: $customEndpointName)
                                             .textFieldStyle(.roundedBorder)
                                             .autocorrectionDisabled()
@@ -820,16 +846,18 @@ struct AssistSettingsView: View {
 
                                     if isEndpointLocal {
                                         VStack(alignment: .leading, spacing: 6) {
-                                            Text("Localhost Port")
+                                            Label("Localhost Port", systemImage: "network.badge.shield.half.filled")
                                                 .font(.caption.bold())
+                                                .foregroundStyle(.cyan)
                                             TextField("11434", text: $localEndpointPort)
                                                 .textFieldStyle(.roundedBorder)
                                                 .autocorrectionDisabled()
                                         }
                                     } else {
                                         VStack(alignment: .leading, spacing: 6) {
-                                            Text("API Endpoint URL")
+                                            Label("API Endpoint Base URL", systemImage: "link")
                                                 .font(.caption.bold())
+                                                .foregroundStyle(.cyan)
                                             TextField("https://api.openai.com/v1", text: $customEndpoint)
                                                 .textFieldStyle(.roundedBorder)
                                                 .autocorrectionDisabled()
@@ -838,14 +866,16 @@ struct AssistSettingsView: View {
                                         // KEY-VALUE INTERACTIVE HEADERS FIELDS
                                         VStack(alignment: .leading, spacing: 8) {
                                             HStack {
-                                                Text("HTTP Headers")
+                                                Label("Custom HTTP Headers", systemImage: "list.bullet.rectangle")
                                                     .font(.caption.bold())
+                                                    .foregroundStyle(.cyan)
                                                 Spacer()
                                                 Button(action: {
                                                     customHeaders.append(HeaderItem(key: "New-Header", value: "Value"))
                                                 }) {
-                                                    Label("Add Header", systemImage: "plus")
-                                                        .font(.caption)
+                                                    Label("Add Header", systemImage: "plus.circle.fill")
+                                                        .font(.caption.bold())
+                                                        .foregroundStyle(.cyan)
                                                 }
                                                 .buttonStyle(.plain)
                                             }
@@ -870,15 +900,21 @@ struct AssistSettingsView: View {
                                         }
 
                                         VStack(alignment: .leading, spacing: 6) {
-                                            Text("Custom API Key")
+                                            Label("Custom API Authorization Key", systemImage: "key.fill")
                                                 .font(.caption.bold())
+                                                .foregroundStyle(.cyan)
                                             SecureField("Enter custom provider API key", text: $customAPIKey)
                                                 .textFieldStyle(.roundedBorder)
                                         }
                                     }
 
-                                    Toggle("Display on Model Popup Menu", isOn: $endpointShowInPopup)
-                                        .toggleStyle(.switch)
+                                    Toggle(isOn: $endpointShowInPopup) {
+                                        Label("Display on Model Popup Menu", systemImage: "eye.fill")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(.cyan)
+                                    }
+                                    .toggleStyle(.switch)
+                                    .tint(.cyan)
 
                                     HStack(spacing: 12) {
                                         Button(action: {
@@ -1221,48 +1257,178 @@ struct AssistSettingsView: View {
         }
     }
 
-    private func fetchAvailableModels() async {
+}
+
+// MARK: - Models For Assist Selection Card
+
+struct ModelsForAssist: View {
+    @Bindable var settings: AppSettings
+    @State private var filter = AssistModelFilter.shared
+
+    var cachedModels: [CachedModel]
+    var customEndpoints: [SavedCustomEndpoint]
+
+    struct AvailableModelItem: Identifiable, Hashable {
+        var id: String { modelID }
+        let modelID: String
+        let name: String
+        let category: String
+    }
+
+    private var allModels: [AvailableModelItem] {
+        var list: [AvailableModelItem] = []
+
+        // 1. Apple Models
+        list.append(AvailableModelItem(modelID: AppleFoundationModel.afm3Core.rawValue, name: "Apple AFM 3 Core", category: "Apple Foundation Models"))
+        list.append(AvailableModelItem(modelID: AppleFoundationModel.afm3CoreAdvanced.rawValue, name: "Apple AFM 3 Core Advanced", category: "Apple Foundation Models"))
+
+        // 2. HF Local Models
+        let localModels = OfflineModelManager.shared.installedModels
+        for m in localModels {
+            list.append(AvailableModelItem(modelID: m.modelName, name: m.modelName, category: "HuggingFace Local Models"))
+        }
+
+        // 3. Custom Endpoint Models
+        for endpoint in customEndpoints {
+            for m in endpoint.models {
+                list.append(AvailableModelItem(modelID: m, name: "\(m) (\(endpoint.name))", category: "Custom Models"))
+            }
+        }
+
+        // 4. Cloud Models
+        for m in cachedModels {
+            list.append(AvailableModelItem(modelID: m.modelID, name: "\(m.modelID) (\(m.providerName))", category: "Cloud Models"))
+        }
+
+        // Fallback OpenRouter presets if cloud list is empty
+        if cachedModels.isEmpty {
+            let openRouterPresets = [
+                ("openai/gpt-4o", "GPT-4o (OpenRouter)"),
+                ("anthropic/claude-3.5-sonnet", "Claude 3.5 Sonnet (OpenRouter)"),
+                ("google/gemini-2.5-pro", "Gemini 2.5 Pro (OpenRouter)"),
+                ("meta-llama/llama-3-70b-instruct", "Llama 3 70B (OpenRouter)"),
+                ("openai/gpt-4o-mini", "GPT-4o Mini (OpenRouter)")
+            ]
+            for preset in openRouterPresets {
+                list.append(AvailableModelItem(modelID: preset.0, name: preset.1, category: "Cloud Models"))
+            }
+        }
+
+        return list
+    }
+
+    var body: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Label("Models for Assist", systemImage: "checklist")
+                        .font(.headline)
+                        .foregroundColor(.indigo)
+                    Spacer()
+                }
+
+                Text("Select which models should be active and shown in the Assist Workspace or the Agent Model selection. Toggling a model OFF hides it entirely from active popups.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                let grouped = Dictionary(grouping: allModels, by: { $0.category })
+
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(grouped.keys.sorted(), id: \.self) { category in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(category.uppercased())
+                                .font(.caption2.bold())
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 4)
+
+                            ForEach(grouped[category] ?? [], id: \.self) { item in
+                                Toggle(isOn: Binding(
+                                    get: { filter.isEnabled(item.modelID) },
+                                    set: { enabled in
+                                        filter.toggleModel(item.modelID, enabled: enabled)
+                                    }
+                                )) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(item.name)
+                                            .font(.subheadline.bold())
+                                        Text(item.modelID)
+                                            .font(.caption2.monospaced())
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .toggleStyle(.switch)
+                                .padding(.vertical, 2)
+                            }
+                        }
+
+                        if category != grouped.keys.sorted().last {
+                            Divider()
+                                .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
+            .padding()
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+    }
+}
+
+extension AssistSettingsView {
+    private func fetchAvailableModels(onlyProvider: LLMProvider? = nil) async {
         isFetchingAvailableModels = true
         availableModelsFetchError = nil
 
-        var fetchedList: [CachedModel] = []
+        var fetchedList = cachedModels
+        if onlyProvider == nil {
+            fetchedList = []
+        }
 
         // 1. Fetch OpenAI
-        let trimmedOpenaiKey = openaiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedOpenaiKey.isEmpty {
-            do {
-                let models = try await LLMService.shared.fetchAvailableModels(provider: .openai, key: trimmedOpenaiKey)
-                for m in models {
-                    fetchedList.append(CachedModel(modelID: m, providerName: "OpenAI"))
+        if onlyProvider == nil || onlyProvider == .openai {
+            let trimmedOpenaiKey = openaiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedOpenaiKey.isEmpty {
+                do {
+                    let models = try await LLMService.shared.fetchAvailableModels(provider: .openai, key: trimmedOpenaiKey)
+                    fetchedList.removeAll { $0.providerName == "OpenAI" }
+                    for m in models {
+                        fetchedList.append(CachedModel(modelID: m, providerName: "OpenAI"))
+                    }
+                } catch {
+                    logger.warning("[fetchAvailableModels] OpenAI fetch failed: \(error.localizedDescription)")
                 }
-            } catch {
-                logger.warning("[fetchAvailableModels] OpenAI fetch failed: \(error.localizedDescription)")
             }
         }
 
         // 2. Fetch Anthropic
-        let trimmedAnthropicKey = anthropicKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedAnthropicKey.isEmpty {
-            do {
-                let models = try await LLMService.shared.fetchAvailableModels(provider: .anthropic, key: trimmedAnthropicKey)
-                for m in models {
-                    fetchedList.append(CachedModel(modelID: m, providerName: "Anthropic"))
+        if onlyProvider == nil || onlyProvider == .anthropic {
+            let trimmedAnthropicKey = anthropicKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedAnthropicKey.isEmpty {
+                do {
+                    let models = try await LLMService.shared.fetchAvailableModels(provider: .anthropic, key: trimmedAnthropicKey)
+                    fetchedList.removeAll { $0.providerName == "Anthropic" }
+                    for m in models {
+                        fetchedList.append(CachedModel(modelID: m, providerName: "Anthropic"))
+                    }
+                } catch {
+                    logger.warning("[fetchAvailableModels] Anthropic fetch failed: \(error.localizedDescription)")
                 }
-            } catch {
-                logger.warning("[fetchAvailableModels] Anthropic fetch failed: \(error.localizedDescription)")
             }
         }
 
         // 3. Fetch Gemini
-        let trimmedGeminiKey = geminiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedGeminiKey.isEmpty {
-            do {
-                let models = try await LLMService.shared.fetchAvailableModels(provider: .google, key: trimmedGeminiKey)
-                for m in models {
-                    fetchedList.append(CachedModel(modelID: m, providerName: "Gemini"))
+        if onlyProvider == nil || onlyProvider == .google {
+            let trimmedGeminiKey = geminiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedGeminiKey.isEmpty {
+                do {
+                    let models = try await LLMService.shared.fetchAvailableModels(provider: .google, key: trimmedGeminiKey)
+                    fetchedList.removeAll { $0.providerName == "Gemini" }
+                    for m in models {
+                        fetchedList.append(CachedModel(modelID: m, providerName: "Gemini"))
+                    }
+                } catch {
+                    logger.warning("[fetchAvailableModels] Gemini fetch failed: \(error.localizedDescription)")
                 }
-            } catch {
-                logger.warning("[fetchAvailableModels] Gemini fetch failed: \(error.localizedDescription)")
             }
         }
 
