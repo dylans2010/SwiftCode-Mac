@@ -13,7 +13,7 @@ public struct SkillContext: Codable, Sendable, Hashable {
     public let guidance: [String]
 }
 
-public final class AssistSkillsCheck {
+public final class AssistSkillsCheck: Sendable {
     public static let shared = AssistSkillsCheck()
 
     private init() {}

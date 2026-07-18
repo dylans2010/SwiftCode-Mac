@@ -202,7 +202,7 @@ public final class AssistManager: ObservableObject {
             let selectedModel = AssistModelManager.shared.selectedModelID
             let selectedProvider = LLMService.shared.provider(for: selectedModel)
 
-            logger.log("[ChatMode] Validating session state. Model: \(selectedModel), Provider: \(selectedProvider.rawValue)")
+            await logger.info("[ChatMode] Validating session state. Model: \(selectedModel), Provider: \(selectedProvider.rawValue)")
 
             if selectedProvider != .offline && selectedProvider != .codex {
                 let key = LLMService.shared.retrieveAPIKey(for: selectedProvider)
@@ -268,10 +268,11 @@ public final class AssistManager: ObservableObject {
 
             prompt += "\nAssistant:"
 
+            let assistProvider = AssistModelProvider.from(llmProvider: selectedProvider)
             let response = await AssistLLMService.generateResponse(
                 prompt: prompt,
-                provider: selectedProvider,
-                apiKey: APIKeyManager.shared.retrieveKey(service: selectedProvider.apiKeyProvider),
+                provider: assistProvider,
+                apiKey: APIKeyManager.shared.retrieveKey(service: assistProvider.apiKeyProvider),
                 modelOverride: AssistModelManager.shared.selectedModelID
             )
 
