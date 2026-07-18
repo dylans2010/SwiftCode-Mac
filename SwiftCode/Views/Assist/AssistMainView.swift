@@ -36,6 +36,9 @@ public struct AssistMainView: View {
     // Glowing border pulse state for Apple Intelligence
     @State private var pulseGlow = false
 
+    // Typing indicator pulse animation state
+    @State private var typingIndicatorPulse = false
+
     public init() {}
 
     public var body: some View {
@@ -187,7 +190,11 @@ public struct AssistMainView: View {
                             }
 
                             if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
-                                thinkingIndicator
+                                if isAgentMode {
+                                    thinkingIndicator
+                                } else {
+                                    chatTypingIndicator
+                                }
                             }
                         }
                         .padding(.bottom, 12)
@@ -500,6 +507,45 @@ public struct AssistMainView: View {
         .padding(.horizontal, 12)
     }
 
+    private var chatTypingIndicator: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .scaleEffect(0.5)
+                .tint(.blue)
+
+            Text("Assist is typing")
+                .font(.caption.bold())
+                .foregroundColor(.secondary)
+
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(Color.blue.opacity(0.8))
+                    .frame(width: 4, height: 4)
+                    .scaleEffect(typingIndicatorPulse ? 1.4 : 0.8)
+                    .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: typingIndicatorPulse)
+                Circle()
+                    .fill(Color.blue.opacity(0.8))
+                    .frame(width: 4, height: 4)
+                    .scaleEffect(typingIndicatorPulse ? 0.8 : 1.4)
+                    .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true).delay(0.2), value: typingIndicatorPulse)
+                Circle()
+                    .fill(Color.blue.opacity(0.8))
+                    .frame(width: 4, height: 4)
+                    .scaleEffect(typingIndicatorPulse ? 1.4 : 0.8)
+                    .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true).delay(0.4), value: typingIndicatorPulse)
+            }
+            .onAppear {
+                typingIndicatorPulse = true
+            }
+
+            Spacer()
+        }
+        .padding(10)
+        .background(Color.blue.opacity(0.06))
+        .cornerRadius(8)
+        .padding(.horizontal, 12)
+    }
+
     private var inputArea: some View {
         HStack(spacing: 8) {
             Button {
@@ -750,6 +796,9 @@ public struct AssistMainView: View {
             AppSettings.shared.selectedModel = option.modelID
             AssistModelManager.shared.customModelID = option.modelID
         }
+
+        // Ensure a completely new URLSession is created on LLMService to avoid using cached connections or older models
+        LLMService.shared.recreateSession(for: option.modelID)
     }
 }
 

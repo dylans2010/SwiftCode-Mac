@@ -641,6 +641,11 @@ struct AssistSettingsView: View {
                                         Task { await fetchAvailableModels() }
                                     }
 
+                                    Button("OpenRouter") {
+                                        Task { await fetchAvailableModels(onlyProvider: .openRouter) }
+                                    }
+                                    .disabled(openRouterKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
                                     Button("OpenAI") {
                                         Task { await fetchAvailableModels(onlyProvider: .openai) }
                                     }
@@ -1037,6 +1042,9 @@ struct AssistSettingsView: View {
             loadCachedModels()
             Task {
                 await fetchOpenRouterModels()
+                if cachedModels.isEmpty {
+                    await fetchAvailableModels()
+                }
             }
         }
     }
@@ -1240,14 +1248,8 @@ struct AssistSettingsView: View {
            let decoded = try? JSONDecoder().decode([CachedModel].self, from: data) {
             cachedModels = decoded
         } else {
-            // Default presets before first fetch
-            cachedModels = [
-                CachedModel(modelID: "openai/gpt-4o", providerName: "OpenAI"),
-                CachedModel(modelID: "openai/gpt-4o-mini", providerName: "OpenAI"),
-                CachedModel(modelID: "anthropic/claude-3.5-sonnet", providerName: "Anthropic"),
-                CachedModel(modelID: "google/gemini-2.5-pro", providerName: "Gemini"),
-                CachedModel(modelID: "google/gemini-1.5-flash", providerName: "Gemini")
-            ]
+            // No hardcoded presets - force dynamic fetching
+            cachedModels = []
         }
     }
 
@@ -1428,6 +1430,22 @@ extension AssistSettingsView {
                     }
                 } catch {
                     logger.warning("[fetchAvailableModels] Gemini fetch failed: \(error.localizedDescription)")
+                }
+            }
+        }
+
+        // 4. Fetch OpenRouter
+        if onlyProvider == nil || onlyProvider == .openRouter {
+            let trimmedOpenRouterKey = openRouterKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedOpenRouterKey.isEmpty {
+                do {
+                    let models = try await LLMService.shared.fetchAvailableModels(provider: .openRouter, key: trimmedOpenRouterKey)
+                    fetchedList.removeAll { $0.providerName == "OpenRouter" }
+                    for m in models {
+                        fetchedList.append(CachedModel(modelID: m, providerName: "OpenRouter"))
+                    }
+                } catch {
+                    logger.warning("[fetchAvailableModels] OpenRouter fetch failed: \(error.localizedDescription)")
                 }
             }
         }

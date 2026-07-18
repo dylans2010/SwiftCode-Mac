@@ -111,6 +111,15 @@ public final class LLMService: Sendable {
 
     private let aiRoutingModeKey = "ai.routingMode"
 
+    private var urlSession = URLSession(configuration: .default)
+
+    public func recreateSession(for modelID: String) {
+        logInfo("[recreateSession] Invalidating current session and creating a fully new URLSession for model: \(modelID)")
+        urlSession.invalidateAndCancel()
+        urlSession = URLSession(configuration: .default)
+        logInfo("[recreateSession] Confirmed: LLMService successfully switched to model: \(modelID)")
+    }
+
     private func logInfo(_ message: String) {
         logger.log("\(message)")
         InternalLoggingManager.shared.log(message, category: .aiProcessing)
@@ -165,13 +174,30 @@ public final class LLMService: Sendable {
     }
 
     private func retrieveAPIKey(for provider: LLMProvider, from keyOverride: String? = nil) -> String {
-        if let keyOverride { return keyOverride }
-        var key = APIKeyManager.shared.retrieveKey(service: apiKeyProvider(for: provider))
-            ?? KeychainService.shared.get(forKey: provider.keychainKey)
-            ?? ""
-        if key.isEmpty && provider == .openRouter {
-            key = KeychainService.shared.get(forKey: "openrouter-api-key") ?? ""
+        if let keyOverride, !keyOverride.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return keyOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         }
+
+        var key = ""
+        if let managerKey = APIKeyManager.shared.retrieveKey(service: apiKeyProvider(for: provider)),
+           !managerKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            key = managerKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        if key.isEmpty {
+            if let keychainKey = KeychainService.shared.get(forKey: provider.keychainKey),
+               !keychainKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                key = keychainKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        if key.isEmpty && provider == .openRouter {
+            if let hyphenatedKey = KeychainService.shared.get(forKey: "openrouter-api-key"),
+               !hyphenatedKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                key = hyphenatedKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
         return key
     }
 
@@ -350,7 +376,7 @@ public final class LLMService: Sendable {
         request.httpMethod = "GET"
         setupHeaders(for: &request, provider: provider, key: key)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await self.urlSession.data(for: request)
         try handleHTTPError(response, data: data)
 
         if provider == .anthropic {
@@ -406,7 +432,7 @@ public final class LLMService: Sendable {
             ]
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await self.urlSession.data(for: request)
             try handleHTTPError(response, data: data)
 
             let decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
@@ -464,7 +490,7 @@ public final class LLMService: Sendable {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
             logInfo("[sendChatRequest] Sending non-streaming API request to \(provider.rawValue)...")
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await self.urlSession.data(for: request)
             try handleHTTPError(response, data: data)
 
             let latency = Date().timeIntervalSince(startTime)
@@ -559,7 +585,7 @@ public final class LLMService: Sendable {
             ]
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-            let (stream, response) = try await URLSession.shared.bytes(for: request)
+            let (stream, response) = try await self.urlSession.bytes(for: request)
             try handleHTTPError(response, data: nil)
 
             for try await line in stream.lines {
@@ -635,7 +661,7 @@ public final class LLMService: Sendable {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
             logInfo("[streamChat] Connecting to stream at \(provider.rawValue)...")
-            let (stream, response) = try await URLSession.shared.bytes(for: request)
+            let (stream, response) = try await self.urlSession.bytes(for: request)
             try handleHTTPError(response, data: nil)
 
             logInfo("[streamChat] Stream connected. Consuming lines.")
@@ -812,12 +838,14 @@ public final class LLMService: Sendable {
 
         if httpResponse.statusCode == 200 { return }
 
+        let errorDesc = data.flatMap { String(data: $0, encoding: .utf8) } ?? "HTTP \(httpResponse.statusCode)"
+        logError("[Third-Party API Error] Status: \(httpResponse.statusCode). Response Payload: \(errorDesc)")
+
         switch httpResponse.statusCode {
         case 401: throw LLMError.invalidKey
         case 429: throw LLMError.rateLimited
         case 404: throw LLMError.modelNotFound
         default:
-            let errorDesc = data.flatMap { String(data: $0, encoding: .utf8) } ?? "HTTP \(httpResponse.statusCode)"
             throw LLMError.networkError(errorDesc)
         }
     }
