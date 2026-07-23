@@ -116,7 +116,7 @@ public struct AssistMainView: View {
                 } label: {
                     Image(systemName: "gearshape")
                         .font(.body)
-                        .foregroundStyle(showAssistSettings ? .accentColor : .secondary)
+                        .foregroundStyle(showAssistSettings ? Color.accentColor : Color.secondary)
                 }
                 .buttonStyle(.plain)
                 .help("Assist Settings")

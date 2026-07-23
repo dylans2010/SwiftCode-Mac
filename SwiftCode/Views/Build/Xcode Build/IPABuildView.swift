@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 @MainActor
 public struct IPABuildView: View {
@@ -314,7 +315,8 @@ public struct IPABuildView: View {
         panel.title = "Select Compiled iOS .app Bundle"
 
         if panel.runModal() == .OK, let url = panel.url {
-            parseSelectedAppBundle(url: url)
+            // Runs on the view's MainActor while allowing plist reads to await the process runner actor.
+            Task { await parseSelectedAppBundle(url: url) }
         }
     }
 
@@ -330,7 +332,7 @@ public struct IPABuildView: View {
         }
     }
 
-    private func parseSelectedAppBundle(url: URL) {
+    private func parseSelectedAppBundle(url: URL) async {
         let plistURL = url.appendingPathComponent("Info.plist")
         let fm = FileManager.default
         guard fm.fileExists(atPath: plistURL.path) else {
@@ -342,11 +344,11 @@ public struct IPABuildView: View {
         }
 
         let path = url.path
-        let bundleID = (try? ProcessRunnerTool.shared.run(executableURL: URL(fileURLWithPath: "/usr/bin/defaults"), arguments: ["read", plistURL.path, "CFBundleIdentifier"]).stdout.trimmingCharacters(in: .whitespacesAndNewlines)) ?? "Unknown"
-        let name = (try? ProcessRunnerTool.shared.run(executableURL: URL(fileURLWithPath: "/usr/bin/defaults"), arguments: ["read", plistURL.path, "CFBundleDisplayName"]).stdout.trimmingCharacters(in: .whitespacesAndNewlines)) ?? url.deletingPathExtension().lastPathComponent
-        let version = (try? ProcessRunnerTool.shared.run(executableURL: URL(fileURLWithPath: "/usr/bin/defaults"), arguments: ["read", plistURL.path, "CFBundleShortVersionString"]).stdout.trimmingCharacters(in: .whitespacesAndNewlines)) ?? "1.0"
-        let build = (try? ProcessRunnerTool.shared.run(executableURL: URL(fileURLWithPath: "/usr/bin/defaults"), arguments: ["read", plistURL.path, "CFBundleVersion"]).stdout.trimmingCharacters(in: .whitespacesAndNewlines)) ?? "1"
-        let minOS = (try? ProcessRunnerTool.shared.run(executableURL: URL(fileURLWithPath: "/usr/bin/defaults"), arguments: ["read", plistURL.path, "MinimumOSVersion"]).stdout.trimmingCharacters(in: .whitespacesAndNewlines)) ?? "iOS 17.0"
+        let bundleID = await readPlistValue(at: plistURL, key: "CFBundleIdentifier") ?? "Unknown"
+        let name = await readPlistValue(at: plistURL, key: "CFBundleDisplayName") ?? url.deletingPathExtension().lastPathComponent
+        let version = await readPlistValue(at: plistURL, key: "CFBundleShortVersionString") ?? "1.0"
+        let build = await readPlistValue(at: plistURL, key: "CFBundleVersion") ?? "1"
+        let minOS = await readPlistValue(at: plistURL, key: "MinimumOSVersion") ?? "iOS 17.0"
 
         // File size
         let attr = try? fm.attributesOfItem(atPath: path)
@@ -374,6 +376,15 @@ public struct IPABuildView: View {
         )
 
         self.selectedApp = app
+    }
+
+
+    private func readPlistValue(at plistURL: URL, key: String) async -> String? {
+        let result = try? await ProcessRunnerTool.shared.run(
+            executableURL: URL(fileURLWithPath: "/usr/bin/defaults"),
+            arguments: ["read", plistURL.path, key]
+        )
+        return result?.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func buildIPAContainer() async {

@@ -1,6 +1,6 @@
 import Foundation
 
-struct WorkspaceProfile: Identifiable, Codable, Equatable {
+struct WorkspaceProfile: Identifiable, Codable, Equatable, Hashable {
     let id: UUID
     var name: String
     var buildConfiguration: String

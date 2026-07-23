@@ -85,7 +85,7 @@ struct WorkspaceProfilesView: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                if profile.preferences["isFavorite"] as? Bool ?? false {
+                                if profile.preferences["isFavorite"] == "true" {
                                     Image(systemName: "star.fill")
                                         .foregroundStyle(.yellow)
                                 }
@@ -200,7 +200,7 @@ struct WorkspaceProfilesView: View {
                     }
                     .buttonStyle(.bordered)
 
-                    Button(profile.preferences["isFavorite"] as? Bool ?? false ? "Unfavorite" : "Favorite") {
+                    Button(profile.preferences["isFavorite"] == "true" ? "Unfavorite" : "Favorite") {
                         toggleFavorite(profile)
                     }
                     .buttonStyle(.bordered)
@@ -294,7 +294,7 @@ struct WorkspaceProfilesView: View {
 
         switch selectedCategory {
         case "Favorites":
-            list = list.filter { $0.preferences["isFavorite"] as? Bool ?? false }
+            list = list.filter { $0.preferences["isFavorite"] == "true" }
         case "Development":
             list = list.filter { $0.buildConfiguration.localizedCaseInsensitiveContains("debug") }
         case "Production":
@@ -381,8 +381,8 @@ struct WorkspaceProfilesView: View {
 
     private func toggleFavorite(_ profile: WorkspaceProfile) {
         var updated = profile
-        let current = profile.preferences["isFavorite"] as? Bool ?? false
-        updated.preferences["isFavorite"] = !current
+        let current = profile.preferences["isFavorite"] == "true"
+        updated.preferences["isFavorite"] = (!current).description
 
         manager.delete(profile)
         manager.add(updated)
