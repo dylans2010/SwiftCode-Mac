@@ -71,6 +71,7 @@ final class ToolbarActionManager {
         case xcodeBuildSettings
         case xcodeBuildLogs
         case appleDeveloperAccount
+        case ipaBuild
 
         var id: String { rawValue }
 

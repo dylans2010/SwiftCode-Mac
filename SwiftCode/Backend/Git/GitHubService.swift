@@ -418,15 +418,42 @@ final class GitHubService: @unchecked Sendable {
         guard token != nil else { throw GitHubError.missingToken }
         let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/actions/jobs/\(jobID)/logs")
         var request = authorizedRequest(url: url)
-        request.setValue("text/plain", forHTTPHeaderField: "Accept")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validateResponse(response, data: data)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        if let utf8 = String(data: data, encoding: .utf8), !utf8.isEmpty {
+        // Capture redirection using NoRedirectDelegate to prevent token leakage
+        let session = URLSession(configuration: .default, delegate: NoRedirectDelegate(), delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GitHubError.invalidResponse
+        }
+
+        let logData: Data
+        if httpResponse.statusCode == 302 || httpResponse.statusCode == 307 || httpResponse.statusCode == 301 {
+            guard let locationString = httpResponse.value(forHTTPHeaderField: "Location"),
+                  let redirectURL = URL(string: locationString) else {
+                throw GitHubError.noLogsAvailable
+            }
+            // Request the S3 URL WITHOUT Authorization or Accept headers
+            var s3Request = URLRequest(url: redirectURL)
+            s3Request.httpMethod = "GET"
+            let (data, s3Response) = try await URLSession.shared.data(for: s3Request)
+            try validateResponse(s3Response, data: data)
+            logData = data
+        } else if (200...299).contains(httpResponse.statusCode) {
+            let (directData, directResponse) = try await URLSession.shared.data(for: request)
+            try validateResponse(directResponse, data: directData)
+            logData = directData
+        } else {
+            throw GitHubError.apiError(statusCode: httpResponse.statusCode, body: "Failed to fetch logs")
+        }
+
+        if let utf8 = String(data: logData, encoding: .utf8), !utf8.isEmpty {
             return sanitizeWorkflowLogs(utf8)
         }
 
-        if let latin1 = String(data: data, encoding: .isoLatin1), !latin1.isEmpty {
+        if let latin1 = String(data: logData, encoding: .isoLatin1), !latin1.isEmpty {
             return sanitizeWorkflowLogs(latin1)
         }
 

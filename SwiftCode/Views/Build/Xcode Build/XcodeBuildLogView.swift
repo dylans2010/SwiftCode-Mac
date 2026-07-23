@@ -47,6 +47,9 @@ struct XcodeBuildLogView: View {
     @State private var showWarningsGroup = true
     @State private var showFullConsole = true
 
+    // Switch sheets
+    @State private var showingIPABuilder = false
+
     @Environment(\.dismiss) private var dismiss
 
     private var buildManager: XcodeBuildManager {
@@ -115,7 +118,7 @@ struct XcodeBuildLogView: View {
                 Divider()
 
                 ScrollView {
-                    VStack(spacing: 14) {
+                    VStack(spacing: 16) {
                         // Card 1: Build Status Metrics
                         GroupBox {
                             VStack(alignment: .leading, spacing: 8) {
@@ -129,10 +132,20 @@ struct XcodeBuildLogView: View {
                         GroupBox {
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack {
-                                    Label("Target Specifications", systemImage: "gearshape.fill")
+                                    Label("Build Specifications", systemImage: "gearshape.fill")
                                         .font(.subheadline.bold())
                                         .foregroundColor(.purple)
                                     Spacer()
+
+                                    // Short trigger to IPA Packaging view directly
+                                    Button {
+                                        showingIPABuilder = true
+                                    } label: {
+                                        Label("Package built IPA Container", systemImage: "shippingbox.fill")
+                                            .font(.caption.bold())
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
                                 }
 
                                 Divider()
@@ -142,13 +155,13 @@ struct XcodeBuildLogView: View {
                                         Text("Active Build Scheme")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
-                                        Text("Primary Target Scheme")
+                                        Text(buildManager.selectedScheme ?? "Automatic")
                                             .font(.caption.bold())
 
-                                        Text("Build SDK")
+                                        Text("Build SDK Destination")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
-                                        Text("macOS / iOS (Simulator)")
+                                        Text(buildManager.selectedDestination)
                                             .font(.caption.bold())
                                     }
 
@@ -156,7 +169,7 @@ struct XcodeBuildLogView: View {
                                         Text("Optimization Level")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
-                                        Text("-Onone (Debug)")
+                                        Text("\(buildManager.selectedConfiguration)")
                                             .font(.caption.bold())
 
                                         Text("Toolchain Location")
@@ -339,6 +352,11 @@ struct XcodeBuildLogView: View {
             }
             .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Xcode Build Center")
+            .sheet(isPresented: $showingIPABuilder) {
+                NavigationStack {
+                    IPABuildView()
+                }
+            }
         }
         .frame(minWidth: 780, idealWidth: 880, maxWidth: .infinity, minHeight: 520, idealHeight: 650, maxHeight: .infinity)
     }

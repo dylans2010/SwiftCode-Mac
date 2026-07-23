@@ -19,13 +19,13 @@ public final class XcodeBuildManager: Sendable {
     public var discoveredSchemes: [String] = []
     public var selectedScheme: String? = nil
     public var selectedConfiguration: String = "Debug"
-    public var selectedDestination: String = "generic/platform=macOS"
+    public var selectedDestination: String = "generic/platform=iOS Simulator"
 
     public let availableConfigurations = ["Debug", "Release"]
     public let availableDestinations = [
-        "generic/platform=macOS",
         "generic/platform=iOS Simulator",
-        "generic/platform=iOS"
+        "generic/platform=iOS",
+        "generic/platform=macOS"
     ]
 
     @ObservationIgnored
@@ -136,7 +136,7 @@ public final class XcodeBuildManager: Sendable {
             return
         }
 
-        let finalScheme = scheme ?? selectedScheme
+        let finalScheme = scheme ?? selectedScheme ?? projectURL.deletingPathExtension().lastPathComponent
         let finalConfig = configuration ?? selectedConfiguration
         let finalDest = destination ?? selectedDestination
 
@@ -149,21 +149,27 @@ public final class XcodeBuildManager: Sendable {
         startTime = Date()
         startTimer()
 
-        appendLog("[SYSTEM] Starting xcodebuild in directory: \(projectURL.path)")
+        appendLog("[SYSTEM] Starting production xcodebuild in directory: \(projectURL.path)")
         appendLog("[SYSTEM] Using toolchain path: \(buildPath)")
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: buildPath)
 
-        var arguments = ["-configuration", finalConfig]
-        if let actualScheme = finalScheme, !actualScheme.isEmpty {
-            arguments.append(contentsOf: ["-scheme", actualScheme])
+        // Localize DerivedData to ensure deterministic product output layout
+        let localizedDerivedDataURL = projectURL.appendingPathComponent("build/DerivedData")
+
+        var arguments = [
+            "-configuration", finalConfig,
+            "-derivedDataPath", localizedDerivedDataURL.path
+        ]
+
+        if !finalScheme.isEmpty {
+            arguments.append(contentsOf: ["-scheme", finalScheme])
         }
         if !finalDest.isEmpty {
             arguments.append(contentsOf: ["-destination", finalDest])
         }
 
-        // Avoid shell interpolation by passing pure argument arrays
         process.arguments = arguments
         process.currentDirectoryURL = projectURL
 
@@ -174,7 +180,6 @@ public final class XcodeBuildManager: Sendable {
 
         activeProcess = process
 
-        // Async read from standard output & error
         let outputHandle = outputPipe.fileHandleForReading
         let errorHandle = errorPipe.fileHandleForReading
 
@@ -190,7 +195,6 @@ public final class XcodeBuildManager: Sendable {
             }
         }
 
-        // Configure termination handler prior to running the process to handle instantaneous terminations safely
         let terminationStatusTask = Task<Int32, Error> {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
                 process.terminationHandler = { p in
@@ -202,7 +206,6 @@ public final class XcodeBuildManager: Sendable {
         do {
             try process.run()
 
-            // Wait for process completion asynchronously without blocking
             let status = try await terminationStatusTask.value
 
             stopTimer()
@@ -216,6 +219,9 @@ public final class XcodeBuildManager: Sendable {
             if status == 0 {
                 currentStatus = .succeeded
                 appendLog("[SYSTEM] Build Succeeded.")
+
+                // Copy the generated .app package to SwiftCode's managed temporary build directory
+                await copyGeneratedAppToManagedDirectory(projectURL: projectURL, scheme: finalScheme, configuration: finalConfig, destination: finalDest)
             } else {
                 currentStatus = .failed
                 appendLog("[SYSTEM] Build Failed with exit code \(status).")
@@ -259,5 +265,59 @@ public final class XcodeBuildManager: Sendable {
     private func stopTimer() {
         durationTimer?.invalidate()
         durationTimer = nil
+    }
+
+    // MARK: - Managed .app Copying Logic
+
+    private func copyGeneratedAppToManagedDirectory(projectURL: URL, scheme: String, configuration: String, destination: String) async {
+        appendLog("[SYSTEM] Initiating .app packaging alignment pass...")
+
+        let fm = FileManager.default
+        let productsURL = projectURL.appendingPathComponent("build/DerivedData/Build/Products")
+
+        // Locate matching product output folders (e.g. Debug-iphonesimulator, Debug-iphoneos)
+        guard fm.fileExists(atPath: productsURL.path) else {
+            appendLog("[WARNING] Localized build products directory not found: \(productsURL.path)")
+            return
+        }
+
+        do {
+            let folders = try fm.contentsOfDirectory(at: productsURL, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+
+            var foundAppURL: URL? = nil
+            for folder in folders {
+                let items = try fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+                if let appFile = items.first(where: { $0.pathExtension == "app" }) {
+                    foundAppURL = appFile
+                    break
+                }
+            }
+
+            guard let appURL = foundAppURL else {
+                appendLog("[WARNING] Failed to locate generated .app bundle inside \(productsURL.path).")
+                return
+            }
+
+            appendLog("[SYSTEM] Located compiled application package: \(appURL.path)")
+
+            // Set up SwiftCode managed builds directory
+            let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            let buildsDir = appSupport.appendingPathComponent("SwiftCode/Builds/\(projectURL.lastPathComponent)")
+
+            // Clear prior stale builds for this project to maintain only the most recent
+            if fm.fileExists(atPath: buildsDir.path) {
+                try fm.removeItem(at: buildsDir)
+            }
+            try fm.createDirectory(at: buildsDir, withIntermediateDirectories: true, attributes: nil)
+
+            let destURL = buildsDir.appendingPathComponent(appURL.lastPathComponent)
+            try fm.copyItem(at: appURL, to: destURL)
+
+            appendLog("[SYSTEM] Copied .app to managed packaging workspace successfully!")
+            appendLog("[SYSTEM] Path: \(destURL.path)")
+
+        } catch {
+            appendLog("[ERROR] Failed to align .app packaging bundle: \(error.localizedDescription)")
+        }
     }
 }

@@ -11,6 +11,7 @@ struct ActionsView: View {
     @State private var runs: [WorkflowRunSummary] = []
     @State private var isFetching = false
     @State private var selectedRun: WorkflowRunSummary?
+    @State private var showingWorkflowCreator = false
 
     private var context: RepositoryContext {
         RepositoryContext.shared
@@ -45,6 +46,11 @@ struct ActionsView: View {
                 WorkflowRunsView(run: run, project: project)
             }
         }
+        .sheet(isPresented: $showingWorkflowCreator) {
+            NavigationStack {
+                WorkflowsCreateView(project: project)
+            }
+        }
     }
 
     private var mainContent: some View {
@@ -56,6 +62,12 @@ struct ActionsView: View {
                     .foregroundStyle(.cyan)
 
                 Spacer()
+
+                Button {
+                    showingWorkflowCreator = true
+                } label: {
+                    Label("Create Visual Workflow", systemImage: "plus.circle.fill")
+                }
 
                 Button {
                     fetchRuns()

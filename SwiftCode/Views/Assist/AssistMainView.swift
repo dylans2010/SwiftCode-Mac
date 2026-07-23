@@ -37,6 +37,10 @@ public struct AssistMainView: View {
     // Mode selection: Chat Mode (Read-Only) vs. Agent Mode (Autonomous)
     @AppStorage("com.swiftcode.assist.mode") private var isAgentMode = false
 
+    // Assist Configuration
+    @AppStorage("com.swiftcode.assist.enableCodeReview") private var enableCodeReview = true
+    @State private var showAssistSettings = false
+
     // Glowing border pulse state for Apple Intelligence
     @State private var pulseGlow = false
 
@@ -103,12 +107,57 @@ public struct AssistMainView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Configure Codex CLI")
+
+                // Assist Settings Trigger
+                Button {
+                    withAnimation(.spring()) {
+                        showAssistSettings.toggle()
+                    }
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.body)
+                        .foregroundStyle(showAssistSettings ? .accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Assist Settings")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(.thinMaterial)
 
             Divider()
+
+            if showAssistSettings {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Assist Configuration")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.secondary)
+
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Toggle(isOn: $enableCodeReview) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Autonomous Code Review Stage")
+                                        .font(.body)
+                                        .fontWeight(.medium)
+                                    Text("Verify all completed implementations using an independent AI reviewer stage before completing the task.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .toggleStyle(.checkbox)
+                        }
+                        .padding(6)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+                }
+                .padding(12)
+                .background(Color.secondary.opacity(0.04))
+                .transition(.move(edge: .top).combined(with: .opacity))
+
+                Divider()
+            }
 
             if manager.messages.isEmpty {
                 VStack {
