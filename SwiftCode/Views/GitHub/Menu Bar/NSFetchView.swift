@@ -3,33 +3,70 @@ import SwiftUI
 public struct NSFetchView: View {
     @State private var prune = true
     @State private var successMsg = ""
+    @State private var errorMsg = ""
+    @State private var isLoading = false
 
     public init() {}
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("Git Fetch", systemImage: "arrow.down.and.line.horizontal.and.arrow.up")
-                .font(.headline)
-                .foregroundStyle(.blue)
+        Group {
+            if let _ = ProjectSessionStore.shared.activeProject {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Git Fetch", systemImage: "arrow.down.and.line.horizontal.and.arrow.up")
+                        .font(.headline)
+                        .foregroundStyle(.blue)
 
-            Text("Download references from remote without merging.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                    Text("Download references from remote without merging.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
-            Toggle("Prune stale remote branches (--prune)", isOn: $prune)
-                .toggleStyle(.checkbox)
+                    Toggle("Prune stale remote branches (--prune)", isOn: $prune)
+                        .toggleStyle(.checkbox)
+                        .disabled(isLoading)
 
-            if !successMsg.isEmpty {
-                Text(successMsg)
-                    .font(.caption)
-                    .foregroundStyle(.green)
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(.linear)
+                            .padding(.vertical, 4)
+                    }
+
+                    if !successMsg.isEmpty {
+                        Text(successMsg)
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+
+                    if !errorMsg.isEmpty {
+                        Text(errorMsg)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+
+                    Button("Fetch References") {
+                        Task {
+                            isLoading = true
+                            successMsg = ""
+                            errorMsg = ""
+                            do {
+                                var args = ["fetch", "origin"]
+                                if prune {
+                                    args.append("--prune")
+                                }
+                                try await GitMenuBarCommandExecutor.runGit(args: args)
+                                successMsg = "References fetched successfully."
+                            } catch {
+                                errorMsg = "Failed: \(error.localizedDescription)"
+                            }
+                            isLoading = false
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(isLoading)
+                }
+            } else {
+                NoActiveProjectView(title: "Fetch")
             }
-
-            Button("Fetch References") {
-                successMsg = "References fetched successfully."
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
         }
         .padding()
         .frame(width: 280)
