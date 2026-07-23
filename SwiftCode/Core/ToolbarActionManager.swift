@@ -87,6 +87,10 @@ final class ToolbarActionManager {
     }
 
     func destination(for toolId: String) -> SheetDestination? {
+        if let directDestination = SheetDestination(rawValue: toolId) {
+            return directDestination
+        }
+
         switch toolId {
         case "file_navigator":
             return .fileNavigator

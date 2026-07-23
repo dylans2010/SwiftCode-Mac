@@ -3,6 +3,7 @@ import SwiftUI
 public struct NSCreateRepositoryView: View {
     @State private var repoName = ""
     @State private var isPrivate = true
+    @State private var pushLocalCode = false
     @State private var successMsg = ""
     @State private var errorMsg = ""
     @State private var isLoading = false
@@ -22,6 +23,10 @@ public struct NSCreateRepositoryView: View {
                         .disabled(isLoading)
 
                     Toggle("Private Repository", isOn: $isPrivate)
+                        .toggleStyle(.checkbox)
+                        .disabled(isLoading)
+
+                    Toggle("Push local code after creating", isOn: $pushLocalCode)
                         .toggleStyle(.checkbox)
                         .disabled(isLoading)
 
@@ -60,11 +65,15 @@ public struct NSCreateRepositoryView: View {
 
                                 ProjectSessionStore.shared.updateProjectSettings(
                                     description: project.description,
-                                    githubRepo: repo.htmlUrl,
+                                    githubRepo: repo.fullName,
                                     for: project
                                 )
 
-                                successMsg = "Repository '\(repo.name)' created and linked successfully!"
+                                if pushLocalCode, let linkedProject = ProjectSessionStore.shared.activeProject {
+                                    try await GitHubService.shared.initializeGitHubRepository(for: linkedProject) { _ in }
+                                }
+
+                                successMsg = pushLocalCode ? "Repository '\(repo.name)' created, linked, and populated successfully!" : "Repository '\(repo.name)' created and linked successfully!"
                                 repoName = ""
                             } catch {
                                 errorMsg = "Creation failed: \(error.localizedDescription)"

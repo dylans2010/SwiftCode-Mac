@@ -12,14 +12,10 @@ struct WorkspaceHubTool: Identifiable, Hashable {
 
 public struct MainToolsView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(ProjectSessionStore.self) private var sessionStore
-    @Environment(WorkspaceViewModel.self) private var workspaceViewModel
-
     @State private var searchQuery = ""
 
     public init() {}
     @State private var selectedCategory = "All"
-    @State private var activeToolSheet: ToolbarActionManager.SheetDestination?
 
     // Static baseline definition of all tools migrated from WorkspaceView, including DocumentationBrowser
     private let allAvailableTools: [WorkspaceHubTool] = [
@@ -187,9 +183,6 @@ public struct MainToolsView: View {
                 .background(Color(NSColor.controlBackgroundColor))
             }
             .frame(minWidth: 750, minHeight: 500)
-            .sheet(item: $activeToolSheet) { destination in
-                sheetView(for: destination)
-            }
         }
     }
 
@@ -205,49 +198,14 @@ public struct MainToolsView: View {
     }
 
     private func launchTool(_ tool: WorkspaceHubTool) {
-        if let dest = ToolbarActionManager.SheetDestination(rawValue: tool.destination) {
-            activeToolSheet = dest
+        dismiss()
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: .toolbarToolActivated,
+                object: nil,
+                userInfo: ["toolID": tool.destination]
+            )
         }
     }
 
-    @ViewBuilder
-    private func sheetView(for destination: ToolbarActionManager.SheetDestination) -> some View {
-        let project = sessionStore.activeProject ?? Project(name: "Untitled")
-        let owner = project.githubRepo?.split(separator: "/").first.map(String.init) ?? ""
-        let repo = project.githubRepo?.split(separator: "/").last.map(String.init) ?? ""
-
-        AdaptiveSheet {
-            NavigationStack {
-                Group {
-                    switch destination {
-                    case .deployments: DeploymentsView()
-                    case .snippetsLibrary: SnippetsLibraryView()
-                    case .workspaceProfiles: WorkspaceProfilesView()
-                    case .ipaBuild: IPABuildView()
-                    case .documentationBrowser: DocumentationBrowserView()
-                    case .xcodeBuildSettings: XcodeBuildConfigurationView()
-                    case .xcodeBuildLogs: XcodeBuildLogView()
-                    case .dependencyManager: DependencyManagerView()
-                    case .sourceControl: SourceControlView(gitViewModel: workspaceViewModel.git)
-                    case .ciBuild: CIBuildView(project: project)
-                    case .simulatorMain: SimulatorMainView()
-                    case .personalDocumentation: NSPersonalDocumentationView().frame(minWidth: 800, minHeight: 600)
-                    case .devTools: DevToolsMainView()
-                    case .collaboration: CollaborationMainView(manager: CollaborationSessionStore.shared.manager(for: project, creatorID: Host.current().localizedName ?? "macOS"))
-                    case .sfSymbolsBrowser: SFSymbolPickerView()
-                    case .extensionMarketplace: ExtensionMarketplaceView()
-                    case .crashLogAnalyzer: CrashLogAnalyzerView()
-                    case .projectDependencyGraph: ProjectDependencyGraphView()
-                    default:
-                        ContentUnavailableView("Detail Pane", systemImage: "hammer")
-                    }
-                }
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { activeToolSheet = nil }
-                    }
-                }
-            }
-        }
-    }
 }
