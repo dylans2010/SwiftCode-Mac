@@ -569,7 +569,7 @@ struct DependencyManagerView: View {
                 let name = pkg.name
                 let readmeURLStr = "https://raw.githubusercontent.com/\(owner)/\(name)/main/README.md"
                 guard let readmeURL = URL(string: readmeURLStr) else { return }
-                let (data, _) = try await URLSession.shared.data(for: readmeURL)
+                let (data, _) = try await URLSession.shared.data(from: readmeURL)
                 if let text = String(data: data, encoding: .utf8) {
                     self.readmePreviewText = text
                 } else {

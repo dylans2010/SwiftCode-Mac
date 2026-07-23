@@ -278,7 +278,7 @@ struct SFSymbolPickerView: View {
             }
             .background(Color(NSColor.underPageBackgroundColor))
             .navigationTitle("SF Symbols Browser")
-            .searchable(text: $viewModel.searchQuery, placement: .navigationBarDrawer, prompt: "Search \(viewModel.symbols.count) symbols...")
+            .searchable(text: $viewModel.searchQuery, prompt: "Search \(viewModel.symbols.count) symbols...")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

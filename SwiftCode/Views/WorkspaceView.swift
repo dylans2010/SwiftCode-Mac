@@ -231,7 +231,7 @@ struct WorkspaceView: View {
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
                         .background(Color.accentColor.opacity(0.12))
-                        .foregroundStyle(.accent)
+                        .foregroundStyle(Color.accentColor)
                         .cornerRadius(4)
                 }
                 Text("Manage project specifications, build tools, dependency packages, and CI runs.")
