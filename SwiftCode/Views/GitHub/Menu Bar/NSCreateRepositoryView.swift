@@ -70,7 +70,7 @@ public struct NSCreateRepositoryView: View {
                                 )
 
                                 if pushLocalCode, let linkedProject = ProjectSessionStore.shared.activeProject {
-                                    try await GitHubService.shared.initializeGitHubRepository(for: linkedProject) { _ in }
+                                    try await GitHubService.shared.initializeGitHubRepository(for: linkedProject, logHandler: { @Sendable (_: String) in })
                                 }
 
                                 successMsg = pushLocalCode ? "Repository '\(repo.name)' created, linked, and populated successfully!" : "Repository '\(repo.name)' created and linked successfully!"
@@ -93,3 +93,4 @@ public struct NSCreateRepositoryView: View {
         .frame(width: 280)
     }
 }
+
