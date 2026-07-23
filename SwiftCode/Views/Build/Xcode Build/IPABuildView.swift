@@ -2,6 +2,20 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+struct SelectedApp: Codable, Identifiable {
+    var id: String { path }
+    let path: String
+    let name: String
+    let bundleID: String
+    let version: String
+    let build: String
+    let minOS: String
+    let fileSize: String
+    let buildConfiguration: String
+    let lastModified: String
+    let signingStatus: String
+}
+
 @MainActor
 public struct IPABuildView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
@@ -23,9 +37,8 @@ public struct IPABuildView: View {
 
     public var body: some View {
         NavigationStack {
-            HSplitView {
-                // Left Column: App Selection & Specifications
-                VStack(spacing: 20) {
+            ScrollView {
+                VStack(spacing: 24) {
                     // Title info card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
@@ -123,23 +136,21 @@ public struct IPABuildView: View {
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
                     } else {
-                        VStack(spacing: 8) {
-                            Image(systemName: "doc.text.magnifyingglass")
-                                .font(.system(size: 30))
-                                .foregroundStyle(.secondary)
-                            Text("No application bundle selected.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                        GroupBox {
+                            VStack(spacing: 8) {
+                                Image(systemName: "doc.text.magnifyingglass")
+                                    .font(.system(size: 30))
+                                    .foregroundStyle(.secondary)
+                                Text("No application bundle selected. Please select an existing .app bundle to package.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
                         }
-                        .frame(maxHeight: .infinity)
+                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
 
-                    Spacer()
-                }
-                .frame(width: 340)
-
-                // Right Column: Output specifications & Process monitor logs
-                VStack(spacing: 20) {
                     // Output and IPA custom name specs
                     GroupBox {
                         VStack(alignment: .leading, spacing: 12) {
@@ -275,12 +286,9 @@ public struct IPABuildView: View {
                             .controlSize(.large)
                         }
                     }
-
-                    Spacer()
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(24)
             }
-            .padding(24)
             .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Production IPA Builder")
             .toolbar {

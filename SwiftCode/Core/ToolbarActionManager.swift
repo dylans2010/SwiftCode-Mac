@@ -59,6 +59,7 @@ final class ToolbarActionManager {
         case licensesAdd
         case appDetailsInfo
         case personalDocumentation
+        case mainTools
 
         // Sidebar & Inspector additions
         case debugSessions
@@ -194,6 +195,8 @@ final class ToolbarActionManager {
             return .appDetailsInfo
         case "personal_documentation":
             return .personalDocumentation
+        case "main_tools":
+            return .mainTools
 
         case "debug_sessions":
             return .debugSessions

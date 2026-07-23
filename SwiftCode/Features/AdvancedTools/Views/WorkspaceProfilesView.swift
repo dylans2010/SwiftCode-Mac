@@ -2,6 +2,7 @@ import SwiftUI
 
 struct WorkspaceProfilesView: View {
     @StateObject private var manager = WorkspaceProfilesManager.shared
+    @Environment(\.dismiss) private var dismiss
 
     // UI state
     @State private var searchQuery = ""
@@ -17,210 +18,226 @@ struct WorkspaceProfilesView: View {
     @State private var draftEnvironmentVariables = ""
 
     let categories = ["All", "Favorites", "Development", "Production", "Staging"]
-    let sortOptions = ["Name", "Configuration", "Recently Used"]
+    let sortOptions = ["Name", "Configuration"]
 
     var body: some View {
         NavigationStack {
-            HSplitView {
-                // Sidebar: List & Search
-                VStack(spacing: 0) {
-                    // Header search and filters
-                    VStack(spacing: 8) {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundStyle(.secondary)
-                            TextField("Search profiles...", text: $searchQuery)
-                                .textFieldStyle(.plain)
-                        }
-                        .padding(6)
-                        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
-
-                        Picker("Category", selection: $selectedCategory) {
-                            ForEach(categories, id: \.self) { Text($0).tag($0) }
-                        }
-                        .pickerStyle(.menu)
-
-                        HStack {
-                            Picker("Sort", selection: $sortOption) {
-                                ForEach(sortOptions, id: \.self) { Text("Sort: \($0)").tag($0) }
-                            }
-                            .pickerStyle(.menu)
-
-                            Spacer()
-
-                            Button {
-                                prepareCreate()
-                            } label: {
-                                Image(systemName: "plus")
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                    .padding(12)
-
-                    Divider()
-
-                    // List of profiles
-                    if filteredProfiles.isEmpty {
-                        ContentUnavailableView("No Profiles", systemImage: "person.crop.square")
-                            .frame(maxHeight: .infinity)
-                    } else {
-                        List(filteredProfiles, selection: $selectedProfile) { profile in
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                VStack(alignment: .leading, spacing: 3) {
+                                Label("Workspace Setting Profiles", systemImage: "person.crop.square.fill.and.at.rectangle.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.green)
+                                Spacer()
+                            }
+                            Text("Create, edit, duplicate, and switch between customized settings and environment profiles for your projects.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(8)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Filter controls
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Filter & Sorting")
+                                .font(.subheadline.bold())
+                                .foregroundColor(.blue)
+
+                            HStack {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundStyle(.secondary)
+                                TextField("Search profiles...", text: $searchQuery)
+                                    .textFieldStyle(.plain)
+                            }
+                            .padding(6)
+                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+
+                            Picker("Category", selection: $selectedCategory) {
+                                ForEach(categories, id: \.self) { Text($0).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+
+                            HStack {
+                                Picker("Sort", selection: $sortOption) {
+                                    ForEach(sortOptions, id: \.self) { Text("Sort: \($0)").tag($0) }
+                                }
+                                .pickerStyle(.menu)
+
+                                Spacer()
+
+                                Button {
+                                    prepareCreate()
+                                } label: {
+                                    Label("Create Profile", systemImage: "plus")
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+                        .padding(8)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Profiles list inside a GroupBox
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Profiles Directory")
+                                .font(.subheadline.bold())
+                                .foregroundColor(.orange)
+
+                            let profiles = filteredProfiles
+                            if profiles.isEmpty {
+                                Text("No profiles match the filter criteria.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.vertical, 8)
+                            } else {
+                                ForEach(profiles) { profile in
                                     HStack {
-                                        Text(profile.name).bold()
-                                        if manager.activeProfileID == profile.id {
-                                            Text("ACTIVE")
-                                                .font(.system(size: 8, weight: .bold))
-                                                .padding(.horizontal, 4)
-                                                .padding(.vertical, 1)
-                                                .background(Color.green.opacity(0.15))
-                                                .foregroundStyle(.green)
-                                                .cornerRadius(4)
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            HStack {
+                                                Text(profile.name).bold()
+                                                if manager.activeProfileID == profile.id {
+                                                    Text("ACTIVE")
+                                                        .font(.system(size: 8, weight: .bold))
+                                                        .padding(.horizontal, 4)
+                                                        .padding(.vertical, 1)
+                                                        .background(Color.green.opacity(0.15))
+                                                        .foregroundStyle(.green)
+                                                        .cornerRadius(4)
+                                                }
+                                            }
+                                            Text("Build: \(profile.buildConfiguration)")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+
+                                        Spacer()
+
+                                        HStack(spacing: 8) {
+                                            if manager.activeProfileID != profile.id {
+                                                Button("Activate") {
+                                                    manager.switchTo(profile)
+                                                    selectedProfile = profile
+                                                }
+                                                .buttonStyle(.borderedProminent)
+                                                .controlSize(.small)
+                                            }
+
+                                            Button {
+                                                selectedProfile = profile
+                                                prepareEdit(profile)
+                                            } label: {
+                                                Image(systemName: "pencil")
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+
+                                            Button {
+                                                duplicateProfile(profile)
+                                            } label: {
+                                                Image(systemName: "doc.on.doc")
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+
+                                            Button {
+                                                toggleFavorite(profile)
+                                            } label: {
+                                                Image(systemName: profile.preferences["isFavorite"] == "true" ? "star.fill" : "star")
+                                                    .foregroundStyle(profile.preferences["isFavorite"] == "true" ? .yellow : .secondary)
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+
+                                            Button(role: .destructive) {
+                                                deleteProfile(profile)
+                                            } label: {
+                                                Image(systemName: "trash")
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
                                         }
                                     }
-                                    Text("Build: \(profile.buildConfiguration)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                if profile.preferences["isFavorite"] == "true" {
-                                    Image(systemName: "star.fill")
-                                        .foregroundStyle(.yellow)
+                                    .padding(8)
+                                    .background(selectedProfile?.id == profile.id ? Color.accentColor.opacity(0.1) : Color.clear)
+                                    .cornerRadius(6)
+
+                                    if profile.id != profiles.last?.id {
+                                        Divider()
+                                    }
                                 }
                             }
-                            .tag(profile)
                         }
+                        .padding(8)
                     }
-                }
-                .frame(minWidth: 260, idealWidth: 280, maxWidth: 350)
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Content: Details panel
-                Group {
-                    if let profile = selectedProfile {
-                        profileDetailsPanel(profile)
-                    } else {
-                        ContentUnavailableView("Select a Profile", systemImage: "person.crop.square")
+                    // Detailed panel for selected profile
+                    if let profile = selectedProfile ?? manager.profiles.first(where: { $0.id == manager.activeProfileID }) ?? manager.profiles.first {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                Text("Selected Profile: \(profile.name)")
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(.purple)
+
+                                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+                                    GridRow {
+                                        Text("Profile ID:")
+                                            .foregroundStyle(.secondary)
+                                        Text(profile.id.uuidString).font(.caption.monospaced())
+                                    }
+                                    GridRow {
+                                        Text("Build Configuration:")
+                                            .foregroundStyle(.secondary)
+                                        Text(profile.buildConfiguration)
+                                    }
+                                }
+
+                                Divider()
+
+                                Text("Environment Variables")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+
+                                if profile.environmentVariables.isEmpty {
+                                    Text("No environment variables defined.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    ForEach(Array(profile.environmentVariables.keys).sorted(), id: \.self) { key in
+                                        HStack {
+                                            Text(key).bold().font(.caption.monospaced())
+                                            Spacer()
+                                            Text(profile.environmentVariables[key] ?? "")
+                                                .font(.caption.monospaced())
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(8)
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
                 }
-                .frame(minWidth: 350)
+                .padding(24)
             }
+            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Workspace Profiles")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
             .sheet(isPresented: $showEditSheet) {
                 editProfileSheet
             }
         }
-    }
-
-    // MARK: - Details Panel
-
-    private func profileDetailsPanel(_ profile: WorkspaceProfile) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(profile.name)
-                            .font(.title2.bold())
-                        Text("Build Configuration: \(profile.buildConfiguration)")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-
-                    if manager.activeProfileID != profile.id {
-                        Button("Activate Profile") {
-                            manager.switchTo(profile)
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                }
-
-                Divider()
-
-                // Specifications Panel
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Label("Profile Parameters", systemImage: "info.circle")
-                            .font(.headline)
-                            .foregroundColor(.orange)
-
-                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-                            GridRow {
-                                Text("Profile ID:")
-                                    .foregroundStyle(.secondary)
-                                Text(profile.id.uuidString).font(.caption.monospaced())
-                            }
-                            GridRow {
-                                Text("Build configuration:")
-                                    .foregroundStyle(.secondary)
-                                Text(profile.buildConfiguration)
-                            }
-                        }
-                    }
-                    .padding(6)
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
-
-                // Environment Variables
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Label("Environment Variables", systemImage: "slider.horizontal.3")
-                            .font(.headline)
-                            .foregroundColor(.blue)
-
-                        if profile.environmentVariables.isEmpty {
-                            Text("No environment variables defined.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(Array(profile.environmentVariables.keys).sorted(), id: \.self) { key in
-                                HStack {
-                                    Text(key).bold()
-                                    Spacer()
-                                    Text(profile.environmentVariables[key] ?? "")
-                                        .font(.caption.monospaced())
-                                }
-                            }
-                        }
-                    }
-                    .padding(6)
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
-
-                // Quick Actions
-                HStack(spacing: 8) {
-                    Button("Edit Profile") {
-                        prepareEdit(profile)
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button("Duplicate") {
-                        duplicateProfile(profile)
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button(profile.preferences["isFavorite"] == "true" ? "Unfavorite" : "Favorite") {
-                        toggleFavorite(profile)
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button("Export Profile") {
-                        exportProfile(profile)
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button(role: .destructive) {
-                        deleteProfile(profile)
-                    } label: {
-                        Text("Delete")
-                    }
-                    .buttonStyle(.bordered)
-                }
-            }
-            .padding(20)
-        }
-        .background(Color(NSColor.controlBackgroundColor))
     }
 
     // MARK: - Sheets & Wizards
@@ -389,16 +406,10 @@ struct WorkspaceProfilesView: View {
         selectedProfile = updated
     }
 
-    private func exportProfile(_ profile: WorkspaceProfile) {
-        if let data = try? JSONEncoder().encode(profile),
-           let str = String(data: data, encoding: .utf8) {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(str, forType: .string)
-        }
-    }
-
     private func deleteProfile(_ profile: WorkspaceProfile) {
         manager.delete(profile)
-        selectedProfile = nil
+        if selectedProfile?.id == profile.id {
+            selectedProfile = nil
+        }
     }
 }

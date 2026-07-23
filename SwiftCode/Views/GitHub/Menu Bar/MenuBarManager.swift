@@ -17,13 +17,27 @@ public class MenuBarManager: NSObject {
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
 
+    let options = [
+        "Commit", "Push", "Push Options", "Choose Branch", "Include Tags", "Force Push",
+        "Fetch", "Pull", "Cherry Pick", "Clone", "Create Repository", "Create Branch",
+        "Switch Branch", "Delete Branch", "Stash", "Apply Stash", "Rebase", "Merge",
+        "Discard Changes", "Create PR"
+    ]
+
     public func setupMenuBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem?.button {
             button.image = NSImage(systemSymbolName: "arrow.triangle.branch", accessibilityDescription: "Git Controls")
-            button.target = self
-            button.action = #selector(togglePopover(_:))
         }
+
+        // Create native menu
+        let menu = NSMenu()
+        for opt in options {
+            let item = NSMenuItem(title: opt, action: #selector(menuItemClicked(_:)), keyEquivalent: "")
+            item.target = self
+            menu.addItem(item)
+        }
+        statusItem?.menu = menu
 
         let contentView = MenuBarRootView()
 
@@ -40,19 +54,21 @@ public class MenuBarManager: NSObject {
         )
     }
 
-    @objc private func handleSelectMenuBarTab(_ notification: Notification) {
+    @objc private func menuItemClicked(_ sender: NSMenuItem) {
+        let title = sender.title
+        NotificationCenter.default.post(
+            name: NSNotification.Name("SelectMenuBarTab"),
+            object: nil,
+            userInfo: ["tab": title]
+        )
         if let button = statusItem?.button {
-            if popover?.isShown != true {
-                popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            }
+            popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
     }
 
-    @objc private func togglePopover(_ sender: AnyObject?) {
+    @objc private func handleSelectMenuBarTab(_ notification: Notification) {
         if let button = statusItem?.button {
-            if popover?.isShown == true {
-                popover?.performClose(sender)
-            } else {
+            if popover?.isShown != true {
                 popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             }
         }
@@ -98,33 +114,9 @@ struct MenuBarRootView: View {
                 Text("Git Menu Bar Controls")
                     .font(.headline.bold())
                 Spacer()
-                Button(action: {
-                    openWorkspaceView()
-                }) {
-                    Label("Workspace", systemImage: "macwindow")
-                        .font(.caption)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("Open WorkspaceView (⇧⌘0)")
             }
             .padding()
             .background(Color.secondary.opacity(0.05))
-
-            Divider()
-
-            // Selector dropdown
-            Picker("Operation", selection: $selectedTab) {
-                ForEach(options, id: \.self) { opt in
-                    if let key = optionsWithShortcuts[opt] {
-                        Text("\(opt) (⇧⌘\(key))").tag(opt)
-                    } else {
-                        Text(opt).tag(opt)
-                    }
-                }
-            }
-            .pickerStyle(.menu)
-            .padding()
 
             Divider()
 

@@ -16,7 +16,7 @@ public final class SourceControlWindowManager: NSObject, NSWindowDelegate {
             return
         }
 
-        let wc = SourceControlWindowController(gitViewModel: gitViewModel)
+        let wc = SourceControlWindowController(gitViewModel: gitViewModel, project: project)
         wc.window?.delegate = self
         self.windowController = wc
         wc.window?.makeKeyAndOrderFront(nil)
@@ -35,178 +35,78 @@ public final class SourceControlWindowManager: NSObject, NSWindowDelegate {
 // MARK: - Native Source Control Window Controller
 @MainActor
 public class SourceControlWindowController: NSWindowController {
-    public init(gitViewModel: GitViewModel) {
+    public let gitViewModel: GitViewModel
+    public let project: Project
+
+    public init(gitViewModel: GitViewModel, project: Project) {
+        self.gitViewModel = gitViewModel
+        self.project = project
+
         let window = NSWindow(
             contentRect: NSRect(x: 150, y: 150, width: 1200, height: 800),
-            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = "Source Control Workspace"
-        window.minSize = NSSize(width: 1200, height: 800)
+        window.minSize = NSSize(width: 1000, height: 700)
         window.setFrameAutosaveName("SourceControlMainWindow")
+        window.collectionBehavior = [.fullScreenPrimary, .managed]
 
         super.init(window: window)
 
-        let contentView = StylingBootstrap.configureEnvironment(
-            SourceControlView(gitViewModel: gitViewModel)
-        )
-        .environment(ProjectSessionStore.shared)
-        .environmentObject(AppSettings.shared)
-        let hostingVC = NSHostingController(rootView: contentView)
-        hostingVC.sizingOptions = []
-        window.contentViewController = hostingVC
+        let splitVC = SourceControlSplitViewController(gitViewModel: gitViewModel, project: project)
+        window.contentViewController = splitVC
+
+        setupToolbar(window: window)
     }
 
     required public init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+
+    private func setupToolbar(window: NSWindow) {
+        let toolbar = NSToolbar(identifier: "SourceControlToolbar")
+        toolbar.delegate = self
+        toolbar.allowsUserCustomization = true
+        toolbar.autosavesConfiguration = true
+        toolbar.displayMode = .iconOnly
+        window.toolbar = toolbar
+    }
 }
 
-// ====================================================================
-// CENTRALIZED REPOSITORY CONTEXT
-// ====================================================================
-@Observable
-@MainActor
-final class RepositoryContext {
-    static let shared = RepositoryContext()
+extension SourceControlWindowController: NSToolbarDelegate {
+    public func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
 
-    private init() {}
+        switch itemIdentifier {
+        case .toggleSidebar:
+            item.label = "Toggle Sidebar"
+            item.paletteLabel = "Toggle Sidebar"
+            item.toolTip = "Toggle Git Categories Sidebar"
+            item.image = NSImage(systemSymbolName: "sidebar.left", accessibilityDescription: nil)
+            item.target = self
+            item.action = #selector(toggleSidebarAction(_:))
+            return item
 
-    enum DisplayMode: String, Codable, CaseIterable, Identifiable {
-        case connectedRepository = "Connected Repository"
-        case entireAccount = "Entire GitHub Account"
-
-        var id: String { rawValue }
-    }
-
-    var displayMode: DisplayMode = .connectedRepository {
-        didSet {
-            syncEventsCount += 1
+        default:
+            return nil
         }
     }
 
-    var syncEventsCount: Int = 0
-    var cachedMetadata: GitHubRepoDetail?
-    var isLoadingMetadata = false
-    var showingSetRepoSheet = false
-
-    // Additional metadata loaded
-    var loadedBranchesCount: Int = 0
-    var loadedPullRequestsCount: Int = 0
-    var loadedReleasesCount: Int = 0
-    var loadedLanguages: [String] = []
-
-    var activeProject: Project? {
-        ProjectSessionStore.shared.activeProject
+    public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        return [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace]
     }
 
-    var connectedRepository: String? {
-        activeProject?.githubRepo
+    public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        return [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .space]
     }
+}
 
-    var isAuthenticated: Bool {
-        let token = KeychainService.shared.get(forKey: KeychainService.githubToken) ?? ""
-        return !token.isEmpty
-    }
-
-    func triggerSync() {
-        syncEventsCount += 1
-    }
-
-    func disconnectRepository() {
-        guard let proj = activeProject else { return }
-        ProjectSessionStore.shared.updateProjectSettings(description: proj.description, githubRepo: nil, for: proj)
-        cachedMetadata = nil
-        triggerSync()
-    }
-
-    func connectRepository(_ repoName: String) {
-        guard let proj = activeProject else { return }
-        ProjectSessionStore.shared.updateProjectSettings(description: proj.description, githubRepo: repoName, for: proj)
-        triggerSync()
-        Task {
-            await fetchMetadata()
-        }
-    }
-
-    func fetchMetadata() async {
-        guard let repoStr = connectedRepository, !repoStr.isEmpty else {
-            cachedMetadata = nil
-            return
-        }
-        let parts = repoStr.split(separator: "/")
-        guard parts.count == 2 else {
-            cachedMetadata = nil
-            return
-        }
-        let owner = String(parts[0])
-        let repo = String(parts[1])
-
-        guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else {
-            cachedMetadata = nil
-            return
-        }
-
-        isLoadingMetadata = true
-        defer { isLoadingMetadata = false }
-
-        do {
-            guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)") else { return }
-            var request = URLRequest(url: url)
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-
-            let (data, _) = try await URLSession.shared.data(for: request)
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            self.cachedMetadata = try decoder.decode(GitHubRepoDetail.self, from: data)
-
-            // 1. Fetch Languages
-            if let langURL = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/languages") {
-                var req = URLRequest(url: langURL)
-                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-                if let (langData, _) = try? await URLSession.shared.data(for: req),
-                   let langDict = try? JSONSerialization.jsonObject(with: langData) as? [String: Any] {
-                    self.loadedLanguages = Array(langDict.keys).sorted()
-                }
-            }
-
-            // 2. Fetch branches count
-            if let branchesURL = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/branches?per_page=100") {
-                var req = URLRequest(url: branchesURL)
-                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-                if let (branchesData, _) = try? await URLSession.shared.data(for: req),
-                   let arr = try? JSONSerialization.jsonObject(with: branchesData) as? [[String: Any]] {
-                    self.loadedBranchesCount = arr.count
-                }
-            }
-
-            // 3. Fetch pulls count
-            if let pullsURL = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/pulls?state=open&per_page=100") {
-                var req = URLRequest(url: pullsURL)
-                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-                if let (pullsData, _) = try? await URLSession.shared.data(for: req),
-                   let arr = try? JSONSerialization.jsonObject(with: pullsData) as? [[String: Any]] {
-                    self.loadedPullRequestsCount = arr.count
-                }
-            }
-
-            // 4. Fetch releases count
-            if let releasesURL = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/releases?per_page=100") {
-                var req = URLRequest(url: releasesURL)
-                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-                if let (releasesData, _) = try? await URLSession.shared.data(for: req),
-                   let arr = try? JSONSerialization.jsonObject(with: releasesData) as? [[String: Any]] {
-                    self.loadedReleasesCount = arr.count
-                }
-            }
-        } catch {
-            // silent catch
+extension SourceControlWindowController {
+    @objc private func toggleSidebarAction(_ sender: Any?) {
+        if let splitVC = contentViewController as? SourceControlSplitViewController {
+            splitVC.toggleSidebar(sender)
         }
     }
 }
@@ -214,7 +114,7 @@ final class RepositoryContext {
 // ====================================================================
 // NAVIGATION SELECTIONS
 // ====================================================================
-enum SourceControlSelection: String, CaseIterable, Identifiable {
+public enum SourceControlSelection: String, CaseIterable, Identifiable, Codable {
     case localWorkspace = "Local Workspace"
     case gitWorktrees = "Git Worktrees"
     case changes = "Changes"
@@ -255,9 +155,9 @@ enum SourceControlSelection: String, CaseIterable, Identifiable {
     case githubDiscovery = "GitHub Discovery"
     case aiAssistant = "AI Repository Assistant"
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
-    var icon: String {
+    public var icon: String {
         switch self {
         case .repositoryIntelligence: return "chart.bar.doc.horizontal"
         case .knowledgeGraph: return "circle.grid.3x3"
@@ -302,211 +202,354 @@ enum SourceControlSelection: String, CaseIterable, Identifiable {
     }
 }
 
-@MainActor
-struct SourceControlView: View {
-    var gitViewModel: GitViewModel
-    @EnvironmentObject private var settings: AppSettings
-    @Environment(ProjectSessionStore.self) private var sessionStore
-    @Environment(\.dismiss) private var dismiss
+// MARK: - Native Split View Controller
+public class SourceControlSplitViewController: NSSplitViewController {
+    public let gitViewModel: GitViewModel
+    public let project: Project
 
-    @State private var selection: SourceControlSelection = .localWorkspace
-    @State private var showSetup = false
-    @State private var isPerformingGitAction = false
-    @State private var showRepoDetails = false
+    private var sidebarItem: NSSplitViewItem?
+    private var mainItem: NSSplitViewItem?
+
+    public init(gitViewModel: GitViewModel, project: Project) {
+        self.gitViewModel = gitViewModel
+        self.project = project
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required public init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override public func viewDidLoad() {
+        super.viewDidLoad()
+        setupSplitView()
+    }
+
+    private func setupSplitView() {
+        splitView.isVertical = true
+        splitView.dividerStyle = .thin
+        splitView.autoresizingMask = [.width, .height]
+
+        // Sidebar Panel (Pure AppKit OutlineView Controller)
+        let sidebarVC = SourceControlSidebarViewController()
+        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
+        sidebarItem.minimumThickness = 220
+        sidebarItem.maximumThickness = 320
+        sidebarItem.holdingPriority = .defaultLow + 10
+        self.sidebarItem = sidebarItem
+        addSplitViewItem(sidebarItem)
+
+        // Main Workspace (SwiftUI View Wrapper)
+        let mainView = SourceControlMainWrapper(gitViewModel: gitViewModel, project: project)
+            .environment(ProjectSessionStore.shared)
+            .environmentObject(AppSettings.shared)
+        let mainVC = NSHostingController(rootView: StylingBootstrap.configureEnvironment(mainView))
+        mainVC.sizingOptions = []
+        mainVC.view.autoresizingMask = [.width, .height]
+        let mainItem = NSSplitViewItem(viewController: mainVC)
+        mainItem.minimumThickness = 700
+        mainItem.holdingPriority = .defaultLow - 10
+        self.mainItem = mainItem
+        addSplitViewItem(mainItem)
+    }
+}
+
+// MARK: - AppKit Sidebar Selection State
+@Observable
+@MainActor
+final class SourceControlSidebarState {
+    static let shared = SourceControlSidebarState()
+    var selection: SourceControlSelection = .localWorkspace
+    private init() {}
+}
+
+// MARK: - Native Sidebar View Controller
+public class SourceControlSidebarViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
+    private var scrollView: NSScrollView?
+    private var outlineView: NSOutlineView?
+    private let nodes: [SourceControlSidebarNode]
+
+    public init() {
+        self.nodes = buildSourceControlSidebarNodes()
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required public init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override public func loadView() {
+        let visualEffectView = NSVisualEffectView()
+        visualEffectView.material = .sidebar
+        visualEffectView.blendingMode = .behindWindow
+        visualEffectView.state = .active
+        visualEffectView.autoresizingMask = [.width, .height]
+
+        let scroll = NSScrollView()
+        scroll.drawsBackground = false
+        scroll.hasVerticalScroller = true
+        scroll.autoresizingMask = [.width, .height]
+        self.scrollView = scroll
+
+        let outline = NSOutlineView()
+        outline.autoresizingMask = [.width]
+        outline.headerView = nil
+        outline.selectionHighlightStyle = .sourceList
+        outline.style = .sourceList
+        outline.floatsGroupRows = false
+        outline.rowSizeStyle = .custom
+        outline.indentationPerLevel = 14
+        self.outlineView = outline
+
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("SourceControlColumn"))
+        column.resizingMask = .autoresizingMask
+        outline.addTableColumn(column)
+        outline.outlineTableColumn = column
+
+        outline.dataSource = self
+        outline.delegate = self
+
+        scroll.documentView = outline
+        visualEffectView.addSubview(scroll)
+
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            scroll.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor),
+            scroll.topAnchor.constraint(equalTo: visualEffectView.topAnchor, constant: 40),
+            scroll.bottomAnchor.constraint(equalTo: visualEffectView.bottomAnchor)
+        ])
+
+        self.view = visualEffectView
+    }
+
+    override public func viewDidLoad() {
+        super.viewDidLoad()
+        if let outline = outlineView {
+            for group in nodes {
+                outline.expandItem(group)
+            }
+        }
+    }
+
+    // MARK: - NSOutlineViewDataSource
+
+    public func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
+        if item == nil {
+            return nodes.count
+        }
+        if let node = item as? SourceControlSidebarNode {
+            return node.children.count
+        }
+        return 0
+    }
+
+    public func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
+        if item == nil {
+            return nodes[index]
+        }
+        guard let node = item as? SourceControlSidebarNode else { return SourceControlSidebarNode(title: "") }
+        return node.children[index]
+    }
+
+    public func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+        if let node = item as? SourceControlSidebarNode {
+            return node.isGroup
+        }
+        return false
+    }
+
+    // MARK: - NSOutlineViewDelegate
+
+    public func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
+        if let node = item as? SourceControlSidebarNode {
+            return node.isGroup
+        }
+        return false
+    }
+
+    public func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
+        if let node = item as? SourceControlSidebarNode {
+            return !node.isGroup
+        }
+        return true
+    }
+
+    public func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
+        if let node = item as? SourceControlSidebarNode, node.isGroup {
+            return 26
+        }
+        return 32
+    }
+
+    public func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
+        guard let node = item as? SourceControlSidebarNode else { return nil }
+
+        if node.isGroup {
+            let identifier = NSUserInterfaceItemIdentifier("SourceControlHeaderView")
+            var textField = outlineView.makeView(withIdentifier: identifier, owner: self) as? NSTextField
+            if textField == nil {
+                textField = NSTextField(labelWithString: node.title)
+                textField?.identifier = identifier
+                textField?.font = .systemFont(ofSize: 11, weight: .bold)
+                textField?.textColor = .headerTextColor
+            } else {
+                textField?.stringValue = node.title
+            }
+            return textField
+        } else {
+            let identifier = NSUserInterfaceItemIdentifier("SourceControlCell")
+            var cell = outlineView.makeView(withIdentifier: identifier, owner: self) as? SourceControlSidebarCellView
+            if cell == nil {
+                cell = SourceControlSidebarCellView(frame: .zero)
+                cell?.identifier = identifier
+            }
+
+            cell?.textField?.stringValue = node.title
+            if let iconName = node.icon {
+                if let image = NSImage(systemSymbolName: iconName, accessibilityDescription: nil) {
+                    cell?.iconView.image = image
+                } else {
+                    cell?.iconView.image = nil
+                }
+            } else {
+                cell?.iconView.image = nil
+            }
+            cell?.iconView.contentTintColor = .controlAccentColor
+
+            return cell
+        }
+    }
+
+    public func outlineViewSelectionDidChange(_ notification: Notification) {
+        guard let outline = outlineView else { return }
+        let selectedRow = outline.selectedRow
+        if selectedRow >= 0, let node = outline.item(atRow: selectedRow) as? SourceControlSidebarNode, let selection = node.selection {
+            SourceControlSidebarState.shared.selection = selection
+        }
+    }
+}
+
+// MARK: - AppKit Sidebar Helpers & Nodes
+public final class SourceControlSidebarNode: NSObject {
+    public let title: String
+    public let icon: String?
+    public let selection: SourceControlSelection?
+    public let isGroup: Bool
+    public var children: [SourceControlSidebarNode] = []
+
+    public init(title: String, icon: String? = nil, selection: SourceControlSelection? = nil, isGroup: Bool = false) {
+        self.title = title
+        self.icon = icon
+        self.selection = selection
+        self.isGroup = isGroup
+    }
+}
+
+class SourceControlSidebarCellView: NSTableCellView {
+    let iconView = NSImageView()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setupViews()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func setupViews() {
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(iconView)
+
+        let text = NSTextField(labelWithString: "")
+        text.translatesAutoresizingMaskIntoConstraints = false
+        text.font = .systemFont(ofSize: 13)
+        text.textColor = .labelColor
+        addSubview(text)
+        self.textField = text
+
+        NSLayoutConstraint.activate([
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
+            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconView.widthAnchor.constraint(equalToConstant: 16),
+            iconView.heightAnchor.constraint(equalToConstant: 16),
+
+            text.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
+            text.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            text.centerYAnchor.constraint(equalTo: centerYAnchor)
+        ])
+    }
+}
+
+func buildSourceControlSidebarNodes() -> [SourceControlSidebarNode] {
+    var nodes: [SourceControlSidebarNode] = []
+
+    // 1. LOCAL WORKSPACE
+    let workspace = SourceControlSidebarNode(title: "LOCAL WORKSPACE", isGroup: true)
+    workspace.children = [
+        SourceControlSidebarNode(title: "Dashboard", icon: "laptopcomputer", selection: .localWorkspace),
+        SourceControlSidebarNode(title: "Changes", icon: "doc.badge.plus", selection: .changes),
+        SourceControlSidebarNode(title: "Diff Viewer", icon: "arrow.left.and.right.square", selection: .diffViewer),
+        SourceControlSidebarNode(title: "Git Worktrees", icon: "arrow.triangle.branch", selection: .gitWorktrees),
+        SourceControlSidebarNode(title: "CLI", icon: "terminal.fill", selection: .cli)
+    ]
+    nodes.append(workspace)
+
+    // 2. REPOSITORY
+    let repo = SourceControlSidebarNode(title: "REPOSITORY", isGroup: true)
+    repo.children = [
+        SourceControlSidebarNode(title: "Branches", icon: "arrow.triangle.branch", selection: .branches),
+        SourceControlSidebarNode(title: "Commit History", icon: "clock.arrow.circlepath", selection: .commitHistory),
+        SourceControlSidebarNode(title: "Tags", icon: "tag.fill", selection: .tags),
+        SourceControlSidebarNode(title: "Releases", icon: "shippingbox.fill", selection: .releases)
+    ]
+    nodes.append(repo)
+
+    // 3. GITHUB INTEGRATION
+    let github = SourceControlSidebarNode(title: "GITHUB INTEGRATION", isGroup: true)
+    github.children = [
+        SourceControlSidebarNode(title: "GitHub Account", icon: "person.crop.circle.fill", selection: .githubAccount),
+        SourceControlSidebarNode(title: "Pull Requests", icon: "arrow.triangle.pull", selection: .pullRequests),
+        SourceControlSidebarNode(title: "Issues", icon: "exclamationmark.bubble.fill", selection: .issues),
+        SourceControlSidebarNode(title: "Actions", icon: "play.circle.fill", selection: .actions),
+        SourceControlSidebarNode(title: "Discussions", icon: "bubble.left.and.bubble.right.fill", selection: .discussions),
+        SourceControlSidebarNode(title: "Notifications", icon: "bell.fill", selection: .notifications),
+        SourceControlSidebarNode(title: "GitHub Search", icon: "magnifyingglass", selection: .githubCodeSearch)
+    ]
+    nodes.append(github)
+
+    // 4. REPOSITORY INTELLIGENCE
+    let intel = SourceControlSidebarNode(title: "REPOSITORY INTELLIGENCE", isGroup: true)
+    intel.children = [
+        SourceControlSidebarNode(title: "Intelligence", icon: "chart.bar.doc.horizontal", selection: .repositoryIntelligence),
+        SourceControlSidebarNode(title: "Knowledge Graph", icon: "circle.grid.3x3", selection: .knowledgeGraph),
+        SourceControlSidebarNode(title: "Timeline", icon: "calendar.day.timeline.left", selection: .repositoryTimeline),
+        SourceControlSidebarNode(title: "Security Center", icon: "shield.righthalf.filled", selection: .securityCenter)
+    ]
+    nodes.append(intel)
+
+    return nodes
+}
+
+// MARK: - SourceControl SwiftUI Main Wrapper
+struct SourceControlMainWrapper: View {
+    let gitViewModel: GitViewModel
+    let project: Project
 
     @State private var successMessage: String?
     @State private var showSuccess = false
     @State private var errorMessage: String?
     @State private var showError = false
 
-    private var isSetupRequired: Bool {
-        let token = KeychainService.shared.get(forKey: KeychainService.githubToken) ?? ""
-        let hasToken = !token.isEmpty
-        let hasGit = !settings.gitPath.isEmpty && FileManager.default.fileExists(atPath: settings.gitPath)
-
-        if hasToken {
-            if hasGit {
-                if settings.httpsAuthToken.isEmpty {
-                    settings.httpsAuthToken = token
-                }
-                return false
-            }
-
-            for path in ["/usr/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git"] {
-                if FileManager.default.fileExists(atPath: path) {
-                    settings.gitPath = path
-                    if settings.httpsAuthToken.isEmpty {
-                        settings.httpsAuthToken = token
-                    }
-                    return false
-                }
-            }
-        }
-
-        if !settings.gitPath.isEmpty && !settings.httpsAuthToken.isEmpty {
-            return false
-        }
-
-        return true
-    }
-
-    var availableSelections: [SourceControlSelection] {
-        if isSetupRequired {
-            return [.onboarding]
-        } else {
-            return SourceControlSelection.allCases.filter { $0 != .onboarding }
-        }
-    }
-
     var body: some View {
-        @Bindable var context = RepositoryContext.shared
-        VStack(spacing: 0) {
-            // Unified Top Toolbar (Replacer for sidebars)
-            HStack(spacing: 16) {
-                // Logo & Section Title
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.triangle.branch")
-                        .font(.title2)
-                        .foregroundStyle(Color.accentColor)
-                    Text("Source Control")
-                        .font(.headline)
-                }
-
-                Spacer()
-
-                // Primary Navigation Picker in the Top Toolbar
-                Picker("Navigation", selection: $selection) {
-                    ForEach(availableSelections) { item in
-                        Label(item.rawValue, systemImage: item.icon)
-                            .tag(item)
-                    }
-                }
-                .pickerStyle(.menu)
-                .frame(width: 250)
-
-                Spacer()
-
-                // Repository Details Toggle and general actions
-                HStack(spacing: 12) {
-                    Button {
-                        showRepoDetails = true
-                    } label: {
-                        Label("Repository Details", systemImage: "info.circle")
-                    }
-                    .help("View repository connection details and metadata")
-
-                    Button("Close") {
-                        dismiss()
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Color(NSColor.windowBackgroundColor))
-
-            Divider()
-
-            // Main Content Area
-            VStack(spacing: 0) {
-                if isSetupRequired {
-                    setupRequiredPlaceholder
-                } else {
-                    detailPaneView(for: selection)
-                        .transition(.opacity.animation(.easeInOut(duration: 0.15)))
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .frame(minWidth: 1000, minHeight: 650)
-        .sheet(isPresented: $showSetup) {
-            SCSetupOnboard()
-        }
-        .sheet(isPresented: $showRepoDetails) {
-            VStack(spacing: 0) {
-                HStack {
-                    Text("Repository Details")
-                        .font(.headline)
-                    Spacer()
-                    Button("Done") {
-                        showRepoDetails = false
-                    }
-                    .buttonStyle(.bordered)
-                }
-                .padding()
-
-                Divider()
-
-                RepositoryDetailView(
-                    project: sessionStore.activeProject,
-                    gitViewModel: gitViewModel,
-                    onDismiss: { showRepoDetails = false }
-                )
-                .frame(width: 550, height: 500)
-            }
-        }
-        .sheet(isPresented: $context.showingSetRepoSheet) {
-            VStack(spacing: 0) {
-                HStack {
-                    Text("Repository Association Manager")
-                        .font(.headline)
-                    Spacer()
-                    Button("Done") {
-                        context.showingSetRepoSheet = false
-                    }
-                    .buttonStyle(.bordered)
-                }
-                .padding()
-
-                Divider()
-
-                SetRepoInProject()
-                    .frame(width: 580, height: 520)
-            }
-        }
-        .alert("Success", isPresented: $showSuccess, presenting: successMessage) { _ in
-            Button("OK") {}
-        } message: { msg in Text(msg) }
-        .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
-            Button("OK") {}
-        } message: { msg in Text(msg) }
-        .onAppear {
-            if gitViewModel.repositoryURL == nil {
-                gitViewModel.repositoryURL = sessionStore.activeProject?.directoryURL
-            }
-            checkSetup()
-        }
-    }
-
-    // MARK: - Detail Switcher
-
-    @ViewBuilder
-    private func detailPaneView(for selection: SourceControlSelection) -> some View {
-        let project = sessionStore.activeProject ?? Project(name: "Untitled")
-
+        let state = SourceControlSidebarState.shared
         Group {
-            switch selection {
+            switch state.selection {
             case .gitWorktrees:
                 GitWorktreesView()
             case .localWorkspace:
-                RepositoryDashboardView(gitViewModel: gitViewModel, project: project) { item in
-                    withAnimation {
-                        switch item {
-                        case .dashboard: self.selection = .localWorkspace
-                        case .repositories: self.selection = .changes
-                        case .organizations: self.selection = .github
-                        case .pullRequests: self.selection = .pullRequests
-                        case .issues: self.selection = .issues
-                        case .actions: self.selection = .actions
-                        case .branches: self.selection = .branches
-                        case .commits: self.selection = .commitHistory
-                        case .tags: self.selection = .tags
-                        case .releases: self.selection = .releases
-                        case .discussions: self.selection = .discussions
-                        case .notifications: self.selection = .notifications
-                        case .settings: self.selection = .repositorySettings
-                        }
-                    }
-                }
+                RepositoryDashboardView(gitViewModel: gitViewModel, project: project) { _ in }
             case .changes:
                 RepositoriesView(
                     gitViewModel: gitViewModel,
@@ -628,32 +671,50 @@ struct SourceControlView: View {
             }
         }
         .sourceControlEmbedded()
+        .alert("Success", isPresented: $showSuccess, presenting: successMessage) { _ in
+            Button("OK") {}
+        } message: { msg in Text(msg) }
+        .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
+            Button("OK") {}
+        } message: { msg in Text(msg) }
+    }
+}
+
+// MARK: - Reconstructed SourceControlView SwiftUI Fallback (Shorthand Sheet Fallback)
+@MainActor
+public struct SourceControlView: View {
+    var gitViewModel: GitViewModel
+    @Environment(ProjectSessionStore.self) private var sessionStore
+
+    public init(gitViewModel: GitViewModel) {
+        self.gitViewModel = gitViewModel
     }
 
-    private var setupRequiredPlaceholder: some View {
-        GitHubEmptyStateView(
-            title: "GitHub Authentication Required",
-            description: "Please provide your GitHub Personal Access Token and Git credentials to authorize repository connections, issue trackers, and pull requests.",
-            systemImage: "lock.shield",
-            accentColor: .orange,
-            actionTitle: "Configure Credentials"
-        ) {
-            showSetup = true
-        }
-    }
+    public var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "arrow.triangle.branch")
+                .font(.system(size: 48))
+                .foregroundStyle(Color.accentColor)
+            Text("Source Control Workspace")
+                .font(.title2.bold())
+            Text("The workspace opens in a dedicated native macOS window with full multi-column split layout and Finder-style sidebar.")
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 400)
 
-    // MARK: - Actions Helper
-
-    private func checkSetup() {
-        if isSetupRequired {
-            selection = .onboarding
-            showSetup = true
-        } else {
-            if selection == .onboarding {
-                selection = .localWorkspace
+            Button("Open Workspace Window") {
+                if let project = sessionStore.activeProject {
+                    SourceControlWindowManager.shared.showWindow(for: project, gitViewModel: gitViewModel)
+                }
             }
-            Task {
-                await gitViewModel.refreshStatus()
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+        }
+        .padding(40)
+        .frame(width: 500, height: 400)
+        .onAppear {
+            if let project = sessionStore.activeProject {
+                SourceControlWindowManager.shared.showWindow(for: project, gitViewModel: gitViewModel)
             }
         }
     }

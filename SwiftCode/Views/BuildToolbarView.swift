@@ -14,6 +14,18 @@ struct BuildToolbarView: View {
     var body: some View {
         @Bindable var buildManager = self.buildManager
         HStack(spacing: 12) {
+            Button {
+                NotificationCenter.default.post(
+                    name: .toolbarToolActivated,
+                    object: nil,
+                    userInfo: ["toolID": "main_tools"]
+                )
+            } label: {
+                Label("Tools Hub", systemImage: "wrench.and.screwdriver.fill")
+            }
+            .buttonStyle(.bordered)
+            .help("Open Workspace Tools Hub")
+
             // ESSENTIAL ACTIONS: Scheme selector
             if !buildManager.discoveredSchemes.isEmpty {
                 Picker("Scheme", selection: $buildManager.selectedScheme) {
