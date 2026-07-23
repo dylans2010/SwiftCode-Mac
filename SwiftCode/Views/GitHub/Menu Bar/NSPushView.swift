@@ -11,7 +11,7 @@ public struct NSPushView: View {
         Group {
             if let _ = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Git Push", systemImage: "arrow.up.circle.fill")
+                    Label("Git Push (⇧⌘H)", systemImage: "arrow.up.circle.fill")
                         .font(.headline)
                         .foregroundStyle(.blue)
 

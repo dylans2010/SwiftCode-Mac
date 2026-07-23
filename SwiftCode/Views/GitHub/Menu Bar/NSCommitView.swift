@@ -13,7 +13,7 @@ public struct NSCommitView: View {
         Group {
             if let _ = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Git Commit", systemImage: "checkmark.circle.fill")
+                    Label("Git Commit (⇧⌘C)", systemImage: "checkmark.circle.fill")
                         .font(.headline)
                         .foregroundStyle(.green)
 

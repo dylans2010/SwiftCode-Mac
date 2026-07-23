@@ -13,7 +13,7 @@ public struct NSCreateBranchView: View {
         Group {
             if let _ = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Create Branch", systemImage: "plus.circle.fill")
+                    Label("Create Branch (⇧⌘J)", systemImage: "plus.circle.fill")
                         .font(.headline)
                         .foregroundStyle(.cyan)
 

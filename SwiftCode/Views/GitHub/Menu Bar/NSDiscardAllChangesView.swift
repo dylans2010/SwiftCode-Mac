@@ -11,7 +11,7 @@ public struct NSDiscardAllChangesView: View {
         Group {
             if let _ = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Discard ALL Changes", systemImage: "trash.slash.fill")
+                    Label("Discard ALL Changes (⇧⌘U)", systemImage: "trash.slash.fill")
                         .font(.headline)
                         .foregroundStyle(.red)
 

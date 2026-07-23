@@ -12,7 +12,7 @@ public struct NSIncludeTagsView: View {
         Group {
             if let _ = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Include Tags", systemImage: "tag.fill")
+                    Label("Include Tags (⇧⌘G)", systemImage: "tag.fill")
                         .font(.headline)
                         .foregroundStyle(.orange)
 

@@ -13,7 +13,7 @@ public struct NSChooseBranchView: View {
         Group {
             if let _ = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Choose Branch", systemImage: "arrow.triangle.branch")
+                    Label("Choose Branch (⇧⌘B)", systemImage: "arrow.triangle.branch")
                         .font(.headline)
                         .foregroundStyle(.cyan)
 

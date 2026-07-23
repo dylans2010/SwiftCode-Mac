@@ -12,7 +12,7 @@ public struct NSStashView: View {
         Group {
             if let _ = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Git Stash", systemImage: "archivebox.fill")
+                    Label("Git Stash (⇧⌘Z)", systemImage: "archivebox.fill")
                         .font(.headline)
                         .foregroundStyle(.orange)
 

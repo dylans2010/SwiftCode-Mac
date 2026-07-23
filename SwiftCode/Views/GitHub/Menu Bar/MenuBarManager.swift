@@ -2,6 +2,16 @@ import SwiftUI
 import AppKit
 
 @MainActor
+public func openWorkspaceView() {
+    NSApp.activate(ignoringOtherApps: true)
+    for window in NSApplication.shared.windows {
+        if window.className != "NSPopoverWindow" && !window.className.contains("NSStatusBarWindow") {
+            window.makeKeyAndOrderFront(nil)
+        }
+    }
+}
+
+@MainActor
 public class MenuBarManager: NSObject {
     public static let shared = MenuBarManager()
     private var statusItem: NSStatusItem?
@@ -21,6 +31,21 @@ public class MenuBarManager: NSObject {
         popover?.contentSize = NSSize(width: 320, height: 420)
         popover?.behavior = .transient
         popover?.contentViewController = NSHostingController(rootView: contentView)
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleSelectMenuBarTab(_:)),
+            name: NSNotification.Name("SelectMenuBarTab"),
+            object: nil
+        )
+    }
+
+    @objc private func handleSelectMenuBarTab(_ notification: Notification) {
+        if let button = statusItem?.button {
+            if popover?.isShown != true {
+                popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            }
+        }
     }
 
     @objc private func togglePopover(_ sender: AnyObject?) {
@@ -44,14 +69,44 @@ struct MenuBarRootView: View {
         "Discard Changes", "Create PR"
     ]
 
+    let optionsWithShortcuts: [String: String] = [
+        "Commit": "C",
+        "Push": "H",
+        "Push Options": "O",
+        "Choose Branch": "B",
+        "Include Tags": "G",
+        "Force Push": "Y",
+        "Fetch": "E",
+        "Pull": "L",
+        "Cherry Pick": "K",
+        "Clone": "I",
+        "Create Repository": "R",
+        "Create Branch": "J",
+        "Switch Branch": "S",
+        "Delete Branch": "D",
+        "Stash": "Z",
+        "Apply Stash": "V",
+        "Rebase": "X",
+        "Merge": "M",
+        "Discard Changes": "U",
+        "Create PR": "Q"
+    ]
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 Text("Git Menu Bar Controls")
                     .font(.headline.bold())
                 Spacer()
-                Image(systemName: "arrow.triangle.branch")
-                    .foregroundStyle(.blue)
+                Button(action: {
+                    openWorkspaceView()
+                }) {
+                    Label("Workspace", systemImage: "macwindow")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Open WorkspaceView (⇧⌘0)")
             }
             .padding()
             .background(Color.secondary.opacity(0.05))
@@ -61,7 +116,11 @@ struct MenuBarRootView: View {
             // Selector dropdown
             Picker("Operation", selection: $selectedTab) {
                 ForEach(options, id: \.self) { opt in
-                    Text(opt).tag(opt)
+                    if let key = optionsWithShortcuts[opt] {
+                        Text("\(opt) (⇧⌘\(key))").tag(opt)
+                    } else {
+                        Text(opt).tag(opt)
+                    }
                 }
             }
             .pickerStyle(.menu)
@@ -100,6 +159,38 @@ struct MenuBarRootView: View {
             }
         }
         .frame(width: 320, height: 420)
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SelectMenuBarTab"))) { notification in
+            if let tab = notification.userInfo?["tab"] as? String {
+                selectedTab = tab
+            }
+        }
+        .background(
+            ZStack {
+                Button(action: {
+                    openWorkspaceView()
+                }) {
+                    EmptyView()
+                }
+                .keyboardShortcut("0", modifiers: [.command, .shift])
+                .buttonStyle(.plain)
+                .frame(width: 0, height: 0)
+
+                ForEach(options, id: \.self) { opt in
+                    if let key = optionsWithShortcuts[opt] {
+                        Button(action: {
+                            selectedTab = opt
+                        }) {
+                            EmptyView()
+                        }
+                        .keyboardShortcut(KeyEquivalent(Character(key.lowercased())), modifiers: [.command, .shift])
+                        .buttonStyle(.plain)
+                        .frame(width: 0, height: 0)
+                    }
+                }
+            }
+            .opacity(0)
+            .allowsHitTesting(false)
+        )
     }
 }
 

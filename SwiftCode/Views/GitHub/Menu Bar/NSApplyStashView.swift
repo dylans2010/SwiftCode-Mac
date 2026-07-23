@@ -11,7 +11,7 @@ public struct NSApplyStashView: View {
         Group {
             if let _ = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Apply Stash", systemImage: "archivebox.fill")
+                    Label("Apply Stash (⇧⌘V)", systemImage: "archivebox.fill")
                         .font(.headline)
                         .foregroundStyle(.green)
 

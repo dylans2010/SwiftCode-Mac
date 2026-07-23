@@ -12,7 +12,7 @@ public struct NSFetchView: View {
         Group {
             if let _ = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Git Fetch", systemImage: "arrow.down.and.line.horizontal.and.arrow.up")
+                    Label("Git Fetch (⇧⌘E)", systemImage: "arrow.down.and.line.horizontal.and.arrow.up")
                         .font(.headline)
                         .foregroundStyle(.blue)
 

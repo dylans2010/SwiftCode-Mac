@@ -14,7 +14,7 @@ public struct NSDeleteBranchView: View {
         Group {
             if let _ = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Delete Branch", systemImage: "trash.fill")
+                    Label("Delete Branch (⇧⌘D)", systemImage: "trash.fill")
                         .font(.headline)
                         .foregroundStyle(.red)
 
