@@ -25,6 +25,7 @@ public final class AssistAgentSession: Sendable {
     private let registry = AssistToolRegistry()
     private var contextManager: AgentContextManager?
     private var conversationHistory: [String] = []
+    private var activeContext: AssistContext?
 
     // Statistics for execution metrics dashboard
     public var executionSummary: ExecutionSummaryData?
@@ -57,16 +58,19 @@ public final class AssistAgentSession: Sendable {
         // Append to the active UI timeline events
         let event = AgentEvent(state: newState, summary: reason, toolResult: toolResult)
         self.state.events.append(event)
+        updateAgentNotes()
     }
 
     public func start(objective: String, attachments: [AgentFileContext] = [], context: AssistContext) async throws {
         let startDate = Date()
         self.validationCount = 0
         self.executionSummary = nil
+        self.activeContext = context
 
         // PHASE 1: Initializing
         transition(to: .receivingRequest, reason: "Production orchestrator initializing and understanding objective.")
         self.state.changeSummary.clear()
+        updateAgentNotes()
 
         // --- COMPREHENSIVE SESSION STATE VALIDATION ---
         let selectedModel = AssistModelManager.shared.selectedModelID
@@ -563,6 +567,97 @@ public final class AssistAgentSession: Sendable {
 
         default:
             break
+        }
+        updateAgentNotes()
+    }
+
+    @MainActor
+    private func updateAgentNotes() {
+        guard let context = activeContext else { return }
+        let fileURL = context.workspaceRoot.appendingPathComponent("AgentNotes.md")
+
+        let objective = self.state.objective
+        let events = self.state.events
+        let completed = self.state.completedActions.joined(separator: "\n- ")
+
+        // Compile file change items
+        let createdFiles = self.state.changeSummary.createdFiles.map { "- \($0.filename) (\($0.details))" }.joined(separator: "\n")
+        let modifiedFiles = self.state.changeSummary.modifiedFiles.map { "- \($0.filename) (\($0.details))" }.joined(separator: "\n")
+        let deletedFiles = self.state.changeSummary.deletedFiles.map { "- \($0.filename) (\($0.details))" }.joined(separator: "\n")
+
+        let xcodeProjName = (try? FileManager.default.contentsOfDirectory(at: context.workspaceRoot, includingPropertiesForKeys: nil)
+            .first { $0.pathExtension == "xcodeproj" }?.lastPathComponent) ?? "SwiftCode Project"
+
+        let notesContent = """
+# Agent Session Notes: SwiftCode Assist
+
+## Repository Overview
+- **Workspace Path**: \(context.workspaceRoot.path)
+- **Active Xcode Project**: \(xcodeProjName)
+
+## Project Architecture
+- Pure-Swift modular desktop application.
+- State-driven reactive architecture with atomic transition workflows.
+- Native multi-column workspace and diagnostic pipelines.
+
+## File Relationships
+- `AssistMainView` acts as the primary orchestrator host view.
+- `AssistAgentSession` controls execution lifecycle transitions.
+- `_AssistCriticalExecutionEngine` handles pure-Swift programmatic file edits and `.pbxproj` group registrations.
+
+## Important Discoveries
+- Modernized session status translation delivers transparent user-friendly status descriptions.
+- Synchronized Keychain OpenRouter keys avoid cross-module key desynchronization.
+- Nonisolated asynchronous directory walking prevents MainActor UI thread blocking.
+
+## APIs & Dependencies
+- Local OpenAI Codex Node bridge running on port 3003.
+- Private local Apple Foundation Models via CoreML / AFM.
+- OpenRouter API endpoints for cloud fallback routing.
+
+## Current Task Progress
+- **Original Objective**: \(objective)
+- **Current Status**: \(self.state.status.rawValue)
+- **Tool Executions Count**: \(self.state.toolCallCount)
+
+## Completed Work
+- **Completed Actions**:
+\(completed.isEmpty ? "- None yet." : "- " + completed)
+
+- **Created Files**:
+\(createdFiles.isEmpty ? "- None yet." : createdFiles)
+
+- **Modified Files**:
+\(modifiedFiles.isEmpty ? "- None yet." : modifiedFiles)
+
+- **Deleted Files**:
+\(deletedFiles.isEmpty ? "- None yet." : deletedFiles)
+
+## Remaining Work
+- Finalize ongoing subtasks and trigger verification pass.
+- Execute Code Review stage to confirm total contract compliance.
+
+## Warnings
+- Ensure all newly added Swift files are registered correctly in Xcode using the strict 4-step protocol.
+- Do not modify build artifacts under `build/` or `dist/` directly; always edit source and compile.
+
+## Assumptions
+- Local Codex Node bridge is active and reachable if selected.
+- Internet connectivity is available for cloud models fallback.
+
+## Build Information
+- **Target OS**: macOS (Universal)
+- **Build System**: xcodebuild CLI / Package.swift
+- **Validation Stage**: Baseline and post-modification automated compiler passes active.
+
+## Notes Useful for Future Iterations
+- Maintain strict thread-safety and main-actor isolation compliance.
+- Keep diagnostic logging clear and robust under category `agent.diagnostics`.
+"""
+        do {
+            try notesContent.write(to: fileURL, atomically: true, encoding: .utf8)
+        } catch {
+            pipelineLogger.error("Failed to write AgentNotes.md: \(error.localizedDescription)")
         }
     }
 

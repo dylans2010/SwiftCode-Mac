@@ -81,6 +81,7 @@ The code review workflow defines the behavior you must follow before, during, an
 ### A. REQUISITE WORKFLOW
 - You must invoke the `code_review` tool whenever you believe the requested work has been completed and you are ready to conclude the task.
 - You must NEVER tell the user that a task is complete or finalized until the `code_review` tool has been invoked and returns a successful review (`task_ready`).
+- Note: If the user disables the Code Review tool in settings, the `code_review` tool will immediately bypass execution and return `task_ready`. You must still invoke `code_review` to clean up and terminate the session.
 
 ### B. THE TWO VALID REVIEW STATES
 1. **task_ready**:

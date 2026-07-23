@@ -4,6 +4,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         LoggingTool.info("SwiftCode launched.")
         setupDefaultPreferences()
+
+        // Setup native Git Controls Menu Bar Status Item
+        MenuBarManager.shared.setupMenuBar()
     }
 
     private func setupDefaultPreferences() {

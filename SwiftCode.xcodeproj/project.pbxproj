@@ -7,6 +7,54 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5C5B7A8BC09181B28E3E9183 /* IPABuildView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF81EA85E77665CE1645F5E8 /* IPABuildView.swift */; };
+
+		2793878F870AB918B3805F69 /* IPABuildService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA587A9596DB10A37781F22 /* IPABuildService.swift */; };
+
+		E10EBB51778C0DB11A37FB81 /* WorkflowsCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 430147FAAEEF9D972C019A45 /* WorkflowsCreateView.swift */; };
+
+		9C34DC446037BACA92D814B6 /* NSCreateRepositoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B73BCEC27A7CE2A29991DA /* NSCreateRepositoryView.swift */; };
+
+		8BB02EDC6FED8CFF67398DE4 /* NSMergeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACF6D8C7FF98111D251AD40 /* NSMergeView.swift */; };
+
+		C93092D7D183415FF99561B6 /* NSCreatePRView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34A125AD171F45F010CA617B /* NSCreatePRView.swift */; };
+
+		713932C768359BB80FA95E93 /* NSIncludeTagsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8FD9A00B001CFE4B3B299C9 /* NSIncludeTagsView.swift */; };
+
+		4B9A2314EF2101B6DBCD0F84 /* NSDeleteBranchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 169929D09B7DDBECAA4E7B98 /* NSDeleteBranchView.swift */; };
+
+		025B92485822E741DBCE801F /* NSApplyStashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02D03AEB6C182834E1625552 /* NSApplyStashView.swift */; };
+
+		990E34338D6C178DF0780349 /* NSCloneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32C70329C91A0B5AEE7820BA /* NSCloneView.swift */; };
+
+		59F3822D4A18AAA2539AC9F9 /* NSCreateBranchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD338D47B0A9B6AB3266E80E /* NSCreateBranchView.swift */; };
+
+		543A22CE518A5370FDBEC0A5 /* NSPushView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B5D56EDD462FC216C50131 /* NSPushView.swift */; };
+
+		9356B9E9B3AC90A39F5AB47E /* NSDiscardAllChangesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFD8246E8BD428A8460C5136 /* NSDiscardAllChangesView.swift */; };
+
+		64653E3DD632A664A8838049 /* NSCherryPickView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39420EF55DACDFF7D0310E4B /* NSCherryPickView.swift */; };
+
+		5DAE8F6B0ABCCD66FB8F703F /* NSPushOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6CA6BC5D98B52945803A2FA /* NSPushOptionsView.swift */; };
+
+		02FE5FF709B37AF265D2AC20 /* MenuBarManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E97FBDB5C3C86E14D17FA2 /* MenuBarManager.swift */; };
+
+		582F465AC0B39BE66C118599 /* NSPullView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F99BE109C4BDEDB335030CA /* NSPullView.swift */; };
+
+		1E352E48B81C1DCA4AC8A917 /* NSForcePushView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75680D0656BA19AD16A240B6 /* NSForcePushView.swift */; };
+
+		65FF0957132153551C5887C7 /* NSStashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194C398DEDAD7382894EA5AB /* NSStashView.swift */; };
+
+		3984EA4180DF2D9E55B1453A /* NSCommitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BE9426A857E5A5E52F47B70 /* NSCommitView.swift */; };
+
+		FA152429D9E89C4F00CCD37A /* NSFetchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8768048984C604CBBB20E1C2 /* NSFetchView.swift */; };
+
+		A5463CE76B07EA245CA3C773 /* NSRebaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C87B1CEAA45F6D39EB18B9A /* NSRebaseView.swift */; };
+
+		44D9FF637704B007BA9AD91E /* NSSwitchBranchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8C95758CF79397BAA74837C /* NSSwitchBranchView.swift */; };
+
+		5FD16FB0836C71398AC969F2 /* NSChooseBranchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8304201BBC00082AC607A42 /* NSChooseBranchView.swift */; };
+
 		5C5E70000000000000000F42 /* ModelSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000F41 /* ModelSessionManager.swift */; };
 		5C5E70000000000000000F44 /* DiagnosticEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000F43 /* DiagnosticEvent.swift */; };
 		5C5E70000000000000000F46 /* AssistSkillsCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000F45 /* AssistSkillsCheck.swift */; };
@@ -1301,6 +1349,56 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		BF81EA85E77665CE1645F5E8 /* IPABuildView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/Xcode Build/IPABuildView.swift"; sourceTree = SOURCE_ROOT; };
+
+		6EA587A9596DB10A37781F22 /* IPABuildService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Services/IPABuildService.swift"; sourceTree = SOURCE_ROOT; };
+
+		3A1B570AF9E4F916D3CCA144 /* build_ipa.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "SwiftCode/Resources/build_ipa.sh"; sourceTree = SOURCE_ROOT; };
+
+		430147FAAEEF9D972C019A45 /* WorkflowsCreateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowsCreateView.swift"; sourceTree = SOURCE_ROOT; };
+
+		A9B73BCEC27A7CE2A29991DA /* NSCreateRepositoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSCreateRepositoryView.swift"; sourceTree = SOURCE_ROOT; };
+
+		FACF6D8C7FF98111D251AD40 /* NSMergeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSMergeView.swift"; sourceTree = SOURCE_ROOT; };
+
+		34A125AD171F45F010CA617B /* NSCreatePRView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSCreatePRView.swift"; sourceTree = SOURCE_ROOT; };
+
+		C8FD9A00B001CFE4B3B299C9 /* NSIncludeTagsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSIncludeTagsView.swift"; sourceTree = SOURCE_ROOT; };
+
+		169929D09B7DDBECAA4E7B98 /* NSDeleteBranchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSDeleteBranchView.swift"; sourceTree = SOURCE_ROOT; };
+
+		02D03AEB6C182834E1625552 /* NSApplyStashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSApplyStashView.swift"; sourceTree = SOURCE_ROOT; };
+
+		32C70329C91A0B5AEE7820BA /* NSCloneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSCloneView.swift"; sourceTree = SOURCE_ROOT; };
+
+		DD338D47B0A9B6AB3266E80E /* NSCreateBranchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSCreateBranchView.swift"; sourceTree = SOURCE_ROOT; };
+
+		51B5D56EDD462FC216C50131 /* NSPushView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSPushView.swift"; sourceTree = SOURCE_ROOT; };
+
+		CFD8246E8BD428A8460C5136 /* NSDiscardAllChangesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSDiscardAllChangesView.swift"; sourceTree = SOURCE_ROOT; };
+
+		39420EF55DACDFF7D0310E4B /* NSCherryPickView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSCherryPickView.swift"; sourceTree = SOURCE_ROOT; };
+
+		F6CA6BC5D98B52945803A2FA /* NSPushOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSPushOptionsView.swift"; sourceTree = SOURCE_ROOT; };
+
+		D1E97FBDB5C3C86E14D17FA2 /* MenuBarManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/MenuBarManager.swift"; sourceTree = SOURCE_ROOT; };
+
+		2F99BE109C4BDEDB335030CA /* NSPullView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSPullView.swift"; sourceTree = SOURCE_ROOT; };
+
+		75680D0656BA19AD16A240B6 /* NSForcePushView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSForcePushView.swift"; sourceTree = SOURCE_ROOT; };
+
+		194C398DEDAD7382894EA5AB /* NSStashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSStashView.swift"; sourceTree = SOURCE_ROOT; };
+
+		8BE9426A857E5A5E52F47B70 /* NSCommitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSCommitView.swift"; sourceTree = SOURCE_ROOT; };
+
+		8768048984C604CBBB20E1C2 /* NSFetchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSFetchView.swift"; sourceTree = SOURCE_ROOT; };
+
+		1C87B1CEAA45F6D39EB18B9A /* NSRebaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSRebaseView.swift"; sourceTree = SOURCE_ROOT; };
+
+		D8C95758CF79397BAA74837C /* NSSwitchBranchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSSwitchBranchView.swift"; sourceTree = SOURCE_ROOT; };
+
+		C8304201BBC00082AC607A42 /* NSChooseBranchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSChooseBranchView.swift"; sourceTree = SOURCE_ROOT; };
+
 		5C5E70000000000000000F41 /* ModelSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSessionManager.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000F43 /* DiagnosticEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticEvent.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000F45 /* AssistSkillsCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSkillsCheck.swift; sourceTree = "<group>"; };
@@ -3255,6 +3353,7 @@
 		2B4CEE860D734A23837F5302 /* Dev Tools */ = {
 			isa = PBXGroup;
 			children = (
+				BF81EA85E77665CE1645F5E8 /* IPABuildView.swift */,
 				9566538F7BD55C7409795C89 /* DesignerDevToolView.swift */,
 				59BECEBFFFFD21DB1AEE9891 /* AESEncryptionDevToolView.swift */,
 				C097EA749425723B6887F835 /* APIResponseViewerDevToolView.swift */,
@@ -3675,6 +3774,7 @@
 		576E45E47FC5098A3A96ECB8 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				3A1B570AF9E4F916D3CCA144 /* build_ipa.sh */,
 				7A810247C000000000000056 /* NSPersonalDocumentation */,
 				E5E9A1260294B0DD1562EA23 /* FilePreviewView.swift */,
 				ECAAA1260294B0DD15620002 /* SFSymbolPickerView.swift */,
@@ -3690,6 +3790,7 @@
 		57AFC04E569B8BDE2658ECD4 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				6EA587A9596DB10A37781F22 /* IPABuildService.swift */,
 				CE68646614763378D91E7012 /* FoundationModels.swift */,
 				BB362A061CA144FC9EB1A0FC /* AgentSkillManager.swift */,
 				10F0D87A99B6FE8E88BEDFFA /* FolderManager.swift */,
@@ -3865,6 +3966,28 @@
 		718173758FBD56C156A0D0F5 /* GitHub */ = {
 			isa = PBXGroup;
 			children = (
+				430147FAAEEF9D972C019A45 /* WorkflowsCreateView.swift */,
+				A9B73BCEC27A7CE2A29991DA /* NSCreateRepositoryView.swift */,
+				FACF6D8C7FF98111D251AD40 /* NSMergeView.swift */,
+				34A125AD171F45F010CA617B /* NSCreatePRView.swift */,
+				C8FD9A00B001CFE4B3B299C9 /* NSIncludeTagsView.swift */,
+				169929D09B7DDBECAA4E7B98 /* NSDeleteBranchView.swift */,
+				02D03AEB6C182834E1625552 /* NSApplyStashView.swift */,
+				32C70329C91A0B5AEE7820BA /* NSCloneView.swift */,
+				DD338D47B0A9B6AB3266E80E /* NSCreateBranchView.swift */,
+				51B5D56EDD462FC216C50131 /* NSPushView.swift */,
+				CFD8246E8BD428A8460C5136 /* NSDiscardAllChangesView.swift */,
+				39420EF55DACDFF7D0310E4B /* NSCherryPickView.swift */,
+				F6CA6BC5D98B52945803A2FA /* NSPushOptionsView.swift */,
+				D1E97FBDB5C3C86E14D17FA2 /* MenuBarManager.swift */,
+				2F99BE109C4BDEDB335030CA /* NSPullView.swift */,
+				75680D0656BA19AD16A240B6 /* NSForcePushView.swift */,
+				194C398DEDAD7382894EA5AB /* NSStashView.swift */,
+				8BE9426A857E5A5E52F47B70 /* NSCommitView.swift */,
+				8768048984C604CBBB20E1C2 /* NSFetchView.swift */,
+				1C87B1CEAA45F6D39EB18B9A /* NSRebaseView.swift */,
+				D8C95758CF79397BAA74837C /* NSSwitchBranchView.swift */,
+				C8304201BBC00082AC607A42 /* NSChooseBranchView.swift */,
 				8C4B5F1F12214C359ACD8CCA /* RepositoryExplorerView.swift */,
 				159C4D4C5E8C495FA5D92D5B /* RepositoryAutomationBuilderView.swift */,
 				BE3F6941F8794625A7F95FCF /* WorkflowModels.swift */,
@@ -5293,6 +5416,30 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5C5B7A8BC09181B28E3E9183 /* IPABuildView.swift in Sources */,
+				2793878F870AB918B3805F69 /* IPABuildService.swift in Sources */,
+				E10EBB51778C0DB11A37FB81 /* WorkflowsCreateView.swift in Sources */,
+				9C34DC446037BACA92D814B6 /* NSCreateRepositoryView.swift in Sources */,
+				8BB02EDC6FED8CFF67398DE4 /* NSMergeView.swift in Sources */,
+				C93092D7D183415FF99561B6 /* NSCreatePRView.swift in Sources */,
+				713932C768359BB80FA95E93 /* NSIncludeTagsView.swift in Sources */,
+				4B9A2314EF2101B6DBCD0F84 /* NSDeleteBranchView.swift in Sources */,
+				025B92485822E741DBCE801F /* NSApplyStashView.swift in Sources */,
+				990E34338D6C178DF0780349 /* NSCloneView.swift in Sources */,
+				59F3822D4A18AAA2539AC9F9 /* NSCreateBranchView.swift in Sources */,
+				543A22CE518A5370FDBEC0A5 /* NSPushView.swift in Sources */,
+				9356B9E9B3AC90A39F5AB47E /* NSDiscardAllChangesView.swift in Sources */,
+				64653E3DD632A664A8838049 /* NSCherryPickView.swift in Sources */,
+				5DAE8F6B0ABCCD66FB8F703F /* NSPushOptionsView.swift in Sources */,
+				02FE5FF709B37AF265D2AC20 /* MenuBarManager.swift in Sources */,
+				582F465AC0B39BE66C118599 /* NSPullView.swift in Sources */,
+				1E352E48B81C1DCA4AC8A917 /* NSForcePushView.swift in Sources */,
+				65FF0957132153551C5887C7 /* NSStashView.swift in Sources */,
+				3984EA4180DF2D9E55B1453A /* NSCommitView.swift in Sources */,
+				FA152429D9E89C4F00CCD37A /* NSFetchView.swift in Sources */,
+				A5463CE76B07EA245CA3C773 /* NSRebaseView.swift in Sources */,
+				44D9FF637704B007BA9AD91E /* NSSwitchBranchView.swift in Sources */,
+				5FD16FB0836C71398AC969F2 /* NSChooseBranchView.swift in Sources */,
 				5C5E70000000000000000F42 /* ModelSessionManager.swift in Sources */,
 				5C5E70000000000000000F44 /* DiagnosticEvent.swift in Sources */,
 				5C5E70000000000000000F46 /* AssistSkillsCheck.swift in Sources */,

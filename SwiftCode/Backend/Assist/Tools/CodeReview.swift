@@ -27,7 +27,24 @@ public struct CodeReviewTool: AssistTool {
 
         await context.logger.info("Initializing Autonomous Code Review stage...", toolId: id)
 
-        // 1. Load System Prompt from Resource Bundle
+        // 1. Check if Code Review is enabled in settings
+        let isReviewEnabled = UserDefaults.standard.object(forKey: "com.swiftcode.assist.enableCodeReview") as? Bool ?? true
+        if !isReviewEnabled {
+            await context.logger.info("Autonomous Code Review is disabled in settings. Skipping verification step.", toolId: id)
+            let reviewData: [String: Any] = [
+                "status": "task_ready",
+                "summary": "Code Review skipped because Autonomous Code Review is disabled in settings.",
+                "strengths": ["Bypassed Code Review Stage"],
+                "issues": [] as [String],
+                "recommendedFixes": [] as [String],
+                "user_see": "Code Review bypassed per user configuration.",
+                "confidence": 1.0
+            ]
+            await updateReviewState(reviewData: reviewData)
+            return .success("Code Review disabled in settings. Bypassing review.", data: reviewData.mapValues { "\($0)" })
+        }
+
+        // 2. Load System Prompt from Resource Bundle
         let systemPrompt: String
         do {
             systemPrompt = try CodeReviewSystemLoader.getReviewSystemPrompt()
@@ -37,7 +54,7 @@ public struct CodeReviewTool: AssistTool {
             return .failure(errorMsg)
         }
 
-        // 2. Gather context
+        // 3. Gather context
         let originalRequest = AssistManager.shared.agentSession.state.objective
         let isAgentMode = UserDefaults.standard.bool(forKey: "com.swiftcode.assist.mode")
         let executionMode = isAgentMode ? "com.SwiftCode.Assist-Agent (Agentic Mode)" : "com.SwiftCode.Assist-Chat (Chat Mode)"
@@ -109,105 +126,112 @@ public struct CodeReviewTool: AssistTool {
         \(buildSummary.isEmpty ? "No recent build or validation tool output detected." : buildSummary)
         """
 
-        // 3. Independent Model Selection (Must not be identical to implementation model)
-        let implementationModel = AppSettings.shared.selectedModel
-        let isFMEnabled = FoundationModels.shared.isEnabled
-
-        let activeProvider: LLMProvider
-        do {
-            activeProvider = try LLMService.shared.resolvedRoutingProvider()
-        } catch {
-            activeProvider = .openRouter
-        }
-
-        let reviewerModel: String
-        var providerOverride: LLMProvider? = nil
-
-        if isFMEnabled {
-            // Apple foundation models: swap between afm3Core and afm3CoreAdvanced
-            let currentFM = FoundationModels.shared.selectedModel
-            let otherFM: AppleFoundationModel = (currentFM == .afm3Core) ? .afm3CoreAdvanced : .afm3Core
-            reviewerModel = otherFM.rawValue
-        } else if activeProvider == .codex {
-            // Codex: fallback to OpenRouter gpt-4o-mini
-            reviewerModel = "openai/gpt-4o-mini"
-            providerOverride = .openRouter
+        // 4. Dynamic Model Selection & Fallback Queue
+        let primaryModelID: String
+        if FoundationModels.shared.isEnabled {
+            primaryModelID = FoundationModels.shared.selectedModel.rawValue
         } else {
-            // OpenRouter: find an alternative model
-            let candidates = [
-                "openai/gpt-4o-mini",
-                "openai/gpt-4o",
-                "anthropic/claude-3.5-sonnet",
-                "google/gemini-2.5-pro",
-                "meta-llama/llama-3-70b-instruct"
-            ]
-            reviewerModel = candidates.first { $0 != implementationModel } ?? "openai/gpt-4o-mini"
+            primaryModelID = AppSettings.shared.selectedModel
         }
 
-        await context.logger.info("Selected Reviewer Model: \(reviewerModel)", toolId: id)
+        var candidateModels = [primaryModelID]
+        let defaultFallbacks = [
+            "AFM 3 Core Advanced",
+            "AFM 3 Core",
+            "openai/gpt-4o-mini",
+            "openai/gpt-4o",
+            "anthropic/claude-3.5-sonnet",
+            "google/gemini-2.5-pro",
+            "meta-llama/llama-3-70b-instruct",
+            "Codex",
+            "gpt-4-codex",
+            "gpt-4o",
+            "gpt-4o-mini",
+            "claude-3-5-sonnet-20241022",
+            "gemini-1.5-pro",
+            "gemini-1.5-flash"
+        ]
 
-        // 4. Invoke LLMService
-        do {
-            let messages = [
-                AIMessage(role: .system, content: systemPrompt),
-                AIMessage(role: .user, content: userPrompt)
-            ]
+        for item in defaultFallbacks {
+            if !candidateModels.contains(item) {
+                candidateModels.append(item)
+            }
+        }
 
-            let response: LLMResponse
-            if isFMEnabled {
-                // For FoundationModels, we temporarily toggle the selected model
-                let originalFM = FoundationModels.shared.selectedModel
-                if let appleModel = AppleFoundationModel(rawValue: reviewerModel) {
-                    FoundationModels.shared.selectedModel = appleModel
+        var finalResult: AssistToolResult? = nil
+
+        for candidateModel in candidateModels {
+            await context.logger.info("Attempting Autonomous Code Review with model: \(candidateModel)...", toolId: id)
+            let resolvedProvider = LLMService.shared.provider(for: candidateModel)
+
+            do {
+                let messages = [
+                    AIMessage(role: .system, content: systemPrompt),
+                    AIMessage(role: .user, content: userPrompt)
+                ]
+
+                let response: LLMResponse
+
+                if resolvedProvider == .offline || candidateModel == "AFM 3 Core" || candidateModel == "AFM 3 Core Advanced" {
+                    // For FoundationModels, we temporarily toggle the selected model
+                    let originalFMEnabled = FoundationModels.shared.isEnabled
+                    let originalFM = FoundationModels.shared.selectedModel
+
+                    FoundationModels.shared.isEnabled = true
+                    if let appleModel = AppleFoundationModel(rawValue: candidateModel) {
+                        FoundationModels.shared.selectedModel = appleModel
+                    }
+
+                    defer {
+                        FoundationModels.shared.isEnabled = originalFMEnabled
+                        FoundationModels.shared.selectedModel = originalFM
+                    }
+
+                    let resultText = try await FoundationModels.shared.generatePrivateResponse(prompt: userPrompt)
+                    response = LLMResponse(
+                        modelName: candidateModel,
+                        completionText: resultText,
+                        tokenUsage: nil,
+                        latency: 1.0
+                    )
+                } else {
+                    response = try await LLMService.shared.sendChatRequest(
+                        model: candidateModel,
+                        messages: messages,
+                        providerOverride: resolvedProvider
+                    )
                 }
-                defer {
-                    FoundationModels.shared.selectedModel = originalFM
+
+                let reviewText = response.completionText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                // Robust JSON Parsing
+                guard let reviewData = extractJSON(from: reviewText) else {
+                    throw NSError(domain: "CodeReview", code: 400, userInfo: [NSLocalizedDescriptionKey: "Syntax Error: Reviewer returned an invalid or non-JSON formatted output."])
                 }
 
-                let resultText = try await FoundationModels.shared.generatePrivateResponse(prompt: userPrompt)
-                response = LLMResponse(
-                    modelName: reviewerModel,
-                    completionText: resultText,
-                    tokenUsage: nil,
-                    latency: 1.0
-                )
-            } else {
-                response = try await LLMService.shared.sendChatRequest(
-                    model: reviewerModel,
-                    messages: messages,
-                    providerOverride: providerOverride
-                )
+                // Extract status to ensure contract compliance
+                let status = (reviewData["status"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                if status != "task_ready" && status != "task_failed" {
+                    throw NSError(domain: "CodeReview", code: 400, userInfo: [NSLocalizedDescriptionKey: "Contract Error: Reviewer returned invalid status '\(status)'."])
+                }
+
+                // Update global code review manager state
+                await updateReviewState(reviewData: reviewData)
+
+                let output = "Review completed via \(candidateModel). Status: \(status). Summary: \(reviewData["summary"] as? String ?? "")"
+                let serializedData = reviewData.mapValues { "\($0)" }
+                finalResult = .success(output, data: serializedData)
+                break // Succeeded! Stop trying fallbacks!
+
+            } catch {
+                await context.logger.warning("Code review attempt with \(candidateModel) failed: \(error.localizedDescription). Trying next compatible model...", toolId: id)
             }
+        }
 
-            let reviewText = response.completionText.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            // 5. Robust JSON Parsing
-            guard let reviewData = extractJSON(from: reviewText) else {
-                let parseError = "Syntax Error: Reviewer returned an invalid or non-JSON formatted output."
-                await context.logger.error(parseError + " Content:\n\(reviewText)", toolId: id)
-                return .failure(parseError)
-            }
-
-            // Extract status to ensure contract compliance
-            let status = (reviewData["status"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if status != "task_ready" && status != "task_failed" {
-                let contractViolation = "Contract Error: Reviewer returned invalid status '\(status)'. Required exactly: 'task_ready' or 'task_failed'."
-                await context.logger.error(contractViolation, toolId: id)
-                return .failure(contractViolation)
-            }
-
-            // Update global code review manager state
-            await updateReviewState(reviewData: reviewData)
-
-            let output = "Review completed. Status: \(status). Summary: \(reviewData["summary"] as? String ?? "")"
-            // We return success with output and structured payload
-            let serializedData = reviewData.mapValues { "\($0)" }
-            return .success(output, data: serializedData)
-
-        } catch {
-            let errorMsg = "Review invocation failed: \(error.localizedDescription)"
-            await context.logger.error(errorMsg, toolId: id)
-            return .failure(errorMsg)
+        if let result = finalResult {
+            return result
+        } else {
+            return .failure("All available/compatible AI models failed to complete the Code Review request.")
         }
     }
 
