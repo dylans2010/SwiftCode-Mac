@@ -2,20 +2,6 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
-struct SelectedApp: Codable, Identifiable {
-    var id: String { path }
-    let path: String
-    let name: String
-    let bundleID: String
-    let version: String
-    let build: String
-    let minOS: String
-    let fileSize: String
-    let buildConfiguration: String
-    let lastModified: String
-    let signingStatus: String
-}
-
 @MainActor
 public struct IPABuildView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore

@@ -10,12 +10,14 @@ struct WorkspaceHubTool: Identifiable, Hashable {
     let destination: String
 }
 
-struct MainToolsView: View {
+public struct MainToolsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(ProjectSessionStore.self) private var sessionStore
     @Environment(WorkspaceViewModel.self) private var workspaceViewModel
 
     @State private var searchQuery = ""
+
+    public init() {}
     @State private var selectedCategory = "All"
     @State private var activeToolSheet: ToolbarActionManager.SheetDestination?
 
