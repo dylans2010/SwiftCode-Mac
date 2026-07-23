@@ -1,0 +1,361 @@
+{
+  "" : {
+    "const-values" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Markdown-primary.swiftconstvalues",
+    "dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Markdown-primary.d",
+    "diagnostics" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Markdown-primary.dia",
+    "emit-module-dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Markdown-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Markdown-primary-emit-module.dia",
+    "pch" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Markdown-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Markdown-primary.swiftdeps"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/ChildIndexPath.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/ChildIndexPath.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/ChildIndexPath.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/ChildIndexPath.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/DirectiveArgument.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DirectiveArgument.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DirectiveArgument.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DirectiveArgument.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/Document.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Document.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Document.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Document.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/LiteralMarkup.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/LiteralMarkup.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/LiteralMarkup.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/LiteralMarkup.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/Markup.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Markup.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Markup.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Markup.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/MarkupChildren.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupChildren.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupChildren.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupChildren.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/MarkupData.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupData.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupData.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupData.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/PlainTextConvertibleMarkup.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/PlainTextConvertibleMarkup.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/PlainTextConvertibleMarkup.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/PlainTextConvertibleMarkup.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/RawMarkup.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/RawMarkup.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/RawMarkup.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/RawMarkup.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Block Container Blocks/BlockDirective.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BlockDirective.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BlockDirective.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BlockDirective.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Block Container Blocks/BlockQuote.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BlockQuote.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BlockQuote.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BlockQuote.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Block Container Blocks/CustomBlock.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CustomBlock.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CustomBlock.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CustomBlock.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Block Container Blocks/Doxygen Commands/DoxygenAbstract.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DoxygenAbstract.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DoxygenAbstract.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DoxygenAbstract.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Block Container Blocks/Doxygen Commands/DoxygenDiscussion.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DoxygenDiscussion.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DoxygenDiscussion.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DoxygenDiscussion.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Block Container Blocks/Doxygen Commands/DoxygenNote.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DoxygenNote.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DoxygenNote.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DoxygenNote.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Block Container Blocks/Doxygen Commands/DoxygenParameter.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DoxygenParameter.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DoxygenParameter.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DoxygenParameter.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Block Container Blocks/Doxygen Commands/DoxygenReturns.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DoxygenReturns.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DoxygenReturns.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/DoxygenReturns.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Block Container Blocks/ListItem.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/ListItem.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/ListItem.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/ListItem.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Block Container Blocks/OrderedList.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/OrderedList.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/OrderedList.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/OrderedList.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Block Container Blocks/UnorderedList.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/UnorderedList.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/UnorderedList.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/UnorderedList.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Inline Container Blocks/Paragraph.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Paragraph.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Paragraph.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Paragraph.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Leaf Blocks/CodeBlock.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CodeBlock.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CodeBlock.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CodeBlock.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Leaf Blocks/HTMLBlock.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/HTMLBlock.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/HTMLBlock.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/HTMLBlock.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Leaf Blocks/Heading.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Heading.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Heading.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Heading.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Leaf Blocks/ThematicBreak.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/ThematicBreak.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/ThematicBreak.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/ThematicBreak.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Tables/Table.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Table.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Table.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Table.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Tables/TableBody.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/TableBody.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/TableBody.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/TableBody.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Tables/TableCell.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/TableCell.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/TableCell.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/TableCell.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Tables/TableCellContainer.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/TableCellContainer.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/TableCellContainer.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/TableCellContainer.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Tables/TableHead.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/TableHead.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/TableHead.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/TableHead.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block Nodes/Tables/TableRow.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/TableRow.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/TableRow.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/TableRow.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Infrastructure/Replacement.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Replacement.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Replacement.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Replacement.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Infrastructure/SourceLocation.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/SourceLocation.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/SourceLocation.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/SourceLocation.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline Nodes/Inline Containers/Emphasis.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Emphasis.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Emphasis.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Emphasis.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline Nodes/Inline Containers/Image.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Image.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Image.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Image.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline Nodes/Inline Containers/InlineAttributes.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/InlineAttributes.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/InlineAttributes.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/InlineAttributes.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline Nodes/Inline Containers/Link.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Link.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Link.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Link.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline Nodes/Inline Containers/Strikethrough.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Strikethrough.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Strikethrough.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Strikethrough.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline Nodes/Inline Containers/Strong.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Strong.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Strong.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Strong.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline Nodes/Inline Leaves/CustomInline.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CustomInline.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CustomInline.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CustomInline.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline Nodes/Inline Leaves/InlineCode.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/InlineCode.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/InlineCode.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/InlineCode.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline Nodes/Inline Leaves/InlineHTML.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/InlineHTML.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/InlineHTML.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/InlineHTML.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline Nodes/Inline Leaves/LineBreak.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/LineBreak.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/LineBreak.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/LineBreak.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline Nodes/Inline Leaves/SoftBreak.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/SoftBreak.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/SoftBreak.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/SoftBreak.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline Nodes/Inline Leaves/SymbolLink.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/SymbolLink.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/SymbolLink.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/SymbolLink.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline Nodes/Inline Leaves/Text.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Text.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Text.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Text.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Interpretive Nodes/Aside.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Aside.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Aside.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/Aside.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Parser/BlockDirectiveParser.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BlockDirectiveParser.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BlockDirectiveParser.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BlockDirectiveParser.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Parser/CommonMarkConverter.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CommonMarkConverter.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CommonMarkConverter.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CommonMarkConverter.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Parser/LazySplitLines.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/LazySplitLines.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/LazySplitLines.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/LazySplitLines.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Parser/ParseOptions.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/ParseOptions.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/ParseOptions.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/ParseOptions.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Parser/RangeAdjuster.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/RangeAdjuster.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/RangeAdjuster.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/RangeAdjuster.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Parser/RangerTracker.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/RangerTracker.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/RangerTracker.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/RangerTracker.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Rewriter/MarkupRewriter.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupRewriter.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupRewriter.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupRewriter.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Structural Restrictions/BasicBlockContainer.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BasicBlockContainer.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BasicBlockContainer.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BasicBlockContainer.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Structural Restrictions/BasicInlineContainer.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BasicInlineContainer.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BasicInlineContainer.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BasicInlineContainer.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Structural Restrictions/BlockContainer.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BlockContainer.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BlockContainer.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BlockContainer.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Structural Restrictions/BlockMarkup.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BlockMarkup.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BlockMarkup.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/BlockMarkup.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Structural Restrictions/InlineContainer.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/InlineContainer.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/InlineContainer.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/InlineContainer.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Structural Restrictions/InlineMarkup.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/InlineMarkup.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/InlineMarkup.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/InlineMarkup.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Structural Restrictions/ListItemContainer.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/ListItemContainer.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/ListItemContainer.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/ListItemContainer.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Utility/AtomicCounter.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/AtomicCounter.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/AtomicCounter.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/AtomicCounter.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Utility/CharacterExtensions.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CharacterExtensions.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CharacterExtensions.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CharacterExtensions.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Utility/CollectionExtensions.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CollectionExtensions.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CollectionExtensions.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/CollectionExtensions.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Utility/StringExtensions.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/StringExtensions.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/StringExtensions.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/StringExtensions.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Visitor/MarkupVisitor.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupVisitor.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupVisitor.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupVisitor.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Walker/MarkupWalker.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupWalker.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupWalker.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupWalker.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Walker/Walkers/HTMLFormatter.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/HTMLFormatter.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/HTMLFormatter.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/HTMLFormatter.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Walker/Walkers/MarkupFormatter.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupFormatter.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupFormatter.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupFormatter.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Walker/Walkers/MarkupTreeDumper.swift" : {
+    "index-unit-output-path" : "/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupTreeDumper.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupTreeDumper.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/build/swift-markdown.build/Release/Markdown-t.build/Objects-normal/x86_64/MarkupTreeDumper.o"
+  }
+}

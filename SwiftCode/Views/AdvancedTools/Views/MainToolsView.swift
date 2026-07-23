@@ -39,8 +39,8 @@ public struct MainToolsView: View {
         WorkspaceHubTool(id: "documentation_browser", name: "Documentation Browser", description: "Full featured windowed multi-pane documentation browser and visual reference workspace.", iconName: "doc.text.magnifyingglass", colorHex: "#007AFF", category: "Utilities", destination: "documentationBrowser")
     ]
 
-    var body: some View {
-        NavigationStack {
+    public var body: some View {
+            NavigationStack {
             VStack(spacing: 0) {
                 // Header Area
                 HStack {

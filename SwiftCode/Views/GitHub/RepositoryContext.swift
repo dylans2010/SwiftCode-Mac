@@ -14,15 +14,15 @@ public final class RepositoryContext: Sendable {
         public var id: String { self.rawValue }
     }
 
-    public var displayMode: DisplayMode = .connectedRepository
-    public var cachedMetadata: GitHubRepoDetail? = nil
-    public var loadedReleasesCount: Int = 0
-    public var loadedBranchesCount: Int = 0
-    public var loadedPullRequestsCount: Int = 0
-    public var loadedLanguages: [String] = []
-    public var syncEventsCount: Int = 0
-    public var showingSetRepoSheet: Bool = false
-    public var isLoadingMetadata: Bool = false
+    var displayMode: DisplayMode = .connectedRepository
+    var cachedMetadata: GitHubRepoDetail? = nil
+    var loadedReleasesCount: Int = 0
+    var loadedBranchesCount: Int = 0
+    var loadedPullRequestsCount: Int = 0
+    var loadedLanguages: [String] = []
+    var syncEventsCount: Int = 0
+    var showingSetRepoSheet: Bool = false
+    var isLoadingMetadata: Bool = false
 
     private init() {}
 

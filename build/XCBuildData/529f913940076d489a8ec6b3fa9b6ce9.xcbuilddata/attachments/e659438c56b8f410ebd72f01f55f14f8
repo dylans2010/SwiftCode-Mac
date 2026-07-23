@@ -1,0 +1,16 @@
+{
+  "" : {
+    "const-values" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXRandom-t.build/Objects-normal/x86_64/MLXRandom-primary.swiftconstvalues",
+    "dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXRandom-t.build/Objects-normal/x86_64/MLXRandom-primary.d",
+    "diagnostics" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXRandom-t.build/Objects-normal/x86_64/MLXRandom-primary.dia",
+    "emit-module-dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXRandom-t.build/Objects-normal/x86_64/MLXRandom-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXRandom-t.build/Objects-normal/x86_64/MLXRandom-primary-emit-module.dia",
+    "pch" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXRandom-t.build/Objects-normal/x86_64/MLXRandom-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXRandom-t.build/Objects-normal/x86_64/MLXRandom-primary.swiftdeps"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLXRandom/Random.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLXRandom-t.build/Objects-normal/x86_64/Random.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXRandom-t.build/Objects-normal/x86_64/Random.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXRandom-t.build/Objects-normal/x86_64/Random.o"
+  }
+}

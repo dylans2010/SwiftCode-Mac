@@ -1,0 +1,16 @@
+{
+  "" : {
+    "const-values" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParserToolInfo-t.build/Objects-normal/arm64/ArgumentParserToolInfo-primary.swiftconstvalues",
+    "dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParserToolInfo-t.build/Objects-normal/arm64/ArgumentParserToolInfo-primary.d",
+    "diagnostics" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParserToolInfo-t.build/Objects-normal/arm64/ArgumentParserToolInfo-primary.dia",
+    "emit-module-dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParserToolInfo-t.build/Objects-normal/arm64/ArgumentParserToolInfo-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParserToolInfo-t.build/Objects-normal/arm64/ArgumentParserToolInfo-primary-emit-module.dia",
+    "pch" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParserToolInfo-t.build/Objects-normal/arm64/ArgumentParserToolInfo-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParserToolInfo-t.build/Objects-normal/arm64/ArgumentParserToolInfo-primary.swiftdeps"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParserToolInfo/ToolInfo.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParserToolInfo-t.build/Objects-normal/arm64/ToolInfo.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParserToolInfo-t.build/Objects-normal/arm64/ToolInfo.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParserToolInfo-t.build/Objects-normal/arm64/ToolInfo.o"
+  }
+}

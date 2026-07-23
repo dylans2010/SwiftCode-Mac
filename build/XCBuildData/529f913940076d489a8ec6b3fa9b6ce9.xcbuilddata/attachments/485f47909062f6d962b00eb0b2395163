@@ -1,0 +1,21 @@
+{
+  "" : {
+    "const-values" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXOptimizers-t.build/Objects-normal/x86_64/MLXOptimizers-primary.swiftconstvalues",
+    "dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXOptimizers-t.build/Objects-normal/x86_64/MLXOptimizers-primary.d",
+    "diagnostics" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXOptimizers-t.build/Objects-normal/x86_64/MLXOptimizers-primary.dia",
+    "emit-module-dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXOptimizers-t.build/Objects-normal/x86_64/MLXOptimizers-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXOptimizers-t.build/Objects-normal/x86_64/MLXOptimizers-primary-emit-module.dia",
+    "pch" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXOptimizers-t.build/Objects-normal/x86_64/MLXOptimizers-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXOptimizers-t.build/Objects-normal/x86_64/MLXOptimizers-primary.swiftdeps"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLXOptimizers/Optimizers.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLXOptimizers-t.build/Objects-normal/x86_64/Optimizers.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXOptimizers-t.build/Objects-normal/x86_64/Optimizers.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXOptimizers-t.build/Objects-normal/x86_64/Optimizers.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLXOptimizers/Schedulers.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLXOptimizers-t.build/Objects-normal/x86_64/Schedulers.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXOptimizers-t.build/Objects-normal/x86_64/Schedulers.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLXOptimizers-t.build/Objects-normal/x86_64/Schedulers.o"
+  }
+}

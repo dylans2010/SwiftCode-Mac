@@ -1,0 +1,4 @@
+module Splash {
+header "Splash-Swift.h"
+export *
+}

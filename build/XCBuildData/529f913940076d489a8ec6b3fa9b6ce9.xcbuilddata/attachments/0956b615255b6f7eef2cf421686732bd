@@ -1,0 +1,4 @@
+module WelcomeView {
+header "WelcomeView-Swift.h"
+export *
+}

@@ -1,0 +1,211 @@
+{
+  "" : {
+    "const-values" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLX-primary.swiftconstvalues",
+    "dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLX-primary.d",
+    "diagnostics" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLX-primary.dia",
+    "emit-module-dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLX-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLX-primary-emit-module.dia",
+    "pch" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLX-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLX-primary.swiftdeps"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/ArrayAt.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/ArrayAt.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/ArrayAt.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/ArrayAt.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Cmlx+Util.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Cmlx+Util.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Cmlx+Util.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Cmlx+Util.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/DType.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/DType.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/DType.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/DType.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Device.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Device.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Device.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Device.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/ErrorHandler.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/ErrorHandler.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/ErrorHandler.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/ErrorHandler.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Export.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Export.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Export.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Export.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/FFT.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/FFT.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/FFT.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/FFT.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Factory.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Factory.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Factory.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Factory.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Foundation+Util.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Foundation+Util.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Foundation+Util.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Foundation+Util.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/GPU+Metal.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/GPU+Metal.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/GPU+Metal.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/GPU+Metal.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/IO.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/IO.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/IO.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/IO.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Linalg.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Linalg.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Linalg.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Linalg.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/MLXArray+Bytes.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Bytes.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Bytes.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Bytes.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/MLXArray+Indexing.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Indexing.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Indexing.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Indexing.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/MLXArray+Init.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Init.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Init.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Init.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/MLXArray+Metal.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Metal.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Metal.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Metal.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/MLXArray+Normalizer.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Normalizer.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Normalizer.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Normalizer.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/MLXArray+Ops.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Ops.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Ops.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+Ops.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/MLXArray+maskFill.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+maskFill.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+maskFill.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray+maskFill.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/MLXArray.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXArray.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/MLXCustomFunction.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXCustomFunction.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXCustomFunction.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXCustomFunction.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/MLXFast.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXFast.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXFast.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXFast.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/MLXFastKernel.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXFastKernel.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXFastKernel.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/MLXFastKernel.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Memory.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Memory.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Memory.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Memory.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Nested.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Nested.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Nested.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Nested.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Ops+Array.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Ops+Array.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Ops+Array.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Ops+Array.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Ops.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Ops.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Ops.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Ops.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/ParameterTypes.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/ParameterTypes.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/ParameterTypes.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/ParameterTypes.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Protocols.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Protocols.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Protocols.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Protocols.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Random.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Random.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Random.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Random.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/State.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/State.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/State.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/State.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Stream.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Stream.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Stream.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Stream.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Transforms+Compile.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+Compile.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+Compile.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+Compile.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Transforms+CompileOverloads.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+CompileOverloads.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+CompileOverloads.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+CompileOverloads.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Transforms+Eval.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+Eval.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+Eval.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+Eval.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Transforms+Grad.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+Grad.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+Grad.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+Grad.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Transforms+Internal.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+Internal.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+Internal.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+Internal.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Transforms+Vmap.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+Vmap.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+Vmap.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms+Vmap.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/Transforms.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/Transforms.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/Source/MLX/WiredMemory.swift" : {
+    "index-unit-output-path" : "/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/WiredMemory.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/WiredMemory.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/mlx-swift/build/mlx-swift.build/Release/MLX-t.build/Objects-normal/x86_64/WiredMemory.o"
+  }
+}

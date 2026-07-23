@@ -1,0 +1,16 @@
+{
+  "" : {
+    "const-values" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-numerics/build/swift-numerics.build/Release/Numerics-t.build/Objects-normal/x86_64/Numerics-primary.swiftconstvalues",
+    "dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-numerics/build/swift-numerics.build/Release/Numerics-t.build/Objects-normal/x86_64/Numerics-primary.d",
+    "diagnostics" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-numerics/build/swift-numerics.build/Release/Numerics-t.build/Objects-normal/x86_64/Numerics-primary.dia",
+    "emit-module-dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-numerics/build/swift-numerics.build/Release/Numerics-t.build/Objects-normal/x86_64/Numerics-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-numerics/build/swift-numerics.build/Release/Numerics-t.build/Objects-normal/x86_64/Numerics-primary-emit-module.dia",
+    "pch" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-numerics/build/swift-numerics.build/Release/Numerics-t.build/Objects-normal/x86_64/Numerics-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-numerics/build/swift-numerics.build/Release/Numerics-t.build/Objects-normal/x86_64/Numerics-primary.swiftdeps"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-numerics/Sources/Numerics/Numerics.swift" : {
+    "index-unit-output-path" : "/swift-numerics.build/Release/Numerics-t.build/Objects-normal/x86_64/Numerics.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-numerics/build/swift-numerics.build/Release/Numerics-t.build/Objects-normal/x86_64/Numerics.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-numerics/build/swift-numerics.build/Release/Numerics-t.build/Objects-normal/x86_64/Numerics.o"
+  }
+}

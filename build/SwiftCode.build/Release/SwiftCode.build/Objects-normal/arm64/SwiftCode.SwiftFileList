@@ -1,0 +1,1188 @@
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/ModelSessionManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/DiagnosticEvent.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Functions/AssistSkillsCheck.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/CodeReview.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Assist/CodeAssistUserView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/UseTermFunction.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AgentSessionState.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AssistAgentSession.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AgentContextManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Assist/AgentTimelineView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Assist/ToolExecutionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Assist/TaskProgressView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Assist/AgentControlsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Assist/AssistErrorBubble.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Assist/MiniLogFeed.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Assist/CodexSignInFlow.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Assist/ChooseModelForAgent.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Assist/AddFilesAgentContext.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Functions/FileAgentHelper.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Codex/CodexBridgeManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/API/AssistCapability.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/API/AssistCapabilityExecutor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/API/Internal\ API/AssistAPI.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/API/Internal\ API/AssistAPIError.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/API/Internal\ API/AssistAPIRequest.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/API/Internal\ API/AssistAPIResponse.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/API/Internal\ API/AssistAPIRouter.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistAutonomousDecisionEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistCodeIntegrityScanner.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistContextDriftDetector.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistExecutionContextPersistenceStore.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistExecutionTraceEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistFailureRootCauseAnalyzer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistGoalExpansionEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistLoopStabilityRegulator.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistMemoryConsistencyValidator.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistOptimizationEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistOutputVerificationEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistPerformanceProfilingEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistProgressEvaluator.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistRecoveryStrategyGenerator.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistResourceUsageMonitor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistRiskAssessmentEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistRuntimeBehaviorMonitor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/AssistTaskContinuationEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/_AssistCriticalAutonomousEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/_AssistCriticalCodebaseAnalyzer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/_AssistCriticalExecutionEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/_AssistCriticalTaskOrchestrator.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Assist\ Frameworks/_AssistCriticalValidationEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AssistAgent.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AssistAgenticPrompt.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AssistContextBuilder.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AssistExecutionEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AssistFileSystem.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AssistGitManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AssistLogger.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AssistManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AssistMemoryGraph.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AssistModelManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AssistModels.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AssistPermissionsManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AssistPlanner.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AssistSession.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/AssistToolRegistry.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Functions/AssistCIFunctions.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Functions/AssistCodeFunctions.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Functions/AssistExecutionFunctions.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Functions/AssistFileFunctions.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Functions/AssistSearchFunctions.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Functions/AssistSnapshotFunctions.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Models/AssistSnapshotModels.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/PromptEnhancer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/TasksAIPlanner.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistAppendFileTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistAutoFixErrorsTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistAutomatedRepairEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistAutonomousReviewEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistBreakdownTaskTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistBuildProjectTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistChangeLogTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistClearMemoryTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistCodeMutationEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistCodeSummaryTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistCompilerDiagnosticsEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistComplexityAnalysisTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistContextPersistenceStore.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistContextSnapshotTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistCopyFileTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistCreateDirectoryTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistCreateFileTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistDeleteDirectoryTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistDeleteFileTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistDependencyGraphTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistDependencyResolutionEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistDiffTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistEnvironmentInfoTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistExplainCodeTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistExternalResourceGateway.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistFormatCodeTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistGenerateFileTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistGenerateTestsTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistInsertCodeBlockTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistLintTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistLogCaptureTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistMoveFileTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistMultiFileEditTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistPatchApplicationEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistPlanTaskTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistProjectMutationController.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistReadDirectoryTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistReadFileTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistRefactorTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistRegexSearchTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistRenameFileTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistReplaceInFileTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistRestoreSnapshotTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistRetrieveMemoryTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistRuntimeDiagnosticsEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistSearchTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistSemanticQueryEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistSnapshotProjectTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistSourceGraphBuilder.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistStoreMemoryTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistSymbolSearchTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistTaskRunnerTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistTestRunnerTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistToolingSupport.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistTreeViewTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistUndoTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistValidateChangesTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistVersionControlOperator.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Assist/Tools/AssistWriteFileTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Assist/AssistDiffView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Assist/AssistMainView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Assist/AssistPlanView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Assist/AssistPlannerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Assist/AssistUserTakeover.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/FoundationModels.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Skills/CreateSkillView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Skills/BrowseSkillsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Skills/DraftSkillWithAIView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/SettingsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/RepositoryExplorerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/RepositoryAutomationBuilderView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowModels.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowTemplates.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowDashboardView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowBuilderView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowExecutionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/APIDocumentationEditor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/DatabaseDocumentationEditor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/ArchitectureDocumentationEditor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/FeaturePlanningEditor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/SecurityNotesEditor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/ChangelogEditor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/TechnicalSpecificationEditor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/DesignDocumentEditor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/ResearchNotesEditor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/MeetingNotesEditor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/StructuredRecordEditor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/FreeformDocumentEditor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/ReleaseChecklistEditor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/UserStoryEditor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/TestingNotesEditor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/Shared/BaseEditorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/Shared/DocNSTextView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Shared/Markdown/MarkdownBlockRenderer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Shared/Markdown/MarkdownRenderCache.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Shared/Markdown/MarkdownRenderOptions.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Shared/Markdown/MarkdownRenderer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/AIInsight.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/AnalyticsSnapshot.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/AttachmentRecord.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/Document.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/DocumentVersion.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/ModuleFieldSchema.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/ModuleKind.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/Relationship.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/SmartCollection.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/Template.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/WikiPage.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/RelationshipManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/IndexingManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/ExportManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/ResearchManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/PlanningManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/AttachmentManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/AnalyticsManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/DashboardManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/MetadataManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/AIContextManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/AIAnalysisManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/ImportManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/SearchManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/JournalManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/VersionHistoryManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/WikiManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/DocumentManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/StorageManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/TemplateManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Coordinators/PersonalDocumentationCoordinator.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/DashboardView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/GlobalSearchView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/PersonalDocCanvasView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/PlanningBoardView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/RecordDetailView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/RecordListView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/WikiPageView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/NSPersonalDocumentationView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Models/EcosystemModels.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Managers/EcosystemManagers.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/EcosystemViews.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/PersonalDocCommandPalette.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/DesignerDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/AESEncryptionDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/APIResponseViewerDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/ASCIIHexConverterDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/AccessibilityContrastGridDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/AdvancedRegexDebuggerDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/AppReceiptInspectorDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/AppSandboxExplorerDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/AppStateInspectorDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/BarcodeGeneratorDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/Base32ConverterDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/Base64DecoderDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/Base64EncoderDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/BatteryStatusDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/BezierCurveVisualizerDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/BezierPathCodeDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/BinaryHexConverterDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/BiometricAuthSimDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/HMACCalculatorDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/NetworkReachabilityDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/BreakpointManagerDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/BundleSizeAnalyzerDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CPUMonitorDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CSRFTokenDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CSVParserDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CURLConverterDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CURLGeneratorDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CacheViewerDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CharacterEscaperDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/ClipboardInspectorDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/ColorBlendingDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/ColorMixerDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/ColorPaletteGeneratorDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/ContrastCheckerDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/DatabaseCreateDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/DateFormatterDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/DeepLinkTesterDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/DiskUsageAnalyzerDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/EncryptionToolDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/EnergyImpactMonitorDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/EnvVarInspectorDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/EpochConverterDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/FPSMonitorDevToolView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/RuntimeManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/RuntimeDiscoveryView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/Logger+Simulator.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/CommandExecutionRecord.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/CommandExecutionEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/DeveloperEnvironmentProbe.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimctlJSONModels.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimctlDiscoveryClient.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorSnapshot.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorDiscoveryState.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorDiscoveryError.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorDiagnosticsSnapshot.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorDiscoveryPipeline.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/SimulatorDiagnosticsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/ExpandedDevTools.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/BuildSystem/XcodeProjParse.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/XcodeProjViewer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/XcodeProjTabs.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/ExtensionDemoView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/CodeRenderEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/JSONToSwiftView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/JSONToKotlinView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/JSONToTSView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/JSONToGoView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/JSONToJavaView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/JSONToPythonView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/JSONToCSharpView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/JSONToRustView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/JSONToDartView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/JSONToPHPView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CSVToJSONView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/JSONToCSVView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/XMLToJSONView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/TOMLToJSONView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/JSONToTOMLView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/JSONSchemaGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/StringEscaperView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/TextLineRemoverView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/TextDeduplicatorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/YAMLToJSONView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/RandomStringGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/PasswordStrengthMeterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/BcryptHashGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/URLSlugGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/HTMLMinifierView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CSSMinifierView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/SVGMinifierView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/URLDecomposerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/TextCaseSwapperView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/StringLengthCounterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/SubnetCalculatorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/UserAgentParserView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/MIMETypeLookupView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/HTTPHeaderParserView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CookieParserView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/Base64FileConverterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/GzipCompressorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/MACAddressGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/PortScannerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/SemVerCheckerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CronGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/ColorGradientGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CSSShadowGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CSSBorderRadiusGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/LengthConverterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/WeightConverterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/TemperatureConverterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/TimezoneConverterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/PercentageCalculatorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/AspectRatioCalculatorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/APITesterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/ASCIIArtGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/Base64ConverterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/BinaryConverterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CSSUnitConverterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CaseConverterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CertificateDecoderView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/ColorConverterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/CronParserView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/DNSLookupView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/DevToolsMainView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/DeviceInfoView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/DiffCheckerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/GitCheatsheetView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/HMACGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/HTMLEntityConverterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/HTTPStatusView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/HashGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/HexDecimalConverterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/IPAddressInfoView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/ImageBase64View.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/JSMinifierView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/JSONFormatterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/JWTDecoderView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/LoremIpsumGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/MarkdownPreviewerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/PasswordGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/PortLookupView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/QRCodeGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/RSAKeyGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/RegexTesterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/SQLFormatterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/SSLCheckerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/TextCounterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/TimestampConverterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/URLEncoderView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/UUIDGeneratorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/WebhookTesterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/WhoisLookupView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/XMLFormatterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dev\ Tools/YAMLConverterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/CodePatchEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentLogger.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/ToolSource.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/AI\ New/AgentToolbar.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/AI\ New/AgentModeView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Models/CustomEndpointManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Models/CoreModels.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Models/PackageDependency.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Offline\ Models/MLXSwift\ Foundation/MLXModelContainer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/On\ Device\ Intelligence/OnDeviceAIManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Deployments/DeploymentKeychainManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/AIRefactorExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/AIDocGenExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/AIModelDebugger/AIModelDebuggerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Build/AppDetailsInfo.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Editor/MarkdownFileView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Build/Xcode\ Build/XcodeBuildManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Build/Xcode\ Build/XcodeBuildConfigurationView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Build/Xcode\ Build/XcodeBuildLogView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Build/Xcode\ Build/AppleSignInManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Build/Xcode\ Build/AppleSignInView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Build/PrepareCompileWaitingView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Editor/EditorLogicFrameworks/AISuggestionEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/AI\ New/CodeChangesView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/AI\ New/AIToolExecutionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/AI\ New/Codex\ UIs/CodexDiffViewer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/AI\ New/Codex\ UIs/CodexPullRequestView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/AI\ New/Codex\ UIs/CodexErrorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/AI\ New/Codex\ UIs/CodexAPIKeyView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/AI\ New/Codex\ UIs/CodexRerunView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/AI\ New/Codex\ UIs/CodexFileHistoryView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/AI\ New/Codex\ UIs/CodexMainView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/AI\ New/Codex\ UIs/CodexUndoRedoView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/AI\ New/Codex\ UIs/CodexUsageView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/AI\ New/AICodeReviewView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/AI\ New/AICoreView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/AI\ New/ChatAIInterfaceView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/CodeReviewView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/OnDeviceAIView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/ComplexityAnalyzerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AI/ChatUIComponents.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Gists/GistDetailView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/CollaborationMainView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AI/ChooseModelView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AI/ChatController.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AI/LLMService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Views/DocumentationAIInsightsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Security/KeychainService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/UI/Styles/ModernGroupBoxStyle.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/UI/Utilities/SFSymbolBrowserView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Models/Project.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Models/AppSettings.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Models/AssistModelOption.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/AgentSkillManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/AssistSettingsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Models/ProjectFolder.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Models/FileNode.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Models/ToolbarItem.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/CodeIndex.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Models/CodeReviewModels.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/AgentCodeReviewManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Offline\ Models/OfflineModelRunner.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Offline\ Models/OfflineModelConverter.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Offline\ Models/OfflineModelMetadata.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Offline\ Models/OfflineModelManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Offline\ Models/DeviceCapabilityAnalyzer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Offline\ Models/MLXSwift\ Foundation/UniversalModelLoader.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Offline\ Models/MLXSwift\ Foundation/MLXIntegration.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Offline\ Models/OfflineModelDownloader.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Offline\ Models/OfflineModelsStorage.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Offline\ Models/HuggingFaceAPI.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Developer/InternalLoggingManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Developer/FeatureFlags.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Developer/DebugToolsRegistry.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Developer/DeveloperModeManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Store/EntitlementManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Store/StoreKitManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Store/AppStore.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/TestTools.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/On\ Device\ Intelligence/OnDeviceModelRouter.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/On\ Device\ Intelligence/OnDeviceSession.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/On\ Device\ Intelligence/DeviceUtilityManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/On\ Device\ Intelligence/OnDeviceCapabilities.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/On\ Device\ Intelligence/AppleIntelligenceService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/TestCoverageManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Licenses/LicenseCatalog.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/TransferPermission.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/TransferSession.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/ProjectTransferManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/PeerSessionManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/ProjectTransferSerializer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/Collaboration/PullRequestManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/Collaboration/PermissionsManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/Collaboration/PushManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/Collaboration/OfflineSyncManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/Collaboration/CollaborationNotificationManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/Collaboration/CollaborationCodeReviewManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/Collaboration/BranchManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/Collaboration/CommitManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/Collaboration/CollaborationSessionStore.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/Collaboration/BranchWorkspaceManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/Collaboration/CollaborationConflictResolutionEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/Collaboration/CollaborationManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/Collaboration/ActivityAuditManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/Collaboration/InviteManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Projects/Collaboration/CollaborationChatManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Building/Build/LocalBuildService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Building/Mac\ Helpers/ProjectPackager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Building/Mac\ Helpers/BuildModels.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Building/Connectivity/MacDiscoveryService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Codex/CodexResponseParser.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Codex/CodexErrorHandler.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Codex/CodexRequestBuilder.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Codex/CodexService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Codex/CodexSession.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Codex/CodexUsageTracker.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Codex/CodexManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Codex/CodexModelRouter.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/GitHub/GitHubAPI.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/GitHub/GitHubOAuth.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/GitHub/BuildingSystemAPI.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/GitHub/GitHubBuilds.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/GitHub/GitHubReleaseCheck.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/GitHub/GitHubImport.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/GitHub/GitCommands.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/GitHub/GitHubAuth.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/GitHub/GitHubGistService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/GitHub/GistModels.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/GitHub/GitHubRepositoryManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Deployments/NetlifyManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Deployments/GitHubPagesManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Deployments/DeploymentTargets.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Deployments/VercelManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Simulation/ProjectAnalyzer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Simulation/SwiftUIRuntimeLoader.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Simulation/LocalRunManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Simulation/SwiftUIEntryResolver.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Simulation/SwiftUIViewRenderer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Simulation/SwiftRuntimeCompiler.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Simulation/SimulationPreviewEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Simulation/ProjectScanner.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Simulation/SwiftDynamicLoader.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Simulation/LocalSimulationView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Simulation/LiveReloadManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Simulation/LocalSimulationEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Simulation/SimulationSandbox.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Local\ Simulation/PreviewHostView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Documentation/DocumentationAnalyzer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/BuildSystem/BuildLogDecoder.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Binaries/BinaryManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/CodingManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/GitHub/GitHubImportManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/FileSystem/CodeReaderManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/ToolbarActionManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/ProjectTemplateView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Custom\ Tools/CustomToolBuilderView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/GeneralSettingsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/KotlinSupportExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/PythonSupportExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/SwiftPackageManagerExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/CreateExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/DocCGeneratorExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/JSONFormatterExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/ColorPickerExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/NordThemeExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/SnippetLibraryExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/RustSupportExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/XcodeBuildToolExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/UnitTestGenExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/MarkdownPreviewExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/EditExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/TypeScriptSupportExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/CodeStatsExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/GoSupportExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/MultiCursorExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/GitBlameExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/SwiftLintRunnerExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/GruvboxThemeExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/RegexTesterExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/SwiftFormatterExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/TodoHighlighterExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Extension\ Management/DarkProThemeExtensionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/UpdatesView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Skills/SkillsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Skills/SkillsAddView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/Skills/SkillsInfoView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/ModelDownloadProgressView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/PluginCodeCreateView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/ProjectSettingsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/PluginManagerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/InstalledOfflineModelsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/OfflineModelsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/ModelLinkInstallGuideView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/NewSettingsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/CreditsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Settings/CodeSuggestionsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/CommandPalette/CommandPaletteView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/FileSystemInspector/FileSystemInspectorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/DebugOverlaysView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/BackgroundTaskMonitorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/EnvironmentSwitcherView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/CacheInspectorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/StoreKitDebug/StoreKitDebugView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/APILatencyTrackerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/DatabaseInspectorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/WebViewDebugger/WebViewDebuggerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/VerboseLogging/VerboseLoggingView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/ConsoleCommandRunnerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/APIInspector/APIInspectorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/PaywallDebug/PaywallDebugView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/DependencyHealthView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/CrashDebugger/CrashDebuggerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/FeatureFlags/FeatureFlagsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/StateInspectorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/GitHubAPIDebug/GitHubAPIDebugView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/CoreMLInspector/CoreMLInspectorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/RuntimeFlags/RuntimeFlagsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/PermissionsCheckerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/ErrorFrequencyTrackerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/BuildPipelineDebugger/BuildPipelineDebuggerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/ThreadInspector/ThreadInspectorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/BinaryTools/BinaryToolsViews.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/MemoryInspector/MemoryInspectorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/DeploymentDebug/DeploymentDebugView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/NetworkInspector/NetworkInspectorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/PerformanceMonitor/PerformanceMonitorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/MemoryLeakDetectionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/ExtensionDebugger/ExtensionDebuggerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/BuildDiagnosticsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/LogConsole/LogConsoleView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/DeveloperDashboard/DeveloperDashboardView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Developer/RealtimeMetricsDashboardView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Build/LocalBuildView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Build/BuildStatusView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Build/BuildLogsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Build/TerminalView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Build/CIBuildView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Build/LocalBuildDemoView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Editor/EntitlementsEditorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Editor/InfoPlistView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Editor/SymbolOutlineView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Editor/CodeEditorManagementView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Editor/GoToLineView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Editor/MinimapSettingsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Editor/SymbolNavigatorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Editor/EditorLogicFrameworks/CodeStructureAnalyzer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Editor/EditorLogicFrameworks/CodeExecutionManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Editor/EditorLogicFrameworks/TextLayoutEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Editor/EditorLogicFrameworks/CodeColoringTheme.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/SyntaxHighlighting/SyntaxHighlightingEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Editor/CodeEditorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dependencies/DependencyManagerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Search/CodeSearchView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/FilePreviewView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/SFSymbolPickerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/FileImporterRepresentableView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dashboard/GitHubRemoteSetupView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dashboard/FolderCreateView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dashboard/FoldersView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Paywall/PaywallView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/DiffViewer/DiffViewerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Navigator/FileNavigatorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Toolbar/ToolbarMinimizedView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Toolbar/ToolbarCustomizationView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Gists/GistsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Gists/CreateGistView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Gists/Components/GistFileTabBar.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Gists/Components/GistRowView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Gists/Components/GistCommentSectionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Gists/Components/GistFileEditorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Gists/Components/MarkdownToolbar.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Gists/GistRevisionsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Gists/GistDiffView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/CommitHistoryView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/LicencesAddView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/GitHubIssuesView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/BranchManagementView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/PullRequestView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/GitCLIView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/GitHubIntegrationView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/SCSetupOnboard.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/SourceControlView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/GitHubIntelligenceAndOperations.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/GitBlameViewer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/GitConflictResolverView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/GitCommandView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Deployments/DeploymentLogsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Deployments/DeploymentsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/ExtensionsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Errors/ErrorsPanelView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/PushPullManagerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/PRCreateView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/CollaborationFilePresenceOverlay.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/CollaborationDashboardView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/CollaborationSidebarView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/InviteMembersView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/PushPullView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/BranchWorkspaceView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/FilePermissionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/BranchGraphView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/CollaborationPullRequestView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/CollaborationBranchGraphView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/CollaborationConflictResolverView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/CollaborationDiffViewerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/ActivityLogView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/CollaborationChatView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/CommitManagerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/CollaborationNotificationCenterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/CollaborationBranchManagementView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/CollaborationAuditLogView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/CollaborationCodeReviewView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/ConflictResolverView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/CollaborationFeedbackView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/MemberManagementView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Collaboration/CollaborationCommitHistoryView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Transfer\ Projects/TransferProjectsHomeView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Transfer\ Projects/IncomingTransferView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Transfer\ Projects/PermissionConfigView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Transfer\ Projects/TransferProgressView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Transfer\ Projects/DevicePickerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Onboarding/OnboardingView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Onboarding/OnboardingSplashView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Onboarding/OnboardingFeaturesView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Onboarding/OnboardingWelcomeView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/Testing/Views/TestToolsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/Debug\ Tools/DebuggingToolsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Engines/CodeIntelligenceEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Engines/AdvancedToolsSharedDesignSystem.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Engines/SymbolIndexingEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Engines/WorkspaceProfilesManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Views/SearchDocumentationView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Views/AdvancedToolsDesignSystem.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Views/ProjectDependencyGraphView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Views/CrashLogAnalyzerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Views/CodeIntelligenceView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Views/SymbolIndexView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Views/AssetManagerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Views/CodeRefactoringView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Views/ExtensionMarketplaceView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Views/SnippetsLibraryView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Views/ErrorDiagnosticsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Views/CodeMetricsDashboardView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Views/DocumentationBrowserView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Features/AdvancedTools/Views/WorkspaceProfilesView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/OpenRouterService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/LocalModelManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/ZipImporter.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/ProjectTemplateManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Models/ProjectOpenError.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/ProjectOpeningCoordinator.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/ProjectSessionStore.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/ProjectResolutionService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Git/GitHubService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/ProjectFilesExtracter.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/ProjectBuilderManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/ToolbarSettings.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/RepoPermManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/CodeFormatter.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/SyntaxHighlighter.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/CodeSuggestionsML.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/PluginManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/Color+Hex.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/NotificationManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/FolderManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/LogManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/ExtensionManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Services/CodeIndexService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/NativeTextView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/CodeAnalysisTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ProjectIndexingTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/BreakpointStore.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/BookmarkStore.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Agent/Skills/SkillsEditorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/AI/OpenRouterAIProvider.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Agent/Skills/SkillsManagerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Agent/Skills/SkillsLibraryView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Agent/AgentChecklistView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Agent/QuestionsHandleView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Agent/AskUserPromptView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Agent/AgentToolCallSummaryView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Agent/AgentAttachmentChipView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Agent/AgentAttachmentPickerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Agent/AgentInputBarView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Agent/AgentMessageBubbleView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Agent/AgentMessageListView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Agent/AgentChatView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/ViewModels/AgentViewModel.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ChecklistPlan.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/QuestionHandler.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/AskUser.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/Skills/SkillsValidator.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/Skills/SkillsParser.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/Skills/SkillsRuntime.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/Skills/Skill.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AIProvider.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentOrchestrator.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentToolRegistry.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentSystemInitializer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentContextBuilder.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentError.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentTurnState.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentModelCheck.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentChecklistState.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentChecklistTaskStatus.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentChecklistTask.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentPendingQuestionSet.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentPendingQuestion.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentToolResult.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentToolCall.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentAttachment.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentMessageContent.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentMessage.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/Agent/AgentSession.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/App/AppCommands.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/App/SwiftCodeApp.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/App/AppDelegate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/App/SceneModel.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/AI/OpenRouterClient.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/AI/OpenRouterRequestBuilder.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/AI/SSEStreamDecoder.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Build/BuildLogLineParser.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Build/SwiftPackageBuildService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Build/XcodeBuildService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Debug/DebugRunnerService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/FileSystem/FileSystemService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/FileSystem/FileSystemWatcher.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Git/GitCredentialProvider.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Git/GitPorcelainParser.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Git/GitService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/PreferencesStore.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/NewFileComment.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/ProjectRegistryStore.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/ThemeStore.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/AIConversation.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/AIMessage.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/AI/OpenRouterModel.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Build/BuildConfiguration.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Build/BuildDiagnostic.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Build/BuildScheme.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Build/BuildTargetInfo.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Common/AppError.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Common/Result+Extensions.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Debug/ConsoleLine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Debug/DebugSession.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Debug/DebugModels.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Editor/EntitlementsEditorManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Editor/InfoPlistEditor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Editor/ProjectEditorCoordinator.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Editor/EditorTab.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Editor/SourceFileDocument.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Editor/SourceLanguage.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Editor/TextSelection.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Git/GitBranch.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Git/GitCommit.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Git/GitDiffHunk.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Git/GitFileStatus.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Git/GitRemote.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Git/GitStatusSnapshot.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Project/ProjectKind.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Project/ProjectNode.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Project/ProjectRegistryEntry.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Theme/EditorTheme.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Theme/SyntaxTokenKind.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Diff/DiffEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Diff/MyersDiffAlgorithm.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/ProjectTemplateEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/CommandLineToolTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/DocumentAppTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/FrameworkTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/GameMetalTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/GameSpriteKitTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/MacOSAppTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/DashboardViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/LoginViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/ChatViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/SettingsViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/OnboardingViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/ECommerceViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/CalendarViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/NotesViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/WeatherViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/TodoViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/AudioPlayerViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/ProfileViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/FitnessTrackerViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/NewsReaderViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/MapViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/DrawingViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/CalculatorViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/PhotoGalleryViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/MarkdownEditorViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/FileBrowserViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/TaskBoardViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/AnalyticsDashboardViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/RecipeViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/BudgetTrackerViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/QuizViewTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/IntroductionTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/MenuBarAppTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/MultiplatformAppTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/SafariExtensionTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/StaticLibraryTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/SwiftMacroTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/SwiftPackageTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/SwiftUIViewLibraryTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/SystemExtensionTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/iOSAppTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Backend/Persistence/Templates/SwiftDataAppTemplate.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/SyntaxHighlighting/SwiftTokenizer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/SyntaxHighlighting/TokenizedLine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/TextBuffer/TextBufferEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/DebounceTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/LoggingTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/PathTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/ProcessRunnerTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/RegexTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/StringDiffTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/ViewModels/AIAssistantViewModel.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/ViewModels/BuildViewModel.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/ViewModels/DebugSessionViewModel.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/ViewModels/EditorViewModel.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/ViewModels/GitViewModel.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/ViewModels/ProjectTreeViewModel.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/ViewModels/SettingsViewModel.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/ViewModels/ThemeViewModel.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/ViewModels/WorkspaceViewModel.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AIAssistantPanelView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AIChatInputView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AIChatMessageListView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AIModelPickerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/AISuggestionActionBar.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/BuildConsoleView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/BuildToolbarView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/DebugConsoleView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/EditorGutterView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/EditorTabBarView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/EditorTextView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/EditorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/GitBranchesView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/GitChangesView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/GitCloneSheetView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/GitCommitComposerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/GitConflictBannerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/GitDiffView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/GitFileRowView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/GitHistoryView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/GitNotInstalledView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/Legacy/GitPanelView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/HomeProjectGridView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/IssueNavigatorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/NewProjectSheetView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/WelcomeView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/ViewModels/WelcomeViewModel.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/SectionView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/ProjectNavigatorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/ProjectTreeRowView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/StatusBarView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/TemplatePickerView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/ThemeEditorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/ThemeGalleryView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/WorkspaceView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ExportProjManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ImportProjManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ManifestProjManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ProjectCoordinator.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ProjectDeserializer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ProjectErrorManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ProjectFileManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ProjectHashManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ProjectIntegrityManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ProjectJSONManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ProjectManifest.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ProjectMetadataManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ProjectPackageManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ProjectPlistManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ProjectResourceManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ProjectSerializer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ProjectValidator.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ProjectVersionManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Frameworks/Internal/ProjectXMLManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/InfoProjView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/ExportProjView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/ImportProjView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/UI/Styles/Styling/AdaptiveBreakpoints.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/UI/Styles/Styling/AdaptiveWindowMetrics.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/UI/Styles/Styling/AdaptiveLayoutEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/UI/Styles/Styling/StylingRegistry.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/UI/Styles/Styling/StylingBootstrap.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/UI/Styles/Styling/MacDesktopOptimized.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/UI/Styles/Styling/AdaptivePage.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/UI/Styles/Styling/AdaptiveGrid.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/UI/Styles/Styling/AdaptiveSettingsPage.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/UI/Styles/Styling/AdaptiveEditorPage.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/UI/Styles/Styling/AdaptiveDashboardPage.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/UI/Styles/Styling/AdaptiveSheet.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/UI/Styles/Styling/AdaptiveSplitLayout.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Sidebar/SidebarMainView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Sidebar/FileNavigatorSidebarView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Sidebar/GitSidebarView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Sidebar/DebugInspectorSidebarView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Sidebar/SearchSidebarView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Sidebar/DebugSessionsSidebarView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Sidebar/BreakpointsSidebarView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Sidebar/BookmarksSidebarView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Sidebar/TestsSidebarView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Sidebar/GitHubWorkflowsSidebarView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/RollbackChanges.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/SearchFiles.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/DeleteDirectory.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitCheckout.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/RunStaticAnalysis.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitMerge.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/DatabaseMigration.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/RenameFile.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ListDirectory.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/UIInspector.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ReactNative.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ReadFile.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ManageSecrets.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/CocoaPods.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ReadIssues.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/XcodeBuild.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ParseYAML.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/CreateIssue.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/DeleteFile.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/SearchIssues.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/UpdateIssue.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitRevert.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ReadPullRequest.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ExplainCode.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/Grep.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/StopRunningProcess.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/MoveFile.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/CreateFile.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/RunFormatter.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitWorktree.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/HTTPRequest.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/DependencyGraph.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/SwiftPackageManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/CopyFile.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/CallHierarchy.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/CreateDirectory.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitStatus.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GenerateCode.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/Carthage.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ListTools.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/Gradle.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/UpdateEnvironmentVariables.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/PerformanceProfiler.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GenerateDocumentation.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/Expo.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/Npm.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/RemoveDependencies.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/UpdateDependencies.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/RefactorCode.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/TreeView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/DockerCompose.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/DockerBuild.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/KubernetesApply.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ReplaceText.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitReset.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/JavaMaven.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ReviewCode.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitCommitTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GoBuild.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/Yarn.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GenerateUnitTests.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GetProcessLogs.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/RunTests.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/DatabaseSchemaInspector.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/DocumentationSearch.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GenerateComments.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/RunTypeChecker.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/RunBuild.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/SQLQuery.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ProjectAudit.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/NetworkInspector.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ReadBuildLogs.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/RunLinter.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/PackageSearch.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/DetectBugs.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitPush.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/RunApplication.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitClone.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/AndroidBuild.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/DockerRun.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/LicenseScan.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/SemanticCodeSearch.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitStash.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/DependencyAudit.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/CreatePullRequest.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/FixBugs.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitDiff.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/DotNetCLI.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitBranchTool.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/Flutter.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/UploadFile.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/MemoryProfiler.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/Cargo.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/OpenBrowser.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/Pnpm.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/FindText.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/BrowserAutomation.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ParseXML.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/CheckpointCreator.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/FetchURL.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/AccessibilityInspector.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitTag.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/WriteFile.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ProgressTracker.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitRebase.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/InstallDependencies.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/EditFile.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/RunBenchmark.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/APIReferenceSearch.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/PythonPip.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/Bun.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/SecurityScan.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/WebSearch.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ReadEnvironmentVariables.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/SymbolicateCrashLogs.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/DownloadFile.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/TodoManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitAdd.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ParseMarkdown.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ExecuteTerminalCommand.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ViewContainerLogs.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GenerateIntegrationTests.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/TaskPlanner.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/TakeScreenshot.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitPull.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/AIContextMemory.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitCherryPick.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ParseJSON.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ReadMultipleFiles.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitBlame.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/CrashAnalyzer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitShow.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GitLog.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/CrossReferenceSearch.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/GlobSearch.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Tools/Agentic/ReviewPullRequest.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Sidebar/StatusIndicator.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Sidebar/WorkflowEditorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/ShareSheet.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dashboard/FolderCardView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Dashboard/HomeProjectCardView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorDevice.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorRuntime.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorApplication.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorState.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorCommand.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorCommandExecutor.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimctlService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorDiscoveryService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorInstallationService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorLoggingService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorError.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Simulator/SimulatorConfiguration.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Preview/PreviewManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Preview/PreviewEngine.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Preview/PreviewSession.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Preview/PreviewHostManager.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Preview/PreviewRenderer.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Preview/PreviewDiscoveryService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Preview/PreviewBuildService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Preview/PreviewCommunicationService.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Preview/PreviewError.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Core/Preview/PreviewConfiguration.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/SimulatorMainView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/SimulatorSidebar.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/SimulatorToolbar.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/SimulatorDetailView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/SimulatorDeviceCard.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/SimulatorDeviceInformationView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/SimulatorAppsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/SimulatorRuntimeView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/SimulatorConsoleView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/SimulatorActionsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/SimulatorSettingsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/SimulatorCreationView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/SimulatorPreviewView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/PreviewCanvasView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/PreviewDeviceFrameView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/PreviewConfigurationView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/PreviewConsoleView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/RuntimeManagementView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/DeviceManagementView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/Utilities/Sims/ApplicationDeploymentView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/ActionsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/ActivityFeedView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/BranchesView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/GitHubCodeSearchView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/CommitsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/DiscussionsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/GitHubAccountView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/GitHubEmptyStateView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/GitHubErrorView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/GitHubInspector.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/GitHubLoadingView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/GitHubSettingsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/GitHubSidebar.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/GitHubToolbar.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/IssueDetailView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/IssuesView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/NotificationsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/OrganizationsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/PullRequestDetailView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/PullRequestsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/ReleasesView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/RepositoriesView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/RepositoryDashboardView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/RepositoryDetailView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/TagsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/SwiftCode/Views/GitHub/WorkflowRunsView.swift
+/Users/dylan/Library/Mobile\ Documents/com~apple~CloudDocs/SwiftCode-Mac/build/SwiftCode.build/Release/SwiftCode.build/DerivedSources/GeneratedAssetSymbols.swift

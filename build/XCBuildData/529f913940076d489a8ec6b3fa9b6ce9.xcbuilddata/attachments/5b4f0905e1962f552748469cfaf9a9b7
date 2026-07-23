@@ -1,0 +1,70 @@
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/ChildIndexPath.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/DirectiveArgument.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/Document.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/LiteralMarkup.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/Markup.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/MarkupChildren.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/MarkupData.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/PlainTextConvertibleMarkup.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Base/RawMarkup.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Block\ Container\ Blocks/BlockDirective.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Block\ Container\ Blocks/BlockQuote.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Block\ Container\ Blocks/CustomBlock.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Block\ Container\ Blocks/Doxygen\ Commands/DoxygenAbstract.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Block\ Container\ Blocks/Doxygen\ Commands/DoxygenDiscussion.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Block\ Container\ Blocks/Doxygen\ Commands/DoxygenNote.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Block\ Container\ Blocks/Doxygen\ Commands/DoxygenParameter.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Block\ Container\ Blocks/Doxygen\ Commands/DoxygenReturns.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Block\ Container\ Blocks/ListItem.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Block\ Container\ Blocks/OrderedList.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Block\ Container\ Blocks/UnorderedList.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Inline\ Container\ Blocks/Paragraph.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Leaf\ Blocks/CodeBlock.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Leaf\ Blocks/HTMLBlock.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Leaf\ Blocks/Heading.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Leaf\ Blocks/ThematicBreak.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Tables/Table.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Tables/TableBody.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Tables/TableCell.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Tables/TableCellContainer.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Tables/TableHead.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Block\ Nodes/Tables/TableRow.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Infrastructure/Replacement.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Infrastructure/SourceLocation.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline\ Nodes/Inline\ Containers/Emphasis.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline\ Nodes/Inline\ Containers/Image.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline\ Nodes/Inline\ Containers/InlineAttributes.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline\ Nodes/Inline\ Containers/Link.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline\ Nodes/Inline\ Containers/Strikethrough.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline\ Nodes/Inline\ Containers/Strong.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline\ Nodes/Inline\ Leaves/CustomInline.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline\ Nodes/Inline\ Leaves/InlineCode.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline\ Nodes/Inline\ Leaves/InlineHTML.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline\ Nodes/Inline\ Leaves/LineBreak.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline\ Nodes/Inline\ Leaves/SoftBreak.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline\ Nodes/Inline\ Leaves/SymbolLink.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Inline\ Nodes/Inline\ Leaves/Text.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Interpretive\ Nodes/Aside.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Parser/BlockDirectiveParser.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Parser/CommonMarkConverter.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Parser/LazySplitLines.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Parser/ParseOptions.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Parser/RangeAdjuster.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Parser/RangerTracker.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Rewriter/MarkupRewriter.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Structural\ Restrictions/BasicBlockContainer.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Structural\ Restrictions/BasicInlineContainer.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Structural\ Restrictions/BlockContainer.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Structural\ Restrictions/BlockMarkup.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Structural\ Restrictions/InlineContainer.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Structural\ Restrictions/InlineMarkup.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Structural\ Restrictions/ListItemContainer.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Utility/AtomicCounter.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Utility/CharacterExtensions.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Utility/CollectionExtensions.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Utility/StringExtensions.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Visitor/MarkupVisitor.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Walker/MarkupWalker.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Walker/Walkers/HTMLFormatter.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Walker/Walkers/MarkupFormatter.swift
+/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-markdown/Sources/Markdown/Walker/Walkers/MarkupTreeDumper.swift

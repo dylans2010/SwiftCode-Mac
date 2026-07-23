@@ -1,0 +1,16 @@
+{
+  "" : {
+    "const-values" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/WelcomeView/build/WelcomeView.build/Release/WelcomeView-t.build/Objects-normal/arm64/WelcomeView-primary.swiftconstvalues",
+    "dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/WelcomeView/build/WelcomeView.build/Release/WelcomeView-t.build/Objects-normal/arm64/WelcomeView-primary.d",
+    "diagnostics" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/WelcomeView/build/WelcomeView.build/Release/WelcomeView-t.build/Objects-normal/arm64/WelcomeView-primary.dia",
+    "emit-module-dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/WelcomeView/build/WelcomeView.build/Release/WelcomeView-t.build/Objects-normal/arm64/WelcomeView-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/WelcomeView/build/WelcomeView.build/Release/WelcomeView-t.build/Objects-normal/arm64/WelcomeView-primary-emit-module.dia",
+    "pch" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/WelcomeView/build/WelcomeView.build/Release/WelcomeView-t.build/Objects-normal/arm64/WelcomeView-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/WelcomeView/build/WelcomeView.build/Release/WelcomeView-t.build/Objects-normal/arm64/WelcomeView-primary.swiftdeps"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/WelcomeView/Sources/WelcomeView/WelcomeView.swift" : {
+    "index-unit-output-path" : "/WelcomeView.build/Release/WelcomeView-t.build/Objects-normal/arm64/WelcomeView.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/WelcomeView/build/WelcomeView.build/Release/WelcomeView-t.build/Objects-normal/arm64/WelcomeView.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/WelcomeView/build/WelcomeView.build/Release/WelcomeView-t.build/Objects-normal/arm64/WelcomeView.o"
+  }
+}

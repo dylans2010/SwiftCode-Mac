@@ -1,0 +1,271 @@
+{
+  "" : {
+    "const-values" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentParser-primary.swiftconstvalues",
+    "dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentParser-primary.d",
+    "diagnostics" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentParser-primary.dia",
+    "emit-module-dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentParser-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentParser-primary-emit-module.dia",
+    "pch" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentParser-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentParser-primary.swiftdeps"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Completions/BashCompletionsGenerator.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/BashCompletionsGenerator.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/BashCompletionsGenerator.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/BashCompletionsGenerator.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Completions/CompletionsGenerator.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CompletionsGenerator.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CompletionsGenerator.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CompletionsGenerator.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Completions/FishCompletionsGenerator.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/FishCompletionsGenerator.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/FishCompletionsGenerator.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/FishCompletionsGenerator.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Completions/ZshCompletionsGenerator.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ZshCompletionsGenerator.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ZshCompletionsGenerator.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ZshCompletionsGenerator.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Properties/Argument.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Argument.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Argument.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Argument.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Properties/ArgumentDiscussion.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentDiscussion.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentDiscussion.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentDiscussion.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Properties/ArgumentHelp.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentHelp.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentHelp.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentHelp.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Properties/ArgumentVisibility.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentVisibility.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentVisibility.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentVisibility.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Properties/CompletionKind.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CompletionKind.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CompletionKind.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CompletionKind.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Properties/Errors.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Errors.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Errors.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Errors.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Properties/Flag.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Flag.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Flag.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Flag.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Properties/NameSpecification.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/NameSpecification.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/NameSpecification.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/NameSpecification.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Properties/Option.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Option.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Option.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Option.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Properties/OptionGroup.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/OptionGroup.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/OptionGroup.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/OptionGroup.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Properties/ParentCommand.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParentCommand.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParentCommand.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParentCommand.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Types/AsyncParsableCommand.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/AsyncParsableCommand.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/AsyncParsableCommand.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/AsyncParsableCommand.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Types/CommandConfiguration.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CommandConfiguration.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CommandConfiguration.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CommandConfiguration.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Types/CommandGroup.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CommandGroup.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CommandGroup.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CommandGroup.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Types/EnumerableFlag.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/EnumerableFlag.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/EnumerableFlag.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/EnumerableFlag.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Types/ExpressibleByArgument.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ExpressibleByArgument.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ExpressibleByArgument.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ExpressibleByArgument.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Types/ParsableArguments.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParsableArguments.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParsableArguments.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParsableArguments.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsable Types/ParsableCommand.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParsableCommand.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParsableCommand.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParsableCommand.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsing/ArgumentDecoder.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentDecoder.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentDecoder.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentDecoder.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsing/ArgumentDefinition.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentDefinition.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentDefinition.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentDefinition.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsing/ArgumentSet.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentSet.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentSet.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ArgumentSet.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsing/CommandParser.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CommandParser.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CommandParser.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CommandParser.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsing/InputKey.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/InputKey.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/InputKey.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/InputKey.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsing/InputOrigin.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/InputOrigin.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/InputOrigin.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/InputOrigin.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsing/Name.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Name.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Name.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Name.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsing/Parsed.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Parsed.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Parsed.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Parsed.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsing/ParsedValues.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParsedValues.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParsedValues.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParsedValues.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsing/ParserError.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParserError.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParserError.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParserError.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Parsing/SplitArguments.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/SplitArguments.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/SplitArguments.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/SplitArguments.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Usage/DumpHelpGenerator.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/DumpHelpGenerator.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/DumpHelpGenerator.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/DumpHelpGenerator.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Usage/HelpCommand.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/HelpCommand.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/HelpCommand.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/HelpCommand.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Usage/HelpGenerator.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/HelpGenerator.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/HelpGenerator.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/HelpGenerator.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Usage/MessageInfo.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/MessageInfo.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/MessageInfo.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/MessageInfo.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Usage/UsageGenerator.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/UsageGenerator.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/UsageGenerator.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/UsageGenerator.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Utilities/CollectionExtensions.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CollectionExtensions.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CollectionExtensions.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CollectionExtensions.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Utilities/Foundation.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Foundation.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Foundation.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Foundation.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Utilities/Mutex.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Mutex.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Mutex.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Mutex.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Utilities/Platform.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Platform.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Platform.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Platform.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Utilities/SequenceExtensions.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/SequenceExtensions.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/SequenceExtensions.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/SequenceExtensions.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Utilities/StringExtensions.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/StringExtensions.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/StringExtensions.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/StringExtensions.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Utilities/SwiftExtensions.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/SwiftExtensions.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/SwiftExtensions.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/SwiftExtensions.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Utilities/Tree.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Tree.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Tree.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/Tree.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Validators/AsyncCompletionsValidator.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/AsyncCompletionsValidator.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/AsyncCompletionsValidator.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/AsyncCompletionsValidator.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Validators/CodingKeyValidator.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CodingKeyValidator.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CodingKeyValidator.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/CodingKeyValidator.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Validators/NonsenseFlagsValidator.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/NonsenseFlagsValidator.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/NonsenseFlagsValidator.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/NonsenseFlagsValidator.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Validators/ParsableArgumentsValidation.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParsableArgumentsValidation.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParsableArgumentsValidation.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/ParsableArgumentsValidation.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Validators/PositionalArgumentsValidator.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/PositionalArgumentsValidator.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/PositionalArgumentsValidator.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/PositionalArgumentsValidator.o"
+  },
+  "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/Sources/ArgumentParser/Validators/UniqueNamesValidator.swift" : {
+    "index-unit-output-path" : "/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/UniqueNamesValidator.o",
+    "llvm-bc" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/UniqueNamesValidator.bc",
+    "object" : "/Users/dylan/Library/Developer/Xcode/DerivedData/SwiftCode-algansfqropzrybxybgrcevguiuq/SourcePackages/checkouts/swift-argument-parser/build/swift-argument-parser.build/Release/ArgumentParser-t.build/Objects-normal/x86_64/UniqueNamesValidator.o"
+  }
+}

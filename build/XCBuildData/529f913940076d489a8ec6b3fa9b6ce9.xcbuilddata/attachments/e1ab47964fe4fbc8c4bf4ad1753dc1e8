@@ -1,0 +1,4 @@
+module MLXOptimizers {
+header "MLXOptimizers-Swift.h"
+export *
+}
