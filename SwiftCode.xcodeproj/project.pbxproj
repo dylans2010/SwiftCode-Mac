@@ -543,6 +543,9 @@
 		2E0A7FB1BC5F4001B2AEAD30 /* MLXRandom in Frameworks */ = {isa = PBXBuildFile; productRef = F58AD0F3D29C45FCA7AE5130 /* MLXRandom */; };
 		2E260D21EC954BE0B34CD4C5 /* GitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9227B7E4C6D695B8600E3170 /* GitService.swift */; };
 		2E76DFBAC08C4A37928D095E /* GitCommit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8399992DC054EE07E0402ACE /* GitCommit.swift */; };
+		E063E218D13ACDDD0B728F91 /* GitWorktree.swift in Sources */ = {isa = PBXBuildFile; fileRef = E063E218D13ACDDD0B728F90 /* GitWorktree.swift */; };
+		E063E218D13ACDDD0B728F93 /* WorktreeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E063E218D13ACDDD0B728F92 /* WorktreeManager.swift */; };
+		718173758FBD56C156A0D0FB /* GitWorktreesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 718173758FBD56C156A0D0FA /* GitWorktreesView.swift */; };
 		3083283A6A179216EC008262 /* PortScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44A938E3F055EEE7D0B34C3E /* PortScannerView.swift */; };
 		308352CFE1884D948D499E65 /* TextDeduplicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7798D51E6991DBC5F6BB8F5B /* TextDeduplicatorView.swift */; };
 		309FC2AD3A864674A7984AA8 /* AskUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91F57C3EA6E74626A356DC99 /* AskUser.swift */; };
@@ -2215,6 +2218,9 @@
 		91F57C3EA6E74626A356DC99 /* AskUser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Tools/Agentic/AskUser.swift; sourceTree = SOURCE_ROOT; };
 		920B5BFE45A3C9AD6F635DFC /* Apache-2.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "Apache-2.0.md"; sourceTree = "<group>"; };
 		9227B7E4C6D695B8600E3170 /* GitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitService.swift; sourceTree = "<group>"; };
+		E063E218D13ACDDD0B728F90 /* GitWorktree.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitWorktree.swift; sourceTree = "<group>"; };
+		E063E218D13ACDDD0B728F92 /* WorktreeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeManager.swift; sourceTree = "<group>"; };
+		718173758FBD56C156A0D0FA /* GitWorktreesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitWorktreesView.swift; sourceTree = "<group>"; };
 		92D7357997F3B0CCF189C3B0 /* SVGMinifierView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SVGMinifierView.swift; sourceTree = "<group>"; };
 		93477D270675CF4CF5B2D556 /* DeploymentKeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentKeychainManager.swift; sourceTree = "<group>"; };
 		9353FABC0AA24F409C6DE669 /* ReplaceText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplaceText.swift; sourceTree = "<group>"; };
@@ -3959,6 +3965,7 @@
 				8399992DC054EE07E0402ACE /* GitCommit.swift */,
 				A491FFB19879EC410C29D5BD /* GitRemote.swift */,
 				CDCF79B3AB0C394332CFA219 /* GitFileStatus.swift */,
+				E063E218D13ACDDD0B728F90 /* GitWorktree.swift */,
 			);
 			path = Git;
 			sourceTree = "<group>";
@@ -3966,6 +3973,7 @@
 		718173758FBD56C156A0D0F5 /* GitHub */ = {
 			isa = PBXGroup;
 			children = (
+				718173758FBD56C156A0D0FA /* GitWorktreesView.swift */,
 				430147FAAEEF9D972C019A45 /* WorkflowsCreateView.swift */,
 				A9B73BCEC27A7CE2A29991DA /* NSCreateRepositoryView.swift */,
 				FACF6D8C7FF98111D251AD40 /* NSMergeView.swift */,
@@ -4968,6 +4976,7 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 				B68DA3FF74B9ED80BC76F30C /* GitHubService.swift */,
 				93E220430C6ABA49BCBDCD5E /* GitPorcelainParser.swift */,
 				C901564B54FA929638592572 /* GitCredentialProvider.swift */,
+				E063E218D13ACDDD0B728F92 /* WorktreeManager.swift */,
 			);
 			path = Git;
 			sourceTree = "<group>";
@@ -5416,6 +5425,9 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E063E218D13ACDDD0B728F91 /* GitWorktree.swift in Sources */,
+				E063E218D13ACDDD0B728F93 /* WorktreeManager.swift in Sources */,
+				718173758FBD56C156A0D0FB /* GitWorktreesView.swift in Sources */,
 				5C5B7A8BC09181B28E3E9183 /* IPABuildView.swift in Sources */,
 				2793878F870AB918B3805F69 /* IPABuildService.swift in Sources */,
 				E10EBB51778C0DB11A37FB81 /* WorkflowsCreateView.swift in Sources */,

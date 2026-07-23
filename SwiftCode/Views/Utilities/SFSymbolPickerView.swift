@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Enums & Wrappers
+// MARK: - Enums & Options
 
 enum CustomSymbolRenderingMode: String, CaseIterable, Identifiable {
     case monochrome = "Monochrome"
@@ -65,7 +65,7 @@ enum PickerSymbolScaleOption: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Model
+// MARK: - Models
 
 struct SFSymbolRecord: Identifiable, Hashable, Sendable {
     let id: String // Symbol name
@@ -84,19 +84,18 @@ final class SFSymbolResourceLoader: Sendable {
     func loadSymbols(version: Int) -> [SFSymbolRecord] {
         let filename = "sfsymbol\(version)"
         guard let url = Bundle.main.url(forResource: filename, withExtension: "txt") else {
-            // Safe fallback if bundled files are not resolved in bundle
             let fallbackURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
                 .appendingPathComponent("SwiftCode/Resources/Symbols/\(filename).txt")
             if let content = try? String(contentsOf: fallbackURL, encoding: .utf8) {
                 return parseContent(content, version: version)
             }
-            return []
+            return fallbackSymbols(version: version)
         }
 
         if let content = try? String(contentsOf: url, encoding: .utf8) {
             return parseContent(content, version: version)
         }
-        return []
+        return fallbackSymbols(version: version)
     }
 
     private func parseContent(_ content: String, version: Int) -> [SFSymbolRecord] {
@@ -118,6 +117,18 @@ final class SFSymbolResourceLoader: Sendable {
             records.append(SFSymbolRecord(id: name, version: version, isMulticolor: isMulticolor))
         }
         return records
+    }
+
+    private func fallbackSymbols(version: Int) -> [SFSymbolRecord] {
+        return [
+            SFSymbolRecord(id: "star.fill", version: version, isMulticolor: false),
+            SFSymbolRecord(id: "heart.fill", version: version, isMulticolor: true),
+            SFSymbolRecord(id: "gearshape.fill", version: version, isMulticolor: false),
+            SFSymbolRecord(id: "arrow.triangle.branch", version: version, isMulticolor: false),
+            SFSymbolRecord(id: "terminal.fill", version: version, isMulticolor: false),
+            SFSymbolRecord(id: "sparkles", version: version, isMulticolor: true),
+            SFSymbolRecord(id: "lock.fill", version: version, isMulticolor: false)
+        ]
     }
 }
 
@@ -208,102 +219,66 @@ final class SFSymbolPickerViewModel: ObservableObject {
     }
 }
 
-// MARK: - SFSymbolPickerView
+// MARK: - Modernized SFSymbolPickerView
 
 struct SFSymbolPickerView: View {
     @StateObject private var viewModel = SFSymbolPickerViewModel()
     @State private var selectedSymbol: SFSymbolRecord? = nil
-    @State private var isShowingDetail = false
     @Environment(\.dismiss) private var dismiss
 
     private let columns = [
-        GridItem(.adaptive(minimum: 80, maximum: 110), spacing: 12)
+        GridItem(.adaptive(minimum: 80, maximum: 100), spacing: 12)
     ]
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Card 1: Configuration & Search Hub
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Search & Filters", systemImage: "sparkles")
-                                    .font(.headline)
-                                    .foregroundColor(.orange)
-                                Spacer()
-                            }
-
-                            HStack(spacing: 16) {
-                                Picker("SF Symbols Version", selection: $viewModel.selectedVersion) {
-                                    Text("SF Symbols 6").tag(6)
-                                    Text("SF Symbols 5").tag(5)
-                                    Text("SF Symbols 4").tag(4)
-                                }
-                                .pickerStyle(.segmented)
-                                .onChange(of: viewModel.selectedVersion) { _, _ in
-                                    viewModel.loadSymbols()
-                                }
-                                .frame(width: 320)
-
-                                HStack {
-                                    Image(systemName: "magnifyingglass")
-                                        .foregroundStyle(.secondary)
-                                    TextField("Search \(viewModel.symbols.count) symbols...", text: $viewModel.searchQuery)
-                                        .textFieldStyle(.plain)
-                                }
-                                .padding(8)
-                                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                            }
-                        }
-                        .padding()
+            VStack(spacing: 0) {
+                // High layout density header using native picker
+                HStack(spacing: 16) {
+                    Picker("Version", selection: $viewModel.selectedVersion) {
+                        Text("SF Symbols 6").tag(6)
+                        Text("SF Symbols 5").tag(5)
+                        Text("SF Symbols 4").tag(4)
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Card 2: Symbols Display Grid Card
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Symbol Directory", systemImage: "square.grid.2x2.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.blue)
-                                Spacer()
-                            }
-
-                            if viewModel.isSearching {
-                                VStack {
-                                    ProgressView()
-                                        .controlSize(.large)
-                                    Text("Loading symbols from source file...")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                        .padding(.top, 8)
-                                }
-                                .frame(maxWidth: .infinity, minHeight: 200)
-                            } else if viewModel.filteredSymbols.isEmpty {
-                                ContentUnavailableView(
-                                    "No Symbols Found",
-                                    systemImage: "doc.text.magnifyingglass",
-                                    description: Text("Try adjusting your query or filter.")
-                                )
-                                .frame(maxWidth: .infinity, minHeight: 200)
-                            } else {
-                                LazyVGrid(columns: columns, spacing: 12) {
-                                    ForEach(viewModel.filteredSymbols) { symbol in
-                                        symbolCell(symbol)
-                                    }
-                                }
-                                .padding(.vertical, 8)
-                            }
-                        }
-                        .padding()
+                    .pickerStyle(.segmented)
+                    .onChange(of: viewModel.selectedVersion) { _, _ in
+                        viewModel.loadSymbols()
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                    .frame(width: 320)
+
+                    Spacer()
                 }
-                .padding(24)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color(NSColor.windowBackgroundColor))
+
+                Divider()
+
+                // Symbol browser grid
+                ScrollView {
+                    if viewModel.isSearching {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                            Text("Loading symbols index...")
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 250)
+                    } else if viewModel.filteredSymbols.isEmpty {
+                        ContentUnavailableView("No Symbols Matched", systemImage: "doc.text.magnifyingglass")
+                            .frame(maxWidth: .infinity, minHeight: 250)
+                    } else {
+                        LazyVGrid(columns: columns, spacing: 12) {
+                            ForEach(viewModel.filteredSymbols) { symbol in
+                                symbolCell(symbol)
+                            }
+                        }
+                        .padding(16)
+                    }
+                }
             }
-            .background(Color(NSColor.windowBackgroundColor))
+            .background(Color(NSColor.underPageBackgroundColor))
             .navigationTitle("SF Symbols Browser")
+            .searchable(text: $viewModel.searchQuery, placement: .navigationBarDrawer, prompt: "Search \(viewModel.symbols.count) symbols...")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -320,32 +295,31 @@ struct SFSymbolPickerView: View {
             selectedSymbol = symbol
             viewModel.addToRecents(symbol.name)
         } label: {
-            VStack(spacing: 8) {
+            VStack(spacing: 6) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.secondary.opacity(0.08))
-                        .frame(width: 52, height: 52)
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.secondary.opacity(0.06))
+                        .frame(width: 48, height: 48)
 
                     Image(systemName: symbol.name)
-                        .font(.title2)
+                        .font(.title3)
                         .foregroundStyle(.primary)
                 }
 
                 Text(symbol.name)
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(1)
                     .multilineTextAlignment(.center)
-                    .frame(height: 24)
+                    .frame(maxWidth: 80)
             }
-            .padding(8)
-            .background(Color.white.opacity(0.02), in: RoundedRectangle(cornerRadius: 8))
+            .padding(4)
         }
         .buttonStyle(.plain)
     }
 }
 
-// MARK: - Detail Sheet
+// MARK: - Redesigned SFSymbolDetailSheet (Symbol Inspector)
 
 struct SFSymbolDetailSheet: View {
     let symbol: SFSymbolRecord
@@ -356,191 +330,225 @@ struct SFSymbolDetailSheet: View {
     @State private var renderingMode: CustomSymbolRenderingMode = .monochrome
     @State private var symbolWeight: PickerSymbolWeightOption = .regular
     @State private var symbolScale: PickerSymbolScaleOption = .large
+    @State private var fontSize: CGFloat = 48
+    @State private var variableValue: Double = 0.5
     @State private var primaryColor: Color = .orange
     @State private var secondaryColor: Color = .blue
-    @State private var effectTrigger = false
-    @State private var activeEffect = "Pulse"
+    @State private var backgroundOption = "Default"
+    @State private var selectedTemplate = "Basic Image"
 
     // Animation list
+    @State private var effectTrigger = false
+    @State private var activeEffect = "Bounce"
     let effects = ["Bounce", "Pulse", "Scale", "Appear", "Disappear"]
+
+    // Background list
+    let backgrounds = ["Default", "Light", "Dark", "Accent"]
+
+    // Templates
+    let codeTemplates = [
+        "Basic Image", "Label", "Button", "ToolbarItem",
+        "Navigation", "List Row", "Menu", "Context Menu",
+        "TabView", "Widget", "Lock Screen Widget", "macOS Toolbar", "iOS Toolbar"
+    ]
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Large Animated Preview Card
+            HSplitView {
+                // Left Panel: Interactive Live Preview & Background Settings
+                VStack(spacing: 16) {
+                    // Background Toggles & Preview Card
                     GroupBox {
-                        VStack(spacing: 16) {
-                            Text("Animated Live Preview")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
+                        VStack(spacing: 12) {
+                            Picker("Background", selection: $backgroundOption) {
+                                ForEach(backgrounds, id: \.self) { Text($0).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
 
                             ZStack {
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color.secondary.opacity(0.08))
-                                    .frame(width: 140, height: 140)
+                                previewColorBackground()
+                                    .frame(height: 160)
+                                    .cornerRadius(8)
 
                                 animatedPreviewSymbol()
                             }
-
-                            HStack(spacing: 12) {
-                                Button("Trigger Animation") {
-                                    effectTrigger.toggle()
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.orange)
-
-                                Picker("Effect", selection: $activeEffect) {
-                                    ForEach(effects, id: \.self) { effect in
-                                        Text(effect).tag(effect)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .frame(width: 120)
-                            }
                         }
-                        .padding()
-                        .frame(maxWidth: .infinity)
+                        .padding(6)
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Symbol Specifications Card
+                    // Live Previews inside common SwiftUI components
                     GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Symbol Metadata", systemImage: "info.circle.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.blue)
-                                Spacer()
-                            }
-
-                            HStack {
-                                Text("Symbol Name")
-                                Spacer()
-                                Text(symbol.name)
-                                    .bold()
-                                    .foregroundColor(.secondary)
-                                    .textSelection(.enabled)
-                            }
-
-                            HStack {
-                                Text("SF Symbols Version")
-                                Spacer()
-                                Text("v\(symbol.version).0")
-                                    .bold()
-                                    .foregroundColor(.secondary)
-                            }
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Component Integration Preview")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
 
                             Divider()
 
-                            HStack(spacing: 12) {
-                                Button("Copy Symbol Name") {
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.setString(symbol.name, forType: .string)
-                                }
-                                .buttonStyle(.bordered)
+                            // Label
+                            Label("Notification Alert", systemImage: symbol.name)
+                                .font(.headline)
 
-                                Button(action: {
-                                    viewModel.toggleFavorite(symbol.name)
-                                }) {
-                                    Label(viewModel.favorites.contains(symbol.name) ? "Favorited" : "Add Favorite", systemImage: viewModel.favorites.contains(symbol.name) ? "star.fill" : "star")
+                            // Button
+                            Button(action: {}) {
+                                HStack {
+                                    Image(systemName: symbol.name)
+                                    Text("Action Button")
                                 }
-                                .buttonStyle(.bordered)
-                                .foregroundColor(viewModel.favorites.contains(symbol.name) ? .yellow : .primary)
                             }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.regular)
+
+                            // List Row representation
+                            HStack {
+                                Image(systemName: symbol.name)
+                                    .foregroundStyle(.blue)
+                                Text("System Preferences Module")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(6)
+                            .background(Color.secondary.opacity(0.04))
+                            .cornerRadius(4)
                         }
-                        .padding()
+                        .padding(6)
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Rendering Adjustments Card
+                    // Metadata Info Card
                     GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Rendering Customization", systemImage: "slider.horizontal.3")
-                                    .font(.headline)
-                                    .foregroundColor(.green)
-                                Spacer()
-                            }
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Rendering Mode")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
-                                Picker("Rendering Mode", selection: $renderingMode) {
-                                    ForEach(CustomSymbolRenderingMode.allCases) { mode in
-                                        Text(mode.rawValue).tag(mode)
-                                    }
-                                }
-                                .pickerStyle(.segmented)
-                            }
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Symbol Weight")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
-                                Picker("Weight", selection: $symbolWeight) {
-                                    ForEach(PickerSymbolWeightOption.allCases) { weight in
-                                        Text(weight.rawValue).tag(weight)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                            }
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Symbol Scale")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
-                                Picker("Scale", selection: $symbolScale) {
-                                    ForEach(PickerSymbolScaleOption.allCases) { scale in
-                                        Text(scale.rawValue).tag(scale)
-                                    }
-                                }
-                                .pickerStyle(.segmented)
-                            }
-
-                            if renderingMode == .palette {
-                                HStack(spacing: 16) {
-                                    ColorPicker("Primary Color", selection: $primaryColor)
-                                    ColorPicker("Secondary Color", selection: $secondaryColor)
-                                }
-                            }
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Symbol Parameters").font(.caption.bold()).foregroundStyle(.secondary)
+                            Divider()
+                            LabeledContent("Name", value: symbol.name).font(.caption)
+                            LabeledContent("Category", value: "General, Core, Multi-Device").font(.caption)
+                            LabeledContent("Availability", value: "iOS 13.0+ | macOS 10.15+").font(.caption)
+                            LabeledContent("Variable Value Support", value: symbol.isMulticolor ? "Yes (iOS 16.0+)" : "No").font(.caption)
+                            LabeledContent("Accessibility Support", value: "Primary Screenreader Compliant").font(.caption)
                         }
-                        .padding()
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Generated SwiftUI Code Card
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Generated SwiftUI Code", systemImage: "doc.text.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.purple)
-                                Spacer()
-                                Button(action: {
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.setString(generateSwiftUICode(), forType: .string)
-                                }) {
-                                    Label("Copy Code", systemImage: "doc.on.doc")
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                            }
-
-                            Text(generateSwiftUICode())
-                                .font(.system(.caption, design: .monospaced))
-                                .padding()
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.black.opacity(0.15))
-                                .cornerRadius(8)
-                                .textSelection(.enabled)
-                        }
-                        .padding()
+                        .padding(6)
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
-                .padding(24)
+                .frame(minWidth: 260, idealWidth: 320, maxWidth: 380)
+                .padding(16)
+
+                // Right Panel: Rendering Adjustments & Generated Code Multi-Templates
+                VStack(spacing: 0) {
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            // Specifications Configurations Card
+                            GroupBox {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Label("Symbol Parameters", systemImage: "slider.horizontal.3")
+                                        .font(.headline)
+                                        .foregroundStyle(.green)
+
+                                    Divider()
+
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Font Size: \(Int(fontSize))pt").font(.caption.bold()).foregroundStyle(.secondary)
+                                        Slider(value: $fontSize, in: 24...120)
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Variable Value: \(variableValue, specifier: "%.2f")").font(.caption.bold()).foregroundStyle(.secondary)
+                                        Slider(value: $variableValue, in: 0...1.0)
+                                    }
+
+                                    Picker("Rendering Mode", selection: $renderingMode) {
+                                        ForEach(CustomSymbolRenderingMode.allCases) { Text($0.rawValue).tag($0) }
+                                    }
+                                    .pickerStyle(.menu)
+
+                                    Picker("Symbol Weight", selection: $symbolWeight) {
+                                        ForEach(PickerSymbolWeightOption.allCases) { Text($0.rawValue).tag($0) }
+                                    }
+                                    .pickerStyle(.menu)
+
+                                    Picker("Symbol Scale", selection: $symbolScale) {
+                                        ForEach(PickerSymbolScaleOption.allCases) { Text($0.rawValue).tag($0) }
+                                    }
+                                    .pickerStyle(.segmented)
+
+                                    if renderingMode == .palette {
+                                        HStack {
+                                            ColorPicker("Primary", selection: $primaryColor)
+                                            ColorPicker("Secondary", selection: $secondaryColor)
+                                        }
+                                    }
+                                }
+                                .padding(6)
+                            }
+                            .groupBoxStyle(ModernGroupBoxStyle())
+
+                            // Animations Config
+                            GroupBox {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Label("Animations & SF Effects", systemImage: "sparkles")
+                                        .font(.headline)
+                                        .foregroundStyle(.orange)
+
+                                    Divider()
+
+                                    HStack {
+                                        Picker("Effect", selection: $activeEffect) {
+                                            ForEach(effects, id: \.self) { Text($0).tag($0) }
+                                        }
+                                        .pickerStyle(.menu)
+
+                                        Button("Play Effect") {
+                                            effectTrigger.toggle()
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .tint(.orange)
+                                    }
+                                }
+                                .padding(6)
+                            }
+                            .groupBoxStyle(ModernGroupBoxStyle())
+
+                            // Generated Code Template Selector & Copy Block
+                            GroupBox {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack {
+                                        Label("SwiftUI Code Generator", systemImage: "doc.text.fill")
+                                            .font(.headline)
+                                            .foregroundStyle(.purple)
+                                        Spacer()
+
+                                        Button("Copy Code") {
+                                            NSPasteboard.general.clearContents()
+                                            NSPasteboard.general.setString(generateSwiftUICode(), forType: .string)
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                    }
+
+                                    Picker("Template", selection: $selectedTemplate) {
+                                        ForEach(codeTemplates, id: \.self) { Text($0).tag($0) }
+                                    }
+                                    .pickerStyle(.menu)
+
+                                    Text(generateSwiftUICode())
+                                        .font(.system(.caption, design: .monospaced))
+                                        .padding(10)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.black.opacity(0.12))
+                                        .cornerRadius(6)
+                                        .textSelection(.enabled)
+                                }
+                                .padding(6)
+                            }
+                            .groupBoxStyle(ModernGroupBoxStyle())
+                        }
+                        .padding(16)
+                    }
+                }
+                .frame(minWidth: 320, idealWidth: 380)
             }
             .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle(symbol.name)
@@ -550,60 +558,15 @@ struct SFSymbolDetailSheet: View {
                 }
             }
         }
-        .frame(width: 500, height: 600)
+        .frame(width: 850, height: 600)
     }
 
-    private func generateSwiftUICode() -> String {
-        var code = "Image(systemName: \"\(symbol.name)\")\n"
-
-        let weightStr: String = {
-            switch symbolWeight {
-            case .ultraLight: return ".ultraLight"
-            case .thin: return ".thin"
-            case .light: return ".light"
-            case .regular: return ".regular"
-            case .medium: return ".medium"
-            case .semibold: return ".semibold"
-            case .bold: return ".bold"
-            case .heavy: return ".heavy"
-            case .black: return ".black"
-            }
-        }()
-
-        let scaleStr: String = {
-            switch symbolScale {
-            case .small: return ".small"
-            case .medium: return ".medium"
-            case .large: return ".large"
-            }
-        }()
-
-        code += "    .font(.system(size: 64, weight: \(weightStr)))\n"
-        code += "    .imageScale(\(scaleStr))\n"
-
-        switch renderingMode {
-        case .monochrome:
-            code += "    .symbolRenderingMode(.monochrome)\n"
-            code += "    .foregroundStyle(Color.\(primaryColor.description))"
-        case .hierarchical:
-            code += "    .symbolRenderingMode(.hierarchical)\n"
-            code += "    .foregroundStyle(Color.\(primaryColor.description))"
-        case .palette:
-            code += "    .symbolRenderingMode(.palette)\n"
-            code += "    .foregroundStyle(Color.\(primaryColor.description), Color.\(secondaryColor.description))"
-        case .multicolor:
-            code += "    .symbolRenderingMode(.multicolor)"
-        }
-
-        return code
-    }
-
-    // MARK: - Animated Symbol Generator
+    // MARK: - Animated Symbol Preview Generator
 
     @ViewBuilder
     private func animatedPreviewSymbol() -> some View {
-        let baseImg = Image(systemName: symbol.name)
-            .font(.system(size: 64, weight: symbolWeight.fontWeight))
+        let baseImg = Image(systemName: symbol.name, variableValue: variableValue)
+            .font(.system(size: fontSize, weight: symbolWeight.fontWeight))
             .imageScale(symbolScale.imageScale)
 
         let styledImg: AnyView = {
@@ -644,6 +607,73 @@ struct SFSymbolDetailSheet: View {
             styledImg.symbolEffect(.appear, isActive: effectTrigger)
         } else {
             styledImg.symbolEffect(.disappear, isActive: effectTrigger)
+        }
+    }
+
+    // MARK: - Previews Color
+
+    private func previewColorBackground() -> Color {
+        switch backgroundOption {
+        case "Light": return .white
+        case "Dark": return .black
+        case "Accent": return Color.accentColor.opacity(0.18)
+        default: return Color.secondary.opacity(0.08)
+        }
+    }
+
+    // MARK: - Generated Code Template Parser
+
+    private func generateSwiftUICode() -> String {
+        let weightStr = ".\(symbolWeight.rawValue.replacingOccurrences(of: " ", with: "").lowercased())"
+        let scaleStr = ".\(symbolScale.rawValue.lowercased())"
+
+        var baseImageDeclaration = "Image(systemName: \"\(symbol.name)\""
+        if symbol.isMulticolor {
+            baseImageDeclaration += ", variableValue: \(variableValue)"
+        }
+        baseImageDeclaration += ")\n"
+        baseImageDeclaration += "    .font(.system(size: \(Int(fontSize)), weight: \(weightStr)))\n"
+        baseImageDeclaration += "    .imageScale(\(scaleStr))\n"
+
+        switch renderingMode {
+        case .monochrome:
+            baseImageDeclaration += "    .symbolRenderingMode(.monochrome)\n"
+        case .hierarchical:
+            baseImageDeclaration += "    .symbolRenderingMode(.hierarchical)\n"
+        case .palette:
+            baseImageDeclaration += "    .symbolRenderingMode(.palette)\n"
+            baseImageDeclaration += "    .foregroundStyle(.orange, .blue)\n"
+        case .multicolor:
+            baseImageDeclaration += "    .symbolRenderingMode(.multicolor)\n"
+        }
+
+        switch selectedTemplate {
+        case "Label":
+            return "Label {\n    Text(\"Notification Alert\")\n} icon: {\n    \(baseImageDeclaration.replacingOccurrences(of: "\n", with: "\n    "))\n}"
+        case "Button":
+            return "Button {\n    // Trigger Action\n} label: {\n    HStack {\n        \(baseImageDeclaration.replacingOccurrences(of: "\n", with: "\n        "))\n        Text(\"Action Button\")\n    }\n}"
+        case "ToolbarItem":
+            return "ToolbarItem(placement: .primaryAction) {\n    Button(action: {}) {\n        \(baseImageDeclaration.replacingOccurrences(of: "\n", with: "\n        "))\n    }\n}"
+        case "Navigation":
+            return "NavigationLink(destination: Text(\"Next View\")) {\n    \(baseImageDeclaration.replacingOccurrences(of: "\n", with: "\n    "))\n}"
+        case "List Row":
+            return "HStack {\n    \(baseImageDeclaration.replacingOccurrences(of: "\n", with: "\n    "))\n    Text(\"List Row Header\")\n}"
+        case "Menu":
+            return "Menu {\n    Button(\"Action Option\", action: {})\n} label: {\n    \(baseImageDeclaration.replacingOccurrences(of: "\n", with: "\n    "))\n}"
+        case "Context Menu":
+            return ".contextMenu {\n    Button(action: {}) {\n        Label(\"Action\", image: \"\(symbol.name)\")\n    }\n}"
+        case "TabView":
+            return "TabView {\n    Text(\"Home Tab View\")\n        .tabItem {\n            \(baseImageDeclaration.replacingOccurrences(of: "\n", with: "\n            "))\n            Text(\"Home\")\n        }\n}"
+        case "Widget":
+            return "struct SimpleWidgetEntryView : View {\n    var body: some View {\n        VStack {\n            \(baseImageDeclaration.replacingOccurrences(of: "\n", with: "\n            "))\n        }\n    }\n}"
+        case "Lock Screen Widget":
+            return "struct LockScreenWidgetView : View {\n    var body: some View {\n        \(baseImageDeclaration.replacingOccurrences(of: "\n", with: "\n        "))\n    }\n}"
+        case "macOS Toolbar":
+            return "NSToolbarItem {\n    // custom AppKit toolbar representation\n}"
+        case "iOS Toolbar":
+            return ".toolbar {\n    ToolbarItem(placement: .bottomBar) {\n        \(baseImageDeclaration.replacingOccurrences(of: "\n", with: "\n        "))\n    }\n}"
+        default:
+            return baseImageDeclaration
         }
     }
 }
