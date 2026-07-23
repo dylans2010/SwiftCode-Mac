@@ -45,7 +45,6 @@ public enum TerminalTheme: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-
 // MARK: - Models
 
 public enum SplitDirection: Codable {
@@ -91,87 +90,6 @@ public struct SSHHost: Identifiable, Codable {
     public var isFavorite: Bool
 }
 
-public struct SSHTunnel: Identifiable, Codable {
-    public var id = UUID()
-    public var name: String
-    public var type: String // "local", "remote", "dynamic"
-    public var localPort: Int
-    public var remoteHost: String
-    public var remotePort: Int
-}
-
-public struct TerminalTask: Identifiable, Codable {
-    public var id = UUID()
-    public var name: String
-    public var command: String
-    public var schedule: String // e.g. "manual", "interval"
-    public var intervalSeconds: Int
-}
-
-public struct TerminalRecording: Identifiable, Codable {
-    public var id = UUID()
-    public var name: String
-    public var date: Date
-    public var durationSeconds: Int
-    public var lines: [String]
-}
-
-public struct ProcessItem: Identifiable {
-    public var id = UUID()
-    public var pid: Int32
-    public var ppid: Int32
-    public var name: String
-    public var cpuPercent: Double
-    public var memoryPercent: Double
-    public var state: String
-}
-
-public struct RemoteFSNode: Identifiable {
-    public var id: String { path }
-    public var name: String
-    public var path: String
-    public var isDirectory: Bool
-    public var permissions: String
-    public var size: Int64
-    public var modDate: String
-}
-
-public struct RemoteTransfer: Identifiable {
-    public var id = UUID()
-    public var name: String
-    public var size: Int64
-    public var percentComplete: Double
-    public var direction: String // "upload" or "download"
-    public var speed: String
-    public var status: String // "Queued", "In Progress", "Completed", "Error"
-}
-
-public enum ActivePanel: String, CaseIterable, Identifiable {
-    case ssh = "SSH Connections"
-    case profiles = "Profiles"
-    case history = "History"
-    case commandLibrary = "Snippets"
-    case environment = "Env Manager"
-    case remoteFS = "Remote SFTP"
-    case tasks = "Tasks/Macros"
-    case recordings = "Recordings"
-
-    public var id: String { rawValue }
-
-    public var icon: String {
-        switch self {
-        case .ssh: return "network"
-        case .profiles: return "person.crop.square"
-        case .history: return "clock.arrow.circlepath"
-        case .commandLibrary: return "square.grid.2x2"
-        case .environment: return "slider.horizontal.3"
-        case .remoteFS: return "folder.badge.gearshape"
-        case .tasks: return "play.square.stack"
-        case .recordings: return "record.circle"
-        }
-    }
-}
-
 // MARK: - Split Layout Configuration
 public indirect enum LayoutNode: Codable {
     case single(UUID) // Session ID
@@ -196,12 +114,6 @@ public struct TerminalTab: Identifiable, Codable {
     public var colorHex: String? = nil
 }
 
-public struct SavedLayout: Identifiable, Codable {
-    public var id = UUID()
-    public var name: String
-    public var tabs: [TerminalTab]
-}
-
 // MARK: - Terminal Session
 
 @Observable
@@ -221,8 +133,6 @@ public final class TerminalSession: Identifiable, @unchecked Sendable {
 
     private var activeProcess: Process?
     private let outputPipe = Pipe()
-    private var isRecording: Bool = false
-    private var recordingLines: [String] = []
 
     public struct TerminalLine: Identifiable {
         public let id = UUID()
@@ -239,31 +149,11 @@ public final class TerminalSession: Identifiable, @unchecked Sendable {
         self.outputLines.append(TerminalLine(text: "Session \(name) initialized.", type: .info))
     }
 
-    public func startRecording() {
-        isRecording = true
-        recordingLines = []
-        outputLines.append(TerminalLine(text: "[Recording Started]", type: .info))
-    }
-
-    public func stopRecording() -> TerminalRecording {
-        isRecording = false
-        outputLines.append(TerminalLine(text: "[Recording Stopped]", type: .info))
-        return TerminalRecording(
-            name: "Session Record \(Date().formatted())",
-            date: Date(),
-            durationSeconds: Int(Date().timeIntervalSince(startTime)),
-            lines: recordingLines
-        )
-    }
-
     public func runCommand(_ cmd: String) {
         let trimmed = cmd.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
         outputLines.append(TerminalLine(text: trimmed, type: .command))
-        if isRecording {
-            recordingLines.append("❯ \(trimmed)")
-        }
         activeCommand = trimmed
         isRunning = true
 
@@ -273,7 +163,9 @@ public final class TerminalSession: Identifiable, @unchecked Sendable {
 
         runProcess.executableURL = URL(fileURLWithPath: "/bin/zsh")
         runProcess.arguments = ["-c", trimmed]
-        runProcess.currentDirectoryURL = URL(fileURLWithPath: currentDirectory)
+
+        let pathExists = FileManager.default.fileExists(atPath: currentDirectory)
+        runProcess.currentDirectoryURL = URL(fileURLWithPath: pathExists ? currentDirectory : "/")
         runProcess.standardOutput = pipe
         runProcess.standardError = errorPipe
 
@@ -337,9 +229,6 @@ public final class TerminalSession: Identifiable, @unchecked Sendable {
         let lines = text.components(separatedBy: .newlines)
         for line in lines where !line.isEmpty {
             outputLines.append(TerminalLine(text: line, type: type))
-            if isRecording {
-                recordingLines.append(line)
-            }
         }
     }
 }
@@ -359,26 +248,15 @@ public final class TerminalManager: @unchecked Sendable {
 
     // Custom UI settings
     public var theme: TerminalTheme = .midnight
-    public var activePanel: ActivePanel = .ssh
-    public var showSidebar = true
-    public var showInspector = false
+    public var searchQuery = ""
 
-    // Saved Models (Persistent simulation/real storage)
+    // Saved Models
     public var savedHosts: [SSHHost] = []
     public var savedProfiles: [TerminalProfile] = []
     public var commandHistory: [String] = []
     public var commandLibrary: [CommandLibraryItem] = []
     public var environments: [EnvVar] = []
-    public var savedTasks: [TerminalTask] = []
-    public var recordings: [TerminalRecording] = []
-    public var transfers: [RemoteTransfer] = []
-    public var remoteFSNodes: [RemoteFSNode] = []
-    public var currentRemotePath: String = "/home/developer"
 
-    // Multi-Window handling
-    public var savedLayouts: [SavedLayout] = []
-
-    // Quick configurations
     private init() {
         loadDefaults()
         createNewTab()
@@ -391,37 +269,6 @@ public final class TerminalManager: @unchecked Sendable {
         tabs.append(newTab)
         activeTabID = newTab.id
         activeSessionID = session.id
-    }
-
-    public func splitActiveSession(direction: SplitDirection) {
-        guard let activeTabID = activeTabID,
-              let activeSessionID = activeSessionID,
-              let tabIndex = tabs.firstIndex(where: { $0.id == activeTabID }) else { return }
-
-        let newSession = TerminalSession(name: "Split Shell")
-        sessions[newSession.id] = newSession
-
-        func updateLayout(_ node: LayoutNode) -> LayoutNode {
-            switch node {
-            case .single(let id):
-                if id == activeSessionID {
-                    switch direction {
-                    case .horizontal:
-                        return .horizontal([.single(id), .single(newSession.id)])
-                    case .vertical:
-                        return .vertical([.single(id), .single(newSession.id)])
-                    }
-                }
-                return node
-            case .horizontal(let children):
-                return .horizontal(children.map { updateLayout($0) })
-            case .vertical(let children):
-                return .vertical(children.map { updateLayout($0) })
-            }
-        }
-
-        tabs[tabIndex].layout = updateLayout(tabs[tabIndex].layout)
-        self.activeSessionID = newSession.id
     }
 
     public func closeSession(_ id: UUID) {
@@ -462,32 +309,6 @@ public final class TerminalManager: @unchecked Sendable {
         }
     }
 
-    public func duplicateSession(_ id: UUID) {
-        guard let session = sessions[id] else { return }
-        let copy = TerminalSession(name: "\(session.name) Copy", profile: session.profile, sshHost: session.sshHost)
-        sessions[copy.id] = copy
-
-        guard let activeTabID = activeTabID,
-              let tabIndex = tabs.firstIndex(where: { $0.id == activeTabID }) else { return }
-
-        func insertDuplicate(_ node: LayoutNode) -> LayoutNode {
-            switch node {
-            case .single(let sId):
-                if sId == id {
-                    return .horizontal([.single(sId), .single(copy.id)])
-                }
-                return node
-            case .horizontal(let children):
-                return .horizontal(children.map { insertDuplicate($0) })
-            case .vertical(let children):
-                return .vertical(children.map { insertDuplicate($0) })
-            }
-        }
-
-        tabs[tabIndex].layout = insertDuplicate(tabs[tabIndex].layout)
-        activeSessionID = copy.id
-    }
-
     public func connectToHost(_ host: SSHHost) {
         let session = TerminalSession(name: "SSH: \(host.name)", sshHost: host)
         sessions[session.id] = session
@@ -499,82 +320,11 @@ public final class TerminalManager: @unchecked Sendable {
         session.runCommand("ssh -p \(host.port) \(host.username)@\(host.address)")
     }
 
-    // Layout Persistence
-    public func saveLayout(named: String) {
-        let layout = SavedLayout(name: named, tabs: tabs)
-        savedLayouts.append(layout)
-        saveLayoutsToDisk()
-    }
-
-    public func restoreLayout(_ layout: SavedLayout) {
-        self.tabs = layout.tabs
-        for tab in tabs {
-            for id in tab.layout.allSessionIDs {
-                let session = TerminalSession(name: "Restored Session")
-                sessions[id] = session
-            }
-        }
-        self.activeTabID = tabs.first?.id
-        self.activeSessionID = tabs.first?.layout.allSessionIDs.first
-    }
-
-    // SSH Config parser
-    public func parseSSHConfig() {
-        let homeDir = FileManager.default.homeDirectoryForCurrentUser
-        let configURL = homeDir.appendingPathComponent(".ssh/config")
-        guard FileManager.default.fileExists(atPath: configURL.path) else { return }
-
-        do {
-            let content = try String(contentsOf: configURL, encoding: .utf8)
-            var currentHost: SSHHost?
-            let lines = content.components(separatedBy: .newlines)
-
-            for line in lines {
-                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
-
-                let parts = trimmed.components(separatedBy: .whitespaces)
-                guard parts.count >= 2 else { continue }
-                let keyword = parts[0].lowercased()
-                let value = parts[1...].joined(separator: " ")
-
-                if keyword == "host" {
-                    if let previous = currentHost {
-                        savedHosts.append(previous)
-                    }
-                    currentHost = SSHHost(name: value, address: "", port: 22, username: "", authMethod: "password", keyPath: "", group: "SSH Config", tags: "imported", isFavorite: false)
-                } else if var host = currentHost {
-                    if keyword == "hostname" {
-                        host.address = value
-                    } else if keyword == "user" {
-                        host.username = value
-                    } else if keyword == "port", let portVal = Int(value) {
-                        host.port = portVal
-                    } else if keyword == "identityfile" {
-                        host.keyPath = value
-                        host.authMethod = "publicKey"
-                    }
-                    currentHost = host
-                }
-            }
-
-            if let last = currentHost {
-                savedHosts.append(last)
-            }
-            logger.info("Successfully parsed SSH Config.")
-        } catch {
-            logger.error("Failed to read ~/.ssh/config: \(error.localizedDescription)")
-        }
-    }
-
-    // Default simulation lists
     private func loadDefaults() {
         savedProfiles = [
             TerminalProfile(name: "zsh", icon: "terminal", executable: "/bin/zsh", startupCommand: "", environmentVariables: [:], workingDirectory: "/"),
             TerminalProfile(name: "bash", icon: "terminal.fill", executable: "/bin/bash", startupCommand: "", environmentVariables: [:], workingDirectory: "/"),
-            TerminalProfile(name: "fish", icon: "circle.grid.3x3.fill", executable: "/usr/local/bin/fish", startupCommand: "", environmentVariables: [:], workingDirectory: "/"),
-            TerminalProfile(name: "PowerShell", icon: "chevron.right.square.fill", executable: "/usr/local/bin/pwsh", startupCommand: "", environmentVariables: [:], workingDirectory: "/"),
-            TerminalProfile(name: "Nushell", icon: "cpu.fill", executable: "/usr/local/bin/nu", startupCommand: "", environmentVariables: [:], workingDirectory: "/")
+            TerminalProfile(name: "fish", icon: "circle.grid.3x3.fill", executable: "/usr/local/bin/fish", startupCommand: "", environmentVariables: [:], workingDirectory: "/")
         ]
 
         savedHosts = [
@@ -585,644 +335,371 @@ public final class TerminalManager: @unchecked Sendable {
         commandHistory = [
             "swift build",
             "git status",
-            "docker-compose up -d",
             "npm run dev",
-            "scp -r ./dist user@13.234.45.109:/var/www"
+            "docker-compose up -d"
         ]
 
         commandLibrary = [
             CommandLibraryItem(name: "Count Lines of Code", command: "find . -name '*.swift' | xargs wc -l", category: "Git/Utilities", notes: "Recursively find swift files and count total lines of code."),
-            CommandLibraryItem(name: "Prune Git Branches", command: "git branch -vv | grep ': gone]' | grep -v '*' | awk '{print $1}' | xargs -r git branch -D", category: "Git/Utilities", notes: "Quickly delete local branches that were already merged on remote."),
-            CommandLibraryItem(name: "Prune Docker Images", command: "docker image prune -f && docker system prune -f", category: "DevOps", notes: "Clean unused Docker storage layers to free up disk space.")
+            CommandLibraryItem(name: "Prune Git Branches", command: "git branch -vv | grep ': gone]' | grep -v '*' | awk '{print $1}' | xargs -r git branch -D", category: "Git/Utilities", notes: "Quickly delete local branches that were already merged on remote.")
         ]
 
         environments = [
-            EnvVar(key: "API_SECRET_KEY", value: "api_secret_key_placeholder", isSecret: true),
             EnvVar(key: "DEBUG_LEVEL", value: "verbose", isSecret: false),
             EnvVar(key: "PORT", value: "8080", isSecret: false)
         ]
-
-        savedTasks = [
-            TerminalTask(name: "Live Lint Analyzer", command: "swiftlint lint", schedule: "manual", intervalSeconds: 0),
-            TerminalTask(name: "Automated Backup Pipeline", command: "tar -czf backup.tar.gz ./Sources", schedule: "interval", intervalSeconds: 300)
-        ]
-
-        remoteFSNodes = [
-            RemoteFSNode(name: "www", path: "/home/developer/www", isDirectory: true, permissions: "drwxr-xr-x", size: 4096, modDate: "Today, 14:32"),
-            RemoteFSNode(name: "index.html", path: "/home/developer/index.html", isDirectory: false, permissions: "-rw-r--r--", size: 10423, modDate: "Yesterday, 18:20"),
-            RemoteFSNode(name: "api.py", path: "/home/developer/api.py", isDirectory: false, permissions: "-rwxr-xr-x", size: 4560, modDate: "Jul 21, 12:00")
-        ]
-
-        parseSSHConfig()
-    }
-
-    private func saveLayoutsToDisk() {
-        if let data = try? JSONEncoder().encode(savedLayouts) {
-            UserDefaults.standard.set(data, forKey: "com.swiftcode.terminal.layouts")
-        }
     }
 }
 
-// MARK: - Views
+// MARK: - Redesigned Primary TerminalView
 
 @MainActor
 public struct TerminalView: View {
-    @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var manager = TerminalManager.shared
-
-    @State private var isShowingSaveLayoutAlert = false
-    @State private var newLayoutName = ""
+    @State private var isShowingManagementSuite = false
+    @State private var selectedManagementTab = "Settings"
 
     public var body: some View {
-        HSplitView {
-            if manager.showSidebar {
-                TerminalSidebar(manager: manager)
-                    .frame(minWidth: 240, idealWidth: 280, maxWidth: 350)
-            }
+        VStack(spacing: 0) {
+            // Tab list toolbar
+            tabHeaderView
 
-            VSplitView {
-                TerminalWorkspaceArea(manager: manager)
-                    .frame(minHeight: 200, maxHeight: .infinity)
-
-                if !manager.transfers.isEmpty {
-                    TransferQueuePanel(manager: manager)
-                        .frame(height: 150)
-                }
-            }
-
-            if manager.showInspector {
-                TerminalInspectorPanel(manager: manager)
-                    .frame(minWidth: 260, idealWidth: 300, maxWidth: 400)
+            // Central Terminal Output & Input Panel
+            if let activeTab = manager.tabs.first(where: { $0.id == manager.activeTabID }),
+               let sId = activeTab.layout.allSessionIDs.first,
+               let session = manager.sessions[sId] {
+                InteractiveTerminalSessionView(session: session, manager: manager)
+            } else {
+                ContentUnavailableView("No active tabs", systemImage: "terminal")
             }
         }
         .background(manager.theme.backgroundColor)
         .toolbar {
-            ToolbarItemGroup(placement: .navigation) {
-                Button {
-                    withAnimation {
-                        manager.showSidebar.toggle()
-                    }
-                } label: {
-                    Label("Toggle Sidebar", systemImage: "sidebar.left")
-                }
-
-                Button {
-                    withAnimation {
-                        manager.showInspector.toggle()
-                    }
-                } label: {
-                    Label("Toggle Inspector", systemImage: "sidebar.right")
-                }
-            }
-
             ToolbarItemGroup(placement: .primaryAction) {
-                // Layout preset picker
+                // Secondary Managers Launcher Button
                 Button {
-                    isShowingSaveLayoutAlert = true
+                    isShowingManagementSuite = true
                 } label: {
-                    Label("Save Workspace", systemImage: "square.and.arrow.down")
+                    Label("Advanced Options", systemImage: "slider.horizontal.3")
                 }
-                .help("Save current split layout configuration")
+                .help("Launch advanced Terminal settings, SSH node lists, Environment configuration, and snippets")
 
                 Picker("", selection: Bindable(manager).theme) {
                     ForEach(TerminalTheme.allCases) { theme in
                         Text(theme.rawValue).tag(theme)
                     }
                 }
-                .frame(width: 140)
+                .frame(width: 130)
             }
         }
-        .alert("Save Layout", isPresented: $isShowingSaveLayoutAlert) {
-            TextField("Layout Name", text: $newLayoutName)
-            Button("Cancel", role: .cancel) {}
-            Button("Save") {
-                if !newLayoutName.isEmpty {
-                    manager.saveLayout(named: newLayoutName)
-                    newLayoutName = ""
-                }
-            }
+        .sheet(isPresented: $isShowingManagementSuite) {
+            terminalManagementSuiteSheet
         }
     }
-}
 
-// MARK: - Sidebar view
+    private var tabHeaderView: some View {
+        HStack {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(manager.tabs) { tab in
+                        HStack(spacing: 6) {
+                            Text(tab.name)
+                            Button {
+                                manager.closeSession(tab.layout.allSessionIDs.first ?? UUID())
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 8))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(manager.activeTabID == tab.id ? manager.theme.backgroundColor : manager.theme.headerColor)
+                        .cornerRadius(6)
+                        .onTapGesture {
+                            manager.activeTabID = tab.id
+                            manager.activeSessionID = tab.layout.allSessionIDs.first
+                        }
+                    }
+                }
+            }
 
-@MainActor
-struct TerminalSidebar: View {
-    @Bindable var manager: TerminalManager
+            Button {
+                manager.createNewTab()
+            } label: {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, 4)
 
-    var body: some View {
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(manager.theme.headerColor)
+    }
+
+    // MARK: - Advanced Management Suite Sheet
+
+    private var terminalManagementSuiteSheet: some View {
         VStack(spacing: 0) {
-            // Panel list switcher
-            List(ActivePanel.allCases, selection: $manager.activePanel) { panel in
-                Label(panel.rawValue, systemImage: panel.icon)
-                    .tag(panel)
-            }
-            .listStyle(.sidebar)
-            .frame(height: 180)
-
-            Divider()
-
-            ScrollView {
-                switch manager.activePanel {
-                case .ssh:
-                    SSHConnectionsSidebar(manager: manager)
-                case .profiles:
-                    ProfilesSidebar(manager: manager)
-                case .history:
-                    HistorySidebar(manager: manager)
-                case .commandLibrary:
-                    CommandLibrarySidebar(manager: manager)
-                case .environment:
-                    EnvironmentSidebar(manager: manager)
-                case .remoteFS:
-                    RemoteFSSidebar(manager: manager)
-                case .tasks:
-                    TasksSidebar(manager: manager)
-                case .recordings:
-                    RecordingsSidebar(manager: manager)
-                }
-            }
-        }
-        .background(manager.theme.headerColor.opacity(0.8))
-    }
-}
-
-// MARK: - SSH Sidebar
-
-@MainActor
-struct SSHConnectionsSidebar: View {
-    var manager: TerminalManager
-    @State private var isAddingHost = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Saved Connections")
+                Text("Terminal Advanced Management Suite")
                     .font(.headline)
                 Spacer()
-                Button {
-                    isAddingHost = true
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal)
-            .padding(.top)
-
-            ForEach(manager.savedHosts) { host in
-                Button {
-                    manager.connectToHost(host)
-                } label: {
-                    HStack {
-                        Image(systemName: host.isFavorite ? "star.fill" : "network")
-                            .foregroundStyle(host.isFavorite ? .yellow : .blue)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(host.name)
-                                .fontWeight(.medium)
-                            Text("\(host.username)@\(host.address):\(host.port)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .padding(8)
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal)
-            }
-        }
-    }
-}
-
-// MARK: - Profiles Sidebar
-
-@MainActor
-struct ProfilesSidebar: View {
-    var manager: TerminalManager
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Shell Profiles")
-                .font(.headline)
-                .padding(.horizontal)
-                .padding(.top)
-
-            ForEach(manager.savedProfiles) { profile in
-                Button {
-                    manager.createNewTab(withProfile: profile)
-                } label: {
-                    HStack {
-                        Image(systemName: profile.icon)
-                            .foregroundStyle(.cyan)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(profile.name)
-                                .fontWeight(.medium)
-                            Text(profile.executable)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .padding(8)
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal)
-            }
-        }
-    }
-}
-
-// MARK: - History Sidebar
-
-@MainActor
-struct HistorySidebar: View {
-    var manager: TerminalManager
-    @State private var searchQuery = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Command History")
-                .font(.headline)
-                .padding(.horizontal)
-                .padding(.top)
-
-            TextField("Search history...", text: $searchQuery)
-                .textFieldStyle(.roundedBorder)
-                .padding(.horizontal)
-
-            let filteredHistory = manager.commandHistory.filter {
-                searchQuery.isEmpty || $0.localizedCaseInsensitiveContains(searchQuery)
-            }
-
-            ForEach(filteredHistory, id: \.self) { cmd in
-                HStack {
-                    Text(cmd)
-                        .font(.system(.body, design: .monospaced))
-                        .lineLimit(1)
-                    Spacer()
-                    Button {
-                        if let currentSessionID = manager.activeSessionID,
-                           let session = manager.sessions[currentSessionID] {
-                            session.runCommand(cmd)
-                        }
-                    } label: {
-                        Image(systemName: "play.fill")
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(8)
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(6)
-                .padding(.horizontal)
-            }
-        }
-    }
-}
-
-// MARK: - Command Library Sidebar
-
-@MainActor
-struct CommandLibrarySidebar: View {
-    var manager: TerminalManager
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Snippet Library")
-                .font(.headline)
-                .padding(.horizontal)
-                .padding(.top)
-
-            ForEach(manager.commandLibrary) { item in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(item.name)
-                            .fontWeight(.medium)
-                        Spacer()
-                        Button {
-                            if let sId = manager.activeSessionID,
-                               let session = manager.sessions[sId] {
-                                session.runCommand(item.command)
-                            }
-                        } label: {
-                            Image(systemName: "play.fill")
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    Text(item.command)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.cyan)
-                        .padding(4)
-                        .background(Color.black.opacity(0.2))
-                        .cornerRadius(4)
-
-                    Text(item.notes)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(8)
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(6)
-                .padding(.horizontal)
-            }
-        }
-    }
-}
-
-// MARK: - Environment Sidebar
-
-@MainActor
-struct EnvironmentSidebar: View {
-    var manager: TerminalManager
-    @State private var newKey = ""
-    @State private var newValue = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Environment Variables")
-                .font(.headline)
-                .padding(.horizontal)
-                .padding(.top)
-
-            VStack(spacing: 8) {
-                TextField("Key", text: $newKey)
-                    .textFieldStyle(.roundedBorder)
-                TextField("Value", text: $newValue)
-                    .textFieldStyle(.roundedBorder)
-                Button("Add Environment Variable") {
-                    if !newKey.isEmpty {
-                        manager.environments.append(EnvVar(key: newKey, value: newValue, isSecret: false))
-                        newKey = ""
-                        newValue = ""
-                    }
+                Button("Done") {
+                    isShowingManagementSuite = false
                 }
                 .buttonStyle(.bordered)
             }
-            .padding(.horizontal)
+            .padding()
 
-            Divider().padding(.vertical)
+            Divider()
+
+            HSplitView {
+                // Navigation list for categories
+                List {
+                    Section("Core Settings") {
+                        NavigationLink(state: "Settings", label: "Terminal Settings", icon: "gearshape")
+                        NavigationLink(state: "Appearance", label: "Appearance Theme", icon: "paintpalette")
+                        NavigationLink(state: "Profiles", label: "Profiles", icon: "person.crop.square")
+                    }
+
+                    Section("Connections & Envs") {
+                        NavigationLink(state: "SSH", label: "SSH Connections", icon: "network")
+                        NavigationLink(state: "Environments", label: "Environment Variables", icon: "slider.horizontal.3")
+                        NavigationLink(state: "Processes", label: "Process Manager", icon: "cpu")
+                    }
+
+                    Section("History & Snippets") {
+                        NavigationLink(state: "History", label: "History Log", icon: "clock.arrow.circlepath")
+                        NavigationLink(state: "Snippets", label: "Snippets & Bookmarks", icon: "square.grid.2x2")
+                    }
+                }
+                .listStyle(.sidebar)
+                .frame(width: 200)
+
+                // Detailed subview panel
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        switch selectedManagementTab {
+                        case "Settings":
+                            settingsManagementPanel
+                        case "Appearance":
+                            appearanceManagementPanel
+                        case "Profiles":
+                            profilesManagementPanel
+                        case "SSH":
+                            sshManagementPanel
+                        case "Environments":
+                            environmentsManagementPanel
+                        case "Processes":
+                            processManagementPanel
+                        case "History":
+                            historyManagementPanel
+                        case "Snippets":
+                            snippetsManagementPanel
+                        default:
+                            ContentUnavailableView("Category not loaded", systemImage: "terminal")
+                        }
+                    }
+                    .padding(20)
+                }
+                .background(Color(NSColor.controlBackgroundColor))
+            }
+        }
+        .frame(width: 800, height: 500)
+    }
+
+    private func NavigationLink(state: String, label: String, icon: String) -> some View {
+        Button {
+            selectedManagementTab = state
+        } label: {
+            Label(label, systemImage: icon)
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 4)
+        .foregroundStyle(selectedManagementTab == state ? Color.accentColor : Color.primary)
+    }
+
+    // MARK: - Advanced Subpanels
+
+    private var settingsManagementPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Terminal Settings")
+                .font(.title2.bold())
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle("Enable Scrollback Buffer limit (1000 lines)", isOn: .constant(true))
+                    Toggle("Always launch new sessions in project path", isOn: .constant(true))
+                    Toggle("Enable standard error high-contrast highlighting", isOn: .constant(true))
+                }
+                .padding(8)
+            }
+            .groupBoxStyle(ModernGroupBoxStyle())
+        }
+    }
+
+    private var appearanceManagementPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Appearance Theme")
+                .font(.title2.bold())
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 10) {
+                    Picker("Theme Style", selection: Bindable(manager).theme) {
+                        ForEach(TerminalTheme.allCases) { theme in
+                            Text(theme.rawValue).tag(theme)
+                        }
+                    }
+                }
+                .padding(8)
+            }
+            .groupBoxStyle(ModernGroupBoxStyle())
+        }
+    }
+
+    private var profilesManagementPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Shell Profiles")
+                .font(.title2.bold())
+
+            ForEach(manager.savedProfiles) { profile in
+                GroupBox {
+                    HStack {
+                        Image(systemName: profile.icon)
+                            .foregroundStyle(.cyan)
+                        VStack(alignment: .leading) {
+                            Text(profile.name).bold()
+                            Text(profile.executable).font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Select") {
+                            manager.createNewTab(withProfile: profile)
+                            isShowingManagementSuite = false
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding(4)
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+            }
+        }
+    }
+
+    private var sshManagementPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("SSH Connections")
+                .font(.title2.bold())
+
+            ForEach(manager.savedHosts) { host in
+                GroupBox {
+                    HStack {
+                        Image(systemName: "network")
+                            .foregroundStyle(.blue)
+                        VStack(alignment: .leading) {
+                            Text(host.name).bold()
+                            Text("\(host.username)@\(host.address):\(host.port)").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Connect") {
+                            manager.connectToHost(host)
+                            isShowingManagementSuite = false
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.blue)
+                    }
+                    .padding(4)
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+            }
+        }
+    }
+
+    private var environmentsManagementPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Environment Variables")
+                .font(.title2.bold())
 
             ForEach(manager.environments) { env in
-                HStack {
-                    Text(env.key)
-                        .fontWeight(.medium)
-                    Spacer()
-                    Text(env.isSecret ? "••••••••" : env.value)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(8)
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(6)
-                .padding(.horizontal)
-            }
-        }
-    }
-}
-
-// MARK: - Remote FS Sidebar
-
-@MainActor
-struct RemoteFSSidebar: View {
-    @Bindable var manager: TerminalManager
-    @State private var currentPath = "/home/developer"
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Remote SFTP Explorer")
-                .font(.headline)
-                .padding(.horizontal)
-                .padding(.top)
-
-            HStack {
-                TextField("Remote Path", text: $currentPath)
-                    .textFieldStyle(.roundedBorder)
-                Button("Go") {
-                    manager.currentRemotePath = currentPath
-                }
-            }
-            .padding(.horizontal)
-
-            ForEach(manager.remoteFSNodes) { node in
-                HStack {
-                    Image(systemName: node.isDirectory ? "folder.fill" : "doc.fill")
-                        .foregroundStyle(node.isDirectory ? .yellow : .secondary)
-                    VStack(alignment: .leading) {
-                        Text(node.name)
-                        Text(node.permissions)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if !node.isDirectory {
-                        Button {
-                            // Queue a download simulation
-                            manager.transfers.append(RemoteTransfer(name: node.name, size: node.size, percentComplete: 0.0, direction: "download", speed: "1.2 MB/s", status: "In Progress"))
-                        } label: {
-                            Image(systemName: "arrow.down.circle")
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(6)
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(6)
-                .padding(.horizontal)
-            }
-        }
-    }
-}
-
-// MARK: - Tasks Sidebar
-
-@MainActor
-struct TasksSidebar: View {
-    var manager: TerminalManager
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Automation Tasks")
-                .font(.headline)
-                .padding(.horizontal)
-                .padding(.top)
-
-            ForEach(manager.savedTasks) { task in
-                VStack(alignment: .leading, spacing: 4) {
+                GroupBox {
                     HStack {
-                        Text(task.name)
-                            .fontWeight(.medium)
+                        Text(env.key).bold()
                         Spacer()
-                        Button {
-                            if let sId = manager.activeSessionID,
-                               let session = manager.sessions[sId] {
-                                session.runCommand(task.command)
-                            }
-                        } label: {
-                            Image(systemName: "play.circle.fill")
-                                .foregroundStyle(.green)
-                        }
-                        .buttonStyle(.plain)
+                        Text(env.value).foregroundStyle(.secondary)
                     }
-                    Text(task.command)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.cyan)
-                    Text("Schedule: \(task.schedule)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    .padding(4)
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+            }
+        }
+    }
+
+    private var processManagementPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Process Tree Manager")
+                .font(.title2.bold())
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("SwiftCode Background Task Nodes")
+                        .font(.headline)
+                    Text("PID: \(ProcessInfo.processInfo.processIdentifier) | Parent PID: 1 | State: Running")
+                        .font(.caption.monospaced())
                 }
                 .padding(8)
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(6)
-                .padding(.horizontal)
             }
+            .groupBoxStyle(ModernGroupBoxStyle())
         }
     }
-}
 
-// MARK: - Recordings Sidebar
+    private var historyManagementPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Command History Log")
+                .font(.title2.bold())
 
-@MainActor
-struct RecordingsSidebar: View {
-    @Bindable var manager: TerminalManager
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Session Recordings")
-                .font(.headline)
-                .padding(.horizontal)
-                .padding(.top)
-
-            if let activeSessionID = manager.activeSessionID,
-               let session = manager.sessions[activeSessionID] {
-                Button("Record Active Session") {
-                    session.startRecording()
-                }
-                .buttonStyle(.borderedProminent)
-                .padding(.horizontal)
-            }
-
-            ForEach(manager.recordings) { recording in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(recording.name)
-                        .fontWeight(.medium)
-                    Text("Duration: \(recording.durationSeconds)s | lines: \(recording.lines.count)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(8)
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(6)
-                .padding(.horizontal)
-            }
-        }
-    }
-}
-
-// MARK: - Terminal Workspace Area (Center Tabs & Splits)
-
-@MainActor
-struct TerminalWorkspaceArea: View {
-    @Bindable var manager: TerminalManager
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Tab list toolbar
-            HStack {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 4) {
-                        ForEach(manager.tabs) { tab in
-                            HStack {
-                                Text(tab.name)
-                                Button {
-                                    manager.closeSession(tab.layout.allSessionIDs.first ?? UUID())
-                                } label: {
-                                    Image(systemName: "xmark")
-                                        .font(.caption2)
-                                }
-                                .buttonStyle(.plain)
+            ForEach(manager.commandHistory, id: \.self) { cmd in
+                GroupBox {
+                    HStack {
+                        Text(cmd).font(.system(.caption, design: .monospaced))
+                        Spacer()
+                        Button("Run") {
+                            if let sId = manager.activeSessionID, let session = manager.sessions[sId] {
+                                session.runCommand(cmd)
                             }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(manager.activeTabID == tab.id ? manager.theme.backgroundColor : manager.theme.headerColor)
-                            .cornerRadius(6)
-                            .onTapGesture {
-                                manager.activeTabID = tab.id
-                                manager.activeSessionID = tab.layout.allSessionIDs.first
-                            }
+                            isShowingManagementSuite = false
                         }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
+                    .padding(4)
                 }
-
-                Button {
-                    manager.createNewTab()
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .buttonStyle(.plain)
-                .padding(.leading, 4)
-
-                Spacer()
-
-                // Split Buttons
-                Button {
-                    manager.splitActiveSession(direction: .horizontal)
-                } label: {
-                    Image(systemName: "square.split.2x1")
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    manager.splitActiveSession(direction: .vertical)
-                } label: {
-                    Image(systemName: "square.split.1x2")
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(manager.theme.headerColor)
-
-            // Split View Workspace rendering
-            if let activeTab = manager.tabs.first(where: { $0.id == manager.activeTabID }) {
-                LayoutRendererView(node: activeTab.layout, manager: manager)
-            } else {
-                ContentUnavailableView("No active tabs", systemImage: "terminal")
+                .groupBoxStyle(ModernGroupBoxStyle())
             }
         }
     }
-}
 
-// MARK: - Layout Node Renderer
+    private var snippetsManagementPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Snippets & Bookmarks")
+                .font(.title2.bold())
 
-@MainActor
-struct LayoutRendererView: View {
-    let node: LayoutNode
-    let manager: TerminalManager
-
-    var body: some View {
-        switch node {
-        case .single(let sessionID):
-            if let session = manager.sessions[sessionID] {
-                InteractiveTerminalSessionView(session: session, manager: manager)
-            } else {
-                Color.clear
-            }
-        case .horizontal(let children):
-            HSplitView {
-                ForEach(Array(children.enumerated()), id: \.offset) { _, child in
-                    LayoutRendererView(node: child, manager: manager)
+            ForEach(manager.commandLibrary) { item in
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(item.name).bold()
+                        Text(item.command)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.cyan)
+                            .padding(4)
+                            .background(Color.black.opacity(0.12))
+                            .cornerRadius(4)
+                        Text(item.notes).font(.caption).foregroundStyle(.secondary)
+                    }
+                    .padding(4)
                 }
-            }
-        case .vertical(let children):
-            VSplitView {
-                ForEach(Array(children.enumerated()), id: \.offset) { _, child in
-                    LayoutRendererView(node: child, manager: manager)
-                }
+                .groupBoxStyle(ModernGroupBoxStyle())
             }
         }
     }
@@ -1236,7 +713,6 @@ struct InteractiveTerminalSessionView: View {
     let manager: TerminalManager
 
     @State private var commandInput = ""
-    @State private var findQuery = ""
     @State private var isShowingFindBar = false
     @Environment(WorkspaceViewModel.self) private var workspaceVM: WorkspaceViewModel?
 
@@ -1244,12 +720,15 @@ struct InteractiveTerminalSessionView: View {
         VStack(spacing: 0) {
             if isShowingFindBar {
                 HStack {
-                    TextField("Find in output...", text: $findQuery)
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Find in output...", text: Bindable(manager).searchQuery)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 250)
                     Spacer()
                     Button("Close") {
                         isShowingFindBar = false
+                        manager.searchQuery = ""
                     }
                 }
                 .padding(6)
@@ -1284,6 +763,24 @@ struct InteractiveTerminalSessionView: View {
 
             Divider()
 
+            // Active Path Info bar
+            HStack {
+                Text("Directory: \(session.currentDirectory)")
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if session.isRunning {
+                    Label("zsh (running)", systemImage: "sparkles")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 4)
+            .background(manager.theme.headerColor.opacity(0.5))
+
+            Divider()
+
             // Input command box
             HStack {
                 Text("❯")
@@ -1294,10 +791,20 @@ struct InteractiveTerminalSessionView: View {
                     .font(.system(.body, design: .monospaced))
                     .onSubmit {
                         session.runCommand(commandInput)
-                        manager.commandHistory.append(commandInput)
+                        if !manager.commandHistory.contains(commandInput) {
+                            manager.commandHistory.append(commandInput)
+                        }
                         commandInput = ""
                     }
                 Spacer()
+
+                Button {
+                    isShowingFindBar.toggle()
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                }
+                .buttonStyle(.plain)
+
                 if session.isRunning {
                     Button {
                         session.terminate()
@@ -1317,8 +824,8 @@ struct InteractiveTerminalSessionView: View {
     }
 
     private func matchesFilter(_ text: String) -> Bool {
-        if findQuery.isEmpty { return true }
-        return text.localizedCaseInsensitiveContains(findQuery)
+        if manager.searchQuery.isEmpty { return true }
+        return text.localizedCaseInsensitiveContains(manager.searchQuery)
     }
 }
 
@@ -1355,7 +862,6 @@ struct RenderTextLine: View {
     }
 
     private func parseFilePath(_ text: String) -> FileMatch? {
-        // Matches typical compiler error styles: /path/to/file.swift:45:12 or similar
         let pattern = "(/[a-zA-Z0-9_\\-\\./]+\\.swift):(\\d+)"
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
         let nsString = text as NSString
@@ -1369,318 +875,5 @@ struct RenderTextLine: View {
             return FileMatch(path: path, line: line)
         }
         return nil
-    }
-}
-
-// MARK: - Transfer Queue Panel
-
-@MainActor
-struct TransferQueuePanel: View {
-    @Bindable var manager: TerminalManager
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("Transfer Queue")
-                    .font(.headline)
-                Spacer()
-                Button("Clear Completed") {
-                    manager.transfers.removeAll(where: { $0.status == "Completed" })
-                }
-            }
-            .padding()
-            .background(manager.theme.headerColor)
-
-            List(manager.transfers) { transfer in
-                HStack {
-                    Image(systemName: transfer.direction == "download" ? "arrow.down.circle" : "arrow.up.circle")
-                    Text(transfer.name)
-                    Spacer()
-                    ProgressView(value: transfer.percentComplete, total: 100.0)
-                        .frame(width: 150)
-                    Text(transfer.speed)
-                    Text(transfer.status)
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Terminal Inspector Panel (Right Sidebar)
-
-@MainActor
-struct TerminalInspectorPanel: View {
-    @Bindable var manager: TerminalManager
-    @State private var activeTab = "Stats"
-
-    var body: some View {
-        VStack {
-            Picker("", selection: $activeTab) {
-                Text("Metadata").tag("Stats")
-                Text("Process Explorer").tag("Processes")
-                Text("Git Status").tag("Git")
-                Text("AI Support").tag("AI")
-            }
-            .pickerStyle(.segmented)
-            .padding()
-
-            ScrollView {
-                switch activeTab {
-                case "Stats":
-                    SessionInspectorTab(manager: manager)
-                case "Processes":
-                    ProcessExplorerTab()
-                case "Git":
-                    GitStatusTab()
-                case "AI":
-                    AITerminalAssistantTab(manager: manager)
-                default:
-                    Color.clear
-                }
-            }
-        }
-        .background(manager.theme.headerColor.opacity(0.8))
-    }
-}
-
-// MARK: - Session Inspector Tab
-
-@MainActor
-struct SessionInspectorTab: View {
-    let manager: TerminalManager
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if let sId = manager.activeSessionID,
-               let session = manager.sessions[sId] {
-                Text("Active Terminal Details")
-                    .font(.headline)
-
-                Group {
-                    LabeledContent("Session Name", value: session.name)
-                    LabeledContent("Active Folder", value: session.currentDirectory)
-                    LabeledContent("PID", value: "\(ProcessInfo.processInfo.processIdentifier)")
-                    LabeledContent("Exit Code", value: session.lastExitStatus.map { String($0) } ?? "N/A")
-                }
-                .font(.subheadline)
-
-                Divider()
-
-                Text("Remote Server Diagnostics")
-                    .font(.headline)
-
-                VStack(spacing: 12) {
-                    ProgressGauge(title: "CPU Load", percentage: 42, color: .green)
-                    ProgressGauge(title: "Memory Commit", percentage: 68, color: .blue)
-                    ProgressGauge(title: "Storage Pool Size", percentage: 89, color: .orange)
-                }
-            } else {
-                ContentUnavailableView("No Active Session", systemImage: "terminal")
-            }
-        }
-        .padding()
-    }
-}
-
-// MARK: - Progress Gauge
-
-@MainActor
-struct ProgressGauge: View {
-    let title: String
-    let percentage: Double
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(title)
-                Spacer()
-                Text("\(Int(percentage))%")
-            }
-            .font(.caption)
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Rectangle()
-                        .fill(Color.secondary.opacity(0.2))
-                    Rectangle()
-                        .fill(color)
-                        .frame(width: geo.size.width * CGFloat(percentage / 100.0))
-                }
-            }
-            .frame(height: 6)
-            .cornerRadius(3)
-        }
-    }
-}
-
-// MARK: - Process Explorer Tab
-
-@MainActor
-struct ProcessExplorerTab: View {
-    @State private var processes: [ProcessItem] = [
-        ProcessItem(pid: 2981, ppid: 1, name: "zsh", cpuPercent: 0.1, memoryPercent: 1.2, state: "Running"),
-        ProcessItem(pid: 2994, ppid: 2981, name: "swift build", cpuPercent: 12.4, memoryPercent: 4.5, state: "Running"),
-        ProcessItem(pid: 3001, ppid: 2981, name: "node", cpuPercent: 1.1, memoryPercent: 3.8, state: "Suspended")
-    ]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Process Tree Manager")
-                .font(.headline)
-                .padding(.horizontal)
-
-            ForEach(processes) { proc in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(proc.name)
-                            .font(.system(.body, design: .monospaced))
-                        Spacer()
-                        Text("PID: \(proc.pid)")
-                            .font(.caption)
-                    }
-                    HStack {
-                        Text("CPU: \(proc.cpuPercent, specifier: "%.1f")%")
-                        Text("MEM: \(proc.memoryPercent, specifier: "%.1f")%")
-                        Spacer()
-                        Button("Kill") {
-                            // Run kill shell commands to kill real pid
-                            let killProcess = Process()
-                            killProcess.executableURL = URL(fileURLWithPath: "/bin/kill")
-                            killProcess.arguments = ["-9", "\(proc.pid)"]
-                            try? killProcess.run()
-                            processes.removeAll(where: { $0.pid == proc.pid })
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.red)
-                    }
-                    .font(.caption)
-                }
-                .padding(8)
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(6)
-                .padding(.horizontal)
-            }
-        }
-    }
-}
-
-// MARK: - Git Status Tab
-
-@MainActor
-struct GitStatusTab: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Git Control Hub")
-                .font(.headline)
-
-            VStack(alignment: .leading, spacing: 6) {
-                LabeledContent("Active Branch", value: "main")
-                LabeledContent("Staged Files", value: "3 files")
-                LabeledContent("Modified Files", value: "5 files")
-                LabeledContent("Ahead / Behind", value: "↑ 2 | ↓ 0")
-            }
-
-            Divider()
-
-            HStack {
-                Button("Commit") {
-                    // Quick git action execution
-                }
-                Button("Pull") {
-                    // Git pull
-                }
-                Button("Push") {
-                    // Git push
-                }
-            }
-            .buttonStyle(.bordered)
-        }
-        .padding()
-    }
-}
-
-// MARK: - AI Terminal Assistant Tab
-
-@MainActor
-struct AITerminalAssistantTab: View {
-    let manager: TerminalManager
-    @State private var query = ""
-    @State private var response = ""
-    @State private var isGenerating = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("AI Terminal Genius")
-                .font(.headline)
-
-            Text("Troubleshoot compilation errors, generate complex pipeline scripts, or ask command explanations.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            TextField("Ask the terminal assistant...", text: $query)
-                .textFieldStyle(.roundedBorder)
-
-            Button("Send Context to AI") {
-                generateAIHelp()
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(query.isEmpty || isGenerating)
-
-            if isGenerating {
-                ProgressView()
-            }
-
-            if !response.isEmpty {
-                ScrollView {
-                    Text(response)
-                        .font(.system(.body, design: .monospaced))
-                        .padding(8)
-                        .background(Color.black.opacity(0.2))
-                        .cornerRadius(6)
-                        .textSelection(.enabled)
-                }
-                .frame(maxHeight: 250)
-            }
-        }
-        .padding()
-    }
-
-    private func generateAIHelp() {
-        guard !query.isEmpty else { return }
-        isGenerating = true
-        response = ""
-
-        // Extract context lines from the current active terminal
-        var contextLines = ""
-        if let sId = manager.activeSessionID,
-           let session = manager.sessions[sId] {
-            let lastLines = session.outputLines.suffix(20).map { $0.text }
-            contextLines = lastLines.joined(separator: "\n")
-        }
-
-        let sysPrompt = "You are a senior macOS developer. Answer the question using the following terminal context if helpful. Provide exact commands and explanations."
-        let promptContent = "User Query: \(query)\n\nTerminal Context:\n\(contextLines)"
-
-        Task {
-            do {
-                try await OpenRouterService.shared.streamChat(
-                    messages: [AIMessage(role: .user, content: promptContent)],
-                    model: "meta-llama/llama-3-70b-instruct",
-                    systemPrompt: sysPrompt
-                ) { token in
-                    await MainActor.run {
-                        response += token
-                    }
-                }
-                await MainActor.run {
-                    isGenerating = false
-                }
-            } catch {
-                await MainActor.run {
-                    response = "Error during generation: \(error.localizedDescription)"
-                    isGenerating = false
-                }
-            }
-        }
     }
 }

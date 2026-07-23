@@ -216,6 +216,7 @@ final class RepositoryContext {
 // ====================================================================
 enum SourceControlSelection: String, CaseIterable, Identifiable {
     case localWorkspace = "Local Workspace"
+    case gitWorktrees = "Git Worktrees"
     case changes = "Changes"
     case branches = "Branches"
     case commitHistory = "Commit History"
@@ -273,6 +274,7 @@ enum SourceControlSelection: String, CaseIterable, Identifiable {
         case .workspaceAutomation: return "cpu"
         case .githubDiscovery: return "safari"
         case .aiAssistant: return "sparkles"
+        case .gitWorktrees: return "arrow.triangle.branch"
         case .localWorkspace: return "laptopcomputer"
         case .changes: return "doc.badge.plus"
         case .branches: return "arrow.triangle.branch"
@@ -483,6 +485,8 @@ struct SourceControlView: View {
 
         Group {
             switch selection {
+            case .gitWorktrees:
+                GitWorktreesView()
             case .localWorkspace:
                 RepositoryDashboardView(gitViewModel: gitViewModel, project: project) { item in
                     withAnimation {

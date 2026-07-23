@@ -101,7 +101,10 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
 
     @MainActor
     public var directoryURL: URL {
-        CodingManager.shared.projectsRoot.appendingPathComponent(name)
+        if name.hasPrefix("/") {
+            return URL(fileURLWithPath: name)
+        }
+        return CodingManager.shared.projectsRoot.appendingPathComponent(name)
     }
 
     public var fileCount: Int = 0
