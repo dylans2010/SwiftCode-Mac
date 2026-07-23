@@ -684,6 +684,7 @@
 		5BF1597267978AC5EFA10F75 /* ModernGroupBoxStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8FD88FFDEC9B3D53C786E23 /* ModernGroupBoxStyle.swift */; };
 		5C5E70000000000000000002 /* SCSetupOnboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000001 /* SCSetupOnboard.swift */; };
 		5C5E70000000000000000004 /* SourceControlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000003 /* SourceControlView.swift */; };
+		5C5E70000000000000000F05 /* RepositoryContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000F04 /* RepositoryContext.swift */; };
 		5C5E700000000000000000D2 /* GitHubIntelligenceAndOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E700000000000000000D1 /* GitHubIntelligenceAndOperations.swift */; };
 		5C5E700000000000000000B2 /* GitBlameViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E700000000000000000B1 /* GitBlameViewer.swift */; };
 		5C5E700000000000000000C2 /* GitConflictResolverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E700000000000000000C1 /* GitConflictResolverView.swift */; };
@@ -2040,6 +2041,7 @@
 		5C08C453F1CE486A972D7959 /* CrossReferenceSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossReferenceSearch.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000001 /* SCSetupOnboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SCSetupOnboard.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000003 /* SourceControlView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceControlView.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000F04 /* RepositoryContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryContext.swift; sourceTree = "<group>"; };
 		5C5E700000000000000000D1 /* GitHubIntelligenceAndOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubIntelligenceAndOperations.swift; sourceTree = "<group>"; };
 		5C5E700000000000000000B1 /* GitBlameViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitBlameViewer.swift; sourceTree = "<group>"; };
 		5C5E700000000000000000C1 /* GitConflictResolverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitConflictResolverView.swift; sourceTree = "<group>"; };
@@ -4013,6 +4015,7 @@
 				4B59EE8372BC441A82461C7C /* AgentInputBarView.swift */,
 				5C5E70000000000000000001 /* SCSetupOnboard.swift */,
 				5C5E70000000000000000003 /* SourceControlView.swift */,
+				5C5E70000000000000000F04 /* RepositoryContext.swift */,
 				5C5E700000000000000000D1 /* GitHubIntelligenceAndOperations.swift */,
 				5C5E700000000000000000B1 /* GitBlameViewer.swift */,
 				5C5E700000000000000000C1 /* GitConflictResolverView.swift */,
@@ -6110,6 +6113,7 @@ CE705E1EC3604FFEEB031075 /* FoundationModels.swift in Sources */,
 				FD2931D13CF16B1DA1ED14BB /* GitHubIntegrationView.swift in Sources */,
 				5C5E70000000000000000002 /* SCSetupOnboard.swift in Sources */,
 				5C5E70000000000000000004 /* SourceControlView.swift in Sources */,
+				5C5E70000000000000000F05 /* RepositoryContext.swift in Sources */,
 				5C5E700000000000000000D2 /* GitHubIntelligenceAndOperations.swift in Sources */,
 				5C5E700000000000000000B2 /* GitBlameViewer.swift in Sources */,
 				5C5E700000000000000000C2 /* GitConflictResolverView.swift in Sources */,

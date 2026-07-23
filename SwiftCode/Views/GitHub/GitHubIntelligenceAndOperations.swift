@@ -375,7 +375,8 @@ public struct RepositoryIntelligenceView: View {
                 if let runs = try? await GitHubService.shared.listWorkflowRuns(owner: owner, repo: repoName) {
                     let successes = runs.filter { $0.conclusion == "success" }.count
                     if !runs.isEmpty {
-                        self.buildSuccessRate = Int(Double(successes) / Double(runs.count) * 100)
+                        let ratio = Double(successes) / Double(runs.count)
+                        self.buildSuccessRate = Int(ratio * 100)
                     }
                 }
             }
