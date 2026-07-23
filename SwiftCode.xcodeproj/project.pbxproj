@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7621F0E780BE1F8767C7CDE4 /* MainToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A547FFDC25C14D444078B66A /* MainToolsView.swift */; };
 		5C5B7A8BC09181B28E3E9183 /* IPABuildView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF81EA85E77665CE1645F5E8 /* IPABuildView.swift */; };
 
 		2793878F870AB918B3805F69 /* IPABuildService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA587A9596DB10A37781F22 /* IPABuildService.swift */; };
@@ -1352,6 +1353,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A547FFDC25C14D444078B66A /* MainToolsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/AdvancedTools/Views/MainToolsView.swift"; sourceTree = SOURCE_ROOT; };
 		BF81EA85E77665CE1645F5E8 /* IPABuildView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/Xcode Build/IPABuildView.swift"; sourceTree = SOURCE_ROOT; };
 
 		6EA587A9596DB10A37781F22 /* IPABuildService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Services/IPABuildService.swift"; sourceTree = SOURCE_ROOT; };
@@ -4504,6 +4506,7 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 		A941C4224B2EB40B83D69DD8 /* Binaries */ = {
 			isa = PBXGroup;
 			children = (
+				A547FFDC25C14D444078B66A /* MainToolsView.swift */,
 				A87037B7D078898286341F5B /* BinaryManager.swift */,
 			);
 			path = Binaries;
@@ -5425,6 +5428,7 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7621F0E780BE1F8767C7CDE4 /* MainToolsView.swift in Sources */,
 				E063E218D13ACDDD0B728F91 /* GitWorktree.swift in Sources */,
 				E063E218D13ACDDD0B728F93 /* WorktreeManager.swift in Sources */,
 				718173758FBD56C156A0D0FB /* GitWorktreesView.swift in Sources */,
