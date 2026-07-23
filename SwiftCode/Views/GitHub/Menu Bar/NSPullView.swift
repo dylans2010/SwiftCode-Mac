@@ -12,7 +12,7 @@ public struct NSPullView: View {
         Group {
             if let _ = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Git Pull", systemImage: "arrow.down.circle.fill")
+                    Label("Git Pull (⇧⌘L)", systemImage: "arrow.down.circle.fill")
                         .font(.headline)
                         .foregroundStyle(.cyan)
 

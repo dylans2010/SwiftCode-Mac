@@ -10,7 +10,7 @@ public struct NSCloneView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Git Clone", systemImage: "plus.square.on.square")
+            Label("Git Clone (⇧⌘I)", systemImage: "plus.square.on.square")
                 .font(.headline)
                 .foregroundStyle(.green)
 

@@ -13,7 +13,7 @@ public struct NSCreatePRView: View {
         Group {
             if let project = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Create Pull Request", systemImage: "arrow.up.right.square.fill")
+                    Label("Create Pull Request (⇧⌘Q)", systemImage: "arrow.up.right.square.fill")
                         .font(.headline)
                         .foregroundStyle(.orange)
 

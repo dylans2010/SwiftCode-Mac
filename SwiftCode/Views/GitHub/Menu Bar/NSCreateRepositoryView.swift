@@ -13,7 +13,7 @@ public struct NSCreateRepositoryView: View {
         Group {
             if let project = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Create Repository", systemImage: "folder.badge.plus")
+                    Label("Create Repository (⇧⌘R)", systemImage: "folder.badge.plus")
                         .font(.headline)
                         .foregroundStyle(.blue)
 

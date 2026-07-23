@@ -12,7 +12,7 @@ public struct NSForcePushView: View {
         Group {
             if let _ = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Force Push", systemImage: "exclamationmark.shield.fill")
+                    Label("Force Push (⇧⌘Y)", systemImage: "exclamationmark.shield.fill")
                         .font(.headline)
                         .foregroundStyle(.red)
 

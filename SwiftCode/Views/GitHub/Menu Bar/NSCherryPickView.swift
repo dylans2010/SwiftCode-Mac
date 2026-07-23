@@ -12,7 +12,7 @@ public struct NSCherryPickView: View {
         Group {
             if let _ = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Git Cherry Pick", systemImage: "arrow.triangle.pull")
+                    Label("Git Cherry Pick (⇧⌘K)", systemImage: "arrow.triangle.pull")
                         .font(.headline)
                         .foregroundStyle(.purple)
 

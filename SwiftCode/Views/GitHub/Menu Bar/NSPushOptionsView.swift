@@ -13,7 +13,7 @@ public struct NSPushOptionsView: View {
         Group {
             if let _ = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Git Push Options", systemImage: "slider.horizontal.3")
+                    Label("Git Push Options (⇧⌘O)", systemImage: "slider.horizontal.3")
                         .font(.headline)
                         .foregroundStyle(.purple)
 

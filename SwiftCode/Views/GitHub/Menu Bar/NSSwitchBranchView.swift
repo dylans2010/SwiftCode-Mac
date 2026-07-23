@@ -13,7 +13,7 @@ public struct NSSwitchBranchView: View {
         Group {
             if let _ = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Switch Branch", systemImage: "arrow.triangle.branch")
+                    Label("Switch Branch (⇧⌘S)", systemImage: "arrow.triangle.branch")
                         .font(.headline)
                         .foregroundStyle(.purple)
 

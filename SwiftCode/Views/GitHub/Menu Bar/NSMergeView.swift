@@ -13,7 +13,7 @@ public struct NSMergeView: View {
         Group {
             if let _ = ProjectSessionStore.shared.activeProject {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Git Merge", systemImage: "arrow.triangle.merge")
+                    Label("Git Merge (⇧⌘M)", systemImage: "arrow.triangle.merge")
                         .font(.headline)
                         .foregroundStyle(.blue)
 
