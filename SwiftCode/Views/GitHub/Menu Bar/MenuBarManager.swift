@@ -12,7 +12,7 @@ public func openWorkspaceView() {
 }
 
 @MainActor
-public class MenuBarManager: NSObject {
+public class MenuBarManager: NSObject, NSMenuDelegate {
     public static let shared = MenuBarManager()
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
@@ -32,6 +32,7 @@ public class MenuBarManager: NSObject {
 
         // Create native menu
         let menu = NSMenu()
+        menu.delegate = self
         for opt in options {
             let item = NSMenuItem(title: opt, action: #selector(menuItemClicked(_:)), keyEquivalent: "")
             item.target = self
@@ -52,6 +53,13 @@ public class MenuBarManager: NSObject {
             name: NSNotification.Name("SelectMenuBarTab"),
             object: nil
         )
+    }
+
+    public func menuNeedsUpdate(_ menu: NSMenu) {
+        let isLinked = ProjectSessionStore.shared.activeProject?.githubRepo?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        for item in menu.items {
+            item.isEnabled = isLinked || item.title == "Create Repository"
+        }
     }
 
     @objc private func menuItemClicked(_ sender: NSMenuItem) {
@@ -85,28 +93,9 @@ struct MenuBarRootView: View {
         "Discard Changes", "Create PR"
     ]
 
-    let optionsWithShortcuts: [String: String] = [
-        "Commit": "C",
-        "Push": "H",
-        "Push Options": "O",
-        "Choose Branch": "B",
-        "Include Tags": "G",
-        "Force Push": "Y",
-        "Fetch": "E",
-        "Pull": "L",
-        "Cherry Pick": "K",
-        "Clone": "I",
-        "Create Repository": "R",
-        "Create Branch": "J",
-        "Switch Branch": "S",
-        "Delete Branch": "D",
-        "Stash": "Z",
-        "Apply Stash": "V",
-        "Rebase": "X",
-        "Merge": "M",
-        "Discard Changes": "U",
-        "Create PR": "Q"
-    ]
+    private var isRepositoryLinked: Bool {
+        ProjectSessionStore.shared.activeProject?.githubRepo?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -117,6 +106,15 @@ struct MenuBarRootView: View {
             }
             .padding()
             .background(Color.secondary.opacity(0.05))
+
+            Picker("Section", selection: $selectedTab) {
+                ForEach(options, id: \.self) { opt in
+                    Text(opt).tag(opt)
+                }
+            }
+            .pickerStyle(.menu)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
 
             Divider()
 
@@ -149,6 +147,7 @@ struct MenuBarRootView: View {
                 .transition(.opacity)
                 .id(selectedTab)
             }
+            .disabled(!isRepositoryLinked && selectedTab != "Create Repository")
         }
         .frame(width: 320, height: 420)
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SelectMenuBarTab"))) { notification in
@@ -156,33 +155,20 @@ struct MenuBarRootView: View {
                 selectedTab = tab
             }
         }
-        .background(
-            ZStack {
-                Button(action: {
-                    openWorkspaceView()
-                }) {
-                    EmptyView()
+        .overlay {
+            if !isRepositoryLinked && selectedTab != "Create Repository" {
+                VStack(spacing: 8) {
+                    Label("No linked repository", systemImage: "link.badge.plus")
+                        .font(.headline)
+                    Text("Create a repository before using Git actions for this project.")
+                        .font(.caption)
+                        .multilineTextAlignment(.center)
                 }
-                .keyboardShortcut("0", modifiers: [.command, .shift])
-                .buttonStyle(.plain)
-                .frame(width: 0, height: 0)
-
-                ForEach(options, id: \.self) { opt in
-                    if let key = optionsWithShortcuts[opt] {
-                        Button(action: {
-                            selectedTab = opt
-                        }) {
-                            EmptyView()
-                        }
-                        .keyboardShortcut(KeyEquivalent(Character(key.lowercased())), modifiers: [.command, .shift])
-                        .buttonStyle(.plain)
-                        .frame(width: 0, height: 0)
-                    }
-                }
+                .padding()
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                .padding()
             }
-            .opacity(0)
-            .allowsHitTesting(false)
-        )
+        }
     }
 }
 

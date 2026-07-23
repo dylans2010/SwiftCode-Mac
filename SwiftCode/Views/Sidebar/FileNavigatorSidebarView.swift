@@ -108,6 +108,8 @@ struct FileNavigatorSidebarView: View {
     @State private var searchText = ""
     @State private var favorites: [String] = []
     @State private var recents: [String] = []
+    @State private var isCreatingFile = false
+    @State private var isCreatingFolder = false
 
     // Inline Rename State
     @State private var renamingNodeID: String? = nil
@@ -172,25 +174,21 @@ struct FileNavigatorSidebarView: View {
 
             // Dynamic Action Bar Header
             HStack(spacing: 12) {
-                Button(action: {
-                    createNewFileInActiveDir()
-                }) {
+                Button(action: createNewFileInActiveDir) {
                     Image(systemName: "plus")
                         .font(.subheadline.bold())
                 }
                 .buttonStyle(.plain)
                 .help("New File")
-                .disabled(viewModel.projectURL == nil)
+                .disabled(viewModel.projectURL == nil || isCreatingFile)
 
-                Button(action: {
-                    createNewFolderInActiveDir()
-                }) {
+                Button(action: createNewFolderInActiveDir) {
                     Image(systemName: "folder.badge.plus")
                         .font(.subheadline.bold())
                 }
                 .buttonStyle(.plain)
                 .help("New Folder")
-                .disabled(viewModel.projectURL == nil)
+                .disabled(viewModel.projectURL == nil || isCreatingFolder)
 
                 Spacer()
 
@@ -493,24 +491,58 @@ struct FileNavigatorSidebarView: View {
     }
 
     private func createNewFileInActiveDir() {
+        guard !isCreatingFile else { return }
+        isCreatingFile = true
         Task {
+            defer { isCreatingFile = false }
             guard let projectURL = viewModel.projectURL else { return }
-            let name = "Untitled.swift"
-            let newFileURL = projectURL.appendingPathComponent(name)
-            try? await FileSystemService.shared.createFile(at: newFileURL)
-            viewModel.invalidateCache(at: projectURL)
-            await viewModel.refresh()
+            let newFileURL = nextAvailableURL(in: projectURL, baseName: "Untitled", extensionName: "swift")
+            do {
+                try await FileSystemService.shared.createFile(at: newFileURL)
+                viewModel.invalidateCache(at: projectURL)
+                await viewModel.refresh()
+                viewModel.selectedNodeID = newFileURL.path
+            } catch {
+                LoggingTool.error("Create file failed: \(error.localizedDescription)")
+            }
         }
     }
 
     private func createNewFolderInActiveDir() {
+        guard !isCreatingFolder else { return }
+        isCreatingFolder = true
         Task {
+            defer { isCreatingFolder = false }
             guard let projectURL = viewModel.projectURL else { return }
-            let newFolderURL = projectURL.appendingPathComponent("New Folder")
-            try? await FileSystemService.shared.createDirectory(at: newFolderURL)
-            viewModel.invalidateCache(at: projectURL)
-            await viewModel.refresh()
+            let newFolderURL = nextAvailableURL(in: projectURL, baseName: "New Folder")
+            do {
+                try await FileSystemService.shared.createDirectory(at: newFolderURL)
+                viewModel.invalidateCache(at: projectURL)
+                await viewModel.refresh()
+                viewModel.selectedNodeID = newFolderURL.path
+            } catch {
+                LoggingTool.error("Create folder failed: \(error.localizedDescription)")
+            }
         }
+    }
+
+    private func nextAvailableURL(in directory: URL, baseName: String, extensionName: String? = nil) -> URL {
+        let fileManager = FileManager.default
+        func candidate(_ suffix: String) -> URL {
+            let name = baseName + suffix
+            if let extensionName {
+                return directory.appendingPathComponent(name).appendingPathExtension(extensionName)
+            }
+            return directory.appendingPathComponent(name)
+        }
+
+        var index = 0
+        var url = candidate("")
+        while fileManager.fileExists(atPath: url.path) {
+            index += 1
+            url = candidate(" \(index)")
+        }
+        return url
     }
 
     private func toggleFavorite(path: String) {

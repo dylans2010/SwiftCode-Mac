@@ -1,14 +1,55 @@
 import SwiftUI
+import AppKit
 import UniformTypeIdentifiers
 
 @MainActor
 struct BuildToolbarView: View {
     @State var viewModel: BuildViewModel
     let projectURL: URL
+    @Bindable var editorViewModel: EditorViewModel
     @ObservedObject private var toolbarManager = ToolbarManager.shared
 
     private var buildManager: XcodeBuildManager {
         XcodeBuildManager.shared
+    }
+
+    private var openSwiftDocuments: [SourceFileDocument] {
+        editorViewModel.openDocuments.filter { $0.url.pathExtension.lowercased() == "swift" }
+    }
+
+    @ViewBuilder
+    private var openSwiftFilesMenu: some View {
+        if !openSwiftDocuments.isEmpty {
+            Menu {
+                ForEach(openSwiftDocuments) { document in
+                    Button {
+                        editorViewModel.activeDocument = document
+                        editorViewModel.selectedTabID = document.id
+                    } label: {
+                        Label(document.url.lastPathComponent, systemImage: "swift")
+                    }
+
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(document.url.path, forType: .string)
+                    } label: {
+                        Label("Copy Path", systemImage: "doc.on.doc")
+                    }
+
+                    Button {
+                        NSWorkspace.shared.selectFile(document.url.path, inFileViewerRootedAtPath: document.url.deletingLastPathComponent().path)
+                    } label: {
+                        Label("Reveal in Finder", systemImage: "folder")
+                    }
+
+                    Divider()
+                }
+            } label: {
+                Label("Swift Files", systemImage: "swift")
+            }
+            .menuStyle(.borderlessButton)
+            .help("Open Swift files and file actions")
+        }
     }
 
     var body: some View {
@@ -39,6 +80,8 @@ struct BuildToolbarView: View {
                 .help("Select Build Scheme")
                 .accessibilityLabel("Build Scheme Selector")
             }
+
+            openSwiftFilesMenu
 
             // Pinned & Optional Tools: Only show options that are explicitly pinned (enabled)
             HStack(spacing: 8) {

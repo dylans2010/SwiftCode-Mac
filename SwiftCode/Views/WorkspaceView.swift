@@ -18,6 +18,7 @@ struct WorkspaceView: View {
 
     // Collapsible Agent Inspector
     @AppStorage("com.swiftcode.workspace.showAgentInspector") private var showAgentInspector = false
+    @AppStorage("com.swiftcode.workspace.showFileNavigator") private var showFileNavigator = true
     @AppStorage("com.swiftcode.workspace.agentInspectorWidth") private var agentInspectorWidth = 320.0
     @State private var dragStartWidth: CGFloat? = nil
 
@@ -40,11 +41,32 @@ struct WorkspaceView: View {
     var body: some View {
         AdaptivePage {
             HStack(spacing: 0) {
-                // Sidebar remains visible on the left to navigate files
-                FileNavigatorSidebarView(viewModel: viewModel.projectTree)
-                    .frame(minWidth: 200, idealWidth: 240, maxWidth: 320)
+                if showFileNavigator {
+                    VStack(spacing: 0) {
+                        HStack {
+                            Label("Files", systemImage: "sidebar.left")
+                                .font(.headline)
+                            Spacer()
+                            Button {
+                                withAnimation(.spring()) { showFileNavigator = false }
+                            } label: {
+                                Image(systemName: "sidebar.left")
+                            }
+                            .buttonStyle(.plain)
+                            .help("Hide File Navigator")
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
 
-                Divider()
+                        FileNavigatorSidebarView(viewModel: viewModel.projectTree)
+                    }
+                    .frame(minWidth: 200, idealWidth: 240, maxWidth: 320)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .padding(8)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+
+                    Divider()
+                }
 
                 // Center Code Editor View
                 EditorView(viewModel: viewModel.editor)
@@ -95,6 +117,13 @@ struct WorkspaceView: View {
                 .help("Close current project")
 
                 Button {
+                    withAnimation(.spring()) { showFileNavigator.toggle() }
+                } label: {
+                    Label(showFileNavigator ? "Hide Files" : "Show Files", systemImage: "sidebar.left")
+                }
+                .help(showFileNavigator ? "Hide File Navigator" : "Show File Navigator")
+
+                Button {
                     activeSheet = .buildStatus
                 } label: {
                     Label("Build Status", systemImage: "gauge.with.needle")
@@ -111,7 +140,7 @@ struct WorkspaceView: View {
                 }
                 .help("Toggle AI Agent Inspector")
 
-                BuildToolbarView(viewModel: viewModel.build, projectURL: viewModel.projectURL)
+                BuildToolbarView(viewModel: viewModel.build, projectURL: viewModel.projectURL, editorViewModel: viewModel.editor)
             }
         }
         .sheet(item: $activeSheet) { destination in
