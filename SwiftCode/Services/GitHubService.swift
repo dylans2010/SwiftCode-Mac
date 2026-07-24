@@ -17,6 +17,7 @@ final class GitHubService {
         request.httpMethod = method
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        request.setValue("SwiftCodeIDE", forHTTPHeaderField: "User-Agent")
         if let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }

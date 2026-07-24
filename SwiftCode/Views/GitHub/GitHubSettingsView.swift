@@ -12,87 +12,120 @@ struct GitHubSettingsView: View {
     @State private var gitEmail = ""
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                Text("GitHub & Git Workspace Settings")
-                    .font(.title2.bold())
-                    .foregroundStyle(.primary)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    Text("GitHub & Git Workspace Settings")
+                        .font(.title2.bold())
+                        .foregroundStyle(.primary)
 
-                // Project Repository Association Component
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Label("Project Repository Association", systemImage: "link.badge.plus")
-                            .font(.headline)
-                            .foregroundStyle(.orange)
+                    // Project Repository Association Component
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Label("Project Repository Association", systemImage: "link.badge.plus")
+                                .font(.headline)
+                                .foregroundStyle(.orange)
 
-                        Text("Manage the GitHub remote connection and Git history for the currently opened project.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            Text("Manage the GitHub remote connection and Git history for the currently opened project.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
 
-                        Divider()
+                            Divider()
 
-                        SetRepoInProject()
-                    }
-                    .padding()
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
-
-                // Credentials Settings Section
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Label("Personal Access Token (PAT)", systemImage: "key.fill")
-                            .font(.headline)
-                            .foregroundStyle(.green)
-
-                        Text("Configure a secure GitHub Personal Access Token to authenticate API queries, fetch repository lists, create pull requests, and pull/push changes.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-
-                        SecureField("ghp_xxxxxxxxxxxx", text: $token)
-                            .textFieldStyle(.roundedBorder)
-
-                        Button("Save Token") {
-                            saveToken()
+                            SetRepoInProject()
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.green)
+                        .padding()
                     }
-                    .padding()
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Label("Git Committer Identity", systemImage: "person.text.rectangle.fill")
-                            .font(.headline)
-                            .foregroundStyle(.blue)
+                    // Credentials Settings Section
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Label("Personal Access Token (PAT)", systemImage: "key.fill")
+                                .font(.headline)
+                                .foregroundStyle(.green)
 
-                        Text("Identify yourself as the author of local commits. Git embeds these details into commit metadata records.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            Text("Configure a secure GitHub Personal Access Token to authenticate API queries, fetch repository lists, create pull requests, and pull/push changes.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
 
-                        TextField("Full Name (e.g., Jane Doe)", text: $gitName)
-                            .textFieldStyle(.roundedBorder)
+                            SecureField("ghp_xxxxxxxxxxxx", text: $token)
+                                .textFieldStyle(.roundedBorder)
 
-                        TextField("Email Address (e.g., jane@example.com)", text: $gitEmail)
-                            .textFieldStyle(.roundedBorder)
+                            HStack(spacing: 12) {
+                                Button("Save Token") {
+                                    saveToken()
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.green)
 
-                        Button("Save Git Identity") {
-                            saveIdentity()
+                                NavigationLink(destination: GitHubConfigView().environmentObject(AppSettings.shared)) {
+                                    Label("Advanced Configuration...", systemImage: "gearshape.2.fill")
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(.green)
+                            }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.blue)
+                        .padding()
                     }
-                    .padding()
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Label("Git Committer Identity", systemImage: "person.text.rectangle.fill")
+                                .font(.headline)
+                                .foregroundStyle(.blue)
+
+                            Text("Identify yourself as the author of local commits. Git embeds these details into commit metadata records.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            TextField("Full Name (e.g., Jane Doe)", text: $gitName)
+                                .textFieldStyle(.roundedBorder)
+
+                            TextField("Email Address (e.g., jane@example.com)", text: $gitEmail)
+                                .textFieldStyle(.roundedBorder)
+
+                            Button("Save Git Identity") {
+                                saveIdentity()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.blue)
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Stop Source Control Section
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Label("Stop Source Control", systemImage: "xmark.octagon.fill")
+                                .font(.headline)
+                                .foregroundStyle(.red)
+
+                            Text("Permanently disconnect remote GitHub mapping, erase credentials, and reset source control workspace settings. This takes you back to onboarding.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            Button(role: .destructive) {
+                                stopSourceControl()
+                            } label: {
+                                Text("Stop Source Control")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.red)
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
-                .groupBoxStyle(ModernGroupBoxStyle())
+                .padding(24)
             }
-            .padding(24)
-        }
-        .onAppear {
-            token = KeychainService.shared.get(forKey: KeychainService.githubToken) ?? ""
-            gitName = AppSettings.shared.gitUserName
-            gitEmail = AppSettings.shared.gitUserEmail
+            .onAppear {
+                token = KeychainService.shared.get(forKey: KeychainService.githubToken) ?? ""
+                gitName = AppSettings.shared.gitUserName
+                gitEmail = AppSettings.shared.gitUserEmail
+            }
         }
     }
 
@@ -106,6 +139,31 @@ struct GitHubSettingsView: View {
     private func saveIdentity() {
         AppSettings.shared.gitUserName = gitName
         AppSettings.shared.gitUserEmail = gitEmail
+    }
+
+    private func stopSourceControl() {
+        let alert = NSAlert()
+        alert.messageText = "Stop Source Control?"
+        alert.informativeText = "Are you sure you want to permanently remove all git and source control configurations? This action will take you back to the Onboarding setup."
+        alert.addButton(withTitle: "Stop and Reset")
+        alert.addButton(withTitle: "Cancel")
+        alert.alertStyle = .critical
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            // Permanently remove all source control data
+            AppSettings.shared.gitPath = ""
+            AppSettings.shared.httpsAuthToken = ""
+            AppSettings.shared.gitUserName = ""
+            AppSettings.shared.gitUserEmail = ""
+            AppSettings.shared.hasCompletedOnboarding = false
+
+            KeychainService.shared.delete(forKey: KeychainService.githubToken)
+            APIKeyManager.shared.deleteKey(service: .gitHub)
+            RepositoryContext.shared.disconnectRepository()
+
+            // Redirect to onboarding
+            SourceControlSidebarState.shared.selection = .onboarding
+        }
     }
 }
 
