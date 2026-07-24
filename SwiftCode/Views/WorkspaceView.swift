@@ -44,24 +44,17 @@ struct WorkspaceView: View {
                 if showFileNavigator {
                     VStack(spacing: 0) {
                         HStack {
-                            Label("Files", systemImage: "sidebar.left")
+                            Label("Files", systemImage: "folder.fill")
                                 .font(.headline)
                             Spacer()
-                            Button {
-                                withAnimation(.spring()) { showFileNavigator = false }
-                            } label: {
-                                Image(systemName: "sidebar.left")
-                            }
-                            .buttonStyle(.plain)
-                            .help("Hide File Navigator")
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
 
                         FileNavigatorSidebarView(viewModel: viewModel.projectTree)
                     }
                     .frame(minWidth: 200, idealWidth: 240, maxWidth: 320)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                     .padding(8)
                     .transition(.move(edge: .leading).combined(with: .opacity))
 

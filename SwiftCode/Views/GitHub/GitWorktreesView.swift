@@ -19,8 +19,6 @@ struct GitWorktreesView: View {
     @State private var newWorktreeBranch = ""
     @State private var isCreatingNewBranch = false
     @State private var customNewBranchName = ""
-    @State private var isPerformingAction = false
-    @State private var actionProgressTitle = ""
 
     // Additional sheets
     @State private var showLockReasonSheet = false
@@ -34,93 +32,308 @@ struct GitWorktreesView: View {
         case path = "Path"
         case lastCommit = "Last Commit"
         case recentlyOpened = "Recently Opened"
-        case lastModified = "Last Modified"
         case favorites = "Favorites"
-        case pinned = "Pinned"
 
         var id: String { rawValue }
     }
 
     // Filter categories mapping
     let filterCategories = [
-        "All", "Main Worktrees", "Feature Branches", "Release Branches",
-        "Hotfix Branches", "Dirty", "Clean", "Locked", "Detached HEAD",
-        "Favorites", "Recently Opened", "Current Workspace"
+        "All", "Main Worktrees", "Dirty", "Clean", "Locked", "Favorites"
     ]
 
     var body: some View {
-        HSplitView {
-            // Left Panel: Worktrees Directory & Filters
-            VStack(spacing: 0) {
-                // Toolbar & Search Area
-                searchAndSortHeader
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // GroupBox 1: Global Actions & Utilities
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Worktree Management Hub", systemImage: "arrow.triangle.branch")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
+                            }
 
-                Divider()
+                            Text("Manage separate Git worktrees linked to the active project workspace. You can work on multiple branches simultaneously without stash conflicts.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
 
-                // Worktrees Scrollable Grid/List
-                if manager.isRefreshing && manager.worktrees.isEmpty {
-                    VStack(spacing: 12) {
-                        ProgressView().controlSize(.large)
-                        Text("Scanning repository worktrees...")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if filteredWorktrees.isEmpty {
-                    VStack(spacing: 16) {
-                        Image(systemName: "arrow.triangle.branch")
-                            .font(.system(size: 40))
-                            .foregroundStyle(.secondary)
-                        Text("No Worktrees Found")
-                            .font(.headline)
-                        Text("Try clearing your search query or selecting another filter category.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: 240)
+                            Divider()
 
-                        Button {
-                            showCreateWizard = true
-                        } label: {
-                            Label("Create Worktree", systemImage: "plus")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.blue)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            ForEach(filteredWorktrees) { wt in
-                                worktreeCard(wt)
+                            HStack(spacing: 12) {
+                                Button {
+                                    showCreateWizard = true
+                                } label: {
+                                    Label("Add Worktree", systemImage: "plus")
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.blue)
+
+                                Button {
+                                    refreshWorktrees()
+                                } label: {
+                                    Label("Refresh", systemImage: "arrow.clockwise")
+                                }
+                                .buttonStyle(.bordered)
+
+                                Button {
+                                    pruneStale()
+                                } label: {
+                                    Label("Prune Stale", systemImage: "trash")
+                                }
+                                .buttonStyle(.bordered)
+
+                                Button {
+                                    repairWorktrees()
+                                } label: {
+                                    Label("Repair", systemImage: "wrench.and.screwdriver")
+                                }
+                                .buttonStyle(.bordered)
                             }
                         }
-                        .padding(16)
+                        .padding()
                     }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // GroupBox 2: Catalog & Filter Section
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Repository Worktrees Catalog", systemImage: "folder.badge.gearshape")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
+
+                            // Search & Sort parameters
+                            HStack(spacing: 12) {
+                                HStack {
+                                    Image(systemName: "magnifyingglass")
+                                        .foregroundStyle(.secondary)
+                                    TextField("Search worktrees...", text: $searchQuery)
+                                        .textFieldStyle(.plain)
+                                        .autocorrectionDisabled()
+
+                                    if !searchQuery.isEmpty {
+                                        Button {
+                                            searchQuery = ""
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+                                Picker("Sort", selection: $sortOption) {
+                                    ForEach(SortOption.allCases) { opt in
+                                        Text(opt.rawValue).tag(opt)
+                                    }
+                                }
+                                .frame(width: 140)
+                            }
+
+                            // Filter Category picker
+                            Picker("Filter Category", selection: $filterCategory) {
+                                ForEach(filterCategories, id: \.self) { cat in
+                                    Text(cat).tag(cat)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            Divider()
+
+                            // Worktree List Rows
+                            if manager.isRefreshing && manager.worktrees.isEmpty {
+                                HStack {
+                                    Spacer()
+                                    ProgressView("Scanning repository worktrees...").controlSize(.small)
+                                    Spacer()
+                                }
+                                .padding()
+                            } else if filteredWorktrees.isEmpty {
+                                HStack {
+                                    Spacer()
+                                    Text("No worktrees matching current query.")
+                                        .foregroundStyle(.secondary)
+                                        .font(.subheadline)
+                                    Spacer()
+                                }
+                                .padding()
+                            } else {
+                                VStack(spacing: 12) {
+                                    ForEach(filteredWorktrees) { wt in
+                                        worktreeRow(wt)
+                                        if wt != filteredWorktrees.last {
+                                            Divider()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // GroupBox 3: Selected Worktree Inspector & Details
+                    if let wt = selectedWorktree {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Label("Selected Worktree Inspector", systemImage: "info.circle")
+                                        .font(.headline)
+                                        .foregroundColor(.green)
+                                    Spacer()
+
+                                    Button {
+                                        selectedWorktree = nil
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+
+                                Text(wt.relativePath)
+                                    .font(.title2.bold())
+
+                                Text(wt.path)
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+
+                                Divider()
+
+                                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
+                                    GridRow {
+                                        Text("Branch:").bold()
+                                        Text(wt.branch ?? "Detached HEAD")
+                                            .foregroundColor(wt.isDetached ? .red : .primary)
+                                    }
+                                    GridRow {
+                                        Text("HEAD Commit:").bold()
+                                        Text(wt.headSHA)
+                                            .font(.caption.monospaced())
+                                    }
+                                    if !wt.commitMessage.isEmpty {
+                                        GridRow {
+                                            Text("Commit Msg:").bold()
+                                            Text(wt.commitMessage).italic()
+                                        }
+                                    }
+                                    GridRow {
+                                        Text("Lock Status:").bold()
+                                        Text(wt.isLocked ? "Locked (\(wt.lockReason ?? ""))" : "Unlocked")
+                                            .foregroundColor(wt.isLocked ? .red : .green)
+                                    }
+                                }
+                                .font(.subheadline)
+
+                                Divider()
+
+                                FlowLayout(spacing: 8) {
+                                    Button {
+                                        openWorktreeInSwiftCode(wt)
+                                    } label: {
+                                        Label("Open in SwiftCode", systemImage: "laptopcomputer")
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.blue)
+
+                                    Button {
+                                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: wt.path)
+                                    } label: {
+                                        Label("Reveal in Finder", systemImage: "folder")
+                                    }
+                                    .buttonStyle(.bordered)
+
+                                    Button {
+                                        openInTerminal(wt.path)
+                                    } label: {
+                                        Label("Terminal", systemImage: "terminal")
+                                    }
+                                    .buttonStyle(.bordered)
+
+                                    if wt.isLocked {
+                                        Button {
+                                            unlockWorktree(wt)
+                                        } label: {
+                                            Label("Unlock", systemImage: "lock.open")
+                                        }
+                                        .buttonStyle(.bordered)
+                                    } else {
+                                        Button {
+                                            worktreeToLock = wt
+                                            lockReasonText = ""
+                                            showLockReasonSheet = true
+                                        } label: {
+                                            Label("Lock", systemImage: "lock")
+                                        }
+                                        .buttonStyle(.bordered)
+                                    }
+
+                                    Button(role: .destructive) {
+                                        removeWorktree(wt)
+                                    } label: {
+                                        Label("Remove...", systemImage: "trash")
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+                    }
+
+                    // GroupBox 4: Background Execution Log Stream
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Live Output Log Stream", systemImage: "terminal.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.gray)
+                                Spacer()
+                            }
+
+                            ScrollView {
+                                Text(manager.liveCommandLogs.isEmpty ? "No active background logs." : manager.liveCommandLogs)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .padding(10)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.black.opacity(0.12))
+                                    .cornerRadius(6)
+                                    .textSelection(.enabled)
+                            }
+                            .frame(height: 120)
+
+                            if manager.activeProcess != nil {
+                                HStack {
+                                    ProgressView().controlSize(.small)
+                                    Text("Executing background Git Process...")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    Button("Cancel Operation") {
+                                        manager.cancelActiveProcess()
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
-
-                Divider()
-
-                // Live Log Stream & Actions Bar
-                liveCommandLogConsole
+                .padding(24)
             }
-            .frame(minWidth: 400, idealWidth: 500)
-
-            // Right Panel: Details View
-            Group {
-                if let wt = selectedWorktree {
-                    worktreeDetailsPanel(wt)
-                } else {
-                    ContentUnavailableView(
-                        "No Selection",
-                        systemImage: "doc.text.magnifyingglass",
-                        description: Text("Select a worktree from the catalog to inspect detailed parameters, contributor timelines, ahead/behind counts, and local modifications.")
-                    )
-                }
-            }
-            .frame(minWidth: 420, idealWidth: 480)
+            .navigationTitle("Git Worktrees")
         }
-        .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
             if let activeURL = sessionStore.activeProject?.directoryURL {
                 Task {
@@ -136,560 +349,72 @@ struct GitWorktreesView: View {
         }
     }
 
-    // MARK: - Core Components
+    // MARK: - Row Subview
 
-    private var searchAndSortHeader: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                // Search Input
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("Search worktrees...", text: $searchQuery)
-                        .textFieldStyle(.plain)
-                        .autocorrectionDisabled()
-
-                    if !searchQuery.isEmpty {
-                        Button {
-                            searchQuery = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
-
-                // Sort Picker
-                Picker("", selection: $sortOption) {
-                    ForEach(SortOption.allCases) { opt in
-                        Text("Sort by: \(opt.rawValue)").tag(opt)
-                    }
-                }
-                .pickerStyle(.menu)
-                .frame(width: 140)
-            }
-
-            // Category Filter Scrollbar
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(filterCategories, id: \.self) { cat in
-                        Button {
-                            withAnimation(.spring()) {
-                                filterCategory = cat
-                            }
-                        } label: {
-                            Text(cat)
-                                .font(.caption.bold())
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(filterCategory == cat ? Color.accentColor : Color.secondary.opacity(0.1), in: Capsule())
-                                .foregroundStyle(filterCategory == cat ? .white : .primary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-
-            // Global Actions
-            HStack(spacing: 8) {
-                Button {
-                    showCreateWizard = true
-                } label: {
-                    Label("Add Worktree", systemImage: "plus")
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.regular)
-
-                Button {
-                    if let activeURL = sessionStore.activeProject?.directoryURL {
-                        Task {
-                            await manager.refresh(repositoryURL: activeURL)
-                        }
-                    }
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                .buttonStyle(.bordered)
-
-                Button {
-                    if let activeURL = sessionStore.activeProject?.directoryURL {
-                        Task {
-                            try? await manager.pruneWorktrees(repositoryURL: activeURL)
-                        }
-                    }
-                } label: {
-                    Label("Prune Stale", systemImage: "trash")
-                }
-                .buttonStyle(.bordered)
-
-                Button {
-                    if let activeURL = sessionStore.activeProject?.directoryURL {
-                        Task {
-                            try? await manager.repairWorktree(repositoryURL: activeURL)
-                        }
-                    }
-                } label: {
-                    Label("Repair", systemImage: "wrench.and.screwdriver")
-                }
-                .buttonStyle(.bordered)
-
-                Spacer()
-            }
-        }
-        .padding(12)
-        .background(Color(NSColor.windowBackgroundColor))
-    }
-
-    // MARK: - Worktree Card
-
-    private func worktreeCard(_ wt: GitWorktree) -> some View {
+    private func worktreeRow(_ wt: GitWorktree) -> some View {
         let isSelected = selectedWorktree?.path == wt.path
         let isActive = sessionStore.activeProject?.directoryURL.path == wt.path
 
-        return GroupBox {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 10) {
-                    Image(systemName: "folder.badge.gearshape")
-                        .font(.title3)
-                        .foregroundStyle(wt.isMain ? Color.orange : Color.blue)
+        return HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(wt.relativePath)
+                        .font(.subheadline.bold())
+                        .foregroundColor(isSelected ? .accentColor : .primary)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Text(wt.relativePath)
-                                .font(.subheadline.bold())
-                                .foregroundStyle(.primary)
-
-                            if wt.isMain {
-                                Text("MAIN")
-                                    .font(.system(size: 8, weight: .bold))
-                                    .padding(.horizontal, 4)
-                                    .padding(.vertical, 1)
-                                    .background(Color.orange.opacity(0.15))
-                                    .foregroundStyle(.orange)
-                                    .cornerRadius(4)
-                            }
-
-                            if wt.isLocked {
-                                Image(systemName: "lock.fill")
-                                    .font(.caption2)
-                                    .foregroundStyle(.red)
-                                    .help(wt.lockReason ?? "Locked")
-                            }
-
-                            if isActive {
-                                Text("ACTIVE WORKSPACE")
-                                    .font(.system(size: 8, weight: .bold))
-                                    .padding(.horizontal, 4)
-                                    .padding(.vertical, 1)
-                                    .background(Color.green.opacity(0.15))
-                                    .foregroundStyle(.green)
-                                    .cornerRadius(4)
-                            }
-                        }
-
-                        Text(wt.path)
-                            .font(.caption2.monospaced())
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                    if wt.isMain {
+                        Text("MAIN")
+                            .font(.system(size: 8, weight: .bold))
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.orange.opacity(0.15))
+                            .foregroundStyle(.orange)
+                            .cornerRadius(4)
                     }
 
-                    Spacer()
-
-                    // Favorite & Pin indicators
-                    HStack(spacing: 8) {
-                        Button {
-                            manager.toggleFavorite(for: wt)
-                        } label: {
-                            Image(systemName: wt.isFavorite ? "star.fill" : "star")
-                                .foregroundStyle(wt.isFavorite ? .yellow : .secondary)
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            manager.togglePinned(for: wt)
-                        } label: {
-                            Image(systemName: wt.isPinned ? "pin.fill" : "pin")
-                                .foregroundStyle(wt.isPinned ? .orange : .secondary)
-                        }
-                        .buttonStyle(.plain)
+                    if isActive {
+                        Text("ACTIVE")
+                            .font(.system(size: 8, weight: .bold))
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.green.opacity(0.15))
+                            .foregroundStyle(.green)
+                            .cornerRadius(4)
                     }
                 }
 
-                Divider()
-
-                HStack {
-                    // Branch & Status
-                    Label(wt.branch ?? "Detached HEAD", systemImage: wt.isDetached ? "personalhotspot" : "arrow.triangle.branch")
-                        .font(.caption.bold())
-                        .foregroundStyle(wt.isDetached ? .red : .primary)
-
-                    Spacer()
-
-                    // Ahead/Behind counts
-                    if wt.aheadCount > 0 || wt.behindCount > 0 {
-                        Text("↑ \(wt.aheadCount) ↓ \(wt.behindCount)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    // Modification badges
-                    if wt.isDirty {
-                        HStack(spacing: 6) {
-                            if wt.modifiedCount > 0 {
-                                Badge(count: wt.modifiedCount, color: .orange, icon: "pencil")
-                            }
-                            if wt.stagedCount > 0 {
-                                Badge(count: wt.stagedCount, color: .green, icon: "checkmark.circle")
-                            }
-                            if wt.untrackedCount > 0 {
-                                Badge(count: wt.untrackedCount, color: .blue, icon: "questionmark.circle")
-                            }
-                        }
-                    } else {
-                        Text("Clean")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                Text(wt.branch ?? "Detached HEAD")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .padding(6)
-            .contentShape(Rectangle())
-            .onTapGesture {
+
+            Spacer()
+
+            if wt.isLocked {
+                Image(systemName: "lock.fill")
+                    .foregroundStyle(.red)
+            }
+
+            // Favorite/Pin actions
+            Button {
+                manager.toggleFavorite(for: wt)
+            } label: {
+                Image(systemName: wt.isFavorite ? "star.fill" : "star")
+                    .foregroundStyle(wt.isFavorite ? .yellow : .secondary)
+            }
+            .buttonStyle(.plain)
+
+            Button("Inspect") {
                 selectedWorktree = wt
                 manager.updateLastOpened(for: wt)
             }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
         }
-        .groupBoxStyle(ModernGroupBoxStyle())
-        .background(isSelected ? Color.accentColor.opacity(0.08) : Color.clear)
-        .cornerRadius(8)
-        .contextMenu {
-            contextMenuOptions(wt)
-        }
+        .padding(.vertical, 4)
     }
 
-    // MARK: - Context Menu
-
-    @ViewBuilder
-    private func contextMenuOptions(_ wt: GitWorktree) -> some View {
-        Button {
-            openWorktreeInSwiftCode(wt)
-        } label: {
-            Label("Open in SwiftCode", systemImage: "laptopcomputer")
-        }
-
-        Button {
-            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: wt.path)
-        } label: {
-            Label("Reveal in Finder", systemImage: "folder")
-        }
-
-        Button {
-            openInTerminal(wt.path)
-        } label: {
-            Label("Open in Terminal", systemImage: "terminal")
-        }
-
-        Divider()
-
-        Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(wt.path, forType: .string)
-        } label: {
-            Label("Copy Path", systemImage: "doc.on.doc")
-        }
-
-        if let br = wt.branch {
-            Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(br, forType: .string)
-            } label: {
-                Label("Copy Branch", systemImage: "arrow.triangle.branch")
-            }
-        }
-
-        Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(wt.headSHA, forType: .string)
-        } label: {
-            Label("Copy Commit SHA", systemImage: "square.dashed")
-        }
-
-        Divider()
-
-        if wt.isLocked {
-            Button {
-                unlockWorktree(wt)
-            } label: {
-                Label("Unlock Worktree", systemImage: "lock.open")
-            }
-        } else {
-            Button {
-                worktreeToLock = wt
-                lockReasonText = ""
-                showLockReasonSheet = true
-            } label: {
-                Label("Lock Worktree...", systemImage: "lock")
-            }
-        }
-
-        Button(role: .destructive) {
-            removeWorktree(wt)
-        } label: {
-            Label("Remove Worktree...", systemImage: "trash")
-        }
-    }
-
-    // MARK: - Worktree Details Panel
-
-    private func worktreeDetailsPanel(_ wt: GitWorktree) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // Title Area
-                HStack(spacing: 12) {
-                    Image(systemName: "folder.badge.gearshape")
-                        .font(.system(size: 32))
-                        .foregroundStyle(.blue)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(wt.relativePath)
-                            .font(.title2.bold())
-                        Text(wt.path)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                    }
-                    Spacer()
-                }
-
-                Divider()
-
-                // Specifications Grid
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label("Worktree Parameters", systemImage: "info.circle")
-                            .font(.headline)
-                            .foregroundStyle(.orange)
-
-                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
-                            GridRow {
-                                Text("Branch:")
-                                    .foregroundStyle(.secondary)
-                                Text(wt.branch ?? "Detached HEAD")
-                                    .fontWeight(.semibold)
-                            }
-                            if let remote = wt.remoteBranch {
-                                GridRow {
-                                    Text("Remote upstream:")
-                                        .foregroundStyle(.secondary)
-                                    Text(remote)
-                                        .font(.caption.monospaced())
-                                }
-                            }
-                            GridRow {
-                                Text("HEAD Commit:")
-                                    .foregroundStyle(.secondary)
-                                Text(wt.headSHA)
-                                    .font(.caption.monospaced())
-                                    .textSelection(.enabled)
-                            }
-                            if !wt.commitMessage.isEmpty {
-                                GridRow {
-                                    Text("Commit Message:")
-                                        .foregroundStyle(.secondary)
-                                    Text(wt.commitMessage)
-                                        .italic()
-                                }
-                            }
-                            if !wt.commitAuthor.isEmpty {
-                                GridRow {
-                                    Text("Author:")
-                                        .foregroundStyle(.secondary)
-                                    Text(wt.commitAuthor)
-                                }
-                            }
-                            if let date = wt.commitDate {
-                                GridRow {
-                                    Text("Commit Date:")
-                                        .foregroundStyle(.secondary)
-                                    Text(date.formatted())
-                                }
-                            }
-                            GridRow {
-                                Text("Lock Status:")
-                                    .foregroundStyle(.secondary)
-                                Text(wt.isLocked ? "Locked (\(wt.lockReason ?? ""))" : "Unlocked")
-                                    .foregroundStyle(wt.isLocked ? .red : .green)
-                            }
-                            if let opened = wt.lastOpenedDate {
-                                GridRow {
-                                    Text("Last Opened:")
-                                        .foregroundStyle(.secondary)
-                                    Text(opened.formatted())
-                                }
-                            }
-                        }
-                    }
-                    .padding(8)
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
-
-                // Health & Diagnostics
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label("Repository Health Check", systemImage: "shield.checkered")
-                            .font(.headline)
-                            .foregroundStyle(.green)
-
-                        HStack(spacing: 16) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Worktree Integrity")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(wt.isLocked ? "Suspended (Locked)" : "Healthy")
-                                    .font(.subheadline.bold())
-                                    .foregroundStyle(wt.isLocked ? .red : .green)
-                            }
-
-                            Spacer()
-
-                            VStack(alignment: .trailing, spacing: 4) {
-                                Text("Files count")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text("Local changes: \(wt.modifiedCount) files")
-                                    .font(.subheadline.bold())
-                                    .foregroundStyle(wt.isDirty ? .orange : .secondary)
-                            }
-                        }
-                    }
-                    .padding(8)
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
-
-                // Command Quick Launch
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Operations Quick Actions")
-                        .font(.headline)
-
-                    FlowLayout(spacing: 8) {
-                        Button {
-                            openWorktreeInSwiftCode(wt)
-                        } label: {
-                            Label("Open in SwiftCode", systemImage: "laptopcomputer")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.blue)
-
-                        Button {
-                            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: wt.path)
-                        } label: {
-                            Label("Reveal in Finder", systemImage: "folder")
-                        }
-                        .buttonStyle(.bordered)
-
-                        Button {
-                            openInTerminal(wt.path)
-                        } label: {
-                            Label("Terminal", systemImage: "terminal")
-                        }
-                        .buttonStyle(.bordered)
-
-                        Button {
-                            duplicateWorktree(wt)
-                        } label: {
-                            Label("Duplicate", systemImage: "doc.on.doc")
-                        }
-                        .buttonStyle(.bordered)
-
-                        if wt.isLocked {
-                            Button {
-                                unlockWorktree(wt)
-                            } label: {
-                                Label("Unlock", systemImage: "lock.open")
-                            }
-                            .buttonStyle(.bordered)
-                        } else {
-                            Button {
-                                worktreeToLock = wt
-                                lockReasonText = ""
-                                showLockReasonSheet = true
-                            } label: {
-                                Label("Lock...", systemImage: "lock")
-                            }
-                            .buttonStyle(.bordered)
-                        }
-
-                        Button(role: .destructive) {
-                            removeWorktree(wt)
-                        } label: {
-                            Label("Remove Worktree...", systemImage: "trash")
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-            }
-            .padding(20)
-        }
-        .background(Color(NSColor.controlBackgroundColor))
-    }
-
-    // MARK: - Live Output Console
-
-    private var liveCommandLogConsole: some View {
-        VStack(spacing: 0) {
-            DisclosureGroup {
-                VStack(alignment: .leading, spacing: 8) {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            Text(manager.liveCommandLogs)
-                                .font(.system(.caption, design: .monospaced))
-                                .padding(8)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.black.opacity(0.12))
-                                .cornerRadius(6)
-                                .textSelection(.enabled)
-                        }
-                        .frame(height: 120)
-                        .onChange(of: manager.liveCommandLogs.count) {
-                            proxy.scrollTo("bottom")
-                        }
-                    }
-
-                    if manager.activeProcess != nil {
-                        HStack {
-                            ProgressView().controlSize(.small)
-                            Text("Executing background Git Process...")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Button("Cancel Operation") {
-                                manager.cancelActiveProcess()
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                        }
-                    }
-                }
-                .padding(.top, 8)
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "terminal.fill")
-                        .foregroundStyle(.secondary)
-                    Text("Live Execution Log Stream")
-                        .font(.headline)
-                    Spacer()
-                }
-            }
-            .padding(12)
-            .background(Color(NSColor.windowBackgroundColor))
-        }
-    }
-
-    // MARK: - Creation Wizard Sheet
+    // MARK: - Guided Wizard Creation Sheet
 
     private var creationWizardView: some View {
         VStack(spacing: 0) {
@@ -740,30 +465,7 @@ struct GitWorktreesView: View {
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                         }
-                        .padding(8)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Label("Path conflict Diagnostics", systemImage: "shield.fill")
-                                .font(.headline)
-                                .foregroundStyle(.orange)
-
-                            Text("Preview Location: \(newWorktreePath)")
-                                .font(.caption.monospaced())
-
-                            if FileManager.default.fileExists(atPath: newWorktreePath) {
-                                Text("⚠ Destination folder already exists! Merge conflict or permission failures are likely.")
-                                    .font(.caption)
-                                    .foregroundStyle(.red)
-                            } else {
-                                Text("✓ Path is clear and empty. Fully safe to proceed.")
-                                    .font(.caption)
-                                    .foregroundStyle(.green)
-                            }
-                        }
-                        .padding(8)
+                        .padding()
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
@@ -777,7 +479,7 @@ struct GitWorktreesView: View {
                 .padding()
             }
         }
-        .frame(width: 580, height: 500)
+        .frame(width: 580, height: 460)
     }
 
     // MARK: - Lock Reason Sheet
@@ -843,26 +545,14 @@ struct GitWorktreesView: View {
         switch filterCategory {
         case "Main Worktrees":
             list = list.filter { $0.isMain }
-        case "Feature Branches":
-            list = list.filter { $0.branch?.hasPrefix("feature/") ?? false }
-        case "Release Branches":
-            list = list.filter { $0.branch?.hasPrefix("release/") ?? false }
-        case "Hotfix Branches":
-            list = list.filter { $0.branch?.hasPrefix("hotfix/") ?? false }
         case "Dirty":
             list = list.filter { $0.isDirty }
         case "Clean":
             list = list.filter { !$0.isDirty }
         case "Locked":
             list = list.filter { $0.isLocked }
-        case "Detached HEAD":
-            list = list.filter { $0.isDetached }
         case "Favorites":
             list = list.filter { $0.isFavorite }
-        case "Recently Opened":
-            list = list.filter { $0.lastOpenedDate != nil }
-        case "Current Workspace":
-            list = list.filter { sessionStore.activeProject?.directoryURL.path == $0.path }
         default:
             break
         }
@@ -881,18 +571,38 @@ struct GitWorktreesView: View {
             list.sort { ($0.commitDate ?? Date.distantPast) > ($1.commitDate ?? Date.distantPast) }
         case .recentlyOpened:
             list.sort { ($0.lastOpenedDate ?? Date.distantPast) > ($1.lastOpenedDate ?? Date.distantPast) }
-        case .lastModified:
-            list.sort { $0.isDirty && !$1.isDirty }
         case .favorites:
             list.sort { $0.isFavorite && !$1.isFavorite }
-        case .pinned:
-            list.sort { $0.isPinned && !$1.isPinned }
         }
 
         return list
     }
 
     // MARK: - Actions Operations
+
+    private func refreshWorktrees() {
+        if let activeURL = sessionStore.activeProject?.directoryURL {
+            Task {
+                await manager.refresh(repositoryURL: activeURL)
+            }
+        }
+    }
+
+    private func pruneStale() {
+        if let activeURL = sessionStore.activeProject?.directoryURL {
+            Task {
+                try? await manager.pruneWorktrees(repositoryURL: activeURL)
+            }
+        }
+    }
+
+    private func repairWorktrees() {
+        if let activeURL = sessionStore.activeProject?.directoryURL {
+            Task {
+                try? await manager.repairWorktree(repositoryURL: activeURL)
+            }
+        }
+    }
 
     private func triggerCreateWorktree() {
         guard let activeURL = sessionStore.activeProject?.directoryURL else { return }
@@ -912,20 +622,6 @@ struct GitWorktreesView: View {
                 )
             } catch {
                 // Already reported to logs
-            }
-        }
-    }
-
-    private func duplicateWorktree(_ wt: GitWorktree) {
-        guard let activeURL = sessionStore.activeProject?.directoryURL else { return }
-        if let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            let dupPath = docs.appendingPathComponent("Projects/Worktrees-\(wt.relativePath)-dup-\(Int(Date().timeIntervalSince1970) % 1000)").path
-            Task {
-                do {
-                    try await manager.duplicateWorktree(sourcePath: wt.path, destinationPath: dupPath, repositoryURL: activeURL)
-                } catch {
-                    // Reported to logs
-                }
             }
         }
     }
@@ -958,7 +654,6 @@ struct GitWorktreesView: View {
     }
 
     private func openWorktreeInSwiftCode(_ wt: GitWorktree) {
-        // Switching workspace natively
         let proj = Project(name: wt.path)
         Task {
             await sessionStore.openProject(proj)
@@ -1017,27 +712,5 @@ struct FlowLayout: Layout {
             currentX += size.width + spacing
             maxRowHeight = max(maxRowHeight, size.height)
         }
-    }
-}
-
-// MARK: - Badge View
-
-struct Badge: View {
-    let count: Int
-    let color: Color
-    let icon: String
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Image(systemName: icon)
-                .font(.system(size: 8))
-            Text("\(count)")
-                .font(.system(size: 8, weight: .bold))
-        }
-        .padding(.horizontal, 5)
-        .padding(.vertical, 2)
-        .background(color.opacity(0.15))
-        .foregroundStyle(color)
-        .cornerRadius(4)
     }
 }

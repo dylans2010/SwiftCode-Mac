@@ -15,15 +15,14 @@ public struct MainToolsView: View {
     @State private var searchQuery = ""
 
     public init() {}
-    @State private var selectedCategory = "All"
 
     // Static baseline definition of all tools migrated from WorkspaceView, including DocumentationBrowser
     private let allAvailableTools: [WorkspaceHubTool] = [
         WorkspaceHubTool(id: "build_settings", name: "Xcode Build Settings", description: "Manage optimization levels, target SDKs, and build parameters.", iconName: "gearshape.2.fill", colorHex: "#34C759", category: "Build & Deploy", destination: "xcodeBuildSettings"),
         WorkspaceHubTool(id: "build_logs", name: "Xcode Build Logs", description: "Stream compile warnings, errors, and live build output.", iconName: "doc.text.fill", colorHex: "#FF9500", category: "Build & Deploy", destination: "xcodeBuildLogs"),
         WorkspaceHubTool(id: "ipa_builder", name: "IPA Packaging Suite", description: "Pack built iOS apps into IPA containers from SwiftCode without Xcode UI.", iconName: "shippingbox.fill", colorHex: "#AF52DE", category: "Build & Deploy", destination: "ipaBuild"),
-        WorkspaceHubTool(id: "dependency_manager", name: "Dependency Manager", description: "Search, import, and manage local or remote Swift packages.", iconName: "puzzlepiece.extension.fill", colorHex: "#007AFF", category: "Utilities", destination: "dependencyManager"),
         WorkspaceHubTool(id: "deployments", name: "Deployments Console", description: "Trigger production deployments to Netlify, Vercel, and GitHub Pages.", iconName: "cloud.fill", colorHex: "#5AC8FA", category: "Build & Deploy", destination: "deployments"),
+        WorkspaceHubTool(id: "dependency_manager", name: "Dependency Manager", description: "Search, import, and manage local or remote Swift packages.", iconName: "puzzlepiece.extension.fill", colorHex: "#007AFF", category: "Utilities", destination: "dependencyManager"),
         WorkspaceHubTool(id: "source_control", name: "Source Control", description: "Inspect Git history, commits, stashes, merges, and conflicts.", iconName: "square.stack.3d.down.right.fill", colorHex: "#4CD964", category: "Git & CI", destination: "sourceControl"),
         WorkspaceHubTool(id: "ci_build", name: "CI Visual Workflows", description: "Create and monitor GitHub Actions workflow runners visually.", iconName: "play.circle.fill", colorHex: "#5856D6", category: "Git & CI", destination: "ciBuild"),
         WorkspaceHubTool(id: "simulator_main", name: "Simulator & Previews", description: "Simulate devices, manage simulators, and inspect preview screens.", iconName: "iphone", colorHex: "#FF2D55", category: "Utilities", destination: "simulatorMain"),
@@ -39,97 +38,65 @@ public struct MainToolsView: View {
         WorkspaceHubTool(id: "documentation_browser", name: "Documentation Browser", description: "Full featured windowed multi-pane documentation browser and visual reference workspace.", iconName: "doc.text.magnifyingglass", colorHex: "#007AFF", category: "Utilities", destination: "documentationBrowser")
     ]
 
+    private var filteredCategories: [String] {
+        let cats = Set(allAvailableTools.map { $0.category })
+        return Array(cats).sorted()
+    }
+
     public var body: some View {
-            NavigationStack {
-            VStack(spacing: 0) {
-                // Header Area
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Workspace Tools Hub")
-                            .font(.title2.bold())
-                            .foregroundStyle(.primary)
-                        Text("Manage project specifications, build tools, dependency packages, and Git/CI tasks.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button("Close") {
-                        dismiss()
-                    }
-                    .buttonStyle(.bordered)
-                }
-                .padding(.horizontal, 24)
-                .padding(.vertical, 16)
-                .background(.ultraThinMaterial)
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Search Bar
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Search Workspace Tools", systemImage: "magnifyingglass")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
 
-                Divider()
+                            HStack {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundStyle(.secondary)
+                                TextField("Type to search tools...", text: $searchQuery)
+                                    .textFieldStyle(.plain)
+                                    .autocorrectionDisabled()
 
-                // Filter & Search Controls
-                VStack(spacing: 12) {
-                    HStack(spacing: 12) {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundStyle(.secondary)
-                            TextField("Search workspace tools...", text: $searchQuery)
-                                .textFieldStyle(.plain)
-                                .autocorrectionDisabled()
-
-                            if !searchQuery.isEmpty {
-                                Button {
-                                    searchQuery = ""
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.secondary)
+                                if !searchQuery.isEmpty {
+                                    Button {
+                                        searchQuery = ""
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
                             }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-
-                        Spacer()
+                        .padding()
                     }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                    HStack(spacing: 8) {
-                        let categories = ["All", "Build & Deploy", "Git & CI", "Utilities"]
-                        ForEach(categories, id: \.self) { cat in
-                            Button {
-                                selectedCategory = cat
-                            } label: {
-                                Text(cat)
-                                    .font(.subheadline)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 4)
-                                    .background(selectedCategory == cat ? Color.accentColor : Color.secondary.opacity(0.1), in: Capsule())
-                                    .foregroundStyle(selectedCategory == cat ? .white : .primary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        Spacer()
-                    }
-                }
-                .padding(24)
+                    // Tool Category GroupBoxes matching DeploymentsView
+                    ForEach(filteredCategories, id: \.self) { category in
+                        let categoryTools = toolsForCategory(category)
+                        if !categoryTools.isEmpty {
+                            GroupBox {
+                                VStack(alignment: .leading, spacing: 14) {
+                                    HStack {
+                                        Label(category, systemImage: iconForCategory(category))
+                                            .font(.headline)
+                                            .foregroundColor(colorForCategory(category))
+                                        Spacer()
+                                    }
 
-                Divider()
-
-                // Tools List Grid
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        let filtered = filteredToolsList()
-
-                        if filtered.isEmpty {
-                            ContentUnavailableView(
-                                "No Tools Found",
-                                systemImage: "wrench.and.screwdriver",
-                                description: Text("Try adjusting your filters or search query.")
-                            )
-                            .padding(.top, 40)
-                        } else {
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 280))], spacing: 16) {
-                                ForEach(filtered) { tool in
-                                    GroupBox {
-                                        VStack(alignment: .leading, spacing: 10) {
+                                    VStack(spacing: 16) {
+                                        ForEach(categoryTools) { tool in
                                             HStack(spacing: 12) {
                                                 ZStack {
                                                     RoundedRectangle(cornerRadius: 8)
@@ -140,61 +107,72 @@ public struct MainToolsView: View {
                                                         .foregroundStyle(Color(hex: tool.colorHex))
                                                 }
 
-                                                VStack(alignment: .leading, spacing: 2) {
+                                                VStack(alignment: .leading, spacing: 4) {
                                                     Text(tool.name)
                                                         .font(.subheadline.bold())
                                                         .foregroundStyle(.primary)
-                                                    Text(tool.category.uppercased())
-                                                        .font(.system(size: 8, weight: .bold))
+                                                    Text(tool.description)
+                                                        .font(.caption)
                                                         .foregroundStyle(.secondary)
+                                                        .lineLimit(2)
+                                                        .fixedSize(horizontal: false, vertical: true)
                                                 }
 
                                                 Spacer()
-                                            }
 
-                                            Text(tool.description)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                                .lineLimit(2)
-                                                .fixedSize(horizontal: false, vertical: true)
-
-                                            Button {
-                                                launchTool(tool)
-                                            } label: {
-                                                HStack {
-                                                    Text("Open Tool")
-                                                    Spacer()
-                                                    Image(systemName: "arrow.right.circle.fill")
+                                                Button("Open Tool") {
+                                                    launchTool(tool)
                                                 }
-                                                .frame(maxWidth: .infinity)
+                                                .buttonStyle(.bordered)
+                                                .controlSize(.regular)
                                             }
-                                            .buttonStyle(.borderedProminent)
-                                            .controlSize(.small)
+
+                                            if tool != categoryTools.last {
+                                                Divider()
+                                            }
                                         }
-                                        .padding(4)
                                     }
-                                    .groupBoxStyle(ModernGroupBoxStyle())
                                 }
+                                .padding()
                             }
+                            .groupBoxStyle(ModernGroupBoxStyle())
                         }
                     }
-                    .padding(24)
                 }
-                .background(Color(NSColor.controlBackgroundColor))
+                .padding(24)
             }
-            .frame(minWidth: 750, minHeight: 500)
+            .navigationTitle("Workspace Tools Hub")
         }
     }
 
-    private func filteredToolsList() -> [WorkspaceHubTool] {
-        var list = allAvailableTools
-        if !searchQuery.isEmpty {
-            list = list.filter { $0.name.localizedCaseInsensitiveContains(searchQuery) || $0.description.localizedCaseInsensitiveContains(searchQuery) }
+    private func toolsForCategory(_ category: String) -> [WorkspaceHubTool] {
+        let categoryList = allAvailableTools.filter { $0.category == category }
+        if searchQuery.isEmpty {
+            return categoryList
+        } else {
+            return categoryList.filter {
+                $0.name.localizedCaseInsensitiveContains(searchQuery) ||
+                $0.description.localizedCaseInsensitiveContains(searchQuery)
+            }
         }
-        if selectedCategory != "All" {
-            list = list.filter { $0.category == selectedCategory }
+    }
+
+    private func iconForCategory(_ category: String) -> String {
+        switch category {
+        case "Build & Deploy": return "hammer.fill"
+        case "Git & CI": return "arrow.triangle.branch"
+        case "Utilities": return "wrench.and.screwdriver.fill"
+        default: return "gearshape.fill"
         }
-        return list
+    }
+
+    private func colorForCategory(_ category: String) -> Color {
+        switch category {
+        case "Build & Deploy": return .orange
+        case "Git & CI": return .green
+        case "Utilities": return .blue
+        default: return .purple
+        }
     }
 
     private func launchTool(_ tool: WorkspaceHubTool) {
@@ -207,5 +185,4 @@ public struct MainToolsView: View {
             )
         }
     }
-
 }

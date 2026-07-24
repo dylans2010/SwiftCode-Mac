@@ -83,6 +83,36 @@ public class MenuBarManager: NSObject, NSMenuDelegate {
     }
 }
 
+struct NoLinkedRepositoryCard: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "link.badge.plus")
+                .font(.system(size: 44))
+                .foregroundStyle(.orange)
+
+            Text("No Linked Repository")
+                .font(.headline)
+
+            Text("You must link a GitHub repository to use Git operations for this project.")
+                .font(.caption)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 20)
+
+            NavigationLink {
+                GitHubSettingsView(project: ProjectSessionStore.shared.activeProject)
+            } label: {
+                Label("Configure Repo", systemImage: "gearshape")
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.orange)
+            .controlSize(.regular)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
 struct MenuBarRootView: View {
     @State private var selectedTab = "Commit"
 
@@ -98,75 +128,68 @@ struct MenuBarRootView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("Git Menu Bar Controls")
-                    .font(.headline.bold())
-                Spacer()
-            }
-            .padding()
-            .background(Color.secondary.opacity(0.05))
+        NavigationStack {
+            Group {
+                if !isRepositoryLinked {
+                    NoLinkedRepositoryCard()
+                } else {
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("Git Menu Bar Controls")
+                                .font(.headline.bold())
+                            Spacer()
+                        }
+                        .padding()
+                        .background(Color.secondary.opacity(0.05))
 
-            Picker("Section", selection: $selectedTab) {
-                ForEach(options, id: \.self) { opt in
-                    Text(opt).tag(opt)
-                }
-            }
-            .pickerStyle(.menu)
-            .padding(.horizontal)
-            .padding(.vertical, 8)
+                        Picker("Section", selection: $selectedTab) {
+                            ForEach(options, id: \.self) { opt in
+                                Text(opt).tag(opt)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
 
-            Divider()
+                        Divider()
 
-            ScrollView {
-                Group {
-                    switch selectedTab {
-                    case "Commit": NSCommitView()
-                    case "Push": NSPushView()
-                    case "Push Options": NSPushOptionsView()
-                    case "Choose Branch": NSChooseBranchView()
-                    case "Include Tags": NSIncludeTagsView()
-                    case "Force Push": NSForcePushView()
-                    case "Fetch": NSFetchView()
-                    case "Pull": NSPullView()
-                    case "Cherry Pick": NSCherryPickView()
-                    case "Clone": NSCloneView()
-                    case "Create Repository": NSCreateRepositoryView()
-                    case "Create Branch": NSCreateBranchView()
-                    case "Switch Branch": NSSwitchBranchView()
-                    case "Delete Branch": NSDeleteBranchView()
-                    case "Stash": NSStashView()
-                    case "Apply Stash": NSApplyStashView()
-                    case "Rebase": NSRebaseView()
-                    case "Merge": NSMergeView()
-                    case "Discard Changes": NSDiscardAllChangesView()
-                    case "Create PR": NSCreatePRView()
-                    default: EmptyView()
+                        ScrollView {
+                            Group {
+                                switch selectedTab {
+                                case "Commit": NSCommitView()
+                                case "Push": NSPushView()
+                                case "Push Options": NSPushOptionsView()
+                                case "Choose Branch": NSChooseBranchView()
+                                case "Include Tags": NSIncludeTagsView()
+                                case "Force Push": NSForcePushView()
+                                case "Fetch": NSFetchView()
+                                case "Pull": NSPullView()
+                                case "Cherry Pick": NSCherryPickView()
+                                case "Clone": NSCloneView()
+                                case "Create Repository": NSCreateRepositoryView()
+                                case "Create Branch": NSCreateBranchView()
+                                case "Switch Branch": NSSwitchBranchView()
+                                case "Delete Branch": NSDeleteBranchView()
+                                case "Stash": NSStashView()
+                                case "Apply Stash": NSApplyStashView()
+                                case "Rebase": NSRebaseView()
+                                case "Merge": NSMergeView()
+                                case "Discard Changes": NSDiscardAllChangesView()
+                                case "Create PR": NSCreatePRView()
+                                default: EmptyView()
+                                }
+                            }
+                            .transition(.opacity)
+                            .id(selectedTab)
+                        }
                     }
                 }
-                .transition(.opacity)
-                .id(selectedTab)
             }
-            .disabled(!isRepositoryLinked && selectedTab != "Create Repository")
-        }
-        .frame(width: 320, height: 420)
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SelectMenuBarTab"))) { notification in
-            if let tab = notification.userInfo?["tab"] as? String {
-                selectedTab = tab
-            }
-        }
-        .overlay {
-            if !isRepositoryLinked && selectedTab != "Create Repository" {
-                VStack(spacing: 8) {
-                    Label("No linked repository", systemImage: "link.badge.plus")
-                        .font(.headline)
-                    Text("Create a repository before using Git actions for this project.")
-                        .font(.caption)
-                        .multilineTextAlignment(.center)
+            .frame(width: 320, height: 420)
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SelectMenuBarTab"))) { notification in
+                if let tab = notification.userInfo?["tab"] as? String {
+                    selectedTab = tab
                 }
-                .padding()
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-                .padding()
             }
         }
     }
