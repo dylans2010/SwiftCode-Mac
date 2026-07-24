@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import WebKit
+import os
 
 // MARK: - Native Window Manager
 @MainActor
@@ -101,6 +102,59 @@ struct DocSymbol: Identifiable, Codable, Hashable, Sendable {
     let availability: String
 }
 
+// MARK: - Safe Asynchronous Loader with Caching
+@globalActor actor DocSymbolsLoaderActor {
+    static let shared = DocSymbolsLoaderActor()
+}
+
+@DocSymbolsLoaderActor
+final class DocSymbolsLoader {
+    private static let logger = Logger(subsystem: "com.swiftcode.assist", category: "DocSymbolsLoader")
+    private static var cachedSymbols: [DocSymbol]? = nil
+
+    static func loadSymbols() async throws -> [DocSymbol] {
+        if let cached = cachedSymbols {
+            logger.info("Returning cached doc symbols")
+            return cached
+        }
+
+        logger.info("Loading doc symbols from bundle...")
+
+        let bundle = Bundle(for: DocumentationBrowserWindowController.self)
+        guard let url = Bundle.main.url(forResource: "DocSymbols", withExtension: "json") ??
+                        bundle.url(forResource: "DocSymbols", withExtension: "json") else {
+            logger.error("DocSymbols.json not found in bundle")
+            throw LoaderError.fileNotFound
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let decoder = JSONDecoder()
+            let symbols = try decoder.decode([DocSymbol].self, from: data)
+            cachedSymbols = symbols
+            logger.info("Successfully loaded and decoded \(symbols.count) symbols")
+            return symbols
+        } catch {
+            logger.error("Failed to load or decode DocSymbols.json: \(error.localizedDescription)")
+            throw LoaderError.decodingError(error)
+        }
+    }
+
+    enum LoaderError: Error, LocalizedError {
+        case fileNotFound
+        case decodingError(Error)
+
+        var errorDescription: String? {
+            switch self {
+            case .fileNotFound:
+                return "The database resource 'DocSymbols.json' was not found in the application bundle. Ensure it is correctly registered in the build phase."
+            case .decodingError(let inner):
+                return "Failed to decode 'DocSymbols.json'. The JSON may be malformed or incompatible with the DocSymbol schema. Details: \(inner.localizedDescription)"
+            }
+        }
+    }
+}
+
 // MARK: - Native Workspace View UI
 
 struct NativeDocumentationBrowserWorkspaceView: View {
@@ -120,6 +174,8 @@ struct NativeDocumentationBrowserWorkspaceView: View {
     // Asynchronous loading/searching tasks
     @State private var isSearching = false
     @State private var symbols: [DocSymbol] = []
+    @State private var isLoadingDatabase = false
+    @State private var databaseLoadError: String? = nil
 
     // Web Browser & AI Scan states
     @State private var currentOnlineURL: URL = URL(string: "https://developer.apple.com/documentation/")!
@@ -374,7 +430,41 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                     Divider()
 
                     // Symbol Results List
-                    if filteredSymbols.isEmpty {
+                    if isLoadingDatabase {
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .controlSize(.large)
+                            Text("Loading Database...")
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxHeight: .infinity)
+                    } else if let loadError = databaseLoadError {
+                        VStack(spacing: 20) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(.red)
+
+                            Text("Database Load Error")
+                                .font(.headline)
+
+                            Text(loadError)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 24)
+
+                            Button("Retry Loading") {
+                                Task {
+                                    await loadDatabase()
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+                        .padding()
+                        .frame(maxHeight: .infinity)
+                    } else if filteredSymbols.isEmpty {
                         ContentUnavailableView("No Symbols Found", systemImage: "doc.text.magnifyingglass")
                             .frame(maxHeight: .infinity)
                     } else {
@@ -419,7 +509,9 @@ struct NativeDocumentationBrowserWorkspaceView: View {
             }
         }
         .onAppear {
-            loadMockDocumentationIndex()
+            Task {
+                await loadDatabase()
+            }
         }
         .searchable(text: $onlineQuery, prompt: "Search Apple Developer Documentation...")
         .onSubmit(of: .search) {
@@ -1047,8 +1139,21 @@ Code Sample:
         }
     }
 
-    private func loadMockDocumentationIndex() {
-        symbols = DocSymbolsDatabase.allSymbols
+    private func loadDatabase() async {
+        isLoadingDatabase = true
+        databaseLoadError = nil
+        do {
+            let loadedSymbols = try await DocSymbolsLoader.loadSymbols()
+            await MainActor.run {
+                self.symbols = loadedSymbols
+                self.isLoadingDatabase = false
+            }
+        } catch {
+            await MainActor.run {
+                self.databaseLoadError = error.localizedDescription
+                self.isLoadingDatabase = false
+            }
+        }
     }
 }
 
