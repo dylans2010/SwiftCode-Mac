@@ -274,7 +274,14 @@ struct WorkspaceView: View {
                 case .workspaceProfiles: WorkspaceProfilesView()
                 case .gitHub: GitHubIntegrationView(project: project)
                 case .devTools: DevToolsMainView()
-                case .sourceControl: SourceControlView(gitViewModel: viewModel.git)
+                case .sourceControl:
+                    Color.clear
+                        .frame(width: 0, height: 0)
+                        .onAppear {
+                            let scView = SourceControlView(gitViewModel: viewModel.git)
+                            scView.show(for: project)
+                            activeSheet = nil
+                        }
                 case .ciBuild: CIBuildView(project: project)
                 case .licensesAdd: LicencesAddView(project: project)
 

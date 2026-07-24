@@ -819,26 +819,17 @@ struct SourceControlMainWrapper: View {
     }
 }
 
-// MARK: - Reconstructed SourceControlView SwiftUI Fallback (Shorthand Sheet Fallback)
+// MARK: - Reconstructed SourceControlView Fallback (Non-UI, Logic Only)
 @MainActor
-public struct SourceControlView: View {
-    var gitViewModel: GitViewModel
-    @Environment(ProjectSessionStore.self) private var sessionStore
-    @Environment(\.dismiss) private var dismiss
+public struct SourceControlView {
+    public let gitViewModel: GitViewModel
     
     public init(gitViewModel: GitViewModel) {
         self.gitViewModel = gitViewModel
     }
     
-    public var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onAppear {
-                if let project = sessionStore.activeProject {
-                    SourceControlWindowManager.shared.showWindow(for: project, gitViewModel: gitViewModel)
-                }
-                dismiss()
-            }
+    public func show(for project: Project) {
+        SourceControlWindowManager.shared.showWindow(for: project, gitViewModel: gitViewModel)
     }
 }
 

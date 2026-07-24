@@ -170,6 +170,6 @@ public struct ColorContrastAnalyzerView: View {
         let g = Double((rgb & 0x00FF00) >> 8) / 255.0
         let b = Double(rgb & 0x0000FF) / 255.0
 
-        return Color(red: r, g: g, b: b)
+        return Color(red: r, green: g, blue: b)
     }
 }
