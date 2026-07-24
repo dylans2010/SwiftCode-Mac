@@ -36,7 +36,7 @@ public final class DocumentationBrowserWindowManager: NSObject, NSWindowDelegate
 public class DocumentationBrowserWindowController: NSWindowController {
     public init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 120, y: 120, width: 1200, height: 800),
+            contentRect: NSRect(x: 100, y: 100, width: 1400, height: 900),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -67,7 +67,7 @@ public class DocumentationBrowserWindowController: NSWindowController {
 }
 
 // ====================================================================
-// NATIVE DOCUMENTATION BROWSER - MAIN ENTRY POINT sheet view fallback
+// NATIVE DOCUMENTATION BROWSER - MAIN ENTRY POINT
 // ====================================================================
 
 public struct DocumentationBrowserView: View {
@@ -85,7 +85,7 @@ public struct DocumentationBrowserView: View {
     }
 }
 
-// MARK: - Core Models for Documentation indexing
+// MARK: - Core Models for Documentation Indexing
 
 struct DocSymbol: Identifiable, Codable, Hashable, Sendable {
     var id: String { name }
@@ -94,7 +94,10 @@ struct DocSymbol: Identifiable, Codable, Hashable, Sendable {
     let framework: String
     let summary: String
     let syntax: String
-    let platforms: [String]
+    let platforms: [String: String] // Platform -> Introduced version (e.g., "macOS": "10.15")
+    let inheritsFrom: String?
+    let conformsTo: [String]
+    let codeSample: String
     let availability: String
 }
 
@@ -110,9 +113,9 @@ struct NativeDocumentationBrowserWorkspaceView: View {
 
     // Core selection
     @State private var selectedSymbol: DocSymbol? = nil
-    @State private var favorites: Set<String> = []
-    @State private var searchHistory: [String] = []
-    @State private var recentlyViewed: [String] = []
+    @State private var favorites: Set<String> = ["VStack", "URLSession"]
+    @State private var searchHistory: [String] = ["VStack", "Task", "JSONDecoder"]
+    @State private var recentlyViewed: [String] = ["VStack", "JSONDecoder"]
 
     // Asynchronous loading/searching tasks
     @State private var isSearching = false
@@ -132,25 +135,57 @@ struct NativeDocumentationBrowserWorkspaceView: View {
         HSplitView {
             // Sidebar Navigation: Categories & Stats with refined visual theme
             VStack(alignment: .leading, spacing: 0) {
+                // Top header
+                HStack(spacing: 8) {
+                    Image(systemName: "book.closed.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.orange)
+                    Text("Developer Bookshelf")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+
+                Divider()
+
                 List {
                     Section {
-                        Button(action: { selectedCategory = "All" }) {
-                            Label("All Documentation", systemImage: "book.pages.fill")
-                                .foregroundStyle(.orange)
+                        Button(action: { selectedCategory = "All"; selectedFramework = "All"; selectedPlatform = "All" }) {
+                            HStack {
+                                Label("All Documentation", systemImage: "book.pages.fill")
+                                    .foregroundStyle(.orange)
+                                Spacer()
+                                Text("\(symbols.count)")
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         .buttonStyle(.plain)
                         .padding(.vertical, 4)
 
                         Button(action: { selectedCategory = "Favorites" }) {
-                            Label("Bookmarks & Favorites", systemImage: "star.fill")
-                                .foregroundStyle(.yellow)
+                            HStack {
+                                Label("Bookmarks & Favorites", systemImage: "star.fill")
+                                    .foregroundStyle(.yellow)
+                                Spacer()
+                                Text("\(favorites.count)")
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         .buttonStyle(.plain)
                         .padding(.vertical, 4)
 
                         Button(action: { selectedCategory = "Recent" }) {
-                            Label("Recently Viewed", systemImage: "clock.fill")
-                                .foregroundStyle(.blue)
+                            HStack {
+                                Label("Recently Viewed", systemImage: "clock.fill")
+                                    .foregroundStyle(.blue)
+                                Spacer()
+                                Text("\(recentlyViewed.count)")
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         .buttonStyle(.plain)
                         .padding(.vertical, 4)
@@ -161,8 +196,15 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                     Section {
                         ForEach(frameworks.filter { $0 != "All" }, id: \.self) { fw in
                             Button(action: { selectedFramework = fw; selectedCategory = "All" }) {
-                                Label(fw, systemImage: "square.stack.3d.down.right.fill")
-                                    .foregroundStyle(.purple)
+                                HStack {
+                                    Label(fw, systemImage: "square.stack.3d.down.right.fill")
+                                        .foregroundStyle(.purple)
+                                    Spacer()
+                                    let count = symbols.filter { $0.framework == fw }.count
+                                    Text("\(count)")
+                                        .font(.caption2.monospaced())
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                             .buttonStyle(.plain)
                             .padding(.vertical, 2)
@@ -200,27 +242,59 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                 .padding(16)
                 .background(Color(NSColor.windowBackgroundColor))
             }
-            .frame(minWidth: 220, idealWidth: 250, maxWidth: 300)
+            .frame(minWidth: 240, idealWidth: 260, maxWidth: 320)
 
             // Center List of symbols/topics (Premium visual search list)
             VStack(spacing: 0) {
                 // Modern search bar with larger padding and rounded style
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                     TextField("Search symbols, APIs, packages...", text: $searchQuery)
                         .textFieldStyle(.plain)
-                        .font(.subheadline)
+                        .font(.body)
                         .onChange(of: searchQuery) { _, newValue in
                             triggerAsynchronousSearch(newValue)
                         }
                     if isSearching {
                         ProgressView().controlSize(.small)
+                    } else if !searchQuery.isEmpty {
+                        Button {
+                            searchQuery = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(10)
                 .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
                 .padding(12)
+
+                Divider()
+
+                // Filter Header Summary
+                HStack {
+                    Text("Showing \(filteredSymbols.count) matches")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if selectedFramework != "All" || selectedPlatform != "All" || selectedCategory != "All" {
+                        Button("Reset Filters") {
+                            selectedFramework = "All"
+                            selectedPlatform = "All"
+                            selectedCategory = "All"
+                        }
+                        .buttonStyle(.plain)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Color.secondary.opacity(0.04))
 
                 Divider()
 
@@ -234,106 +308,271 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 6)
                                     .fill(kindColor(sym.kind).opacity(0.15))
-                                    .frame(width: 24, height: 24)
+                                    .frame(width: 28, height: 28)
                                 Text(sym.kind.prefix(1).uppercased())
-                                    .font(.system(size: 11, weight: .bold))
+                                    .font(.system(size: 13, weight: .bold))
                                     .foregroundStyle(kindColor(sym.kind))
                             }
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(sym.name)
-                                    .font(.subheadline.bold())
+                                    .font(.system(size: 13, weight: .bold))
                                     .foregroundStyle(.primary)
                                 Text("\(sym.framework) | \(sym.availability)")
-                                    .font(.system(size: 10))
+                                    .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
                         }
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 6)
                         .tag(sym)
                     }
+                    .listStyle(.inset)
                 }
             }
-            .frame(minWidth: 300, idealWidth: 340, maxWidth: 420)
+            .frame(minWidth: 320, idealWidth: 360, maxWidth: 440)
 
-            // Right Pane: Rich Symbol Details / Workspace
+            // Right Pane: High-Fidelity Rich Symbol Details or Custom Interactive Dashboard
             Group {
                 if let sym = selectedSymbol {
                     symbolDetailsPane(sym)
                 } else {
-                    ContentUnavailableView(
-                        "Documentation Home",
-                        systemImage: "book.pages",
-                        description: Text("Search or filter Apple documentation. Select a class, struct, or protocol to inspect its inheritance relationships, code snippets, syntax parameters, and platforms.")
-                    )
+                    documentationHubHomeView()
                 }
             }
-            .frame(minWidth: 500)
+            .frame(minWidth: 600)
         }
         .onAppear {
             loadMockDocumentationIndex()
         }
     }
 
-    // MARK: - Details Panel
+    // MARK: - Premium Platform / Framework Reference Hub Homepage
+
+    private func documentationHubHomeView() -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                // Main visual greeting banner
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("SwiftCode Developer Portal")
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.orange)
+
+                    Text("Apple SDK & Language Reference")
+                        .font(.system(size: 34, weight: .black))
+                        .foregroundStyle(.primary)
+
+                    Text("Search components, investigate inheritance graphs, inspect availability, and copy production-ready code declarations.")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.bottom, 10)
+
+                // Grid of Frameworks
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("CHOOSE A FRAMEWORK")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.secondary)
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 20)], spacing: 20) {
+                        frameworkHubCard(name: "SwiftUI", icon: "square.stack.3d.down.right.fill", color: .purple, description: "Declarative layouts across all Apple platforms with state management and dynamic updates.")
+                        frameworkHubCard(name: "Swift Language", icon: "swift", color: .orange, description: "Strong types, safety, fast performance, modern concurrency actors, and advanced generic constraints.")
+                        frameworkHubCard(name: "Foundation", icon: "square.grid.3x3.topleft.filled", color: .blue, description: "Essential resource mapping, dates, numbers, URLSession requests, JSON formatting, and locale parsing.")
+                        frameworkHubCard(name: "AppKit & UIKit", icon: "macbook.and.iphone", color: .green, description: "Traditional AppKit windows, responder chains, split controllers, and platform-specific view delegates.")
+                    }
+                }
+
+                // Interactive Pro-Tips/Guides Card
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("POPULAR TOPICS & RECIPES")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.secondary)
+
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Developer Pro-Tips", systemImage: "sparkles")
+                                    .font(.headline)
+                                    .foregroundStyle(.yellow)
+                                Spacer()
+                            }
+
+                            Divider()
+
+                            HStack(alignment: .top, spacing: 20) {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Text("💡 Modern Swift Concurrency")
+                                        .font(.subheadline.bold())
+                                    Text("Prefer async/await Task structures and isolation-level Actors to completely eliminate runtime multi-threaded race conditions in Apple UI frameworks.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                                Divider()
+
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Text("💡 High Performance Lists")
+                                        .font(.subheadline.bold())
+                                    Text("Utilize LazyVStack or List structures in SwiftUI to optimize cell recycling. Bind simple ID structures to guarantee smooth scroll performance on older screens.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .padding(14)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+                }
+
+                // Statistics Metrics Summary
+                HStack(spacing: 24) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "checkmark.shield.fill")
+                            .font(.title2)
+                            .foregroundStyle(.green)
+                        VStack(alignment: .leading) {
+                            Text("Fully Synchronized")
+                                .font(.subheadline.bold())
+                            Text("Apple Developer Index SDK 17.4")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Divider().frame(height: 35)
+
+                    HStack(spacing: 10) {
+                        Image(systemName: "bookmark.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.orange)
+                        VStack(alignment: .leading) {
+                            Text("\(favorites.count) Bookmarks Saved")
+                                .font(.subheadline.bold())
+                            Text("Quick-reference shortcuts")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(.top, 10)
+            }
+            .padding(40)
+        }
+        .background(Color(NSColor.windowBackgroundColor))
+    }
+
+    private func frameworkHubCard(name: String, icon: String, color: Color, description: String) -> some View {
+        Button {
+            selectedFramework = name == "Swift Language" ? "Swift" : name
+            selectedCategory = "All"
+        } label: {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(color.opacity(0.12))
+                            .frame(width: 44, height: 44)
+                        Image(systemName: icon)
+                            .font(.title3)
+                            .foregroundStyle(color)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.secondary.opacity(0.3))
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(name)
+                        .font(.title3.bold())
+                        .foregroundStyle(.primary)
+                    Text(description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineSpacing(3)
+                        .lineLimit(3)
+                }
+            }
+            .padding(20)
+            .background(Color.secondary.opacity(0.04))
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Premium Details Panel
 
     private func symbolDetailsPane(_ sym: DocSymbol) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 28) {
                 // Breadcrumbs & Link Action
                 HStack {
-                    Text("Developer Documentation > \(sym.framework) > \(sym.kind.uppercased())")
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    Text("Developer Documentation  >  \(sym.framework)  >  \(sym.kind.uppercased())")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .foregroundStyle(.secondary)
                     Spacer()
 
                     Button {
                         toggleFavorite(sym.name)
                     } label: {
-                        Image(systemName: favorites.contains(sym.name) ? "star.fill" : "star")
-                            .foregroundStyle(favorites.contains(sym.name) ? .yellow : .primary)
+                        HStack(spacing: 6) {
+                            Image(systemName: favorites.contains(sym.name) ? "star.fill" : "star")
+                                .foregroundStyle(favorites.contains(sym.name) ? .yellow : .secondary)
+                            Text(favorites.contains(sym.name) ? "Bookmarked" : "Bookmark")
+                                .font(.caption.bold())
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color.secondary.opacity(0.08))
+                        .cornerRadius(6)
                     }
                     .buttonStyle(.plain)
                 }
 
-                // Title
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 12) {
+                // Title Area
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline, spacing: 16) {
                         Text(sym.name)
-                            .font(.title.bold())
+                            .font(.system(size: 40, weight: .black))
 
                         Text(sym.kind.uppercased())
-                            .font(.system(size: 10, weight: .bold))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(kindColor(sym.kind).opacity(0.12))
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(kindColor(sym.kind).opacity(0.15))
                             .foregroundStyle(kindColor(sym.kind))
-                            .cornerRadius(4)
+                            .cornerRadius(6)
                     }
 
-                    Text("Framework: \(sym.framework) | Availability: \(sym.availability)")
-                        .font(.subheadline)
+                    Text("Framework: \(sym.framework)  |  Availability: \(sym.availability)")
+                        .font(.title3)
                         .foregroundStyle(.secondary)
                 }
 
                 Divider()
 
                 // Overview Description
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 10) {
                     Text("Overview")
-                        .font(.headline)
+                        .font(.title2.bold())
                     Text(sym.summary)
-                        .font(.body)
-                        .lineSpacing(4)
+                        .font(.system(size: 15))
+                        .lineSpacing(6)
+                        .foregroundColor(.primary)
                 }
 
-                // Syntax & Copy Code Card
+                // Declaration Syntax & Copy Card
                 GroupBox {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Text("Declaration Syntax")
-                                .font(.caption.bold())
+                            Label("DECLARATION SYNTAX", systemImage: "chevron.left.forwardslash.chevron.right")
+                                .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(.secondary)
                             Spacer()
                             Button("Copy Code") {
@@ -346,68 +585,160 @@ struct NativeDocumentationBrowserWorkspaceView: View {
 
                         Text(sym.syntax)
                             .font(.system(.body, design: .monospaced))
-                            .padding(10)
+                            .padding(14)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.black.opacity(0.12))
-                            .cornerRadius(6)
+                            .background(Color.black.opacity(0.2))
+                            .cornerRadius(8)
                             .textSelection(.enabled)
                     }
-                    .padding(6)
+                    .padding(8)
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Relationships Map
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Symbol Relationships")
-                        .font(.headline)
+                // Dynamic Relationships Explorer Graph Card
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Symbol Relationships Graph")
+                        .font(.title2.bold())
 
                     GroupBox {
-                        HStack(spacing: 20) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Inherits From")
-                                    .font(.caption)
+                        HStack(spacing: 0) {
+                            // Ancestors / Inherits
+                            VStack(alignment: .center, spacing: 8) {
+                                Text("INHERITS FROM")
+                                    .font(.system(size: 9, weight: .bold))
                                     .foregroundStyle(.secondary)
-                                Text("NSObject")
+
+                                Text(sym.inheritsFrom ?? "None (Base)")
                                     .font(.subheadline.bold())
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.blue.opacity(0.1))
+                                    .cornerRadius(6)
                             }
+                            .frame(maxWidth: .infinity)
 
-                            Divider()
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.secondary.opacity(0.4))
 
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Conforms To")
-                                    .font(.caption)
+                            // Current Class/Struct
+                            VStack(alignment: .center, spacing: 8) {
+                                Text("CURRENT SYMBOL")
+                                    .font(.system(size: 9, weight: .bold))
                                     .foregroundStyle(.secondary)
-                                Text("Sendable, Identifiable, Decodable")
+
+                                Text(sym.name)
                                     .font(.subheadline.bold())
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(kindColor(sym.kind).opacity(0.15))
+                                    .cornerRadius(6)
                             }
+                            .frame(maxWidth: .infinity)
+
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.secondary.opacity(0.4))
+
+                            // Conformances
+                            VStack(alignment: .center, spacing: 8) {
+                                Text("CONFORMS TO")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.secondary)
+
+                                Text(sym.conformsTo.joined(separator: ", "))
+                                    .font(.system(size: 11, weight: .bold))
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.orange.opacity(0.1))
+                                    .cornerRadius(6)
+                            }
+                            .frame(maxWidth: .infinity)
                         }
-                        .padding(8)
+                        .padding(.vertical, 14)
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
 
-                // Platforms
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Platform Support")
-                        .font(.headline)
-                    HStack(spacing: 8) {
-                        ForEach(sym.platforms, id: \.self) { plt in
-                            Text(plt)
-                                .font(.caption.bold())
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(Color.secondary.opacity(0.12), in: Capsule())
+                // Sample Playground Code block
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Usage Sample Playground")
+                            .font(.title2.bold())
+                        Spacer()
+                        Button("Copy Example") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(sym.codeSample, forType: .string)
+                        }
+                        .buttonStyle(.plain)
+                        .font(.caption.bold())
+                        .foregroundStyle(.orange)
+                    }
+
+                    TextEditor(text: .constant(sym.codeSample))
+                        .font(.system(.body, design: .monospaced))
+                        .frame(height: 180)
+                        .padding(10)
+                        .background(Color.black.opacity(0.2))
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
+                        )
+                }
+
+                // Modern Interactive Platforms Grid
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Detailed Platform Support")
+                        .font(.title2.bold())
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 14)], spacing: 14) {
+                        ForEach(platforms.filter { $0 != "All" }, id: \.self) { plt in
+                            let version = sym.platforms[plt] ?? "Not Supported"
+                            let isSupported = version != "Not Supported"
+
+                            VStack(spacing: 8) {
+                                Text(plt)
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+
+                                Text(version)
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(isSupported ? .green : .secondary.opacity(0.5))
+
+                                Text(isSupported ? "Supported" : "N/A")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(isSupported ? Color.green.opacity(0.15) : Color.secondary.opacity(0.1))
+                                    .foregroundStyle(isSupported ? .green : .secondary)
+                                    .cornerRadius(4)
+                            }
+                            .padding(12)
+                            .background(Color.secondary.opacity(0.04))
+                            .cornerRadius(10)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.secondary.opacity(0.08), lineWidth: 1)
+                            )
                         }
                     }
                 }
 
+                Divider().padding(.vertical, 10)
+
                 // External documentation link
                 Link(destination: URL(string: "https://developer.apple.com/documentation/\(sym.framework.lowercased())/\(sym.name.lowercased())")!) {
-                    Label("Open in Apple Reference Website", systemImage: "safari")
+                    Label("Open Official Apple Reference Documentation", systemImage: "safari")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(.orange)
+                        .foregroundStyle(.white)
+                        .cornerRadius(8)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
             }
-            .padding(24)
+            .padding(40)
         }
         .background(Color(NSColor.controlBackgroundColor))
         .onChange(of: sym) { _, newValue in
@@ -437,7 +768,8 @@ struct NativeDocumentationBrowserWorkspaceView: View {
             let q = debouncedSearchQuery.lowercased()
             list = list.filter {
                 $0.name.lowercased().contains(q) ||
-                $0.summary.lowercased().contains(q)
+                $0.summary.lowercased().contains(q) ||
+                $0.framework.lowercased().contains(q)
             }
         }
 
@@ -448,7 +780,7 @@ struct NativeDocumentationBrowserWorkspaceView: View {
 
         // Platform Filter
         if selectedPlatform != "All" {
-            list = list.filter { $0.platforms.contains(selectedPlatform) }
+            list = list.filter { $0.platforms[selectedPlatform] != nil }
         }
 
         return list
@@ -461,7 +793,7 @@ struct NativeDocumentationBrowserWorkspaceView: View {
 
         // Debounce search safely to guarantee responsive UI typing
         Task {
-            try? await Task.sleep(nanoseconds: 150_000_000) // 150ms delay
+            try? await Task.sleep(nanoseconds: 120_000_000) // 120ms delay
             await MainActor.run {
                 self.debouncedSearchQuery = query
                 self.isSearching = false
@@ -497,14 +829,102 @@ struct NativeDocumentationBrowserWorkspaceView: View {
 
     private func loadMockDocumentationIndex() {
         symbols = [
-            DocSymbol(name: "VStack", kind: "struct", framework: "SwiftUI", summary: "A view that arranges its subviews in a vertical line.", syntax: "struct VStack<Content> : View where Content : View", platforms: ["macOS", "iOS", "watchOS", "tvOS"], availability: "iOS 13.0+"),
-            DocSymbol(name: "HStack", kind: "struct", framework: "SwiftUI", summary: "A view that arranges its subviews in a horizontal line.", syntax: "struct HStack<Content> : View where Content : View", platforms: ["macOS", "iOS", "watchOS", "tvOS"], availability: "iOS 13.0+"),
-            DocSymbol(name: "List", kind: "struct", framework: "SwiftUI", summary: "A container that presents rows of data arranged in a single column.", syntax: "struct List<SelectionValue, Content> : View where SelectionValue : Hashable, Content : View", platforms: ["macOS", "iOS", "tvOS"], availability: "iOS 13.0+"),
-            DocSymbol(name: "URLSession", kind: "class", framework: "Foundation", summary: "An object that coordinates a group of related, network data-transfer tasks.", syntax: "class URLSession : NSObject, Sendable", platforms: ["macOS", "iOS", "watchOS", "tvOS"], availability: "iOS 7.0+"),
-            DocSymbol(name: "JSONDecoder", kind: "class", framework: "Foundation", summary: "An object that decodes instances of a data type from JSON objects.", syntax: "class JSONDecoder", platforms: ["macOS", "iOS", "watchOS", "tvOS"], availability: "iOS 10.0+"),
-            DocSymbol(name: "NSWindow", kind: "class", framework: "AppKit", summary: "A window that an app displays on the screen.", syntax: "class NSWindow : NSResponder", platforms: ["macOS"], availability: "macOS 10.0+"),
-            DocSymbol(name: "Task", kind: "struct", framework: "Swift", summary: "A unit of asynchronous work.", syntax: "struct Task<Success, Failure> : Sendable where Success : Sendable, Failure : Error", platforms: ["macOS", "iOS", "watchOS", "tvOS"], availability: "iOS 15.0+"),
-            DocSymbol(name: "Actor", kind: "protocol", framework: "Swift", summary: "A common protocol that all actors conform to.", syntax: "protocol Actor : AnyObject, Sendable", platforms: ["macOS", "iOS", "watchOS", "tvOS"], availability: "iOS 15.0+")
+            DocSymbol(
+                name: "VStack",
+                kind: "struct",
+                framework: "SwiftUI",
+                summary: "A view that arranges its subviews in a vertical line with customizable alignments, line-spacings, and child layout priority distributions.",
+                syntax: "struct VStack<Content> : View where Content : View",
+                platforms: ["macOS": "10.15", "iOS": "13.0", "watchOS": "6.0", "tvOS": "13.0"],
+                inheritsFrom: nil,
+                conformsTo: ["View", "Sendable"],
+                codeSample: "VStack(alignment: .leading, spacing: 12) {\n    Text(\"Main Title\").font(.largeTitle)\n    Text(\"Subtitle description.\").foregroundColor(.secondary)\n}",
+                availability: "iOS 13.0+"
+            ),
+            DocSymbol(
+                name: "HStack",
+                kind: "struct",
+                framework: "SwiftUI",
+                summary: "A view that arranges its subviews in a horizontal line, aligning children based on custom layout anchors and alignment guidelines.",
+                syntax: "struct HStack<Content> : View where Content : View",
+                platforms: ["macOS": "10.15", "iOS": "13.0", "watchOS": "6.0", "tvOS": "13.0"],
+                inheritsFrom: nil,
+                conformsTo: ["View", "Sendable"],
+                codeSample: "HStack(alignment: .center, spacing: 8) {\n    Image(systemName: \"sparkles\")\n    Text(\"Dynamic Feature\")\n}",
+                availability: "iOS 13.0+"
+            ),
+            DocSymbol(
+                name: "List",
+                kind: "struct",
+                framework: "SwiftUI",
+                summary: "A container that presents rows of data arranged in a single column, optionally supporting section headers, collapsible groups, and editing/deletion row interactions.",
+                syntax: "struct List<SelectionValue, Content> : View where SelectionValue : Hashable, Content : View",
+                platforms: ["macOS": "10.15", "iOS": "13.0", "tvOS": "13.0"],
+                inheritsFrom: nil,
+                conformsTo: ["View", "DynamicViewContent"],
+                codeSample: "List(items) { item in\n    Text(item.name)\n}",
+                availability: "iOS 13.0+"
+            ),
+            DocSymbol(
+                name: "URLSession",
+                kind: "class",
+                framework: "Foundation",
+                summary: "An object that coordinates a group of related, network data-transfer tasks. Instantiates connections across proxies, supporting keep-alive headers, automated session caching, and download-task backgrounding.",
+                syntax: "class URLSession : NSObject, Sendable",
+                platforms: ["macOS": "10.9", "iOS": "7.0", "watchOS": "2.0", "tvOS": "9.0"],
+                inheritsFrom: "NSObject",
+                conformsTo: ["Sendable", "NSObjectProtocol"],
+                codeSample: "let (data, response) = try await URLSession.shared.data(from: url)\nguard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return }",
+                availability: "iOS 7.0+"
+            ),
+            DocSymbol(
+                name: "JSONDecoder",
+                kind: "class",
+                framework: "Foundation",
+                summary: "An object that decodes instances of a data type from JSON objects, mapping snake_case or customized API properties seamlessly back to native camelCase Codable Swift properties.",
+                syntax: "class JSONDecoder",
+                platforms: ["macOS": "10.13", "iOS": "11.0", "watchOS": "4.0", "tvOS": "11.0"],
+                inheritsFrom: "NSObject",
+                conformsTo: ["NSObjectProtocol"],
+                codeSample: "let decoder = JSONDecoder()\ndecoder.keyDecodingStrategy = .convertFromSnakeCase\nlet user = try decoder.decode(User.self, from: data)",
+                availability: "iOS 10.0+"
+            ),
+            DocSymbol(
+                name: "NSWindow",
+                kind: "class",
+                framework: "AppKit",
+                summary: "A window that an app displays on the screen, managing the window server interaction, handling close signals, mouse pointer tracking, and split panel layout constraints.",
+                syntax: "class NSWindow : NSResponder",
+                platforms: ["macOS": "10.0"],
+                inheritsFrom: "NSResponder",
+                conformsTo: ["NSUserInterfaceValidations", "NSAccessibilityElement", "NSAccessibility"],
+                codeSample: "let window = NSWindow(\n    contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),\n    styleMask: [.titled, .closable, .resizable],\n    backing: .buffered,\n    defer: false\n)",
+                availability: "macOS 10.0+"
+            ),
+            DocSymbol(
+                name: "Task",
+                kind: "struct",
+                framework: "Swift",
+                summary: "A unit of asynchronous work. Enables synchronous actors or classes to spawn isolated asynchronous contexts, configure custom executors, and handle structured cancellation signals.",
+                syntax: "struct Task<Success, Failure> : Sendable where Success : Sendable, Failure : Error",
+                platforms: ["macOS": "12.0", "iOS": "15.0", "watchOS": "8.0", "tvOS": "15.0"],
+                inheritsFrom: nil,
+                conformsTo: ["Sendable", "Identifiable"],
+                codeSample: "Task {\n    let result = await performNetworkQuery()\n    await updateUI(with: result)\n}",
+                availability: "iOS 15.0+"
+            ),
+            DocSymbol(
+                name: "Actor",
+                kind: "protocol",
+                framework: "Swift",
+                summary: "A common protocol that all actors conform to, establishing compiler-enforced thread-isolation requirements to eliminate data races across concurrently running contexts.",
+                syntax: "protocol Actor : AnyObject, Sendable",
+                platforms: ["macOS": "12.0", "iOS": "15.0", "watchOS": "8.0", "tvOS": "15.0"],
+                inheritsFrom: nil,
+                conformsTo: ["AnyObject", "Sendable"],
+                codeSample: "actor AccountManager {\n    private var balance: Double = 0.0\n    func deposit(amount: Double) { balance += amount }\n}",
+                availability: "iOS 15.0+"
+            )
         ]
     }
 }

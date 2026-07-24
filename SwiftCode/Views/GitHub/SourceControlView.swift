@@ -670,7 +670,7 @@ struct SourceControlMainWrapper: View {
     
     var isSourceControlOff: Bool {
         let token = KeychainService.shared.get(forKey: KeychainService.githubToken) ?? ""
-        return !AppSettings.shared.hasCompletedOnboarding || token.isEmpty
+        return token.isEmpty
     }
     
     var body: some View {

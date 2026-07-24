@@ -204,7 +204,32 @@ struct DevToolsMainView: View {
             DevTool(name: "Text Counter", description: "Words, chars, lines count", icon: "list.number", category: "Utilities", destination: AnyView(TextCounterView())),
             DevTool(name: "ASCII Art", description: "Text to ASCII art", icon: "textformat.size", category: "Utilities", destination: AnyView(ASCIIArtGeneratorView())),
             DevTool(name: "Device Info", description: "System and hardware info", icon: "desktopcomputer", category: "Utilities", destination: AnyView(DeviceInfoView())),
-            DevTool(name: "Property List Viewer", description: "Inspect standard XML property lists", icon: "list.bullet.rectangle", category: "Utilities", destination: AnyView(PlistViewerView()))
+            DevTool(name: "Property List Viewer", description: "Inspect standard XML property lists", icon: "list.bullet.rectangle", category: "Utilities", destination: AnyView(PlistViewerView())),
+
+            // Interactive Cheat Sheets
+            DevTool(name: "Xcode Shortcuts Guide", description: "Look up essential Xcode keyboard shortcuts", icon: "keyboard", category: "Cheat Sheets", destination: AnyView(XcodeShortcutsCheatsheetView())),
+            DevTool(name: "SwiftUI Performance Cookbook", description: "Avoid main-thread layout bottleneck rules", icon: "gauge.badge.minus", category: "Cheat Sheets", destination: AnyView(SwiftUIPerformanceCheatsheetView())),
+            DevTool(name: "Regex Syntax Playbook", description: "Quick token classes reference and lookup guides", icon: "text.magnifyingglass", category: "Cheat Sheets", destination: AnyView(RegexSyntaxCheatsheetView())),
+            DevTool(name: "App Store Guidelines Audit", description: "Submission readiness checklist parameters", icon: "checkmark.seal", category: "Cheat Sheets", destination: AnyView(AppStoreGuidelinesCheatsheetView())),
+            DevTool(name: "Apple Silicon arm64 Playbook", description: "Leverage Neon vector pipelines and unified memory", icon: "cpu", category: "Cheat Sheets", destination: AnyView(AppleSiliconOptimizationCheatsheetView())),
+            DevTool(name: "Swift Concurrency Cheat Sheet", description: "Actors, Structured task-groups and async-await patterns", icon: "arrow.triangle.2.circlepath", category: "Cheat Sheets", destination: AnyView(SwiftConcurrencyCheatsheetView())),
+            DevTool(name: "Git Branching Strategies", description: "GitHub Flow, GitFlow, and Trunk-Based guidelines", icon: "arrow.triangle.branch", category: "Cheat Sheets", destination: AnyView(GitBranchingStrategiesView())),
+            DevTool(name: "Markdown Syntaxes Guide", description: "Fast markup references and copy actions", icon: "doc.text", category: "Cheat Sheets", destination: AnyView(MarkdownSyntaxCheatsheetView())),
+            DevTool(name: "Swift Language References", description: "Switch matching patterns, closures and generics", icon: "swift", category: "Cheat Sheets", destination: AnyView(SwiftLanguageReferenceView())),
+            DevTool(name: "SwiftLint Configuration Guide", description: "Format .swiftlint.yml options and compliance metrics", icon: "slider.horizontal.3", category: "Cheat Sheets", destination: AnyView(SwiftLintConfigurationGuideView())),
+            DevTool(name: "LLDB Debugger Playbook", description: "Frame variable backtrace printing commands", icon: "ant", category: "Cheat Sheets", destination: AnyView(LLDBDebuggerCheatsheetView())),
+            DevTool(name: "SF Symbols Reference Guide", description: "Lookup catalog category symbols and codes", icon: "sparkles", category: "Cheat Sheets", destination: AnyView(SFSymbolsReferenceView())),
+
+            // New Utilities & UI Dev Tools
+            DevTool(name: "Base64 Image Decoder", description: "Decode and preview visual binary graphic images", icon: "photo.fill", category: "Utilities", destination: AnyView(Base64ImageDecoderView())),
+            DevTool(name: "HTTP Request Header Builder", description: "Assemble custom HTTP header parameters map", icon: "list.bullet.rectangle", category: "Utilities", destination: AnyView(HTTPRequestHeaderBuilderView())),
+            DevTool(name: "JSON Types Schema Analyzer", description: "Recursively inspect object key types and paths", icon: "curlybraces", category: "Utilities", destination: AnyView(JSONTypeAnalyzerView())),
+            DevTool(name: "iOS Device Screen Catalog", description: "Points, pixels, scales and safe areas index", icon: "iphone", category: "Utilities", destination: AnyView(iOSScreenResolutionsView())),
+            DevTool(name: "CSS Flexbox Interactive Sandbox", description: "Flex alignments, directions and wraps previewer", icon: "square.grid.3x3.topleft.filled", category: "UI Design", destination: AnyView(CSSFlexboxPlaybookView())),
+            DevTool(name: "UNIX File Permissions Calculator", description: "Octal chmod and symbolic codes converter", icon: "key.fill", category: "Utilities", destination: AnyView(UnixPermissionsCalculatorView())),
+            DevTool(name: "WCAG Colors Contrast Tester", description: "Pick hexes and verify AAA/AA standards passing", icon: "eye.fill", category: "UI Design", destination: AnyView(ColorContrastAnalyzerView())),
+            DevTool(name: "Hex to RGB Coordinates Swatch", description: "Slide channels and compile SwiftUI initializers", icon: "paintpalette", category: "UI Design", destination: AnyView(HexToRGBAndHSLConverterView())),
+            DevTool(name: "JSON String Literal Escaper", description: "Convert raw multi-line strings into escaped quotes", icon: "quote.bubble", category: "Utilities", destination: AnyView(JSONStringEscaperView()))
         ]
     }
 

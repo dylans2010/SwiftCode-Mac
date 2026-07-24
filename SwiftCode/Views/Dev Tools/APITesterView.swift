@@ -68,9 +68,9 @@ final class APITesterStore {
     var collections: [SavedCollection] = []
 
     // Current Active Workspace Request State
-    var requestName: String = "Untitled Request"
+    var requestName: String = "Fetch Octocat Details"
     var method: String = "GET"
-    var url: String = "https://api.github.com"
+    var url: String = "https://api.github.com/users/octocat"
     var queryParams: [KeyValuePair] = [KeyValuePair()]
     var headers: [KeyValuePair] = [KeyValuePair(isEnabled: true, key: "User-Agent", value: "SwiftCode-APITester")]
 
@@ -122,6 +122,29 @@ final class APITesterStore {
                 Self.logger.error("Failed to decode collections: \(error.localizedDescription)")
             }
         }
+
+        if history.isEmpty {
+            // Seed a sample history item
+            let sample = SavedRequest(
+                name: "Get Octocat Details",
+                method: "GET",
+                url: "https://api.github.com/users/octocat",
+                queryParams: [],
+                headers: [KeyValuePair(isEnabled: true, key: "User-Agent", value: "SwiftCode-APITester")],
+                authType: .none,
+                authUsername: "",
+                authPassword: "",
+                authToken: "",
+                authKey: "",
+                authValue: "",
+                authAddTo: "Headers",
+                bodyType: .none,
+                bodyFormData: [],
+                bodyUrlencoded: [],
+                bodyRaw: ""
+            )
+            history = [sample]
+        }
     }
 
     func saveData() {
@@ -157,7 +180,7 @@ final class APITesterStore {
     }
 
     func addCurrentToHistory() {
-        let current = getCurrentRequestRepresentation(name: "Request to \(getHostFromUrl(url))")
+        let current = getCurrentRequestRepresentation(name: requestName.isEmpty ? "Request to \(getHostFromUrl(url))" : requestName)
         // De-duplicate: remove older entry with exact method/url/body if exists
         history.removeAll { $0.method == current.method && $0.url == current.url && $0.bodyRaw == current.bodyRaw }
         history.insert(current, at: 0)
@@ -259,7 +282,7 @@ final class APITesterStore {
 
     func executeRequest() async {
         guard let requestUrl = URL(string: url) else {
-            responseBody = "Error: Invalid URL"
+            responseBody = "Error: Invalid URL format"
             responseStatus = nil
             responseStatusText = nil
             elapsedMs = nil
@@ -268,7 +291,7 @@ final class APITesterStore {
         }
 
         isLoading = true
-        responseBody = "Sending request..."
+        responseBody = "Sending request to \(url)..."
         responseHeaders = []
         responseStatus = nil
         responseStatusText = nil
@@ -307,8 +330,9 @@ final class APITesterStore {
                         var items = comp.queryItems ?? []
                         items.append(URLQueryItem(name: authKey, value: authValue))
                         comp.queryItems = items
-                        // INVARIANT: comp.url is guaranteed to be non-nil because comp is initialized from a valid requestUrl.
-                        request.url = comp.url!
+                        if let finalUrl = comp.url {
+                            request.url = finalUrl
+                        }
                     }
                 }
             }
@@ -371,13 +395,13 @@ final class APITesterStore {
                 self.responseHeaders = parsedHeaders.sorted(by: { $0.key < $1.key })
             }
 
-            // Format response body
+            // Format response body nicely
             if let json = try? JSONSerialization.jsonObject(with: data, options: []),
                let prettyData = try? JSONSerialization.data(withJSONObject: json, options: .prettyPrinted),
                let prettyString = String(data: prettyData, encoding: .utf8) {
                 self.responseBody = prettyString
             } else {
-                self.responseBody = String(data: data, encoding: .utf8) ?? "Unable to decode response body (Binary/Data)"
+                self.responseBody = String(data: data, encoding: .utf8) ?? "Unable to decode response (Binary Data)"
             }
 
             // Add to execution history
@@ -386,7 +410,7 @@ final class APITesterStore {
         } catch {
             let duration = Date().timeIntervalSince(startTime) * 1000.0
             self.elapsedMs = duration
-            self.responseBody = "Error: \(error.localizedDescription)"
+            self.responseBody = "Network Error: \(error.localizedDescription)"
             self.responseStatus = nil
             self.responseStatusText = nil
             self.responseSize = 0
@@ -410,22 +434,22 @@ struct APITesterView: View {
 
     var body: some View {
         HSplitView {
-            // Sidebar: History & Collections
+            // Sidebar: History & Collections with visual headers
             sidebarPanel
-                .frame(minWidth: 200, idealWidth: 240, maxWidth: 300)
+                .frame(minWidth: 240, idealWidth: 270, maxWidth: 320)
                 .background(.ultraThinMaterial)
 
-            // Main Request Workspace & Response Panel
+            // Main Request Workspace & Response Panel (Stretches smoothly)
             VSplitView {
                 requestWorkspacePanel
-                    .frame(minHeight: 280, idealHeight: 380)
+                    .frame(minHeight: 380, idealHeight: 440)
 
                 responsePanel
-                    .frame(minHeight: 200, idealHeight: 300)
+                    .frame(minHeight: 250, idealHeight: 380)
             }
-            .frame(minWidth: 400, idealWidth: 600)
+            .frame(minWidth: 500, idealWidth: 800)
         }
-        .navigationTitle("API Tester (Postman for SwiftCode)")
+        .navigationTitle("APITester Studio")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -434,7 +458,7 @@ struct APITesterView: View {
                 } label: {
                     Label("Save to Collection", systemImage: "folder.badge.plus")
                 }
-                .help("Save current request to a collection")
+                .help("Save current request configuration to a collection")
             }
         }
         .sheet(isPresented: $showingSaveSheet) {
@@ -449,122 +473,139 @@ extension APITesterView {
 
     private var sidebarPanel: some View {
         VStack(spacing: 0) {
-            // Section header with collections action
-            HStack {
-                Text("Saved Collections")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.secondary)
+            // Main Sidebar Title
+            HStack(spacing: 8) {
+                Image(systemName: "bolt.horizontal.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(.orange)
+                Text("API Collections")
+                    .font(.headline)
+                    .fontWeight(.bold)
                 Spacer()
                 Button {
                     newCollectionName = ""
                     showingNewCollectionDialog = true
                 } label: {
-                    Image(systemName: "plus")
-                        .font(.caption)
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.blue)
                 }
                 .buttonStyle(.plain)
-                .help("Create New Collection")
+                .help("Create New Collection Folder")
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 12)
-            .padding(.bottom, 6)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+
+            Divider()
 
             if showingNewCollectionDialog {
-                HStack {
-                    TextField("Collection Name", text: $newCollectionName)
+                VStack(spacing: 8) {
+                    TextField("Enter folder name...", text: $newCollectionName)
                         .textFieldStyle(.roundedBorder)
-                        .controlSize(.small)
-                    Button("Create") {
-                        store.createCollection(name: newCollectionName)
-                        showingNewCollectionDialog = false
+                    HStack {
+                        Button("Cancel") {
+                            showingNewCollectionDialog = false
+                        }
+                        .buttonStyle(.bordered)
+                        Spacer()
+                        Button("Create Folder") {
+                            store.createCollection(name: newCollectionName)
+                            showingNewCollectionDialog = false
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.blue)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    Button("Cancel") {
-                        showingNewCollectionDialog = false
-                    }
-                    .buttonStyle(.plain)
-                    .controlSize(.small)
                 }
-                .padding(.horizontal, 12)
-                .padding(.bottom, 8)
+                .padding(12)
+                .background(Color.secondary.opacity(0.08))
+                .cornerRadius(8)
+                .padding(10)
             }
 
-            // Collections list
             List {
-                if store.collections.isEmpty {
-                    Text("No collections saved yet")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.vertical, 4)
-                } else {
-                    ForEach(store.collections) { collection in
-                        DisclosureGroup {
-                            if collection.requests.isEmpty {
-                                Text("Empty Collection")
-                                    .font(.system(size: 10, weight: .light))
-                                    .foregroundColor(.secondary)
-                                    .padding(.leading, 12)
-                                    .padding(.vertical, 2)
-                            } else {
-                                ForEach(collection.requests) { req in
-                                    Button {
-                                        store.selectRequest(req)
-                                    } label: {
-                                        HStack(spacing: 6) {
-                                            methodBadge(req.method)
-                                            Text(req.name)
-                                                .font(.system(size: 11))
-                                                .lineLimit(1)
-                                            Spacer()
+                Section(header: Text("COLLECTION LIST").font(.system(size: 10, weight: .bold)).foregroundColor(.secondary)) {
+                    if store.collections.isEmpty {
+                        Text("No custom collections folders defined. Click + to begin organizing.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.vertical, 6)
+                    } else {
+                        ForEach(store.collections) { collection in
+                            DisclosureGroup {
+                                if collection.requests.isEmpty {
+                                    Text("Folder is empty. Save requests here.")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.secondary)
+                                        .padding(.leading, 12)
+                                        .padding(.vertical, 4)
+                                } else {
+                                    ForEach(collection.requests) { req in
+                                        Button {
+                                            store.selectRequest(req)
+                                        } label: {
+                                            HStack(spacing: 8) {
+                                                methodBadge(req.method)
+                                                Text(req.name)
+                                                    .font(.system(size: 11, weight: .semibold))
+                                                    .lineLimit(1)
+                                                Spacer()
+                                            }
                                         }
-                                    }
-                                    .buttonStyle(.plain)
-                                    .contextMenu {
-                                        Button("Delete Request") {
-                                            store.deleteRequestFromCollection(collectionId: collection.id, requestId: req.id)
+                                        .buttonStyle(.plain)
+                                        .padding(.vertical, 3)
+                                        .contextMenu {
+                                            Button("Delete Saved Request") {
+                                                store.deleteRequestFromCollection(collectionId: collection.id, requestId: req.id)
+                                            }
                                         }
                                     }
                                 }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "folder.fill")
+                                        .foregroundColor(.orange)
+                                        .font(.system(size: 13))
+                                    Text(collection.name)
+                                        .font(.system(size: 12, weight: .bold))
+                                    Spacer()
+                                }
                             }
-                        } label: {
-                            HStack {
-                                Image(systemName: "folder.fill")
-                                    .foregroundColor(.orange)
-                                    .font(.system(size: 12))
-                                Text(collection.name)
-                                    .font(.system(size: 12, weight: .semibold))
-                                Spacer()
-                            }
-                        }
-                        .contextMenu {
-                            Button("Delete Collection") {
-                                store.deleteCollection(collection.id)
+                            .contextMenu {
+                                Button("Delete Collection Folder") {
+                                    store.deleteCollection(collection.id)
+                                }
                             }
                         }
                     }
                 }
 
-                // History Header Section
-                Section(header: Text("HISTORY").font(.system(size: 10, weight: .bold)).foregroundColor(.secondary)) {
+                Section(header: Text("RECENT REQUEST HISTORY").font(.system(size: 10, weight: .bold)).foregroundColor(.secondary)) {
                     if store.history.isEmpty {
-                        Text("No request history")
+                        Text("No request history recorded yet.")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                            .padding(.vertical, 6)
                     } else {
                         ForEach(store.history) { req in
                             Button {
                                 store.selectRequest(req)
                             } label: {
-                                HStack(spacing: 6) {
+                                HStack(spacing: 8) {
                                     methodBadge(req.method)
-                                    Text(req.url)
-                                        .font(.system(size: 11, design: .monospaced))
-                                        .lineLimit(1)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(req.name)
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .lineLimit(1)
+                                        Text(req.url)
+                                            .font(.system(size: 9, design: .monospaced))
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                    }
                                     Spacer()
                                 }
                             }
                             .buttonStyle(.plain)
+                            .padding(.vertical, 4)
                             .contextMenu {
                                 Button("Delete from History") {
                                     store.deleteHistoryItem(req.id)
@@ -584,79 +625,110 @@ extension APITesterView {
 extension APITesterView {
 
     private var requestWorkspacePanel: some View {
-        VStack(spacing: 12) {
-            // Title Bar
-            HStack {
-                TextField("Request Name", text: $store.requestName)
-                    .font(.headline)
-                    .textFieldStyle(.plain)
+        VStack(spacing: 0) {
+            // Workspace Request Title Card
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.orange.opacity(0.12))
+                        .frame(width: 30, height: 30)
+                    Image(systemName: "globe")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.orange)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    TextField("Enter request friendly name...", text: $store.requestName)
+                        .font(.system(size: 15, weight: .bold))
+                        .textFieldStyle(.plain)
+                        .frame(maxWidth: .infinity)
+                    Text("Design API request params, headers, payload and execute directly.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
             }
-            .padding([.top, .horizontal])
-
-            // URL & Method Input Bar
-            HStack(spacing: 8) {
-                Picker("", selection: $store.method) {
-                    ForEach(methods, id: \.self) { method in
-                        Text(method)
-                    }
-                }
-                .pickerStyle(.menu)
-                .frame(width: 100)
-
-                TextField("Enter URL path (e.g. https://api.github.com/users/octocat)", text: $store.url)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                    .onSubmit {
-                        store.parseUrlQueryParams()
-                        Task { await store.executeRequest() }
-                    }
-
-                Button {
-                    store.parseUrlQueryParams()
-                    Task { await store.executeRequest() }
-                } label: {
-                    HStack {
-                        if store.isLoading {
-                            ProgressView().scaleEffect(0.6)
-                        } else {
-                            Image(systemName: "paperplane.fill")
-                        }
-                        Text("Send")
-                    }
-                }
-                .keyboardShortcut(.return, modifiers: .command)
-                .buttonStyle(.borderedProminent)
-                .disabled(store.isLoading)
-            }
-            .padding(.horizontal)
-
-            // Tab Options Bar
-            HStack {
-                tabButton(id: "params", label: "Params")
-                tabButton(id: "headers", label: "Headers")
-                tabButton(id: "auth", label: "Authorization")
-                tabButton(id: "body", label: "Body")
-                Spacer()
-            }
-            .padding(.horizontal)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
 
             Divider()
-                .padding(.horizontal)
 
-            // Tab Contents Container
+            // URL & Method Input Bar (High Fidelity Unified Card Pattern)
+            VStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    // Styled Picker Button
+                    Picker("", selection: $store.method) {
+                        ForEach(methods, id: \.self) { method in
+                            Text(method).tag(method)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 110)
+
+                    TextField("Enter request target URL (e.g., https://api.github.com/users/octocat)", text: $store.url)
+                        .textFieldStyle(.plain)
+                        .font(.system(.body, design: .monospaced))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(Color.secondary.opacity(0.1))
+                        .cornerRadius(6)
+                        .onSubmit {
+                            store.parseUrlQueryParams()
+                            Task { await store.executeRequest() }
+                        }
+
+                    Button {
+                        store.parseUrlQueryParams()
+                        Task { await store.executeRequest() }
+                    } label: {
+                        HStack(spacing: 6) {
+                            if store.isLoading {
+                                ProgressView().scaleEffect(0.5)
+                            } else {
+                                Image(systemName: "paperplane.fill")
+                            }
+                            Text("Send Request")
+                        }
+                        .fontWeight(.bold)
+                    }
+                    .keyboardShortcut(.return, modifiers: .command)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                    .disabled(store.isLoading)
+                }
+                .padding(12)
+            }
+            .background(Color.secondary.opacity(0.04))
+
+            Divider()
+
+            // Tab Navigation Pill Buttons Bar
+            HStack(spacing: 10) {
+                tabButton(id: "params", label: "Query Params (\(store.queryParams.filter { !$0.key.isEmpty }.count))", icon: "slider.horizontal.3")
+                tabButton(id: "headers", label: "Request Headers (\(store.headers.filter { !$0.key.isEmpty }.count))", icon: "list.bullet")
+                tabButton(id: "auth", label: "Authentication (\(store.authType.rawValue))", icon: "lock.shield")
+                tabButton(id: "body", label: "Body Payload (\(store.bodyType.rawValue))", icon: "arrow.right.doc.on.clipboard")
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color.secondary.opacity(0.02))
+
+            Divider()
+
+            // Tab Contents Editor (Spans nicely with internal scrolling)
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 14) {
                     switch store.activeTab {
                     case "params":
                         keyValueParamsEditor(
-                            title: "Query Parameters",
+                            title: "Query Parameters (Appended directly to the end of URL string)",
                             pairs: $store.queryParams,
                             onChanged: { store.rebuildUrlWithQueryParams() }
                         )
                     case "headers":
                         keyValueParamsEditor(
-                            title: "Headers",
+                            title: "Custom Request HTTP Headers",
                             pairs: $store.headers,
                             onChanged: {}
                         )
@@ -668,36 +740,39 @@ extension APITesterView {
                         EmptyView()
                     }
                 }
-                .padding(.horizontal)
+                .padding(16)
             }
         }
     }
 
-    private func tabButton(id: String, label: String) -> some View {
+    private func tabButton(id: String, label: String, icon: String) -> some View {
         Button {
             store.activeTab = id
         } label: {
-            Text(label)
-                .font(.system(size: 12, weight: store.activeTab == id ? .semibold : .regular))
-                .foregroundColor(store.activeTab == id ? .orange : .secondary)
-                .padding(.vertical, 4)
-                .padding(.horizontal, 8)
-                .background(store.activeTab == id ? Color.orange.opacity(0.12) : Color.clear)
-                .cornerRadius(4)
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.caption)
+                Text(label)
+                    .font(.system(size: 11, weight: store.activeTab == id ? .bold : .medium))
+            }
+            .foregroundColor(store.activeTab == id ? .white : .secondary)
+            .padding(.vertical, 5)
+            .padding(.horizontal, 10)
+            .background(store.activeTab == id ? Color.blue : Color.secondary.opacity(0.12))
+            .cornerRadius(6)
         }
         .buttonStyle(.plain)
     }
 
     @ViewBuilder
     private func keyValueParamsEditor(title: String, pairs: Binding<[KeyValuePair]>, onChanged: @escaping () -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(title)
-                    .font(.caption)
-                    .fontWeight(.bold)
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundColor(.secondary)
                 Spacer()
-                Button("Clear All") {
+                Button("Clear Fields") {
                     pairs.wrappedValue = [KeyValuePair()]
                     onChanged()
                 }
@@ -705,28 +780,30 @@ extension APITesterView {
                 .controlSize(.small)
             }
 
-            VStack(spacing: 4) {
+            // Structured Table Layout Grid
+            VStack(spacing: 6) {
                 ForEach(pairs.indices, id: \.self) { idx in
-                    HStack(spacing: 6) {
+                    HStack(spacing: 8) {
                         Toggle("", isOn: pairs[idx].isEnabled)
                             .toggleStyle(.checkbox)
                             .onChange(of: pairs[idx].isEnabled.wrappedValue) { _ in
                                 onChanged()
                             }
 
-                        TextField("Key", text: pairs[idx].key)
+                        TextField("Key (e.g., Content-Type)", text: pairs[idx].key)
                             .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
                             .controlSize(.small)
                             .onChange(of: pairs[idx].key.wrappedValue) { newValue in
-                                // Add automatic blank row if writing in final line
                                 if idx == pairs.count - 1 && !newValue.isEmpty {
                                     pairs.wrappedValue.append(KeyValuePair())
                                 }
                                 onChanged()
                             }
 
-                        TextField("Value", text: pairs[idx].value)
+                        TextField("Value representation...", text: pairs[idx].value)
                             .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
                             .controlSize(.small)
                             .onChange(of: pairs[idx].value.wrappedValue) { _ in
                                 onChanged()
@@ -740,7 +817,7 @@ extension APITesterView {
                             onChanged()
                         } label: {
                             Image(systemName: "trash")
-                                .foregroundColor(.red)
+                                .foregroundColor(.red.opacity(0.8))
                         }
                         .buttonStyle(.plain)
                     }
@@ -756,10 +833,10 @@ extension APITesterView {
 
     private var authTabEditor: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Type")
+            HStack(spacing: 12) {
+                Text("Authorization Method")
                     .font(.caption.bold())
-                    .frame(width: 80, alignment: .leading)
+                    .frame(width: 140, alignment: .leading)
 
                 Picker("", selection: $store.authType) {
                     ForEach(AuthType.allCases) { type in
@@ -767,69 +844,75 @@ extension APITesterView {
                     }
                 }
                 .pickerStyle(.menu)
-                .frame(width: 200)
+                .frame(width: 180)
             }
 
             Divider()
 
             switch store.authType {
             case .none:
-                Text("This request does not use any authorization headers or parameters.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("No Authentication Headers Added")
+                        .font(.subheadline.bold())
+                    Text("This request is dispatched as public. If the server throws authentication or access limit errors, select Basic Auth, Bearer Token or custom API Key coordinates above.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineSpacing(4)
+                }
+                .padding(.vertical, 8)
             case .basic:
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text("Username")
                             .font(.caption)
-                            .frame(width: 80, alignment: .leading)
-                        TextField("Username", text: $store.authUsername)
+                            .frame(width: 120, alignment: .leading)
+                        TextField("Enter auth username...", text: $store.authUsername)
                             .textFieldStyle(.roundedBorder)
                             .frame(maxWidth: 300)
                     }
                     HStack {
                         Text("Password")
                             .font(.caption)
-                            .frame(width: 80, alignment: .leading)
-                        SecureField("Password", text: $store.authPassword)
+                            .frame(width: 120, alignment: .leading)
+                        SecureField("Enter auth password...", text: $store.authPassword)
                             .textFieldStyle(.roundedBorder)
                             .frame(maxWidth: 300)
                     }
                 }
             case .bearer:
                 HStack {
-                    Text("Token")
+                    Text("Bearer Token")
                         .font(.caption)
-                        .frame(width: 80, alignment: .leading)
-                    TextField("Bearer Token String", text: $store.authToken)
+                        .frame(width: 120, alignment: .leading)
+                    TextField("Enter bearer token string...", text: $store.authToken)
                         .textFieldStyle(.roundedBorder)
                         .frame(maxWidth: 400)
                 }
             case .apiKey:
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("Key")
+                        Text("API Key Header Field")
                             .font(.caption)
-                            .frame(width: 80, alignment: .leading)
-                        TextField("Header or Query Key", text: $store.authKey)
+                            .frame(width: 140, alignment: .leading)
+                        TextField("e.g., X-API-KEY", text: $store.authKey)
                             .textFieldStyle(.roundedBorder)
                             .frame(maxWidth: 300)
                     }
                     HStack {
-                        Text("Value")
+                        Text("API Key Value")
                             .font(.caption)
-                            .frame(width: 80, alignment: .leading)
-                        TextField("Header or Query Value", text: $store.authValue)
+                            .frame(width: 140, alignment: .leading)
+                        TextField("Enter secret value...", text: $store.authValue)
                             .textFieldStyle(.roundedBorder)
                             .frame(maxWidth: 300)
                     }
                     HStack {
-                        Text("Add to")
+                        Text("Incorporate Key Into")
                             .font(.caption)
-                            .frame(width: 80, alignment: .leading)
+                            .frame(width: 140, alignment: .leading)
                         Picker("", selection: $store.authAddTo) {
-                            Text("Headers").tag("Headers")
-                            Text("Query Params").tag("Query Params")
+                            Text("HTTP Headers").tag("Headers")
+                            Text("Query URL Params").tag("Query Params")
                         }
                         .pickerStyle(.segmented)
                         .frame(width: 200)
@@ -837,7 +920,9 @@ extension APITesterView {
                 }
             }
         }
-        .padding(.vertical, 8)
+        .padding(10)
+        .background(Color.secondary.opacity(0.04))
+        .cornerRadius(8)
     }
 
     private var bodyTabEditor: some View {
@@ -855,39 +940,49 @@ extension APITesterView {
 
             switch store.bodyType {
             case .none:
-                Text("This request does not send an HTTP body payload.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("No Body Sent with Request")
+                        .font(.subheadline.bold())
+                    Text("GET and HEAD requests ignore body formats. Use POST, PUT, or DELETE request methods to transmit form-data parameters or raw JSON objects to server controllers.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineSpacing(4)
+                }
+                .padding(.vertical, 8)
             case .formData:
                 keyValueParamsEditor(
-                    title: "Form-Data Parameters",
+                    title: "Form-Data Parameters (multipart/form-data boundary representation)",
                     pairs: $store.bodyFormData,
                     onChanged: {}
                 )
             case .urlencoded:
                 keyValueParamsEditor(
-                    title: "x-www-form-urlencoded Parameters",
+                    title: "URL-Encoded Parameters (application/x-www-form-urlencoded format)",
                     pairs: $store.bodyUrlencoded,
                     onChanged: {}
                 )
             case .rawJSON, .rawText, .rawXML:
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Raw Body Payload Input")
+                    Text("Raw Body Payload Input Editor")
                         .font(.caption.bold())
                         .foregroundColor(.secondary)
 
                     TextEditor(text: $store.bodyRaw)
                         .font(.system(.body, design: .monospaced))
-                        .frame(height: 140)
+                        .frame(height: 160)
+                        .padding(8)
+                        .background(Color.black.opacity(0.2))
                         .cornerRadius(6)
                         .overlay(
                             RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                                .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
                         )
                 }
             }
         }
-        .padding(.vertical, 8)
+        .padding(10)
+        .background(Color.secondary.opacity(0.04))
+        .cornerRadius(8)
     }
 }
 
@@ -899,57 +994,71 @@ extension APITesterView {
         VStack(spacing: 0) {
             Divider()
 
-            // Response Panel Header with Stats Dashboard
+            // Response HUD Panel Header with Stats Dashboard
             HStack {
-                Label("Response Panel", systemImage: "arrow.down.right.circle")
-                    .font(.system(size: 12, weight: .bold))
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.down.right.circle.fill")
+                        .foregroundStyle(.blue)
+                    Text("Response Payload")
+                        .font(.system(size: 13, weight: .bold))
+                }
 
                 Spacer()
 
                 if let status = store.responseStatus {
-                    HStack(spacing: 12) {
-                        // Colored Status Badge
-                        HStack(spacing: 4) {
+                    HStack(spacing: 16) {
+                        // Colored Status Badge with smooth background glow
+                        HStack(spacing: 6) {
                             Circle()
                                 .fill(statusColor(status))
                                 .frame(width: 8, height: 8)
-                            Text("Status: \(status) \(store.responseStatusText ?? "")")
-                                .font(.caption.bold())
+                            Text("STATUS: \(status) \(store.responseStatusText ?? "")")
+                                .font(.system(size: 11, weight: .bold, design: .monospaced))
                                 .foregroundColor(statusColor(status))
                         }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(statusColor(status).opacity(0.12))
+                        .cornerRadius(6)
 
                         if let ms = store.elapsedMs {
-                            Text("Time: \(String(format: "%.0f ms", ms))")
-                                .font(.caption)
+                            Text("TIME: \(String(format: "%.0f ms", ms))")
+                                .font(.system(size: 11, weight: .semibold, design: .monospaced))
                                 .foregroundColor(.secondary)
                         }
 
-                        Text("Size: \(formatByteSize(store.responseSize))")
-                            .font(.caption)
+                        Text("SIZE: \(formatByteSize(store.responseSize))")
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
                             .foregroundColor(.secondary)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.secondary.opacity(0.08))
-                    .cornerRadius(6)
+                } else if store.isLoading {
+                    Text("EXECUTING REQUEST...")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.orange)
+                } else {
+                    Text("NO ACTIVE RESPONSE")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.secondary)
                 }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
             .background(.thinMaterial)
+
+            Divider()
 
             // Tab Selection for Body vs. Headers
             HStack {
                 Button {
                     store.responseTab = "body"
                 } label: {
-                    Text("Response Body")
-                        .font(.system(size: 11, weight: store.responseTab == "body" ? .semibold : .regular))
-                        .foregroundColor(store.responseTab == "body" ? .blue : .secondary)
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 10)
-                        .background(store.responseTab == "body" ? Color.blue.opacity(0.1) : Color.clear)
-                        .cornerRadius(4)
+                    Text("Response Body Payload")
+                        .font(.system(size: 11, weight: store.responseTab == "body" ? .bold : .medium))
+                        .foregroundColor(store.responseTab == "body" ? .white : .secondary)
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 12)
+                        .background(store.responseTab == "body" ? Color.blue : Color.secondary.opacity(0.12))
+                        .cornerRadius(6)
                 }
                 .buttonStyle(.plain)
 
@@ -957,12 +1066,12 @@ extension APITesterView {
                     store.responseTab = "headers"
                 } label: {
                     Text("Response Headers (\(store.responseHeaders.count))")
-                        .font(.system(size: 11, weight: store.responseTab == "headers" ? .semibold : .regular))
-                        .foregroundColor(store.responseTab == "headers" ? .blue : .secondary)
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 10)
-                        .background(store.responseTab == "headers" ? Color.blue.opacity(0.1) : Color.clear)
-                        .cornerRadius(4)
+                        .font(.system(size: 11, weight: store.responseTab == "headers" ? .bold : .medium))
+                        .foregroundColor(store.responseTab == "headers" ? .white : .secondary)
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 12)
+                        .background(store.responseTab == "headers" ? Color.blue : Color.secondary.opacity(0.12))
+                        .cornerRadius(6)
                 }
                 .buttonStyle(.plain)
 
@@ -973,37 +1082,45 @@ extension APITesterView {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(store.responseBody, forType: .string)
                     } label: {
-                        Label("Copy Body", systemImage: "doc.on.doc")
-                            .font(.caption)
+                        Label("Copy Response Body", systemImage: "doc.on.doc.fill")
+                            .font(.caption.bold())
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.blue)
                 }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color.secondary.opacity(0.02))
 
             Divider()
 
             // Body / Headers Details
             ZStack {
                 if store.responseTab == "body" {
-                    TextEditor(text: .constant(store.responseBody))
-                        .font(.system(.body, design: .monospaced))
-                        .cornerRadius(0)
+                    if store.responseBody.isEmpty {
+                        ContentUnavailableView("No Response Loaded", systemImage: "arrow.up.circle")
+                            .frame(maxHeight: .infinity)
+                    } else {
+                        TextEditor(text: .constant(store.responseBody))
+                            .font(.system(.body, design: .monospaced))
+                            .padding(10)
+                            .background(Color.black.opacity(0.1))
+                    }
                 } else {
                     List {
                         if store.responseHeaders.isEmpty {
-                            Text("No headers returned.")
+                            Text("No HTTP headers returned from server controller.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         } else {
                             ForEach(store.responseHeaders) { header in
-                                HStack(alignment: .top) {
+                                HStack(alignment: .top, spacing: 14) {
                                     Text(header.key)
                                         .font(.system(.caption, design: .monospaced))
                                         .fontWeight(.bold)
-                                        .foregroundColor(.secondary)
-                                        .frame(width: 200, alignment: .leading)
+                                        .foregroundColor(.orange)
+                                        .frame(width: 240, alignment: .leading)
 
                                     Text(header.value)
                                         .font(.system(.caption, design: .monospaced))
@@ -1011,7 +1128,8 @@ extension APITesterView {
 
                                     Spacer()
                                 }
-                                .padding(.vertical, 1)
+                                .padding(.vertical, 2)
+                                .dividerBackground()
                             }
                         }
                     }
@@ -1027,24 +1145,25 @@ extension APITesterView {
 extension APITesterView {
 
     private var saveRequestSheet: some View {
-        VStack(spacing: 16) {
-            Text("Save Current Request")
+        VStack(spacing: 20) {
+            Text("Save API Request Configuration")
                 .font(.headline)
+                .fontWeight(.bold)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Request Name")
+                Text("Request Label")
                     .font(.caption.bold())
                 TextField("Enter Request Name", text: $newRequestName)
                     .textFieldStyle(.roundedBorder)
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Select Destination Collection")
+                Text("Select Destination Collection Folder")
                     .font(.caption.bold())
 
                 if store.collections.isEmpty {
-                    Text("No collections exist. Create one in the sidebar first.")
-                        .font(.caption)
+                    Text("No collection folders exist. Please click + on the sidebar first to create a folder.")
+                        .font(.caption.bold())
                         .foregroundColor(.red)
                 } else {
                     List {
@@ -1058,6 +1177,7 @@ extension APITesterView {
                                     Image(systemName: "folder.fill")
                                         .foregroundColor(.orange)
                                     Text(col.name)
+                                        .fontWeight(.semibold)
                                     Spacer()
                                     Image(systemName: "chevron.right")
                                         .font(.caption)
@@ -1065,31 +1185,32 @@ extension APITesterView {
                                 }
                             }
                             .buttonStyle(.plain)
-                            .padding(.vertical, 4)
+                            .padding(.vertical, 6)
                         }
                     }
-                    .frame(height: 150)
-                    .border(Color.secondary.opacity(0.2))
+                    .frame(height: 160)
+                    .border(Color.secondary.opacity(0.12))
                 }
             }
 
             HStack {
-                Spacer()
-                Button("Cancel") {
-                    showingSaveSheet = false
-                }
-                .buttonStyle(.bordered)
-
-                Button("Save to Workspace") {
+                Button("Save to Quick History") {
                     store.requestName = newRequestName
                     store.addCurrentToHistory()
                     showingSaveSheet = false
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
+
+                Spacer()
+
+                Button("Cancel") {
+                    showingSaveSheet = false
+                }
+                .buttonStyle(.bordered)
             }
         }
-        .padding(20)
-        .frame(width: 400)
+        .padding(24)
+        .frame(width: 440)
     }
 }
 
@@ -1111,13 +1232,13 @@ extension APITesterView {
         }()
 
         Text(method)
-            .font(.system(size: 9, weight: .bold))
+            .font(.system(size: 9, weight: .black, design: .monospaced))
             .foregroundColor(.white)
-            .padding(.horizontal, 5)
+            .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(color)
             .cornerRadius(4)
-            .frame(width: 50)
+            .frame(width: 55)
     }
 
     private func statusColor(_ status: Int) -> Color {
@@ -1146,3 +1267,15 @@ extension APITesterView {
     }
 }
 
+// Custom view helper for divider lists
+private extension View {
+    func dividerBackground() -> some View {
+        self.padding(.bottom, 3)
+            .overlay(
+                Divider()
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 25),
+                alignment: .bottom
+            )
+    }
+}

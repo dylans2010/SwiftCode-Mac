@@ -7,6 +7,27 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		6AFC5889BE2EBC0A3C636986 /* XcodeShortcutsCheatsheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E26BE2ADB641EA440B8AEB4 /* XcodeShortcutsCheatsheetView.swift */; };
+		5B8E130F040CB5E2D439CA74 /* SwiftUIPerformanceCheatsheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C0E76C96B1F831170E35AC /* SwiftUIPerformanceCheatsheetView.swift */; };
+		187ED80BBA2CB7A99B5AEABB /* RegexSyntaxCheatsheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E031CFA3E65C9492E36E9BC /* RegexSyntaxCheatsheetView.swift */; };
+		0B5D7052CC0381BA4759D3A4 /* AppStoreGuidelinesCheatsheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93F0F2A514B1F2CE098DB6B3 /* AppStoreGuidelinesCheatsheetView.swift */; };
+		7DC8E202D830464F36B2BA40 /* AppleSiliconOptimizationCheatsheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31A43098A71D71F242F13ED4 /* AppleSiliconOptimizationCheatsheetView.swift */; };
+		344C891167D7042014FEDB65 /* SwiftConcurrencyCheatsheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC95F4D67DF7D69C287E7E82 /* SwiftConcurrencyCheatsheetView.swift */; };
+		E4E08C2F05F961AE6E4355DD /* Base64ImageDecoderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CF675B65EDBF9465CFB244 /* Base64ImageDecoderView.swift */; };
+		0BA144DBF47E1BFE475477CB /* HTTPRequestHeaderBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E931A9E0D67060F452E6AEA /* HTTPRequestHeaderBuilderView.swift */; };
+		91E6FD9903EFF4F612B75870 /* JSONTypeAnalyzerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C009EEF1196B3EBAAC9610 /* JSONTypeAnalyzerView.swift */; };
+		38D1D9BC682E51AAE19A166F /* iOSScreenResolutionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 538AD80DC824E1E0A998CF24 /* iOSScreenResolutionsView.swift */; };
+		A97DCC9133D36542060E3880 /* CSSFlexboxPlaybookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD246ACEF9016DBECD16B8B5 /* CSSFlexboxPlaybookView.swift */; };
+		68F23386D698EF54912C2161 /* SwiftLanguageReferenceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F9F78AC4664768CE5FAE63 /* SwiftLanguageReferenceView.swift */; };
+		2362BE1140B209274335060E /* GitBranchingStrategiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90ECA72344D9F146A50A1B6F /* GitBranchingStrategiesView.swift */; };
+		3BBF3BD58571EF0BAFACC739 /* MarkdownSyntaxCheatsheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20C347CC275648D6B92F86F /* MarkdownSyntaxCheatsheetView.swift */; };
+		E00D28297C8AE42E79538824 /* UnixPermissionsCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3359C194E36E008DB2EC8AC1 /* UnixPermissionsCalculatorView.swift */; };
+		5A7702AA7244C026315EF4FD /* ColorContrastAnalyzerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5C67D363A58EF909CC412E2 /* ColorContrastAnalyzerView.swift */; };
+		8843FD8748E9860EBA76F6B7 /* HexToRGBAndHSLConverterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C97AB97532F2F59CE5C6ADE /* HexToRGBAndHSLConverterView.swift */; };
+		C1B9092779DDD011A6A829D8 /* JSONStringEscaperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08D883D1A78AA7F79D1CC1FE /* JSONStringEscaperView.swift */; };
+		72D7B07B8AA874881368E349 /* SwiftLintConfigurationGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2D2FD11B5BD10DB28A56FBF /* SwiftLintConfigurationGuideView.swift */; };
+		CE3C762EB8CC43D271A902C7 /* LLDBDebuggerCheatsheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF38D86E38C28B8127A8D27 /* LLDBDebuggerCheatsheetView.swift */; };
+		50D0D0AED75DBA2F34F935A8 /* SFSymbolsReferenceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDF84F7206A228709DB3EDD0 /* SFSymbolsReferenceView.swift */; };
 		7621F0E780BE1F8767C7CDE4 /* MainToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A547FFDC25C14D444078B66A /* MainToolsView.swift */; };
 		5C5B7A8BC09181B28E3E9183 /* IPABuildView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF81EA85E77665CE1645F5E8 /* IPABuildView.swift */; };
 
@@ -1354,6 +1375,27 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9E26BE2ADB641EA440B8AEB4 /* XcodeShortcutsCheatsheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "XcodeShortcutsCheatsheetView.swift"; sourceTree = "<group>"; };
+		C0C0E76C96B1F831170E35AC /* SwiftUIPerformanceCheatsheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftUIPerformanceCheatsheetView.swift"; sourceTree = "<group>"; };
+		3E031CFA3E65C9492E36E9BC /* RegexSyntaxCheatsheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegexSyntaxCheatsheetView.swift"; sourceTree = "<group>"; };
+		93F0F2A514B1F2CE098DB6B3 /* AppStoreGuidelinesCheatsheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppStoreGuidelinesCheatsheetView.swift"; sourceTree = "<group>"; };
+		31A43098A71D71F242F13ED4 /* AppleSiliconOptimizationCheatsheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppleSiliconOptimizationCheatsheetView.swift"; sourceTree = "<group>"; };
+		EC95F4D67DF7D69C287E7E82 /* SwiftConcurrencyCheatsheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftConcurrencyCheatsheetView.swift"; sourceTree = "<group>"; };
+		47CF675B65EDBF9465CFB244 /* Base64ImageDecoderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Base64ImageDecoderView.swift"; sourceTree = "<group>"; };
+		9E931A9E0D67060F452E6AEA /* HTTPRequestHeaderBuilderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HTTPRequestHeaderBuilderView.swift"; sourceTree = "<group>"; };
+		52C009EEF1196B3EBAAC9610 /* JSONTypeAnalyzerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JSONTypeAnalyzerView.swift"; sourceTree = "<group>"; };
+		538AD80DC824E1E0A998CF24 /* iOSScreenResolutionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "iOSScreenResolutionsView.swift"; sourceTree = "<group>"; };
+		CD246ACEF9016DBECD16B8B5 /* CSSFlexboxPlaybookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CSSFlexboxPlaybookView.swift"; sourceTree = "<group>"; };
+		D6F9F78AC4664768CE5FAE63 /* SwiftLanguageReferenceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftLanguageReferenceView.swift"; sourceTree = "<group>"; };
+		90ECA72344D9F146A50A1B6F /* GitBranchingStrategiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GitBranchingStrategiesView.swift"; sourceTree = "<group>"; };
+		F20C347CC275648D6B92F86F /* MarkdownSyntaxCheatsheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MarkdownSyntaxCheatsheetView.swift"; sourceTree = "<group>"; };
+		3359C194E36E008DB2EC8AC1 /* UnixPermissionsCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UnixPermissionsCalculatorView.swift"; sourceTree = "<group>"; };
+		C5C67D363A58EF909CC412E2 /* ColorContrastAnalyzerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ColorContrastAnalyzerView.swift"; sourceTree = "<group>"; };
+		2C97AB97532F2F59CE5C6ADE /* HexToRGBAndHSLConverterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HexToRGBAndHSLConverterView.swift"; sourceTree = "<group>"; };
+		08D883D1A78AA7F79D1CC1FE /* JSONStringEscaperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JSONStringEscaperView.swift"; sourceTree = "<group>"; };
+		E2D2FD11B5BD10DB28A56FBF /* SwiftLintConfigurationGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftLintConfigurationGuideView.swift"; sourceTree = "<group>"; };
+		5DF38D86E38C28B8127A8D27 /* LLDBDebuggerCheatsheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LLDBDebuggerCheatsheetView.swift"; sourceTree = "<group>"; };
+		FDF84F7206A228709DB3EDD0 /* SFSymbolsReferenceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SFSymbolsReferenceView.swift"; sourceTree = "<group>"; };
 		A547FFDC25C14D444078B66A /* MainToolsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/AdvancedTools/Views/MainToolsView.swift"; sourceTree = SOURCE_ROOT; };
 		BF81EA85E77665CE1645F5E8 /* IPABuildView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/Xcode Build/IPABuildView.swift"; sourceTree = SOURCE_ROOT; };
 
@@ -3363,6 +3405,27 @@
 		2B4CEE860D734A23837F5302 /* Dev Tools */ = {
 			isa = PBXGroup;
 			children = (
+				9E26BE2ADB641EA440B8AEB4 /* XcodeShortcutsCheatsheetView.swift */,
+				C0C0E76C96B1F831170E35AC /* SwiftUIPerformanceCheatsheetView.swift */,
+				3E031CFA3E65C9492E36E9BC /* RegexSyntaxCheatsheetView.swift */,
+				93F0F2A514B1F2CE098DB6B3 /* AppStoreGuidelinesCheatsheetView.swift */,
+				31A43098A71D71F242F13ED4 /* AppleSiliconOptimizationCheatsheetView.swift */,
+				EC95F4D67DF7D69C287E7E82 /* SwiftConcurrencyCheatsheetView.swift */,
+				47CF675B65EDBF9465CFB244 /* Base64ImageDecoderView.swift */,
+				9E931A9E0D67060F452E6AEA /* HTTPRequestHeaderBuilderView.swift */,
+				52C009EEF1196B3EBAAC9610 /* JSONTypeAnalyzerView.swift */,
+				538AD80DC824E1E0A998CF24 /* iOSScreenResolutionsView.swift */,
+				CD246ACEF9016DBECD16B8B5 /* CSSFlexboxPlaybookView.swift */,
+				D6F9F78AC4664768CE5FAE63 /* SwiftLanguageReferenceView.swift */,
+				90ECA72344D9F146A50A1B6F /* GitBranchingStrategiesView.swift */,
+				F20C347CC275648D6B92F86F /* MarkdownSyntaxCheatsheetView.swift */,
+				3359C194E36E008DB2EC8AC1 /* UnixPermissionsCalculatorView.swift */,
+				C5C67D363A58EF909CC412E2 /* ColorContrastAnalyzerView.swift */,
+				2C97AB97532F2F59CE5C6ADE /* HexToRGBAndHSLConverterView.swift */,
+				08D883D1A78AA7F79D1CC1FE /* JSONStringEscaperView.swift */,
+				E2D2FD11B5BD10DB28A56FBF /* SwiftLintConfigurationGuideView.swift */,
+				5DF38D86E38C28B8127A8D27 /* LLDBDebuggerCheatsheetView.swift */,
+				FDF84F7206A228709DB3EDD0 /* SFSymbolsReferenceView.swift */,
 				BF81EA85E77665CE1645F5E8 /* IPABuildView.swift */,
 				9566538F7BD55C7409795C89 /* DesignerDevToolView.swift */,
 				59BECEBFFFFD21DB1AEE9891 /* AESEncryptionDevToolView.swift */,
@@ -5791,6 +5854,27 @@ CE705E1EC3604FFEEB031075 /* FoundationModels.swift in Sources */,
 				310E3EE898A3946E0B738179 /* PercentageCalculatorView.swift in Sources */,
 				16E060ED7EC2E7CA8ADF0882 /* AspectRatioCalculatorView.swift in Sources */,
 				94DD6A8E2A754318B46E1389 /* APITesterView.swift in Sources */,
+				6AFC5889BE2EBC0A3C636986 /* XcodeShortcutsCheatsheetView.swift in Sources */,
+				5B8E130F040CB5E2D439CA74 /* SwiftUIPerformanceCheatsheetView.swift in Sources */,
+				187ED80BBA2CB7A99B5AEABB /* RegexSyntaxCheatsheetView.swift in Sources */,
+				0B5D7052CC0381BA4759D3A4 /* AppStoreGuidelinesCheatsheetView.swift in Sources */,
+				7DC8E202D830464F36B2BA40 /* AppleSiliconOptimizationCheatsheetView.swift in Sources */,
+				344C891167D7042014FEDB65 /* SwiftConcurrencyCheatsheetView.swift in Sources */,
+				E4E08C2F05F961AE6E4355DD /* Base64ImageDecoderView.swift in Sources */,
+				0BA144DBF47E1BFE475477CB /* HTTPRequestHeaderBuilderView.swift in Sources */,
+				91E6FD9903EFF4F612B75870 /* JSONTypeAnalyzerView.swift in Sources */,
+				38D1D9BC682E51AAE19A166F /* iOSScreenResolutionsView.swift in Sources */,
+				A97DCC9133D36542060E3880 /* CSSFlexboxPlaybookView.swift in Sources */,
+				68F23386D698EF54912C2161 /* SwiftLanguageReferenceView.swift in Sources */,
+				2362BE1140B209274335060E /* GitBranchingStrategiesView.swift in Sources */,
+				3BBF3BD58571EF0BAFACC739 /* MarkdownSyntaxCheatsheetView.swift in Sources */,
+				E00D28297C8AE42E79538824 /* UnixPermissionsCalculatorView.swift in Sources */,
+				5A7702AA7244C026315EF4FD /* ColorContrastAnalyzerView.swift in Sources */,
+				8843FD8748E9860EBA76F6B7 /* HexToRGBAndHSLConverterView.swift in Sources */,
+				C1B9092779DDD011A6A829D8 /* JSONStringEscaperView.swift in Sources */,
+				72D7B07B8AA874881368E349 /* SwiftLintConfigurationGuideView.swift in Sources */,
+				CE3C762EB8CC43D271A902C7 /* LLDBDebuggerCheatsheetView.swift in Sources */,
+				50D0D0AED75DBA2F34F935A8 /* SFSymbolsReferenceView.swift in Sources */,
 				4AF9542FCA3048C9A99E0826 /* ASCIIArtGeneratorView.swift in Sources */,
 				19A173C783E34BCB83BD71EA /* Base64ConverterView.swift in Sources */,
 				55427E086D0A41918203039E /* BinaryConverterView.swift in Sources */,
