@@ -21,11 +21,36 @@ public final class XcodeBuildManager: Sendable {
     public var selectedConfiguration: String = "Debug"
     public var selectedDestination: String = "generic/platform=iOS Simulator"
 
+    public var selectedSDKType: String = "Default"
+    public var selectedSDKVersion: String = "Default"
+
     public let availableConfigurations = ["Debug", "Release"]
     public let availableDestinations = [
         "generic/platform=iOS Simulator",
         "generic/platform=iOS",
         "generic/platform=macOS"
+    ]
+
+    public let availableSDKTypes = [
+        "Default",
+        "iOS",
+        "iOS Simulator",
+        "macOS",
+        "watchOS",
+        "watchOS Simulator",
+        "tvOS",
+        "tvOS Simulator"
+    ]
+
+    public let availableSDKVersions = [
+        "Default",
+        "27",
+        "26",
+        "18.0",
+        "17.5",
+        "17.0",
+        "16.4",
+        "15.0"
     ]
 
     @ObservationIgnored
@@ -168,6 +193,31 @@ public final class XcodeBuildManager: Sendable {
         }
         if !finalDest.isEmpty {
             arguments.append(contentsOf: ["-destination", finalDest])
+        }
+
+        // Add SDK and version arguments if selected
+        if selectedSDKType != "Default" {
+            let canonicalType: String
+            switch selectedSDKType {
+            case "iOS": canonicalType = "iphoneos"
+            case "iOS Simulator": canonicalType = "iphonesimulator"
+            case "macOS": canonicalType = "macosx"
+            case "watchOS": canonicalType = "watchos"
+            case "watchOS Simulator": canonicalType = "watchsimulator"
+            case "tvOS": canonicalType = "appletvos"
+            case "tvOS Simulator": canonicalType = "appletvsimulator"
+            default: canonicalType = selectedSDKType.lowercased()
+            }
+
+            let sdkArg: String
+            if selectedSDKVersion != "Default" && !selectedSDKVersion.isEmpty {
+                sdkArg = "\(canonicalType)\(selectedSDKVersion)"
+            } else {
+                sdkArg = canonicalType
+            }
+            arguments.append(contentsOf: ["-sdk", sdkArg])
+        } else if selectedSDKVersion != "Default" && !selectedSDKVersion.isEmpty {
+            arguments.append(contentsOf: ["-sdk", selectedSDKVersion])
         }
 
         process.arguments = arguments
