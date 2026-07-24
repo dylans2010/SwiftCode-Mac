@@ -99,6 +99,7 @@ struct GitHubSettingsView: View {
     private func saveToken() {
         KeychainService.shared.set(token, forKey: KeychainService.githubToken)
         AppSettings.shared.httpsAuthToken = token
+        APIKeyManager.shared.storeKey(service: .gitHub, key: token)
         RepositoryContext.shared.triggerSync()
     }
 
@@ -114,6 +115,9 @@ struct GitHubSettingsView: View {
 @MainActor
 struct SetRepoInProject: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
+
+    // Association Mode Segmented state
+    @State private var connectionTab = 0 // 0 = Connect Existing, 1 = Create New
 
     // Remote connection states
     @State private var repoNameInput = "" // owner/repo
@@ -297,66 +301,76 @@ struct SetRepoInProject: View {
     }
 
     private var noConnectionPanel: some View {
-        TabView {
-            // Tab 1: Connect Existing
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Connect to an Existing GitHub Repository")
-                    .font(.subheadline.bold())
+        VStack(alignment: .leading, spacing: 14) {
+            Picker("Method", selection: $connectionTab) {
+                Text("Connect Existing").tag(0)
+                Text("Create New Repository").tag(1)
+            }
+            .pickerStyle(.segmented)
+            .padding(.bottom, 4)
 
-                if isLoadingUserRepos {
-                    ProgressView().controlSize(.small)
-                } else if !userRepos.isEmpty {
-                    Picker("Select Repository", selection: $selectedUserRepo) {
-                        Text("-- Select a Repository --").tag("")
-                        ForEach(userRepos) { repo in
-                            Text(repo.fullName).tag(repo.fullName)
+            if connectionTab == 0 {
+                // Connect Existing
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Select or enter a repository to link with this project.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if isLoadingUserRepos {
+                        ProgressView().controlSize(.small)
+                    } else if !userRepos.isEmpty {
+                        Picker("Select Repository", selection: $selectedUserRepo) {
+                            Text("-- Select a Repository --").tag("")
+                            ForEach(userRepos) { repo in
+                                Text(repo.fullName).tag(repo.fullName)
+                            }
                         }
+                        .pickerStyle(.menu)
                     }
-                    .pickerStyle(.menu)
+
+                    HStack {
+                        TextField("Or enter manually: owner/repo", text: $repoNameInput)
+                            .textFieldStyle(.roundedBorder)
+                            .autocorrectionDisabled()
+
+                        Button("Connect") {
+                            let name = selectedUserRepo.isEmpty ? repoNameInput.trimmingCharacters(in: .whitespacesAndNewlines) : selectedUserRepo
+                            connectExistingRepository(name)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.blue)
+                        .disabled(repoNameInput.isEmpty && selectedUserRepo.isEmpty)
+                    }
                 }
+                .padding()
+                .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+            } else {
+                // Create New
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Configure and provision a new GitHub repository for this project.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
-                HStack {
-                    TextField("Or enter manually: owner/repo", text: $repoNameInput)
+                    TextField("Repository Name", text: $newRepoName)
                         .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
 
-                    Button("Connect") {
-                        let name = selectedUserRepo.isEmpty ? repoNameInput.trimmingCharacters(in: .whitespacesAndNewlines) : selectedUserRepo
-                        connectExistingRepository(name)
+                    TextField("Description (Optional)", text: $newRepoDescription)
+                        .textFieldStyle(.roundedBorder)
+
+                    Toggle("Private Repository", isOn: $newRepoIsPrivate)
+                        .toggleStyle(.checkbox)
+
+                    Button("Create and Initialize Remote") {
+                        createNewRepository()
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.blue)
-                    .disabled(repoNameInput.isEmpty && selectedUserRepo.isEmpty)
+                    .tint(.green)
+                    .disabled(newRepoName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreatingRepo)
                 }
+                .padding()
+                .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
             }
-            .padding()
-            .tabItem { Label("Connect Existing", systemImage: "link") }
-
-            // Tab 2: Create Brand New
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Create New GitHub Repository")
-                    .font(.subheadline.bold())
-
-                TextField("Repository Name", text: $newRepoName)
-                    .textFieldStyle(.roundedBorder)
-
-                TextField("Description (Optional)", text: $newRepoDescription)
-                    .textFieldStyle(.roundedBorder)
-
-                Toggle("Private Repository", isOn: $newRepoIsPrivate)
-                    .toggleStyle(.checkbox)
-
-                Button("Create and Initialize Remote") {
-                    createNewRepository()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-                .disabled(newRepoName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreatingRepo)
-            }
-            .padding()
-            .tabItem { Label("Create New", systemImage: "folder.badge.plus") }
         }
-        .frame(height: 180)
         .padding(.vertical, 4)
     }
 

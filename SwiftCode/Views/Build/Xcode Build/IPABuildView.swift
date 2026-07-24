@@ -49,23 +49,25 @@ public struct IPABuildView: View {
                                 .font(.subheadline.bold())
                                 .foregroundStyle(.blue)
 
-                            // Workflow 1: Open Temporary Managed Builds Folder
-                            Button {
-                                revealTemporaryBuildsFolder()
-                            } label: {
-                                Label("Reveal Temporary Builds Folder", systemImage: "folder.fill")
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
+                            HStack(spacing: 12) {
+                                // Workflow 1: Open Temporary Managed Builds Folder
+                                Button {
+                                    revealTemporaryBuildsFolder()
+                                } label: {
+                                    Label("Reveal Builds Folder", systemImage: "folder.fill")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.bordered)
 
-                            // Workflow 2: Choose Existing .app bundle
-                            Button {
-                                selectExistingAppBundle()
-                            } label: {
-                                Label("Select Existing .app Bundle...", systemImage: "doc.badge.gearshape")
-                                    .frame(maxWidth: .infinity)
+                                // Workflow 2: Choose Existing .app bundle
+                                Button {
+                                    selectExistingAppBundle()
+                                } label: {
+                                    Label("Select .app Bundle...", systemImage: "doc.badge.gearshape")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.borderedProminent)
                             }
-                            .buttonStyle(.borderedProminent)
                         }
                         .padding(8)
                     }

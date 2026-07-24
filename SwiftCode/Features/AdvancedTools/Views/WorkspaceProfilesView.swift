@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct WorkspaceProfilesView: View {
-    @StateObject private var manager = WorkspaceProfilesManager.shared
+    @State private var manager = WorkspaceProfilesManager.shared
     @Environment(\.dismiss) private var dismiss
 
     // UI state
@@ -41,7 +41,7 @@ struct WorkspaceProfilesView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Filter controls
+                    // Filter controls card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Filter & Sorting")
@@ -96,79 +96,81 @@ struct WorkspaceProfilesView: View {
                                     .foregroundStyle(.secondary)
                                     .padding(.vertical, 8)
                             } else {
-                                ForEach(profiles) { profile in
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 3) {
-                                            HStack {
-                                                Text(profile.name).bold()
-                                                if manager.activeProfileID == profile.id {
-                                                    Text("ACTIVE")
-                                                        .font(.system(size: 8, weight: .bold))
-                                                        .padding(.horizontal, 4)
-                                                        .padding(.vertical, 1)
-                                                        .background(Color.green.opacity(0.15))
-                                                        .foregroundStyle(.green)
-                                                        .cornerRadius(4)
+                                VStack(spacing: 8) {
+                                    ForEach(profiles) { profile in
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 3) {
+                                                HStack {
+                                                    Text(profile.name).bold()
+                                                    if manager.activeProfileID == profile.id {
+                                                        Text("ACTIVE")
+                                                            .font(.system(size: 8, weight: .bold))
+                                                            .padding(.horizontal, 4)
+                                                            .padding(.vertical, 1)
+                                                            .background(Color.green.opacity(0.15))
+                                                            .foregroundStyle(.green)
+                                                            .cornerRadius(4)
+                                                    }
                                                 }
+                                                Text("Build: \(profile.buildConfiguration)")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
                                             }
-                                            Text("Build: \(profile.buildConfiguration)")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
 
-                                        Spacer()
+                                            Spacer()
 
-                                        HStack(spacing: 8) {
-                                            if manager.activeProfileID != profile.id {
-                                                Button("Activate") {
-                                                    manager.switchTo(profile)
-                                                    selectedProfile = profile
+                                            HStack(spacing: 8) {
+                                                if manager.activeProfileID != profile.id {
+                                                    Button("Activate") {
+                                                        manager.switchTo(profile)
+                                                        selectedProfile = profile
+                                                    }
+                                                    .buttonStyle(.borderedProminent)
+                                                    .controlSize(.small)
                                                 }
-                                                .buttonStyle(.borderedProminent)
+
+                                                Button {
+                                                    selectedProfile = profile
+                                                    prepareEdit(profile)
+                                                } label: {
+                                                    Image(systemName: "pencil")
+                                                }
+                                                .buttonStyle(.bordered)
+                                                .controlSize(.small)
+
+                                                Button {
+                                                    duplicateProfile(profile)
+                                                } label: {
+                                                    Image(systemName: "doc.on.doc")
+                                                }
+                                                .buttonStyle(.bordered)
+                                                .controlSize(.small)
+
+                                                Button {
+                                                    toggleFavorite(profile)
+                                                } label: {
+                                                    Image(systemName: profile.preferences["isFavorite"] == "true" ? "star.fill" : "star")
+                                                        .foregroundStyle(profile.preferences["isFavorite"] == "true" ? .yellow : .secondary)
+                                                }
+                                                .buttonStyle(.bordered)
+                                                .controlSize(.small)
+
+                                                Button(role: .destructive) {
+                                                    deleteProfile(profile)
+                                                } label: {
+                                                    Image(systemName: "trash")
+                                                }
+                                                .buttonStyle(.bordered)
                                                 .controlSize(.small)
                                             }
-
-                                            Button {
-                                                selectedProfile = profile
-                                                prepareEdit(profile)
-                                            } label: {
-                                                Image(systemName: "pencil")
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-
-                                            Button {
-                                                duplicateProfile(profile)
-                                            } label: {
-                                                Image(systemName: "doc.on.doc")
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-
-                                            Button {
-                                                toggleFavorite(profile)
-                                            } label: {
-                                                Image(systemName: profile.preferences["isFavorite"] == "true" ? "star.fill" : "star")
-                                                    .foregroundStyle(profile.preferences["isFavorite"] == "true" ? .yellow : .secondary)
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-
-                                            Button(role: .destructive) {
-                                                deleteProfile(profile)
-                                            } label: {
-                                                Image(systemName: "trash")
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
                                         }
-                                    }
-                                    .padding(8)
-                                    .background(selectedProfile?.id == profile.id ? Color.accentColor.opacity(0.1) : Color.clear)
-                                    .cornerRadius(6)
+                                        .padding(8)
+                                        .background(selectedProfile?.id == profile.id ? Color.accentColor.opacity(0.1) : Color.clear)
+                                        .cornerRadius(6)
 
-                                    if profile.id != profiles.last?.id {
-                                        Divider()
+                                        if profile.id != profiles.last?.id {
+                                            Divider()
+                                        }
                                     }
                                 }
                             }
@@ -209,13 +211,15 @@ struct WorkspaceProfilesView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 } else {
-                                    ForEach(Array(profile.environmentVariables.keys).sorted(), id: \.self) { key in
-                                        HStack {
-                                            Text(key).bold().font(.caption.monospaced())
-                                            Spacer()
-                                            Text(profile.environmentVariables[key] ?? "")
-                                                .font(.caption.monospaced())
-                                                .foregroundStyle(.secondary)
+                                    VStack(spacing: 6) {
+                                        ForEach(Array(profile.environmentVariables.keys).sorted(), id: \.self) { key in
+                                            HStack {
+                                                Text(key).bold().font(.caption.monospaced())
+                                                Spacer()
+                                                Text(profile.environmentVariables[key] ?? "")
+                                                    .font(.caption.monospaced())
+                                                    .foregroundStyle(.secondary)
+                                            }
                                         }
                                     }
                                 }

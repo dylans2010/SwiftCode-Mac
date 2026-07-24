@@ -71,6 +71,8 @@ public class DocumentationBrowserWindowController: NSWindowController {
 // ====================================================================
 
 public struct DocumentationBrowserView: View {
+    @Environment(\.dismiss) private var dismiss
+
     public init() {}
 
     public var body: some View {
@@ -78,6 +80,7 @@ public struct DocumentationBrowserView: View {
             .frame(width: 0, height: 0)
             .onAppear {
                 DocumentationBrowserWindowManager.shared.showWindow()
+                dismiss()
             }
     }
 }

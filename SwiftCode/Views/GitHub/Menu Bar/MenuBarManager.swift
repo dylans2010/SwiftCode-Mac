@@ -135,21 +135,12 @@ struct MenuBarRootView: View {
                 } else {
                     VStack(spacing: 0) {
                         HStack {
-                            Text("Git Menu Bar Controls")
+                            Text("Git: \(selectedTab)")
                                 .font(.headline.bold())
                             Spacer()
                         }
                         .padding()
                         .background(Color.secondary.opacity(0.05))
-
-                        Picker("Section", selection: $selectedTab) {
-                            ForEach(options, id: \.self) { opt in
-                                Text(opt).tag(opt)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .padding(.horizontal)
-                        .padding(.vertical, 8)
 
                         Divider()
 

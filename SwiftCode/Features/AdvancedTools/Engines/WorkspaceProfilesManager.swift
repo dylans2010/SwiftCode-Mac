@@ -16,11 +16,12 @@ struct WorkspaceProfile: Identifiable, Codable, Equatable, Hashable {
     )
 }
 
+@Observable
 @MainActor
-final class WorkspaceProfilesManager: ObservableObject {
+final class WorkspaceProfilesManager {
     static let shared = WorkspaceProfilesManager()
 
-    @Published private(set) var profiles: [WorkspaceProfile] = [] {
+    var profiles: [WorkspaceProfile] = [] {
         didSet {
             persistProfiles()
             if !profiles.contains(where: { $0.id == activeProfileID }) {
@@ -31,14 +32,14 @@ final class WorkspaceProfilesManager: ObservableObject {
         }
     }
 
-    @Published private(set) var activeProfileID: UUID? {
+    var activeProfileID: UUID? {
         didSet {
             persistActiveProfileID()
             syncActiveProfileFromID()
         }
     }
 
-    @Published private(set) var activeProfile: WorkspaceProfile?
+    var activeProfile: WorkspaceProfile?
 
     private let profilesKey = "com.swiftcode.workspaceProfiles"
     private let activeProfileKey = "com.swiftcode.activeWorkspaceProfile"

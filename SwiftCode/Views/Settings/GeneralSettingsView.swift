@@ -231,6 +231,8 @@ final class APIKeyManager {
             KeychainService.shared.set(value, forKey: "qwen_api_key")
         case .gitHub:
             DeploymentKeychainManager.shared.storeKey(service: .github, key: value)
+            KeychainService.shared.set(value, forKey: KeychainService.githubToken)
+            AppSettings.shared.httpsAuthToken = value
         case .netlify:
             DeploymentKeychainManager.shared.storeKey(service: .netlify, key: value)
         case .vercel:

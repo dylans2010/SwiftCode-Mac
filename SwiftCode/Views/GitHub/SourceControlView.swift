@@ -686,6 +686,7 @@ struct SourceControlMainWrapper: View {
 public struct SourceControlView: View {
     var gitViewModel: GitViewModel
     @Environment(ProjectSessionStore.self) private var sessionStore
+    @Environment(\.dismiss) private var dismiss
 
     public init(gitViewModel: GitViewModel) {
         self.gitViewModel = gitViewModel
@@ -698,6 +699,7 @@ public struct SourceControlView: View {
                 if let project = sessionStore.activeProject {
                     SourceControlWindowManager.shared.showWindow(for: project, gitViewModel: gitViewModel)
                 }
+                dismiss()
             }
     }
 }
