@@ -110,6 +110,7 @@ struct XcodeBuildLogView: View {
     }
 
     var body: some View {
+        @Bindable var buildManager = self.buildManager
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
@@ -184,6 +185,41 @@ struct XcodeBuildLogView: View {
                                     Text(buildManager.getXcodeBuildPath())
                                         .font(.system(.caption, design: .monospaced))
                                         .lineLimit(1)
+                                }
+
+                                GridRow {
+                                    Text("Target SDK Type")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Picker("", selection: $buildManager.selectedSDKType) {
+                                        ForEach(buildManager.availableSDKTypes, id: \.self) { sdk in
+                                            Text(sdk).tag(sdk)
+                                        }
+                                    }
+                                    .pickerStyle(.menu)
+                                    .labelsHidden()
+                                    .controlSize(.small)
+
+                                    Text("Target SDK Version")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    HStack(spacing: 8) {
+                                        Picker("", selection: $buildManager.selectedSDKVersion) {
+                                            ForEach(buildManager.availableSDKVersions, id: \.self) { version in
+                                                Text(version).tag(version)
+                                            }
+                                        }
+                                        .pickerStyle(.menu)
+                                        .labelsHidden()
+                                        .controlSize(.small)
+                                        .frame(width: 100)
+
+                                        TextField("Custom version", text: $buildManager.selectedSDKVersion)
+                                            .textFieldStyle(.roundedBorder)
+                                            .controlSize(.small)
+                                            .frame(width: 80)
+                                            .disabled(buildManager.selectedSDKVersion == "Default")
+                                    }
                                 }
                             }
                         }
