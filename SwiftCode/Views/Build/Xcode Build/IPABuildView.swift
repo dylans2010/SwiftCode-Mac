@@ -27,27 +27,30 @@ public struct IPABuildView: View {
                 VStack(spacing: 24) {
                     // Title info card
                     GroupBox {
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 14) {
                             HStack {
                                 Label("iOS Application Packaging", systemImage: "shippingbox.fill")
                                     .font(.headline)
-                                    .foregroundStyle(.purple)
+                                    .foregroundColor(.purple)
                                 Spacer()
                             }
                             Text("Package compiled .app binaries into standard production .ipa containers cleanly and safely without opening Xcode.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        .padding(8)
+                        .padding()
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
                     // Workflow Triggers
                     GroupBox {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Workflows Selection")
-                                .font(.subheadline.bold())
-                                .foregroundStyle(.blue)
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Workflows Selection", systemImage: "play.circle")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
 
                             HStack(spacing: 12) {
                                 // Workflow 1: Open Temporary Managed Builds Folder
@@ -69,14 +72,21 @@ public struct IPABuildView: View {
                                 .buttonStyle(.borderedProminent)
                             }
                         }
-                        .padding(8)
+                        .padding()
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
                     // App Metadata Dashboard
-                    if let app = selectedApp {
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 10) {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("App Metadata Dashboard", systemImage: "info.circle")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
+                            }
+
+                            if let app = selectedApp {
                                 HStack(spacing: 12) {
                                     Image(systemName: "app.fill")
                                         .font(.title)
@@ -94,7 +104,7 @@ public struct IPABuildView: View {
 
                                 Divider()
 
-                                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+                                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
                                     GridRow {
                                         Text("Version").font(.caption).foregroundColor(.secondary)
                                         Text(app.version).font(.caption.bold())
@@ -119,32 +129,32 @@ public struct IPABuildView: View {
                                         Text(app.lastModified).font(.caption.bold())
                                     }
                                 }
+                            } else {
+                                VStack(spacing: 8) {
+                                    Image(systemName: "doc.text.magnifyingglass")
+                                        .font(.system(size: 30))
+                                        .foregroundStyle(.secondary)
+                                    Text("No application bundle selected. Please select an existing .app bundle to package.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
                             }
-                            .padding(8)
                         }
-                        .groupBoxStyle(ModernGroupBoxStyle())
-                    } else {
-                        GroupBox {
-                            VStack(spacing: 8) {
-                                Image(systemName: "doc.text.magnifyingglass")
-                                    .font(.system(size: 30))
-                                    .foregroundStyle(.secondary)
-                                Text("No application bundle selected. Please select an existing .app bundle to package.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                        }
-                        .groupBoxStyle(ModernGroupBoxStyle())
+                        .padding()
                     }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Output and IPA custom name specs
+                    // Output specs
                     GroupBox {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Output Specifications")
-                                .font(.subheadline.bold())
-                                .foregroundStyle(.blue)
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Output Specifications", systemImage: "gearshape")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
 
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Output Destination Folder")
@@ -170,52 +180,86 @@ public struct IPABuildView: View {
                                     .autocorrectionDisabled()
                             }
                         }
-                        .padding(8)
+                        .padding()
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Live Build progress and logs trace
+                    // Action box
                     GroupBox {
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 14) {
                             HStack {
-                                Label("Live Streams & Packaging logs", systemImage: "terminal.fill")
-                                    .font(.subheadline.bold())
-                                    .foregroundStyle(.secondary)
+                                Label("Action", systemImage: "shippingbox.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.green)
                                 Spacer()
+                            }
+
+                            HStack(spacing: 16) {
+                                Button {
+                                    Task {
+                                        await buildIPAContainer()
+                                    }
+                                } label: {
+                                    HStack {
+                                        if buildService.buildState == .packaging {
+                                            ProgressView().scaleEffect(0.8).padding(.trailing, 8)
+                                        } else {
+                                            Image(systemName: "shippingbox.fill")
+                                        }
+                                        Text(buildService.buildState == .packaging ? "Packaging..." : "Create IPA Package")
+                                            .fontWeight(.semibold)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.purple)
+                                .controlSize(.large)
+                                .disabled(selectedApp == nil || buildService.buildState == .packaging)
 
                                 if buildService.buildState == .packaging {
-                                    ProgressView().controlSize(.small)
-                                } else {
-                                    Circle()
-                                        .fill(statusColor(buildService.buildState))
-                                        .frame(width: 8, height: 8)
+                                    Button("Abort") {
+                                        buildService.cancelPackaging()
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .tint(.red)
+                                    .controlSize(.large)
                                 }
                             }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                            Divider()
+                    // Logs box
+                    if !buildService.logs.isEmpty || buildService.buildState == .packaging {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Label("Live Streams & Packaging Logs", systemImage: "terminal.fill")
+                                        .font(.headline)
+                                        .foregroundColor(.gray)
+                                    Spacer()
 
-                            // Progress bar
-                            if buildService.buildState == .packaging {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    ProgressView(value: buildService.currentProgress, total: 1.0)
-                                        .progressViewStyle(.linear)
-                                    Text(buildService.progressDescription)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
+                                    Toggle("Auto-scroll", isOn: $autoScrollLogs)
+                                        .toggleStyle(.checkbox)
+                                        .controlSize(.small)
                                 }
-                            }
 
-                            // Monospaced output logs
-                            ScrollViewReader { proxy in
-                                ScrollView {
-                                    LazyVStack(alignment: .leading, spacing: 4) {
-                                        if buildService.logs.isEmpty {
-                                            Text("No output logged yet. Initiate packaging to stream pipeline logs.")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                                .padding(.top, 40)
-                                                .frame(maxWidth: .infinity, alignment: .center)
-                                        } else {
+                                // Progress bar
+                                if buildService.buildState == .packaging {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        ProgressView(value: buildService.currentProgress, total: 1.0)
+                                            .progressViewStyle(.linear)
+                                        Text(buildService.progressDescription)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+
+                                // Monospaced output logs
+                                ScrollViewReader { proxy in
+                                    ScrollView {
+                                        LazyVStack(alignment: .leading, spacing: 4) {
                                             ForEach(Array(buildService.logs.enumerated()), id: \.offset) { index, log in
                                                 HStack(alignment: .top, spacing: 6) {
                                                     Text(log.timestamp.formatted(date: .omitted, time: .standard))
@@ -230,54 +274,27 @@ public struct IPABuildView: View {
                                                 .id(index)
                                             }
                                         }
+                                        .padding()
                                     }
-                                }
-                                .frame(height: 200)
-                                .padding(8)
-                                .background(Color.black.opacity(0.85))
-                                .cornerRadius(6)
-                                .onChange(of: buildService.logs.count) { _, newCount in
-                                    if autoScrollLogs && newCount > 0 {
-                                        withAnimation {
-                                            proxy.scrollTo(newCount - 1, anchor: .bottom)
+                                    .frame(height: 250)
+                                    .background(Color.black.opacity(0.3))
+                                    .cornerRadius(12)
+                                    .onChange(of: buildService.logs.count) { _, newCount in
+                                        if autoScrollLogs && newCount > 0 {
+                                            withAnimation {
+                                                proxy.scrollTo(newCount - 1, anchor: .bottom)
+                                            }
                                         }
                                     }
                                 }
                             }
+                            .padding()
                         }
-                        .padding(8)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Trigger buttons
-                    HStack(spacing: 16) {
-                        Button {
-                            Task {
-                                await buildIPAContainer()
-                            }
-                        } label: {
-                            Label("Create IPA Package", systemImage: "shippingbox.fill")
-                                .fontWeight(.bold)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.purple)
-                        .controlSize(.large)
-                        .disabled(selectedApp == nil || buildService.buildState == .packaging)
-
-                        if buildService.buildState == .packaging {
-                            Button("Abort") {
-                                buildService.cancelPackaging()
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(.red)
-                            .controlSize(.large)
-                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
                 }
                 .padding(24)
             }
-            .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Production IPA Builder")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
