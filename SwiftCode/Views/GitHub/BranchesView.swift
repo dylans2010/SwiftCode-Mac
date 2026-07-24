@@ -874,7 +874,7 @@ struct BranchesView: View {
 
         Task {
             do {
-                let response = try await LLMService.shared.generateResponse(prompt: prompt, useContext: false)
+                let response = try await LLMService.shared.generateExternalResponse(prompt: prompt, useContext: false)
                 aiCleanupPlan = response.trimmingCharacters(in: .whitespacesAndNewlines)
             } catch {
                 aiCleanupPlan = "AI Analysis error: \(error.localizedDescription)"

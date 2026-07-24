@@ -112,6 +112,84 @@ extension SourceControlWindowController {
 }
 
 // ====================================================================
+// CONFLICT RESOLVER WORKSPACE CONTAINER
+// ====================================================================
+@MainActor
+struct ConflictResolverWorkspaceView: View {
+    var gitViewModel: GitViewModel
+    @State private var selectedFile: GitFileStatus?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if let file = selectedFile {
+                GitConflictResolverView(conflictedFile: file, gitViewModel: gitViewModel) {
+                    selectedFile = nil
+                }
+            } else {
+                VStack(spacing: 16) {
+                    Label("Merge Conflict Resolver", systemImage: "arrow.triangle.merge")
+                        .font(.title)
+                        .bold()
+                        .foregroundStyle(.red)
+                        .padding(.top, 40)
+
+                    Text("Analyze and resolve conflict markers in the current workspace files.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+
+                    let conflictedFiles = gitViewModel.status?.files.filter { $0.isConflicted } ?? []
+
+                    if conflictedFiles.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "checkmark.shield.fill")
+                                .font(.title)
+                                .foregroundStyle(.green)
+                            Text("No Conflicts Detected")
+                                .font(.headline)
+                            Text("Your working directory is clean of any active merge conflicts.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                        .background(Color.secondary.opacity(0.05))
+                        .cornerRadius(10)
+                        .padding(.top, 20)
+                    } else {
+                        List(conflictedFiles) { file in
+                            HStack {
+                                Image(systemName: "doc.text.fill")
+                                    .foregroundStyle(.red)
+                                VStack(alignment: .leading) {
+                                    Text(file.path.lastPathComponent)
+                                        .font(.headline)
+                                    Text(file.path.path)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button("Resolve Conflicts") {
+                                    selectedFile = file
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.red)
+                            }
+                            .padding(.vertical, 6)
+                        }
+                        .frame(height: 250)
+                        .cornerRadius(10)
+                        .padding(.horizontal)
+                    }
+
+                    Spacer()
+                }
+            }
+        }
+    }
+}
+
+// ====================================================================
 // NAVIGATION SELECTIONS
 // ====================================================================
 public enum SourceControlSelection: String, CaseIterable, Identifiable, Codable {
@@ -139,6 +217,8 @@ public enum SourceControlSelection: String, CaseIterable, Identifiable, Codable 
     case cli = "CLI"
     case repositorySettings = "Repository Settings"
     case onboarding = "Onboarding"
+    case githubInspector = "GitHub Inspector"
+    case conflictResolver = "Conflict Resolver"
     case repositoryIntelligence = "Repository Intelligence"
     case knowledgeGraph = "Repository Knowledge Graph"
     case repositoryTimeline = "Repository Timeline"
@@ -198,6 +278,8 @@ public enum SourceControlSelection: String, CaseIterable, Identifiable, Codable 
         case .cli: return "terminal.fill"
         case .repositorySettings: return "gearshape.fill"
         case .onboarding: return "person.badge.key.fill"
+        case .githubInspector: return "info.circle.fill"
+        case .conflictResolver: return "arrow.triangle.merge"
         }
     }
 }
@@ -491,6 +573,8 @@ func buildSourceControlSidebarNodes() -> [SourceControlSidebarNode] {
         SourceControlSidebarNode(title: "Dashboard", icon: "laptopcomputer", selection: .localWorkspace),
         SourceControlSidebarNode(title: "Changes", icon: "doc.badge.plus", selection: .changes),
         SourceControlSidebarNode(title: "Diff Viewer", icon: "arrow.left.and.right.square", selection: .diffViewer),
+        SourceControlSidebarNode(title: "Git Blame", icon: "eye.circle", selection: .gitBlame),
+        SourceControlSidebarNode(title: "Conflict Resolver", icon: "arrow.triangle.merge", selection: .conflictResolver),
         SourceControlSidebarNode(title: "Git Worktrees", icon: "arrow.triangle.branch", selection: .gitWorktrees),
         SourceControlSidebarNode(title: "CLI", icon: "terminal.fill", selection: .cli)
     ]
@@ -501,6 +585,7 @@ func buildSourceControlSidebarNodes() -> [SourceControlSidebarNode] {
     repo.children = [
         SourceControlSidebarNode(title: "Branches", icon: "arrow.triangle.branch", selection: .branches),
         SourceControlSidebarNode(title: "Commit History", icon: "clock.arrow.circlepath", selection: .commitHistory),
+        SourceControlSidebarNode(title: "Automation Builder", icon: "arrow.triangle.2.circlepath.circle.fill", selection: .repositoryAutomationBuilder),
         SourceControlSidebarNode(title: "Tags", icon: "tag.fill", selection: .tags),
         SourceControlSidebarNode(title: "Releases", icon: "shippingbox.fill", selection: .releases)
     ]
@@ -510,6 +595,8 @@ func buildSourceControlSidebarNodes() -> [SourceControlSidebarNode] {
     let github = SourceControlSidebarNode(title: "GITHUB INTEGRATION", isGroup: true)
     github.children = [
         SourceControlSidebarNode(title: "GitHub Account", icon: "person.crop.circle.fill", selection: .githubAccount),
+        SourceControlSidebarNode(title: "GitHub Inspector", icon: "info.circle.fill", selection: .githubInspector),
+        SourceControlSidebarNode(title: "Activity Feed", icon: "bolt.fill", selection: .activityFeed),
         SourceControlSidebarNode(title: "Pull Requests", icon: "arrow.triangle.pull", selection: .pullRequests),
         SourceControlSidebarNode(title: "Issues", icon: "exclamationmark.bubble.fill", selection: .issues),
         SourceControlSidebarNode(title: "Actions", icon: "play.circle.fill", selection: .actions),
@@ -639,6 +726,10 @@ struct SourceControlMainWrapper: View {
                 GitHubSettingsView(project: project)
             case .onboarding:
                 SCSetupOnboard()
+            case .githubInspector:
+                GitHubInspector(project: project, gitViewModel: gitViewModel)
+            case .conflictResolver:
+                ConflictResolverWorkspaceView(gitViewModel: gitViewModel)
             case .repositoryIntelligence:
                 RepositoryIntelligenceView(gitViewModel: gitViewModel)
             case .knowledgeGraph:

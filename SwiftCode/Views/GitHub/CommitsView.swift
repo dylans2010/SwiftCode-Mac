@@ -26,6 +26,7 @@ struct CommitsView: View {
     // AI Commit Assistant
     @State private var aiCommitSummary = ""
     @State private var isGeneratingAISummary = false
+    @State private var inspectorTab = 0 // 0 = Stats, 1 = AI Analyst, 2 = Actions
 
     // Rollback operations state
     @State private var isRunningGitAction = false
@@ -401,113 +402,126 @@ struct CommitsView: View {
 
                     Divider()
 
-                    // Author info
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Author").font(.caption).foregroundStyle(.secondary)
-                        Text(commit.author).bold()
-                        Text(commit.email)
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(.secondary)
+                    Picker("Category", selection: $inspectorTab) {
+                        Text("Stats").tag(0)
+                        Text("AI Analyst").tag(1)
+                        Text("Safety Actions").tag(2)
                     }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
 
                     Divider()
 
-                    // Parents Navigation
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Parent Commits").font(.caption).foregroundStyle(.secondary)
-                        if commit.parentHashes.isEmpty {
-                            Text("No parent commits (initial revision)").font(.caption).foregroundStyle(.secondary)
-                        } else {
-                            ForEach(commit.parentHashes, id: \.self) { psha in
-                                Button {
-                                    selectedCommitID = psha
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "arrow.up.circle")
-                                        Text(String(psha.prefix(8)))
-                                            .font(.system(.caption, design: .monospaced))
-                                        Spacer()
+                    if inspectorTab == 0 {
+                        // Tab 1: Stats
+                        VStack(alignment: .leading, spacing: 12) {
+                            // Author info
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Author").font(.caption).foregroundStyle(.secondary)
+                                Text(commit.author).bold()
+                                Text(commit.email)
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Divider()
+
+                            // Parents Navigation
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Parent Commits").font(.caption).foregroundStyle(.secondary)
+                                if commit.parentHashes.isEmpty {
+                                    Text("No parent commits (initial revision)").font(.caption).foregroundStyle(.secondary)
+                                } else {
+                                    ForEach(commit.parentHashes, id: \.self) { psha in
+                                        Button {
+                                            selectedCommitID = psha
+                                        } label: {
+                                            HStack {
+                                                Image(systemName: "arrow.up.circle")
+                                                Text(String(psha.prefix(8)))
+                                                    .font(.system(.caption, design: .monospaced))
+                                                Spacer()
+                                            }
+                                            .padding(6)
+                                            .background(Color.purple.opacity(0.08))
+                                            .cornerRadius(4)
+                                        }
+                                        .buttonStyle(.plain)
                                     }
-                                    .padding(6)
-                                    .background(Color.purple.opacity(0.08))
-                                    .cornerRadius(4)
                                 }
-                                .buttonStyle(.plain)
+                            }
+
+                            Divider()
+
+                            // Changed files list & stats
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Changed Files Stats").font(.caption).foregroundStyle(.secondary)
+                                Text("3 Files modified  •  +142 additions  •  -34 deletions")
+                                    .font(.caption.bold())
+
+                                // Simulated file diff tree
+                                VStack(alignment: .leading, spacing: 6) {
+                                    changedFileRow(path: "Sources/SwiftCode/Views/GitHub/CommitsView.swift", adds: 88, dels: 12)
+                                    changedFileRow(path: "Sources/SwiftCode/Views/GitHub/SourceControlView.swift", adds: 24, dels: 8)
+                                    changedFileRow(path: "Tests/SwiftCodeTests/CommitsViewTests.swift", adds: 30, dels: 14)
+                                }
+                            }
+
+                            Divider()
+
+                            // Range Comparison results (if generated)
+                            if !generatedDiffOutput.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Diff Range Comparisons")
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(.purple)
+
+                                    ScrollView {
+                                        Text(generatedDiffOutput)
+                                            .font(.system(.caption2, design: .monospaced))
+                                            .padding(6)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .background(Color.black.opacity(0.2))
+                                            .cornerRadius(6)
+                                    }
+                                    .frame(height: 140)
+                                }
+                                Divider()
                             }
                         }
-                    }
+                    } else if inspectorTab == 1 {
+                        // Tab 2: AI Analyst
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("AI Commit Summarizer").font(.subheadline.bold())
+                            Text("Let AI generate a professional code delta review for this revision commit.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
 
-                    Divider()
+                            Button {
+                                generateAICommitSummary(for: commit)
+                            } label: {
+                                Label(isGeneratingAISummary ? "Synthesizing..." : "Analyze Commit with AI", systemImage: "sparkles")
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(isGeneratingAISummary)
 
-                    // AI Assist Commit Summarizer
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("AI Commit Summarizer").font(.subheadline.bold())
-                        Text("Let AI generate a professional code delta review for this revision commit.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            if isGeneratingAISummary {
+                                ProgressView().controlSize(.small)
+                            }
 
-                        Button {
-                            generateAICommitSummary(for: commit)
-                        } label: {
-                            Label(isGeneratingAISummary ? "Synthesizing..." : "Analyze Commit with AI", systemImage: "sparkles")
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(isGeneratingAISummary)
-
-                        if isGeneratingAISummary {
-                            ProgressView().controlSize(.small)
-                        }
-
-                        if !aiCommitSummary.isEmpty {
-                            Text(aiCommitSummary)
-                                .font(.system(size: 11, design: .monospaced))
-                                .padding(8)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.black.opacity(0.12))
-                                .cornerRadius(6)
-                        }
-                    }
-
-                    Divider()
-
-                    // Range Comparison results (if generated)
-                    if !generatedDiffOutput.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Diff Range Comparisons")
-                                .font(.subheadline.bold())
-                                .foregroundStyle(.purple)
-
-                            ScrollView {
-                                Text(generatedDiffOutput)
-                                    .font(.system(.caption2, design: .monospaced))
-                                    .padding(6)
+                            if !aiCommitSummary.isEmpty {
+                                Text(aiCommitSummary)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .padding(8)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.black.opacity(0.2))
+                                    .background(Color.black.opacity(0.12))
                                     .cornerRadius(6)
                             }
-                            .frame(height: 140)
                         }
-                        Divider()
+                    } else {
+                        // Tab 3: Safety Actions
+                        rollbackControlSection(for: commit)
                     }
-
-                    // Changed files list & stats
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Changed Files Stats").font(.caption).foregroundStyle(.secondary)
-                        Text("3 Files modified  •  +142 additions  •  -34 deletions")
-                            .font(.caption.bold())
-
-                        // Simulated file diff tree
-                        VStack(alignment: .leading, spacing: 6) {
-                            changedFileRow(path: "Sources/SwiftCode/Views/GitHub/CommitsView.swift", adds: 88, dels: 12)
-                            changedFileRow(path: "Sources/SwiftCode/Views/GitHub/SourceControlView.swift", adds: 24, dels: 8)
-                            changedFileRow(path: "Tests/SwiftCodeTests/CommitsViewTests.swift", adds: 30, dels: 14)
-                        }
-                    }
-
-                    Divider()
-
-                    // Rollback Controls
-                    rollbackControlSection(for: commit)
                 }
                 .padding()
             } else {
@@ -674,7 +688,7 @@ struct CommitsView: View {
 
         Task {
             do {
-                let response = try await LLMService.shared.generateResponse(prompt: prompt, useContext: false)
+                let response = try await LLMService.shared.generateExternalResponse(prompt: prompt, useContext: false)
                 aiCommitSummary = response.trimmingCharacters(in: .whitespacesAndNewlines)
             } catch {
                 aiCommitSummary = "Summary synthesis failed: \(error.localizedDescription)"

@@ -238,13 +238,20 @@ struct GitHubAccountView: View {
                 var request = URLRequest(url: url)
                 request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
                 request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+                request.setValue("SwiftCodeIDE", forHTTPHeaderField: "User-Agent")
+                request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
 
-                let (data, _) = try await URLSession.shared.data(for: request)
+                let (data, response) = try await URLSession.shared.data(for: request)
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
+                    let errBody = String(data: data, encoding: .utf8) ?? ""
+                    throw NSError(domain: "GitHubAccount", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "GitHub server returned HTTP \(httpResponse.statusCode): \(errBody)"])
+                }
+
                 let decoder = JSONDecoder()
                 decoder.keyDecodingStrategy = .convertFromSnakeCase
                 self.user = try decoder.decode(GitHubUserInfo.self, from: data)
             } catch {
-                // Silent catch
+                print("Failed to load GitHub User profile: \(error.localizedDescription)")
             }
             isLoading = false
         }

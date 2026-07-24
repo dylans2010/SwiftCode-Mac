@@ -231,7 +231,7 @@ struct GitCommitComposerView: View {
                 \(diffText.prefix(2500))
                 """
 
-                let response = try await LLMService.shared.generateResponse(prompt: prompt, useContext: false)
+                let response = try await LLMService.shared.generateExternalResponse(prompt: prompt, useContext: false)
 
                 // Sanitize and decode JSON
                 let cleanResponse = response.trimmingCharacters(in: .whitespacesAndNewlines)
