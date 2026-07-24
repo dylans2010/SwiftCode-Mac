@@ -4,6 +4,28 @@ import os.log
 
 private let logger = Logger(subsystem: "com.swiftcode.Build", category: "XcodeBuild")
 
+public struct DetectedSDK: Sendable, Identifiable, Codable, Hashable {
+    public var id: String { identifier }
+    public let identifier: String
+    public let platform: String
+    public let displayName: String
+    public let version: String
+
+    public init(identifier: String, platform: String, displayName: String, version: String) {
+        self.identifier = identifier
+        self.platform = platform
+        self.displayName = displayName
+        self.version = version
+    }
+}
+
+public enum SDKDetectionState: Sendable, Codable, Equatable {
+    case idle
+    case detecting
+    case success
+    case failure
+}
+
 @Observable
 @MainActor
 public final class XcodeBuildManager: Sendable {
@@ -21,7 +43,14 @@ public final class XcodeBuildManager: Sendable {
     public var selectedConfiguration: String = "Debug"
     public var selectedDestination: String = "generic/platform=iOS Simulator"
 
-    public var selectedSDKType: String = "Default"
+    public var selectedSDKType: String = "Default" {
+        didSet {
+            // Automatically reset the selected version to "Default" when the platform changes
+            if selectedSDKType != oldValue {
+                selectedSDKVersion = "Default"
+            }
+        }
+    }
     public var selectedSDKVersion: String = "Default"
 
     public let availableConfigurations = ["Debug", "Release"]
@@ -31,27 +60,55 @@ public final class XcodeBuildManager: Sendable {
         "generic/platform=macOS"
     ]
 
-    public let availableSDKTypes = [
-        "Default",
-        "iOS",
-        "iOS Simulator",
-        "macOS",
-        "watchOS",
-        "watchOS Simulator",
-        "tvOS",
-        "tvOS Simulator"
-    ]
+    // Dynamic SDK detection properties
+    public var detectedSDKs: [DetectedSDK] = []
+    public var sdkDetectionState: SDKDetectionState = .idle
+    public var sdkDetectionError: String? = nil
+    public var sdkDetectionStdout: String = ""
+    public var sdkDetectionStderr: String = ""
+    public var sdkDetectionExitCode: Int32? = nil
+    public var activeXcodePath: String = ""
 
-    public let availableSDKVersions = [
-        "Default",
-        "27",
-        "26",
-        "18.0",
-        "17.5",
-        "17.0",
-        "16.4",
-        "15.0"
-    ]
+    public var availableSDKTypes: [String] {
+        if detectedSDKs.isEmpty {
+            return ["Default"]
+        }
+        return ["Default"] + Array(Set(detectedSDKs.map { $0.platform })).sorted()
+    }
+
+    public var availableSDKVersions: [String] {
+        if selectedSDKType == "Default" {
+            return ["Default"]
+        }
+        let versions = detectedSDKs
+            .filter { $0.platform == selectedSDKType }
+            .map { $0.version }
+        return ["Default"] + Array(Set(versions)).sorted()
+    }
+
+    public var currentSDKArgument: String? {
+        guard selectedSDKType != "Default" else { return nil }
+
+        let platformSDKs = detectedSDKs.filter { $0.platform == selectedSDKType }
+        guard !platformSDKs.isEmpty else { return nil }
+
+        if selectedSDKVersion != "Default" && !selectedSDKVersion.isEmpty {
+            if let matched = platformSDKs.first(where: { $0.version == selectedSDKVersion }) {
+                return matched.identifier
+            }
+            // Fallback: construct it from first SDK's prefix
+            if let firstSDK = platformSDKs.first {
+                let prefix = String(firstSDK.identifier.prefix { $0.isLetter })
+                return "\(prefix)\(selectedSDKVersion)"
+            }
+        } else {
+            // Version is "Default", we want to pass the generic platform prefix (e.g. "macosx", "iphoneos")
+            if let firstSDK = platformSDKs.first {
+                return String(firstSDK.identifier.prefix { $0.isLetter })
+            }
+        }
+        return nil
+    }
 
     @ObservationIgnored
     private var activeProcess: Process?
@@ -139,6 +196,170 @@ public final class XcodeBuildManager: Sendable {
         }
     }
 
+    // Dynamic SDK detection logic
+    public func detectAvailableSDKs(forceRefresh: Bool = false) async {
+        guard sdkDetectionState != .detecting else { return }
+
+        sdkDetectionState = .detecting
+        sdkDetectionError = nil
+        sdkDetectionStdout = ""
+        sdkDetectionStderr = ""
+        sdkDetectionExitCode = nil
+
+        do {
+            let xcodeSelectURL = URL(fileURLWithPath: "/usr/bin/xcode-select")
+            guard FileManager.default.fileExists(atPath: xcodeSelectURL.path) else {
+                throw NSError(domain: "XcodeBuildManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "xcode-select tool not found at /usr/bin/xcode-select"])
+            }
+
+            if Task.isCancelled { return }
+
+            let xcodeSelectResult = try await ProcessRunnerTool.shared.run(
+                executableURL: xcodeSelectURL,
+                arguments: ["-p"]
+            )
+
+            if xcodeSelectResult.exitCode != 0 {
+                sdkDetectionExitCode = xcodeSelectResult.exitCode
+                sdkDetectionStdout = xcodeSelectResult.stdout
+                sdkDetectionStderr = xcodeSelectResult.stderr
+                throw NSError(domain: "XcodeBuildManager", code: Int(xcodeSelectResult.exitCode), userInfo: [NSLocalizedDescriptionKey: "xcode-select -p failed: \(xcodeSelectResult.stderr)"])
+            }
+
+            let newXcodePath = xcodeSelectResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // If active path is unchanged and we already have parsed SDKs, use cached results
+            if !forceRefresh && newXcodePath == activeXcodePath && !detectedSDKs.isEmpty {
+                sdkDetectionState = .success
+                return
+            }
+
+            activeXcodePath = newXcodePath
+
+            let buildPath = getXcodeBuildPath()
+            let xcodebuildURL = URL(fileURLWithPath: buildPath)
+            guard FileManager.default.fileExists(atPath: buildPath) else {
+                throw NSError(domain: "XcodeBuildManager", code: 2, userInfo: [NSLocalizedDescriptionKey: "xcodebuild not found at \(buildPath)"])
+            }
+
+            if Task.isCancelled { return }
+
+            let showSDKsResult = try await ProcessRunnerTool.shared.run(
+                executableURL: xcodebuildURL,
+                arguments: ["-showsdks"]
+            )
+
+            sdkDetectionStdout = showSDKsResult.stdout
+            sdkDetectionStderr = showSDKsResult.stderr
+            sdkDetectionExitCode = showSDKsResult.exitCode
+
+            if showSDKsResult.exitCode != 0 {
+                throw NSError(domain: "XcodeBuildManager", code: Int(showSDKsResult.exitCode), userInfo: [NSLocalizedDescriptionKey: "xcodebuild -showsdks failed with exit code \(showSDKsResult.exitCode):\n\(showSDKsResult.stderr)"])
+            }
+
+            if Task.isCancelled { return }
+
+            let sdkList = parseShowSDKsOutput(showSDKsResult.stdout)
+            if sdkList.isEmpty {
+                throw NSError(domain: "XcodeBuildManager", code: 3, userInfo: [NSLocalizedDescriptionKey: "No SDKs were found in xcodebuild output."])
+            }
+
+            self.detectedSDKs = sdkList
+            self.sdkDetectionState = .success
+
+            // Validate selections
+            if !availableSDKTypes.contains(selectedSDKType) {
+                selectedSDKType = "Default"
+            }
+            if !availableSDKVersions.contains(selectedSDKVersion) {
+                selectedSDKVersion = "Default"
+            }
+
+        } catch {
+            self.sdkDetectionError = error.localizedDescription
+            self.sdkDetectionState = .failure
+        }
+    }
+
+    public func parseShowSDKsOutput(_ output: String) -> [DetectedSDK] {
+        var sdks: [DetectedSDK] = []
+        let lines = output.components(separatedBy: .newlines)
+
+        var currentPlatformGroup: String? = nil
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { continue }
+
+            if trimmed.hasSuffix(" SDKs:") {
+                currentPlatformGroup = trimmed.replacingOccurrences(of: " SDKs:", with: "")
+                continue
+            }
+
+            if trimmed.contains("-sdk") {
+                let components = trimmed.components(separatedBy: "-sdk")
+                guard components.count >= 2 else { continue }
+
+                let displayName = components[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                let identifier = components[1].trimmingCharacters(in: .whitespacesAndNewlines)
+
+                // Extract version: drop alphabetic prefix of identifier
+                var version = String(identifier.drop { !$0.isNumber })
+
+                if version.isEmpty {
+                    let words = displayName.components(separatedBy: .whitespaces)
+                    if let versionWord = words.last(where: { word in
+                        word.contains(where: { $0.isNumber })
+                    }) {
+                        version = versionWord
+                    } else {
+                        version = "Unknown"
+                    }
+                }
+
+                var platform = currentPlatformGroup ?? ""
+
+                if platform.isEmpty {
+                    let identifierLower = identifier.lowercased()
+                    if identifierLower.hasPrefix("macosx") {
+                        platform = "macOS"
+                    } else if identifierLower.hasPrefix("iphonesimulator") {
+                        platform = "iOS Simulator"
+                    } else if identifierLower.hasPrefix("iphoneos") {
+                        platform = "iOS"
+                    } else if identifierLower.hasPrefix("watchsimulator") {
+                        platform = "watchOS Simulator"
+                    } else if identifierLower.hasPrefix("watchos") {
+                        platform = "watchOS"
+                    } else if identifierLower.hasPrefix("appletvsimulator") {
+                        platform = "tvOS Simulator"
+                    } else if identifierLower.hasPrefix("appletvos") {
+                        platform = "tvOS"
+                    } else if identifierLower.hasPrefix("driverkit") {
+                        platform = "DriverKit"
+                    } else if identifierLower.hasPrefix("xrsimulator") || identifierLower.hasPrefix("visionosssimulator") || identifierLower.hasPrefix("visonosssimulator") {
+                        platform = "visionOS Simulator"
+                    } else if identifierLower.hasPrefix("xros") || identifierLower.hasPrefix("visionos") {
+                        platform = "visionOS"
+                    } else {
+                        let letters = String(identifier.prefix { $0.isLetter })
+                        platform = letters.isEmpty ? "Unknown" : letters
+                    }
+                }
+
+                let sdk = DetectedSDK(
+                    identifier: identifier,
+                    platform: platform,
+                    displayName: displayName,
+                    version: version
+                )
+                sdks.append(sdk)
+            }
+        }
+
+        return sdks
+    }
+
     public func cancelBuild() {
         guard isBuilding, let process = activeProcess else { return }
         process.terminate()
@@ -180,7 +401,6 @@ public final class XcodeBuildManager: Sendable {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: buildPath)
 
-        // Localize DerivedData to ensure deterministic product output layout
         let localizedDerivedDataURL = projectURL.appendingPathComponent("build/DerivedData")
 
         var arguments = [
@@ -195,29 +415,10 @@ public final class XcodeBuildManager: Sendable {
             arguments.append(contentsOf: ["-destination", finalDest])
         }
 
-        // Add SDK and version arguments if selected
-        if selectedSDKType != "Default" {
-            let canonicalType: String
-            switch selectedSDKType {
-            case "iOS": canonicalType = "iphoneos"
-            case "iOS Simulator": canonicalType = "iphonesimulator"
-            case "macOS": canonicalType = "macosx"
-            case "watchOS": canonicalType = "watchos"
-            case "watchOS Simulator": canonicalType = "watchsimulator"
-            case "tvOS": canonicalType = "appletvos"
-            case "tvOS Simulator": canonicalType = "appletvsimulator"
-            default: canonicalType = selectedSDKType.lowercased()
-            }
-
-            let sdkArg: String
-            if selectedSDKVersion != "Default" && !selectedSDKVersion.isEmpty {
-                sdkArg = "\(canonicalType)\(selectedSDKVersion)"
-            } else {
-                sdkArg = canonicalType
-            }
+        // Add dynamically selected SDK identifier if resolved
+        if let sdkArg = currentSDKArgument {
             arguments.append(contentsOf: ["-sdk", sdkArg])
-        } else if selectedSDKVersion != "Default" && !selectedSDKVersion.isEmpty {
-            arguments.append(contentsOf: ["-sdk", selectedSDKVersion])
+            appendLog("[SYSTEM] Forcing dynamic target SDK: \(sdkArg)")
         }
 
         process.arguments = arguments
@@ -270,7 +471,6 @@ public final class XcodeBuildManager: Sendable {
                 currentStatus = .succeeded
                 appendLog("[SYSTEM] Build Succeeded.")
 
-                // Copy the generated .app package to SwiftCode's managed temporary build directory
                 await copyGeneratedAppToManagedDirectory(projectURL: projectURL, scheme: finalScheme, configuration: finalConfig, destination: finalDest)
             } else {
                 currentStatus = .failed
@@ -303,8 +503,6 @@ public final class XcodeBuildManager: Sendable {
         buildLogs.append(log)
     }
 
-    // MARK: - Timer Helper
-
     private func startTimer() {
         durationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self = self, let start = self.startTime else { return }
@@ -317,15 +515,12 @@ public final class XcodeBuildManager: Sendable {
         durationTimer = nil
     }
 
-    // MARK: - Managed .app Copying Logic
-
     private func copyGeneratedAppToManagedDirectory(projectURL: URL, scheme: String, configuration: String, destination: String) async {
         appendLog("[SYSTEM] Initiating .app packaging alignment pass...")
 
         let fm = FileManager.default
         let productsURL = projectURL.appendingPathComponent("build/DerivedData/Build/Products")
 
-        // Locate matching product output folders (e.g. Debug-iphonesimulator, Debug-iphoneos)
         guard fm.fileExists(atPath: productsURL.path) else {
             appendLog("[WARNING] Localized build products directory not found: \(productsURL.path)")
             return
@@ -350,11 +545,9 @@ public final class XcodeBuildManager: Sendable {
 
             appendLog("[SYSTEM] Located compiled application package: \(appURL.path)")
 
-            // Set up SwiftCode managed builds directory
             let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             let buildsDir = appSupport.appendingPathComponent("SwiftCode/Builds/\(projectURL.lastPathComponent)")
 
-            // Clear prior stale builds for this project to maintain only the most recent
             if fm.fileExists(atPath: buildsDir.path) {
                 try fm.removeItem(at: buildsDir)
             }
