@@ -710,16 +710,16 @@ extension APITesterView {
                     HStack(spacing: 6) {
                         Toggle("", isOn: pairs[idx].isEnabled)
                             .toggleStyle(.checkbox)
-                            .onChange(of: pairs[idx].isEnabled) {
+                            .onChange(of: pairs[idx].isEnabled.wrappedValue) { _ in
                                 onChanged()
                             }
 
                         TextField("Key", text: pairs[idx].key)
                             .textFieldStyle(.roundedBorder)
                             .controlSize(.small)
-                            .onChange(of: pairs[idx].key) {
+                            .onChange(of: pairs[idx].key.wrappedValue) { newValue in
                                 // Add automatic blank row if writing in final line
-                                if idx == pairs.count - 1 && !pairs[idx].key.isEmpty {
+                                if idx == pairs.count - 1 && !newValue.isEmpty {
                                     pairs.wrappedValue.append(KeyValuePair())
                                 }
                                 onChanged()
@@ -728,7 +728,7 @@ extension APITesterView {
                         TextField("Value", text: pairs[idx].value)
                             .textFieldStyle(.roundedBorder)
                             .controlSize(.small)
-                            .onChange(of: pairs[idx].value) {
+                            .onChange(of: pairs[idx].value.wrappedValue) { _ in
                                 onChanged()
                             }
 
@@ -1145,3 +1145,4 @@ extension APITesterView {
         }
     }
 }
+
