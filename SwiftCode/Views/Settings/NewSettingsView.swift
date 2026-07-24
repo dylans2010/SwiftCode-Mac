@@ -2,6 +2,8 @@ import SwiftUI
 // MARK: - SettingsView (macOS AppKit native bridging shorthand fallback wrapper)
 
 public struct SettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+
     public init() {}
 
     public var body: some View {
@@ -9,6 +11,7 @@ public struct SettingsView: View {
             .frame(width: 0, height: 0)
             .onAppear {
                 SettingsWindowManager.shared.showSettings()
+                dismiss()
             }
     }
 

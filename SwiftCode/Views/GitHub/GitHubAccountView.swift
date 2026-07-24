@@ -211,8 +211,24 @@ struct GitHubAccountView: View {
         return formatter.string(from: date)
     }
 
+    private func getGitHubToken() -> String? {
+        if let token = APIKeyManager.shared.retrieveKey(service: .gitHub), !token.isEmpty {
+            return token
+        }
+        if let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty {
+            return token
+        }
+        if let token = DeploymentKeychainManager.shared.retrieveKey(service: .github), !token.isEmpty {
+            return token
+        }
+        if !AppSettings.shared.httpsAuthToken.isEmpty {
+            return AppSettings.shared.httpsAuthToken
+        }
+        return nil
+    }
+
     private func fetchUserProfile() {
-        guard let token = KeychainService.shared.get(forKey: KeychainService.githubToken), !token.isEmpty else { return }
+        guard let token = getGitHubToken(), !token.isEmpty else { return }
 
         isLoading = true
         Task {

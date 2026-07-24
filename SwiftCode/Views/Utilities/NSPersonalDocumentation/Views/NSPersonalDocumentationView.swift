@@ -1157,36 +1157,19 @@ struct PersonalDocMainWrapper: View {
 // MARK: - SwiftUI View Container (Shorthand Sheet Fallback)
 public struct NSPersonalDocumentationView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
+    @Environment(\.dismiss) private var dismiss
 
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "doc.text.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.accentColor)
-            Text("Personal Documentation Workspace")
-                .font(.title2.bold())
-            Text("The workspace opens in a dedicated native macOS window with full multi-column split layout and Finder-style sidebar.")
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 400)
-
-            Button("Open Workspace Window") {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onAppear {
                 if let project = sessionStore.activeProject {
                     PersonalDocWindowManager.shared.showWindow(for: project)
                 }
+                dismiss()
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-        }
-        .padding(40)
-        .frame(width: 500, height: 400)
-        .onAppear {
-            if let project = sessionStore.activeProject {
-                PersonalDocWindowManager.shared.showWindow(for: project)
-            }
-        }
     }
 }
 

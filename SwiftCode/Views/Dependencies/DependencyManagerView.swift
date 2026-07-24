@@ -51,7 +51,6 @@ struct DependencyManagerView: View {
     @State private var isLocalPackage = false
 
     // UI selections & states
-    @State private var showAddForm = false
     @State private var editingDependency: ParsedDependency?
     @State private var searchQuery = ""
     @State private var githubSearchResults: [GitHubSearchPackage] = []
@@ -74,92 +73,138 @@ struct DependencyManagerView: View {
 
     var body: some View {
         NavigationStack {
-            HSplitView {
-                // Left Column: Active list & Finder/Search tools
-                VStack(spacing: 0) {
-                    // Header Bar
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("ACTIVE DEPENDENCIES")
-                            .font(.caption2.bold())
-                            .foregroundStyle(.secondary)
-
-                        if dependencies.isEmpty {
-                            Text("No packages imported yet.")
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Label("Dependency Manager", systemImage: "puzzlepiece.extension.fill")
+                                    .font(.headline)
+                                    .foregroundStyle(.blue)
+                                Spacer()
+                            }
+                            Text("Search, import, and manage local or remote Swift packages. Add dependencies to your Package.swift cleanly and automatically.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                        } else {
-                            List {
-                                ForEach(dependencies) { dep in
-                                    HStack {
-                                        Image(systemName: dep.isLocal ? "folder.fill" : "puzzlepiece.extension.fill")
-                                            .foregroundStyle(dep.isLocal ? .orange : .blue)
+                        }
+                        .padding(8)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(dep.url.split(separator: "/").last?.replacingOccurrences(of: ".git", with: "") ?? dep.url)
-                                                .font(.subheadline.bold())
-                                            Text("\(dep.requirementType.rawValue): \(dep.value)")
-                                                .font(.system(size: 10, design: .monospaced))
-                                                .foregroundStyle(.secondary)
-                                        }
+                    // Group 1: Active Dependencies
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Active Dependencies", systemImage: "checklist")
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(.blue)
+                                Spacer()
+                                Button {
+                                    selectLocalFolderPackage()
+                                } label: {
+                                    Label("Add Local...", systemImage: "folder.badge.plus")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
 
-                                        Spacer()
+                            if dependencies.isEmpty {
+                                Text("No packages imported yet in Package.swift.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.vertical, 8)
+                            } else {
+                                VStack(spacing: 12) {
+                                    ForEach(dependencies) { dep in
+                                        HStack {
+                                            Image(systemName: dep.isLocal ? "folder.fill" : "puzzlepiece.extension.fill")
+                                                .foregroundStyle(dep.isLocal ? .orange : .blue)
 
-                                        HStack(spacing: 8) {
-                                            Button {
-                                                beginEdit(dep)
-                                            } label: {
-                                                Image(systemName: "pencil")
-                                                    .foregroundStyle(.blue)
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(dep.url.split(separator: "/").last?.replacingOccurrences(of: ".git", with: "") ?? dep.url)
+                                                    .font(.subheadline.bold())
+                                                Text("\(dep.requirementType.rawValue): \(dep.value)")
+                                                    .font(.system(size: 10, design: .monospaced))
+                                                    .foregroundStyle(.secondary)
                                             }
-                                            .buttonStyle(.plain)
 
-                                            Button {
-                                                removeDependency(dep)
-                                            } label: {
-                                                Image(systemName: "trash")
-                                                    .foregroundStyle(.red)
+                                            Spacer()
+
+                                            HStack(spacing: 8) {
+                                                Button {
+                                                    beginEdit(dep)
+                                                } label: {
+                                                    Image(systemName: "pencil")
+                                                        .foregroundStyle(.blue)
+                                                }
+                                                .buttonStyle(.plain)
+
+                                                Button {
+                                                    removeDependency(dep)
+                                                } label: {
+                                                    Image(systemName: "trash")
+                                                        .foregroundStyle(.red)
+                                                }
+                                                .buttonStyle(.plain)
                                             }
-                                            .buttonStyle(.plain)
                                         }
+                                        .padding(8)
+                                        .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
                                     }
-                                    .padding(.vertical, 4)
                                 }
                             }
-                            .listStyle(.plain)
-                            .frame(height: 180)
                         }
+                        .padding(8)
                     }
-                    .padding(16)
-                    .background(Color.secondary.opacity(0.04))
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                    Divider()
+                    // Group 2: Favorite Presets
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Favorite Presets", systemImage: "star.fill")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.yellow)
 
-                    // Finder Tools (Favorites & Recents / Live GitHub Search)
-                    VStack(alignment: .leading, spacing: 12) {
-                        // Section 1: Local Package & Search trigger
-                        HStack(spacing: 12) {
-                            Button {
-                                selectLocalFolderPackage()
-                            } label: {
-                                Label("Add Local Package...", systemImage: "folder.badge.plus")
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(favoritePackages, id: \.self) { fav in
+                                        Button {
+                                            self.selectedPackageURL = fav
+                                            self.isLocalPackage = false
+                                            self.selectedRequirementType = .from
+                                            self.selectedRequirementValue = "1.0.0"
+                                            self.selectedGitHubPackage = nil
+                                        } label: {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "star.fill").foregroundStyle(.yellow)
+                                                Text(fav.split(separator: "/").last?.replacingOccurrences(of: ".git", with: "") ?? fav)
+                                                    .font(.caption)
+                                            }
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 6)
+                                            .background(Color.secondary.opacity(0.1), in: Capsule())
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
                             }
-                            .buttonStyle(.bordered)
-
-                            Spacer()
                         }
+                        .padding(8)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                        Divider()
-
-                        // GitHub Packages Search Engine
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("GITHUB SEARCH ENGINE")
-                                .font(.caption2.bold())
-                                .foregroundStyle(.secondary)
+                    // Group 3: GitHub Search Engine
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Label("GitHub Search Engine", systemImage: "magnifyingglass")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.purple)
 
                             HStack {
                                 Image(systemName: "magnifyingglass")
                                     .foregroundStyle(.secondary)
-                                TextField("Type package (e.g. Alamofire)...", text: $searchQuery)
+                                TextField("Search package name (e.g. Alamofire)...", text: $searchQuery)
                                     .textFieldStyle(.roundedBorder)
                                     .onSubmit {
                                         searchGitHubPackages()
@@ -175,11 +220,11 @@ struct DependencyManagerView: View {
                             if isSearching {
                                 HStack {
                                     Spacer()
-                                    ProgressView().scaleEffect(0.5)
+                                    ProgressView().scaleEffect(0.6)
                                     Text("Searching GitHub...").font(.caption).foregroundStyle(.secondary)
                                     Spacer()
                                 }
-                                .padding(.top, 10)
+                                .padding(.top, 8)
                             } else if !githubSearchResults.isEmpty {
                                 ScrollView {
                                     VStack(alignment: .leading, spacing: 8) {
@@ -197,229 +242,173 @@ struct DependencyManagerView: View {
                                                             .foregroundStyle(.secondary)
                                                     }
                                                     Spacer()
-                                                    HStack(spacing: 4) {
+                                                    HStack(spacing: 6) {
                                                         Image(systemName: "star.fill")
                                                             .foregroundStyle(.yellow)
                                                         Text("\(pkg.stargazersCount)")
                                                             .font(.caption2)
                                                     }
                                                 }
-                                                .padding(6)
+                                                .padding(8)
                                                 .background(selectedPackageURL == pkg.cloneUrl ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
                                             }
                                             .buttonStyle(.plain)
                                         }
                                     }
                                 }
-                                .frame(height: 150)
+                                .frame(height: 160)
                             }
                         }
-
-                        Divider()
-
-                        // Favorites and Recently Used
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("FAVORITE & RECENT PRESETS")
-                                .font(.caption2.bold())
-                                .foregroundStyle(.secondary)
-
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach(favoritePackages, id: \.self) { fav in
-                                        Button {
-                                            self.selectedPackageURL = fav
-                                            self.isLocalPackage = false
-                                            self.selectedRequirementType = .from
-                                            self.selectedRequirementValue = "1.0.0"
-                                            self.showAddForm = true
-                                        } label: {
-                                            HStack(spacing: 4) {
-                                                Image(systemName: "star.fill").foregroundStyle(.yellow)
-                                                Text(fav.split(separator: "/").last?.replacingOccurrences(of: ".git", with: "") ?? fav)
-                                                    .font(.caption)
-                                            }
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(Color.secondary.opacity(0.1), in: Capsule())
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                            }
-                        }
+                        .padding(8)
                     }
-                    .padding(16)
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                    Spacer()
-                }
-                .frame(width: 340)
-
-                // Right Column: Configuration & Info Preview panel
-                VStack(spacing: 0) {
-                    if showAddForm || selectedGitHubPackage != nil || !selectedPackageURL.isEmpty {
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 18) {
-                                // Package metadata card
-                                if let pkg = selectedGitHubPackage {
-                                    GroupBox {
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            HStack {
-                                                Label(pkg.name, systemImage: "sparkles")
-                                                    .font(.headline)
-                                                    .foregroundStyle(.orange)
-                                                Spacer()
-                                                Button {
-                                                    toggleFavoritePackage(pkg.cloneUrl)
-                                                } label: {
-                                                    Image(systemName: favoritePackages.contains(pkg.cloneUrl) ? "star.fill" : "star")
-                                                        .foregroundStyle(.yellow)
-                                                }
-                                                .buttonStyle(.plain)
-                                            }
-
-                                            Text(pkg.description ?? "No description available.")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-
-                                            HStack(spacing: 12) {
-                                                Label("\(pkg.stargazersCount) stars", systemImage: "star.fill")
-                                                    .font(.caption2)
-                                                Label("\(pkg.forksCount) forks", systemImage: "arrow.branch")
-                                                    .font(.caption2)
-                                                Label(pkg.license?.name ?? "No License", systemImage: "doc.text")
-                                                    .font(.caption2)
-                                            }
-                                            .foregroundStyle(.secondary)
-                                        }
-                                        .padding(6)
+                    // Selected GitHub Package Metadata Card
+                    if let pkg = selectedGitHubPackage {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Label(pkg.name, systemImage: "sparkles")
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(.orange)
+                                    Spacer()
+                                    Button {
+                                        toggleFavoritePackage(pkg.cloneUrl)
+                                    } label: {
+                                        Image(systemName: favoritePackages.contains(pkg.cloneUrl) ? "star.fill" : "star")
+                                            .foregroundStyle(.yellow)
                                     }
-                                    .groupBoxStyle(ModernGroupBoxStyle())
+                                    .buttonStyle(.plain)
                                 }
 
-                                // Configuration Form block
-                                GroupBox {
-                                    VStack(alignment: .leading, spacing: 12) {
-                                        Text("Package Specifications")
-                                            .font(.subheadline.bold())
-                                            .foregroundStyle(.blue)
+                                Text(pkg.description ?? "No description available.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
 
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text("Repository URL or Local Path")
-                                                .font(.caption.bold())
-                                                .foregroundStyle(.secondary)
-                                            TextField("Path/URL", text: $selectedPackageURL)
-                                                .textFieldStyle(.roundedBorder)
-                                                .autocorrectionDisabled()
-                                        }
-
-                                        VStack(alignment: .leading, spacing: 10) {
-                                            Text("Requirement Specification")
-                                                .font(.caption.bold())
-                                                .foregroundStyle(.secondary)
-
-                                            Picker("", selection: $selectedRequirementType) {
-                                                ForEach(DependencyRequirementType.allCases) { type in
-                                                    Text(type.rawValue).tag(type)
-                                                }
-                                            }
-                                            .pickerStyle(.segmented)
-                                            .disabled(isLocalPackage)
-
-                                            TextField(requirementPlaceholderText, text: $selectedRequirementValue)
-                                                .textFieldStyle(.roundedBorder)
-                                                .autocorrectionDisabled()
-                                                .disabled(isLocalPackage)
-                                        }
-
-                                        // Duplicate detection & validation notes
-                                        if detectDuplicate(selectedPackageURL) {
-                                            HStack(spacing: 6) {
-                                                Image(systemName: "exclamationmark.triangle.fill")
-                                                    .foregroundStyle(.yellow)
-                                                Text("Duplicate detected! This package appears to already exist in Package.swift.")
-                                                    .font(.caption2)
-                                                    .foregroundStyle(.yellow)
-                                            }
-                                            .padding(6)
-                                            .background(Color.yellow.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
-                                        }
-                                    }
-                                    .padding(8)
+                                HStack(spacing: 16) {
+                                    Label("\(pkg.stargazersCount) stars", systemImage: "star.fill")
+                                    Label("\(pkg.forksCount) forks", systemImage: "arrow.branch")
+                                    Label(pkg.license?.name ?? "No License", systemImage: "doc.text")
                                 }
-                                .groupBoxStyle(ModernGroupBoxStyle())
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            }
+                            .padding(8)
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+                    }
 
-                                // Package.swift Syntax Preview
-                                GroupBox {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Label("Package.swift Output Preview", systemImage: "doc.text.fill")
-                                            .font(.subheadline.bold())
-                                            .foregroundColor(.green)
+                    // Group 4: Package Specifications Form
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Package Specifications")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.blue)
 
-                                        Text(previewSyntaxString)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Repository URL or Local Path")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+                                TextField("Path/URL", text: $selectedPackageURL)
+                                    .textFieldStyle(.roundedBorder)
+                                    .autocorrectionDisabled()
+                            }
+
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Requirement Specification")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+
+                                Picker("", selection: $selectedRequirementType) {
+                                    ForEach(DependencyRequirementType.allCases) { type in
+                                        Text(type.rawValue).tag(type)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+                                .disabled(isLocalPackage)
+
+                                TextField(requirementPlaceholderText, text: $selectedRequirementValue)
+                                    .textFieldStyle(.roundedBorder)
+                                    .autocorrectionDisabled()
+                                    .disabled(isLocalPackage)
+                            }
+
+                            if detectDuplicate(selectedPackageURL) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.yellow)
+                                    Text("Duplicate detected! This package appears to already exist.")
+                                        .font(.caption2)
+                                        .foregroundStyle(.yellow)
+                                }
+                                .padding(6)
+                                .background(Color.yellow.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                            }
+                        }
+                        .padding(8)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Group 5: Package.swift Preview Syntax
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Package.swift Output Preview", systemImage: "doc.text.fill")
+                                .font(.subheadline.bold())
+                                .foregroundColor(.green)
+
+                            Text(previewSyntaxString)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.green)
+                                .padding(10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.black.opacity(0.15))
+                                .cornerRadius(6)
+                        }
+                        .padding(8)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Group 6: README Preview Panel
+                    if selectedGitHubPackage != nil {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("README.md Preview")
+                                    .font(.subheadline.bold())
+
+                                if isLoadingReadme {
+                                    HStack {
+                                        ProgressView().controlSize(.small)
+                                        Text("Loading documentation...").font(.caption).foregroundStyle(.secondary)
+                                    }
+                                } else {
+                                    ScrollView {
+                                        Text(readmePreviewText)
                                             .font(.caption.monospaced())
-                                            .foregroundStyle(.green)
                                             .padding(10)
                                             .frame(maxWidth: .infinity, alignment: .leading)
-                                            .background(Color.black.opacity(0.15))
-                                            .cornerRadius(6)
+                                            .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
                                     }
-                                    .padding(8)
-                                }
-                                .groupBoxStyle(ModernGroupBoxStyle())
-
-                                // Action imports
-                                Button {
-                                    saveDependency()
-                                } label: {
-                                    Label(editingDependency != nil ? "Save Dependency" : "Import Swift Package", systemImage: "square.and.arrow.down.fill")
-                                        .fontWeight(.bold)
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.large)
-                                .disabled(selectedPackageURL.isEmpty)
-
-                                // Live README preview drawer
-                                if selectedGitHubPackage != nil {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Text("README.md Preview")
-                                            .font(.subheadline.bold())
-
-                                        if isLoadingReadme {
-                                            HStack {
-                                                ProgressView().controlSize(.small)
-                                                Text("Loading documentation...").font(.caption).foregroundStyle(.secondary)
-                                            }
-                                        } else {
-                                            ScrollView {
-                                                Text(readmePreviewText)
-                                                    .font(.caption.monospaced())
-                                                    .padding(10)
-                                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                                    .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
-                                            }
-                                            .frame(height: 180)
-                                        }
-                                    }
+                                    .frame(height: 180)
                                 }
                             }
-                            .padding(20)
+                            .padding(8)
                         }
-                    } else {
-                        VStack(spacing: 12) {
-                            Image(systemName: "puzzlepiece.fill")
-                                .font(.system(size: 40))
-                                .foregroundStyle(.secondary)
-                            Text("Select a Preset, Local Folder, or Search GitHub to begin importing package dependencies.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 40)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
+
+                    // Bottom Action Trigger Button
+                    Button {
+                        saveDependency()
+                    } label: {
+                        Label(editingDependency != nil ? "Save Dependency" : "Import Swift Package", systemImage: "square.and.arrow.down.fill")
+                            .fontWeight(.bold)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(selectedPackageURL.isEmpty)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(24)
             }
             .background(Color(NSColor.windowBackgroundColor))
             .navigationTitle("Package Dependency Suite")
@@ -467,7 +456,6 @@ struct DependencyManagerView: View {
         let urlPattern = #"\.package\(url:\s*"([^"]+)",\s*(from|branch|revision|exact):\s*"([^"]+)"\)"#
 
         var parsedList: [ParsedDependency] = []
-
         let nsContent = content as NSString
 
         if let pathRegex = try? NSRegularExpression(pattern: pathPattern) {
@@ -508,7 +496,7 @@ struct DependencyManagerView: View {
                 self.isLocalPackage = true
                 self.selectedRequirementType = .exact
                 self.selectedRequirementValue = "local"
-                self.showAddForm = true
+                self.selectedGitHubPackage = nil
             } else {
                 self.errorMessage = "The selected directory does not contain a valid Package.swift file."
                 self.showError = true
@@ -557,7 +545,6 @@ struct DependencyManagerView: View {
         self.isLocalPackage = false
         self.selectedRequirementType = .from
         self.selectedRequirementValue = "1.0.0"
-        self.showAddForm = true
 
         // Load readme preview asynchronously
         self.readmePreviewText = ""
@@ -602,7 +589,7 @@ struct DependencyManagerView: View {
         self.selectedRequirementType = dep.requirementType
         self.selectedRequirementValue = dep.value
         self.isLocalPackage = dep.isLocal
-        self.showAddForm = true
+        self.selectedGitHubPackage = nil
     }
 
     private func removeDependency(_ dep: ParsedDependency) {
@@ -636,7 +623,6 @@ struct DependencyManagerView: View {
         updatePackageSwift()
 
         // Reset form
-        self.showAddForm = false
         self.selectedGitHubPackage = nil
         self.selectedPackageURL = ""
         self.editingDependency = nil
