@@ -16,91 +16,85 @@ struct DocumentationAIScanView: View {
     @State private var questionText = ""
     @State private var isProcessing = false
     @State private var errorMessage: String? = nil
+    @State private var isScanning = true
 
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Header Info Card
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "sparkles")
+            Group {
+                if isScanning {
+                    VStack(spacing: 16) {
+                        Spacer()
+                        ProgressView()
+                            .scaleEffect(1.5)
+                            .padding(.bottom, 8)
+                        Text("Scanning Page Content...")
                             .font(.headline)
-                            .foregroundColor(.orange)
-                        Text("AI Scanned Document Assistant")
-                            .font(.headline)
+                        Text("Extracting text references, framework signatures, and indexing layout for the AI Scanned Document Assistant...")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
                         Spacer()
                     }
-
-                    Text("Currently Analyzing: \(documentTitle)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-
-                    let snippet = scannedContent.prefix(120) + (scannedContent.count > 120 ? "..." : "")
-                    Text("\"\(snippet)\"")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .italic()
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
-                }
-                .padding(16)
-                .background(Color(NSColor.windowBackgroundColor))
-
-                Divider()
-
-                // Chat History / Initial Prompt
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            if chatHistory.isEmpty {
-                                VStack(spacing: 12) {
-                                    Spacer().frame(height: 40)
-                                    Image(systemName: "apple.intelligence")
-                                        .font(.system(size: 40))
-                                        .foregroundStyle(.orange)
-                                    Text("Ask me anything about \(documentTitle)")
-                                        .font(.title3.bold())
-                                    Text("I have scanned and indexed the entire document. Ask about its parameters, platform support, code samples, or how to integrate it into your project.")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 40)
-                                    Spacer()
-                                }
-                                .frame(maxWidth: .infinity)
-                            } else {
-                                ForEach(chatHistory) { msg in
-                                    HStack(alignment: .top, spacing: 12) {
-                                        ZStack {
-                                            Circle()
-                                                .fill(msg.isUser ? Color.blue.opacity(0.15) : Color.orange.opacity(0.15))
-                                                .frame(width: 30, height: 30)
-                                            Image(systemName: msg.isUser ? "person.fill" : "sparkles")
-                                                .font(.system(size: 12))
-                                                .foregroundColor(msg.isUser ? .blue : .orange)
-                                        }
-
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(msg.isUser ? "You" : "Apple Expert AI")
-                                                .font(.caption.bold())
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity)
+                } else {
+                    VStack(spacing: 0) {
+                        // Chat History / Initial Prompt
+                        ScrollViewReader { proxy in
+                            ScrollView {
+                                VStack(spacing: 16) {
+                                    if chatHistory.isEmpty {
+                                        VStack(spacing: 12) {
+                                            Spacer().frame(height: 40)
+                                            Image(systemName: "apple.intelligence")
+                                                .font(.system(size: 40))
+                                                .foregroundStyle(.orange)
+                                            Text("Ask me anything about \(documentTitle)")
+                                                .font(.title3.bold())
+                                            Text("I have scanned and indexed the entire document. Ask about its parameters, platform support, code samples, or how to integrate it into your project.")
+                                                .font(.subheadline)
                                                 .foregroundStyle(.secondary)
+                                                .multilineTextAlignment(.center)
+                                                .padding(.horizontal, 40)
+                                            Spacer()
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                    } else {
+                                        ForEach(chatHistory) { msg in
+                                            HStack(alignment: .top, spacing: 12) {
+                                                ZStack {
+                                                    Circle()
+                                                        .fill(msg.isUser ? Color.blue.opacity(0.15) : Color.orange.opacity(0.15))
+                                                        .frame(width: 30, height: 30)
+                                                    Image(systemName: msg.isUser ? "person.fill" : "sparkles")
+                                                        .font(.system(size: 12))
+                                                        .foregroundColor(msg.isUser ? .blue : .orange)
+                                                }
 
-                                            Text(msg.content)
-                                                .font(.body)
-                                                .textSelection(.enabled)
-                                                .lineSpacing(4)
-                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    Text(msg.isUser ? "You" : "Apple Expert AI")
+                                                        .font(.caption.bold())
+                                                        .foregroundStyle(.secondary)
+
+                                                    if msg.isUser {
+                                                        Text(msg.content)
+                                                            .font(.body)
+                                                            .textSelection(.enabled)
+                                                            .lineSpacing(4)
+                                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                                    } else {
+                                                        MarkdownBlockListView(blocks: MarkdownParser.shared.parse(msg.content))
+                                                    }
+                                                }
+                                            }
+                                            .padding(12)
+                                            .background(msg.isUser ? Color.blue.opacity(0.04) : Color.orange.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+                                            .id(msg.id)
                                         }
                                     }
-                                    .padding(12)
-                                    .background(msg.isUser ? Color.blue.opacity(0.04) : Color.orange.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
-                                    .id(msg.id)
-                                }
-                            }
 
                             if isProcessing {
                                 HStack(spacing: 8) {
@@ -168,14 +162,24 @@ struct DocumentationAIScanView: View {
                 .padding(14)
                 .background(Color(NSColor.windowBackgroundColor))
             }
-            .navigationTitle("Document Scan Analyst")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        dismiss()
-                    }
+        }
+        }
+        .navigationTitle("Document Scan Analyst")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Close") {
+                    dismiss()
                 }
             }
+        }
+        .onAppear {
+            Task {
+                try? await Task.sleep(nanoseconds: 1_800_000_000)
+                withAnimation {
+                    isScanning = false
+                }
+            }
+        }
         }
         .frame(width: 650, height: 500)
     }
