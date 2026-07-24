@@ -41,7 +41,7 @@ public class DocumentationBrowserWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Documentation Browser Workspace"
+        window.title = "Documentation"
         window.minSize = NSSize(width: 1200, height: 800)
         window.setFrameAutosaveName("DocumentationBrowserMainWindow")
         window.collectionBehavior = [.fullScreenPrimary, .managed]
