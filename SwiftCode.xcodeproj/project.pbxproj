@@ -1179,6 +1179,8 @@
 		D3F27913C3F9209D7F373BE4 /* TimezoneConverterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB527D71093AFA6A0FBC1E4 /* TimezoneConverterView.swift */; };
 		D40CE55D15BF4633BDB7162D /* HashGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C79C0133EE86480891929DBA /* HashGeneratorView.swift */; };
 		D48EB73DDC4EC7ADD58C1C7F /* DocumentationBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60787477E14031160E05A32 /* DocumentationBrowserView.swift */; };
+		D48EB73DDC4EC7ADD58C1C7B /* DocumentationAIScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60787477E14031160E05A3B /* DocumentationAIScanView.swift */; };
+		D48EB73DDC4EC7ADD58C1C7A /* DocSymbolsDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60787477E14031160E05A3A /* DocSymbolsDatabase.swift */; };
 		D511BA30CC86403B98E03D99 /* DeviceInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BEA802E7AB3436CBFB82334 /* DeviceInfoView.swift */; };
 		D5571086FD964664A9A37CE0 /* ExecuteTerminalCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BF7298E4FA7469BBCEC2DCE /* ExecuteTerminalCommand.swift */; };
 		D5870725AB134A70992EC08C /* QRCodeGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF39533FE0214D40A175129D /* QRCodeGeneratorView.swift */; };
@@ -2716,6 +2718,8 @@
 		F5F89F32B190B340D5A9DA2B /* OSL-3.0.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "OSL-3.0.md"; sourceTree = "<group>"; };
 		F5F89FC247A35BCAF4E6FD9E /* Adaptive-Public-License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "Adaptive-Public-License.md"; sourceTree = "<group>"; };
 		F60787477E14031160E05A32 /* DocumentationBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentationBrowserView.swift; sourceTree = "<group>"; };
+		F60787477E14031160E05A3B /* DocumentationAIScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentationAIScanView.swift; sourceTree = "<group>"; };
+		F60787477E14031160E05A3A /* DocSymbolsDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocSymbolsDatabase.swift; sourceTree = "<group>"; };
 		F60918861E595AC72A6C72F8 /* BuildLogDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildLogDecoder.swift; sourceTree = "<group>"; };
 		F65A3FDC991F7D91CA5531EE /* JSONToSwiftView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONToSwiftView.swift; sourceTree = "<group>"; };
 		F68E78007D38BEDEADAC1868 /* GitHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/GitHub/Legacy/GitHistoryView.swift; sourceTree = SOURCE_ROOT; };
@@ -4808,6 +4812,8 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 				D640EAE98F392DC8DEAD3617 /* ErrorDiagnosticsView.swift */,
 				EC4978018A58A635B164593E /* SearchDocumentationView.swift */,
 				F60787477E14031160E05A32 /* DocumentationBrowserView.swift */,
+				F60787477E14031160E05A3B /* DocumentationAIScanView.swift */,
+				F60787477E14031160E05A3A /* DocSymbolsDatabase.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -6259,6 +6265,8 @@ CE705E1EC3604FFEEB031075 /* FoundationModels.swift in Sources */,
 				C874D8B0EB68CA285AFFEC1C /* ErrorDiagnosticsView.swift in Sources */,
 				33D51E7BB1EDA49B3346C2B5 /* CodeMetricsDashboardView.swift in Sources */,
 				D48EB73DDC4EC7ADD58C1C7F /* DocumentationBrowserView.swift in Sources */,
+				D48EB73DDC4EC7ADD58C1C7B /* DocumentationAIScanView.swift in Sources */,
+				D48EB73DDC4EC7ADD58C1C7A /* DocSymbolsDatabase.swift in Sources */,
 				DA3257D6569A572BAE8869D8 /* WorkspaceProfilesView.swift in Sources */,
 				6F43A775916B2FCBC02E8239 /* OpenRouterService.swift in Sources */,
 				FBBAB137E4D128B6FEC1C1EC /* LocalModelManager.swift in Sources */,

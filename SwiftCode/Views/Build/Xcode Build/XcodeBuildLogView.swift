@@ -38,14 +38,14 @@ struct StructuredBuildLog: Identifiable, Sendable {
 
 @MainActor
 struct XcodeBuildLogView: View {
-    @State private var searchLogQuery = ""
-    @State private var autoScrollToBottom = true
-    @State private var filterMode: LogFilterMode = .all
+    @AppStorage("com.swiftcode.build.searchLogQuery") private var searchLogQuery = ""
+    @AppStorage("com.swiftcode.build.autoScrollToBottom") private var autoScrollToBottom = true
+    @AppStorage("com.swiftcode.build.filterMode") private var filterMode: LogFilterMode = .all
 
     // Collapsible section states
-    @State private var showErrorsGroup = true
-    @State private var showWarningsGroup = true
-    @State private var showFullConsole = true
+    @AppStorage("com.swiftcode.build.showErrorsGroup") private var showErrorsGroup = true
+    @AppStorage("com.swiftcode.build.showWarningsGroup") private var showWarningsGroup = true
+    @AppStorage("com.swiftcode.build.showFullConsole") private var showFullConsole = true
 
     // Switch sheets
     @State private var showingIPABuilder = false

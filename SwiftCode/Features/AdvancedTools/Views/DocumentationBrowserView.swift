@@ -121,6 +121,18 @@ struct NativeDocumentationBrowserWorkspaceView: View {
     @State private var isSearching = false
     @State private var symbols: [DocSymbol] = []
 
+    // Web Browser & AI Scan states
+    @State private var currentOnlineURL: URL = URL(string: "https://developer.apple.com/documentation/")!
+    @State private var isOnlineLoading = false
+    @State private var canOnlineGoBack = false
+    @State private var canOnlineGoForward = false
+    @State private var reloadOnlineTrigger = false
+    @State private var backOnlineTrigger = false
+    @State private var forwardOnlineTrigger = false
+    @State private var extractedOnlineContent: String? = nil
+    @State private var onlineQuery = ""
+    @State private var showingAIScanPopup = false
+
     // Layout lists
     let categories = ["All", "Classes", "Structs", "Protocols", "Functions"]
     let frameworks = ["All", "SwiftUI", "Swift", "Foundation", "AppKit", "UIKit"]
@@ -189,6 +201,15 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                         }
                         .buttonStyle(.plain)
                         .padding(.vertical, 4)
+
+                        Button(action: { selectedCategory = "OnlineDocs" }) {
+                            HStack {
+                                Label("Apple Developer Website", systemImage: "safari.fill")
+                                    .foregroundStyle(.blue)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 4)
                     } header: {
                         Text("Overview").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
                     }
@@ -244,106 +265,121 @@ struct NativeDocumentationBrowserWorkspaceView: View {
             }
             .frame(minWidth: 240, idealWidth: 260, maxWidth: 320)
 
-            // Center List of symbols/topics (Premium visual search list)
-            VStack(spacing: 0) {
-                // Modern search bar with larger padding and rounded style
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    TextField("Search symbols, APIs, packages...", text: $searchQuery)
-                        .textFieldStyle(.plain)
-                        .font(.body)
-                        .onChange(of: searchQuery) { _, newValue in
-                            triggerAsynchronousSearch(newValue)
-                        }
-                    if isSearching {
-                        ProgressView().controlSize(.small)
-                    } else if !searchQuery.isEmpty {
-                        Button {
-                            searchQuery = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(10)
-                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
-                .padding(12)
-
-                Divider()
-
-                // Filter Header Summary
-                HStack {
-                    Text("Showing \(filteredSymbols.count) matches")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    if selectedFramework != "All" || selectedPlatform != "All" || selectedCategory != "All" {
-                        Button("Reset Filters") {
-                            selectedFramework = "All"
-                            selectedPlatform = "All"
-                            selectedCategory = "All"
-                        }
-                        .buttonStyle(.plain)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(Color.secondary.opacity(0.04))
-
-                Divider()
-
-                // Symbol Results List
-                if filteredSymbols.isEmpty {
-                    ContentUnavailableView("No Symbols Found", systemImage: "doc.text.magnifyingglass")
-                        .frame(maxHeight: .infinity)
-                } else {
-                    List(filteredSymbols, selection: $selectedSymbol) { sym in
-                        HStack(spacing: 12) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(kindColor(sym.kind).opacity(0.15))
-                                    .frame(width: 28, height: 28)
-                                Text(sym.kind.prefix(1).uppercased())
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundStyle(kindColor(sym.kind))
+            if selectedCategory == "OnlineDocs" {
+                onlineBrowserWorkspaceView()
+                    .frame(minWidth: 800)
+            } else {
+                // Center List of symbols/topics (Premium visual search list)
+                VStack(spacing: 0) {
+                    // Modern search bar with larger padding and rounded style
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        TextField("Search symbols, APIs, packages...", text: $searchQuery)
+                            .textFieldStyle(.plain)
+                            .font(.body)
+                            .onChange(of: searchQuery) { _, newValue in
+                                triggerAsynchronousSearch(newValue)
                             }
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(sym.name)
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundStyle(.primary)
-                                Text("\(sym.framework) | \(sym.availability)")
-                                    .font(.system(size: 11))
+                        if isSearching {
+                            ProgressView().controlSize(.small)
+                        } else if !searchQuery.isEmpty {
+                            Button {
+                                searchQuery = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
                                     .foregroundStyle(.secondary)
                             }
-                            Spacer()
+                            .buttonStyle(.plain)
                         }
-                        .padding(.vertical, 6)
-                        .tag(sym)
                     }
-                    .listStyle(.inset)
-                }
-            }
-            .frame(minWidth: 320, idealWidth: 360, maxWidth: 440)
+                    .padding(10)
+                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                    .padding(12)
 
-            // Right Pane: High-Fidelity Rich Symbol Details or Custom Interactive Dashboard
-            Group {
-                if let sym = selectedSymbol {
-                    symbolDetailsPane(sym)
-                } else {
-                    documentationHubHomeView()
+                    Divider()
+
+                    // Filter Header Summary
+                    HStack {
+                        Text("Showing \(filteredSymbols.count) matches")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if selectedFramework != "All" || selectedPlatform != "All" || selectedCategory != "All" {
+                            Button("Reset Filters") {
+                                selectedFramework = "All"
+                                selectedPlatform = "All"
+                                selectedCategory = "All"
+                            }
+                            .buttonStyle(.plain)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Color.secondary.opacity(0.04))
+
+                    Divider()
+
+                    // Symbol Results List
+                    if filteredSymbols.isEmpty {
+                        ContentUnavailableView("No Symbols Found", systemImage: "doc.text.magnifyingglass")
+                            .frame(maxHeight: .infinity)
+                    } else {
+                        List(filteredSymbols, selection: $selectedSymbol) { sym in
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(kindColor(sym.kind).opacity(0.15))
+                                        .frame(width: 28, height: 28)
+                                    Text(sym.kind.prefix(1).uppercased())
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundStyle(kindColor(sym.kind))
+                                }
+
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(sym.name)
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundStyle(.primary)
+                                    Text("\(sym.framework) | \(sym.availability)")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                            }
+                            .padding(.vertical, 6)
+                            .tag(sym)
+                        }
+                        .listStyle(.inset)
+                    }
                 }
+                .frame(minWidth: 320, idealWidth: 360, maxWidth: 440)
+
+                // Right Pane: High-Fidelity Rich Symbol Details or Custom Interactive Dashboard
+                Group {
+                    if let sym = selectedSymbol {
+                        symbolDetailsPane(sym)
+                    } else {
+                        documentationHubHomeView()
+                    }
+                }
+                .frame(minWidth: 600)
             }
-            .frame(minWidth: 600)
         }
         .onAppear {
             loadMockDocumentationIndex()
+        }
+        .searchable(text: $onlineQuery, prompt: "Search Apple Developer Documentation...")
+        .onSubmit(of: .search) {
+            performOnlineSearch()
+        }
+        .sheet(isPresented: $showingAIScanPopup) {
+            DocumentationAIScanView(
+                documentTitle: selectedCategory == "OnlineDocs" ? "Apple Online Documentation" : (selectedSymbol?.name ?? "Document"),
+                scannedContent: selectedCategory == "OnlineDocs" ? (extractedOnlineContent ?? "Loading web content...") : formatOfflineSymbolContent(selectedSymbol)
+            )
         }
     }
 
@@ -517,6 +553,22 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .foregroundStyle(.secondary)
                     Spacer()
+
+                    Button {
+                        showingAIScanPopup = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "sparkles")
+                                .foregroundStyle(.orange)
+                            Text("Ask AI")
+                                .font(.caption.bold())
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color.orange.opacity(0.15))
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
 
                     Button {
                         toggleFavorite(sym.name)
@@ -818,6 +870,120 @@ struct NativeDocumentationBrowserWorkspaceView: View {
         recentlyViewed = Array(recentlyViewed.prefix(12))
     }
 
+    private func performOnlineSearch() {
+        let trimmed = onlineQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        if trimmed.lowercased().hasPrefix("http"),
+           let url = URL(string: trimmed),
+           ["http", "https"].contains(url.scheme?.lowercased()) {
+            currentOnlineURL = url
+            return
+        }
+
+        let safePath = trimmed
+            .replacingOccurrences(of: " ", with: "-")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            .lowercased()
+        if let url = URL(string: "https://developer.apple.com/documentation/\(safePath)") {
+            currentOnlineURL = url
+        }
+    }
+
+    private func formatOfflineSymbolContent(_ sym: DocSymbol?) -> String {
+        guard let sym = sym else { return "No document selected." }
+        let inherits = sym.inheritsFrom ?? "None"
+        let conforms = sym.conformsTo.joined(separator: ", ")
+        let platformsList = sym.platforms.map { "\($0.key) (\($0.value))" }.joined(separator: ", ")
+        return """
+Name: \(sym.name)
+Kind: \(sym.kind)
+Framework: \(sym.framework)
+Availability: \(sym.availability)
+Platforms: \(platformsList)
+Inherits From: \(inherits)
+Conforms To: \(conforms)
+
+Summary:
+\(sym.summary)
+
+Declaration Syntax:
+\(sym.syntax)
+
+Code Sample:
+\(sym.codeSample)
+"""
+    }
+
+    @ViewBuilder
+    private func onlineBrowserWorkspaceView() -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Button(action: { backOnlineTrigger.toggle() }) {
+                    Image(systemName: "chevron.left")
+                }
+                .disabled(!canOnlineGoBack)
+                .buttonStyle(.bordered)
+
+                Button(action: { forwardOnlineTrigger.toggle() }) {
+                    Image(systemName: "chevron.right")
+                }
+                .disabled(!canOnlineGoForward)
+                .buttonStyle(.bordered)
+
+                Button(action: { reloadOnlineTrigger.toggle() }) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.bordered)
+
+                HStack {
+                    Image(systemName: "safari")
+                        .foregroundColor(.secondary)
+                    Text(currentOnlineURL.absoluteString)
+                        .font(.system(size: 11, design: .monospaced))
+                        .lineLimit(1)
+                        .foregroundColor(.primary)
+                    Spacer()
+                    if isOnlineLoading {
+                        ProgressView().controlSize(.small)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+
+                Button(action: {
+                    showingAIScanPopup = true
+                }) {
+                    Label("Ask AI & Scan", systemImage: "sparkles")
+                        .font(.caption.bold())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.orange)
+                        .cornerRadius(6)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(12)
+            .background(Color(NSColor.windowBackgroundColor))
+
+            Divider()
+
+            DocsWebView(
+                url: currentOnlineURL,
+                isLoading: $isOnlineLoading,
+                canGoBack: $canOnlineGoBack,
+                canGoForward: $canOnlineGoForward,
+                reloadTrigger: $reloadOnlineTrigger,
+                backTrigger: $backOnlineTrigger,
+                forwardTrigger: $forwardOnlineTrigger,
+                extractedContent: $extractedOnlineContent
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
     private func kindColor(_ kind: String) -> Color {
         switch kind {
         case "class": return .purple
@@ -828,103 +994,102 @@ struct NativeDocumentationBrowserWorkspaceView: View {
     }
 
     private func loadMockDocumentationIndex() {
-        symbols = [
-            DocSymbol(
-                name: "VStack",
-                kind: "struct",
-                framework: "SwiftUI",
-                summary: "A view that arranges its subviews in a vertical line with customizable alignments, line-spacings, and child layout priority distributions.",
-                syntax: "struct VStack<Content> : View where Content : View",
-                platforms: ["macOS": "10.15", "iOS": "13.0", "watchOS": "6.0", "tvOS": "13.0"],
-                inheritsFrom: nil,
-                conformsTo: ["View", "Sendable"],
-                codeSample: "VStack(alignment: .leading, spacing: 12) {\n    Text(\"Main Title\").font(.largeTitle)\n    Text(\"Subtitle description.\").foregroundColor(.secondary)\n}",
-                availability: "iOS 13.0+"
-            ),
-            DocSymbol(
-                name: "HStack",
-                kind: "struct",
-                framework: "SwiftUI",
-                summary: "A view that arranges its subviews in a horizontal line, aligning children based on custom layout anchors and alignment guidelines.",
-                syntax: "struct HStack<Content> : View where Content : View",
-                platforms: ["macOS": "10.15", "iOS": "13.0", "watchOS": "6.0", "tvOS": "13.0"],
-                inheritsFrom: nil,
-                conformsTo: ["View", "Sendable"],
-                codeSample: "HStack(alignment: .center, spacing: 8) {\n    Image(systemName: \"sparkles\")\n    Text(\"Dynamic Feature\")\n}",
-                availability: "iOS 13.0+"
-            ),
-            DocSymbol(
-                name: "List",
-                kind: "struct",
-                framework: "SwiftUI",
-                summary: "A container that presents rows of data arranged in a single column, optionally supporting section headers, collapsible groups, and editing/deletion row interactions.",
-                syntax: "struct List<SelectionValue, Content> : View where SelectionValue : Hashable, Content : View",
-                platforms: ["macOS": "10.15", "iOS": "13.0", "tvOS": "13.0"],
-                inheritsFrom: nil,
-                conformsTo: ["View", "DynamicViewContent"],
-                codeSample: "List(items) { item in\n    Text(item.name)\n}",
-                availability: "iOS 13.0+"
-            ),
-            DocSymbol(
-                name: "URLSession",
-                kind: "class",
-                framework: "Foundation",
-                summary: "An object that coordinates a group of related, network data-transfer tasks. Instantiates connections across proxies, supporting keep-alive headers, automated session caching, and download-task backgrounding.",
-                syntax: "class URLSession : NSObject, Sendable",
-                platforms: ["macOS": "10.9", "iOS": "7.0", "watchOS": "2.0", "tvOS": "9.0"],
-                inheritsFrom: "NSObject",
-                conformsTo: ["Sendable", "NSObjectProtocol"],
-                codeSample: "let (data, response) = try await URLSession.shared.data(from: url)\nguard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return }",
-                availability: "iOS 7.0+"
-            ),
-            DocSymbol(
-                name: "JSONDecoder",
-                kind: "class",
-                framework: "Foundation",
-                summary: "An object that decodes instances of a data type from JSON objects, mapping snake_case or customized API properties seamlessly back to native camelCase Codable Swift properties.",
-                syntax: "class JSONDecoder",
-                platforms: ["macOS": "10.13", "iOS": "11.0", "watchOS": "4.0", "tvOS": "11.0"],
-                inheritsFrom: "NSObject",
-                conformsTo: ["NSObjectProtocol"],
-                codeSample: "let decoder = JSONDecoder()\ndecoder.keyDecodingStrategy = .convertFromSnakeCase\nlet user = try decoder.decode(User.self, from: data)",
-                availability: "iOS 10.0+"
-            ),
-            DocSymbol(
-                name: "NSWindow",
-                kind: "class",
-                framework: "AppKit",
-                summary: "A window that an app displays on the screen, managing the window server interaction, handling close signals, mouse pointer tracking, and split panel layout constraints.",
-                syntax: "class NSWindow : NSResponder",
-                platforms: ["macOS": "10.0"],
-                inheritsFrom: "NSResponder",
-                conformsTo: ["NSUserInterfaceValidations", "NSAccessibilityElement", "NSAccessibility"],
-                codeSample: "let window = NSWindow(\n    contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),\n    styleMask: [.titled, .closable, .resizable],\n    backing: .buffered,\n    defer: false\n)",
-                availability: "macOS 10.0+"
-            ),
-            DocSymbol(
-                name: "Task",
-                kind: "struct",
-                framework: "Swift",
-                summary: "A unit of asynchronous work. Enables synchronous actors or classes to spawn isolated asynchronous contexts, configure custom executors, and handle structured cancellation signals.",
-                syntax: "struct Task<Success, Failure> : Sendable where Success : Sendable, Failure : Error",
-                platforms: ["macOS": "12.0", "iOS": "15.0", "watchOS": "8.0", "tvOS": "15.0"],
-                inheritsFrom: nil,
-                conformsTo: ["Sendable", "Identifiable"],
-                codeSample: "Task {\n    let result = await performNetworkQuery()\n    await updateUI(with: result)\n}",
-                availability: "iOS 15.0+"
-            ),
-            DocSymbol(
-                name: "Actor",
-                kind: "protocol",
-                framework: "Swift",
-                summary: "A common protocol that all actors conform to, establishing compiler-enforced thread-isolation requirements to eliminate data races across concurrently running contexts.",
-                syntax: "protocol Actor : AnyObject, Sendable",
-                platforms: ["macOS": "12.0", "iOS": "15.0", "watchOS": "8.0", "tvOS": "15.0"],
-                inheritsFrom: nil,
-                conformsTo: ["AnyObject", "Sendable"],
-                codeSample: "actor AccountManager {\n    private var balance: Double = 0.0\n    func deposit(amount: Double) { balance += amount }\n}",
-                availability: "iOS 15.0+"
-            )
-        ]
+        symbols = DocSymbolsDatabase.allSymbols
+    }
+}
+
+// MARK: - Native Web View Wrapper (DocsWebView)
+
+private struct DocsWebView: NSViewRepresentable {
+    let url: URL
+    @Binding var isLoading: Bool
+    @Binding var canGoBack: Bool
+    @Binding var canGoForward: Bool
+
+    @Binding var reloadTrigger: Bool
+    @Binding var backTrigger: Bool
+    @Binding var forwardTrigger: Bool
+    @Binding var extractedContent: String?
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeNSView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+        // Important: Apple documentation site uses dynamic rendering
+        configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
+
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.navigationDelegate = context.coordinator
+
+        loadIfValid(on: webView, url: url)
+        return webView
+    }
+
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        if webView.url != url {
+            loadIfValid(on: webView, url: url)
+        }
+
+        if reloadTrigger != context.coordinator.lastReloadTrigger {
+            webView.reload()
+            context.coordinator.lastReloadTrigger = reloadTrigger
+        }
+
+        if backTrigger != context.coordinator.lastBackTrigger {
+            if webView.canGoBack { webView.goBack() }
+            context.coordinator.lastBackTrigger = backTrigger
+        }
+
+        if forwardTrigger != context.coordinator.lastForwardTrigger {
+            if webView.canGoForward { webView.goForward() }
+            context.coordinator.lastForwardTrigger = forwardTrigger
+        }
+    }
+
+    private func loadIfValid(on webView: WKWebView, url: URL) {
+        guard ["http", "https"].contains(url.scheme?.lowercased()) else { return }
+        webView.load(URLRequest(url: url))
+    }
+
+    class Coordinator: NSObject, WKNavigationDelegate {
+        var parent: DocsWebView
+        var lastReloadTrigger = false
+        var lastBackTrigger = false
+        var lastForwardTrigger = false
+
+        init(_ parent: DocsWebView) {
+            self.parent = parent
+        }
+
+        func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            DispatchQueue.main.async {
+                self.parent.isLoading = true
+            }
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            DispatchQueue.main.async {
+                self.parent.isLoading = false
+                self.parent.canGoBack = webView.canGoBack
+                self.parent.canGoForward = webView.canGoForward
+            }
+
+            // Extract content for AI Analysis
+            webView.evaluateJavaScript("document.body.innerText") { [weak self] result, error in
+                guard let content = result as? String, error == nil else { return }
+                DispatchQueue.main.async {
+                    self?.parent.extractedContent = content
+                }
+            }
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            DispatchQueue.main.async {
+                self.parent.isLoading = false
+            }
+        }
     }
 }
