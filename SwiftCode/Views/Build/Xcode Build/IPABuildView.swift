@@ -296,11 +296,6 @@ public struct IPABuildView: View {
                 .padding(24)
             }
             .navigationTitle("Production IPA Builder")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
         }
     }
 
