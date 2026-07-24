@@ -951,6 +951,10 @@ Code Sample:
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+                .hidden()
+                .frame(width: 0, height: 0)
+
+                Spacer()
 
                 Button(action: {
                     showingAIScanPopup = true
