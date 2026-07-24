@@ -396,9 +396,28 @@ struct XcodeBuildLogView: View {
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
-                                Label("Console Outputs Log Trace", systemImage: "terminal.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.blue)
+                                Menu {
+                                    Button {
+                                        let text = buildManager.buildLogs.joined(separator: "\n")
+                                        NSPasteboard.general.clearContents()
+                                        NSPasteboard.general.setString(text, forType: .string)
+                                    } label: {
+                                        Label("Copy Logs", systemImage: "doc.on.doc")
+                                    }
+
+                                    Button {
+                                        exportLogsToFile()
+                                    } label: {
+                                        Label("Export Logs...", systemImage: "square.and.arrow.up")
+                                    }
+                                } label: {
+                                    Label("Console Outputs Log Trace", systemImage: "terminal.fill")
+                                        .font(.headline)
+                                        .foregroundColor(.blue)
+                                }
+                                .menuStyle(.borderlessButton)
+                                .fixedSize()
+
                                 Spacer()
 
                                 Toggle("Auto-scroll", isOn: $autoScrollToBottom)
@@ -800,6 +819,19 @@ struct XcodeBuildLogView: View {
         .frame(maxWidth: .infinity)
         .padding()
         .background(Color.red.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func exportLogsToFile() {
+        let text = buildManager.buildLogs.joined(separator: "\n")
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.plainText]
+        panel.nameFieldStringValue = "XcodeBuildLogs.txt"
+
+        panel.begin { response in
+            if response == .OK, let url = panel.url {
+                try? text.write(to: url, atomically: true, encoding: .utf8)
+            }
+        }
     }
 
     private func statusIcon(_ status: XcodeBuildManager.BuildStatus) -> String {

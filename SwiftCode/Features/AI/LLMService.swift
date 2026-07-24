@@ -402,6 +402,36 @@ public final class LLMService: Sendable {
     }
 
     public func sendChatRequest(model: String, messages: [AIMessage], key: String? = nil, providerOverride: LLMProvider? = nil) async throws -> LLMResponse {
+        let isFallbackEnabled = UserDefaults.standard.bool(forKey: "free_models_fallback_enabled")
+
+        do {
+            return try await sendChatRequestInternal(model: model, messages: messages, key: key, providerOverride: providerOverride)
+        } catch {
+            guard isFallbackEnabled else {
+                throw error
+            }
+
+            let resolvedProvider = providerOverride ?? provider(for: model)
+            logInfo("[sendChatRequest] Primary request failed: \(error.localizedDescription). Automatic fallback active, fetching candidate models for provider \(resolvedProvider.rawValue)...")
+
+            let candidates = await getFallbackModels(for: model, provider: resolvedProvider)
+            logInfo("[sendChatRequest] Candidate models for fallback: \(candidates)")
+
+            for candidate in candidates {
+                if candidate == model { continue }
+                logInfo("[sendChatRequest] Attempting fallback model: \(candidate)...")
+                do {
+                    return try await sendChatRequestInternal(model: candidate, messages: messages, key: key, providerOverride: providerOverride)
+                } catch {
+                    logInfo("[sendChatRequest] Fallback model \(candidate) failed: \(error.localizedDescription)")
+                }
+            }
+
+            throw error
+        }
+    }
+
+    private func sendChatRequestInternal(model: String, messages: [AIMessage], key: String? = nil, providerOverride: LLMProvider? = nil) async throws -> LLMResponse {
         if let customEndpoint = findCustomEndpoint(for: model) {
             logInfo("[sendChatRequest] Routing to custom endpoint: \(customEndpoint.endpoint) for model: \(model)")
             let startTime = Date()
@@ -548,6 +578,42 @@ public final class LLMService: Sendable {
     }
 
     public func streamChat(
+        messages: [AIMessage],
+        model: String,
+        systemPrompt: String,
+        onToken: @escaping @Sendable (String) async -> Void
+    ) async throws {
+        let isFallbackEnabled = UserDefaults.standard.bool(forKey: "free_models_fallback_enabled")
+
+        do {
+            try await streamChatInternal(messages: messages, model: model, systemPrompt: systemPrompt, onToken: onToken)
+        } catch {
+            guard isFallbackEnabled else {
+                throw error
+            }
+
+            let resolvedProvider = provider(for: model)
+            logInfo("[streamChat] Primary stream request failed: \(error.localizedDescription). Automatic fallback active, fetching candidate models for provider \(resolvedProvider.rawValue)...")
+
+            let candidates = await getFallbackModels(for: model, provider: resolvedProvider)
+            logInfo("[streamChat] Candidate models for fallback: \(candidates)")
+
+            for candidate in candidates {
+                if candidate == model { continue }
+                logInfo("[streamChat] Attempting fallback stream with model: \(candidate)...")
+                do {
+                    try await streamChatInternal(messages: messages, model: candidate, systemPrompt: systemPrompt, onToken: onToken)
+                    return
+                } catch {
+                    logInfo("[streamChat] Fallback model \(candidate) failed: \(error.localizedDescription)")
+                }
+            }
+
+            throw error
+        }
+    }
+
+    private func streamChatInternal(
         messages: [AIMessage],
         model: String,
         systemPrompt: String,
@@ -806,6 +872,83 @@ public final class LLMService: Sendable {
         try await OfflineModelRunner.shared.loadModel(at: try await defaultOfflineModelDirectory())
         let completionText = try await OfflineModelRunner.shared.generateResponse(prompt: messages.last?.content ?? "")
         return LLMResponse(modelName: offlineModel, completionText: completionText, tokenUsage: nil, latency: Date().timeIntervalSince(startTime))
+    }
+
+    private func getFallbackModels(for model: String, provider: LLMProvider) async -> [String] {
+        if let customEndpoint = findCustomEndpoint(for: model) {
+            if !customEndpoint.models.isEmpty {
+                return customEndpoint.models
+            }
+            if let fetched = try? await fetchModelsForCustomEndpoint(customEndpoint) {
+                return fetched
+            }
+            return []
+        }
+
+        if model == "AFM 3 Core" || model == "AFM 3 Core Advanced" {
+            return ["AFM 3 Core", "AFM 3 Core Advanced"]
+        }
+
+        let key = retrieveAPIKey(for: provider)
+        if !key.isEmpty, let fetched = try? await fetchAvailableModels(provider: provider, key: key) {
+            return fetched
+        }
+
+        return []
+    }
+
+    private func fetchModelsForCustomEndpoint(_ endpoint: SavedCustomEndpoint) async throws -> [String] {
+        var urlString = ""
+        if endpoint.isLocal {
+            urlString = "http://localhost:\(endpoint.localPort.trimmingCharacters(in: .whitespacesAndNewlines))/v1/models"
+        } else {
+            urlString = endpoint.endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !urlString.lowercased().hasSuffix("/models") {
+                if urlString.hasSuffix("/") {
+                    urlString += "models"
+                } else {
+                    urlString += "/models"
+                }
+            }
+        }
+
+        guard let url = URL(string: urlString) else {
+            throw NSError(domain: "LLMService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid custom endpoint URL"])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10.0
+
+        if !endpoint.isLocal {
+            let trimmedKey = endpoint.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedKey.isEmpty {
+                request.addValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
+            }
+
+            for header in endpoint.headers {
+                let trimmedKey = header.key.trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmedVal = header.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmedKey.isEmpty && !trimmedVal.isEmpty {
+                    request.addValue(trimmedVal, forHTTPHeaderField: trimmedKey)
+                }
+            }
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw NSError(domain: "LLMService", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch models"])
+        }
+
+        struct CustomModelsResponse: Codable {
+            let data: [ModelEntry]
+            struct ModelEntry: Codable {
+                let id: String
+            }
+        }
+
+        let decoded = try JSONDecoder().decode(CustomModelsResponse.self, from: data)
+        return decoded.data.map { $0.id }
     }
 
     // MARK: - Helpers
