@@ -662,17 +662,17 @@ struct SourceControlOffView: View {
 struct SourceControlMainWrapper: View {
     let gitViewModel: GitViewModel
     let project: Project
-
+    
     @State private var successMessage: String?
     @State private var showSuccess = false
     @State private var errorMessage: String?
     @State private var showError = false
-
+    
     var isSourceControlOff: Bool {
         let token = KeychainService.shared.get(forKey: KeychainService.githubToken) ?? ""
         return !AppSettings.shared.hasCompletedOnboarding || token.isEmpty
     }
-
+    
     var body: some View {
         let state = SourceControlSidebarState.shared
         Group {
@@ -680,190 +680,190 @@ struct SourceControlMainWrapper: View {
                 SourceControlOffView()
             } else {
                 switch state.selection {
-            case .gitWorktrees:
-                GitWorktreesView()
-            case .localWorkspace:
-                RepositoryDashboardView(gitViewModel: gitViewModel, project: project) { _ in }
-            case .changes:
-                RepositoriesView(
-                    gitViewModel: gitViewModel,
-                    project: project,
-                    showSuccess: $showSuccess,
-                    successMessage: $successMessage,
-                    showError: $showError,
-                    errorMessage: $errorMessage
-                )
-            case .branches:
-                BranchesView(
-                    gitViewModel: gitViewModel,
-                    project: project,
-                    showSuccess: $showSuccess,
-                    successMessage: $successMessage,
-                    showError: $showError,
-                    errorMessage: $errorMessage
-                )
-            case .commitHistory:
-                CommitsView(gitViewModel: gitViewModel)
-            case .pullRequests:
-                PullRequestsView(
-                    project: project,
-                    showSuccess: $showSuccess,
-                    successMessage: $successMessage,
-                    showError: $showError,
-                    errorMessage: $errorMessage
-                )
-            case .github:
-                OrganizationsView()
-            case .actions:
-                ActionsView(
-                    project: project,
-                    showSuccess: $showSuccess,
-                    successMessage: $successMessage,
-                    showError: $showError,
-                    errorMessage: $errorMessage
-                )
-            case .activityFeed:
-                ActivityFeedView(project: project)
-            case .discussions:
-                DiscussionsView(project: project)
-            case .githubAccount:
-                GitHubAccountView()
-            case .githubCodeSearch:
-                GitHubCodeSearchView(project: project)
-            case .notifications:
-                NotificationsView()
-            case .releases:
-                ReleasesView(
-                    project: project,
-                    showSuccess: $showSuccess,
-                    successMessage: $successMessage,
-                    showError: $showError,
-                    errorMessage: $errorMessage
-                )
-            case .tags:
-                TagsView(
-                    project: project,
-                    showSuccess: $showSuccess,
-                    successMessage: $successMessage,
-                    showError: $showError,
-                    errorMessage: $errorMessage
-                )
-            case .issues:
-                IssuesView(
-                    project: project,
-                    showSuccess: $showSuccess,
-                    successMessage: $successMessage,
-                    showError: $showError,
-                    errorMessage: $errorMessage
-                )
-            case .gitBlame:
-                GitBlameViewer(gitViewModel: gitViewModel)
-            case .diffViewer:
-                UnifiedDiffView(gitViewModel: gitViewModel)
-            case .cli:
-                GitCLIView(project: project)
-            case .repositoryExplorer:
-                RepositoryExplorerView(gitViewModel: gitViewModel, project: project)
-            case .repositoryAutomationBuilder:
-                RepositoryAutomationBuilderView(project: project)
-            case .swiftCodeWorkflows:
-                WorkflowDashboardView(project: project, gitViewModel: gitViewModel)
-            case .repositorySettings:
-                GitHubSettingsView(project: project)
-            case .onboarding:
-                SCSetupOnboard()
-            case .githubInspector:
-                GitHubInspector(project: project, gitViewModel: gitViewModel)
-            case .conflictResolver:
-                ConflictResolverWorkspaceView(gitViewModel: gitViewModel)
-            case .repositoryIntelligence:
-                RepositoryIntelligenceView(gitViewModel: gitViewModel)
-            case .knowledgeGraph:
-                RepositoryKnowledgeGraphView(gitViewModel: gitViewModel)
-            case .repositoryTimeline:
-                InteractiveRepositoryTimelineView(gitViewModel: gitViewModel)
-            case .gitOperations:
-                AdvancedGitOperationsCenterView(gitViewModel: gitViewModel)
-            case .advancedDiff:
-                AdvancedDiffCenterView(gitViewModel: gitViewModel)
-            case .repositorySearch:
-                RepositorySearchPlatformView(gitViewModel: gitViewModel)
-            case .codeOwnership:
-                CodeOwnershipWorkspaceView(gitViewModel: gitViewModel)
-            case .branchIntelligence:
-                BranchIntelligenceView(gitViewModel: gitViewModel)
-            case .commitIntelligence:
-                CommitIntelligenceView(gitViewModel: gitViewModel)
-            case .pullRequestIntelligence:
-                PullRequestIntelligenceView()
-            case .securityCenter:
-                SecurityCenterView()
-            case .collaborationCenter:
-                CollaborationCenterView()
-            case .workspaceAutomation:
-                WorkspaceAutomationView()
-            case .githubDiscovery:
-                GitHubDiscoveryView()
-            case .aiAssistant:
-                AIRepositoryAssistantView()
-            }
-        }
-        .sourceControlEmbedded()
-        .alert("Success", isPresented: $showSuccess, presenting: successMessage) { _ in
-            Button("OK") {}
-        } message: { msg in Text(msg) }
-        .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
-            Button("OK") {}
-        } message: { msg in Text(msg) }
-    }
-}
-
-// MARK: - Reconstructed SourceControlView SwiftUI Fallback (Shorthand Sheet Fallback)
-@MainActor
-public struct SourceControlView: View {
-    var gitViewModel: GitViewModel
-    @Environment(ProjectSessionStore.self) private var sessionStore
-    @Environment(\.dismiss) private var dismiss
-
-    public init(gitViewModel: GitViewModel) {
-        self.gitViewModel = gitViewModel
-    }
-
-    public var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onAppear {
-                if let project = sessionStore.activeProject {
-                    SourceControlWindowManager.shared.showWindow(for: project, gitViewModel: gitViewModel)
+                case .gitWorktrees:
+                    GitWorktreesView()
+                case .localWorkspace:
+                    RepositoryDashboardView(gitViewModel: gitViewModel, project: project) { _ in }
+                case .changes:
+                    RepositoriesView(
+                        gitViewModel: gitViewModel,
+                        project: project,
+                        showSuccess: $showSuccess,
+                        successMessage: $successMessage,
+                        showError: $showError,
+                        errorMessage: $errorMessage
+                    )
+                case .branches:
+                    BranchesView(
+                        gitViewModel: gitViewModel,
+                        project: project,
+                        showSuccess: $showSuccess,
+                        successMessage: $successMessage,
+                        showError: $showError,
+                        errorMessage: $errorMessage
+                    )
+                case .commitHistory:
+                    CommitsView(gitViewModel: gitViewModel)
+                case .pullRequests:
+                    PullRequestsView(
+                        project: project,
+                        showSuccess: $showSuccess,
+                        successMessage: $successMessage,
+                        showError: $showError,
+                        errorMessage: $errorMessage
+                    )
+                case .github:
+                    OrganizationsView()
+                case .actions:
+                    ActionsView(
+                        project: project,
+                        showSuccess: $showSuccess,
+                        successMessage: $successMessage,
+                        showError: $showError,
+                        errorMessage: $errorMessage
+                    )
+                case .activityFeed:
+                    ActivityFeedView(project: project)
+                case .discussions:
+                    DiscussionsView(project: project)
+                case .githubAccount:
+                    GitHubAccountView()
+                case .githubCodeSearch:
+                    GitHubCodeSearchView(project: project)
+                case .notifications:
+                    NotificationsView()
+                case .releases:
+                    ReleasesView(
+                        project: project,
+                        showSuccess: $showSuccess,
+                        successMessage: $successMessage,
+                        showError: $showError,
+                        errorMessage: $errorMessage
+                    )
+                case .tags:
+                    TagsView(
+                        project: project,
+                        showSuccess: $showSuccess,
+                        successMessage: $successMessage,
+                        showError: $showError,
+                        errorMessage: $errorMessage
+                    )
+                case .issues:
+                    IssuesView(
+                        project: project,
+                        showSuccess: $showSuccess,
+                        successMessage: $successMessage,
+                        showError: $showError,
+                        errorMessage: $errorMessage
+                    )
+                case .gitBlame:
+                    GitBlameViewer(gitViewModel: gitViewModel)
+                case .diffViewer:
+                    UnifiedDiffView(gitViewModel: gitViewModel)
+                case .cli:
+                    GitCLIView(project: project)
+                case .repositoryExplorer:
+                    RepositoryExplorerView(gitViewModel: gitViewModel, project: project)
+                case .repositoryAutomationBuilder:
+                    RepositoryAutomationBuilderView(project: project)
+                case .swiftCodeWorkflows:
+                    WorkflowDashboardView(project: project, gitViewModel: gitViewModel)
+                case .repositorySettings:
+                    GitHubSettingsView(project: project)
+                case .onboarding:
+                    SCSetupOnboard()
+                case .githubInspector:
+                    GitHubInspector(project: project, gitViewModel: gitViewModel)
+                case .conflictResolver:
+                    ConflictResolverWorkspaceView(gitViewModel: gitViewModel)
+                case .repositoryIntelligence:
+                    RepositoryIntelligenceView(gitViewModel: gitViewModel)
+                case .knowledgeGraph:
+                    RepositoryKnowledgeGraphView(gitViewModel: gitViewModel)
+                case .repositoryTimeline:
+                    InteractiveRepositoryTimelineView(gitViewModel: gitViewModel)
+                case .gitOperations:
+                    AdvancedGitOperationsCenterView(gitViewModel: gitViewModel)
+                case .advancedDiff:
+                    AdvancedDiffCenterView(gitViewModel: gitViewModel)
+                case .repositorySearch:
+                    RepositorySearchPlatformView(gitViewModel: gitViewModel)
+                case .codeOwnership:
+                    CodeOwnershipWorkspaceView(gitViewModel: gitViewModel)
+                case .branchIntelligence:
+                    BranchIntelligenceView(gitViewModel: gitViewModel)
+                case .commitIntelligence:
+                    CommitIntelligenceView(gitViewModel: gitViewModel)
+                case .pullRequestIntelligence:
+                    PullRequestIntelligenceView()
+                case .securityCenter:
+                    SecurityCenterView()
+                case .collaborationCenter:
+                    CollaborationCenterView()
+                case .workspaceAutomation:
+                    WorkspaceAutomationView()
+                case .githubDiscovery:
+                    GitHubDiscoveryView()
+                case .aiAssistant:
+                    AIRepositoryAssistantView()
                 }
-                dismiss()
             }
-    }
-}
-
-// ====================================================================
-// UNIFIED DIFF VIEW
-// ====================================================================
-struct UnifiedDiffView: View {
-    var gitViewModel: GitViewModel
-    @State private var hunks: [GitDiffHunk] = []
-    @State private var isLoading = false
-
-    var body: some View {
-        VStack {
-            if isLoading {
-                ProgressView("Loading unified diff...")
-            } else {
-                GitDiffView(hunks: hunks)
-            }
-        }
-        .onAppear {
-            isLoading = true
-            Task {
-                hunks = await gitViewModel.getDiff()
-                isLoading = false
-            }
+                .sourceControlEmbedded()
+                .alert("Success", isPresented: $showSuccess, presenting: successMessage) { _ in
+                    Button("OK") {}
+                } message: { msg in Text(msg) }
+                .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
+                    Button("OK") {}
+                } message: { msg in Text(msg) }
         }
     }
+    
+    // MARK: - Reconstructed SourceControlView SwiftUI Fallback (Shorthand Sheet Fallback)
+    @MainActor
+    public struct SourceControlView: View {
+        var gitViewModel: GitViewModel
+        @Environment(ProjectSessionStore.self) private var sessionStore
+        @Environment(\.dismiss) private var dismiss
+        
+        public init(gitViewModel: GitViewModel) {
+            self.gitViewModel = gitViewModel
+        }
+        
+        public var body: some View {
+            Color.clear
+                .frame(width: 0, height: 0)
+                .onAppear {
+                    if let project = sessionStore.activeProject {
+                        SourceControlWindowManager.shared.showWindow(for: project, gitViewModel: gitViewModel)
+                    }
+                    dismiss()
+                }
+        }
+    }
+    
+    // ====================================================================
+    // UNIFIED DIFF VIEW
+    // ====================================================================
+    struct UnifiedDiffView: View {
+        var gitViewModel: GitViewModel
+        @State private var hunks: [GitDiffHunk] = []
+        @State private var isLoading = false
+        
+        var body: some View {
+            VStack {
+                if isLoading {
+                    ProgressView("Loading unified diff...")
+                } else {
+                    GitDiffView(hunks: hunks)
+                }
+            }
+            .onAppear {
+                isLoading = true
+                Task {
+                    hunks = await gitViewModel.getDiff()
+                    isLoading = false
+                }
+            }
+        }
+    }
 }
-
