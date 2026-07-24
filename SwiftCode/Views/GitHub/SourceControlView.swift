@@ -808,14 +808,14 @@ struct SourceControlMainWrapper: View {
                     AIRepositoryAssistantView()
                 }
             }
-                .sourceControlEmbedded()
-                .alert("Success", isPresented: $showSuccess, presenting: successMessage) { _ in
-                    Button("OK") {}
-                } message: { msg in Text(msg) }
-                .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
-                    Button("OK") {}
-                } message: { msg in Text(msg) }
         }
+        .sourceControlEmbedded()
+        .alert("Success", isPresented: $showSuccess, presenting: successMessage) { _ in
+            Button("OK") {}
+        } message: { msg in Text(msg) }
+        .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
+            Button("OK") {}
+        } message: { msg in Text(msg) }
     }
     
     // MARK: - Reconstructed SourceControlView SwiftUI Fallback (Shorthand Sheet Fallback)
