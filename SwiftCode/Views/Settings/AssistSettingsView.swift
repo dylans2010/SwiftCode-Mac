@@ -472,6 +472,40 @@ struct FoundationModelsView: View {
 struct AssistSettingsView: View {
     @EnvironmentObject private var settings: AppSettings
 
+    enum FetchProviderOption: Hashable, Identifiable {
+        case openRouter
+        case openai
+        case anthropic
+        case gemini
+        case foundation
+        case custom(id: UUID, name: String)
+
+        var id: String {
+            switch self {
+            case .openRouter: return "openRouter"
+            case .openai: return "openai"
+            case .anthropic: return "anthropic"
+            case .gemini: return "gemini"
+            case .foundation: return "foundation"
+            case .custom(let id, _): return "custom-\(id.uuidString)"
+            }
+        }
+
+        var displayName: String {
+            switch self {
+            case .openRouter: return "OpenRouter"
+            case .openai: return "OpenAI"
+            case .anthropic: return "Anthropic"
+            case .gemini: return "Gemini"
+            case .foundation: return "Foundation Models"
+            case .custom(_, let name): return name
+            }
+        }
+    }
+
+    @State private var selectedFetchProvider: FetchProviderOption = .openRouter
+    @State private var autoFetchTask: Task<Void, Never>? = nil
+
     // API Key states
     @State private var openRouterKey = ""
     @State private var openaiKey = ""
@@ -636,49 +670,36 @@ struct AssistSettingsView: View {
                             .pickerStyle(.menu)
 
                             HStack(spacing: 12) {
-                                Menu {
-                                    Button("All Configured APIs") {
-                                        Task { await fetchAvailableModels() }
-                                    }
-
-                                    Button("OpenRouter") {
-                                        Task { await fetchAvailableModels(onlyProvider: .openRouter) }
-                                    }
-                                    .disabled(openRouterKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                                    Button("OpenAI") {
-                                        Task { await fetchAvailableModels(onlyProvider: .openai) }
-                                    }
-                                    .disabled(openaiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                                    Button("Anthropic") {
-                                        Task { await fetchAvailableModels(onlyProvider: .anthropic) }
-                                    }
-                                    .disabled(anthropicKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                                    Button("Gemini") {
-                                        Task { await fetchAvailableModels(onlyProvider: .google) }
-                                    }
-                                    .disabled(geminiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                                } label: {
-                                    HStack {
-                                        if isFetchingAvailableModels {
-                                            ProgressView().scaleEffect(0.6).padding(.trailing, 4)
-                                        } else {
-                                            Image(systemName: "arrow.triangle.2.circlepath")
-                                        }
-                                        Text(isFetchingAvailableModels ? "Fetching Models..." : "Fetch Models")
+                                Picker("Fetch Models From", selection: $selectedFetchProvider) {
+                                    Text("OpenRouter").tag(FetchProviderOption.openRouter)
+                                    Text("OpenAI").tag(FetchProviderOption.openai)
+                                    Text("Anthropic").tag(FetchProviderOption.anthropic)
+                                    Text("Gemini").tag(FetchProviderOption.gemini)
+                                    Text("Foundation Models").tag(FetchProviderOption.foundation)
+                                    ForEach(customEndpointsManager.endpoints) { endpoint in
+                                        Text(endpoint.name).tag(FetchProviderOption.custom(id: endpoint.id, name: endpoint.name))
                                     }
                                 }
-                                .menuStyle(.borderedButton)
-                                .disabled(isFetchingAvailableModels)
-
-                                Button {
-                                    showFreeModelsSheet = true
-                                } label: {
-                                    Label("Browse Free Models", systemImage: "gift.fill")
+                                .pickerStyle(.menu)
+                                .frame(maxWidth: 240)
+                                .onChange(of: selectedFetchProvider) { _, newOption in
+                                    Task {
+                                        await fetchModels(for: newOption)
+                                    }
                                 }
-                                .buttonStyle(.bordered)
+
+                                if isFetchingAvailableModels {
+                                    ProgressView().scaleEffect(0.6).padding(.leading, 4)
+                                }
+
+                                if selectedFetchProvider == .openRouter {
+                                    Button {
+                                        showFreeModelsSheet = true
+                                    } label: {
+                                        Label("Browse Free Models", systemImage: "gift.fill")
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
                             }
 
                             // Free fallback toggle
@@ -687,9 +708,9 @@ struct AssistSettingsView: View {
                                 set: { fallbackRotation.isEnabled = $0 }
                             )) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("Automatic Fallback to Free Models")
+                                    Text("Automatic Fallback to Other Models")
                                         .font(.subheadline.bold())
-                                    Text("Rotates through all OpenRouter free model endpoints automatically if rate limits or network issues strike.")
+                                    Text("Rotates through all available models from the active provider automatically if rate limits or network issues strike.")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -712,7 +733,9 @@ struct AssistSettingsView: View {
                 .groupBoxStyle(ModernGroupBoxStyle())
 
                 // Models for Assist Selection Card
+                #if false
                 ModelsForAssist(settings: settings, cachedModels: cachedModels, customEndpoints: customEndpointsManager.endpoints)
+                #endif
 
                 // 3. Foundation Models Integration
                 GroupBox {
@@ -1040,12 +1063,18 @@ struct AssistSettingsView: View {
         .onAppear {
             loadAPIKeys()
             loadCachedModels()
-            Task {
-                await fetchOpenRouterModels()
-                if cachedModels.isEmpty {
-                    await fetchAvailableModels()
-                }
-            }
+        }
+        .onChange(of: customEndpoint) { _, _ in
+            if isEditingEndpoint && isNewEndpoint { triggerAutoFetchCustomModels() }
+        }
+        .onChange(of: localEndpointPort) { _, _ in
+            if isEditingEndpoint && isNewEndpoint { triggerAutoFetchCustomModels() }
+        }
+        .onChange(of: customAPIKey) { _, _ in
+            if isEditingEndpoint && isNewEndpoint { triggerAutoFetchCustomModels() }
+        }
+        .onChange(of: isEndpointLocal) { _, _ in
+            if isEditingEndpoint && isNewEndpoint { triggerAutoFetchCustomModels() }
         }
     }
 
@@ -1182,6 +1211,15 @@ struct AssistSettingsView: View {
         isFetchingCustomModels = false
     }
 
+    private func triggerAutoFetchCustomModels() {
+        autoFetchTask?.cancel()
+        autoFetchTask = Task {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            await fetchCustomModels()
+        }
+    }
+
     private func openAddEndpoint() {
         isNewEndpoint = true
         customEndpointName = ""
@@ -1194,6 +1232,7 @@ struct AssistSettingsView: View {
         endpointShowInPopup = true
         selectedEndpoint = nil
         isEditingEndpoint = true
+        triggerAutoFetchCustomModels()
     }
 
     private func openEditEndpoint(_ endpoint: SavedCustomEndpoint) {
@@ -1244,19 +1283,12 @@ struct AssistSettingsView: View {
     }
 
     private func loadCachedModels() {
-        if let data = UserDefaults.standard.data(forKey: "com.swiftcode.cached_available_models"),
-           let decoded = try? JSONDecoder().decode([CachedModel].self, from: data) {
-            cachedModels = decoded
-        } else {
-            // No hardcoded presets - force dynamic fetching
-            cachedModels = []
-        }
+        // No-op to prevent caching models on start
+        cachedModels = []
     }
 
     private func saveCachedModels() {
-        if let data = try? JSONEncoder().encode(cachedModels) {
-            UserDefaults.standard.set(data, forKey: "com.swiftcode.cached_available_models")
-        }
+        // No-op to prevent caching models in UserDefaults
     }
 
 }
@@ -1363,87 +1395,153 @@ struct ModelsForAssist: View {
 }
 
 extension AssistSettingsView {
-    private func fetchAvailableModels(onlyProvider: LLMProvider? = nil) async {
+    private func fetchModels(for option: FetchProviderOption) async {
         isFetchingAvailableModels = true
         availableModelsFetchError = nil
+        cachedModels = []
 
-        var fetchedList = cachedModels
-        if onlyProvider == nil {
-            fetchedList = []
-        }
-
-        // 1. Fetch OpenAI
-        if onlyProvider == nil || onlyProvider == .openai {
-            let trimmedOpenaiKey = openaiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmedOpenaiKey.isEmpty {
+        switch option {
+        case .openRouter:
+            let trimmed = openRouterKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                availableModelsFetchError = "OpenRouter API Key is empty."
+            } else {
                 do {
-                    let models = try await LLMService.shared.fetchAvailableModels(provider: .openai, key: trimmedOpenaiKey)
-                    fetchedList.removeAll { $0.providerName == "OpenAI" }
-                    for m in models {
-                        fetchedList.append(CachedModel(modelID: m, providerName: "OpenAI"))
-                    }
+                    let models = try await LLMService.shared.fetchAvailableModels(provider: .openRouter, key: trimmed)
+                    cachedModels = models.map { CachedModel(modelID: $0, providerName: "OpenRouter") }
                 } catch {
-                    logger.warning("[fetchAvailableModels] OpenAI fetch failed: \(error.localizedDescription)")
+                    availableModelsFetchError = "OpenRouter fetch failed: \(error.localizedDescription)"
                 }
             }
-        }
-
-        // 2. Fetch Anthropic
-        if onlyProvider == nil || onlyProvider == .anthropic {
-            let trimmedAnthropicKey = anthropicKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmedAnthropicKey.isEmpty {
+        case .openai:
+            let trimmed = openaiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                availableModelsFetchError = "OpenAI API Key is empty."
+            } else {
                 do {
-                    let models = try await LLMService.shared.fetchAvailableModels(provider: .anthropic, key: trimmedAnthropicKey)
-                    fetchedList.removeAll { $0.providerName == "Anthropic" }
-                    for m in models {
-                        fetchedList.append(CachedModel(modelID: m, providerName: "Anthropic"))
-                    }
+                    let models = try await LLMService.shared.fetchAvailableModels(provider: .openai, key: trimmed)
+                    cachedModels = models.map { CachedModel(modelID: $0, providerName: "OpenAI") }
                 } catch {
-                    logger.warning("[fetchAvailableModels] Anthropic fetch failed: \(error.localizedDescription)")
+                    availableModelsFetchError = "OpenAI fetch failed: \(error.localizedDescription)"
                 }
             }
-        }
-
-        // 3. Fetch Gemini
-        if onlyProvider == nil || onlyProvider == .google {
-            let trimmedGeminiKey = geminiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmedGeminiKey.isEmpty {
+        case .anthropic:
+            let trimmed = anthropicKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                availableModelsFetchError = "Anthropic API Key is empty."
+            } else {
                 do {
-                    let models = try await LLMService.shared.fetchAvailableModels(provider: .google, key: trimmedGeminiKey)
-                    fetchedList.removeAll { $0.providerName == "Gemini" }
-                    for m in models {
-                        fetchedList.append(CachedModel(modelID: m, providerName: "Gemini"))
-                    }
+                    let models = try await LLMService.shared.fetchAvailableModels(provider: .anthropic, key: trimmed)
+                    cachedModels = models.map { CachedModel(modelID: $0, providerName: "Anthropic") }
                 } catch {
-                    logger.warning("[fetchAvailableModels] Gemini fetch failed: \(error.localizedDescription)")
+                    availableModelsFetchError = "Anthropic fetch failed: \(error.localizedDescription)"
                 }
             }
-        }
-
-        // 4. Fetch OpenRouter
-        if onlyProvider == nil || onlyProvider == .openRouter {
-            let trimmedOpenRouterKey = openRouterKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmedOpenRouterKey.isEmpty {
+        case .gemini:
+            let trimmed = geminiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                availableModelsFetchError = "Gemini API Key is empty."
+            } else {
                 do {
-                    let models = try await LLMService.shared.fetchAvailableModels(provider: .openRouter, key: trimmedOpenRouterKey)
-                    fetchedList.removeAll { $0.providerName == "OpenRouter" }
-                    for m in models {
-                        fetchedList.append(CachedModel(modelID: m, providerName: "OpenRouter"))
-                    }
+                    let models = try await LLMService.shared.fetchAvailableModels(provider: .google, key: trimmed)
+                    cachedModels = models.map { CachedModel(modelID: $0, providerName: "Gemini") }
                 } catch {
-                    logger.warning("[fetchAvailableModels] OpenRouter fetch failed: \(error.localizedDescription)")
+                    availableModelsFetchError = "Gemini fetch failed: \(error.localizedDescription)"
                 }
             }
-        }
-
-        if fetchedList.isEmpty {
-            availableModelsFetchError = "Failed to fetch models from any configured provider. Please ensure your API keys are correct and active."
-        } else {
-            // Delete cached models and cache the new results
-            cachedModels = fetchedList
-            saveCachedModels()
+        case .foundation:
+            cachedModels = [
+                CachedModel(modelID: AppleFoundationModel.afm3Core.rawValue, providerName: "Foundation Models"),
+                CachedModel(modelID: AppleFoundationModel.afm3CoreAdvanced.rawValue, providerName: "Foundation Models")
+            ]
+        case .custom(let id, let name):
+            if let endpoint = customEndpointsManager.endpoints.first(where: { $0.id == id }) {
+                do {
+                    let models = try await fetchModelsForCustomEndpoint(endpoint)
+                    cachedModels = models.map { CachedModel(modelID: $0, providerName: name) }
+                } catch {
+                    availableModelsFetchError = "Custom endpoint '\(name)' fetch failed: \(error.localizedDescription)"
+                }
+            } else {
+                availableModelsFetchError = "Custom endpoint '\(name)' not found."
+            }
         }
 
         isFetchingAvailableModels = false
+    }
+
+    private func fetchModelsForCustomEndpoint(_ endpoint: SavedCustomEndpoint) async throws -> [String] {
+        var urlString = ""
+        if endpoint.isLocal {
+            urlString = "http://localhost:\(endpoint.localPort.trimmingCharacters(in: .whitespacesAndNewlines))/v1/models"
+        } else {
+            urlString = endpoint.endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !urlString.lowercased().hasSuffix("/models") {
+                if urlString.hasSuffix("/") {
+                    urlString += "models"
+                } else {
+                    urlString += "/models"
+                }
+            }
+        }
+
+        guard let url = URL(string: urlString) else {
+            throw NSError(domain: "Invalid URL", code: 0, userInfo: [NSLocalizedDescriptionKey: "The constructed models URL is invalid."])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10.0
+
+        if !endpoint.isLocal {
+            let trimmedKey = endpoint.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedKey.isEmpty {
+                request.addValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
+            }
+
+            for header in endpoint.headers {
+                let trimmedKey = header.key.trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmedVal = header.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmedKey.isEmpty && !trimmedVal.isEmpty {
+                    request.addValue(trimmedVal, forHTTPHeaderField: trimmedKey)
+                }
+            }
+        }
+
+        var data: Data
+        var response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            if endpoint.isLocal {
+                let fallbackUrlString = "http://localhost:\(endpoint.localPort.trimmingCharacters(in: .whitespacesAndNewlines))/models"
+                if let fallbackUrl = URL(string: fallbackUrlString) {
+                    var fallbackRequest = URLRequest(url: fallbackUrl)
+                    fallbackRequest.httpMethod = "GET"
+                    fallbackRequest.timeoutInterval = 10.0
+                    (data, response) = try await URLSession.shared.data(for: fallbackRequest)
+                } else {
+                    throw error
+                }
+            } else {
+                throw error
+            }
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let body = String(data: data, encoding: .utf8) ?? "No body"
+            throw NSError(domain: "API Error", code: code, userInfo: [NSLocalizedDescriptionKey: "Server returned status \(code): \(body)"])
+        }
+
+        struct CustomModelsResponse: Codable {
+            let data: [ModelEntry]
+            struct ModelEntry: Codable {
+                let id: String
+            }
+        }
+
+        let decoded = try JSONDecoder().decode(CustomModelsResponse.self, from: data)
+        return decoded.data.map { $0.id }
     }
 }

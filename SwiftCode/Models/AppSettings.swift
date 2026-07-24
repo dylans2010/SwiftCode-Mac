@@ -52,13 +52,23 @@ class AppSettings: ObservableObject {
     private var saveTask: Task<Void, Never>?
 
     @Published var selectedModel: String {
-        didSet { debouncedSave("selectedModel", selectedModel) }
+        didSet {
+            debouncedSave("selectedModel", selectedModel)
+            if selectedAssistModelID != selectedModel {
+                selectedAssistModelID = selectedModel
+            }
+        }
     }
     @Published var customModel: String {
         didSet { debouncedSave("customModel", customModel) }
     }
     @Published var selectedAssistModelID: String {
-        didSet { debouncedSave("selectedAssistModelID", selectedAssistModelID) }
+        didSet {
+            debouncedSave("selectedAssistModelID", selectedAssistModelID)
+            if selectedModel != selectedAssistModelID {
+                selectedModel = selectedAssistModelID
+            }
+        }
     }
     @Published var autoSave: Bool {
         didSet { debouncedSave("autoSave", autoSave) }

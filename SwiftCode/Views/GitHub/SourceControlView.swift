@@ -643,6 +643,21 @@ func buildSourceControlSidebarNodes() -> [SourceControlSidebarNode] {
     return nodes
 }
 
+// MARK: - Source Control Off View
+struct SourceControlOffView: View {
+    var body: some View {
+        ContentUnavailableView {
+            Label("Source Control Off", systemImage: "xmark.octagon.fill")
+                .foregroundColor(.red)
+        } description: {
+            Text("You have Source Control off or you may not have a valid PAT key, set one up to continue.")
+                .font(.body)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
 // MARK: - SourceControl SwiftUI Main Wrapper
 struct SourceControlMainWrapper: View {
     let gitViewModel: GitViewModel
@@ -653,10 +668,18 @@ struct SourceControlMainWrapper: View {
     @State private var errorMessage: String?
     @State private var showError = false
 
+    var isSourceControlOff: Bool {
+        let token = KeychainService.shared.get(forKey: KeychainService.githubToken) ?? ""
+        return !AppSettings.shared.hasCompletedOnboarding || token.isEmpty
+    }
+
     var body: some View {
         let state = SourceControlSidebarState.shared
         Group {
-            switch state.selection {
+            if isSourceControlOff && state.selection != .repositorySettings {
+                SourceControlOffView()
+            } else {
+                switch state.selection {
             case .gitWorktrees:
                 GitWorktreesView()
             case .localWorkspace:
