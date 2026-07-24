@@ -111,247 +111,325 @@ struct XcodeBuildLogView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Compact Sticky Header / Toolbar Panel
-                stickyToolbarView
-
-                Divider()
-
-                ScrollView {
-                    VStack(spacing: 16) {
-                        // Card 1: Build Status Metrics
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 8) {
-                                buildStatusHeader
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Title info card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Xcode Build Center", systemImage: "hammer.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.purple)
+                                Spacer()
                             }
-                            .padding(10)
+                            Text("Monitor compiling workloads, diagnose syntax or architecture issues, and package deployment binaries.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        .groupBoxStyle(ModernGroupBoxStyle())
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                        // Card 2: Build Configurations (Adaptive Desktop Layout)
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Label("Build Specifications", systemImage: "gearshape.fill")
-                                        .font(.subheadline.bold())
-                                        .foregroundColor(.purple)
-                                    Spacer()
+                    // Card 1: Build Status Metrics
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Build Status Details", systemImage: "play.circle")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
 
-                                    // Short trigger to IPA Packaging view directly
-                                    Button {
-                                        showingIPABuilder = true
-                                    } label: {
-                                        Label("Package built IPA Container", systemImage: "shippingbox.fill")
-                                            .font(.caption.bold())
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
+                            buildStatusHeader
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Card 2: Build Configurations (Adaptive Desktop Layout)
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Build Specifications", systemImage: "gearshape.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
+                            }
+
+                            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
+                                GridRow {
+                                    Text("Active Build Scheme")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text(buildManager.selectedScheme ?? "Automatic")
+                                        .font(.caption.bold())
+
+                                    Text("Build SDK Destination")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text(buildManager.selectedDestination)
+                                        .font(.caption.bold())
                                 }
 
-                                Divider()
+                                GridRow {
+                                    Text("Optimization Level")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text("\(buildManager.selectedConfiguration)")
+                                        .font(.caption.bold())
 
-                                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-                                    GridRow {
-                                        Text("Active Build Scheme")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                        Text(buildManager.selectedScheme ?? "Automatic")
-                                            .font(.caption.bold())
-
-                                        Text("Build SDK Destination")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                        Text(buildManager.selectedDestination)
-                                            .font(.caption.bold())
-                                    }
-
-                                    GridRow {
-                                        Text("Optimization Level")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                        Text("\(buildManager.selectedConfiguration)")
-                                            .font(.caption.bold())
-
-                                        Text("Toolchain Location")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                        Text(buildManager.getXcodeBuildPath())
-                                            .font(.system(.caption, design: .monospaced))
-                                            .lineLimit(1)
-                                    }
+                                    Text("Toolchain Location")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text(buildManager.getXcodeBuildPath())
+                                        .font(.system(.caption, design: .monospaced))
+                                        .lineLimit(1)
                                 }
                             }
-                            .padding(10)
                         }
-                        .groupBoxStyle(ModernGroupBoxStyle())
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                        // Card 3: Collapsible Errors Group
-                        if !errorLogs.isEmpty {
-                            GroupBox {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Button {
-                                        withAnimation { showErrorsGroup.toggle() }
-                                    } label: {
-                                        HStack {
-                                            Label("Errors Detected (\(errorLogs.count))", systemImage: "exclamationmark.octagon.fill")
-                                                .font(.subheadline.bold())
-                                                .foregroundColor(.red)
-                                            Spacer()
-                                            Image(systemName: showErrorsGroup ? "chevron.up" : "chevron.down")
-                                                .foregroundStyle(.red)
-                                        }
-                                    }
-                                    .buttonStyle(.plain)
-
-                                    if showErrorsGroup {
-                                        Divider()
-                                        VStack(alignment: .leading, spacing: 6) {
-                                            ForEach(errorLogs) { log in
-                                                HStack(alignment: .top, spacing: 8) {
-                                                    Text(log.timestamp.formatted(date: .omitted, time: .standard))
-                                                        .font(.system(.caption2, design: .monospaced))
-                                                        .foregroundColor(.secondary)
-
-                                                    Text(log.message)
-                                                        .font(.system(.caption, design: .monospaced))
-                                                        .foregroundColor(.red)
-                                                        .textSelection(.enabled)
-                                                }
-                                                .padding(4)
-                                                .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
-                                            }
-                                        }
-                                    }
-                                }
-                                .padding(10)
+                    // Card 3: Action Buttons Box
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Actions", systemImage: "bolt.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.green)
+                                Spacer()
                             }
-                            .groupBoxStyle(ModernGroupBoxStyle())
-                        }
 
-                        // Card 4: Collapsible Warnings Group
-                        if !warningLogs.isEmpty {
-                            GroupBox {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Button {
-                                        withAnimation { showWarningsGroup.toggle() }
-                                    } label: {
-                                        HStack {
-                                            Label("Warnings Detected (\(warningLogs.count))", systemImage: "exclamationmark.triangle.fill")
-                                                .font(.subheadline.bold())
-                                                .foregroundColor(.yellow)
-                                            Spacer()
-                                            Image(systemName: showWarningsGroup ? "chevron.up" : "chevron.down")
-                                                .foregroundStyle(.yellow)
-                                        }
-                                    }
-                                    .buttonStyle(.plain)
-
-                                    if showWarningsGroup {
-                                        Divider()
-                                        VStack(alignment: .leading, spacing: 6) {
-                                            ForEach(warningLogs) { log in
-                                                HStack(alignment: .top, spacing: 8) {
-                                                    Text(log.timestamp.formatted(date: .omitted, time: .standard))
-                                                        .font(.system(.caption2, design: .monospaced))
-                                                        .foregroundColor(.secondary)
-
-                                                    Text(log.message)
-                                                        .font(.system(.caption, design: .monospaced))
-                                                        .foregroundColor(.yellow)
-                                                        .textSelection(.enabled)
-                                                }
-                                                .padding(4)
-                                                .background(Color.yellow.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
-                                            }
-                                        }
-                                    }
+                            HStack(spacing: 12) {
+                                Button(action: {
+                                    let text = buildManager.buildLogs.joined(separator: "\n")
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(text, forType: .string)
+                                }) {
+                                    Label("Copy Logs", systemImage: "doc.on.doc")
+                                        .frame(maxWidth: .infinity)
                                 }
-                                .padding(10)
-                            }
-                            .groupBoxStyle(ModernGroupBoxStyle())
-                        }
+                                .buttonStyle(.bordered)
+                                .controlSize(.large)
 
-                        // Card 5: Full Console Outputs Group
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 8) {
                                 Button {
-                                    withAnimation { showFullConsole.toggle() }
+                                    showingIPABuilder = true
+                                } label: {
+                                    Label("Package IPA Bundle...", systemImage: "shippingbox.fill")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.purple)
+                                .controlSize(.large)
+
+                                if buildManager.isBuilding {
+                                    Button("Cancel Build") {
+                                        buildManager.cancelBuild()
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.red)
+                                    .controlSize(.large)
+                                }
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Card 4: Collapsible Errors Group
+                    if !errorLogs.isEmpty {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                Button {
+                                    withAnimation { showErrorsGroup.toggle() }
                                 } label: {
                                     HStack {
-                                        Label("Console Outputs Log Trace", systemImage: "terminal.fill")
-                                            .font(.subheadline.bold())
-                                            .foregroundColor(.blue)
+                                        Label("Errors Detected (\(errorLogs.count))", systemImage: "exclamationmark.octagon.fill")
+                                            .font(.headline)
+                                            .foregroundColor(.red)
                                         Spacer()
-                                        Image(systemName: showFullConsole ? "chevron.up" : "chevron.down")
-                                            .foregroundStyle(.blue)
+                                        Image(systemName: showErrorsGroup ? "chevron.up" : "chevron.down")
+                                            .foregroundStyle(.red)
                                     }
                                 }
                                 .buttonStyle(.plain)
 
-                                if showFullConsole {
+                                if showErrorsGroup {
                                     Divider()
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        ForEach(errorLogs) { log in
+                                            HStack(alignment: .top, spacing: 8) {
+                                                Text(log.timestamp.formatted(date: .omitted, time: .standard))
+                                                    .font(.system(.caption2, design: .monospaced))
+                                                    .foregroundColor(.secondary)
 
-                                    ScrollViewReader { proxy in
-                                        ScrollView {
-                                            LazyVStack(alignment: .leading, spacing: 3) {
-                                                if filteredStructuredLogs.isEmpty {
-                                                    VStack(spacing: 10) {
-                                                        Spacer()
-                                                        Image(systemName: "doc.text.magnifyingglass")
-                                                            .font(.system(size: 24))
-                                                            .foregroundStyle(.secondary)
-                                                        Text("No matching build logs")
-                                                            .font(.subheadline.bold())
-                                                            .foregroundStyle(.secondary)
-                                                        Spacer()
-                                                    }
-                                                    .frame(maxWidth: .infinity, minHeight: 180)
-                                                } else {
-                                                    ForEach(Array(filteredStructuredLogs.enumerated()), id: \.offset) { index, log in
-                                                        HStack(alignment: .top, spacing: 6) {
-                                                            Text(log.timestamp.formatted(date: .omitted, time: .standard))
-                                                                .font(.system(size: 9, design: .monospaced))
-                                                                .foregroundColor(.secondary.opacity(0.6))
-
-                                                            // Severity indicator dot
-                                                            Circle()
-                                                                .fill(log.severity.color)
-                                                                .frame(width: 5, height: 5)
-                                                                .padding(.top, 5)
-
-                                                            Text(log.message)
-                                                                .font(.system(size: 10, design: .monospaced))
-                                                                .foregroundStyle(log.severity.color)
-                                                                .textSelection(.enabled)
-                                                        }
-                                                        .id(index)
-                                                    }
-                                                }
+                                                Text(log.message)
+                                                    .font(.system(.caption, design: .monospaced))
+                                                    .foregroundColor(.red)
+                                                    .textSelection(.enabled)
+                                                    .fixedSize(horizontal: false, vertical: true)
                                             }
-                                            .padding(8)
-                                        }
-                                        .frame(height: 320)
-                                        .background(Color.black.opacity(0.85))
-                                        .cornerRadius(6)
-                                        .onChange(of: filteredStructuredLogs.count) { _, newCount in
-                                            if autoScrollToBottom && newCount > 0 {
-                                                withAnimation {
-                                                    proxy.scrollTo(newCount - 1, anchor: .bottom)
-                                                }
-                                            }
+                                            .padding(6)
+                                            .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
                                         }
                                     }
                                 }
                             }
-                            .padding(10)
+                            .padding()
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
                     }
-                    .padding(16)
+
+                    // Card 5: Collapsible Warnings Group
+                    if !warningLogs.isEmpty {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                Button {
+                                    withAnimation { showWarningsGroup.toggle() }
+                                } label: {
+                                    HStack {
+                                        Label("Warnings Detected (\(warningLogs.count))", systemImage: "exclamationmark.triangle.fill")
+                                            .font(.headline)
+                                            .foregroundColor(.yellow)
+                                        Spacer()
+                                        Image(systemName: showWarningsGroup ? "chevron.up" : "chevron.down")
+                                            .foregroundStyle(.yellow)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+
+                                if showWarningsGroup {
+                                    Divider()
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        ForEach(warningLogs) { log in
+                                            HStack(alignment: .top, spacing: 8) {
+                                                Text(log.timestamp.formatted(date: .omitted, time: .standard))
+                                                    .font(.system(.caption2, design: .monospaced))
+                                                    .foregroundColor(.secondary)
+
+                                                Text(log.message)
+                                                    .font(.system(.caption, design: .monospaced))
+                                                    .foregroundColor(.yellow)
+                                                    .textSelection(.enabled)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                            }
+                                            .padding(6)
+                                            .background(Color.yellow.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                                        }
+                                    }
+                                }
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+                    }
+
+                    // Card 6: Console Outputs Group
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Console Outputs Log Trace", systemImage: "terminal.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+
+                                Toggle("Auto-scroll", isOn: $autoScrollToBottom)
+                                    .toggleStyle(.checkbox)
+                                    .controlSize(.small)
+                            }
+
+                            // Dynamic Search and Filter Bar nested in GroupBox content
+                            HStack(spacing: 12) {
+                                HStack {
+                                    Image(systemName: "magnifyingglass")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    TextField("Search logs...", text: $searchLogQuery)
+                                        .textFieldStyle(.plain)
+                                        .font(.caption)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                                .frame(maxWidth: .infinity)
+
+                                Picker("", selection: $filterMode) {
+                                    ForEach(LogFilterMode.allCases) { mode in
+                                        Text(mode.rawValue).tag(mode)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+                                .controlSize(.small)
+                                .frame(width: 260)
+                            }
+
+                            Divider()
+
+                            ScrollViewReader { proxy in
+                                ScrollView {
+                                    LazyVStack(alignment: .leading, spacing: 4) {
+                                        if filteredStructuredLogs.isEmpty {
+                                            VStack(spacing: 10) {
+                                                Spacer()
+                                                Image(systemName: "doc.text.magnifyingglass")
+                                                    .font(.system(size: 24))
+                                                    .foregroundStyle(.secondary)
+                                                Text("No matching build logs")
+                                                    .font(.subheadline.bold())
+                                                    .foregroundStyle(.secondary)
+                                                Spacer()
+                                            }
+                                            .frame(maxWidth: .infinity, minHeight: 250)
+                                        } else {
+                                            ForEach(Array(filteredStructuredLogs.enumerated()), id: \.offset) { index, log in
+                                                HStack(alignment: .top, spacing: 6) {
+                                                    Text(log.timestamp.formatted(date: .omitted, time: .standard))
+                                                        .font(.system(size: 9, design: .monospaced))
+                                                        .foregroundColor(.secondary.opacity(0.6))
+
+                                                    // Severity indicator dot
+                                                    Circle()
+                                                        .fill(log.severity.color)
+                                                        .frame(width: 5, height: 5)
+                                                        .padding(.top, 5)
+
+                                                    Text(log.message)
+                                                        .font(.system(size: 10, design: .monospaced))
+                                                        .foregroundStyle(log.severity.color)
+                                                        .textSelection(.enabled)
+                                                        .fixedSize(horizontal: false, vertical: true)
+                                                }
+                                                .id(index)
+                                            }
+                                        }
+                                    }
+                                    .padding()
+                                }
+                                .frame(height: 350)
+                                .background(Color.black.opacity(0.3))
+                                .cornerRadius(12)
+                                .onChange(of: filteredStructuredLogs.count) { _, newCount in
+                                    if autoScrollToBottom && newCount > 0 {
+                                        withAnimation {
+                                            proxy.scrollTo(newCount - 1, anchor: .bottom)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+                }
+                .padding(24)
+            }
+            .navigationTitle("Xcode Build Center")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
                 }
             }
-            .background(Color(NSColor.windowBackgroundColor))
-            .navigationTitle("Xcode Build Center")
             .sheet(isPresented: $showingIPABuilder) {
                 NavigationStack {
                     IPABuildView()
@@ -359,72 +437,6 @@ struct XcodeBuildLogView: View {
             }
         }
         .frame(minWidth: 780, idealWidth: 880, maxWidth: .infinity, minHeight: 520, idealHeight: 650, maxHeight: .infinity)
-    }
-
-    private var stickyToolbarView: some View {
-        HStack(spacing: 12) {
-            // Search field (compact)
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                TextField("Search logs...", text: $searchLogQuery)
-                    .textFieldStyle(.plain)
-                    .font(.caption)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-            .frame(width: 180)
-
-            // Segmented filter (compact)
-            Picker("", selection: $filterMode) {
-                ForEach(LogFilterMode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .controlSize(.small)
-            .frame(width: 260)
-
-            Toggle("Auto-scroll", isOn: $autoScrollToBottom)
-                .font(.caption)
-                .toggleStyle(.checkbox)
-                .controlSize(.small)
-
-            Spacer()
-
-            // Action Buttons
-            HStack(spacing: 8) {
-                Button(action: {
-                    let text = buildManager.buildLogs.joined(separator: "\n")
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(text, forType: .string)
-                }) {
-                    Label("Copy Logs", systemImage: "doc.on.doc")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-
-                if buildManager.isBuilding {
-                    Button("Cancel Build") {
-                        buildManager.cancelBuild()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.red)
-                    .controlSize(.small)
-                }
-
-                Button("Close") {
-                    dismiss()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(.ultraThinMaterial)
     }
 
     private var buildStatusHeader: some View {
