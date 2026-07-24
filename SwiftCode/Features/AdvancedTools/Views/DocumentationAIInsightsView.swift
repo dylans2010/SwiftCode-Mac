@@ -109,9 +109,7 @@ struct DocumentationAIInsightsView: View {
                     .background(Color.primary.opacity(0.05))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
             } else {
-                Text(content)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                MarkdownBlockListView(blocks: MarkdownParser.shared.parse(content))
             }
         }
     }

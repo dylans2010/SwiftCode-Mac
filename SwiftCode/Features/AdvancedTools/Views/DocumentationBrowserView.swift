@@ -135,8 +135,58 @@ struct NativeDocumentationBrowserWorkspaceView: View {
 
     // Layout lists
     let categories = ["All", "Classes", "Structs", "Protocols", "Functions"]
-    let frameworks = ["All", "SwiftUI", "Swift", "Foundation", "AppKit", "UIKit"]
-    let platforms = ["All", "macOS", "iOS", "watchOS", "tvOS"]
+    let frameworks = ["All", "SwiftUI", "Swift", "Foundation", "AppKit", "UIKit", "RealityKit", "WatchKit", "FoundationModels"]
+    let platforms = ["All", "macOS", "iOS", "watchOS", "tvOS", "visionOS"]
+
+    private func symbolForFramework(_ fw: String) -> String {
+        switch fw {
+        case "SwiftUI": return "square.stack.3d.down.right.fill"
+        case "Swift": return "swift"
+        case "Foundation": return "cube.box.fill"
+        case "AppKit": return "macwindow"
+        case "UIKit": return "iphone.smartcard"
+        case "RealityKit": return "cube.transparent.fill"
+        case "WatchKit": return "applewatch.watchface"
+        case "FoundationModels": return "brain.head.profile"
+        default: return "square.stack.3d.down.right"
+        }
+    }
+
+    private func colorForFramework(_ fw: String) -> Color {
+        switch fw {
+        case "SwiftUI": return .purple
+        case "Swift": return .orange
+        case "Foundation": return .blue
+        case "AppKit": return .cyan
+        case "UIKit": return .green
+        case "RealityKit": return .teal
+        case "WatchKit": return .red
+        case "FoundationModels": return .indigo
+        default: return .secondary
+        }
+    }
+
+    private func symbolForPlatform(_ plt: String) -> String {
+        switch plt {
+        case "macOS": return "laptopcomputer"
+        case "iOS": return "iphone"
+        case "watchOS": return "applewatch"
+        case "tvOS": return "tv"
+        case "visionOS": return "eye.goggles"
+        default: return "opticaldisc"
+        }
+    }
+
+    private func colorForPlatform(_ plt: String) -> Color {
+        switch plt {
+        case "macOS": return .blue
+        case "iOS": return .green
+        case "watchOS": return .red
+        case "tvOS": return .orange
+        case "visionOS": return .purple
+        default: return .secondary
+        }
+    }
 
     // Statistics
     private var docStatistics: String {
@@ -218,8 +268,8 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                         ForEach(frameworks.filter { $0 != "All" }, id: \.self) { fw in
                             Button(action: { selectedFramework = fw; selectedCategory = "All" }) {
                                 HStack {
-                                    Label(fw, systemImage: "square.stack.3d.down.right.fill")
-                                        .foregroundStyle(.purple)
+                                    Label(fw, systemImage: symbolForFramework(fw))
+                                        .foregroundStyle(colorForFramework(fw))
                                     Spacer()
                                     let count = symbols.filter { $0.framework == fw }.count
                                     Text("\(count)")
@@ -237,8 +287,8 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                     Section {
                         ForEach(platforms.filter { $0 != "All" }, id: \.self) { plt in
                             Button(action: { selectedPlatform = plt; selectedCategory = "All" }) {
-                                Label(plt, systemImage: "laptopcomputer")
-                                    .foregroundStyle(.green)
+                                Label(plt, systemImage: symbolForPlatform(plt))
+                                    .foregroundStyle(colorForPlatform(plt))
                             }
                             .buttonStyle(.plain)
                             .padding(.vertical, 2)
