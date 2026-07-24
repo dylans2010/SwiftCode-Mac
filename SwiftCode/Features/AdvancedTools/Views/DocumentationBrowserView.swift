@@ -74,31 +74,11 @@ public struct DocumentationBrowserView: View {
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "book.pages.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.orange)
-
-            Text("Apple Developer Documentation Browser")
-                .font(.title2.bold())
-
-            Text("The browser opens in a dedicated native macOS window with full multi-column split layout, search histories, bookmarks, and table of contents sidebars.")
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 400)
-
-            Button("Open Documentation Window") {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onAppear {
                 DocumentationBrowserWindowManager.shared.showWindow()
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.orange)
-            .controlSize(.large)
-        }
-        .padding(40)
-        .frame(width: 500, height: 400)
-        .onAppear {
-            DocumentationBrowserWindowManager.shared.showWindow()
-        }
     }
 }
 
@@ -142,48 +122,63 @@ struct NativeDocumentationBrowserWorkspaceView: View {
 
     // Statistics
     private var docStatistics: String {
-        "Index Count: \(symbols.count) | Favorites: \(favorites.count) | History: \(searchHistory.count)"
+        "Index Count: \(symbols.count) | Bookmarks: \(favorites.count) | History: \(searchHistory.count)"
     }
 
     var body: some View {
         HSplitView {
-            // Sidebar Navigation: Categories & Stats
+            // Sidebar Navigation: Categories & Stats with refined visual theme
             VStack(alignment: .leading, spacing: 0) {
                 List {
-                    Section("Overview") {
+                    Section {
                         Button(action: { selectedCategory = "All" }) {
-                            Label("All Documentation", systemImage: "book.fill")
+                            Label("All Documentation", systemImage: "book.pages.fill")
+                                .foregroundStyle(.orange)
                         }
                         .buttonStyle(.plain)
+                        .padding(.vertical, 4)
 
                         Button(action: { selectedCategory = "Favorites" }) {
                             Label("Bookmarks & Favorites", systemImage: "star.fill")
                                 .foregroundStyle(.yellow)
                         }
                         .buttonStyle(.plain)
+                        .padding(.vertical, 4)
 
                         Button(action: { selectedCategory = "Recent" }) {
                             Label("Recently Viewed", systemImage: "clock.fill")
+                                .foregroundStyle(.blue)
                         }
                         .buttonStyle(.plain)
+                        .padding(.vertical, 4)
+                    } header: {
+                        Text("Overview").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
                     }
 
-                    Section("Framework Browser") {
+                    Section {
                         ForEach(frameworks.filter { $0 != "All" }, id: \.self) { fw in
                             Button(action: { selectedFramework = fw; selectedCategory = "All" }) {
-                                Label(fw, systemImage: "square.stack.3d.down.right")
+                                Label(fw, systemImage: "square.stack.3d.down.right.fill")
+                                    .foregroundStyle(.purple)
                             }
                             .buttonStyle(.plain)
+                            .padding(.vertical, 2)
                         }
+                    } header: {
+                        Text("Framework Browser").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
                     }
 
-                    Section("Platform Availability") {
+                    Section {
                         ForEach(platforms.filter { $0 != "All" }, id: \.self) { plt in
                             Button(action: { selectedPlatform = plt; selectedCategory = "All" }) {
                                 Label(plt, systemImage: "laptopcomputer")
+                                    .foregroundStyle(.green)
                             }
                             .buttonStyle(.plain)
+                            .padding(.vertical, 2)
                         }
+                    } header: {
+                        Text("Platform Availability").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
                     }
                 }
                 .listStyle(.sidebar)
@@ -191,27 +186,28 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                 Divider()
 
                 // Statistics Bottom Bar
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("DOCUMENTATION STATISTICS")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("DOCUMENTATION METRICS")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
                     Text(docStatistics)
-                        .font(.system(size: 9, design: .monospaced))
+                        .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
-                .padding(12)
+                .padding(16)
                 .background(Color(NSColor.windowBackgroundColor))
             }
-            .frame(minWidth: 200, idealWidth: 240, maxWidth: 280)
+            .frame(minWidth: 220, idealWidth: 250, maxWidth: 300)
 
-            // Center List of symbols/topics (Smooth responsive search list)
+            // Center List of symbols/topics (Premium visual search list)
             VStack(spacing: 0) {
-                // Smooth search bar
-                HStack {
+                // Modern search bar with larger padding and rounded style
+                HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
                     TextField("Search symbols, APIs, packages...", text: $searchQuery)
                         .textFieldStyle(.plain)
+                        .font(.subheadline)
                         .onChange(of: searchQuery) { _, newValue in
                             triggerAsynchronousSearch(newValue)
                         }
@@ -219,8 +215,9 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                         ProgressView().controlSize(.small)
                     }
                 }
-                .padding(8)
-                .background(Color.secondary.opacity(0.08))
+                .padding(10)
+                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                .padding(12)
 
                 Divider()
 
@@ -230,29 +227,32 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                         .frame(maxHeight: .infinity)
                 } else {
                     List(filteredSymbols, selection: $selectedSymbol) { sym in
-                        HStack {
+                        HStack(spacing: 12) {
                             ZStack {
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(kindColor(sym.kind).opacity(0.12))
-                                    .frame(width: 18, height: 18)
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(kindColor(sym.kind).opacity(0.15))
+                                    .frame(width: 24, height: 24)
                                 Text(sym.kind.prefix(1).uppercased())
-                                    .font(.system(size: 10, weight: .bold))
+                                    .font(.system(size: 11, weight: .bold))
                                     .foregroundStyle(kindColor(sym.kind))
                             }
 
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(sym.name).bold()
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(sym.name)
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(.primary)
                                 Text("\(sym.framework) | \(sym.availability)")
-                                    .font(.system(size: 9))
+                                    .font(.system(size: 10))
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
                         }
+                        .padding(.vertical, 4)
                         .tag(sym)
                     }
                 }
             }
-            .frame(minWidth: 280, idealWidth: 320, maxWidth: 400)
+            .frame(minWidth: 300, idealWidth: 340, maxWidth: 420)
 
             // Right Pane: Rich Symbol Details / Workspace
             Group {
@@ -266,7 +266,7 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                     )
                 }
             }
-            .frame(minWidth: 450)
+            .frame(minWidth: 500)
         }
         .onAppear {
             loadMockDocumentationIndex()

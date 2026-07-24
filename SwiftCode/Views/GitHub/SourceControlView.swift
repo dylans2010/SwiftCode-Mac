@@ -515,7 +515,8 @@ func buildSourceControlSidebarNodes() -> [SourceControlSidebarNode] {
         SourceControlSidebarNode(title: "Actions", icon: "play.circle.fill", selection: .actions),
         SourceControlSidebarNode(title: "Discussions", icon: "bubble.left.and.bubble.right.fill", selection: .discussions),
         SourceControlSidebarNode(title: "Notifications", icon: "bell.fill", selection: .notifications),
-        SourceControlSidebarNode(title: "GitHub Search", icon: "magnifyingglass", selection: .githubCodeSearch)
+        SourceControlSidebarNode(title: "GitHub Search", icon: "magnifyingglass", selection: .githubCodeSearch),
+        SourceControlSidebarNode(title: "Repository Settings", icon: "gearshape.fill", selection: .repositorySettings)
     ]
     nodes.append(github)
 
@@ -691,32 +692,13 @@ public struct SourceControlView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "arrow.triangle.branch")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.accentColor)
-            Text("Source Control Workspace")
-                .font(.title2.bold())
-            Text("The workspace opens in a dedicated native macOS window with full multi-column split layout and Finder-style sidebar.")
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 400)
-
-            Button("Open Workspace Window") {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onAppear {
                 if let project = sessionStore.activeProject {
                     SourceControlWindowManager.shared.showWindow(for: project, gitViewModel: gitViewModel)
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-        }
-        .padding(40)
-        .frame(width: 500, height: 400)
-        .onAppear {
-            if let project = sessionStore.activeProject {
-                SourceControlWindowManager.shared.showWindow(for: project, gitViewModel: gitViewModel)
-            }
-        }
     }
 }
 
