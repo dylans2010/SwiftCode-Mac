@@ -817,52 +817,52 @@ struct SourceControlMainWrapper: View {
             Button("OK") {}
         } message: { msg in Text(msg) }
     }
+}
+
+// MARK: - Reconstructed SourceControlView SwiftUI Fallback (Shorthand Sheet Fallback)
+@MainActor
+public struct SourceControlView: View {
+    var gitViewModel: GitViewModel
+    @Environment(ProjectSessionStore.self) private var sessionStore
+    @Environment(\.dismiss) private var dismiss
     
-    // MARK: - Reconstructed SourceControlView SwiftUI Fallback (Shorthand Sheet Fallback)
-    @MainActor
-    public struct SourceControlView: View {
-        var gitViewModel: GitViewModel
-        @Environment(ProjectSessionStore.self) private var sessionStore
-        @Environment(\.dismiss) private var dismiss
-        
-        public init(gitViewModel: GitViewModel) {
-            self.gitViewModel = gitViewModel
-        }
-        
-        public var body: some View {
-            Color.clear
-                .frame(width: 0, height: 0)
-                .onAppear {
-                    if let project = sessionStore.activeProject {
-                        SourceControlWindowManager.shared.showWindow(for: project, gitViewModel: gitViewModel)
-                    }
-                    dismiss()
-                }
-        }
+    public init(gitViewModel: GitViewModel) {
+        self.gitViewModel = gitViewModel
     }
     
-    // ====================================================================
-    // UNIFIED DIFF VIEW
-    // ====================================================================
-    struct UnifiedDiffView: View {
-        var gitViewModel: GitViewModel
-        @State private var hunks: [GitDiffHunk] = []
-        @State private var isLoading = false
-        
-        var body: some View {
-            VStack {
-                if isLoading {
-                    ProgressView("Loading unified diff...")
-                } else {
-                    GitDiffView(hunks: hunks)
-                }
-            }
+    public var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
             .onAppear {
-                isLoading = true
-                Task {
-                    hunks = await gitViewModel.getDiff()
-                    isLoading = false
+                if let project = sessionStore.activeProject {
+                    SourceControlWindowManager.shared.showWindow(for: project, gitViewModel: gitViewModel)
                 }
+                dismiss()
+            }
+    }
+}
+
+// ====================================================================
+// UNIFIED DIFF VIEW
+// ====================================================================
+struct UnifiedDiffView: View {
+    var gitViewModel: GitViewModel
+    @State private var hunks: [GitDiffHunk] = []
+    @State private var isLoading = false
+
+    var body: some View {
+        VStack {
+            if isLoading {
+                ProgressView("Loading unified diff...")
+            } else {
+                GitDiffView(hunks: hunks)
+            }
+        }
+        .onAppear {
+            isLoading = true
+            Task {
+                hunks = await gitViewModel.getDiff()
+                isLoading = false
             }
         }
     }
