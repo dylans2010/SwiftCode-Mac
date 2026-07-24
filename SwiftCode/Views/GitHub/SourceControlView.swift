@@ -111,6 +111,29 @@ extension SourceControlWindowController {
     }
 }
 
+// MARK: - Compatibility shim for GitFileStatus conflict detection
+private extension GitFileStatus {
+    // Provides a uniform way to check if a file is in a conflicted state,
+    // accommodating different underlying models without changing their definitions.
+    var isConflicted: Bool {
+        // Common boolean flags used by various models
+        if let value = (self as AnyObject).value(forKey: "isConflicted") as? Bool { return value }
+        if let value = (self as AnyObject).value(forKey: "isUnmerged") as? Bool { return value }
+        if let value = (self as AnyObject).value(forKey: "hasConflicts") as? Bool { return value }
+
+        // Some models expose an enum `status` or `state` that can be string-described
+        if let status = (self as AnyObject).value(forKey: "status") {
+            let s = String(describing: status).lowercased()
+            if s.contains("conflict") || s.contains("unmerged") { return true }
+        }
+        if let state = (self as AnyObject).value(forKey: "state") {
+            let s = String(describing: state).lowercased()
+            if s.contains("conflict") || s.contains("unmerged") { return true }
+        }
+
+        return false
+    }
+}
 // ====================================================================
 // CONFLICT RESOLVER WORKSPACE CONTAINER
 // ====================================================================
@@ -820,3 +843,4 @@ struct UnifiedDiffView: View {
         }
     }
 }
+
