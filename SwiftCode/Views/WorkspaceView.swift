@@ -334,7 +334,6 @@ struct WorkspaceView: View {
 
                 case .ipaBuild:
                     IPABuildView()
-                        .frame(minWidth: 800, minHeight: 600)
 
                 default:
                     ContentUnavailableView {

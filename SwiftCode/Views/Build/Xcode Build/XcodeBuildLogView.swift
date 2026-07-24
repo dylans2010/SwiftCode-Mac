@@ -425,18 +425,19 @@ struct XcodeBuildLogView: View {
                 .padding(24)
             }
             .navigationTitle("Xcode Build Center")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
             .sheet(isPresented: $showingIPABuilder) {
-                NavigationStack {
-                    IPABuildView()
+                AdaptiveSheet {
+                    NavigationStack {
+                        IPABuildView()
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showingIPABuilder = false }
+                        }
+                    }
                 }
             }
         }
-        .frame(minWidth: 780, idealWidth: 880, maxWidth: .infinity, minHeight: 520, idealHeight: 650, maxHeight: .infinity)
     }
 
     private var buildStatusHeader: some View {
