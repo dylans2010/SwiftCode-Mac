@@ -50,6 +50,11 @@ struct XcodeBuildLogView: View {
     // Switch sheets
     @State private var showingIPABuilder = false
 
+    // SDK Search and detail sheets
+    @State private var platformSearchText = ""
+    @State private var showPlatformPickerSheet = false
+    @State private var showSDKErrorDetailSheet = false
+
     @Environment(\.dismiss) private var dismiss
 
     private var buildManager: XcodeBuildManager {
@@ -147,78 +152,104 @@ struct XcodeBuildLogView: View {
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Card 2: Build Configurations (Adaptive Desktop Layout)
+                    // Card 2: Build Specifications (Fully Dynamic & Modernized Layout)
                     GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 18) {
                             HStack {
                                 Label("Build Specifications", systemImage: "gearshape.fill")
                                     .font(.headline)
                                     .foregroundColor(.orange)
                                 Spacer()
+
+                                // Dynamic Sync status/Trigger
+                                sdkDetectionStatusView
                             }
 
-                            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
-                                GridRow {
-                                    Text("Active Build Scheme")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Text(buildManager.selectedScheme ?? "Automatic")
-                                        .font(.caption.bold())
+                            Divider()
 
-                                    Text("Build SDK Destination")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Text(buildManager.selectedDestination)
-                                        .font(.caption.bold())
-                                }
+                            if buildManager.sdkDetectionState == .failure {
+                                errorStateSpecificationView
+                            } else {
+                                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 16) {
+                                    GridRow {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Label("Active Build Scheme", systemImage: "scheme")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                            Text(buildManager.selectedScheme ?? "Automatic")
+                                                .font(.body.bold())
+                                        }
 
-                                GridRow {
-                                    Text("Optimization Level")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Text("\(buildManager.selectedConfiguration)")
-                                        .font(.caption.bold())
-
-                                    Text("Toolchain Location")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Text(buildManager.getXcodeBuildPath())
-                                        .font(.system(.caption, design: .monospaced))
-                                        .lineLimit(1)
-                                }
-
-                                GridRow {
-                                    Text("Target SDK Type")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Picker("", selection: $buildManager.selectedSDKType) {
-                                        ForEach(buildManager.availableSDKTypes, id: \.self) { sdk in
-                                            Text(sdk).tag(sdk)
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Label("Build SDK Destination", systemImage: "target")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                            Text(buildManager.selectedDestination)
+                                                .font(.body.bold())
                                         }
                                     }
-                                    .pickerStyle(.menu)
-                                    .labelsHidden()
-                                    .controlSize(.small)
 
-                                    Text("Target SDK Version")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    HStack(spacing: 8) {
-                                        Picker("", selection: $buildManager.selectedSDKVersion) {
-                                            ForEach(buildManager.availableSDKVersions, id: \.self) { version in
-                                                Text(version).tag(version)
-                                            }
+                                    GridRow {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Label("Optimization Level", systemImage: "speedometer")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                            Text("\(buildManager.selectedConfiguration)")
+                                                .font(.body.bold())
                                         }
-                                        .pickerStyle(.menu)
-                                        .labelsHidden()
-                                        .controlSize(.small)
-                                        .frame(width: 100)
 
-                                        TextField("Custom version", text: $buildManager.selectedSDKVersion)
-                                            .textFieldStyle(.roundedBorder)
-                                            .controlSize(.small)
-                                            .frame(width: 80)
-                                            .disabled(buildManager.selectedSDKVersion == "Default")
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Label("Active Developer Xcode Path", systemImage: "folder.fill")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                            Text(buildManager.activeXcodePath.isEmpty ? "Not Detected" : buildManager.activeXcodePath)
+                                                .font(.system(.body, design: .monospaced))
+                                                .lineLimit(1)
+                                                .help(buildManager.activeXcodePath)
+                                        }
+                                    }
+
+                                    GridRow {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Label("Target SDK Platform", systemImage: "apple.logo")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+
+                                            Button {
+                                                platformSearchText = ""
+                                                showPlatformPickerSheet = true
+                                            } label: {
+                                                HStack {
+                                                    Text(buildManager.selectedSDKType)
+                                                        .font(.body.bold())
+                                                    Spacer()
+                                                    Image(systemName: "chevron.up.chevron.down")
+                                                        .font(.caption)
+                                                        .foregroundStyle(.secondary)
+                                                }
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                                            }
+                                            .buttonStyle(.plain)
+                                            .frame(maxWidth: 240)
+                                        }
+
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Label("Target SDK Version", systemImage: "number")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+
+                                            Picker("", selection: $buildManager.selectedSDKVersion) {
+                                                ForEach(buildManager.availableSDKVersions, id: \.self) { version in
+                                                    Text(version).tag(version)
+                                                }
+                                            }
+                                            .pickerStyle(.menu)
+                                            .labelsHidden()
+                                            .controlSize(.regular)
+                                            .frame(maxWidth: 240)
+                                        }
                                     }
                                 }
                             }
@@ -375,7 +406,6 @@ struct XcodeBuildLogView: View {
                                     .controlSize(.small)
                             }
 
-                            // Dynamic Search and Filter Bar nested in GroupBox content
                             HStack(spacing: 12) {
                                 HStack {
                                     Image(systemName: "magnifyingglass")
@@ -424,7 +454,6 @@ struct XcodeBuildLogView: View {
                                                         .font(.system(size: 9, design: .monospaced))
                                                         .foregroundColor(.secondary.opacity(0.6))
 
-                                                    // Severity indicator dot
                                                     Circle()
                                                         .fill(log.severity.color)
                                                         .frame(width: 5, height: 5)
@@ -461,6 +490,12 @@ struct XcodeBuildLogView: View {
                 .padding(24)
             }
             .navigationTitle("Xcode Build Center")
+            .onAppear {
+                // Asynchronously detect available SDKs on load to pre-populate selection
+                Task {
+                    await buildManager.detectAvailableSDKs()
+                }
+            }
             .sheet(isPresented: $showingIPABuilder) {
                 AdaptiveSheet {
                     NavigationStack {
@@ -473,12 +508,128 @@ struct XcodeBuildLogView: View {
                     }
                 }
             }
+            // Dynamic platform picker sheet with real-time searching
+            .sheet(isPresented: $showPlatformPickerSheet) {
+                NavigationStack {
+                    VStack(spacing: 0) {
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundColor(.secondary)
+                            TextField("Search platform...", text: $platformSearchText)
+                                .textFieldStyle(.plain)
+                        }
+                        .padding()
+                        .background(Color.secondary.opacity(0.08))
+
+                        List {
+                            let filtered = buildManager.availableSDKTypes.filter {
+                                platformSearchText.isEmpty || $0.localizedCaseInsensitiveContains(platformSearchText)
+                            }
+
+                            if filtered.isEmpty {
+                                Text("No platforms match your search")
+                                    .foregroundStyle(.secondary)
+                                    .italic()
+                                    .padding()
+                            } else {
+                                ForEach(filtered, id: \.self) { platform in
+                                    Button {
+                                        buildManager.selectedSDKType = platform
+                                        showPlatformPickerSheet = false
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: platform == "Default" ? "command" : "apple.logo")
+                                                .foregroundColor(platform == buildManager.selectedSDKType ? .accentColor : .secondary)
+                                            Text(platform)
+                                                .font(.body)
+                                            Spacer()
+                                            if platform == buildManager.selectedSDKType {
+                                                Image(systemName: "checkmark")
+                                                    .foregroundColor(.accentColor)
+                                            }
+                                        }
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+                    .navigationTitle("Select Target SDK Platform")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") {
+                                showPlatformPickerSheet = false
+                            }
+                        }
+                    }
+                }
+                .frame(width: 350, height: 400)
+            }
+            // SDK detection error detailed report
+            .sheet(isPresented: $showSDKErrorDetailSheet) {
+                NavigationStack {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Label("SDK Detection Diagnostic Report", systemImage: "info.circle.fill")
+                                .font(.headline)
+                                .foregroundColor(.red)
+
+                            if let err = buildManager.sdkDetectionError {
+                                Text("Error:")
+                                    .font(.subheadline.bold())
+                                Text(err)
+                                    .foregroundStyle(.red)
+                                    .padding()
+                                    .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                            }
+
+                            if let code = buildManager.sdkDetectionExitCode {
+                                Text("Process Exit Code:")
+                                    .font(.subheadline.bold())
+                                Text("\(code)")
+                                    .font(.system(.body, design: .monospaced))
+                            }
+
+                            if !buildManager.sdkDetectionStdout.isEmpty {
+                                Text("Standard Output:")
+                                    .font(.subheadline.bold())
+                                Text(buildManager.sdkDetectionStdout)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .padding()
+                                    .background(Color.black.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+                                    .textSelection(.enabled)
+                            }
+
+                            if !buildManager.sdkDetectionStderr.isEmpty {
+                                Text("Standard Error:")
+                                    .font(.subheadline.bold())
+                                Text(buildManager.sdkDetectionStderr)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundColor(.red)
+                                    .padding()
+                                    .background(Color.black.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+                                    .textSelection(.enabled)
+                            }
+                        }
+                        .padding()
+                    }
+                    .navigationTitle("Diagnostic Log")
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Dismiss") {
+                                showSDKErrorDetailSheet = false
+                            }
+                        }
+                    }
+                }
+                .frame(width: 600, height: 450)
+            }
         }
     }
 
     private var buildStatusHeader: some View {
         HStack(spacing: 16) {
-            // Status Badge (compact)
             HStack(spacing: 8) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
@@ -507,7 +658,6 @@ struct XcodeBuildLogView: View {
 
             Divider().frame(height: 24)
 
-            // Duration Metric
             VStack(alignment: .leading, spacing: 2) {
                 Text("DURATION")
                     .font(.system(size: 8, weight: .bold))
@@ -519,7 +669,6 @@ struct XcodeBuildLogView: View {
 
             Divider().frame(height: 24)
 
-            // Error Metric
             VStack(alignment: .leading, spacing: 2) {
                 Text("ERRORS")
                     .font(.system(size: 8, weight: .bold))
@@ -532,7 +681,6 @@ struct XcodeBuildLogView: View {
 
             Divider().frame(height: 24)
 
-            // Warning Metric
             VStack(alignment: .leading, spacing: 2) {
                 Text("WARNINGS")
                     .font(.system(size: 8, weight: .bold))
@@ -543,6 +691,115 @@ struct XcodeBuildLogView: View {
             }
             .frame(width: 60, alignment: .leading)
         }
+    }
+
+    // Dynamic SDK detection header status component
+    private var sdkDetectionStatusView: some View {
+        HStack(spacing: 8) {
+            switch buildManager.sdkDetectionState {
+            case .idle:
+                Button {
+                    Task {
+                        await buildManager.detectAvailableSDKs(forceRefresh: true)
+                    }
+                } label: {
+                    Label("Check Available SDKs", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+            case .detecting:
+                ProgressView()
+                    .controlSize(.small)
+                Text("Detecting SDKs...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+            case .success:
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text("\(buildManager.detectedSDKs.count) SDKs Found")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Button {
+                    Task {
+                        await buildManager.detectAvailableSDKs(forceRefresh: true)
+                    }
+                } label: {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .help("Refresh Available SDKs")
+
+            case .failure:
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                    Text("Detection Failed")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
+                Button("Details") {
+                    showSDKErrorDetailSheet = true
+                }
+                .buttonStyle(.link)
+                .font(.caption)
+
+                Button {
+                    Task {
+                        await buildManager.detectAvailableSDKs(forceRefresh: true)
+                    }
+                } label: {
+                    Label("Retry", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+    }
+
+    // Detailed layout when detection completely fails
+    private var errorStateSpecificationView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.shield.fill")
+                .font(.system(size: 32))
+                .foregroundColor(.red)
+
+            Text("No Apple SDKs found or command failed")
+                .font(.headline)
+
+            Text("Please verify Xcode is installed correctly, or configure the correct path in Settings.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+
+            HStack(spacing: 12) {
+                Button("View Error Details") {
+                    showSDKErrorDetailSheet = true
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+
+                Button("Retry Verification") {
+                    Task {
+                        await buildManager.detectAvailableSDKs(forceRefresh: true)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color.red.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
     }
 
     private func statusIcon(_ status: XcodeBuildManager.BuildStatus) -> String {
