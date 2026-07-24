@@ -39,19 +39,36 @@ public final class XcodeBuildManager: Sendable {
     public var errorsCount = 0
 
     public var discoveredSchemes: [String] = []
-    public var selectedScheme: String? = nil
-    public var selectedConfiguration: String = "Debug"
-    public var selectedDestination: String = "generic/platform=iOS Simulator"
+    public var selectedScheme: String? = nil {
+        didSet {
+            UserDefaults.standard.set(selectedScheme, forKey: "com.swiftcode.build.selectedScheme")
+        }
+    }
+    public var selectedConfiguration: String = "Debug" {
+        didSet {
+            UserDefaults.standard.set(selectedConfiguration, forKey: "com.swiftcode.build.selectedConfiguration")
+        }
+    }
+    public var selectedDestination: String = "generic/platform=iOS Simulator" {
+        didSet {
+            UserDefaults.standard.set(selectedDestination, forKey: "com.swiftcode.build.selectedDestination")
+        }
+    }
 
     public var selectedSDKType: String = "Default" {
         didSet {
+            UserDefaults.standard.set(selectedSDKType, forKey: "com.swiftcode.build.selectedSDKType")
             // Automatically reset the selected version to "Default" when the platform changes
             if selectedSDKType != oldValue {
                 selectedSDKVersion = "Default"
             }
         }
     }
-    public var selectedSDKVersion: String = "Default"
+    public var selectedSDKVersion: String = "Default" {
+        didSet {
+            UserDefaults.standard.set(selectedSDKVersion, forKey: "com.swiftcode.build.selectedSDKVersion")
+        }
+    }
 
     public let availableConfigurations = ["Debug", "Release"]
     public let availableDestinations = [
@@ -128,7 +145,13 @@ public final class XcodeBuildManager: Sendable {
         case invalidProject = "Invalid Project"
     }
 
-    private init() {}
+    private init() {
+        self.selectedScheme = UserDefaults.standard.string(forKey: "com.swiftcode.build.selectedScheme")
+        self.selectedConfiguration = UserDefaults.standard.string(forKey: "com.swiftcode.build.selectedConfiguration") ?? "Debug"
+        self.selectedDestination = UserDefaults.standard.string(forKey: "com.swiftcode.build.selectedDestination") ?? "generic/platform=iOS Simulator"
+        self.selectedSDKType = UserDefaults.standard.string(forKey: "com.swiftcode.build.selectedSDKType") ?? "Default"
+        self.selectedSDKVersion = UserDefaults.standard.string(forKey: "com.swiftcode.build.selectedSDKVersion") ?? "Default"
+    }
 
     public func getXcodeBuildPath() -> String {
         UserDefaults.standard.string(forKey: "xcodebuild_executable_path") ?? "/usr/bin/xcodebuild"
