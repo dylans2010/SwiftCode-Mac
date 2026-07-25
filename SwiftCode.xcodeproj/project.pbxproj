@@ -7,6 +7,80 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F7711C84F731C879063762D9 /* ICloudCloudView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70784C290AA4AD23D3B617A /* ICloudCloudView.swift */; };
+		F780C72296A0BBA6C4332E9C /* BackupDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F754293464047AEC08AE1F1A /* BackupDetailsView.swift */; };
+		F742714B0FB1BBF057DAD60A /* CloudManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F484FB642AF344B687B2B5 /* CloudManagementView.swift */; };
+		F729C1066976B326A13DF18D /* SupabaseCloudView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F774D60B61B982EEA01E86DF /* SupabaseCloudView.swift */; };
+		F7605110F39C17B03FE1E7C5 /* BackupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70C151CF389AD20D2650770 /* BackupsView.swift */; };
+		F7DA97AC2B5205075D8C6B65 /* BackupManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F730C5E33CD38AA26E5E12B4 /* BackupManifest.swift */; };
+		F7971FC5CA6CE4CBA8542002 /* BackupMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = F738797AB448B569B06E45AE /* BackupMetadata.swift */; };
+		F709F991E06FA746DFB2C666 /* BackupCompression.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7B2544665A4424AD6F2D295 /* BackupCompression.swift */; };
+		F7B330A0DCAD0C64C4DC1D6E /* BackupIntegrity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70706887FFB7EE786F59076 /* BackupIntegrity.swift */; };
+		F7740726FC35A4C29DA6F6E9 /* BackupEncryption.swift in Sources */ = {isa = PBXBuildFile; fileRef = F790F1BAD663D2C9C446B700 /* BackupEncryption.swift */; };
+		F779684734B8858E98A24B17 /* BackupScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CCD4CDE883CFAEED3C9EA0 /* BackupScheduler.swift */; };
+		F798351847D298BF85178641 /* BackupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F799037B25DD8EC3DC94B8C2 /* BackupManager.swift */; };
+		F77B3E298256A3E586E368A5 /* BackupEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F71BCC9CF04360B67C168640 /* BackupEngine.swift */; };
+		F7340551E810949C85240424 /* CloudMigrationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F79C994F5DFD3B19EA98F4CE /* CloudMigrationManager.swift */; };
+		F72C231EA74FD34569A3E90A /* CloudDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7C18991EB07B617F3A63655 /* CloudDiagnostics.swift */; };
+		F70607A65F07EC388E94812E /* CloudSyncMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E836440C35BFCB34BFF335 /* CloudSyncMetadata.swift */; };
+		F748E8D1623E8FC1EF634AC3 /* SyncConflict.swift in Sources */ = {isa = PBXBuildFile; fileRef = F72FC40A164A118963ADA216 /* SyncConflict.swift */; };
+		F74C059CC3B3F68BD6E6D7BB /* CloudSessionInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F76B881332457D768F22F0BB /* CloudSessionInfo.swift */; };
+		F7EAE1CEF78CB473310A116D /* UploadQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CABBB18CF999A4C7F69DCA /* UploadQueue.swift */; };
+		F7956792CBEDE33B8BFCFB32 /* DownloadQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = F77F70303073B7C59B20021D /* DownloadQueue.swift */; };
+		F78A0FF4BA1B18D9C9B8A5E2 /* CloudSyncEngineImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7334E568A8C7484B31A5596 /* CloudSyncEngineImpl.swift */; };
+		F7B88BC630895F6DE3CDB273 /* SupabaseAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F79E2EFE4B9841031BAE088E /* SupabaseAuthService.swift */; };
+		F76B08460C206D18B9F28853 /* SupabaseCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7BF7E15B6DC9AC0D3472E0A /* SupabaseCloudProvider.swift */; };
+		F708731A0480725EF5A9367B /* SupabaseRealtimeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F79461C33C1B9A2E1C129C9F /* SupabaseRealtimeService.swift */; };
+		F7998A1AE003821B195B11F3 /* ICloudKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F744B5BBF4C7DC06C38717C5 /* ICloudKitService.swift */; };
+		F77CEE6F0803D216EB0D18B3 /* ICloudCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E52A9AD5FD9888BA163528 /* ICloudCloudProvider.swift */; };
+		F729BA91C1AA0DFB96B9AE08 /* CloudDiagnosticsCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F717B20C92290F8878EB1208 /* CloudDiagnosticsCollector.swift */; };
+		F739F9FBDBC679AFE90D716C /* CloudLoggerImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E359DBBD7F3FE89560A4D7 /* CloudLoggerImpl.swift */; };
+		F79B1EB4F331272CD6038609 /* CloudSyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F754CFD5E5DC3644BEDDA6B2 /* CloudSyncEngine.swift */; };
+		F76C608BA8656BC6B9386D24 /* CloudSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = F75D4D017C818B408C8B4442 /* CloudSession.swift */; };
+		F7A9344ACC4F73A01CD03CC3 /* CloudLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = F763965340EC90B48C0A09E4 /* CloudLogger.swift */; };
+		F7A996712CEEAA35FC83E9BA /* CloudMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7921B52AF32FE8F31C63365 /* CloudMigration.swift */; };
+		F7CF627AF2045CE6F95E0E4A /* ConflictResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = F71757292D6CE9899A0258CF /* ConflictResolver.swift */; };
+		F7A3E9713A4827A244B8FBF1 /* CloudStatistics.swift in Sources */ = {isa = PBXBuildFile; fileRef = F73471B1EF4B822DCBF27157 /* CloudStatistics.swift */; };
+		F768500D7EC79EE7E1A3737B /* BackupProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A949B51542C39CC4B60A32 /* BackupProvider.swift */; };
+		F7AD13EA7956F13B54D5A877 /* AuthenticationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F790747897BC5FCB457E5F45 /* AuthenticationProvider.swift */; };
+		F79557F710A67E9CFA0ECB18 /* CloudDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = F767CCC7AC84D16ABA39C304 /* CloudDatabase.swift */; };
+		F73E175043B66B66C128C57F /* SyncProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7B1BB0D44D4FDE457F454B0 /* SyncProvider.swift */; };
+		F7DA35FDE8A8C4D80E08D6A3 /* CloudErrorReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F79FBC34653398FA949F45F7 /* CloudErrorReporter.swift */; };
+		F78D7CFCE7BA52E79D39E181 /* StorageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F733E13D6AE519DA1B56D93E /* StorageProvider.swift */; };
+		F7CAC1D2652787F24A6D6424 /* CloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7DBFB1DCFB1BEFEBDEE12B4 /* CloudProvider.swift */; };
+		F7F638A262B1D83D3B0597D6 /* MarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70CEDFA2049D3C16152BA35 /* MarkdownRenderer.swift */; };
+		F7DB84FD85324C89591CAF05 /* MarkdownBlockRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A0E0AF004FEF2280A93377 /* MarkdownBlockRenderer.swift */; };
+		F739DFF8A4262AA3F40185A9 /* MarkdownRenderCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = F702C5E9FB372EC518A512E6 /* MarkdownRenderCache.swift */; };
+		F75AE7826A8FC5AB2E8E8D72 /* MarkdownRenderOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70A46B46DA9F7E4923292D8 /* MarkdownRenderOptions.swift */; };
+		F7ACC61EBBCBBCAB1856D2B6 /* AppleSignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F73F35893F54DDD62778DDED /* AppleSignInView.swift */; };
+		F7F80A277B8B01CE33BC543F /* XcodeBuildLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7B53D5FBFC771C3EB877AD2 /* XcodeBuildLogView.swift */; };
+		F739C0416E85A43B5D4A8D3E /* XcodeBuildManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F75F67C92DF33BAAFCAEBCFE /* XcodeBuildManager.swift */; };
+		F7416D49DCC6ED3EFCCC85D8 /* XcodeBuildConfigurationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7535BD3F421827A031AD00A /* XcodeBuildConfigurationView.swift */; };
+		F7420FDF5ECE3E60E55117D4 /* AppleSignInManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7FFC624AEC2D2DEFD33AFC1 /* AppleSignInManager.swift */; };
+		F774A0ED0AA72940986FA6FA /* ArchitectureDocumentationEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7154BC2BE0E3979663CE766 /* ArchitectureDocumentationEditor.swift */; };
+		F7F779BFBCBA9B356DA59B0C /* MeetingNotesEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F78B00AE50FADE542E908EB0 /* MeetingNotesEditor.swift */; };
+		F732517E48E3F46996A7901E /* StructuredRecordEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E51726844BFA54851C247F /* StructuredRecordEditor.swift */; };
+		F77AA59E6B76428E4604E82C /* TechnicalSpecificationEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A0321AEABDBDFE19256A66 /* TechnicalSpecificationEditor.swift */; };
+		F786DAF699CED9F032927B94 /* ReleaseChecklistEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70724A9F41BE738E9AB99A0 /* ReleaseChecklistEditor.swift */; };
+		F7049D8C95105C4070FAAC27 /* ChangelogEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7AAF46DB50DDADB9B476770 /* ChangelogEditor.swift */; };
+		F704DCE290AEFBAAACFC0965 /* DesignDocumentEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70267F6A569AEA9C25A9FAB /* DesignDocumentEditor.swift */; };
+		F7BFB1EAEE68B10FF0FC94CF /* FeaturePlanningEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F77FF2A1DDBE96224F45C8D5 /* FeaturePlanningEditor.swift */; };
+		F7099F5402329F462A77C949 /* FreeformDocumentEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7037D1A9BFDF285E02A2AFF /* FreeformDocumentEditor.swift */; };
+		F7DA14FCDB2B00D08DB09A57 /* UserStoryEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E7C10B08E9A250E53032E1 /* UserStoryEditor.swift */; };
+		F7B561A63EF2EDB86F0A2074 /* APIDocumentationEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E7791480293E0C73AE1405 /* APIDocumentationEditor.swift */; };
+		F77900905F6C241AEA28FFDB /* SecurityNotesEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7907B8E17F5F53D98863B12 /* SecurityNotesEditor.swift */; };
+		F73AE2FA7FC4FA09F13AD28B /* ResearchNotesEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7825E6E2A15A92AC2FA0554 /* ResearchNotesEditor.swift */; };
+		F776E07E61E0800673AA9A43 /* DatabaseDocumentationEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F79F6EE0F2786E90999E7437 /* DatabaseDocumentationEditor.swift */; };
+		F7250AB812BFB6D8583C9568 /* TestingNotesEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F777E4A98060F2DC5C94589A /* TestingNotesEditor.swift */; };
+		F7F0B71F6794B663B0F0A0BF /* BaseEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F722F507A8F039A6AC1BDA6C /* BaseEditorView.swift */; };
+		F7ECFE0315500E10FE047942 /* DocNSTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7EE074FEC038EBEF830371F /* DocNSTextView.swift */; };
+		F7302BE2949F9AE2E5DAD37D /* WorkflowDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7B474FE65B6DADE3C3F9AD0 /* WorkflowDashboardView.swift */; };
+		F7EFD714E9D82E879C534211 /* WorkflowTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = F71DC4C38556096CA4AA5EE3 /* WorkflowTemplates.swift */; };
+		F772F4A8C1A59A5395BCBEDF /* WorkflowExecutionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7C808D623D0CF28355CD9FB /* WorkflowExecutionView.swift */; };
+		F79D8BCD691103890F1049DC /* WorkflowBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CFFB34B704E2D9417EF10E /* WorkflowBuilderView.swift */; };
+		F7D9BBB4007DF07AC48FEE07 /* WorkflowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F71B92ABF05F838A28B6AD1D /* WorkflowManager.swift */; };
+		F76F3080174A50250873AD39 /* WorkflowModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F79CEC054A21C7870F738769 /* WorkflowModels.swift */; };
+		F7D81F1B18A38085E0199B22 /* MarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7AF2AFD2615890F94652C55 /* MarkdownRenderer.swift */; };
 		D48EB73DDC4EC7ADD58C1CAA /* DocSymbols.json in Resources */ = {isa = PBXBuildFile; fileRef = F60787477E14031160E05AAA /* DocSymbols.json */; };
 		6AFC5889BE2EBC0A3C636986 /* XcodeShortcutsCheatsheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E26BE2ADB641EA440B8AEB4 /* XcodeShortcutsCheatsheetView.swift */; };
 		5B8E130F040CB5E2D439CA74 /* SwiftUIPerformanceCheatsheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C0E76C96B1F831170E35AC /* SwiftUIPerformanceCheatsheetView.swift */; };
@@ -1377,6 +1451,80 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		F70784C290AA4AD23D3B617A /* ICloudCloudView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Settings/ICloudCloudView.swift"; sourceTree = SOURCE_ROOT; };
+		F754293464047AEC08AE1F1A /* BackupDetailsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Settings/BackupDetailsView.swift"; sourceTree = SOURCE_ROOT; };
+		F7F484FB642AF344B687B2B5 /* CloudManagementView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Settings/CloudManagementView.swift"; sourceTree = SOURCE_ROOT; };
+		F774D60B61B982EEA01E86DF /* SupabaseCloudView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Settings/SupabaseCloudView.swift"; sourceTree = SOURCE_ROOT; };
+		F70C151CF389AD20D2650770 /* BackupsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Settings/BackupsView.swift"; sourceTree = SOURCE_ROOT; };
+		F730C5E33CD38AA26E5E12B4 /* BackupManifest.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Backups/Models/BackupManifest.swift"; sourceTree = SOURCE_ROOT; };
+		F738797AB448B569B06E45AE /* BackupMetadata.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Backups/Models/BackupMetadata.swift"; sourceTree = SOURCE_ROOT; };
+		F7B2544665A4424AD6F2D295 /* BackupCompression.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Backups/Utilities/BackupCompression.swift"; sourceTree = SOURCE_ROOT; };
+		F70706887FFB7EE786F59076 /* BackupIntegrity.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Backups/Utilities/BackupIntegrity.swift"; sourceTree = SOURCE_ROOT; };
+		F790F1BAD663D2C9C446B700 /* BackupEncryption.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Backups/Utilities/BackupEncryption.swift"; sourceTree = SOURCE_ROOT; };
+		F7CCD4CDE883CFAEED3C9EA0 /* BackupScheduler.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Backups/Services/BackupScheduler.swift"; sourceTree = SOURCE_ROOT; };
+		F799037B25DD8EC3DC94B8C2 /* BackupManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Backups/Services/BackupManager.swift"; sourceTree = SOURCE_ROOT; };
+		F71BCC9CF04360B67C168640 /* BackupEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Backups/Services/BackupEngine.swift"; sourceTree = SOURCE_ROOT; };
+		F79C994F5DFD3B19EA98F4CE /* CloudMigrationManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Migration/CloudMigrationManager.swift"; sourceTree = SOURCE_ROOT; };
+		F7C18991EB07B617F3A63655 /* CloudDiagnostics.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Models/CloudDiagnostics.swift"; sourceTree = SOURCE_ROOT; };
+		F7E836440C35BFCB34BFF335 /* CloudSyncMetadata.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Models/CloudSyncMetadata.swift"; sourceTree = SOURCE_ROOT; };
+		F72FC40A164A118963ADA216 /* SyncConflict.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Models/SyncConflict.swift"; sourceTree = SOURCE_ROOT; };
+		F76B881332457D768F22F0BB /* CloudSessionInfo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Models/CloudSessionInfo.swift"; sourceTree = SOURCE_ROOT; };
+		F7CABBB18CF999A4C7F69DCA /* UploadQueue.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Sync/UploadQueue.swift"; sourceTree = SOURCE_ROOT; };
+		F77F70303073B7C59B20021D /* DownloadQueue.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Sync/DownloadQueue.swift"; sourceTree = SOURCE_ROOT; };
+		F7334E568A8C7484B31A5596 /* CloudSyncEngineImpl.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Sync/CloudSyncEngineImpl.swift"; sourceTree = SOURCE_ROOT; };
+		F79E2EFE4B9841031BAE088E /* SupabaseAuthService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Providers/Supabase/SupabaseAuthService.swift"; sourceTree = SOURCE_ROOT; };
+		F7BF7E15B6DC9AC0D3472E0A /* SupabaseCloudProvider.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Providers/Supabase/SupabaseCloudProvider.swift"; sourceTree = SOURCE_ROOT; };
+		F79461C33C1B9A2E1C129C9F /* SupabaseRealtimeService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Providers/Supabase/SupabaseRealtimeService.swift"; sourceTree = SOURCE_ROOT; };
+		F744B5BBF4C7DC06C38717C5 /* ICloudKitService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Providers/iCloud/ICloudKitService.swift"; sourceTree = SOURCE_ROOT; };
+		F7E52A9AD5FD9888BA163528 /* ICloudCloudProvider.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Providers/iCloud/ICloudCloudProvider.swift"; sourceTree = SOURCE_ROOT; };
+		F717B20C92290F8878EB1208 /* CloudDiagnosticsCollector.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Diagnostics/CloudDiagnosticsCollector.swift"; sourceTree = SOURCE_ROOT; };
+		F7E359DBBD7F3FE89560A4D7 /* CloudLoggerImpl.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Diagnostics/CloudLoggerImpl.swift"; sourceTree = SOURCE_ROOT; };
+		F754CFD5E5DC3644BEDDA6B2 /* CloudSyncEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Protocols/CloudSyncEngine.swift"; sourceTree = SOURCE_ROOT; };
+		F75D4D017C818B408C8B4442 /* CloudSession.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Protocols/CloudSession.swift"; sourceTree = SOURCE_ROOT; };
+		F763965340EC90B48C0A09E4 /* CloudLogger.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Protocols/CloudLogger.swift"; sourceTree = SOURCE_ROOT; };
+		F7921B52AF32FE8F31C63365 /* CloudMigration.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Protocols/CloudMigration.swift"; sourceTree = SOURCE_ROOT; };
+		F71757292D6CE9899A0258CF /* ConflictResolver.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Protocols/ConflictResolver.swift"; sourceTree = SOURCE_ROOT; };
+		F73471B1EF4B822DCBF27157 /* CloudStatistics.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Protocols/CloudStatistics.swift"; sourceTree = SOURCE_ROOT; };
+		F7A949B51542C39CC4B60A32 /* BackupProvider.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Protocols/BackupProvider.swift"; sourceTree = SOURCE_ROOT; };
+		F790747897BC5FCB457E5F45 /* AuthenticationProvider.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Protocols/AuthenticationProvider.swift"; sourceTree = SOURCE_ROOT; };
+		F767CCC7AC84D16ABA39C304 /* CloudDatabase.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Protocols/CloudDatabase.swift"; sourceTree = SOURCE_ROOT; };
+		F7B1BB0D44D4FDE457F454B0 /* SyncProvider.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Protocols/SyncProvider.swift"; sourceTree = SOURCE_ROOT; };
+		F79FBC34653398FA949F45F7 /* CloudErrorReporter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Protocols/CloudErrorReporter.swift"; sourceTree = SOURCE_ROOT; };
+		F733E13D6AE519DA1B56D93E /* StorageProvider.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Protocols/StorageProvider.swift"; sourceTree = SOURCE_ROOT; };
+		F7DBFB1DCFB1BEFEBDEE12B4 /* CloudProvider.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Internal/Cloud/Protocols/CloudProvider.swift"; sourceTree = SOURCE_ROOT; };
+		F70CEDFA2049D3C16152BA35 /* MarkdownRenderer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Shared/Markdown/MarkdownRenderer.swift"; sourceTree = SOURCE_ROOT; };
+		F7A0E0AF004FEF2280A93377 /* MarkdownBlockRenderer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Shared/Markdown/MarkdownBlockRenderer.swift"; sourceTree = SOURCE_ROOT; };
+		F702C5E9FB372EC518A512E6 /* MarkdownRenderCache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Shared/Markdown/MarkdownRenderCache.swift"; sourceTree = SOURCE_ROOT; };
+		F70A46B46DA9F7E4923292D8 /* MarkdownRenderOptions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Shared/Markdown/MarkdownRenderOptions.swift"; sourceTree = SOURCE_ROOT; };
+		F73F35893F54DDD62778DDED /* AppleSignInView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/Xcode Build/AppleSignInView.swift"; sourceTree = SOURCE_ROOT; };
+		F7B53D5FBFC771C3EB877AD2 /* XcodeBuildLogView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/Xcode Build/XcodeBuildLogView.swift"; sourceTree = SOURCE_ROOT; };
+		F75F67C92DF33BAAFCAEBCFE /* XcodeBuildManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/Xcode Build/XcodeBuildManager.swift"; sourceTree = SOURCE_ROOT; };
+		F7535BD3F421827A031AD00A /* XcodeBuildConfigurationView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/Xcode Build/XcodeBuildConfigurationView.swift"; sourceTree = SOURCE_ROOT; };
+		F7FFC624AEC2D2DEFD33AFC1 /* AppleSignInManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/Xcode Build/AppleSignInManager.swift"; sourceTree = SOURCE_ROOT; };
+		F7154BC2BE0E3979663CE766 /* ArchitectureDocumentationEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/ArchitectureDocumentationEditor.swift"; sourceTree = SOURCE_ROOT; };
+		F78B00AE50FADE542E908EB0 /* MeetingNotesEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/MeetingNotesEditor.swift"; sourceTree = SOURCE_ROOT; };
+		F7E51726844BFA54851C247F /* StructuredRecordEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/StructuredRecordEditor.swift"; sourceTree = SOURCE_ROOT; };
+		F7A0321AEABDBDFE19256A66 /* TechnicalSpecificationEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/TechnicalSpecificationEditor.swift"; sourceTree = SOURCE_ROOT; };
+		F70724A9F41BE738E9AB99A0 /* ReleaseChecklistEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/ReleaseChecklistEditor.swift"; sourceTree = SOURCE_ROOT; };
+		F7AAF46DB50DDADB9B476770 /* ChangelogEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/ChangelogEditor.swift"; sourceTree = SOURCE_ROOT; };
+		F70267F6A569AEA9C25A9FAB /* DesignDocumentEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/DesignDocumentEditor.swift"; sourceTree = SOURCE_ROOT; };
+		F77FF2A1DDBE96224F45C8D5 /* FeaturePlanningEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/FeaturePlanningEditor.swift"; sourceTree = SOURCE_ROOT; };
+		F7037D1A9BFDF285E02A2AFF /* FreeformDocumentEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/FreeformDocumentEditor.swift"; sourceTree = SOURCE_ROOT; };
+		F7E7C10B08E9A250E53032E1 /* UserStoryEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/UserStoryEditor.swift"; sourceTree = SOURCE_ROOT; };
+		F7E7791480293E0C73AE1405 /* APIDocumentationEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/APIDocumentationEditor.swift"; sourceTree = SOURCE_ROOT; };
+		F7907B8E17F5F53D98863B12 /* SecurityNotesEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/SecurityNotesEditor.swift"; sourceTree = SOURCE_ROOT; };
+		F7825E6E2A15A92AC2FA0554 /* ResearchNotesEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/ResearchNotesEditor.swift"; sourceTree = SOURCE_ROOT; };
+		F79F6EE0F2786E90999E7437 /* DatabaseDocumentationEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/DatabaseDocumentationEditor.swift"; sourceTree = SOURCE_ROOT; };
+		F777E4A98060F2DC5C94589A /* TestingNotesEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/TestingNotesEditor.swift"; sourceTree = SOURCE_ROOT; };
+		F722F507A8F039A6AC1BDA6C /* BaseEditorView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/Shared/BaseEditorView.swift"; sourceTree = SOURCE_ROOT; };
+		F7EE074FEC038EBEF830371F /* DocNSTextView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/Shared/DocNSTextView.swift"; sourceTree = SOURCE_ROOT; };
+		F7B474FE65B6DADE3C3F9AD0 /* WorkflowDashboardView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowDashboardView.swift"; sourceTree = SOURCE_ROOT; };
+		F71DC4C38556096CA4AA5EE3 /* WorkflowTemplates.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowTemplates.swift"; sourceTree = SOURCE_ROOT; };
+		F7C808D623D0CF28355CD9FB /* WorkflowExecutionView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowExecutionView.swift"; sourceTree = SOURCE_ROOT; };
+		F7CFFB34B704E2D9417EF10E /* WorkflowBuilderView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowBuilderView.swift"; sourceTree = SOURCE_ROOT; };
+		F71B92ABF05F838A28B6AD1D /* WorkflowManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowManager.swift"; sourceTree = SOURCE_ROOT; };
+		F79CEC054A21C7870F738769 /* WorkflowModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowModels.swift"; sourceTree = SOURCE_ROOT; };
+		F7AF2AFD2615890F94652C55 /* MarkdownRenderer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Frameworks/Markdown/MarkdownRenderer.swift"; sourceTree = SOURCE_ROOT; };
 		F60787477E14031160E05AAA /* DocSymbols.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = DocSymbols.json; sourceTree = "<group>"; };
 		9E26BE2ADB641EA440B8AEB4 /* XcodeShortcutsCheatsheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "XcodeShortcutsCheatsheetView.swift"; sourceTree = "<group>"; };
 		C0C0E76C96B1F831170E35AC /* SwiftUIPerformanceCheatsheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftUIPerformanceCheatsheetView.swift"; sourceTree = "<group>"; };
@@ -2762,6 +2910,56 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		B0010001B0010001C0000001 /* Cloud */ = {
+			isa = PBXGroup;
+			children = (
+				F79C994F5DFD3B19EA98F4CE /* CloudMigrationManager.swift */,
+				F7C18991EB07B617F3A63655 /* CloudDiagnostics.swift */,
+				F7E836440C35BFCB34BFF335 /* CloudSyncMetadata.swift */,
+				F72FC40A164A118963ADA216 /* SyncConflict.swift */,
+				F76B881332457D768F22F0BB /* CloudSessionInfo.swift */,
+				F7CABBB18CF999A4C7F69DCA /* UploadQueue.swift */,
+				F77F70303073B7C59B20021D /* DownloadQueue.swift */,
+				F7334E568A8C7484B31A5596 /* CloudSyncEngineImpl.swift */,
+				F79E2EFE4B9841031BAE088E /* SupabaseAuthService.swift */,
+				F7BF7E15B6DC9AC0D3472E0A /* SupabaseCloudProvider.swift */,
+				F79461C33C1B9A2E1C129C9F /* SupabaseRealtimeService.swift */,
+				F744B5BBF4C7DC06C38717C5 /* ICloudKitService.swift */,
+				F7E52A9AD5FD9888BA163528 /* ICloudCloudProvider.swift */,
+				F717B20C92290F8878EB1208 /* CloudDiagnosticsCollector.swift */,
+				F7E359DBBD7F3FE89560A4D7 /* CloudLoggerImpl.swift */,
+				F754CFD5E5DC3644BEDDA6B2 /* CloudSyncEngine.swift */,
+				F75D4D017C818B408C8B4442 /* CloudSession.swift */,
+				F763965340EC90B48C0A09E4 /* CloudLogger.swift */,
+				F7921B52AF32FE8F31C63365 /* CloudMigration.swift */,
+				F71757292D6CE9899A0258CF /* ConflictResolver.swift */,
+				F73471B1EF4B822DCBF27157 /* CloudStatistics.swift */,
+				F7A949B51542C39CC4B60A32 /* BackupProvider.swift */,
+				F790747897BC5FCB457E5F45 /* AuthenticationProvider.swift */,
+				F767CCC7AC84D16ABA39C304 /* CloudDatabase.swift */,
+				F7B1BB0D44D4FDE457F454B0 /* SyncProvider.swift */,
+				F79FBC34653398FA949F45F7 /* CloudErrorReporter.swift */,
+				F733E13D6AE519DA1B56D93E /* StorageProvider.swift */,
+				F7DBFB1DCFB1BEFEBDEE12B4 /* CloudProvider.swift */,
+			);
+			name = Cloud;
+			sourceTree = "<group>";
+		};
+		B0010001B0010001D0000001 /* Backups */ = {
+			isa = PBXGroup;
+			children = (
+				F730C5E33CD38AA26E5E12B4 /* BackupManifest.swift */,
+				F738797AB448B569B06E45AE /* BackupMetadata.swift */,
+				F7B2544665A4424AD6F2D295 /* BackupCompression.swift */,
+				F70706887FFB7EE786F59076 /* BackupIntegrity.swift */,
+				F790F1BAD663D2C9C446B700 /* BackupEncryption.swift */,
+				F7CCD4CDE883CFAEED3C9EA0 /* BackupScheduler.swift */,
+				F799037B25DD8EC3DC94B8C2 /* BackupManager.swift */,
+				F71BCC9CF04360B67C168640 /* BackupEngine.swift */,
+			);
+			name = Backups;
+			sourceTree = "<group>";
+		};
 		180ED1F5157DACBE8B1D139C /* Codex */ = {
 			isa = PBXGroup;
 			children = (
@@ -4611,6 +4809,44 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 		ACCD78AD790D110C0A76E747 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				F70784C290AA4AD23D3B617A /* ICloudCloudView.swift */,
+				F754293464047AEC08AE1F1A /* BackupDetailsView.swift */,
+				F7F484FB642AF344B687B2B5 /* CloudManagementView.swift */,
+				F774D60B61B982EEA01E86DF /* SupabaseCloudView.swift */,
+				F70C151CF389AD20D2650770 /* BackupsView.swift */,
+				F70CEDFA2049D3C16152BA35 /* MarkdownRenderer.swift */,
+				F7A0E0AF004FEF2280A93377 /* MarkdownBlockRenderer.swift */,
+				F702C5E9FB372EC518A512E6 /* MarkdownRenderCache.swift */,
+				F70A46B46DA9F7E4923292D8 /* MarkdownRenderOptions.swift */,
+				F73F35893F54DDD62778DDED /* AppleSignInView.swift */,
+				F7B53D5FBFC771C3EB877AD2 /* XcodeBuildLogView.swift */,
+				F75F67C92DF33BAAFCAEBCFE /* XcodeBuildManager.swift */,
+				F7535BD3F421827A031AD00A /* XcodeBuildConfigurationView.swift */,
+				F7FFC624AEC2D2DEFD33AFC1 /* AppleSignInManager.swift */,
+				F7154BC2BE0E3979663CE766 /* ArchitectureDocumentationEditor.swift */,
+				F78B00AE50FADE542E908EB0 /* MeetingNotesEditor.swift */,
+				F7E51726844BFA54851C247F /* StructuredRecordEditor.swift */,
+				F7A0321AEABDBDFE19256A66 /* TechnicalSpecificationEditor.swift */,
+				F70724A9F41BE738E9AB99A0 /* ReleaseChecklistEditor.swift */,
+				F7AAF46DB50DDADB9B476770 /* ChangelogEditor.swift */,
+				F70267F6A569AEA9C25A9FAB /* DesignDocumentEditor.swift */,
+				F77FF2A1DDBE96224F45C8D5 /* FeaturePlanningEditor.swift */,
+				F7037D1A9BFDF285E02A2AFF /* FreeformDocumentEditor.swift */,
+				F7E7C10B08E9A250E53032E1 /* UserStoryEditor.swift */,
+				F7E7791480293E0C73AE1405 /* APIDocumentationEditor.swift */,
+				F7907B8E17F5F53D98863B12 /* SecurityNotesEditor.swift */,
+				F7825E6E2A15A92AC2FA0554 /* ResearchNotesEditor.swift */,
+				F79F6EE0F2786E90999E7437 /* DatabaseDocumentationEditor.swift */,
+				F777E4A98060F2DC5C94589A /* TestingNotesEditor.swift */,
+				F722F507A8F039A6AC1BDA6C /* BaseEditorView.swift */,
+				F7EE074FEC038EBEF830371F /* DocNSTextView.swift */,
+				F7B474FE65B6DADE3C3F9AD0 /* WorkflowDashboardView.swift */,
+				F71DC4C38556096CA4AA5EE3 /* WorkflowTemplates.swift */,
+				F7C808D623D0CF28355CD9FB /* WorkflowExecutionView.swift */,
+				F7CFFB34B704E2D9417EF10E /* WorkflowBuilderView.swift */,
+				F71B92ABF05F838A28B6AD1D /* WorkflowManager.swift */,
+				F79CEC054A21C7870F738769 /* WorkflowModels.swift */,
+				F7AF2AFD2615890F94652C55 /* MarkdownRenderer.swift */,
 				775C17DFAC2EE718919A322 /* SettingsView.swift */,
 				02BC29E58C19C690DD971DA0 /* NewSettingsView.swift */,
 				E5C09D1515DC441A8619FDB6 /* AssistSettingsView.swift */,
@@ -4662,6 +4898,8 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 		B0010001B0010001B0010005 /* Internal */ = {
 			isa = PBXGroup;
 			children = (
+				B0010001B0010001D0000001 /* Backups */,
+				B0010001B0010001C0000001 /* Cloud */,
 				EFF000000000000000000001 /* ExportProjManager.swift */,
 				EFF000000000000000000002 /* ImportProjManager.swift */,
 				EFF000000000000000000003 /* ManifestProjManager.swift */,
@@ -5501,6 +5739,80 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F7711C84F731C879063762D9 /* ICloudCloudView.swift in Sources */,
+				F780C72296A0BBA6C4332E9C /* BackupDetailsView.swift in Sources */,
+				F742714B0FB1BBF057DAD60A /* CloudManagementView.swift in Sources */,
+				F729C1066976B326A13DF18D /* SupabaseCloudView.swift in Sources */,
+				F7605110F39C17B03FE1E7C5 /* BackupsView.swift in Sources */,
+				F7DA97AC2B5205075D8C6B65 /* BackupManifest.swift in Sources */,
+				F7971FC5CA6CE4CBA8542002 /* BackupMetadata.swift in Sources */,
+				F709F991E06FA746DFB2C666 /* BackupCompression.swift in Sources */,
+				F7B330A0DCAD0C64C4DC1D6E /* BackupIntegrity.swift in Sources */,
+				F7740726FC35A4C29DA6F6E9 /* BackupEncryption.swift in Sources */,
+				F779684734B8858E98A24B17 /* BackupScheduler.swift in Sources */,
+				F798351847D298BF85178641 /* BackupManager.swift in Sources */,
+				F77B3E298256A3E586E368A5 /* BackupEngine.swift in Sources */,
+				F7340551E810949C85240424 /* CloudMigrationManager.swift in Sources */,
+				F72C231EA74FD34569A3E90A /* CloudDiagnostics.swift in Sources */,
+				F70607A65F07EC388E94812E /* CloudSyncMetadata.swift in Sources */,
+				F748E8D1623E8FC1EF634AC3 /* SyncConflict.swift in Sources */,
+				F74C059CC3B3F68BD6E6D7BB /* CloudSessionInfo.swift in Sources */,
+				F7EAE1CEF78CB473310A116D /* UploadQueue.swift in Sources */,
+				F7956792CBEDE33B8BFCFB32 /* DownloadQueue.swift in Sources */,
+				F78A0FF4BA1B18D9C9B8A5E2 /* CloudSyncEngineImpl.swift in Sources */,
+				F7B88BC630895F6DE3CDB273 /* SupabaseAuthService.swift in Sources */,
+				F76B08460C206D18B9F28853 /* SupabaseCloudProvider.swift in Sources */,
+				F708731A0480725EF5A9367B /* SupabaseRealtimeService.swift in Sources */,
+				F7998A1AE003821B195B11F3 /* ICloudKitService.swift in Sources */,
+				F77CEE6F0803D216EB0D18B3 /* ICloudCloudProvider.swift in Sources */,
+				F729BA91C1AA0DFB96B9AE08 /* CloudDiagnosticsCollector.swift in Sources */,
+				F739F9FBDBC679AFE90D716C /* CloudLoggerImpl.swift in Sources */,
+				F79B1EB4F331272CD6038609 /* CloudSyncEngine.swift in Sources */,
+				F76C608BA8656BC6B9386D24 /* CloudSession.swift in Sources */,
+				F7A9344ACC4F73A01CD03CC3 /* CloudLogger.swift in Sources */,
+				F7A996712CEEAA35FC83E9BA /* CloudMigration.swift in Sources */,
+				F7CF627AF2045CE6F95E0E4A /* ConflictResolver.swift in Sources */,
+				F7A3E9713A4827A244B8FBF1 /* CloudStatistics.swift in Sources */,
+				F768500D7EC79EE7E1A3737B /* BackupProvider.swift in Sources */,
+				F7AD13EA7956F13B54D5A877 /* AuthenticationProvider.swift in Sources */,
+				F79557F710A67E9CFA0ECB18 /* CloudDatabase.swift in Sources */,
+				F73E175043B66B66C128C57F /* SyncProvider.swift in Sources */,
+				F7DA35FDE8A8C4D80E08D6A3 /* CloudErrorReporter.swift in Sources */,
+				F78D7CFCE7BA52E79D39E181 /* StorageProvider.swift in Sources */,
+				F7CAC1D2652787F24A6D6424 /* CloudProvider.swift in Sources */,
+				F7F638A262B1D83D3B0597D6 /* MarkdownRenderer.swift in Sources */,
+				F7DB84FD85324C89591CAF05 /* MarkdownBlockRenderer.swift in Sources */,
+				F739DFF8A4262AA3F40185A9 /* MarkdownRenderCache.swift in Sources */,
+				F75AE7826A8FC5AB2E8E8D72 /* MarkdownRenderOptions.swift in Sources */,
+				F7ACC61EBBCBBCAB1856D2B6 /* AppleSignInView.swift in Sources */,
+				F7F80A277B8B01CE33BC543F /* XcodeBuildLogView.swift in Sources */,
+				F739C0416E85A43B5D4A8D3E /* XcodeBuildManager.swift in Sources */,
+				F7416D49DCC6ED3EFCCC85D8 /* XcodeBuildConfigurationView.swift in Sources */,
+				F7420FDF5ECE3E60E55117D4 /* AppleSignInManager.swift in Sources */,
+				F774A0ED0AA72940986FA6FA /* ArchitectureDocumentationEditor.swift in Sources */,
+				F7F779BFBCBA9B356DA59B0C /* MeetingNotesEditor.swift in Sources */,
+				F732517E48E3F46996A7901E /* StructuredRecordEditor.swift in Sources */,
+				F77AA59E6B76428E4604E82C /* TechnicalSpecificationEditor.swift in Sources */,
+				F786DAF699CED9F032927B94 /* ReleaseChecklistEditor.swift in Sources */,
+				F7049D8C95105C4070FAAC27 /* ChangelogEditor.swift in Sources */,
+				F704DCE290AEFBAAACFC0965 /* DesignDocumentEditor.swift in Sources */,
+				F7BFB1EAEE68B10FF0FC94CF /* FeaturePlanningEditor.swift in Sources */,
+				F7099F5402329F462A77C949 /* FreeformDocumentEditor.swift in Sources */,
+				F7DA14FCDB2B00D08DB09A57 /* UserStoryEditor.swift in Sources */,
+				F7B561A63EF2EDB86F0A2074 /* APIDocumentationEditor.swift in Sources */,
+				F77900905F6C241AEA28FFDB /* SecurityNotesEditor.swift in Sources */,
+				F73AE2FA7FC4FA09F13AD28B /* ResearchNotesEditor.swift in Sources */,
+				F776E07E61E0800673AA9A43 /* DatabaseDocumentationEditor.swift in Sources */,
+				F7250AB812BFB6D8583C9568 /* TestingNotesEditor.swift in Sources */,
+				F7F0B71F6794B663B0F0A0BF /* BaseEditorView.swift in Sources */,
+				F7ECFE0315500E10FE047942 /* DocNSTextView.swift in Sources */,
+				F7302BE2949F9AE2E5DAD37D /* WorkflowDashboardView.swift in Sources */,
+				F7EFD714E9D82E879C534211 /* WorkflowTemplates.swift in Sources */,
+				F772F4A8C1A59A5395BCBEDF /* WorkflowExecutionView.swift in Sources */,
+				F79D8BCD691103890F1049DC /* WorkflowBuilderView.swift in Sources */,
+				F7D9BBB4007DF07AC48FEE07 /* WorkflowManager.swift in Sources */,
+				F76F3080174A50250873AD39 /* WorkflowModels.swift in Sources */,
+				F7D81F1B18A38085E0199B22 /* MarkdownRenderer.swift in Sources */,
 				7621F0E780BE1F8767C7CDE4 /* MainToolsView.swift in Sources */,
 				E063E218D13ACDDD0B728F91 /* GitWorktree.swift in Sources */,
 				E063E218D13ACDDD0B728F93 /* WorktreeManager.swift in Sources */,
