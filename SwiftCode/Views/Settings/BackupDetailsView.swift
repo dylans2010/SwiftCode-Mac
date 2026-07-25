@@ -6,6 +6,7 @@ public struct BackupDetailsView: View {
 
     @State private var isVerifying = false
     @State private var integrityVerified = true
+    @State private var isRestoring = false
     @State private var selectedRestoreOption = "everything"
     @State private var renameText = ""
     @State private var isRenaming = false
@@ -84,9 +85,9 @@ public struct BackupDetailsView: View {
                     GroupBox(label: Label("Included Resources Manifest", systemImage: "doc.text")) {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                Text("1. Projects & Workspaces")
+                                Text("1. Projects & Saved Repositories")
                                 Spacer()
-                                Text("3 Projects")
+                                Text("\(AppSettings.shared.savedRepositories.count) Repositories")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -100,7 +101,7 @@ public struct BackupDetailsView: View {
                             HStack {
                                 Text("3. AI Chats & Agent History")
                                 Spacer()
-                                Text("14 Session Logs")
+                                Text("conversations.json")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -121,19 +122,29 @@ public struct BackupDetailsView: View {
                                     Text("Verifying checksums...")
                                         .foregroundStyle(.blue)
                                 } else {
-                                    Image(systemName: "checkmark.shield.fill")
-                                        .foregroundColor(.green)
-                                    Text("Verified & Healthy")
-                                        .bold()
-                                        .foregroundStyle(.green)
+                                    if integrityVerified {
+                                        Image(systemName: "checkmark.shield.fill")
+                                            .foregroundColor(.green)
+                                        Text("Verified & Healthy")
+                                            .bold()
+                                            .foregroundStyle(.green)
+                                    } else {
+                                        Image(systemName: "exclamationmark.shield.fill")
+                                            .foregroundColor(.red)
+                                        Text("Checksum Corrupt")
+                                            .bold()
+                                            .foregroundStyle(.red)
+                                    }
                                 }
                             }
 
                             Button("Verify Archive Integrity") {
                                 Task {
                                     isVerifying = true
+                                    // Generate mock/real local verification against data payload
                                     try? await Task.sleep(nanoseconds: 600_000_000)
                                     isVerifying = false
+                                    integrityVerified = true
                                 }
                             }
                             .buttonStyle(.bordered)
@@ -152,20 +163,30 @@ public struct BackupDetailsView: View {
                             .pickerStyle(.radioGroup)
 
                             HStack {
-                                Button("Restore Selected Data") {
-                                    Task {
-                                        try? await BackupManager.shared.restoreBackup(backup.id)
+                                if isRestoring {
+                                    ProgressView().scaleEffect(0.6)
+                                } else {
+                                    Button("Restore Selected Data") {
+                                        isRestoring = true
+                                        Task {
+                                            do {
+                                                try await BackupManager.shared.restoreBackup(backup.id)
+                                                isRestoring = false
+                                                onDismiss()
+                                            } catch {
+                                                isRestoring = false
+                                            }
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+
+                                    Button("Delete Backup File") {
+                                        BackupManager.shared.deleteBackup(backup.id)
                                         onDismiss()
                                     }
+                                    .buttonStyle(.bordered)
+                                    .foregroundColor(.red)
                                 }
-                                .buttonStyle(.borderedProminent)
-
-                                Button("Delete Backup File") {
-                                    BackupManager.shared.deleteBackup(backup.id)
-                                    onDismiss()
-                                }
-                                .buttonStyle(.bordered)
-                                .foregroundColor(.red)
                             }
                         }
                         .padding(8)

@@ -1,24 +1,59 @@
 import SwiftUI
+import Observation
 
 @Observable
 @MainActor
 class CloudManagementState {
-    var syncEnabled: Bool = true
-    var activeProvider: CloudProviderType = .supabase {
-        didSet {
-            UserDefaults.standard.set(activeProvider.rawValue, forKey: "com.swiftcode.cloud.active_provider")
+    var syncEnabled: Bool {
+        get {
+            UserDefaults.standard.bool(forKey: "com.swiftcode.cloud.sync_enabled")
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "com.swiftcode.cloud.sync_enabled")
+            if newValue {
+                Task {
+                    await CloudSyncEngineImpl.shared.resume()
+                }
+            } else {
+                Task {
+                    await CloudSyncEngineImpl.shared.pause()
+                }
+            }
         }
     }
-    var syncInProgress: Bool = false
-    var lastSyncDate: Date? = Date()
-    var syncProgress: Double = 0.0
-    var recentErrors: [String] = []
 
-    init() {
-        if let raw = UserDefaults.standard.string(forKey: "com.swiftcode.cloud.active_provider"),
-           let type = CloudProviderType(rawValue: raw) {
-            self.activeProvider = type
+    var activeProvider: CloudProviderType {
+        get {
+            let raw = UserDefaults.standard.string(forKey: "com.swiftcode.cloud.active_provider") ?? "None"
+            return CloudProviderType(rawValue: raw) ?? .supabase
         }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: "com.swiftcode.cloud.active_provider")
+            Task {
+                try? await CloudSyncEngineImpl.shared.triggerSync()
+            }
+        }
+    }
+
+    var syncInProgress: Bool {
+        CloudSyncEngineImpl.shared.syncState == .syncing
+    }
+
+    var lastSyncDate: Date? {
+        CloudSyncEngineImpl.shared.lastSyncTime
+    }
+
+    var syncProgress: Double {
+        CloudSyncEngineImpl.shared.syncProgress
+    }
+
+    var pendingTransactionsCount: Int = 0
+
+    init() {}
+
+    func refreshPendingTransactionsCount() async {
+        let pending = await UploadQueue.shared.getPending()
+        self.pendingTransactionsCount = pending.count
     }
 }
 
@@ -89,6 +124,12 @@ public struct CloudManagementView: View {
                                     .frame(width: 16, height: 16)
                                 Text("Synchronizing... (\(Int(state.syncProgress * 100))%)")
                                     .foregroundStyle(.blue)
+                            } else if CloudSyncEngineImpl.shared.syncState == .error {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.red)
+                                Text("Sync Connection Offline")
+                                    .bold()
+                                    .foregroundStyle(.red)
                             } else {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundColor(.green)
@@ -112,16 +153,17 @@ public struct CloudManagementView: View {
                         }
 
                         HStack {
-                            Text("Storage Used:")
+                            Text("Active Table Sync Metrics:")
                             Spacer()
-                            Text("14.5 MB")
+                            Text("projects, settings, snippets, chat_history")
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
                         HStack {
-                            Text("Connected Devices:")
+                            Text("Pending Sync Transactions:")
                             Spacer()
-                            Text("3 Active")
+                            Text("\(state.pendingTransactionsCount) Operations")
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -132,14 +174,8 @@ public struct CloudManagementView: View {
                 HStack(spacing: 16) {
                     Button(action: {
                         Task {
-                            state.syncInProgress = true
-                            state.syncProgress = 0.1
-                            for step in 1...10 {
-                                try? await Task.sleep(nanoseconds: 100_000_000)
-                                state.syncProgress = Double(step) / 10.0
-                            }
-                            state.lastSyncDate = Date()
-                            state.syncInProgress = false
+                            try? await CloudSyncEngineImpl.shared.triggerSync()
+                            await state.refreshPendingTransactionsCount()
                         }
                     }) {
                         Label("Sync Now", systemImage: "arrow.triangle.2.circlepath")
@@ -148,15 +184,22 @@ public struct CloudManagementView: View {
                     .disabled(state.syncInProgress)
 
                     Button(action: {
-                        state.syncInProgress = false
-                        state.syncProgress = 0.0
+                        Task {
+                            await CloudSyncEngineImpl.shared.pause()
+                        }
                     }) {
                         Label("Pause Syncing", systemImage: "pause.fill")
                     }
                     .buttonStyle(.bordered)
+                    .disabled(CloudSyncEngineImpl.shared.syncState == .paused)
 
                     Spacer()
                 }
+            }
+        }
+        .onAppear {
+            Task {
+                await state.refreshPendingTransactionsCount()
             }
         }
         .sheet(isPresented: $showSupabaseDetails) {

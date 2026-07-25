@@ -13,14 +13,36 @@ class BackupsViewState {
     var activeBackupProvider: CloudProviderType = .supabase
 
     // Retention policy settings
-    var retentionPolicyDays: Int = 30
-    var compressBackups: Bool = true
-    var encryptBackups: Bool = true
+    var retentionPolicyDays: Int {
+        get {
+            UserDefaults.standard.integer(forKey: "com.swiftcode.backups.retention_days") == 0 ? 30 : UserDefaults.standard.integer(forKey: "com.swiftcode.backups.retention_days")
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "com.swiftcode.backups.retention_days")
+        }
+    }
+    var compressBackups: Bool {
+        get {
+            UserDefaults.standard.object(forKey: "com.swiftcode.backups.compress") as? Bool ?? true
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "com.swiftcode.backups.compress")
+        }
+    }
+    var encryptBackups: Bool {
+        get {
+            UserDefaults.standard.object(forKey: "com.swiftcode.backups.encrypt") as? Bool ?? true
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "com.swiftcode.backups.encrypt")
+        }
+    }
 }
 
 public struct BackupsView: View {
     @State private var state = BackupsViewState()
     @State private var backupManager = BackupManager.shared
+    @State private var isProcessing = false
 
     public init() {}
 
@@ -176,12 +198,18 @@ public struct BackupsView: View {
             // Retention and Configuration details
             GroupBox(label: Label("Automated Schedule & Retention Policy", systemImage: "calendar.badge.clock")) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Enable Automated Backup Schedule", isOn: $backupManager.automaticBackupsEnabled)
-                        .toggleStyle(.checkbox)
+                    Toggle("Enable Automated Backup Schedule", isOn: Binding(
+                        get: { backupManager.automaticBackupsEnabled },
+                        set: { backupManager.automaticBackupsEnabled = $0 }
+                    ))
+                    .toggleStyle(.checkbox)
 
                     if backupManager.automaticBackupsEnabled {
                         HStack {
-                            Picker("Frequency:", selection: $backupManager.backupInterval) {
+                            Picker("Frequency:", selection: Binding(
+                                get: { backupManager.backupInterval },
+                                set: { backupManager.backupInterval = $0 }
+                            )) {
                                 Text("Hourly").tag("Hourly")
                                 Text("Daily").tag("Daily")
                                 Text("Weekly").tag("Weekly")
@@ -228,13 +256,24 @@ public struct BackupsView: View {
                     }
                     .buttonStyle(.bordered)
 
-                    Button("Create") {
-                        Task {
-                            try? await backupManager.createBackup(name: state.backupNameInput, provider: state.activeBackupProvider)
-                            state.showCreateSheet = false
+                    if isProcessing {
+                        ProgressView().scaleEffect(0.6)
+                    } else {
+                        Button("Create") {
+                            isProcessing = true
+                            Task {
+                                do {
+                                    try await backupManager.createBackup(name: state.backupNameInput, provider: state.activeBackupProvider)
+                                    isProcessing = false
+                                    state.showCreateSheet = false
+                                } catch {
+                                    isProcessing = false
+                                    state.showCreateSheet = false
+                                }
+                            }
                         }
+                        .buttonStyle(.borderedProminent)
                     }
-                    .buttonStyle(.borderedProminent)
                 }
             }
             .padding()

@@ -2,8 +2,12 @@ import SwiftUI
 
 public struct ICloudCloudView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var autoBackups = true
-    @State private var statusText = "iCloud Account: Active"
+    @State private var isProcessing = false
+    @State private var statusMessage = ""
+
+    private var backupManager: BackupManager {
+        BackupManager.shared
+    }
 
     public init() {}
 
@@ -26,28 +30,43 @@ public struct ICloudCloudView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    if !statusMessage.isEmpty {
+                        GroupBox {
+                            HStack {
+                                Image(systemName: "info.circle.fill")
+                                    .foregroundColor(.blue)
+                                Text(statusMessage)
+                                Spacer()
+                                Button("Dismiss") {
+                                    statusMessage = ""
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(4)
+                        }
+                    }
+
                     // Account details
-                    GroupBox(label: Label("iCloud Account details", systemImage: "applelogo")) {
+                    GroupBox(label: Label("iCloud Account Details", systemImage: "applelogo")) {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Text("iCloud Status:")
                                 Spacer()
-                                Text("Available")
-                                    .foregroundStyle(.green)
-                                    .bold()
+                                if ICloudKitService.shared.accountStatus == .available {
+                                    Text("Available")
+                                        .foregroundStyle(.green)
+                                        .bold()
+                                } else {
+                                    Text("Unavailable")
+                                        .foregroundStyle(.red)
+                                        .bold()
+                                }
                             }
 
                             HStack {
-                                Text("Connected Apple ID:")
+                                Text("Connected Apple ID / User:")
                                 Spacer()
-                                Text("developer@apple.com")
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            HStack {
-                                Text("Available iCloud Storage:")
-                                Spacer()
-                                Text("1.2 TB of 2.0 TB Free")
+                                Text(ICloudKitService.shared.currentAppleAccount ?? "No Account Signed In")
                                     .foregroundStyle(.secondary)
                             }
                         }
@@ -57,8 +76,11 @@ public struct ICloudCloudView: View {
                     // Automated Backups & Restore
                     GroupBox(label: Label("iCloud Backups & Restoration", systemImage: "arrow.clockwise.icloud")) {
                         VStack(alignment: .leading, spacing: 12) {
-                            Toggle("Enable CloudKit Automated Backups", isOn: $autoBackups)
-                                .toggleStyle(.checkbox)
+                            Toggle("Enable CloudKit Automated Backups", isOn: Binding(
+                                get: { backupManager.automaticBackupsEnabled },
+                                set: { backupManager.automaticBackupsEnabled = $0 }
+                            ))
+                            .toggleStyle(.checkbox)
 
                             Text("When active, SwiftCode periodically saves complete point-in-time state records directly into your secure, private CloudKit container.")
                                 .font(.caption)
@@ -67,28 +89,45 @@ public struct ICloudCloudView: View {
                             Divider()
 
                             HStack {
-                                Button("Create Manual Backup") {
-                                    // Trigger iCloud backup
-                                }
-                                .buttonStyle(.borderedProminent)
+                                if isProcessing {
+                                    ProgressView().scaleEffect(0.6)
+                                } else {
+                                    Button("Create Manual Backup") {
+                                        executeBackupAction {
+                                            try await backupManager.createBackup(name: "Manual iCloud Backup", provider: .icloud)
+                                            statusMessage = "Manual iCloud backup completed successfully."
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
 
-                                Button("Restore from Backup...") {
-                                    // Restore
-                                }
-                                .buttonStyle(.bordered)
+                                    Button("Restore from Backup...") {
+                                        if let lastBackup = backupManager.backups.first(where: { $0.providerType == .icloud }) {
+                                            executeBackupAction {
+                                                try await backupManager.restoreBackup(lastBackup.id)
+                                                statusMessage = "iCloud backup restored successfully."
+                                            }
+                                        } else {
+                                            statusMessage = "No iCloud backups found to restore."
+                                        }
+                                    }
+                                    .buttonStyle(.bordered)
 
-                                Button("Delete iCloud Backups") {
-                                    // Purge
+                                    Button("Delete iCloud Backups") {
+                                        for backup in backupManager.backups where backup.providerType == .icloud {
+                                            backupManager.deleteBackup(backup.id)
+                                        }
+                                        statusMessage = "iCloud backups purged."
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .foregroundColor(.red)
                                 }
-                                .buttonStyle(.bordered)
-                                .foregroundColor(.red)
                             }
                         }
                         .padding(8)
                     }
 
                     // Diagnostics & Health
-                    GroupBox(label: Label("CloudKit Sync Diagnostics", systemImage: "activitylog")) {
+                    GroupBox(label: Label("CloudKit Sync Diagnostics", systemImage: "waveform.path.ecg")) {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
                                 Text("Container ID:")
@@ -107,7 +146,7 @@ public struct ICloudCloudView: View {
                             HStack {
                                 Text("Last Synced Zone:")
                                 Spacer()
-                                Text("PrivateCustomSyncZone")
+                                Text("SwiftCodeCustomSyncZone")
                                     .font(.system(.caption, design: .monospaced))
                                     .foregroundStyle(.secondary)
                             }
@@ -116,6 +155,20 @@ public struct ICloudCloudView: View {
                     }
                 }
                 .padding()
+            }
+        }
+    }
+
+    private func executeBackupAction(_ action: @escaping () async throws -> Void) {
+        isProcessing = true
+        statusMessage = ""
+        Task {
+            do {
+                try await action()
+                isProcessing = false
+            } catch {
+                statusMessage = "Operation failed: \(error.localizedDescription)"
+                isProcessing = false
             }
         }
     }

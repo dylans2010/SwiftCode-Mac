@@ -4,8 +4,12 @@ public struct SupabaseCloudView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var emailInput = ""
     @State private var passwordInput = ""
-    @State private var isAuthenticated = false
-    @State private var realtimeConnected = true
+    @State private var errorMessage = ""
+    @State private var isProcessing = false
+
+    private var authService: SupabaseAuthService {
+        SupabaseAuthService.shared
+    }
 
     public init() {}
 
@@ -28,50 +32,86 @@ public struct SupabaseCloudView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    if !errorMessage.isEmpty {
+                        GroupBox {
+                            HStack {
+                                Image(systemName: "exclamationmark.octagon.fill")
+                                    .foregroundColor(.red)
+                                Text(errorMessage)
+                                    .foregroundStyle(.red)
+                                Spacer()
+                                Button("Dismiss") {
+                                    errorMessage = ""
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(4)
+                        }
+                    }
+
                     // Account Authentication Card
                     GroupBox(label: Label("Account Status", systemImage: "person.crop.circle.badge.checkmark")) {
                         VStack(alignment: .leading, spacing: 12) {
-                            if isAuthenticated {
+                            if authService.authState == .authenticated {
                                 HStack {
                                     VStack(alignment: .leading) {
                                         Text("Signed in as:")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
-                                        Text("developer@supabase.io")
+                                        Text(authService.currentUserEmail ?? "active_session_user")
                                             .bold()
                                     }
                                     Spacer()
-                                    Button("Sign Out") {
-                                        isAuthenticated = false
+                                    if isProcessing {
+                                        ProgressView().scaleEffect(0.5)
+                                    } else {
+                                        Button("Sign Out") {
+                                            executeAuthAction {
+                                                try await authService.signOut()
+                                            }
+                                        }
+                                        .buttonStyle(.bordered)
                                     }
-                                    .buttonStyle(.bordered)
                                 }
                             } else {
                                 VStack(alignment: .leading, spacing: 10) {
                                     TextField("Email Address", text: $emailInput)
                                         .textFieldStyle(.roundedBorder)
+                                        .disabled(isProcessing)
                                     SecureField("Password", text: $passwordInput)
                                         .textFieldStyle(.roundedBorder)
+                                        .disabled(isProcessing)
 
                                     HStack {
-                                        Button("Sign In") {
-                                            if !emailInput.isEmpty {
-                                                isAuthenticated = true
+                                        if isProcessing {
+                                            ProgressView()
+                                                .scaleEffect(0.6)
+                                        } else {
+                                            Button("Sign In") {
+                                                executeAuthAction {
+                                                    try await authService.signInWithEmail(email: emailInput, password: passwordInput)
+                                                }
                                             }
-                                        }
-                                        .buttonStyle(.borderedProminent)
+                                            .buttonStyle(.borderedProminent)
+                                            .disabled(emailInput.isEmpty || passwordInput.isEmpty)
 
-                                        Button("Create Account") {
-                                            isAuthenticated = true
-                                        }
-                                        .buttonStyle(.bordered)
+                                            Button("Create Account") {
+                                                executeAuthAction {
+                                                    try await authService.signUpWithEmail(email: emailInput, password: passwordInput)
+                                                }
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .disabled(emailInput.isEmpty || passwordInput.isEmpty)
 
-                                        Spacer()
+                                            Spacer()
 
-                                        Button("Sign in with Apple") {
-                                            isAuthenticated = true
+                                            Button("Sign in with Apple") {
+                                                executeAuthAction {
+                                                    try await authService.signInWithProvider(name: "Apple")
+                                                }
+                                            }
+                                            .buttonStyle(.bordered)
                                         }
-                                        .buttonStyle(.bordered)
                                     }
                                 }
                             }
@@ -85,7 +125,7 @@ public struct SupabaseCloudView: View {
                             HStack {
                                 Text("WebSocket Status:")
                                 Spacer()
-                                if realtimeConnected {
+                                if authService.authState == .authenticated {
                                     Text("Connected (Heartbeat OK)")
                                         .foregroundStyle(.green)
                                         .bold()
@@ -98,22 +138,16 @@ public struct SupabaseCloudView: View {
                             HStack {
                                 Text("Active Channels:")
                                 Spacer()
-                                Text("public:profiles, public:projects")
+                                Text("public:profiles, public:projects, public:backups")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
 
                             HStack {
-                                Text("Upload Queue:")
+                                Text("Active Endpoint:")
                                 Spacer()
-                                Text("0 Pending")
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            HStack {
-                                Text("Download Queue:")
-                                Spacer()
-                                Text("0 Pending")
+                                Text(authService.supabaseURL)
+                                    .font(.system(.caption, design: .monospaced))
                                     .foregroundStyle(.secondary)
                             }
                         }
@@ -125,43 +159,44 @@ public struct SupabaseCloudView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack(spacing: 12) {
                                 Button("Sync Now") {
-                                    // Trigger immediate cloud push/pull
+                                    Task {
+                                        try? await CloudSyncEngineImpl.shared.triggerSync()
+                                    }
                                 }
                                 .buttonStyle(.bordered)
 
                                 Button("Reset Sync State") {
-                                    // Reset cache anchor
+                                    UserDefaults.standard.removeObject(forKey: "com.swiftcode.cloud.sync.last_sync_time")
                                 }
                                 .buttonStyle(.bordered)
 
                                 Button("Delete All Cloud Data") {
-                                    // Complete purge
+                                    executeAuthAction {
+                                        try await authService.deleteAccount()
+                                    }
                                 }
                                 .buttonStyle(.bordered)
                                 .foregroundColor(.red)
-                            }
-
-                            HStack(spacing: 12) {
-                                Button("Export Local Cache...") {
-                                    // Export JSON
-                                }
-                                .buttonStyle(.bordered)
-
-                                Button("Import Backup...") {
-                                    // Import JSON
-                                }
-                                .buttonStyle(.bordered)
-
-                                Button("View Live Stream Logs") {
-                                    // View real-time debug output
-                                }
-                                .buttonStyle(.bordered)
                             }
                         }
                         .padding(8)
                     }
                 }
                 .padding()
+            }
+        }
+    }
+
+    private func executeAuthAction(_ action: @escaping () async throws -> Void) {
+        isProcessing = true
+        errorMessage = ""
+        Task {
+            do {
+                try await action()
+                isProcessing = false
+            } catch {
+                errorMessage = error.localizedDescription
+                isProcessing = false
             }
         }
     }
