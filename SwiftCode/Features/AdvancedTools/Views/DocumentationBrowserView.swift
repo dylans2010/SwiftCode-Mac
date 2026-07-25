@@ -191,7 +191,7 @@ struct NativeDocumentationBrowserWorkspaceView: View {
 
     // Layout lists
     let categories = ["All", "Classes", "Structs", "Protocols", "Functions"]
-    let frameworks = ["All", "SwiftUI", "Swift", "Foundation", "AppKit", "UIKit", "RealityKit", "WatchKit", "FoundationModels"]
+    let frameworks = ["All", "SwiftUI", "Swift", "Foundation", "AppKit", "UIKit", "RealityKit", "WatchKit", "FoundationModels", "Combine"]
     let platforms = ["All", "macOS", "iOS", "watchOS", "tvOS", "visionOS"]
 
     private func symbolForFramework(_ fw: String) -> String {
@@ -200,10 +200,11 @@ struct NativeDocumentationBrowserWorkspaceView: View {
         case "Swift": return "swift"
         case "Foundation": return "cube.box.fill"
         case "AppKit": return "macwindow"
-        case "UIKit": return "iphone.smartcard"
+        case "UIKit": return "apps.iphone"
         case "RealityKit": return "cube.transparent.fill"
         case "WatchKit": return "applewatch.watchface"
-        case "FoundationModels": return "brain.head.profile"
+        case "FoundationModels": return "apple.intelligence"
+        case "Combine": return "waveform.path.ecg"
         default: return "square.stack.3d.down.right"
         }
     }
@@ -218,6 +219,7 @@ struct NativeDocumentationBrowserWorkspaceView: View {
         case "RealityKit": return .teal
         case "WatchKit": return .red
         case "FoundationModels": return .indigo
+        case "Combine": return .pink
         default: return .secondary
         }
     }
@@ -228,7 +230,7 @@ struct NativeDocumentationBrowserWorkspaceView: View {
         case "iOS": return "iphone"
         case "watchOS": return "applewatch"
         case "tvOS": return "tv"
-        case "visionOS": return "eye.goggles"
+        case "visionOS": return "vision.pro"
         default: return "opticaldisc"
         }
     }
@@ -322,7 +324,7 @@ struct NativeDocumentationBrowserWorkspaceView: View {
 
                     Section {
                         ForEach(frameworks.filter { $0 != "All" }, id: \.self) { fw in
-                            Button(action: { selectedFramework = fw; selectedCategory = "All" }) {
+                            Button(action: { selectedFramework = fw; selectedCategory = "All"; selectedPlatform = "All" }) {
                                 HStack {
                                     Label(fw, systemImage: symbolForFramework(fw))
                                         .foregroundStyle(colorForFramework(fw))
@@ -342,7 +344,7 @@ struct NativeDocumentationBrowserWorkspaceView: View {
 
                     Section {
                         ForEach(platforms.filter { $0 != "All" }, id: \.self) { plt in
-                            Button(action: { selectedPlatform = plt; selectedCategory = "All" }) {
+                            Button(action: { selectedPlatform = plt; selectedCategory = "All"; selectedFramework = "All" }) {
                                 Label(plt, systemImage: symbolForPlatform(plt))
                                     .foregroundStyle(colorForPlatform(plt))
                             }
@@ -969,7 +971,11 @@ struct NativeDocumentationBrowserWorkspaceView: View {
 
         // Framework Filter
         if selectedFramework != "All" {
-            list = list.filter { $0.framework == selectedFramework }
+            if selectedFramework == "AppKit & UIKit" {
+                list = list.filter { $0.framework == "AppKit" || $0.framework == "UIKit" }
+            } else {
+                list = list.filter { $0.framework == selectedFramework }
+            }
         }
 
         // Platform Filter
@@ -1075,6 +1081,11 @@ Code Sample:
 
                 Button(action: { reloadOnlineTrigger.toggle() }) {
                     Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.bordered)
+
+                Button(action: { currentOnlineURL = URL(string: "https://developer.apple.com/documentation/")! }) {
+                    Image(systemName: "house")
                 }
                 .buttonStyle(.bordered)
 
