@@ -619,6 +619,26 @@ private let settingsRegistryList: [SettingsItem] = [
         helpDoc: "Select and modify code-coloring themes, visual parameters, font sizes, font families, and custom text styles."
     ),
     SettingsItem(
+        id: "cloud_management",
+        title: "Cloud Syncing",
+        icon: "icloud.fill",
+        iconBgColor: .blue,
+        category: "System",
+        sortOrder: 18,
+        keywords: "cloud sync supabase icloud storage backup migration offline",
+        helpDoc: "Configure automatic cloud syncing using Supabase or Apple iCloud."
+    ),
+    SettingsItem(
+        id: "backups",
+        title: "Backups",
+        icon: "archivebox.fill",
+        iconBgColor: .purple,
+        category: "System",
+        sortOrder: 19,
+        keywords: "backup restore snap archive zip recovery local cloud",
+        helpDoc: "Manage manual and automated background state backups and snapshots."
+    ),
+    SettingsItem(
         id: "ai_assist",
         title: "AI & Assist",
         icon: "sparkles",
@@ -791,6 +811,10 @@ struct SettingsMainWrapper: View {
         case "themes":
             ThemeManagementView()
                 .environmentObject(settings)
+        case "cloud_management":
+            CloudManagementView()
+        case "backups":
+            BackupsView()
         case "ai_assist":
             AssistSettingsView()
         case "offline_models":
