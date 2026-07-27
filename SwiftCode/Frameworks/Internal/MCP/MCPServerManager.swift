@@ -111,6 +111,7 @@ public final class MCPServerManager: Sendable {
 
         servers[idx].status = .connecting
         servers[idx].lastError = nil
+        MCPLoggingManager.shared.log(severity: .info, serverName: server.displayName, message: "Manager initiating connection attempt...")
 
         let client = MCPClient(server: servers[idx])
         activeClients[server.id] = client
@@ -130,16 +131,19 @@ public final class MCPServerManager: Sendable {
             servers[idx].lastError = nil
 
             logger.log("MCP Server '\(server.displayName)' status updated to Connected with \(toolsList.count) tools.")
+            MCPLoggingManager.shared.log(severity: .info, serverName: server.displayName, message: "Manager marked server Connected successfully with \(toolsList.count) tools.")
         } catch {
             servers[idx].status = .failed
             servers[idx].lastError = error.localizedDescription
             activeClients.removeValue(forKey: server.id)
             logger.error("Failed to connect MCP server '\(server.displayName)': \(error.localizedDescription)")
+            MCPLoggingManager.shared.log(severity: .error, serverName: server.displayName, message: "Manager connection failed: \(error.localizedDescription)")
             throw error
         }
     }
 
     public func disconnect(server: MCPServer) {
+        MCPLoggingManager.shared.log(severity: .info, serverName: server.displayName, message: "Manager disconnecting server...")
         if let idx = servers.firstIndex(where: { $0.id == server.id }) {
             servers[idx].status = .disconnected
             servers[idx].lastError = nil
@@ -151,14 +155,17 @@ public final class MCPServerManager: Sendable {
             client.disconnect()
         }
         logger.log("MCP Server '\(server.displayName)' disconnected.")
+        MCPLoggingManager.shared.log(severity: .info, serverName: server.displayName, message: "Manager successfully disconnected server.")
     }
 
     public func refreshTools(server: MCPServer) async throws {
         guard let client = activeClients[server.id],
               let idx = servers.firstIndex(where: { $0.id == server.id }) else {
+            MCPLoggingManager.shared.log(severity: .error, serverName: server.displayName, message: "Failed to refresh tools: server is not connected.")
             throw MCPError.connectionFailed("Server '\(server.displayName)' is not actively connected.")
         }
 
+        MCPLoggingManager.shared.log(severity: .info, serverName: server.displayName, message: "Manager refreshing available tools...")
         do {
             let toolsList = try await client.listTools()
             servers[idx].tools = toolsList
@@ -166,9 +173,11 @@ public final class MCPServerManager: Sendable {
             servers[idx].lastRefresh = Date()
             servers[idx].lastError = nil
             logger.log("Refreshed tools for '\(server.displayName)': discovered \(toolsList.count) tools.")
+            MCPLoggingManager.shared.log(severity: .info, serverName: server.displayName, message: "Manager refreshed tools successfully. Discovered \(toolsList.count) tools.")
         } catch {
             servers[idx].lastError = "Refresh tools failed: \(error.localizedDescription)"
             logger.error("Failed to refresh tools for '\(server.displayName)': \(error.localizedDescription)")
+            MCPLoggingManager.shared.log(severity: .error, serverName: server.displayName, message: "Manager refresh tools failed: \(error.localizedDescription)")
             throw error
         }
     }

@@ -5,13 +5,52 @@ private let logger = Logger(subsystem: "com.swiftcode.mcp", category: "MCPClient
 
 // MARK: - JSON-RPC Messaging Structs
 
+public enum JSONRPCID: Codable, Sendable, Hashable {
+    case integer(Int)
+    case string(String)
+    case null
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            self = .null
+        } else if let intValue = try? container.decode(Int.self) {
+            self = .integer(intValue)
+        } else if let stringValue = try? container.decode(String.self) {
+            self = .string(stringValue)
+        } else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid JSONRPC ID type")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .integer(let intValue):
+            try container.encode(intValue)
+        case .string(let stringValue):
+            try container.encode(stringValue)
+        case .null:
+            try container.encodeNil()
+        }
+    }
+
+    public var integerValue: Int? {
+        switch self {
+        case .integer(let val): return val
+        case .string(let val): return Int(val)
+        case .null: return nil
+        }
+    }
+}
+
 public struct JSONRPCRequest: Codable, Sendable {
     public let jsonrpc: String
-    public let id: Int?
+    public let id: JSONRPCID?
     public let method: String
     public let params: JSONValue?
 
-    public init(id: Int?, method: String, params: JSONValue?) {
+    public init(id: JSONRPCID?, method: String, params: JSONValue?) {
         self.jsonrpc = "2.0"
         self.id = id
         self.method = method
@@ -21,7 +60,7 @@ public struct JSONRPCRequest: Codable, Sendable {
 
 public struct JSONRPCResponse: Codable, Sendable {
     public let jsonrpc: String
-    public let id: Int?
+    public let id: JSONRPCID?
     public let result: JSONValue?
     public let error: JSONRPCError?
 }
@@ -58,6 +97,13 @@ public final class MCPClient: Sendable {
         self.server = server
     }
 
+    private func logEvent(severity: MCPLogSeverity, message: String) {
+        let name = server.displayName
+        Task { @MainActor in
+            MCPLoggingManager.shared.log(severity: severity, serverName: name, message: message)
+        }
+    }
+
     private func getNextRequestID() -> Int {
         requestIDCounter.withLock { current in
             let next = current
@@ -70,21 +116,24 @@ public final class MCPClient: Sendable {
 
     public func connect() async throws -> MCPServerMetadata {
         logger.log("Connecting to MCP Server '\(self.server.displayName)' via \(self.server.transport.rawValue)...")
+        logEvent(severity: .info, message: "Initiating connection to MCP Server via \(self.server.transport.rawValue)")
 
         switch server.transport {
         case .stdio:
             try startStdioSubprocess()
         case .http, .https:
-            // For stateless HTTP, connection validation is a simple ping or info check during initialization
+            logEvent(severity: .info, message: "Configuring HTTP transport with URL: \(server.urlString)")
             break
         }
 
         do {
             let metadata = try await performHandshake()
             logger.log("Successfully connected and negotiated handshake with '\(self.server.displayName)'!")
+            logEvent(severity: .info, message: "Handshake negotiation succeeded! Server: \(metadata.name) (Version: \(metadata.version), Protocol: \(metadata.protocolVersion))")
             return metadata
         } catch {
             logger.error("Handshake failed with server '\(self.server.displayName)': \(error.localizedDescription)")
+            logEvent(severity: .error, message: "Connection handshake failed: \(error.localizedDescription)")
             disconnect()
             throw error
         }
@@ -92,6 +141,7 @@ public final class MCPClient: Sendable {
 
     public func disconnect() {
         logger.log("Disconnecting from MCP Server '\(self.server.displayName)'...")
+        logEvent(severity: .info, message: "Disconnecting from server and cleaning up transport resources")
 
         stdioOutputTask.withLock { task in
             task?.cancel()
@@ -123,12 +173,15 @@ public final class MCPClient: Sendable {
 
     private func startStdioSubprocess() throws {
         guard let exePath = server.executablePath, !exePath.isEmpty else {
+            logEvent(severity: .error, message: "Configuration error: Executable path is missing for stdio transport")
             throw MCPError.invalidConfiguration("Executable path is missing for stdio transport")
         }
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: exePath)
         process.arguments = server.launchArguments ?? []
+
+        logEvent(severity: .info, message: "Launching stdio subprocess: \(exePath) with args: \(server.launchArguments ?? [])")
 
         var fullEnv = ProcessInfo.processInfo.environment
         if let envVars = server.envVariables {
@@ -148,7 +201,9 @@ public final class MCPClient: Sendable {
 
         do {
             try process.run()
+            logEvent(severity: .info, message: "Stdio subprocess spawned successfully with PID \(process.processIdentifier)")
         } catch {
+            logEvent(severity: .error, message: "Failed to launch subprocess '\(exePath)': \(error.localizedDescription)")
             throw MCPError.processLaunchFailed("Failed to launch subprocess '\(exePath)': \(error.localizedDescription)")
         }
 
@@ -183,7 +238,7 @@ public final class MCPClient: Sendable {
         guard let data = line.data(using: .utf8) else { return }
         do {
             let response = try JSONDecoder().decode(JSONRPCResponse.self, from: data)
-            if let id = response.id {
+            if let rpcID = response.id, let id = rpcID.integerValue {
                 let continuation = pendingRequests.withLock { requests in
                     requests.removeValue(forKey: id)
                 }
@@ -197,6 +252,7 @@ public final class MCPClient: Sendable {
     // MARK: - Transport Execution Core
 
     private func performHandshake() async throws -> MCPServerMetadata {
+        logEvent(severity: .info, message: "Performing protocol handshake negotiation...")
         // Step 1: Initialize Request
         let clientInfo: [String: JSONValue] = [
             "name": .string("SwiftCodeIDE"),
@@ -211,10 +267,12 @@ public final class MCPClient: Sendable {
             "clientInfo": .object(clientInfo)
         ]
 
+        logEvent(severity: .info, message: "Sending 'initialize' request with protocol version '2024-11-05'")
         let response = try await sendRPCRequest(method: "initialize", params: .object(params))
 
         guard let resultObj = response.result,
               case .object(let dict) = resultObj else {
+            logEvent(severity: .error, message: "Handshake failed: Server did not return a valid result dictionary.")
             throw MCPError.handshakeFailed("Server handshake did not return a valid result dictionary.")
         }
 
@@ -223,6 +281,7 @@ public final class MCPClient: Sendable {
               case .object(let serverInfo) = serverInfoObj,
               case .string(let serverName) = serverInfo["name"] ?? .null,
               case .string(let serverVersion) = serverInfo["version"] ?? .null else {
+            logEvent(severity: .error, message: "Handshake failed: Server response is missing metadata.")
             throw MCPError.handshakeFailed("Server handshake response missing metadata.")
         }
 
@@ -233,16 +292,20 @@ public final class MCPClient: Sendable {
         }
 
         // Step 2: Send notifications/initialized
+        logEvent(severity: .info, message: "Sending protocol notification: 'notifications/initialized'")
         try await sendNotification(method: "notifications/initialized", params: .object([:]))
 
+        logEvent(severity: .info, message: "Protocol handshake negotiation completed successfully.")
         return MCPServerMetadata(name: serverName, version: serverVersion, protocolVersion: protocolVersion)
     }
 
     public func listTools() async throws -> [MCPTool] {
         logger.log("Listing tools for server '\(self.server.displayName)'...")
+        logEvent(severity: .info, message: "Requesting list of available tools (method: 'tools/list')...")
         let response = try await sendRPCRequest(method: "tools/list", params: .object([:]))
 
         if let error = response.error {
+            logEvent(severity: .error, message: "Tool discovery failed: \(error.message)")
             throw MCPError.toolDiscoveryFailed(error.message)
         }
 
@@ -250,6 +313,7 @@ public final class MCPClient: Sendable {
               case .object(let dict) = resultObj,
               let toolsObj = dict["tools"],
               case .array(let toolsArray) = toolsObj else {
+            logEvent(severity: .error, message: "Tool discovery failed: Server response is missing list of tools.")
             throw MCPError.toolDiscoveryFailed("Server response is missing list of tools.")
         }
 
@@ -263,15 +327,18 @@ public final class MCPClient: Sendable {
                 mcpTools.append(tool)
             } catch {
                 logger.error("Error decoding individual tool object: \(error.localizedDescription)")
+                logEvent(severity: .warning, message: "Failed to decode individual tool object: \(error.localizedDescription)")
             }
         }
 
         logger.log("Discovered \(mcpTools.count) tools from '\(self.server.displayName)'.")
+        logEvent(severity: .info, message: "Discovered \(mcpTools.count) tools successfully from server.")
         return mcpTools
     }
 
     public func callTool(name: String, arguments: [String: JSONValue]) async throws -> MCPExecutionResponse {
         logger.log("Executing tool '\(name)' on server '\(self.server.displayName)'...")
+        logEvent(severity: .info, message: "Calling tool '\(name)' with arguments: \(arguments)")
 
         let params: [String: JSONValue] = [
             "name": .string(name),
@@ -281,18 +348,22 @@ public final class MCPClient: Sendable {
         let response = try await sendRPCRequest(method: "tools/call", params: .object(params))
 
         if let error = response.error {
+            logEvent(severity: .error, message: "Tool '\(name)' execution failed: \(error.message)")
             throw MCPError.toolExecutionFailed(error.message)
         }
 
         guard let resultObj = response.result else {
+            logEvent(severity: .error, message: "Tool '\(name)' execution failed: Server returned an empty result.")
             throw MCPError.toolExecutionFailed("Server returned an empty result.")
         }
 
         do {
             let data = try JSONEncoder().encode(resultObj)
             let executionResult = try JSONDecoder().decode(MCPExecutionResponse.self, from: data)
+            logEvent(severity: .info, message: "Tool '\(name)' executed successfully. Content block count: \(executionResult.content.count)")
             return executionResult
         } catch {
+            logEvent(severity: .error, message: "Tool '\(name)' execution succeeded but decoding output failed: \(error.localizedDescription)")
             throw MCPError.decodingFailed("Failed to decode tool execution output: \(error.localizedDescription)")
         }
     }
@@ -301,7 +372,7 @@ public final class MCPClient: Sendable {
 
     private func sendRPCRequest(method: String, params: JSONValue?) async throws -> JSONRPCResponse {
         let reqID = getNextRequestID()
-        let rpcRequest = JSONRPCRequest(id: reqID, method: method, params: params)
+        let rpcRequest = JSONRPCRequest(id: .integer(reqID), method: method, params: params)
 
         switch server.transport {
         case .stdio:
@@ -346,9 +417,15 @@ public final class MCPClient: Sendable {
                 if !storedSecret.isEmpty {
                     urlRequest.addValue(storedSecret, forHTTPHeaderField: "X-API-Key")
                 }
-            case .bearerToken:
+            case .bearerToken, .oauth:
                 if !storedSecret.isEmpty {
                     urlRequest.addValue("Bearer \(storedSecret)", forHTTPHeaderField: "Authorization")
+                }
+            case .envVars:
+                if let envs = server.envVariables {
+                    for (k, v) in envs {
+                        urlRequest.addValue(v, forHTTPHeaderField: "X-Env-\(k)")
+                    }
                 }
             case .customHeaders:
                 if let custom = server.customHeaders {
@@ -365,13 +442,42 @@ public final class MCPClient: Sendable {
 
             let (data, response) = try await URLSession.shared.data(for: urlRequest)
 
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-                throw MCPError.connectionFailed("HTTP transport error: server returned status \(code)")
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw MCPError.connectionFailed("Invalid response type from server.")
             }
 
-            let decodedResponse = try JSONDecoder().decode(JSONRPCResponse.self, from: data)
-            return decodedResponse
+            let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
+            let isJSON = contentType.contains("application/json") || contentType.contains("text/json")
+
+            if httpResponse.statusCode != 200 {
+                let responseBody = String(data: data, encoding: .utf8) ?? ""
+                if isJSON, let errorObj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    if let rpcError = errorObj["error"] as? [String: Any], let msg = rpcError["message"] as? String {
+                        throw MCPError.authenticationFailed("Server error (code \(httpResponse.statusCode)): \(msg)")
+                    } else if let msg = errorObj["message"] as? String {
+                        throw MCPError.authenticationFailed("Server error (code \(httpResponse.statusCode)): \(msg)")
+                    } else if let err = errorObj["error"] as? String {
+                        throw MCPError.authenticationFailed("Server error (code \(httpResponse.statusCode)): \(err)")
+                    }
+                }
+                let truncatedBody = responseBody.count > 150 ? String(responseBody.prefix(150)) + "..." : responseBody
+                let sanitizedBody = truncatedBody.replacingOccurrences(of: "\n", with: " ")
+                throw MCPError.authenticationFailed("Server returned HTTP \(httpResponse.statusCode). Content-Type: \(contentType). Response: \(sanitizedBody.isEmpty ? "[empty]" : sanitizedBody)")
+            }
+
+            if !isJSON {
+                let responseBody = String(data: data, encoding: .utf8) ?? ""
+                let truncated = responseBody.count > 100 ? String(responseBody.prefix(100)) + "..." : responseBody
+                throw MCPError.decodingFailed("Expected JSON response but received Content-Type '\(contentType)'. Raw body: \(truncated)")
+            }
+
+            do {
+                let decodedResponse = try JSONDecoder().decode(JSONRPCResponse.self, from: data)
+                return decodedResponse
+            } catch {
+                let responseBody = String(data: data, encoding: .utf8) ?? ""
+                throw MCPError.decodingFailed("Failed to parse JSON-RPC response: \(error.localizedDescription). Payload: \(responseBody)")
+            }
         }
     }
 
@@ -408,9 +514,15 @@ public final class MCPClient: Sendable {
                 if !storedSecret.isEmpty {
                     urlRequest.addValue(storedSecret, forHTTPHeaderField: "X-API-Key")
                 }
-            case .bearerToken:
+            case .bearerToken, .oauth:
                 if !storedSecret.isEmpty {
                     urlRequest.addValue("Bearer \(storedSecret)", forHTTPHeaderField: "Authorization")
+                }
+            case .envVars:
+                if let envs = server.envVariables {
+                    for (k, v) in envs {
+                        urlRequest.addValue(v, forHTTPHeaderField: "X-Env-\(k)")
+                    }
                 }
             case .customHeaders:
                 if let custom = server.customHeaders {

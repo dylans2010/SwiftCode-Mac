@@ -182,7 +182,7 @@ public final class AssistAgentSession: Sendable {
         var consecutiveNoProgressCycles = 0
         var codeReviewAttempts = 0
 
-        while !isCancelled {
+        while !isCancelled && !Task.isCancelled {
 
             // PHASE 4: Planning
             transition(to: .planning, reason: "Constructing system-level repository plan and formulating strategy...")
