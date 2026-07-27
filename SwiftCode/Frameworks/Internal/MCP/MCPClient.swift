@@ -646,9 +646,8 @@ public final class HTTPSSETransportSession: MCPTransportSession {
                     if (contentType.contains("application/json") || contentType.contains("text/json")), !data.isEmpty {
                         do {
                             let immediateResponse = try JSONDecoder().decode(JSONRPCResponse.self, from: data)
-                            let removed = pendingRequests.withLock { $0.removeValue(forKey: reqID) }
-                            if removed != nil {
-                                continuation.resume(returning: immediateResponse)
+                            if let removed = pendingRequests.withLock({ $0.removeValue(forKey: reqID) }) {
+                                removed.resume(returning: immediateResponse)
                             }
                         } catch {
                             // Suppress and wait for asynchronous SSE push
@@ -656,9 +655,8 @@ public final class HTTPSSETransportSession: MCPTransportSession {
                         }
                     }
                 } catch {
-                    let removed = pendingRequests.withLock { $0.removeValue(forKey: reqID) }
-                    if removed != nil {
-                        continuation.resume(throwing: error)
+                    if let removed = pendingRequests.withLock({ $0.removeValue(forKey: reqID) }) {
+                        removed.resume(throwing: error)
                     }
                 }
             }
