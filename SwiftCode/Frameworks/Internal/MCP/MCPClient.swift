@@ -296,7 +296,7 @@ public final class HTTPJSONTransportSession: MCPTransportSession {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.addValue("application/json", forHTTPHeaderField: "Accept")
+        urlRequest.addValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
         urlRequest.timeoutInterval = 30.0
 
         applyAuthAndCustomHeaders(to: &urlRequest)
@@ -316,6 +316,7 @@ public final class HTTPJSONTransportSession: MCPTransportSession {
 
         let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
         let isJSON = contentType.contains("application/json") || contentType.contains("text/json")
+        let isSSE = contentType.contains("text/event-stream")
 
         logEvent(.info, "[\(timestamp)] HTTP Response status code: \(httpResponse.statusCode), Content-Type: \(contentType)")
         logEvent(.info, "Response Headers: \(httpResponse.allHeaderFields)")
@@ -330,6 +331,11 @@ public final class HTTPJSONTransportSession: MCPTransportSession {
                 }
             }
             throw MCPError.authenticationFailed("Server returned HTTP \(httpResponse.statusCode). Response: \(responseBody)")
+        }
+
+        if isSSE {
+            logEvent(.warning, "[\(timestamp)] Server selected Server-Sent Events (SSE) instead of JSON. Routing response to SSE parser.")
+            throw MCPError.decodingFailed("Server selected Server-Sent Events (text/event-stream) response instead of JSON. Please configure transport with SSE auto-detection.")
         }
 
         if !isJSON {
@@ -348,12 +354,23 @@ public final class HTTPJSONTransportSession: MCPTransportSession {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.addValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
         urlRequest.timeoutInterval = 10.0
 
         applyAuthAndCustomHeaders(to: &urlRequest)
 
+        let timestamp = Date().formatted(.dateTime.hour().minute().second())
+        logEvent(.info, "[\(timestamp)] POST HTTP JSON notification \(notification.method) to \(url.absoluteString)")
+        logEvent(.info, "Request Headers: \(urlRequest.allHTTPHeaderFields ?? [:])")
+
         urlRequest.httpBody = try JSONEncoder().encode(notification)
-        _ = try await URLSession.shared.data(for: urlRequest)
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        if let httpResponse = response as? HTTPURLResponse {
+            let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
+            logEvent(.info, "[\(timestamp)] HTTP Notification Response status code: \(httpResponse.statusCode), Content-Type: \(contentType)")
+            logEvent(.info, "Response Headers: \(httpResponse.allHeaderFields)")
+        }
     }
 
     public func disconnect() {
@@ -448,7 +465,7 @@ public final class HTTPSSETransportSession: MCPTransportSession {
             do {
                 var urlRequest = URLRequest(url: url)
                 urlRequest.httpMethod = "GET"
-                urlRequest.addValue("text/event-stream", forHTTPHeaderField: "Accept")
+                urlRequest.addValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
                 urlRequest.timeoutInterval = 60.0
 
                 applyAuthAndCustomHeaders(to: &urlRequest)
@@ -465,6 +482,7 @@ public final class HTTPSSETransportSession: MCPTransportSession {
 
                 let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
                 logEvent(.info, "[\(timestamp)] SSE Response status code: \(httpResponse.statusCode), Content-Type: \(contentType)")
+                logEvent(.info, "Response Headers: \(httpResponse.allHeaderFields)")
 
                 if httpResponse.statusCode != 200 {
                     throw MCPError.connectionFailed("Server returned HTTP \(httpResponse.statusCode).")
@@ -610,13 +628,14 @@ public final class HTTPSSETransportSession: MCPTransportSession {
         var urlRequest = URLRequest(url: postURL)
         urlRequest.httpMethod = "POST"
         urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.addValue("application/json", forHTTPHeaderField: "Accept")
+        urlRequest.addValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
         urlRequest.timeoutInterval = 30.0
 
         applyAuthAndCustomHeaders(to: &urlRequest)
 
         let timestamp = Date().formatted(.dateTime.hour().minute().second())
         logEvent(.info, "[\(timestamp)] POST HTTP JSON request \(request.method) to SSE endpoint \(postURL.absoluteString)")
+        logEvent(.info, "Request Headers: \(urlRequest.allHTTPHeaderFields ?? [:])")
 
         let encoder = JSONEncoder()
         urlRequest.httpBody = try encoder.encode(request)
@@ -637,12 +656,15 @@ public final class HTTPSSETransportSession: MCPTransportSession {
                         throw MCPError.connectionFailed("Invalid response type from server.")
                     }
 
+                    let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
+                    logEvent(.info, "[\(timestamp)] POST Response status code: \(httpResponse.statusCode), Content-Type: \(contentType)")
+                    logEvent(.info, "Response Headers: \(httpResponse.allHeaderFields)")
+
                     if httpResponse.statusCode != 200 && httpResponse.statusCode != 202 {
                         let responseBody = String(data: data, encoding: .utf8) ?? ""
                         throw MCPError.authenticationFailed("Server returned HTTP \(httpResponse.statusCode). Response: \(responseBody)")
                     }
 
-                    let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
                     if (contentType.contains("application/json") || contentType.contains("text/json")), !data.isEmpty {
                         do {
                             let immediateResponse = try JSONDecoder().decode(JSONRPCResponse.self, from: data)
@@ -653,6 +675,9 @@ public final class HTTPSSETransportSession: MCPTransportSession {
                             // Suppress and wait for asynchronous SSE push
                             logEvent(.info, "Failed to decode immediate HTTP POST response payload. Waiting for event stream response instead.")
                         }
+                    } else if contentType.contains("text/event-stream") {
+                        logEvent(.info, "Server responded with text/event-stream Content-Type to POST request. Handling response via event stream parser.")
+                        // We do NOT attempt to decode as raw JSON
                     }
                 } catch {
                     if let removed = pendingRequests.withLock({ $0.removeValue(forKey: reqID) }) {
@@ -671,12 +696,23 @@ public final class HTTPSSETransportSession: MCPTransportSession {
         var urlRequest = URLRequest(url: postURL)
         urlRequest.httpMethod = "POST"
         urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.addValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
         urlRequest.timeoutInterval = 10.0
 
         applyAuthAndCustomHeaders(to: &urlRequest)
 
+        let timestamp = Date().formatted(.dateTime.hour().minute().second())
+        logEvent(.info, "[\(timestamp)] POST HTTP JSON notification \(notification.method) to SSE endpoint \(postURL.absoluteString)")
+        logEvent(.info, "Request Headers: \(urlRequest.allHTTPHeaderFields ?? [:])")
+
         urlRequest.httpBody = try JSONEncoder().encode(notification)
-        _ = try await URLSession.shared.data(for: urlRequest)
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        if let httpResponse = response as? HTTPURLResponse {
+            let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
+            logEvent(.info, "[\(timestamp)] HTTP SSE Notification Response status: \(httpResponse.statusCode), Content-Type: \(contentType)")
+            logEvent(.info, "Response Headers: \(httpResponse.allHeaderFields)")
+        }
     }
 
     public func disconnect() {
@@ -839,7 +875,7 @@ public final class MCPClient: Sendable {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.addValue("text/event-stream, application/json", forHTTPHeaderField: "Accept")
+        request.addValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 5.0
 
         // Apply authentication headers
@@ -871,16 +907,27 @@ public final class MCPClient: Sendable {
             break
         }
 
+        logEvent(severity: .info, message: "Initiating dynamic transport detection GET request to: \(url.absoluteString)")
+        logEvent(severity: .info, message: "Outgoing request headers: \(request.allHTTPHeaderFields ?? [:])")
+
         do {
             let (_, response) = try await URLSession.shared.bytes(for: request)
             if let httpResponse = response as? HTTPURLResponse {
                 let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
+                logEvent(severity: .info, message: "Transport detection response status: \(httpResponse.statusCode), Content-Type: \(contentType)")
+                logEvent(severity: .info, message: "Response Headers: \(httpResponse.allHeaderFields)")
+
                 if contentType.contains("text/event-stream") {
+                    logEvent(severity: .info, message: "Transport negotiation result: SERVER-SENT EVENTS (SSE)")
                     return .sse
+                } else {
+                    logEvent(severity: .info, message: "Transport negotiation result: HTTP JSON")
+                    return .json
                 }
             }
         } catch {
             logger.warning("Dynamic transport detection request failed: \(error.localizedDescription). Falling back to JSON transport.")
+            logEvent(severity: .warning, message: "Dynamic transport detection failed with error: \(error.localizedDescription). Falling back to JSON transport.")
         }
 
         return .json

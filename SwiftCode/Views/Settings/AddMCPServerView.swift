@@ -349,13 +349,29 @@ struct ServerConfigFormView: View {
                             }
 
                             if let result = testResult {
-                                Text(result)
-                                    .font(.system(.caption, design: .monospaced))
-                                    .padding(10)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.black.opacity(0.12))
-                                    .cornerRadius(6)
-                                    .foregroundColor(testSuccess == true ? .green : .red)
+                                VStack(alignment: .leading, spacing: 6) {
+                                    if testSuccess == false {
+                                        HStack {
+                                            Spacer()
+                                            Button(action: {
+                                                NSPasteboard.general.clearContents()
+                                                NSPasteboard.general.setString(result, forType: .string)
+                                            }) {
+                                                Label("Copy Failure Logs", systemImage: "doc.on.doc")
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+                                        }
+                                    }
+
+                                    Text(result)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .padding(10)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.black.opacity(0.12))
+                                        .cornerRadius(6)
+                                        .foregroundColor(testSuccess == true ? .green : .red)
+                                }
                             }
 
                             if !testTools.isEmpty {
