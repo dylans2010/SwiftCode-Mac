@@ -7,6 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B7D0BBAECEE284CB5045B79 /* CloudModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D0F1AECEE284CB5045B79 /* CloudModels.swift */; };
+		B7D0BBA9E57AA6C44D64814 /* CloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D0F1A9E57AA6C44D64814 /* CloudProvider.swift */; };
+		B7D0BBAACAABE1660FD9D26 /* SupabaseCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D0F1AACAABE1660FD9D26 /* SupabaseCloudProvider.swift */; };
+		B7D0BBA6609097386FDC53E /* CloudSyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D0F1A6609097386FDC53E /* CloudSyncEngine.swift */; };
+		B7D0BBA5BAA10F378B45050 /* CloudSyncWiring.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D0F1A5BAA10F378B45050 /* CloudSyncWiring.swift */; };
+		B7D0BBABE483E14CA270008 /* BackupProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D0F1ABE483E14CA270008 /* BackupProtocols.swift */; };
+		B7D0BBAA4ED9F0D7EFF6F58 /* BackupModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D0F1AA4ED9F0D7EFF6F58 /* BackupModels.swift */; };
+		B7D0BBAA82783EA5501A4A7 /* BackupEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D0F1AA82783EA5501A4A7 /* BackupEngine.swift */; };
+		B7D0BBA67D2E0217DBB9BC5 /* CloudManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D0F1A67D2E0217DBB9BC5 /* CloudManagementView.swift */; };
+		B7D0BBA6D59807F91DE2098 /* SupabaseCloudView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D0F1A6D59807F91DE2098 /* SupabaseCloudView.swift */; };
+		B7D0BBA3C36264762EE603C /* BackupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D0F1A3C36264762EE603C /* BackupsView.swift */; };
+		B7D0BBAA817F7A6BB9A379A /* CloudAuthViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D0F1AA817F7A6BB9A379A /* CloudAuthViews.swift */; };
 		EBA79AAD7E44E8678597B3DE /* UseMCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF867F1B5A5C3D758D6E5B5 /* UseMCP.swift */; };
 
 		EBA8AD8A0CFE30D3DCD87D5E /* AgentUseMCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF77F9E6B06ABB7FB6C0A4F /* AgentUseMCP.swift */; };
@@ -1391,6 +1403,18 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		B7D0F1AECEE284CB5045B79 /* CloudModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudModels.swift; sourceTree = "<group>"; };
+		B7D0F1A9E57AA6C44D64814 /* CloudProvider.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudProvider.swift; sourceTree = "<group>"; };
+		B7D0F1AACAABE1660FD9D26 /* SupabaseCloudProvider.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SupabaseCloudProvider.swift; sourceTree = "<group>"; };
+		B7D0F1A6609097386FDC53E /* CloudSyncEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudSyncEngine.swift; sourceTree = "<group>"; };
+		B7D0F1A5BAA10F378B45050 /* CloudSyncWiring.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudSyncWiring.swift; sourceTree = "<group>"; };
+		B7D0F1ABE483E14CA270008 /* BackupProtocols.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BackupProtocols.swift; sourceTree = "<group>"; };
+		B7D0F1AA4ED9F0D7EFF6F58 /* BackupModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BackupModels.swift; sourceTree = "<group>"; };
+		B7D0F1AA82783EA5501A4A7 /* BackupEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BackupEngine.swift; sourceTree = "<group>"; };
+		B7D0F1A67D2E0217DBB9BC5 /* CloudManagementView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudManagementView.swift; sourceTree = "<group>"; };
+		B7D0F1A6D59807F91DE2098 /* SupabaseCloudView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SupabaseCloudView.swift; sourceTree = "<group>"; };
+		B7D0F1A3C36264762EE603C /* BackupsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BackupsView.swift; sourceTree = "<group>"; };
+		B7D0F1AA817F7A6BB9A379A /* CloudAuthViews.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudAuthViews.swift; sourceTree = "<group>"; };
 		EFF867F1B5A5C3D758D6E5B5 /* UseMCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UseMCP.swift; sourceTree = "<group>"; };
 
 		EFF77F9E6B06ABB7FB6C0A4F /* AgentUseMCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUseMCP.swift; sourceTree = "<group>"; };
@@ -4652,6 +4676,10 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 		ACCD78AD790D110C0A76E747 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				B7D0F1A67D2E0217DBB9BC5 /* CloudManagementView.swift */,
+				B7D0F1A6D59807F91DE2098 /* SupabaseCloudView.swift */,
+				B7D0F1A3C36264762EE603C /* BackupsView.swift */,
+				B7D0F1AA817F7A6BB9A379A /* CloudAuthViews.swift */,
 				EFF77474F2B5DCBDAA9C86B9 /* AddedMCPServersView.swift */,
 				EFF81BFD5C258111DF44879C /* AddMCPServerView.swift */,
 				775C17DFAC2EE718919A322 /* SettingsView.swift */,
@@ -4705,6 +4733,8 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 		B0010001B0010001B0010005 /* Internal */ = {
 			isa = PBXGroup;
 			children = (
+				B7D0BB000000000000000001 /* Cloud */,
+				B7D0BB000000000000000002 /* Backups */,
 				B0010001B0010001B001000F /* MCP */,
 				EFF000000000000000000001 /* ExportProjManager.swift */,
 				EFF000000000000000000002 /* ImportProjManager.swift */,
@@ -4727,6 +4757,28 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 				EFF000000000000000000013 /* ProjectXMLManager.swift */,
 			);
 			path = Internal;
+			sourceTree = "<group>";
+		};
+		B7D0BB000000000000000001 /* Cloud */ = {
+			isa = PBXGroup;
+			children = (
+				B7D0F1AECEE284CB5045B79 /* CloudModels.swift */,
+				B7D0F1A9E57AA6C44D64814 /* CloudProvider.swift */,
+				B7D0F1AACAABE1660FD9D26 /* SupabaseCloudProvider.swift */,
+				B7D0F1A6609097386FDC53E /* CloudSyncEngine.swift */,
+				B7D0F1A5BAA10F378B45050 /* CloudSyncWiring.swift */,
+			);
+			path = Cloud;
+			sourceTree = "<group>";
+		};
+		B7D0BB000000000000000002 /* Backups */ = {
+			isa = PBXGroup;
+			children = (
+				B7D0F1ABE483E14CA270008 /* BackupProtocols.swift */,
+				B7D0F1AA4ED9F0D7EFF6F58 /* BackupModels.swift */,
+				B7D0F1AA82783EA5501A4A7 /* BackupEngine.swift */,
+			);
+			path = Backups;
 			sourceTree = "<group>";
 		};
 		B0020001B0020001B0020001 /* Styling */ = {
@@ -5545,6 +5597,18 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B7D0BBAECEE284CB5045B79 /* CloudModels.swift in Sources */,
+				B7D0BBA9E57AA6C44D64814 /* CloudProvider.swift in Sources */,
+				B7D0BBAACAABE1660FD9D26 /* SupabaseCloudProvider.swift in Sources */,
+				B7D0BBA6609097386FDC53E /* CloudSyncEngine.swift in Sources */,
+				B7D0BBA5BAA10F378B45050 /* CloudSyncWiring.swift in Sources */,
+				B7D0BBABE483E14CA270008 /* BackupProtocols.swift in Sources */,
+				B7D0BBAA4ED9F0D7EFF6F58 /* BackupModels.swift in Sources */,
+				B7D0BBAA82783EA5501A4A7 /* BackupEngine.swift in Sources */,
+				B7D0BBA67D2E0217DBB9BC5 /* CloudManagementView.swift in Sources */,
+				B7D0BBA6D59807F91DE2098 /* SupabaseCloudView.swift in Sources */,
+				B7D0BBA3C36264762EE603C /* BackupsView.swift in Sources */,
+				B7D0BBAA817F7A6BB9A379A /* CloudAuthViews.swift in Sources */,
 				EBA79AAD7E44E8678597B3DE /* UseMCP.swift in Sources */,
 				EBA8AD8A0CFE30D3DCD87D5E /* AgentUseMCP.swift in Sources */,
 				EBAF66D23CC7789FCB323AFD /* AddedMCPServersView.swift in Sources */,

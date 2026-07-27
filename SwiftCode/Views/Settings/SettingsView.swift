@@ -619,6 +619,26 @@ private let settingsRegistryList: [SettingsItem] = [
         helpDoc: "Select and modify code-coloring themes, visual parameters, font sizes, font families, and custom text styles."
     ),
     SettingsItem(
+        id: "cloud",
+        title: "Cloud Sync",
+        icon: "icloud.fill",
+        iconBgColor: .blue,
+        category: "System",
+        sortOrder: 17,
+        keywords: "cloud sync supabase database backups continuous real-time settings configurations save backup restore remote secure",
+        helpDoc: "Enable and configure continuous, real-time secure database synchronization backed by your Supabase account."
+    ),
+    SettingsItem(
+        id: "backups",
+        title: "Backups",
+        icon: "clock.arrow.circlepath",
+        iconBgColor: .indigo,
+        category: "System",
+        sortOrder: 18,
+        keywords: "backups snapshot restore restore-state snapshots archive zip local point-in-time state config save",
+        helpDoc: "Create and apply point-in-time snapshot archives of all settings, templates, project files, and user histories."
+    ),
+    SettingsItem(
         id: "ai_assist",
         title: "AI & Assist",
         icon: "sparkles",
@@ -791,6 +811,10 @@ struct SettingsMainWrapper: View {
         case "themes":
             ThemeManagementView()
                 .environmentObject(settings)
+        case "cloud":
+            CloudManagementView()
+        case "backups":
+            BackupsView()
         case "ai_assist":
             AssistSettingsView()
         case "offline_models":
@@ -807,4 +831,3 @@ struct SettingsMainWrapper: View {
         }
     }
 }
-
