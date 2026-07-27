@@ -232,3 +232,58 @@ public struct MCPContentBlock: Codable, Sendable {
         self.text = text
     }
 }
+
+// MARK: - MCP Logging Subsystem
+
+public enum MCPLogSeverity: String, Codable, Sendable, CaseIterable {
+    case info = "INFO"
+    case warning = "WARN"
+    case error = "ERROR"
+}
+
+public struct MCPLogEntry: Codable, Sendable, Identifiable {
+    public let id: UUID
+    public let timestamp: Date
+    public let severity: MCPLogSeverity
+    public let serverName: String
+    public let message: String
+
+    public init(id: UUID = UUID(), timestamp: Date = Date(), severity: MCPLogSeverity, serverName: String, message: String) {
+        self.id = id
+        self.timestamp = timestamp
+        self.severity = severity
+        self.serverName = serverName
+        self.message = message
+    }
+}
+
+@Observable
+@MainActor
+public final class MCPLoggingManager: Sendable {
+    public static let shared = MCPLoggingManager()
+
+    public private(set) var logs: [MCPLogEntry] = []
+
+    private init() {}
+
+    public func log(severity: MCPLogSeverity, serverName: String, message: String) {
+        let entry = MCPLogEntry(severity: severity, serverName: serverName, message: message)
+        logs.append(entry)
+
+        let subsystem = "com.swiftcode.mcp"
+        let logger = os.Logger(subsystem: subsystem, category: serverName)
+        let logMsg = "[\(severity.rawValue)] \(message)"
+        switch severity {
+        case .info:
+            logger.info("\(logMsg)")
+        case .warning:
+            logger.warning("\(logMsg)")
+        case .error:
+            logger.error("\(logMsg)")
+        }
+    }
+
+    public func clearLogs() {
+        logs.removeAll()
+    }
+}

@@ -22,6 +22,7 @@ public final class AssistManager: ObservableObject {
 
     private var agent: AssistAgent?
     private let api = AssistAPI.shared
+    private var activeAgentTask: Task<Void, Never>?
 
     // Cache for bundled system prompt
     private var cachedSystemPrompt: String?
@@ -178,21 +179,27 @@ public final class AssistManager: ObservableObject {
             }
 
             let context = buildContext()
-            do {
-                try await agentSession.start(objective: trimmed, attachments: attachments, context: context)
-                await MainActor.run {
-                    messages.append(AssistMessage(role: .assistant, content: "Autonomous task execution finished."))
-                    isProcessing = false
-                    saveHistory()
-                }
-            } catch {
-                await MainActor.run {
-                    lastError = "Agent execution failed: \(error.localizedDescription)"
-                    messages.append(AssistMessage(role: .system, content: error.localizedDescription))
-                    isProcessing = false
-                    saveHistory()
+            let task = Task {
+                do {
+                    try await agentSession.start(objective: trimmed, attachments: attachments, context: context)
+                    if Task.isCancelled { return }
+                    await MainActor.run {
+                        messages.append(AssistMessage(role: .assistant, content: "Autonomous task execution finished."))
+                        isProcessing = false
+                        saveHistory()
+                    }
+                } catch {
+                    if Task.isCancelled { return }
+                    await MainActor.run {
+                        lastError = "Agent execution failed: \(error.localizedDescription)"
+                        messages.append(AssistMessage(role: .system, content: error.localizedDescription))
+                        isProcessing = false
+                        saveHistory()
+                    }
                 }
             }
+            activeAgentTask = task
+            _ = await task.result
             return
         }
 
@@ -298,6 +305,23 @@ public final class AssistManager: ObservableObject {
     }
 
     public func clearChat() {
+        // Immediately cancel the active agent task and agent session
+        activeAgentTask?.cancel()
+        activeAgentTask = nil
+
+        agentSession.cancel()
+
+        // Immediately cancel terminal execution and any running sub-processes
+        cancelTerminalExecution()
+
+        // Reset states to a clean, idle state
+        isProcessing = false
+        lastError = nil
+        takeoverReason = nil
+        currentCodeReview = nil
+        isCodeReviewRunning = false
+        hasCodeReviewBeenInvoked = false
+
         messages.removeAll()
         session.reset()
         UserDefaults.standard.removeObject(forKey: "com.swiftcode.assist.history")

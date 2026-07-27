@@ -31,15 +31,28 @@ public struct AddMCPServerView: View {
     public var body: some View {
         VStack(spacing: 0) {
             // Header Bar
-            HStack {
+            HStack(spacing: 12) {
                 Label("Model Context Protocol (MCP) Manager", systemImage: "network")
                     .font(.headline)
                     .foregroundStyle(.primary)
                 Spacer()
+
+                Button(action: {
+                    NSWorkspace.shared.open(URL(string: "https://github.com/mcp")!)
+                }) {
+                    Label("Discover MCPs", systemImage: "safari")
+                }
+                .buttonStyle(.bordered)
+
                 Button(action: { showAddServerSheet = true }) {
                     Label("Add Server", systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
+
+                Button("Close") {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
@@ -144,182 +157,237 @@ struct ServerConfigFormView: View {
     @State private var testSuccess: Bool? = nil
     @State private var testMetadata: MCPServerMetadata? = nil
     @State private var testTools: [MCPTool] = []
+    @State private var showLogsSheet = false
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("General Configuration") {
-                    TextField("Server Display Name", text: $displayName)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-
-                    Picker("Transport Type", selection: $transport) {
-                        Text("Local Stdio Subprocess").tag(MCPTransport.stdio)
-                        Text("HTTP API endpoint").tag(MCPTransport.http)
-                        Text("HTTPS Secure API endpoint").tag(MCPTransport.https)
-                    }
-                    .pickerStyle(.radioGroup)
-                    .horizontalRadioGroupLayout()
-                }
-
-                if transport == .stdio {
-                    Section("Local Stdio Subprocess Configuration") {
-                        TextField("Executable absolute path", text: $executablePath)
-                            .textFieldStyle(.roundedBorder)
-                            .autocorrectionDisabled()
-
-                        TextField("Launch arguments (comma-separated)", text: $launchArguments)
-                            .textFieldStyle(.roundedBorder)
-                            .autocorrectionDisabled()
-
-                        VStack(alignment: .leading, spacing: 8) {
+            ScrollView {
+                VStack(spacing: 20) {
+                    // General Config Card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
                             HStack {
-                                Text("Subprocess Environment Variables")
-                                    .font(.caption.bold())
-                                    .foregroundColor(.secondary)
+                                Label("General Configuration", systemImage: "info.circle.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
                                 Spacer()
-                                Button("Add Environment Var") {
-                                    envVars.append(MCPKeyValuePair(key: "KEY", value: "VALUE"))
-                                }
-                                .buttonStyle(.plain)
-                                .foregroundColor(.accentColor)
                             }
 
-                            ForEach($envVars) { $env in
-                                HStack {
-                                    TextField("Key", text: $env.key)
-                                        .textFieldStyle(.roundedBorder)
-                                    TextField("Value", text: $env.value)
-                                        .textFieldStyle(.roundedBorder)
-                                    Button(role: .destructive) {
-                                        envVars.removeAll { $0.id == env.id }
-                                    } label: {
-                                        Image(systemName: "trash")
-                                            .foregroundColor(.red)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    Section("HTTP / HTTPS API Configuration") {
-                        TextField("Server Base URL", text: $urlString)
-                            .textFieldStyle(.roundedBorder)
-                            .autocorrectionDisabled()
-
-                        Picker("Authorization Type", selection: $authType) {
-                            Text("None").tag(MCPAuthenticationType.none)
-                            Text("API Key Header").tag(MCPAuthenticationType.apiKey)
-                            Text("Bearer Authorization Token").tag(MCPAuthenticationType.bearerToken)
-                            Text("Custom HTTP Headers").tag(MCPAuthenticationType.customHeaders)
-                        }
-
-                        if authType == .apiKey || authType == .bearerToken {
-                            SecureField(authType == .apiKey ? "API Key" : "Bearer Token", text: $secretKey)
+                            TextField("Server Display Name", text: $displayName)
                                 .textFieldStyle(.roundedBorder)
-                        }
+                                .autocorrectionDisabled()
 
-                        if authType == .customHeaders {
-                            VStack(alignment: .leading, spacing: 8) {
+                            Picker("Transport Type", selection: $transport) {
+                                Text("Local Stdio Subprocess").tag(MCPTransport.stdio)
+                                Text("HTTP API endpoint").tag(MCPTransport.http)
+                                Text("HTTPS Secure API endpoint").tag(MCPTransport.https)
+                            }
+                            .pickerStyle(.radioGroup)
+                            .horizontalRadioGroupLayout()
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Transport details Card
+                    if transport == .stdio {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
                                 HStack {
-                                    Text("Custom HTTP Headers")
-                                        .font(.caption.bold())
-                                        .foregroundColor(.secondary)
+                                    Label("Local Stdio Subprocess Configuration", systemImage: "terminal.fill")
+                                        .font(.headline)
+                                        .foregroundColor(.orange)
                                     Spacer()
-                                    Button("Add Header") {
-                                        customHeaders.append(MCPKeyValuePair(key: "X-My-Header", value: "Value"))
-                                    }
-                                    .buttonStyle(.plain)
-                                    .foregroundColor(.accentColor)
                                 }
 
-                                ForEach($customHeaders) { $header in
+                                TextField("Executable absolute path", text: $executablePath)
+                                    .textFieldStyle(.roundedBorder)
+                                    .autocorrectionDisabled()
+
+                                TextField("Launch arguments (comma-separated)", text: $launchArguments)
+                                    .textFieldStyle(.roundedBorder)
+                                    .autocorrectionDisabled()
+
+                                VStack(alignment: .leading, spacing: 8) {
                                     HStack {
-                                        TextField("Header Key", text: $header.key)
-                                            .textFieldStyle(.roundedBorder)
-                                        TextField("Value", text: $header.value)
-                                            .textFieldStyle(.roundedBorder)
-                                        Button(role: .destructive) {
-                                            customHeaders.removeAll { $0.id == header.id }
-                                        } label: {
-                                            Image(systemName: "trash")
-                                                .foregroundColor(.red)
+                                        Label("Subprocess Environment Variables", systemImage: "slider.horizontal.3")
+                                            .font(.subheadline.bold())
+                                            .foregroundColor(.secondary)
+                                        Spacer()
+                                        Button(action: {
+                                            envVars.append(MCPKeyValuePair(key: "KEY", value: "VALUE"))
+                                        }) {
+                                            Label("Add Environment Var", systemImage: "plus")
                                         }
                                         .buttonStyle(.plain)
+                                        .foregroundColor(.accentColor)
                                     }
-                                }
-                            }
-                        }
-                    }
-                }
 
-                // Diagnostics Handshake Connection Panel
-                Section("Handshake Verification Diagnostics") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 12) {
-                            Button(action: testConnection) {
-                                HStack {
-                                    if isTesting {
-                                        ProgressView().scaleEffect(0.5).padding(.trailing, 4)
-                                    } else {
-                                        Image(systemName: "play.circle.fill")
-                                    }
-                                    Text(isTesting ? "Testing Handshake..." : "Test Connection Handshake")
-                                }
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(isTesting)
-
-                            if let success = testSuccess {
-                                HStack(spacing: 6) {
-                                    Image(systemName: success ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                                        .foregroundColor(success ? .green : .red)
-                                    Text(success ? "HANDSHAKE PASSED" : "HANDSHAKE FAILED")
-                                        .font(.caption.bold())
-                                        .foregroundColor(success ? .green : .red)
-                                }
-                            }
-                        }
-
-                        if let result = testResult {
-                            Text(result)
-                                .font(.system(.caption, design: .monospaced))
-                                .padding(10)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.black.opacity(0.12))
-                                .cornerRadius(6)
-                                .foregroundColor(testSuccess == true ? .green : .red)
-                        }
-
-                        if !testTools.isEmpty {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Discovered Available Tools (\(testTools.count)):")
-                                    .font(.subheadline.bold())
-                                ForEach(testTools) { tool in
-                                    HStack {
-                                        Image(systemName: "hammer.fill")
-                                            .foregroundColor(.orange)
-                                            .font(.caption)
-                                        Text(tool.name)
-                                            .font(.system(.caption, design: .monospaced))
-                                        if let desc = tool.description {
-                                            Text("- \(desc)")
-                                                .font(.caption2)
-                                                .foregroundColor(.secondary)
-                                                .lineLimit(1)
+                                    ForEach($envVars) { $env in
+                                        HStack {
+                                            TextField("Key", text: $env.key)
+                                                .textFieldStyle(.roundedBorder)
+                                            TextField("Value", text: $env.value)
+                                                .textFieldStyle(.roundedBorder)
+                                            Button(role: .destructive) {
+                                                envVars.removeAll { $0.id == env.id }
+                                            } label: {
+                                                Image(systemName: "trash")
+                                                    .foregroundColor(.red)
+                                            }
+                                            .buttonStyle(.plain)
                                         }
                                     }
-                                    .padding(.leading, 8)
                                 }
                             }
-                            .padding(.top, 4)
+                            .padding()
                         }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+                    } else {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Label("HTTP / HTTPS API Configuration", systemImage: "network")
+                                        .font(.headline)
+                                        .foregroundColor(.orange)
+                                    Spacer()
+                                }
+
+                                TextField("Server Base URL", text: $urlString)
+                                    .textFieldStyle(.roundedBorder)
+                                    .autocorrectionDisabled()
+
+                                Picker("Authorization Type", selection: $authType) {
+                                    Text("None").tag(MCPAuthenticationType.none)
+                                    Text("API Key Header").tag(MCPAuthenticationType.apiKey)
+                                    Text("Bearer Authorization Token").tag(MCPAuthenticationType.bearerToken)
+                                    Text("OAuth Access Token").tag(MCPAuthenticationType.oauth)
+                                    Text("Environment Variables").tag(MCPAuthenticationType.envVars)
+                                    Text("Custom HTTP Headers").tag(MCPAuthenticationType.customHeaders)
+                                }
+
+                                if authType == .apiKey || authType == .bearerToken || authType == .oauth {
+                                    SecureField(authType == .apiKey ? "API Key" : (authType == .bearerToken ? "Bearer Token" : "OAuth Token"), text: $secretKey)
+                                        .textFieldStyle(.roundedBorder)
+                                }
+
+                                if authType == .customHeaders {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        HStack {
+                                            Label("Custom HTTP Headers", systemImage: "checklist")
+                                                .font(.subheadline.bold())
+                                                .foregroundColor(.secondary)
+                                            Spacer()
+                                            Button("Add Header") {
+                                                customHeaders.append(MCPKeyValuePair(key: "X-My-Header", value: "Value"))
+                                            }
+                                            .buttonStyle(.plain)
+                                            .foregroundColor(.accentColor)
+                                        }
+
+                                        ForEach($customHeaders) { $header in
+                                            HStack {
+                                                TextField("Header Key", text: $header.key)
+                                                    .textFieldStyle(.roundedBorder)
+                                                TextField("Value", text: $header.value)
+                                                    .textFieldStyle(.roundedBorder)
+                                                Button(role: .destructive) {
+                                                    customHeaders.removeAll { $0.id == header.id }
+                                                } label: {
+                                                    Image(systemName: "trash")
+                                                        .foregroundColor(.red)
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
                     }
-                    .padding(.vertical, 6)
+
+                    // Diagnostics Card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Verification Diagnostics", systemImage: "checkmark.shield.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.green)
+                                Spacer()
+
+                                Button(action: { showLogsSheet = true }) {
+                                    Label("Connection Logs", systemImage: "doc.text.magnifyingglass")
+                                }
+                                .buttonStyle(.bordered)
+                            }
+
+                            HStack(spacing: 12) {
+                                Button(action: testConnection) {
+                                    HStack {
+                                        if isTesting {
+                                            ProgressView().scaleEffect(0.5).padding(.trailing, 4)
+                                        } else {
+                                            Image(systemName: "play.circle.fill")
+                                        }
+                                        Text(isTesting ? "Testing Handshake..." : "Test Connection Handshake")
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(isTesting)
+
+                                if let success = testSuccess {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: success ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                            .foregroundColor(success ? .green : .red)
+                                        Text(success ? "HANDSHAKE PASSED" : "HANDSHAKE FAILED")
+                                            .font(.caption.bold())
+                                            .foregroundColor(success ? .green : .red)
+                                    }
+                                }
+                            }
+
+                            if let result = testResult {
+                                Text(result)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .padding(10)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.black.opacity(0.12))
+                                    .cornerRadius(6)
+                                    .foregroundColor(testSuccess == true ? .green : .red)
+                            }
+
+                            if !testTools.isEmpty {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Discovered Available Tools (\(testTools.count)):")
+                                        .font(.subheadline.bold())
+                                    ForEach(testTools) { tool in
+                                        HStack {
+                                            Image(systemName: "hammer.fill")
+                                                .foregroundColor(.orange)
+                                                .font(.caption)
+                                            Text(tool.name)
+                                                .font(.system(.caption, design: .monospaced))
+                                            if let desc = tool.description {
+                                                Text("- \(desc)")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.secondary)
+                                                    .lineLimit(1)
+                                            }
+                                        }
+                                        .padding(.leading, 8)
+                                    }
+                                }
+                                .padding(.top, 4)
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
+                .padding(20)
             }
-            .formStyle(.grouped)
             .navigationTitle(serverToEdit == nil ? "Add MCP Server" : "Edit MCP Server")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -333,8 +401,11 @@ struct ServerConfigFormView: View {
             .onAppear {
                 loadServerData()
             }
+            .sheet(isPresented: $showLogsSheet) {
+                MCPLogsView(serverFilter: displayName.isEmpty ? nil : displayName)
+            }
         }
-        .frame(width: 550, height: 620)
+        .frame(width: 580, height: 650)
     }
 
     private func loadServerData() {
@@ -512,5 +583,143 @@ struct ToolsBrowserSheet: View {
             return "type: \(schema.type)"
         }
         return prettyString
+    }
+}
+
+// MARK: - MCPLogsView
+
+struct MCPLogsView: View {
+    @Environment(\.dismiss) private var dismiss
+    let serverFilter: String? // nil or server display name to filter by
+
+    @State private var searchText = ""
+    @State private var selectedSeverity: MCPLogSeverity? = nil
+
+    private var filteredLogs: [MCPLogEntry] {
+        let allLogs = MCPLoggingManager.shared.logs
+        return allLogs.filter { log in
+            if let serverFilter = serverFilter, !serverFilter.isEmpty {
+                guard log.serverName.lowercased() == serverFilter.lowercased() else { return false }
+            }
+            if let selectedSeverity = selectedSeverity {
+                guard log.severity == selectedSeverity else { return false }
+            }
+            if !searchText.isEmpty {
+                guard log.message.localizedCaseInsensitiveContains(searchText) ||
+                      log.serverName.localizedCaseInsensitiveContains(searchText) else { return false }
+            }
+            return true
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Filter bar
+                HStack(spacing: 12) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.secondary)
+                    TextField("Filter logs...", text: $searchText)
+                        .textFieldStyle(.plain)
+
+                    if !searchText.isEmpty {
+                        Button { searchText = "" } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Divider().frame(height: 16)
+
+                    Picker("Severity", selection: $selectedSeverity) {
+                        Text("All Severities").tag(MCPLogSeverity?.none)
+                        Text("Info").tag(MCPLogSeverity.info as MCPLogSeverity?)
+                        Text("Warnings").tag(MCPLogSeverity.warning as MCPLogSeverity?)
+                        Text("Errors").tag(MCPLogSeverity.error as MCPLogSeverity?)
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 140)
+
+                    Button(role: .destructive) {
+                        MCPLoggingManager.shared.clearLogs()
+                    } label: {
+                        Label("Clear", systemImage: "trash")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color(NSColor.controlBackgroundColor))
+
+                Divider()
+
+                if filteredLogs.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.system(size: 32))
+                            .foregroundColor(.secondary.opacity(0.5))
+                        Text("No log entries match active filters")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black.opacity(0.1))
+                } else {
+                    List {
+                        ForEach(filteredLogs) { log in
+                            HStack(alignment: .top, spacing: 10) {
+                                // Timestamp
+                                Text(log.timestamp.formatted(date: .omitted, time: .standard))
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 75, alignment: .leading)
+
+                                // Severity badge
+                                Text(log.severity.rawValue)
+                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 1)
+                                    .background(severityColor(log.severity).opacity(0.12), in: Capsule())
+                                    .foregroundColor(severityColor(log.severity))
+                                    .frame(width: 55, alignment: .center)
+
+                                // Server tag
+                                Text(log.serverName)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundColor(.orange)
+                                    .lineLimit(1)
+                                    .frame(width: 100, alignment: .leading)
+
+                                // Message
+                                Text(log.message)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundColor(.primary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .textSelection(.enabled)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                    .listStyle(.inset)
+                }
+            }
+            .navigationTitle(serverFilter == nil ? "Centralized MCP Diagnostics" : "\(serverFilter!) - Diagnostics Console")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .frame(width: 750, height: 480)
+    }
+
+    private func severityColor(_ severity: MCPLogSeverity) -> Color {
+        switch severity {
+        case .info: return .blue
+        case .warning: return .orange
+        case .error: return .red
+        }
     }
 }
