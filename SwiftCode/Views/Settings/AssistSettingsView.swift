@@ -544,6 +544,7 @@ struct AssistSettingsView: View {
     // Sheets Toggles
     @State private var showFreeModelsSheet = false
     @State private var showFoundationModelsSheet = false
+    @State private var showMCPServersSheet = false
 
     // Fallback rotation reference
     @State private var fallbackRotation = FreeModelsFallback.shared
@@ -756,6 +757,34 @@ struct AssistSettingsView: View {
                                 showFoundationModelsSheet = true
                             } label: {
                                 Label("Setup Native Foundation Model", systemImage: "slider.horizontal.3")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // MCP Server Management Section
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Model Context Protocol (MCP)", systemImage: "network")
+                                .font(.headline)
+                                .foregroundColor(.purple)
+                            Spacer()
+                        }
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Connect local stdio sub-processes or remote HTTP services to expand your AI capabilities with custom tools and context schemas.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Button {
+                                showMCPServersSheet = true
+                            } label: {
+                                Label("Manage MCP Servers", systemImage: "arrow.up.right.square")
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
@@ -1059,6 +1088,9 @@ struct AssistSettingsView: View {
         }
         .sheet(isPresented: $showFoundationModelsSheet) {
             FoundationModelsView()
+        }
+        .sheet(isPresented: $showMCPServersSheet) {
+            AddMCPServerView()
         }
         .onAppear {
             loadAPIKeys()

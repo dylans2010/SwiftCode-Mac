@@ -241,13 +241,15 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
     public let content: String
     public let timestamp: Date
     public var attachments: [AgentFileContext]?
+    public var mcpExecution: MCPExecutionMetadata?
 
-    public init(role: AssistRole, content: String, attachments: [AgentFileContext]? = nil) {
+    public init(role: AssistRole, content: String, attachments: [AgentFileContext]? = nil, mcpExecution: MCPExecutionMetadata? = nil) {
         self.id = UUID()
         self.role = role
         self.content = content
         self.timestamp = Date()
         self.attachments = attachments
+        self.mcpExecution = mcpExecution
     }
 }
 

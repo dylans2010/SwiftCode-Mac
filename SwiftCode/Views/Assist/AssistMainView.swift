@@ -198,7 +198,11 @@ public struct AssistMainView: View {
 
                             // Chat bubbles
                             ForEach(filteredMessages) { message in
-                                AssistChatBubble(message: message)
+                                if let mcp = message.mcpExecution {
+                                    AgentUseMCP(metadata: mcp)
+                                } else {
+                                    AssistChatBubble(message: message)
+                                }
                             }
 
                             // Tool Timeline widget

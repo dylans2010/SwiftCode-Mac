@@ -7,6 +7,20 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		EBA79AAD7E44E8678597B3DE /* UseMCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF867F1B5A5C3D758D6E5B5 /* UseMCP.swift */; };
+
+		EBA8AD8A0CFE30D3DCD87D5E /* AgentUseMCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF77F9E6B06ABB7FB6C0A4F /* AgentUseMCP.swift */; };
+
+		EBAF66D23CC7789FCB323AFD /* AddedMCPServersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF77474F2B5DCBDAA9C86B9 /* AddedMCPServersView.swift */; };
+
+		EBAD0850DE7D31F71534A7B6 /* AddMCPServerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF81BFD5C258111DF44879C /* AddMCPServerView.swift */; };
+
+		EBAD1D2BDB372534C5F79D97 /* MCPServerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFFA7EA2613E162D61658FD2 /* MCPServerManager.swift */; };
+
+		EBA85B928B16354C99039939 /* MCPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFFA028F69A24D030CC9CAA3 /* MCPClient.swift */; };
+
+		EBA0A6E0B688F66FE6A48EE9 /* MCPModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF5FAA134FED4085E6276E6 /* MCPModels.swift */; };
+
 		D48EB73DDC4EC7ADD58C1CAA /* DocSymbols.json in Resources */ = {isa = PBXBuildFile; fileRef = F60787477E14031160E05AAA /* DocSymbols.json */; };
 		6AFC5889BE2EBC0A3C636986 /* XcodeShortcutsCheatsheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E26BE2ADB641EA440B8AEB4 /* XcodeShortcutsCheatsheetView.swift */; };
 		5B8E130F040CB5E2D439CA74 /* SwiftUIPerformanceCheatsheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C0E76C96B1F831170E35AC /* SwiftUIPerformanceCheatsheetView.swift */; };
@@ -1377,6 +1391,20 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		EFF867F1B5A5C3D758D6E5B5 /* UseMCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UseMCP.swift; sourceTree = "<group>"; };
+
+		EFF77F9E6B06ABB7FB6C0A4F /* AgentUseMCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUseMCP.swift; sourceTree = "<group>"; };
+
+		EFF77474F2B5DCBDAA9C86B9 /* AddedMCPServersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddedMCPServersView.swift; sourceTree = "<group>"; };
+
+		EFF81BFD5C258111DF44879C /* AddMCPServerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddMCPServerView.swift; sourceTree = "<group>"; };
+
+		EFFA7EA2613E162D61658FD2 /* MCPServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerManager.swift; sourceTree = "<group>"; };
+
+		EFFA028F69A24D030CC9CAA3 /* MCPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPClient.swift; sourceTree = "<group>"; };
+
+		EFF5FAA134FED4085E6276E6 /* MCPModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPModels.swift; sourceTree = "<group>"; };
+
 		F60787477E14031160E05AAA /* DocSymbols.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = DocSymbols.json; sourceTree = "<group>"; };
 		9E26BE2ADB641EA440B8AEB4 /* XcodeShortcutsCheatsheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "XcodeShortcutsCheatsheetView.swift"; sourceTree = "<group>"; };
 		C0C0E76C96B1F831170E35AC /* SwiftUIPerformanceCheatsheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftUIPerformanceCheatsheetView.swift"; sourceTree = "<group>"; };
@@ -2762,6 +2790,17 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		B0010001B0010001B001000F /* MCP */ = {
+			isa = PBXGroup;
+			children = (
+				EFFA7EA2613E162D61658FD2 /* MCPServerManager.swift */,
+				EFFA028F69A24D030CC9CAA3 /* MCPClient.swift */,
+				EFF5FAA134FED4085E6276E6 /* MCPModels.swift */,
+			);
+			path = MCP;
+			sourceTree = "<group>";
+		};
+
 		180ED1F5157DACBE8B1D139C /* Codex */ = {
 			isa = PBXGroup;
 			children = (
@@ -2893,6 +2932,7 @@
 		0AD835D66CAA78EC371E60BF /* Tools */ = {
 			isa = PBXGroup;
 			children = (
+				EFF867F1B5A5C3D758D6E5B5 /* UseMCP.swift */,
 				5C86F1D43534422697C2209E /* CodeReview.swift */,
 				5C5E70000000000000000504 /* UseTermFunction.swift */,
 				F8671939AE117A1B8ED8D013 /* AssistTool.swift */,
@@ -2962,6 +3002,7 @@
 		27749D21083D1692F60CF1D2 /* Assist */ = {
 			isa = PBXGroup;
 			children = (
+				EFF77F9E6B06ABB7FB6C0A4F /* AgentUseMCP.swift */,
 				3891332787254C0784D1C5AF /* CodeAssistUserView.swift */,
 				F852C009A90B3CC08411A4B6 /* AgentTimelineView.swift */,
 				F8304153802789C34488D395 /* ToolExecutionView.swift */,
@@ -4611,6 +4652,8 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 		ACCD78AD790D110C0A76E747 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				EFF77474F2B5DCBDAA9C86B9 /* AddedMCPServersView.swift */,
+				EFF81BFD5C258111DF44879C /* AddMCPServerView.swift */,
 				775C17DFAC2EE718919A322 /* SettingsView.swift */,
 				02BC29E58C19C690DD971DA0 /* NewSettingsView.swift */,
 				E5C09D1515DC441A8619FDB6 /* AssistSettingsView.swift */,
@@ -4662,6 +4705,7 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 		B0010001B0010001B0010005 /* Internal */ = {
 			isa = PBXGroup;
 			children = (
+				B0010001B0010001B001000F /* MCP */,
 				EFF000000000000000000001 /* ExportProjManager.swift */,
 				EFF000000000000000000002 /* ImportProjManager.swift */,
 				EFF000000000000000000003 /* ManifestProjManager.swift */,
@@ -5501,6 +5545,13 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EBA79AAD7E44E8678597B3DE /* UseMCP.swift in Sources */,
+				EBA8AD8A0CFE30D3DCD87D5E /* AgentUseMCP.swift in Sources */,
+				EBAF66D23CC7789FCB323AFD /* AddedMCPServersView.swift in Sources */,
+				EBAD0850DE7D31F71534A7B6 /* AddMCPServerView.swift in Sources */,
+				EBAD1D2BDB372534C5F79D97 /* MCPServerManager.swift in Sources */,
+				EBA85B928B16354C99039939 /* MCPClient.swift in Sources */,
+				EBA0A6E0B688F66FE6A48EE9 /* MCPModels.swift in Sources */,
 				7621F0E780BE1F8767C7CDE4 /* MainToolsView.swift in Sources */,
 				E063E218D13ACDDD0B728F91 /* GitWorktree.swift in Sources */,
 				E063E218D13ACDDD0B728F93 /* WorktreeManager.swift in Sources */,
