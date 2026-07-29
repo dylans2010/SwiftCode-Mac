@@ -30,38 +30,44 @@ public final class SupabaseCloudProvider: CloudProvider, @unchecked Sendable {
 
 final class AppwriteAuthenticationProvider: AuthenticationProvider, @unchecked Sendable {
     func getActiveSession() async throws -> CloudSession? {
-        guard await AuthManager.shared.isAuthenticated,
-              let user = await AuthManager.shared.currentUser,
-              let swiftCodeID = await AuthManager.shared.swiftCodeID else {
-            return nil
+        await MainActor.run {
+            guard AuthManager.shared.isAuthenticated,
+                  let user = AuthManager.shared.currentUser,
+                  let swiftCodeID = AuthManager.shared.swiftCodeID else {
+                return nil
+            }
+            return CloudSession(
+                userID: swiftCodeID,
+                email: user.email,
+                accessToken: "",
+                refreshToken: "",
+                createdAt: Date(),
+                expiresAt: Date().addingTimeInterval(3600),
+                isGuest: false
+            )
         }
-        return CloudSession(
-            userID: swiftCodeID,
-            email: user.email,
-            accessToken: "",
-            refreshToken: "",
-            createdAt: Date(),
-            expiresAt: Date().addingTimeInterval(3600),
-            isGuest: false
-        )
     }
 
     func login(email: String, password: SecureString) async throws -> CloudSession {
         try await AuthManager.shared.login(email: email, password: password)
-        guard let user = await AuthManager.shared.currentUser,
-              let swiftCodeID = await AuthManager.shared.swiftCodeID else {
-            throw NSError(domain: "Auth", code: 401, userInfo: [NSLocalizedDescriptionKey: "Appwrite login completed but user/SwiftCode ID is missing."])
+        return try await MainActor.run {
+            guard let user = AuthManager.shared.currentUser,
+                  let swiftCodeID = AuthManager.shared.swiftCodeID else {
+                throw NSError(domain: "Auth", code: 401, userInfo: [NSLocalizedDescriptionKey: "Appwrite login completed but user/SwiftCode ID is missing."])
+            }
+            return CloudSession(userID: swiftCodeID, email: user.email, accessToken: "", refreshToken: "")
         }
-        return CloudSession(userID: swiftCodeID, email: user.email, accessToken: "", refreshToken: "")
     }
 
     func createAccount(email: String, password: SecureString) async throws -> CloudSession {
         try await AuthManager.shared.createAccount(email: email, password: password)
-        guard let user = await AuthManager.shared.currentUser,
-              let swiftCodeID = await AuthManager.shared.swiftCodeID else {
-            throw NSError(domain: "Auth", code: 401, userInfo: [NSLocalizedDescriptionKey: "Appwrite registration completed but user/SwiftCode ID is missing."])
+        return try await MainActor.run {
+            guard let user = AuthManager.shared.currentUser,
+                  let swiftCodeID = AuthManager.shared.swiftCodeID else {
+                throw NSError(domain: "Auth", code: 401, userInfo: [NSLocalizedDescriptionKey: "Appwrite registration completed but user/SwiftCode ID is missing."])
+            }
+            return CloudSession(userID: swiftCodeID, email: user.email, accessToken: "", refreshToken: "")
         }
-        return CloudSession(userID: swiftCodeID, email: user.email, accessToken: "", refreshToken: "")
     }
 
     func logout() async throws {
@@ -70,11 +76,13 @@ final class AppwriteAuthenticationProvider: AuthenticationProvider, @unchecked S
 
     func migrateGuestAccount(toEmail email: String, password: SecureString) async throws -> CloudSession {
         try await AuthManager.shared.changeEmail(newEmail: email, password: password)
-        guard let user = await AuthManager.shared.currentUser,
-              let swiftCodeID = await AuthManager.shared.swiftCodeID else {
-            throw NSError(domain: "Auth", code: 401, userInfo: [NSLocalizedDescriptionKey: "Appwrite migration completed but user/SwiftCode ID is missing."])
+        return try await MainActor.run {
+            guard let user = AuthManager.shared.currentUser,
+                  let swiftCodeID = AuthManager.shared.swiftCodeID else {
+                throw NSError(domain: "Auth", code: 401, userInfo: [NSLocalizedDescriptionKey: "Appwrite migration completed but user/SwiftCode ID is missing."])
+            }
+            return CloudSession(userID: swiftCodeID, email: user.email, accessToken: "", refreshToken: "")
         }
-        return CloudSession(userID: swiftCodeID, email: user.email, accessToken: "", refreshToken: "")
     }
 
     func requestPasswordReset(forEmail email: String) async throws {
@@ -90,9 +98,15 @@ final class AppwriteAuthenticationProvider: AuthenticationProvider, @unchecked S
                     if isAuth != lastIsAuth {
                         lastIsAuth = isAuth
                         if isAuth {
-                            if let user = await AuthManager.shared.currentUser,
-                               let swiftCodeID = await AuthManager.shared.swiftCodeID {
-                                continuation.yield(CloudSession(userID: swiftCodeID, email: user.email, accessToken: "", refreshToken: ""))
+                            let session = await MainActor.run { () -> CloudSession? in
+                                guard let user = AuthManager.shared.currentUser,
+                                      let swiftCodeID = AuthManager.shared.swiftCodeID else {
+                                    return nil
+                                }
+                                return CloudSession(userID: swiftCodeID, email: user.email, accessToken: "", refreshToken: "")
+                            }
+                            if let session = session {
+                                continuation.yield(session)
                             }
                         } else {
                             continuation.yield(nil)
