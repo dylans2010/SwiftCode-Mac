@@ -12,6 +12,7 @@
 		57AFC04E569B8BDE2658ECD1 /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57AFC04E569B8BDE2658ECD2 /* AuthManager.swift */; };
 		57A9924AA053420BB40882CD /* AppwriteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57A99249BF88432CBDA28834 /* AppwriteService.swift */; };
 		57A99248C8484845B948EAB1 /* Appwrite in Frameworks */ = {isa = PBXBuildFile; productRef = 57A99248A053420BB40882CD /* Appwrite */; };
+		E9A99248C8484845B948EAB1 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = E9A99248A053420BB40882CD /* Supabase */; };
 		B7D0BBAECEE284CB5045B79 /* CloudModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D0F1AECEE284CB5045B79 /* CloudModels.swift */; };
 		B7D0BBA9E57AA6C44D64814 /* CloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D0F1A9E57AA6C44D64814 /* CloudProvider.swift */; };
 		B7D0BBAACAABE1660FD9D26 /* SupabaseCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D0F1AACAABE1660FD9D26 /* SupabaseCloudProvider.swift */; };
@@ -2810,6 +2811,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				57A99248C8484845B948EAB1 /* Appwrite in Frameworks */,
+				E9A99248C8484845B948EAB1 /* Supabase in Frameworks */,
 				A1B2C3D4E5F60123456789AD /* Splash in Frameworks */,
 				A6B90EA3C8484845B948EAB1 /* ZIPFoundation in Frameworks */,
 				3A03081082E64D30A4EA603C /* MLX in Frameworks */,
@@ -5437,6 +5439,7 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 			name = SwiftCode;
 			packageProductDependencies = (
 				57A99248A053420BB40882CD /* Appwrite */,
+				E9A99248A053420BB40882CD /* Supabase */,
 				A0170D8F5C28416DA35935FE /* ZIPFoundation */,
 				B94457CF33644AA882115C94 /* MLX */,
 				1F87188B9053420BB40882CD /* MLXNN */,
@@ -5475,6 +5478,7 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 			mainGroup = 6CFC827E67DCAE34C72B9CED;
 			packageReferences = (
 				57A99247BF88432CBDA28834 /* XCRemoteSwiftPackageReference "sdk-for-apple" */,
+				E9A99247BF88432CBDA28834 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				4A810247BF88432CBDA28834 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 				A1B2C3D4E5F60123456789AB /* XCRemoteSwiftPackageReference "Splash" */,
 				B5C11042228B46F1A40BB7DA /* XCRemoteSwiftPackageReference "mlx-swift" */,
@@ -7133,6 +7137,14 @@ CE705E1EC3604FFEEB031075 /* FoundationModels.swift in Sources */,
 				minimumVersion = 2.0.0;
 			};
 		};
+		E9A99247BF88432CBDA28834 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -7140,6 +7152,11 @@ CE705E1EC3604FFEEB031075 /* FoundationModels.swift in Sources */,
 			isa = XCSwiftPackageProductDependency;
 			package = 57A99247BF88432CBDA28834 /* XCRemoteSwiftPackageReference "sdk-for-apple" */;
 			productName = Appwrite;
+		};
+		E9A99248A053420BB40882CD /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E9A99247BF88432CBDA28834 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
 		};
 		1F87188B9053420BB40882CD /* MLXNN */ = {
 			isa = XCSwiftPackageProductDependency;
