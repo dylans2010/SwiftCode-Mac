@@ -207,7 +207,7 @@ public final class BackupEngine {
         }
 
         var count = 0
-        let totalEntries = Double(archive.count)
+        let totalEntries = max(Double(archive.reduce(0) { c, _ in c + 1 }), 1.0)
         for (index, entry) in archive.enumerated() {
             let destinationURL = appSupportStateURL.appendingPathComponent(entry.path)
             _ = try archive.extract(entry, to: destinationURL)

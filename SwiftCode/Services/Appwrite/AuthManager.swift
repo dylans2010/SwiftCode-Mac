@@ -11,7 +11,7 @@ public final class AuthManager {
     public static let shared = AuthManager()
 
     // Thread-safe observable state
-    public private(set) var currentUser: Appwrite.User?
+    public private(set) var currentUser: Appwrite.User<Appwrite.Preferences>?
     public private(set) var currentSession: Appwrite.Session?
     public private(set) var swiftCodeID: String?
     public private(set) var isAuthenticated = false
@@ -120,7 +120,7 @@ public final class AuthManager {
         do {
             let callbackURL = "https://sfo.cloud.appwrite.io/v1/account/sessions/oauth2/callback/google/6a670d0b0022e5f964b4"
             _ = try await account.createOAuth2Session(
-                provider: OAuthProvider.google,
+                provider: .google,
                 success: callbackURL,
                 failure: callbackURL
             )
@@ -143,7 +143,7 @@ public final class AuthManager {
         do {
             let callbackURL = "https://sfo.cloud.appwrite.io/v1/account/sessions/oauth2/callback/github/6a670d0b0022e5f964b4"
             _ = try await account.createOAuth2Session(
-                provider: OAuthProvider.github,
+                provider: .github,
                 success: callbackURL,
                 failure: callbackURL
             )
