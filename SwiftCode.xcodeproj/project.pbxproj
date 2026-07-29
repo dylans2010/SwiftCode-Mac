@@ -7,6 +7,22 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CF35CA016F59E7177DDC0AEF /* CloudError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1447B9E2C008F414C2B00A48 /* CloudError.swift */; };
+		C3A5B22197BFC2392607D317 /* CloudRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDF7400BCC2204B1C8E5E58D /* CloudRecord.swift */; };
+		41C3C0B9FDA5AC6C86AA0DAB /* SyncMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 845E5494E6E05BF6399E4A92 /* SyncMetadata.swift */; };
+		841AB4DB5888230ABA5DC2E0 /* SyncState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DDA9799B405D0C0A63CFFF9 /* SyncState.swift */; };
+		690F25F62F1344E7BD3AE725 /* CloudUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C227FCD245B09C22931F806C /* CloudUser.swift */; };
+		78E898BF1E95FD346B999EC3 /* CloudStorageInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEC57C221292EA2EC981D1B1 /* CloudStorageInfo.swift */; };
+		A71473936EE2A289E62FA9C9 /* ConflictResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2B95B15885334B6327F442 /* ConflictResolver.swift */; };
+		A4BFA67CBFE8DCE500D86CA9 /* SyncQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 768E07667E513A95DCF5277B /* SyncQueue.swift */; };
+		5B03AC72F5A42DC2AB869084 /* CloudAuthProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E39A8F9D22EF3C74C3201F7 /* CloudAuthProvider.swift */; };
+		F77248380C99CA34DA64E00B /* SupabaseProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 759A22C15CD2F37056998E64 /* SupabaseProvider.swift */; };
+		3B39382474C8C3ACBFE6E285 /* LocalCloudCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBAD1B42C6F2C0083EE9BD18 /* LocalCloudCache.swift */; };
+		41EAF6314CF3E9C0B2D81C30 /* CloudPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AFF52F97965DDF65897E058 /* CloudPersistence.swift */; };
+		C22C2F6241B2E8D8D3DCC800 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAEE034764A3A2586E62DA69 /* SyncEngine.swift */; };
+		6CF17C78D56D9E047BD3C6A2 /* CloudManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5490BA8325F8360A8DB8242F /* CloudManager.swift */; };
+		C505086830E409946C87CA42 /* CloudSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75CD1C617B7E3FC901A17610 /* CloudSyncView.swift */; };
+		8AF6C1286ECD3958297EF471 /* CloudStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D5BC7B74BAEA9DEC62448CE /* CloudStatusView.swift */; };
 		57AFC04E569B8BDE2658ECD6 /* CreateBackupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57AFC04E569B8BDE2658ECD5 /* CreateBackupView.swift */; };
 		57AFC04E569B8BDE2658ECD7 /* BackupDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57AFC04E569B8BDE2658ECD8 /* BackupDetailsView.swift */; };
 		57AFC04E569B8BDE2658ECD1 /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57AFC04E569B8BDE2658ECD2 /* AuthManager.swift */; };
@@ -1409,6 +1425,22 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		1447B9E2C008F414C2B00A48 /* CloudError.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Core/CloudError.swift; sourceTree = "<group>"; };
+		CDF7400BCC2204B1C8E5E58D /* CloudRecord.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/CloudRecord.swift; sourceTree = "<group>"; };
+		845E5494E6E05BF6399E4A92 /* SyncMetadata.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/SyncMetadata.swift; sourceTree = "<group>"; };
+		8DDA9799B405D0C0A63CFFF9 /* SyncState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/SyncState.swift; sourceTree = "<group>"; };
+		C227FCD245B09C22931F806C /* CloudUser.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/CloudUser.swift; sourceTree = "<group>"; };
+		FEC57C221292EA2EC981D1B1 /* CloudStorageInfo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/CloudStorageInfo.swift; sourceTree = "<group>"; };
+		7E2B95B15885334B6327F442 /* ConflictResolver.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Core/ConflictResolver.swift; sourceTree = "<group>"; };
+		768E07667E513A95DCF5277B /* SyncQueue.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Core/SyncQueue.swift; sourceTree = "<group>"; };
+		5E39A8F9D22EF3C74C3201F7 /* CloudAuthProvider.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Providers/CloudAuthProvider.swift; sourceTree = "<group>"; };
+		759A22C15CD2F37056998E64 /* SupabaseProvider.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Providers/SupabaseProvider.swift; sourceTree = "<group>"; };
+		DBAD1B42C6F2C0083EE9BD18 /* LocalCloudCache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Storage/LocalCloudCache.swift; sourceTree = "<group>"; };
+		7AFF52F97965DDF65897E058 /* CloudPersistence.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Storage/CloudPersistence.swift; sourceTree = "<group>"; };
+		BAEE034764A3A2586E62DA69 /* SyncEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Core/SyncEngine.swift; sourceTree = "<group>"; };
+		5490BA8325F8360A8DB8242F /* CloudManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Core/CloudManager.swift; sourceTree = "<group>"; };
+		75CD1C617B7E3FC901A17610 /* CloudSyncView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudSyncView.swift; sourceTree = "<group>"; };
+		9D5BC7B74BAEA9DEC62448CE /* CloudStatusView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudStatusView.swift; sourceTree = "<group>"; };
 		57AFC04E569B8BDE2658ECD5 /* CreateBackupView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CreateBackupView.swift; sourceTree = "<group>"; };
 		57AFC04E569B8BDE2658ECD8 /* BackupDetailsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BackupDetailsView.swift; sourceTree = "<group>"; };
 		57AFC04E569B8BDE2658ECD2 /* AuthManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
@@ -4698,6 +4730,8 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 		ACCD78AD790D110C0A76E747 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				75CD1C617B7E3FC901A17610 /* CloudSyncView.swift */,
+				9D5BC7B74BAEA9DEC62448CE /* CloudStatusView.swift */,
 				B7D0F1A67D2E0217DBB9BC5 /* CloudManagementView.swift */,
 				B7D0F1A6D59807F91DE2098 /* SupabaseCloudView.swift */,
 				B7D0F1A3C36264762EE603C /* BackupsView.swift */,
@@ -4786,6 +4820,20 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 		B7D0BB000000000000000001 /* Cloud */ = {
 			isa = PBXGroup;
 			children = (
+				1447B9E2C008F414C2B00A48 /* CloudError.swift */,
+				CDF7400BCC2204B1C8E5E58D /* CloudRecord.swift */,
+				845E5494E6E05BF6399E4A92 /* SyncMetadata.swift */,
+				8DDA9799B405D0C0A63CFFF9 /* SyncState.swift */,
+				C227FCD245B09C22931F806C /* CloudUser.swift */,
+				FEC57C221292EA2EC981D1B1 /* CloudStorageInfo.swift */,
+				7E2B95B15885334B6327F442 /* ConflictResolver.swift */,
+				768E07667E513A95DCF5277B /* SyncQueue.swift */,
+				5E39A8F9D22EF3C74C3201F7 /* CloudAuthProvider.swift */,
+				759A22C15CD2F37056998E64 /* SupabaseProvider.swift */,
+				DBAD1B42C6F2C0083EE9BD18 /* LocalCloudCache.swift */,
+				7AFF52F97965DDF65897E058 /* CloudPersistence.swift */,
+				BAEE034764A3A2586E62DA69 /* SyncEngine.swift */,
+				5490BA8325F8360A8DB8242F /* CloudManager.swift */,
 				B7D0F1AECEE284CB5045B79 /* CloudModels.swift */,
 				B7D0F1A9E57AA6C44D64814 /* CloudProvider.swift */,
 				B7D0F1AACAABE1660FD9D26 /* SupabaseCloudProvider.swift */,
@@ -5625,6 +5673,22 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CF35CA016F59E7177DDC0AEF /* CloudError.swift in Sources */,
+				C3A5B22197BFC2392607D317 /* CloudRecord.swift in Sources */,
+				41C3C0B9FDA5AC6C86AA0DAB /* SyncMetadata.swift in Sources */,
+				841AB4DB5888230ABA5DC2E0 /* SyncState.swift in Sources */,
+				690F25F62F1344E7BD3AE725 /* CloudUser.swift in Sources */,
+				78E898BF1E95FD346B999EC3 /* CloudStorageInfo.swift in Sources */,
+				A71473936EE2A289E62FA9C9 /* ConflictResolver.swift in Sources */,
+				A4BFA67CBFE8DCE500D86CA9 /* SyncQueue.swift in Sources */,
+				5B03AC72F5A42DC2AB869084 /* CloudAuthProvider.swift in Sources */,
+				F77248380C99CA34DA64E00B /* SupabaseProvider.swift in Sources */,
+				3B39382474C8C3ACBFE6E285 /* LocalCloudCache.swift in Sources */,
+				41EAF6314CF3E9C0B2D81C30 /* CloudPersistence.swift in Sources */,
+				C22C2F6241B2E8D8D3DCC800 /* SyncEngine.swift in Sources */,
+				6CF17C78D56D9E047BD3C6A2 /* CloudManager.swift in Sources */,
+				C505086830E409946C87CA42 /* CloudSyncView.swift in Sources */,
+				8AF6C1286ECD3958297EF471 /* CloudStatusView.swift in Sources */,
 				57AFC04E569B8BDE2658ECD6 /* CreateBackupView.swift in Sources */,
 				57AFC04E569B8BDE2658ECD7 /* BackupDetailsView.swift in Sources */,
 				57AFC04E569B8BDE2658ECD1 /* AuthManager.swift in Sources */,
