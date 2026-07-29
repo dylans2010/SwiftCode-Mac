@@ -218,7 +218,7 @@ final class SupabaseCloudDatabase: CloudDatabase, @unchecked Sendable {
 
 final class SupabaseSyncProvider: SyncProvider, @unchecked Sendable {
     private let client: SupabaseClient
-    private var channels: [String: RealtimeChannel] = [:]
+    private var channels: [String: RealtimeChannelV2] = [:]
 
     init(client: SupabaseClient) {
         self.client = client
