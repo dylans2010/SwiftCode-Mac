@@ -12,12 +12,14 @@ public final class CloudAuthProvider: CloudAuthProviderProtocol, @unchecked Send
     private init() {}
 
     public func getActiveUser() async -> CloudUser? {
-        guard await AuthManager.shared.isAuthenticated,
-              let user = await AuthManager.shared.currentUser,
-              let swiftCodeID = await AuthManager.shared.swiftCodeID else {
-            return nil
+        await MainActor.run {
+            guard AuthManager.shared.isAuthenticated,
+                  let user = AuthManager.shared.currentUser,
+                  let swiftCodeID = AuthManager.shared.swiftCodeID else {
+                return nil
+            }
+            return CloudUser(swiftcodeID: swiftCodeID, email: user.email, name: user.name)
         }
-        return CloudUser(swiftcodeID: swiftCodeID, email: user.email, name: user.name)
     }
 
     public func isAuthenticated() async -> Bool {

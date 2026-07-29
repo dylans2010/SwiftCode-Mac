@@ -12,7 +12,7 @@ public final class AuthManager {
     public static let shared = AuthManager()
 
     // Thread-safe observable state
-    public private(set) var currentUser: Appwrite.User<Appwrite.Preferences<[String: AnyCodable]>>?
+    public private(set) var currentUser: Appwrite.User<[String: AnyCodable]>?
     public private(set) var currentSession: Appwrite.Session?
     public private(set) var swiftCodeID: String?
     public private(set) var isAuthenticated = false
