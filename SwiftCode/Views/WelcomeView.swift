@@ -1,5 +1,4 @@
 import SwiftUI
-import Appwrite
 import os
 
 @MainActor
@@ -211,22 +210,6 @@ struct SwiftCodeWelcomeView: View {
                             color: .purple
                         ) {
                             showingSettings = true
-                        }
-
-                        ModernActionCard(
-                            title: "Send a ping",
-                            subtitle: "Ping Appwrite server",
-                            iconName: "antenna.radiowaves.left.and.right",
-                            color: .green
-                        ) {
-                            Task {
-                                do {
-                                    _ = try await client.ping()
-                                } catch {
-                                    let logger = Logger(subsystem: "com.swiftcode.app", category: "Appwrite")
-                                    logger.error("Appwrite ping failed: \(error.localizedDescription)")
-                                }
-                            }
                         }
                     }
                     .padding(.horizontal, 20)

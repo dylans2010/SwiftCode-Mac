@@ -3,8 +3,8 @@ import SwiftUI
 @MainActor
 public struct BackupsView: View {
     @State private var manifests: [BackupManifest] = []
-    @State private var isCreating = false
-    @State private var isRestoring = false
+    @State private var showingCreateSheet = false
+    @State private var selectedManifest: BackupManifest?
     @State private var statusMessage: String?
     @State private var statusColor: Color = .green
 
@@ -28,21 +28,18 @@ public struct BackupsView: View {
                             .foregroundStyle(.secondary)
 
                         HStack(spacing: 12) {
-                            Button(action: createBackup) {
+                            Button {
+                                showingCreateSheet = true
+                            } label: {
                                 HStack {
-                                    if isCreating {
-                                        ProgressView().scaleEffect(0.5).padding(.trailing, 4)
-                                    } else {
-                                        Image(systemName: "plus.app.fill")
-                                    }
-                                    Text(isCreating ? "Creating Snapshot..." : "Create Backup Snapshot")
+                                    Image(systemName: "plus.app.fill")
+                                    Text("Create Backup Snapshot...")
                                 }
                                 .fontWeight(.semibold)
                                 .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.large)
-                            .disabled(isCreating || isRestoring)
                         }
                     }
                     .padding()
@@ -73,6 +70,13 @@ public struct BackupsView: View {
                                 .font(.headline)
                                 .foregroundColor(.indigo)
                             Spacer()
+                            Button {
+                                loadBackups()
+                            } label: {
+                                Label("Refresh", systemImage: "arrow.clockwise")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.blue)
                         }
 
                         if manifests.isEmpty {
@@ -84,53 +88,45 @@ public struct BackupsView: View {
                         } else {
                             VStack(spacing: 12) {
                                 ForEach(manifests) { manifest in
-                                    VStack(alignment: .leading, spacing: 10) {
-                                        HStack {
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text(manifest.createdAt.formatted(date: .long, time: .shortened))
-                                                    .font(.headline)
-                                                Text("ID: \(manifest.backupID)")
-                                                    .font(.system(.caption2, design: .monospaced))
+                                    Button {
+                                        selectedManifest = manifest
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 10) {
+                                            HStack {
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    Text(manifest.createdAt.formatted(date: .long, time: .shortened))
+                                                        .font(.headline)
+                                                        .foregroundColor(.primary)
+                                                    Text("ID: \(manifest.backupID)")
+                                                        .font(.system(.caption2, design: .monospaced))
+                                                        .foregroundStyle(.secondary)
+                                                }
+
+                                                Spacer()
+
+                                                Image(systemName: "chevron.right")
+                                                    .foregroundColor(.secondary)
+                                            }
+
+                                            Divider()
+
+                                            HStack {
+                                                Label("\(Double(manifest.sizeInBytes) / 1024.0 / 1024.0, specifier: "%.2f") MB", systemImage: "doc.zipper")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+
+                                                Spacer()
+
+                                                Label(manifest.isCloudStored ? "Cloud Bucket" : "Local Disk Only", systemImage: manifest.isCloudStored ? "icloud.fill" : "laptopcomputer")
+                                                    .font(.caption)
                                                     .foregroundStyle(.secondary)
                                             }
-
-                                            Spacer()
-
-                                            HStack(spacing: 8) {
-                                                Button("Restore") {
-                                                    restore(manifest)
-                                                }
-                                                .buttonStyle(.borderedProminent)
-                                                .tint(.green)
-                                                .disabled(isCreating || isRestoring)
-
-                                                Button(role: .destructive) {
-                                                    delete(manifest)
-                                                } label: {
-                                                    Image(systemName: "trash")
-                                                }
-                                                .buttonStyle(.bordered)
-                                                .disabled(isCreating || isRestoring)
-                                            }
                                         }
-
-                                        Divider()
-
-                                        HStack {
-                                            Label("\(Double(manifest.sizeInBytes) / 1024.0 / 1024.0, specifier: "%.2f") MB", systemImage: "doc.zipper")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-
-                                            Spacer()
-
-                                            Label(manifest.isCloudStored ? "Cloud Bucket" : "Local Disk Only", systemImage: manifest.isCloudStored ? "icloud.fill" : "laptopcomputer")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
+                                        .padding()
+                                        .background(Color.secondary.opacity(0.06))
+                                        .cornerRadius(8)
                                     }
-                                    .padding()
-                                    .background(Color.secondary.opacity(0.06))
-                                    .cornerRadius(8)
+                                    .buttonStyle(.plain)
                                 }
                             }
                         }
@@ -142,6 +138,20 @@ public struct BackupsView: View {
             .padding(24)
         }
         .navigationTitle("Point-In-Time Backups")
+        .sheet(isPresented: $showingCreateSheet) {
+            CreateBackupView()
+                .onDisappear {
+                    loadBackups()
+                }
+        }
+        .sheet(item: $selectedManifest) { manifest in
+            NavigationStack {
+                BackupDetailsView(manifest: manifest)
+            }
+            .onDisappear {
+                loadBackups()
+            }
+        }
         .onAppear {
             loadBackups()
         }
@@ -150,69 +160,17 @@ public struct BackupsView: View {
     private func loadBackups() {
         Task {
             BackupEngine.shared.loadLocalBackups()
+
+            // If authenticated, also try to fetch remote cloud backups
+            if AuthManager.shared.isAuthenticated {
+                let provider = SupabaseCloudProvider(
+                    url: URL(string: "https://secctbuzkfbketdihzui.supabase.co")!,
+                    apiKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlY2N0YnV6a2Zia2V0ZGloenVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDcxMDUwMDAsImV4cCI6MjAyNjg2MTAwMH0.mock-key-signature"
+                )
+                try? await BackupEngine.shared.fetchCloudBackups(cloudProvider: provider)
+            }
+
             manifests = BackupEngine.shared.backups
-        }
-    }
-
-    private func createBackup() {
-        isCreating = true
-        statusMessage = nil
-
-        Task {
-            do {
-                try await BackupEngine.shared.performBackup()
-                loadBackups()
-                statusColor = .green
-                statusMessage = "Backup snapshot created successfully."
-            } catch {
-                statusColor = .red
-                statusMessage = "Failed to create snapshot: \(error.localizedDescription)"
-            }
-            isCreating = false
-        }
-    }
-
-    private func restore(_ manifest: BackupManifest) {
-        let alert = NSAlert()
-        alert.messageText = "Restore Application State?"
-        alert.informativeText = "Are you absolutely sure? This will fully overwrite all current settings, project paths, themes, and chats with the snapshot taken on \(manifest.createdAt.formatted(date: .abbreviated, time: .shortened)). This action cannot be undone."
-        alert.addButton(withTitle: "Yes, Restore State")
-        alert.addButton(withTitle: "Cancel")
-        alert.alertStyle = .critical
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            isRestoring = true
-            statusMessage = nil
-
-            Task {
-                do {
-                    let result = try await BackupEngine.shared.restore(manifest: manifest)
-                    if result.isSuccess {
-                        statusColor = .green
-                        statusMessage = "Application state restored successfully with \(result.restoredFileCount) file nodes."
-                    } else {
-                        statusColor = .red
-                        statusMessage = result.errorMessage ?? "Failed to apply state restoration."
-                    }
-                } catch {
-                    statusColor = .red
-                    statusMessage = "Failed to restore state: \(error.localizedDescription)"
-                }
-                isRestoring = false
-                loadBackups()
-            }
-        }
-    }
-
-    private func delete(_ manifest: BackupManifest) {
-        Task {
-            do {
-                try await BackupEngine.shared.delete(manifest: manifest)
-                loadBackups()
-            } catch {
-                statusColor = .red
-                statusMessage = "Failed to delete backup: \(error.localizedDescription)"
-            }
         }
     }
 }
