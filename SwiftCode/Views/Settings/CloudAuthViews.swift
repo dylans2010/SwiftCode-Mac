@@ -1,4 +1,8 @@
 import SwiftUI
+import Appwrite
+import os
+
+private let logger = Logger(subsystem: "com.swiftcode.Auth", category: "CloudAuthViews")
 
 @MainActor
 struct CloudAuthViews: View {
@@ -9,7 +13,6 @@ struct CloudAuthViews: View {
         case login
         case createAccount
         case forgotPassword
-        case migrateGuest
     }
 
     @State private var mode: AuthMode = .login
@@ -18,10 +21,13 @@ struct CloudAuthViews: View {
     @State private var confirmPassword = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var successMessage: String?
+
+    private var authManager = AuthManager.shared
 
     var body: some View {
         NavigationStack {
-            VStack {
+            VStack(spacing: 0) {
                 Form {
                     Section {
                         TextField("Email Address", text: $email)
@@ -34,17 +40,35 @@ struct CloudAuthViews: View {
                                 .textFieldStyle(.roundedBorder)
                         }
 
-                        if mode == .createAccount || mode == .migrateGuest {
+                        if mode == .createAccount {
                             SecureField("Confirm Password", text: $confirmPassword)
                                 .textFieldStyle(.roundedBorder)
                         }
+                    } header: {
+                        Text("User Credentials")
                     }
 
                     if let error = errorMessage {
                         Section {
-                            Text(error)
-                                .foregroundColor(.red)
-                                .font(.caption.bold())
+                            HStack {
+                                Image(systemName: "exclamationmark.octagon.fill")
+                                    .foregroundColor(.red)
+                                Text(error)
+                                    .foregroundColor(.red)
+                                    .font(.caption.bold())
+                            }
+                        }
+                    }
+
+                    if let success = successMessage {
+                        Section {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text(success)
+                                    .foregroundColor(.green)
+                                    .font(.caption.bold())
+                            }
                         }
                     }
 
@@ -73,6 +97,26 @@ struct CloudAuthViews: View {
                             Spacer()
                         }
                     }
+
+                    // Social Branded Identity Providers Section
+                    if mode != .forgotPassword {
+                        Section {
+                            VStack(spacing: 12) {
+                                BrandedGoogleButton {
+                                    executeOAuthFlow(provider: "google")
+                                }
+                                .disabled(isLoading)
+
+                                BrandedGitHubButton {
+                                    executeOAuthFlow(provider: "github")
+                                }
+                                .disabled(isLoading)
+                            }
+                            .padding(.vertical, 4)
+                        } header: {
+                            Text("Or continue with")
+                        }
+                    }
                 }
                 .formStyle(.grouped)
             }
@@ -83,15 +127,14 @@ struct CloudAuthViews: View {
                 }
             }
         }
-        .frame(width: 420, height: 380)
+        .frame(width: 440, height: mode == .forgotPassword ? 320 : 540)
     }
 
     private var navigationTitle: String {
         switch mode {
-        case .login: return "Sign In to SwiftCode Cloud"
+        case .login: return "Sign In to SwiftCode"
         case .createAccount: return "Create SwiftCode Account"
         case .forgotPassword: return "Reset Password Request"
-        case .migrateGuest: return "Migrate Guest Account"
         }
     }
 
@@ -100,7 +143,6 @@ struct CloudAuthViews: View {
         case .login: return "Sign In"
         case .createAccount: return "Register Account"
         case .forgotPassword: return "Send Password Reset Link"
-        case .migrateGuest: return "Link and Save Account"
         }
     }
 
@@ -108,38 +150,30 @@ struct CloudAuthViews: View {
         switch mode {
         case .login: return "Don't have an account? Sign Up"
         case .createAccount: return "Already registered? Sign In"
-        case .forgotPassword: return "Back to login"
-        case .migrateGuest: return "Cancel migration"
+        case .forgotPassword: return "Back to Sign In"
         }
     }
 
     private func switchMode() {
         errorMessage = nil
+        successMessage = nil
         switch mode {
         case .login: mode = .createAccount
         case .createAccount: mode = .login
         case .forgotPassword: mode = .login
-        case .migrateGuest: mode = .login
         }
     }
 
     private func executeAuthAction() {
         isLoading = true
         errorMessage = nil
+        successMessage = nil
 
         Task {
             do {
                 if mode == .login {
-                    // Perform real login
-                    let mockSession = CloudSession(
-                        userID: UUID().uuidString,
-                        email: email,
-                        accessToken: "mock_jwt_token",
-                        refreshToken: "mock_refresh_token",
-                        isGuest: false
-                    )
-                    let encoded = try JSONEncoder().encode(mockSession)
-                    KeychainService.shared.set(String(data: encoded, encoding: .utf8) ?? "", forKey: "supabase_session_active")
+                    try await authManager.login(email: email, password: SecureString(password))
+                    logger.info("Successfully signed in via email & password.")
                     onSuccess()
                     dismiss()
                 } else if mode == .createAccount {
@@ -148,25 +182,96 @@ struct CloudAuthViews: View {
                         isLoading = false
                         return
                     }
-                    let mockSession = CloudSession(
-                        userID: UUID().uuidString,
-                        email: email,
-                        accessToken: "mock_jwt_token",
-                        refreshToken: "mock_refresh_token",
-                        isGuest: false
-                    )
-                    let encoded = try JSONEncoder().encode(mockSession)
-                    KeychainService.shared.set(String(data: encoded, encoding: .utf8) ?? "", forKey: "supabase_session_active")
+                    try await authManager.createAccount(email: email, password: SecureString(password))
+                    logger.info("Successfully registered and signed in new account.")
                     onSuccess()
                     dismiss()
                 } else if mode == .forgotPassword {
-                    // Send password reset request
-                    errorMessage = "Password reset request submitted successfully. Please check your inbox."
+                    try await authManager.forgotPassword(email: email)
+                    successMessage = "A password reset link has been successfully dispatched to your email."
                 }
             } catch {
                 errorMessage = error.localizedDescription
             }
             isLoading = false
         }
+    }
+
+    private func executeOAuthFlow(provider: String) {
+        isLoading = true
+        errorMessage = nil
+        successMessage = nil
+
+        Task {
+            do {
+                if provider == "google" {
+                    try await authManager.loginWithGoogle()
+                } else {
+                    try await authManager.loginWithGitHub()
+                }
+                logger.info("OAuth session completed successfully for provider: \(provider)")
+                onSuccess()
+                dismiss()
+            } catch {
+                errorMessage = "OAuth Failed: \(error.localizedDescription)"
+            }
+            isLoading = false
+        }
+    }
+}
+
+// MARK: - Google and GitHub Branded Buttons
+
+struct BrandedGoogleButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                HStack(spacing: 1) {
+                    Text("G").bold().foregroundStyle(.blue)
+                    Text("o").bold().foregroundStyle(.red)
+                    Text("o").bold().foregroundStyle(.yellow)
+                    Text("g").bold().foregroundStyle(.blue)
+                    Text("l").bold().foregroundStyle(.green)
+                    Text("e").bold().foregroundStyle(.red)
+                }
+                .font(.system(size: 14, weight: .heavy))
+
+                Text("Continue with Google")
+                    .foregroundColor(.black)
+                    .font(.body.weight(.semibold))
+            }
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
+            .background(Color.white)
+            .cornerRadius(6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct BrandedGitHubButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: "terminal.fill")
+                    .foregroundColor(.white)
+                Text("Continue with GitHub")
+                    .foregroundColor(.white)
+                    .font(.body.weight(.semibold))
+            }
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
+            .background(Color.black)
+            .cornerRadius(6)
+        }
+        .buttonStyle(.plain)
     }
 }
