@@ -198,9 +198,12 @@ public final class BackupEngine {
         }
 
         // 3. Unzip files to restore state
-        guard let archive = Archive(url: targetZIPURL, accessMode: .read) else {
-            logger.error("Restoration failed: invalid ZIP archive.")
-            return RestoreResult(isSuccess: false, errorMessage: "Failed to read zip archive.")
+        let archive: Archive
+        do {
+            archive = try Archive(url: targetZIPURL, accessMode: .read)
+        } catch {
+            logger.error("Restoration failed: invalid ZIP archive. \(error.localizedDescription)")
+            return RestoreResult(isSuccess: false, errorMessage: "Failed to read zip archive: \(error.localizedDescription)")
         }
 
         var count = 0

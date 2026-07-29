@@ -541,16 +541,3 @@ struct ChangePasswordSheet: View {
     }
 }
 
-// MARK: - Modern GroupBox Styling Shorthand
-
-struct ModernGroupBoxStyle: GroupBoxStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.content
-            .background(Color.secondary.opacity(0.04))
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
-            )
-    }
-}

@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		CF35CA016F59E7177DDC0AEF /* CloudError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1447B9E2C008F414C2B00A48 /* CloudError.swift */; };
 		C3A5B22197BFC2392607D317 /* CloudRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDF7400BCC2204B1C8E5E58D /* CloudRecord.swift */; };
-		41C3C0B9FDA5AC6C86AA0DAB /* SyncMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 845E5494E6E05BF6399E4A92 /* SyncMetadata.swift */; };
 		841AB4DB5888230ABA5DC2E0 /* SyncState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DDA9799B405D0C0A63CFFF9 /* SyncState.swift */; };
 		690F25F62F1344E7BD3AE725 /* CloudUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C227FCD245B09C22931F806C /* CloudUser.swift */; };
 		78E898BF1E95FD346B999EC3 /* CloudStorageInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEC57C221292EA2EC981D1B1 /* CloudStorageInfo.swift */; };
@@ -1427,7 +1426,6 @@
 /* Begin PBXFileReference section */
 		1447B9E2C008F414C2B00A48 /* CloudError.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Core/CloudError.swift; sourceTree = "<group>"; };
 		CDF7400BCC2204B1C8E5E58D /* CloudRecord.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/CloudRecord.swift; sourceTree = "<group>"; };
-		845E5494E6E05BF6399E4A92 /* SyncMetadata.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/SyncMetadata.swift; sourceTree = "<group>"; };
 		8DDA9799B405D0C0A63CFFF9 /* SyncState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/SyncState.swift; sourceTree = "<group>"; };
 		C227FCD245B09C22931F806C /* CloudUser.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/CloudUser.swift; sourceTree = "<group>"; };
 		FEC57C221292EA2EC981D1B1 /* CloudStorageInfo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/CloudStorageInfo.swift; sourceTree = "<group>"; };
@@ -4822,7 +4820,6 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 			children = (
 				1447B9E2C008F414C2B00A48 /* CloudError.swift */,
 				CDF7400BCC2204B1C8E5E58D /* CloudRecord.swift */,
-				845E5494E6E05BF6399E4A92 /* SyncMetadata.swift */,
 				8DDA9799B405D0C0A63CFFF9 /* SyncState.swift */,
 				C227FCD245B09C22931F806C /* CloudUser.swift */,
 				FEC57C221292EA2EC981D1B1 /* CloudStorageInfo.swift */,
@@ -5675,7 +5672,6 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			files = (
 				CF35CA016F59E7177DDC0AEF /* CloudError.swift in Sources */,
 				C3A5B22197BFC2392607D317 /* CloudRecord.swift in Sources */,
-				41C3C0B9FDA5AC6C86AA0DAB /* SyncMetadata.swift in Sources */,
 				841AB4DB5888230ABA5DC2E0 /* SyncState.swift in Sources */,
 				690F25F62F1344E7BD3AE725 /* CloudUser.swift in Sources */,
 				78E898BF1E95FD346B999EC3 /* CloudStorageInfo.swift in Sources */,
