@@ -1,6 +1,7 @@
 import Foundation
 import Supabase
 import os
+import JSONCodable
 
 private let logger = Logger(subsystem: "com.swiftcode.Cloud", category: "SupabaseProvider")
 
@@ -66,4 +67,39 @@ public final class SupabaseProvider: @unchecked Sendable {
             .eq("swiftcode_id", value: swiftCodeID)
             .execute()
     }
+
+    /// Registers a shadow user in Supabase Auth via the register_shadow_user RPC function.
+    public func registerShadowUser(id: UUID, email: String) async throws {
+        logger.info("Registering shadow user in Supabase: \(email, privacy: .public)")
+        struct RegisterParams: Encodable {
+            let p_id: String
+            let p_email: String
+        }
+        let params = RegisterParams(p_id: id.uuidString.lowercased(), p_email: email)
+        _ = try await client.rpc("register_shadow_user", params: params).execute()
+    }
+
+    /// Authenticates securely with Supabase Auth using the deterministic credentials.
+    public func signInToSupabase(id: UUID, email: String) async throws {
+        logger.info("Authenticating with Supabase Auth for \(email, privacy: .public)...")
+        let password = id.uuidString.lowercased()
+        _ = try await client.auth.signIn(email: email, password: password)
+        logger.info("Successfully authenticated with Supabase Auth.")
+    }
+
+    /// Sign out of Supabase Auth session.
+    public func signOutFromSupabase() async throws {
+        try await client.auth.signOut()
+        logger.info("Signed out of Supabase Auth.")
+    }
+
+    /// Updates the user's profiles record in the public schema with the provided fields.
+    public func updateProfile(id: UUID, values: [String: AnyCodable]) async throws {
+        logger.info("Updating user profile in Supabase public schema...")
+        _ = try await client.from("profiles")
+            .update(values)
+            .eq("id", value: id.uuidString.lowercased())
+            .execute()
+    }
+
 }
