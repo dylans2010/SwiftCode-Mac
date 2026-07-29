@@ -8,3 +8,6 @@ public let client = Client()
 
 @MainActor
 public let account = Account(client)
+
+extension Client: @unchecked Sendable {}
+extension Account: @unchecked Sendable {}
