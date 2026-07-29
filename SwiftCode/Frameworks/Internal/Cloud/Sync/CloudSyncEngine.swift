@@ -146,7 +146,7 @@ public actor CloudSyncEngine {
         logger.info("Handling inbound sync payload for \(delta.tableName): \(delta.recordID)")
     }
 
-    private func setupAutoSync() {
+    nonisolated private func setupAutoSync() {
         DispatchQueue.main.async {
             Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in
                 Task {

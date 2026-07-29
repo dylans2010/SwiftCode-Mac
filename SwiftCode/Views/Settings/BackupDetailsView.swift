@@ -34,7 +34,7 @@ struct BackupDetailsView: View {
 
                         DetailRow(label: "Backup UUID", value: manifest.backupID, isMonospaced: true)
                         DetailRow(label: "Created On", value: manifest.createdAt.formatted(date: .long, time: .shortened))
-                        DetailRow(label: "Archive Size", value: "\(Double(manifest.sizeInBytes) / 1024.0 / 1024.0, specifier: "%.3f") MB")
+                        DetailRow(label: "Archive Size", value: String(format: "%.3f MB", Double(manifest.sizeInBytes) / 1024.0 / 1024.0))
                         DetailRow(label: "Storage Location", value: manifest.isCloudStored ? "Supabase Cloud Bucket" : "Local Disk Storage")
                         DetailRow(label: "Platform OS", value: manifest.deviceName)
                         DetailRow(label: "App Build Version", value: manifest.appVersion)

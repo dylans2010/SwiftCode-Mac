@@ -11,8 +11,8 @@ public final class AuthManager {
     public static let shared = AuthManager()
 
     // Thread-safe observable state
-    public private(set) var currentUser: Appwrite.Models.User?
-    public private(set) var currentSession: Appwrite.Models.Session?
+    public private(set) var currentUser: Appwrite.User?
+    public private(set) var currentSession: Appwrite.Session?
     public private(set) var swiftCodeID: String?
     public private(set) var isAuthenticated = false
     public private(set) var isLoading = false
@@ -120,7 +120,7 @@ public final class AuthManager {
         do {
             let callbackURL = "https://sfo.cloud.appwrite.io/v1/account/sessions/oauth2/callback/google/6a670d0b0022e5f964b4"
             _ = try await account.createOAuth2Session(
-                provider: "google",
+                provider: OAuthProvider.google,
                 success: callbackURL,
                 failure: callbackURL
             )
@@ -143,7 +143,7 @@ public final class AuthManager {
         do {
             let callbackURL = "https://sfo.cloud.appwrite.io/v1/account/sessions/oauth2/callback/github/6a670d0b0022e5f964b4"
             _ = try await account.createOAuth2Session(
-                provider: "github",
+                provider: OAuthProvider.github,
                 success: callbackURL,
                 failure: callbackURL
             )
@@ -189,8 +189,7 @@ public final class AuthManager {
             _ = try await account.updateRecovery(
                 userId: userId,
                 secret: secret,
-                password: password.value(),
-                password2: password.value()
+                password: password.value()
             )
             logger.info("Password reset successfully completed.")
             isLoading = false
@@ -255,15 +254,12 @@ public final class AuthManager {
 
     /// Delete the current authenticated account from the server.
     public func deleteAccount() async throws {
-        logger.info("Requesting current account self-deletion...")
-        do {
-            _ = try await account.delete()
-            logger.info("Account deleted successfully from server.")
-            await logout()
-        } catch {
-            logger.error("Failed to delete account: \(error.localizedDescription)")
-            throw error
-        }
+        logger.warning("Account self-deletion is not supported from client applications in the Appwrite Apple SDK.")
+        throw NSError(
+            domain: "AuthManager",
+            code: 405,
+            userInfo: [NSLocalizedDescriptionKey: "Account deletion is not supported from client applications. Please contact support or delete your account via the developer console."]
+        )
     }
 
     /// Securely log out the active user session.

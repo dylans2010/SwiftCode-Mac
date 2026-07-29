@@ -1,5 +1,6 @@
 import Foundation
 import Supabase
+import Realtime
 import os
 
 private let logger = Logger(subsystem: "com.swiftcode.Cloud", category: "SupabaseCloudProvider")
@@ -171,7 +172,7 @@ final class SupabaseCloudDatabase: CloudDatabase, @unchecked Sendable {
         }
 
         try await withRetry { [client] in
-            var query = client.from(table).update(values).eq("user_id", value: swiftCodeID)
+            var query = try client.from(table).update(values).eq("user_id", value: swiftCodeID)
             let parts = filter.split(separator: "=")
             if parts.count == 2 {
                 let key = String(parts[0])
@@ -252,8 +253,10 @@ final class SupabaseSyncProvider: SyncProvider, @unchecked Sendable {
             }
 
             let decoded = try JSONDecoder().decode([PayloadDecodable].self, from: response.data)
+            let localFormatter = ISO8601DateFormatter()
+            localFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             return decoded.map { item in
-                let date = formatter.date(from: item.client_updated_at) ?? Date()
+                let date = localFormatter.date(from: item.client_updated_at) ?? Date()
                 return SyncPayload(
                     recordID: item.id,
                     tableName: item.table_name,
