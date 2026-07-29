@@ -7,6 +7,7 @@ private let logger = Logger(subsystem: "com.swiftcode.Auth", category: "CloudAut
 @MainActor
 struct CloudAuthViews: View {
     @Environment(\.dismiss) private var dismiss
+    var isGate: Bool = false
     let onSuccess: () -> Void
 
     enum AuthMode {
@@ -122,8 +123,10 @@ struct CloudAuthViews: View {
             }
             .navigationTitle(navigationTitle)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                if !isGate {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                    }
                 }
             }
         }
@@ -175,7 +178,9 @@ struct CloudAuthViews: View {
                     try await authManager.login(email: email, password: SecureString(password))
                     logger.info("Successfully signed in via email & password.")
                     onSuccess()
-                    dismiss()
+                    if !isGate {
+                        dismiss()
+                    }
                 } else if mode == .createAccount {
                     guard password == confirmPassword else {
                         errorMessage = "Passwords do not match."
@@ -185,7 +190,9 @@ struct CloudAuthViews: View {
                     try await authManager.createAccount(email: email, password: SecureString(password))
                     logger.info("Successfully registered and signed in new account.")
                     onSuccess()
-                    dismiss()
+                    if !isGate {
+                        dismiss()
+                    }
                 } else if mode == .forgotPassword {
                     try await authManager.forgotPassword(email: email)
                     successMessage = "A password reset link has been successfully dispatched to your email."
@@ -211,7 +218,9 @@ struct CloudAuthViews: View {
                 }
                 logger.info("OAuth session completed successfully for provider: \(provider)")
                 onSuccess()
-                dismiss()
+                if !isGate {
+                    dismiss()
+                }
             } catch {
                 errorMessage = "OAuth Failed: \(error.localizedDescription)"
             }

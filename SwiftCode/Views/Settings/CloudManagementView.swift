@@ -9,6 +9,7 @@ public struct CloudManagementView: View {
     @AppStorage("com.swiftcode.cloud.syncEnabled") private var syncEnabled = false
     @State private var showingAuthSheet = false
     @State private var stats = CloudStatistics()
+    @State private var selectedTab = 0
 
     // Interactive edit sheet states
     @State private var showingChangeEmail = false
@@ -24,6 +25,44 @@ public struct CloudManagementView: View {
     public init() {}
 
     public var body: some View {
+        VStack(spacing: 0) {
+            Picker("", selection: $selectedTab) {
+                Text("Account & Setup").tag(0)
+                Text("Cloud Sync").tag(1)
+                Text("System Telemetry").tag(2)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 24)
+            .padding(.top, 16)
+
+            Divider()
+                .padding(.top, 12)
+
+            if selectedTab == 0 {
+                accountSetupTab
+            } else if selectedTab == 1 {
+                CloudSyncView()
+            } else {
+                CloudStatusView()
+            }
+        }
+        .sheet(isPresented: $showingAuthSheet) {
+            CloudAuthViews(onSuccess: {
+                loadStats()
+            })
+        }
+        .sheet(isPresented: $showingChangeEmail) {
+            ChangeEmailSheet()
+        }
+        .sheet(isPresented: $showingChangePassword) {
+            ChangePasswordSheet()
+        }
+        .onAppear {
+            loadStats()
+        }
+    }
+
+    private var accountSetupTab: some View {
         ScrollView {
             VStack(spacing: 24) {
                 // Section 1: User Account & Connection Status
@@ -284,20 +323,6 @@ public struct CloudManagementView: View {
                 }
             }
             .padding(24)
-        }
-        .sheet(isPresented: $showingAuthSheet) {
-            CloudAuthViews(onSuccess: {
-                loadStats()
-            })
-        }
-        .sheet(isPresented: $showingChangeEmail) {
-            ChangeEmailSheet()
-        }
-        .sheet(isPresented: $showingChangePassword) {
-            ChangePasswordSheet()
-        }
-        .onAppear {
-            loadStats()
         }
     }
 

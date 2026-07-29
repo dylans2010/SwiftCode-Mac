@@ -18,12 +18,31 @@ struct SwiftCodeApp: App {
     @StateObject private var codeSuggestionsML = CodeSuggestionsML.shared
     @StateObject private var gistService = GitHubGistService.shared
     @State private var themeVM = ThemeViewModel()
+    @State private var authManager = AuthManager.shared
 
     var body: some Scene {
         WindowGroup {
             StylingBootstrap.configureEnvironment(
                 Group {
-                    if let activeProject = sessionStore.activeProject {
+                    if authManager.isLoading {
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .controlSize(.large)
+                            Text("Restoring active cloud session...")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(NSColor.windowBackgroundColor))
+                    } else if !authManager.isAuthenticated {
+                        CloudAuthViews(isGate: true, onSuccess: {
+                            Task {
+                                await CloudManager.shared.initialize()
+                            }
+                        })
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(NSColor.windowBackgroundColor))
+                    } else if let activeProject = sessionStore.activeProject {
                         WorkspaceHostView(project: activeProject)
                             .id(activeProject.id)
                     } else {
@@ -48,6 +67,12 @@ struct SwiftCodeApp: App {
                 codingManager.ensureModelsDirectory()
                 NotificationManager.shared.requestAuthorizationIfNeeded()
                 await OfflineModelDownloader.shared.resumePendingDownloadIfNeeded()
+
+                // Restore session on launch and initialize cloud
+                await authManager.restoreSession()
+                if authManager.isAuthenticated {
+                    await CloudManager.shared.initialize()
+                }
             }
         }
         .commands {
