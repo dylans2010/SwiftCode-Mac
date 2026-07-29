@@ -137,8 +137,11 @@ final class SupabaseCloudDatabase: CloudDatabase, @unchecked Sendable {
             throw NSError(domain: "SupabaseCloudDatabase", code: 401, userInfo: [NSLocalizedDescriptionKey: "Unauthorized: Appwrite authentication required."])
         }
 
+        let dbUserID = await AuthManager.shared.dbUserID(from: swiftCodeID)
+        let uuidString = dbUserID.uuidString.lowercased()
+
         return try await withRetry { [client] in
-            var query = client.from(table).select().eq("user_id", value: swiftCodeID)
+            var query = client.from(table).select().eq("user_id", value: uuidString)
 
             if let filter = filter {
                 let parts = filter.split(separator: "=")
@@ -172,9 +175,12 @@ final class SupabaseCloudDatabase: CloudDatabase, @unchecked Sendable {
             throw NSError(domain: "SupabaseCloudDatabase", code: 401, userInfo: [NSLocalizedDescriptionKey: "Unauthorized: Appwrite authentication required."])
         }
 
+        let dbUserID = await AuthManager.shared.dbUserID(from: swiftCodeID)
+        let uuidString = dbUserID.uuidString.lowercased()
+
         try await withRetry { [client] in
             var scopedValues = values
-            scopedValues["user_id"] = swiftCodeID
+            scopedValues["user_id"] = uuidString
             try await client.from(table).insert(scopedValues).execute()
         }
     }
@@ -185,8 +191,11 @@ final class SupabaseCloudDatabase: CloudDatabase, @unchecked Sendable {
             throw NSError(domain: "SupabaseCloudDatabase", code: 401, userInfo: [NSLocalizedDescriptionKey: "Unauthorized: Appwrite authentication required."])
         }
 
+        let dbUserID = await AuthManager.shared.dbUserID(from: swiftCodeID)
+        let uuidString = dbUserID.uuidString.lowercased()
+
         try await withRetry { [client] in
-            var query = try client.from(table).update(values).eq("user_id", value: swiftCodeID)
+            var query = try client.from(table).update(values).eq("user_id", value: uuidString)
             let parts = filter.split(separator: "=")
             if parts.count == 2 {
                 let key = String(parts[0])
@@ -209,8 +218,11 @@ final class SupabaseCloudDatabase: CloudDatabase, @unchecked Sendable {
             throw NSError(domain: "SupabaseCloudDatabase", code: 401, userInfo: [NSLocalizedDescriptionKey: "Unauthorized: Appwrite authentication required."])
         }
 
+        let dbUserID = await AuthManager.shared.dbUserID(from: swiftCodeID)
+        let uuidString = dbUserID.uuidString.lowercased()
+
         try await withRetry { [client] in
-            var query = client.from(table).delete().eq("user_id", value: swiftCodeID)
+            var query = client.from(table).delete().eq("user_id", value: uuidString)
             let parts = filter.split(separator: "=")
             if parts.count == 2 {
                 let key = String(parts[0])
@@ -244,6 +256,9 @@ final class SupabaseSyncProvider: SyncProvider, @unchecked Sendable {
             throw NSError(domain: "SupabaseSyncProvider", code: 401, userInfo: [NSLocalizedDescriptionKey: "Unauthorized: Appwrite authentication required."])
         }
 
+        let dbUserID = await AuthManager.shared.dbUserID(from: swiftCodeID)
+        let uuidString = dbUserID.uuidString.lowercased()
+
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let sinceString = formatter.string(from: since)
@@ -252,7 +267,7 @@ final class SupabaseSyncProvider: SyncProvider, @unchecked Sendable {
             let response: PostgrestResponse = try await client.from("sync_payloads")
                 .select()
                 .eq("table_name", value: tableName)
-                .eq("user_id", value: swiftCodeID)
+                .eq("user_id", value: uuidString)
                 .gt("client_updated_at", value: sinceString)
                 .execute()
 
@@ -303,11 +318,14 @@ final class SupabaseSyncProvider: SyncProvider, @unchecked Sendable {
             let is_deleted: Bool
         }
 
+        let dbUserID = await AuthManager.shared.dbUserID(from: swiftCodeID)
+        let uuidString = dbUserID.uuidString.lowercased()
+
         let encodables = deltas.map { d in
             PayloadEncodable(
                 id: d.recordID,
                 table_name: d.tableName,
-                user_id: swiftCodeID,
+                user_id: uuidString,
                 payload: d.payload,
                 version: d.version,
                 client_updated_at: formatter.string(from: d.clientUpdatedAt),
@@ -350,7 +368,9 @@ final class SupabaseSyncProvider: SyncProvider, @unchecked Sendable {
             localFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             for await change in insertChanges {
                 if let payload = try? JSONDecoder().decode(PayloadDecodable.self, from: JSONSerialization.data(withJSONObject: change.record)) {
-                    if payload.table_name == tableName && payload.user_id == swiftCodeID {
+                    let dbUserID = await AuthManager.shared.dbUserID(from: swiftCodeID)
+                    let uuidString = dbUserID.uuidString.lowercased()
+                    if payload.table_name == tableName && payload.user_id == uuidString {
                         let syncPayload = SyncPayload(
                             recordID: payload.id,
                             tableName: payload.table_name,
@@ -371,7 +391,9 @@ final class SupabaseSyncProvider: SyncProvider, @unchecked Sendable {
             localFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             for await change in updateChanges {
                 if let payload = try? JSONDecoder().decode(PayloadDecodable.self, from: JSONSerialization.data(withJSONObject: change.record)) {
-                    if payload.table_name == tableName && payload.user_id == swiftCodeID {
+                    let dbUserID = await AuthManager.shared.dbUserID(from: swiftCodeID)
+                    let uuidString = dbUserID.uuidString.lowercased()
+                    if payload.table_name == tableName && payload.user_id == uuidString {
                         let syncPayload = SyncPayload(
                             recordID: payload.id,
                             tableName: payload.table_name,

@@ -71,6 +71,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>swiftcode</string>
+				<string>appwrite-callback-6a670d0b0022e5f964b4</string>
 			</array>
 		</dict>
 	</array>

@@ -56,6 +56,11 @@ public final class AuthManager {
 
             self.isAuthenticated = true
             logger.info("Session restoration succeeded for user: \(user.email)")
+
+            /// Synchronize the profile deterministically in Supabase
+            Task {
+                await self.syncUserProfile()
+            }
         } catch {
             self.currentUser = nil
             self.swiftCodeID = nil
@@ -119,11 +124,11 @@ public final class AuthManager {
         logger.info("Initiating Google OAuth flow...")
 
         do {
-            let callbackURL = "https://sfo.cloud.appwrite.io/v1/account/sessions/oauth2/callback/google/6a670d0b0022e5f964b4"
+            let callbackScheme = "appwrite-callback-6a670d0b0022e5f964b4://"
             _ = try await account.createOAuth2Session(
                 provider: .google,
-                success: callbackURL,
-                failure: callbackURL
+                success: callbackScheme,
+                failure: callbackScheme
             )
             await restoreSession()
             logger.info("Google OAuth login session completed.")
@@ -142,11 +147,11 @@ public final class AuthManager {
         logger.info("Initiating GitHub OAuth flow...")
 
         do {
-            let callbackURL = "https://sfo.cloud.appwrite.io/v1/account/sessions/oauth2/callback/github/6a670d0b0022e5f964b4"
+            let callbackScheme = "appwrite-callback-6a670d0b0022e5f964b4://"
             _ = try await account.createOAuth2Session(
                 provider: .github,
-                success: callbackURL,
-                failure: callbackURL
+                success: callbackScheme,
+                failure: callbackScheme
             )
             await restoreSession()
             logger.info("GitHub OAuth login session completed.")
@@ -281,6 +286,69 @@ public final class AuthManager {
         self.swiftCodeID = nil
         self.isAuthenticated = false
         self.isLoading = false
+
+        / Sign out from Supabase Auth as well
+        Task {
+            try? await SupabaseProvider.shared.signOutFromSupabase()
+        }
+    }
+
+    /// Generates a deterministic UUID from any String (such as Appwrite user ID) using SHA256.
+    public func deterministicUUID(from string: String) -> UUID {
+        let hash = SHA256.hash(data: Data(string.utf8))
+        let bytes = Array(hash)
+        let uuidBytes = (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        )
+        return UUID(uuid: uuidBytes)
+    }
+
+    /// Returns the deterministic UUID representing the current user's DB key.
+    public func dbUserID(from swiftCodeID: String) -> UUID {
+        let cleanID = swiftCodeID.replacingOccurrences(of: "sc_id=", with: "")
+                                 .replacingOccurrences(of: "sc_id_", with: "")
+        return deterministicUUID(from: cleanID)
+    }
+
+    /// Synchronizes the user's backend profile in Supabase with the latest authentication details.
+    public func syncUserProfile() async {
+        guard let user = currentUser, let swiftCodeID = swiftCodeID else { return }
+
+        let dbUserID = dbUserID(from: swiftCodeID)
+
+        logger.info("Synchronizing user profile to Supabase...")
+
+        do {
+            try await SupabaseProvider.shared.registerShadowUser(id: dbUserID, email: user.email)
+            try await SupabaseProvider.shared.signInToSupabase(id: dbUserID, email: user.email)
+        } catch {
+            logger.error("Failed to register/sign-in shadow user: \(error.localizedDescription)")
+            return
+        }
+
+        let profileUpdate: [String: AnyCodable] = [
+            "display_name": AnyCodable(user.name),
+            "avatar_url": AnyCodable(""),
+            "auth_provider": AnyCodable("appwrite"),
+            "last_sign_in": AnyCodable(ISO8601DateFormatter().string(from: Date())),
+            "last_active": AnyCodable(ISO8601DateFormatter().string(from: Date())),
+            "account_status": AnyCodable("active"),
+            "email_verified": AnyCodable(user.emailVerification),
+            "cloud_enabled": AnyCodable(true),
+            "backup_enabled": AnyCodable(true),
+            "ai_enabled": AnyCodable(true),
+            "sync_statistics": AnyCodable("{}")
+        ]
+
+        do {
+            try await SupabaseProvider.shared.updateProfile(id: dbUserID, values: profileUpdate)
+            logger.info("Successfully updated user profile in Supabase.")
+        } catch {
+            logger.error("Failed to update user profile in Supabase: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - SwiftCode ID Generator
