@@ -313,7 +313,7 @@ final class SupabaseSyncProvider: SyncProvider, @unchecked Sendable {
         }
 
         let channelName = "sync_channel_\(tableName)"
-        let channel = client.realtime.channel(channelName)
+        let channel = client.channel(channelName)
 
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
