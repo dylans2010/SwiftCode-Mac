@@ -329,9 +329,6 @@ final class SupabaseSyncProvider: SyncProvider, @unchecked Sendable {
         let channelName = "sync_channel_\(tableName)"
         let channel = client.channel(channelName)
 
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
         struct PayloadDecodable: Codable {
             let id: String
             let table_name: String
@@ -349,6 +346,8 @@ final class SupabaseSyncProvider: SyncProvider, @unchecked Sendable {
         channels[tableName] = channel
 
         Task {
+            let localFormatter = ISO8601DateFormatter()
+            localFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             for await change in insertChanges {
                 if let payload = try? JSONDecoder().decode(PayloadDecodable.self, from: JSONSerialization.data(withJSONObject: change.record)) {
                     if payload.table_name == tableName && payload.user_id == swiftCodeID {
@@ -358,7 +357,7 @@ final class SupabaseSyncProvider: SyncProvider, @unchecked Sendable {
                             userID: payload.user_id,
                             payload: payload.payload,
                             version: payload.version,
-                            clientUpdatedAt: formatter.date(from: payload.client_updated_at) ?? Date(),
+                            clientUpdatedAt: localFormatter.date(from: payload.client_updated_at) ?? Date(),
                             isDeleted: payload.is_deleted
                         )
                         onInsert(syncPayload)
@@ -368,6 +367,8 @@ final class SupabaseSyncProvider: SyncProvider, @unchecked Sendable {
         }
 
         Task {
+            let localFormatter = ISO8601DateFormatter()
+            localFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             for await change in updateChanges {
                 if let payload = try? JSONDecoder().decode(PayloadDecodable.self, from: JSONSerialization.data(withJSONObject: change.record)) {
                     if payload.table_name == tableName && payload.user_id == swiftCodeID {
@@ -377,7 +378,7 @@ final class SupabaseSyncProvider: SyncProvider, @unchecked Sendable {
                             userID: payload.user_id,
                             payload: payload.payload,
                             version: payload.version,
-                            clientUpdatedAt: formatter.date(from: payload.client_updated_at) ?? Date(),
+                            clientUpdatedAt: localFormatter.date(from: payload.client_updated_at) ?? Date(),
                             isDeleted: payload.is_deleted
                         )
                         onUpdate(syncPayload)

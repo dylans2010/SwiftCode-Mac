@@ -102,7 +102,7 @@ public protocol MCPTransportSession: Sendable {
 
 // MARK: - Stdio Transport Implementation
 
-public final class StdioTransportSession: MCPTransportSession {
+public final class StdioTransportSession: MCPTransportSession, @unchecked Sendable {
     private let server: MCPServer
     private let activeProcess = OSAllocatedUnfairLock<Process?>(initialState: nil)
     private let stdioOutputTask = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
@@ -271,7 +271,7 @@ public final class StdioTransportSession: MCPTransportSession {
 
 // MARK: - HTTP JSON Transport Implementation
 
-public final class HTTPJSONTransportSession: MCPTransportSession {
+public final class HTTPJSONTransportSession: MCPTransportSession, @unchecked Sendable {
     private let server: MCPServer
     private let logEvent: @Sendable (MCPLogSeverity, String) -> Void
 
@@ -417,7 +417,7 @@ public struct SSEEvent {
     public var retry: String? = nil
 }
 
-public final class HTTPSSETransportSession: MCPTransportSession {
+public final class HTTPSSETransportSession: MCPTransportSession, @unchecked Sendable {
     private let server: MCPServer
     private let logEvent: @Sendable (MCPLogSeverity, String) -> Void
 
@@ -644,14 +644,15 @@ public final class HTTPSSETransportSession: MCPTransportSession {
             throw MCPError.requestValidationFailed("Request is missing integer ID")
         }
 
+        let finalURLRequest = urlRequest
         return try await withCheckedThrowingContinuation { continuation in
             pendingRequests.withLock { requests in
                 requests[reqID] = continuation
             }
 
-            Task {
+            Task { [finalURLRequest, reqID, timestamp, self] in
                 do {
-                    let (data, response) = try await URLSession.shared.data(for: urlRequest)
+                    let (data, response) = try await URLSession.shared.data(for: finalURLRequest)
                     guard let httpResponse = response as? HTTPURLResponse else {
                         throw MCPError.connectionFailed("Invalid response type from server.")
                     }
