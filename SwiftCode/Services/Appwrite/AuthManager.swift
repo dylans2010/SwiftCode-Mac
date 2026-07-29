@@ -1,5 +1,6 @@
 import Foundation
 import Appwrite
+import JSONCodable
 import CryptoKit
 import os
 
@@ -11,7 +12,7 @@ public final class AuthManager {
     public static let shared = AuthManager()
 
     // Thread-safe observable state
-    public private(set) var currentUser: Appwrite.User<Appwrite.Preferences>?
+    public private(set) var currentUser: Appwrite.User<Appwrite.Preferences<[String: AnyCodable]>>?
     public private(set) var currentSession: Appwrite.Session?
     public private(set) var swiftCodeID: String?
     public private(set) var isAuthenticated = false
@@ -38,7 +39,7 @@ public final class AuthManager {
             self.currentUser = user
 
             // Retrieve existing SwiftCode ID or generate a new one if it doesn't exist yet
-            if let existingID = user.prefs.data["swiftcode_id"] as? String {
+            if let existingID = user.prefs.data["swiftcode_id"]?.value as? String {
                 self.swiftCodeID = existingID
                 logger.info("Successfully retrieved existing SwiftCode ID: \(existingID)")
             } else {
@@ -46,7 +47,7 @@ public final class AuthManager {
                 self.swiftCodeID = newID
                 logger.info("No SwiftCode ID found. Generated new secure ID: \(newID)")
                 do {
-                    _ = try await account.updatePrefs(prefs: ["swiftcode_id": newID])
+                    _ = try await account.updatePrefs(prefs: ["swiftcode_id": AnyCodable(newID)])
                     logger.info("Successfully stored new SwiftCode ID to Appwrite preferences.")
                 } catch {
                     logger.error("Failed to store SwiftCode ID to Appwrite preferences: \(error.localizedDescription)")
