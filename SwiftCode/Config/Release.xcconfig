@@ -1,0 +1,6 @@
+// Production Release Configuration for SwiftCode
+SUPABASE_URL = https:/$()/placeholder-supabase-url.supabase.co
+SUPABASE_ANON_KEY = placeholder-supabase-anon-key
+OPENROUTER_API_KEY = placeholder-openrouter-api-key
+GEMINI_API_KEY = placeholder-gemini-api-key
+SWIFTCLOUD_API_URL = https:/$()/placeholder-swiftcloud-api-url.com

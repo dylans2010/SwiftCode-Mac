@@ -11,9 +11,8 @@ public final class SupabaseProvider: @unchecked Sendable {
     private let client: SupabaseClient
 
     private init() {
-        let envUrl = KeychainService.shared.get(forKey: "supabase_url") ?? ProcessInfo.processInfo.environment["SUPABASE_URL"] ?? "https://secctbuzkfbketdihzui.supabase.co"
-        let envKey = KeychainService.shared.get(forKey: "supabase_api_key") ?? ProcessInfo.processInfo.environment["SUPABASE_API_KEY"] ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlY2N0YnV6a2Zia2V0ZGloenVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDcxMDUwMDAsImV4cCI6MjAyNjg2MTAwMH0.mock-key-signature"
-        let url = URL(string: envUrl) ?? URL(string: "https://secctbuzkfbketdihzui.supabase.co")!
+        let url = AppConfig.shared.supabaseURL
+        let envKey = AppConfig.shared.supabaseAnonKey
         self.client = SupabaseClient(supabaseURL: url, supabaseKey: envKey)
     }
 

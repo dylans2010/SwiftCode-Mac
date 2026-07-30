@@ -733,6 +733,45 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
+                // 2.1 SwiftCloud Models Section
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("SwiftCloud Models", systemImage: "cloud.fill")
+                                .font(.headline)
+                                .foregroundColor(.blue)
+                            Spacer()
+                        }
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            Toggle("Enable SwiftCloud-hosted Models", isOn: $settings.swiftCloudModelsEnabled)
+                                .toggleStyle(.switch)
+
+                            Text("When enabled, SwiftCloud-hosted AI models are routed through the secure, centralized configuration. Supports OpenRouter and Gemini. Daily requests are limited to 15 successful queries across these models to ensure fair usage.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            if settings.swiftCloudModelsEnabled {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Text("Daily Request Tracker:")
+                                            .font(.caption.bold())
+                                        Spacer()
+                                    }
+                                    Text("\(LLMService.shared.swiftCloudRequestsRemaining) requests remaining of 15 today.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(8)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(6)
+                            }
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
                 // Models for Assist Selection Card
                 #if false
                 ModelsForAssist(settings: settings, cachedModels: cachedModels, customEndpoints: customEndpointsManager.endpoints)

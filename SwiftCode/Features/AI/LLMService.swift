@@ -64,6 +64,7 @@ public enum LLMError: LocalizedError {
     case unknown(String)
     case missingOfflineDefaultModel
     case offlineFallbackUnavailable
+    case swiftCloudLimitReached(String)
 
     public var errorDescription: String? {
         switch self {
@@ -74,6 +75,7 @@ public enum LLMError: LocalizedError {
         case .unknown(let desc): return desc
         case .missingOfflineDefaultModel: return "No default offline model selected. Download and set a default offline model in Settings."
         case .offlineFallbackUnavailable: return "Server unavailable and no default offline model configured. Add an API key or download an offline model."
+        case .swiftCloudLimitReached(let desc): return desc
         }
     }
 }
@@ -112,6 +114,69 @@ public final class LLMService: Sendable {
     private let aiRoutingModeKey = "ai.routingMode"
 
     private var urlSession = URLSession(configuration: .default)
+
+    private let swiftCloudRequestCountKey = "swiftcloud.requestCount"
+    private let swiftCloudLastResetDateKey = "swiftcloud.lastResetDate"
+
+    @MainActor
+    public var swiftCloudRequestsRemaining: Int {
+        checkAndResetDailyLimitIfNeeded()
+        return max(0, 15 - currentSwiftCloudRequestCount())
+    }
+
+    @MainActor
+    private func currentSwiftCloudRequestCount() -> Int {
+        UserDefaults.standard.integer(forKey: swiftCloudRequestCountKey)
+    }
+
+    @MainActor
+    private func checkAndResetDailyLimitIfNeeded() {
+        let now = Date()
+        guard let lastResetDate = UserDefaults.standard.object(forKey: swiftCloudLastResetDateKey) as? Date else {
+            UserDefaults.standard.set(now, forKey: swiftCloudLastResetDateKey)
+            UserDefaults.standard.set(0, forKey: swiftCloudRequestCountKey)
+            return
+        }
+
+        let calendar = Calendar.current
+        if !calendar.isDate(now, inSameDayAs: lastResetDate) {
+            UserDefaults.standard.set(now, forKey: swiftCloudLastResetDateKey)
+            UserDefaults.standard.set(0, forKey: swiftCloudRequestCountKey)
+            logInfo("[SwiftCloud] Daily request limit count has been reset for the new calendar day.")
+        }
+    }
+
+    @MainActor
+    private func incrementSwiftCloudRequestCount() {
+        checkAndResetDailyLimitIfNeeded()
+        let count = currentSwiftCloudRequestCount() + 1
+        UserDefaults.standard.set(count, forKey: swiftCloudRequestCountKey)
+        logInfo("[SwiftCloud] Request succeeded. Count incremented to \(count)/15.")
+    }
+
+    @MainActor
+    private func isSwiftCloudLimitReached() -> Bool {
+        return swiftCloudRequestsRemaining <= 0
+    }
+
+    @MainActor
+    private func isSwiftCloudRequest(for provider: LLMProvider) -> Bool {
+        return AppSettings.shared.swiftCloudModelsEnabled && (provider == .openRouter || provider == .google)
+    }
+
+    @MainActor
+    private func formattedSwiftCloudResetMessage() -> String {
+        let calendar = Calendar.current
+        let now = Date()
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
+           let tomorrowStart = calendar.startOfDay(for: tomorrow) as Date? {
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .full
+            let relativeTime = formatter.localizedString(for: tomorrowStart, relativeTo: now)
+            return "You have reached your daily limit of 15 successful SwiftCloud requests. Additional requests will become available \(relativeTime) (tomorrow at midnight)."
+        }
+        return "You have reached your daily limit of 15 successful SwiftCloud requests. Requests will become available again tomorrow."
+    }
 
     public func recreateSession(for modelID: String) {
         logInfo("[recreateSession] Invalidating current session and creating a fully new URLSession for model: \(modelID)")
@@ -174,6 +239,10 @@ public final class LLMService: Sendable {
     }
 
     public func retrieveAPIKey(for provider: LLMProvider, from keyOverride: String? = nil) -> String {
+        if AppSettings.shared.swiftCloudModelsEnabled && (provider == .openRouter || provider == .google) {
+            return provider == .openRouter ? AppConfig.shared.openRouterAPIKey : AppConfig.shared.geminiAPIKey
+        }
+
         if let keyOverride, !keyOverride.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return keyOverride.trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -402,6 +471,13 @@ public final class LLMService: Sendable {
     }
 
     public func sendChatRequest(model: String, messages: [AIMessage], key: String? = nil, providerOverride: LLMProvider? = nil) async throws -> LLMResponse {
+        let resolvedProvider = providerOverride ?? provider(for: model)
+        if await isSwiftCloudRequest(for: resolvedProvider) {
+            if await isSwiftCloudLimitReached() {
+                throw LLMError.swiftCloudLimitReached(await formattedSwiftCloudResetMessage())
+            }
+        }
+
         let isFallbackEnabled = UserDefaults.standard.bool(forKey: "free_models_fallback_enabled")
 
         do {
@@ -524,11 +600,17 @@ public final class LLMService: Sendable {
         do {
             let startTime = Date()
             let endpoint = provider == .anthropic ? "messages" : "chat/completions"
-            let url = provider.baseURL.appendingPathComponent(endpoint)
+            let isSwiftCloud = isSwiftCloudRequest(for: provider)
+            let url = isSwiftCloud ? AppConfig.shared.swiftCloudAPIURL.appendingPathComponent(endpoint) : provider.baseURL.appendingPathComponent(endpoint)
 
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
-            setupHeaders(for: &request, provider: provider, key: actualKey)
+            if isSwiftCloud {
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.setValue("Bearer \(actualKey)", forHTTPHeaderField: "Authorization")
+            } else {
+                setupHeaders(for: &request, provider: provider, key: actualKey)
+            }
 
             let body = try buildRequestBody(provider: provider, model: model, messages: messages, stream: false)
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -540,9 +622,10 @@ public final class LLMService: Sendable {
             let latency = Date().timeIntervalSince(startTime)
             logInfo("[sendChatRequest] Request finished in \(latency) seconds.")
 
+            let resultResponse: LLMResponse
             if provider == .anthropic {
                 let decoded = try JSONDecoder().decode(AnthropicResponse.self, from: data)
-                return LLMResponse(
+                resultResponse = LLMResponse(
                     modelName: decoded.model,
                     completionText: decoded.content.first?.text ?? "",
                     tokenUsage: LLMResponse.TokenUsage(
@@ -554,13 +637,18 @@ public final class LLMService: Sendable {
                 )
             } else {
                 let decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
-                return LLMResponse(
+                resultResponse = LLMResponse(
                     modelName: decoded.model,
                     completionText: decoded.choices.first?.message.content ?? "",
                     tokenUsage: decoded.usage.map { LLMResponse.TokenUsage(promptTokens: $0.prompt_tokens, completionTokens: $0.completion_tokens, totalTokens: $0.total_tokens) },
                     latency: latency
                 )
             }
+
+            if isSwiftCloud {
+                await incrementSwiftCloudRequestCount()
+            }
+            return resultResponse
         } catch {
             logWarning("[sendChatRequest] Request failed: \(error.localizedDescription). Checking fallback eligibility.")
             if await shouldFallbackToOffline(for: provider) {
@@ -583,6 +671,13 @@ public final class LLMService: Sendable {
         systemPrompt: String,
         onToken: @escaping @Sendable (String) async -> Void
     ) async throws {
+        let resolvedProvider = provider(for: model)
+        if await isSwiftCloudRequest(for: resolvedProvider) {
+            if await isSwiftCloudLimitReached() {
+                throw LLMError.swiftCloudLimitReached(await formattedSwiftCloudResetMessage())
+            }
+        }
+
         let isFallbackEnabled = UserDefaults.standard.bool(forKey: "free_models_fallback_enabled")
 
         do {
@@ -730,12 +825,18 @@ public final class LLMService: Sendable {
                 throw LLMError.invalidKey
             }
 
+            let isSwiftCloud = isSwiftCloudRequest(for: provider)
             let endpoint = provider == .anthropic ? "messages" : "chat/completions"
-            let url = provider.baseURL.appendingPathComponent(endpoint)
+            let url = isSwiftCloud ? AppConfig.shared.swiftCloudAPIURL.appendingPathComponent(endpoint) : provider.baseURL.appendingPathComponent(endpoint)
 
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
-            setupHeaders(for: &request, provider: provider, key: key)
+            if isSwiftCloud {
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            } else {
+                setupHeaders(for: &request, provider: provider, key: key)
+            }
 
             let body = try buildRequestBody(provider: provider, model: model, messages: messages, systemPrompt: systemPrompt, stream: true)
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -743,6 +844,10 @@ public final class LLMService: Sendable {
             logInfo("[streamChat] Connecting to stream at \(provider.rawValue)...")
             let (stream, response) = try await self.urlSession.bytes(for: request)
             try handleHTTPError(response, data: nil)
+
+            if isSwiftCloud {
+                await incrementSwiftCloudRequestCount()
+            }
 
             logInfo("[streamChat] Stream connected. Consuming lines.")
             for try await line in stream.lines {
