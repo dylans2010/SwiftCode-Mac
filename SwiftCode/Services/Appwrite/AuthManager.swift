@@ -47,7 +47,7 @@ public final class AuthManager {
                 self.swiftCodeID = newID
                 logger.info("No SwiftCode ID found. Generated new secure ID: \(newID)")
                 do {
-                    _ = try await account.updatePrefs(prefs: ["swiftcode_id": AnyCodable(newID)])
+                    _ = try await account.updatePrefs(prefs: ["swiftcode_id": newID])
                     logger.info("Successfully stored new SwiftCode ID to Appwrite preferences.")
                 } catch {
                     logger.error("Failed to store SwiftCode ID to Appwrite preferences: \(error.localizedDescription)")
