@@ -23,8 +23,10 @@ enum CodexErrorHandler {
             case .unknown(let message): return message
             case .missingOfflineDefaultModel: return "No offline model is configured."
             case .offlineFallbackUnavailable: return "No Codex or offline fallback is available."
+            case .swiftCloudLimitReached(let message): return message
             }
         }
         return error.localizedDescription
     }
 }
+
