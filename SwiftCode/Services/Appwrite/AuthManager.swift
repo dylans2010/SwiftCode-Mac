@@ -287,7 +287,7 @@ public final class AuthManager {
         self.isAuthenticated = false
         self.isLoading = false
 
-        / Sign out from Supabase Auth as well
+        // Sign out from Supabase Auth as well
         Task {
             try? await SupabaseProvider.shared.signOutFromSupabase()
         }
