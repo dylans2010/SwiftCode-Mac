@@ -51,6 +51,10 @@ class AppSettings: ObservableObject {
 
     private var saveTask: Task<Void, Never>?
 
+    @Published var swiftCloudModelsEnabled: Bool {
+        didSet { debouncedSave("swiftCloudModelsEnabled", swiftCloudModelsEnabled) }
+    }
+
     @Published var selectedModel: String {
         didSet {
             debouncedSave("selectedModel", selectedModel)
@@ -235,6 +239,7 @@ class AppSettings: ObservableObject {
 
 
     private init() {
+        swiftCloudModelsEnabled = UserDefaults.standard.object(forKey: "swiftCloudModelsEnabled") as? Bool ?? false
         selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "openai/gpt-4o"
         customModel   = UserDefaults.standard.string(forKey: "customModel") ?? ""
         selectedAssistModelID = UserDefaults.standard.string(forKey: "selectedAssistModelID") ?? AssistModelOption.swiftCodeBalanced.id

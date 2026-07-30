@@ -80,10 +80,9 @@ public actor CloudSyncEngine {
 
         // Ensure provider is set
         if provider == nil {
-            // Instantiate SupabaseCloudProvider with production credentials
-            let envUrl = KeychainService.shared.get(forKey: "supabase_url") ?? ProcessInfo.processInfo.environment["SUPABASE_URL"] ?? "https://secctbuzkfbketdihzui.supabase.co"
-            let envKey = KeychainService.shared.get(forKey: "supabase_api_key") ?? ProcessInfo.processInfo.environment["SUPABASE_API_KEY"] ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlY2N0YnV6a2Zia2V0ZGloenVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDcxMDUwMDAsImV4cCI6MjAyNjg2MTAwMH0.mock-key-signature"
-            let url = URL(string: envUrl) ?? URL(string: "https://secctbuzkfbketdihzui.supabase.co")!
+            // Instantiate SupabaseCloudProvider with production credentials loaded from AppConfig
+            let url = AppConfig.shared.supabaseURL
+            let envKey = AppConfig.shared.supabaseAnonKey
             self.provider = SupabaseCloudProvider(url: url, apiKey: envKey)
         }
 

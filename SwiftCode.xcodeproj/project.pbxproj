@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A83491FC57C3309ECF4AD14 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A83491FC57C3309ECF4AD13 /* AppConfig.swift */; };
 		CF35CA016F59E7177DDC0AEF /* CloudError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1447B9E2C008F414C2B00A48 /* CloudError.swift */; };
 		C3A5B22197BFC2392607D317 /* CloudRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDF7400BCC2204B1C8E5E58D /* CloudRecord.swift */; };
 		841AB4DB5888230ABA5DC2E0 /* SyncState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DDA9799B405D0C0A63CFFF9 /* SyncState.swift */; };
@@ -1424,6 +1425,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A83491FC57C3309ECF4AD13 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		A83491FC57C3309ECF4AD15 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		1447B9E2C008F414C2B00A48 /* CloudError.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Core/CloudError.swift; sourceTree = "<group>"; };
 		CDF7400BCC2204B1C8E5E58D /* CloudRecord.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/CloudRecord.swift; sourceTree = "<group>"; };
 		8DDA9799B405D0C0A63CFFF9 /* SyncState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/SyncState.swift; sourceTree = "<group>"; };
@@ -2856,6 +2859,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		A83491FC57C3309ECF4AD12 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				A83491FC57C3309ECF4AD13 /* AppConfig.swift */,
+				A83491FC57C3309ECF4AD15 /* Release.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
 		B0010001B0010001B001000F /* MCP */ = {
 			isa = PBXGroup;
 			children = (
@@ -4673,6 +4685,7 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 		A83491FC57C3309ECF4AD0DD /* SwiftCode */ = {
 			isa = PBXGroup;
 			children = (
+				A83491FC57C3309ECF4AD12 /* Config */,
 				B6D3DE9CCA0AEA43F76382B4 /* Features */,
 				57AFC04E569B8BDE2658ECD4 /* Services */,
 				3338AF8D52E0178078925C56 /* UI */,
@@ -5670,6 +5683,7 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A83491FC57C3309ECF4AD14 /* AppConfig.swift in Sources */,
 				CF35CA016F59E7177DDC0AEF /* CloudError.swift in Sources */,
 				C3A5B22197BFC2392607D317 /* CloudRecord.swift in Sources */,
 				841AB4DB5888230ABA5DC2E0 /* SyncState.swift in Sources */,
@@ -6956,6 +6970,7 @@ CE705E1EC3604FFEEB031075 /* FoundationModels.swift in Sources */,
 /* Begin XCBuildConfiguration section */
 		98B616311F4448DF1276F9EC /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A83491FC57C3309ECF4AD15 /* Release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -7045,6 +7060,7 @@ CE705E1EC3604FFEEB031075 /* FoundationModels.swift in Sources */,
 		};
 		CCBF82BD9691DFDB610FD9AC /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A83491FC57C3309ECF4AD15 /* Release.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
