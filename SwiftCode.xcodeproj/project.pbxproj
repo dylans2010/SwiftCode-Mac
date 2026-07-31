@@ -1015,7 +1015,7 @@
 		94DD6A8E2A754318B46E1389 /* APITesterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9713C2E509DD44D79F100720 /* APITesterView.swift */; };
 		955A05A8ABD2498CB26E8F43 /* ToolSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15C14C45B1646A3B30C309B /* ToolSource.swift */; };
 		95AED525DC4C57CB5A53C4C3 /* OfflineModelDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43CEAAEEBB0248577216B72E /* OfflineModelDownloader.swift */; };
-		963017EFD22847BDB3B6D5D7 /* DatabaseMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5FD70ED49224A819260111C /* DatabaseMigration.swift */; };
+		963017EFD22847BDB3B6D5D7 /* DatabaseMigrationTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5FD70ED49224A819260111C /* DatabaseMigrationTool.swift */; };
 		96BAE9813D674D5B908788FD /* SourceLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 844AB75BF6A47BBC5BE346FF /* SourceLanguage.swift */; };
 		96C54374027FD7CFB26380F2 /* GitHubPagesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1871020200B4B90AB9F92D4E /* GitHubPagesManager.swift */; };
 		96D66B4EB2279EE42983B761 /* CommitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BDD49FC4FEC3D5B58C3F610 /* CommitManager.swift */; };
@@ -2542,7 +2542,7 @@
 		A5A1FCC3B6F444C48899A8F5 /* UpdateDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateDependencies.swift; sourceTree = "<group>"; };
 		A5A20F0968594D0FBA005E72 /* GitMerge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitMerge.swift; sourceTree = "<group>"; };
 		A5F54685ACD599E567E42A19 /* SimulatorSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorSettingsView.swift; sourceTree = "<group>"; };
-		A5FD70ED49224A819260111C /* DatabaseMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseMigration.swift; sourceTree = "<group>"; };
+		A5FD70ED49224A819260111C /* DatabaseMigrationTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseMigrationTool.swift; sourceTree = "<group>"; };
 		A604AC99CDF84728AFA9A704 /* PortLookupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortLookupView.swift; sourceTree = "<group>"; };
 		A65C92D6B5114343A0E5C912 /* WhoisLookupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhoisLookupView.swift; sourceTree = "<group>"; };
 		A6B43F5BA635C0624CAC8D49 /* CollaborationNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollaborationNotificationManager.swift; sourceTree = "<group>"; };
@@ -5358,7 +5358,7 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 				30B3DBAE05FB4B92A2FEAB22 /* GitCheckout.swift */,
 				3C0584BD936F4B73868735BE /* RunStaticAnalysis.swift */,
 				A5A20F0968594D0FBA005E72 /* GitMerge.swift */,
-				A5FD70ED49224A819260111C /* DatabaseMigration.swift */,
+				A5FD70ED49224A819260111C /* DatabaseMigrationTool.swift */,
 				984EC476599A4A4B879AAC04 /* RenameFile.swift */,
 				3E4275F7E1A94E06B4883EA5 /* ListDirectory.swift */,
 				1340F5D613F44696AB2ED0B8 /* UIInspector.swift */,
@@ -7087,7 +7087,7 @@ CE705E1EC3604FFEEB031075 /* FoundationModels.swift in Sources */,
 				A57E2AE2CDAA4F5FB2630855 /* GitCheckout.swift in Sources */,
 				88F306B6F04D4A28A7D739D4 /* RunStaticAnalysis.swift in Sources */,
 				F44967D1EE6640C7B7F1E709 /* GitMerge.swift in Sources */,
-				963017EFD22847BDB3B6D5D7 /* DatabaseMigration.swift in Sources */,
+				963017EFD22847BDB3B6D5D7 /* DatabaseMigrationTool.swift in Sources */,
 				C2406B28E37C4FA6B34A07ED /* RenameFile.swift in Sources */,
 				7A73B923B0864FFFBAE12027 /* ListDirectory.swift in Sources */,
 				408D1072994144138AC5C96A /* UIInspector.swift in Sources */,
