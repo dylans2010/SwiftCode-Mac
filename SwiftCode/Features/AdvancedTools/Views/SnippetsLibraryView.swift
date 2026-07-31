@@ -1,18 +1,18 @@
 import SwiftUI
 
-private struct CodeSnippet: Identifiable, Codable, Hashable {
+private struct LibraryCodeSnippet: Identifiable, Codable, Hashable {
     let id: UUID
     var title: String
     var code: String
-    var category: SnippetCategory
+    var category: LibrarySnippetCategory
     var language: String
     var isFavorite: Bool = false
     var isPinned: Bool = false
 
-    static let empty = CodeSnippet(id: UUID(), title: "", code: "", category: .utilities, language: "Swift")
+    static let empty = LibraryCodeSnippet(id: UUID(), title: "", code: "", category: .utilities, language: "Swift")
 }
 
-private enum SnippetCategory: String, CaseIterable, Identifiable, Codable {
+private enum LibrarySnippetCategory: String, CaseIterable, Identifiable, Codable {
     case swiftUIViews = "SwiftUI Views"
     case networking = "Networking"
     case asyncTasks = "Async Tasks"
@@ -21,40 +21,40 @@ private enum SnippetCategory: String, CaseIterable, Identifiable, Codable {
     var id: String { rawValue }
 }
 
-private enum CodeSnippetStore {
+private enum LibraryCodeSnippetStore {
     private static let key = "com.swiftcode.snippets"
 
-    static func load() -> [CodeSnippet] {
+    static func load() -> [LibraryCodeSnippet] {
         guard let data = UserDefaults.standard.data(forKey: key),
-              let decoded = try? JSONDecoder().decode([CodeSnippet].self, from: data) else {
+              let decoded = try? JSONDecoder().decode([LibraryCodeSnippet].self, from: data) else {
             // Default Templates fallback
             return [
-                CodeSnippet(id: UUID(), title: "Async Task MainActor wrapper", code: "Task {\n    await MainActor.run {\n        // Update UI state securely\n    }\n}", category: .asyncTasks, language: "Swift", isPinned: true),
-                CodeSnippet(id: UUID(), title: "Custom SwiftUI Button Style", code: "struct ModernButtonStyle: ButtonStyle {\n    func makeBody(configuration: Configuration) -> some View {\n        configuration.label\n            .padding(.horizontal, 16)\n            .padding(.vertical, 8)\n            .background(Color.accentColor)\n            .cornerRadius(8)\n            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)\n    }\n}", category: .swiftUIViews, language: "Swift", isPinned: false)
+                LibraryCodeSnippet(id: UUID(), title: "Async Task MainActor wrapper", code: "Task {\n    await MainActor.run {\n        // Update UI state securely\n    }\n}", category: .asyncTasks, language: "Swift", isPinned: true),
+                LibraryCodeSnippet(id: UUID(), title: "Custom SwiftUI Button Style", code: "struct ModernButtonStyle: ButtonStyle {\n    func makeBody(configuration: Configuration) -> some View {\n        configuration.label\n            .padding(.horizontal, 16)\n            .padding(.vertical, 8)\n            .background(Color.accentColor)\n            .cornerRadius(8)\n            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)\n    }\n}", category: .swiftUIViews, language: "Swift", isPinned: false)
             ]
         }
         return decoded
     }
 
-    static func save(_ snippets: [CodeSnippet]) {
+    static func save(_ snippets: [LibraryCodeSnippet]) {
         guard let data = try? JSONEncoder().encode(snippets) else { return }
         UserDefaults.standard.set(data, forKey: key)
     }
 }
 
 struct SnippetsLibraryView: View {
-    @State private var snippets: [CodeSnippet] = CodeSnippetStore.load()
-    @State private var selectedCategory: SnippetCategory = .swiftUIViews
+    @State private var snippets: [LibraryCodeSnippet] = LibraryCodeSnippetStore.load()
+    @State private var selectedCategory: LibrarySnippetCategory = .swiftUIViews
     @State private var searchQuery = ""
     @State private var languageFilter = "All"
-    @State private var draft = CodeSnippet.empty
+    @State private var draft = LibraryCodeSnippet.empty
     @State private var showCreateSheet = false
-    @State private var selectedSnippet: CodeSnippet? = nil
+    @State private var selectedSnippet: LibraryCodeSnippet? = nil
     @Environment(\.dismiss) private var dismiss
 
     let languages = ["All", "Swift", "Objective-C", "Shell", "Markdown", "JSON"]
 
-    private var filtered: [CodeSnippet] {
+    private var filtered: [LibraryCodeSnippet] {
         var list = snippets
 
         // Category filter
@@ -114,7 +114,7 @@ struct SnippetsLibraryView: View {
                             .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
 
                             Picker("Category", selection: $selectedCategory) {
-                                ForEach(SnippetCategory.allCases) { Text($0.rawValue).tag($0) }
+                                ForEach(LibrarySnippetCategory.allCases) { Text($0.rawValue).tag($0) }
                             }
                             .pickerStyle(.segmented)
 
@@ -330,7 +330,7 @@ struct SnippetsLibraryView: View {
 
                             Text("Category").bold()
                             Picker("Category", selection: $selectedCategory) {
-                                ForEach(SnippetCategory.allCases) { Text($0.rawValue).tag($0) }
+                                ForEach(LibrarySnippetCategory.allCases) { Text($0.rawValue).tag($0) }
                             }
                             .pickerStyle(.menu)
 
@@ -376,34 +376,34 @@ struct SnippetsLibraryView: View {
     private func saveSnippet() {
         draft.category = selectedCategory
         snippets.append(draft)
-        CodeSnippetStore.save(snippets)
+        LibraryCodeSnippetStore.save(snippets)
         selectedSnippet = draft
         showCreateSheet = false
         draft = .empty
     }
 
-    private func toggleFavorite(_ snippet: CodeSnippet) {
+    private func toggleFavorite(_ snippet: LibraryCodeSnippet) {
         if let idx = snippets.firstIndex(where: { $0.id == snippet.id }) {
             snippets[idx].isFavorite.toggle()
-            CodeSnippetStore.save(snippets)
+            LibraryCodeSnippetStore.save(snippets)
             if selectedSnippet?.id == snippet.id {
                 selectedSnippet = snippets[idx]
             }
         }
     }
 
-    private func togglePinned(_ snippet: CodeSnippet) {
+    private func togglePinned(_ snippet: LibraryCodeSnippet) {
         if let idx = snippets.firstIndex(where: { $0.id == snippet.id }) {
             snippets[idx].isPinned.toggle()
-            CodeSnippetStore.save(snippets)
+            LibraryCodeSnippetStore.save(snippets)
             if selectedSnippet?.id == snippet.id {
                 selectedSnippet = snippets[idx]
             }
         }
     }
 
-    private func duplicateSnippet(_ snippet: CodeSnippet) {
-        let copy = CodeSnippet(
+    private func duplicateSnippet(_ snippet: LibraryCodeSnippet) {
+        let copy = LibraryCodeSnippet(
             id: UUID(),
             title: "\(snippet.title) Copy",
             code: snippet.code,
@@ -413,11 +413,11 @@ struct SnippetsLibraryView: View {
             isPinned: snippet.isPinned
         )
         snippets.append(copy)
-        CodeSnippetStore.save(snippets)
+        LibraryCodeSnippetStore.save(snippets)
         selectedSnippet = copy
     }
 
-    private func exportSnippet(_ snippet: CodeSnippet) {
+    private func exportSnippet(_ snippet: LibraryCodeSnippet) {
         if let data = try? JSONEncoder().encode(snippet),
            let str = String(data: data, encoding: .utf8) {
             NSPasteboard.general.clearContents()
@@ -425,9 +425,9 @@ struct SnippetsLibraryView: View {
         }
     }
 
-    private func deleteSnippet(_ snippet: CodeSnippet) {
+    private func deleteSnippet(_ snippet: LibraryCodeSnippet) {
         snippets.removeAll { $0.id == snippet.id }
-        CodeSnippetStore.save(snippets)
+        LibraryCodeSnippetStore.save(snippets)
         if selectedSnippet?.id == snippet.id {
             selectedSnippet = nil
         }

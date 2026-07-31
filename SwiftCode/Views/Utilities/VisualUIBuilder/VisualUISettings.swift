@@ -3,6 +3,7 @@ import Observation
 
 /// Preference configurations and viewport metrics for the Visual UI workspace
 @Observable
+@MainActor
 public final class VisualUISettings {
     public static let shared = VisualUISettings()
 

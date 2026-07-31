@@ -24,7 +24,10 @@ public struct VisualUIInspector: View {
                                 HStack {
                                     Text("Name:")
                                         .frame(width: 80, alignment: .leading)
-                                    TextField("Name", text: $node.name)
+                                    TextField("Name", text: Binding(
+                                            get: { node.name },
+                                            set: { node.name = $0 }
+                                        ))
                                         .textFieldStyle(.roundedBorder)
                                 }
 
