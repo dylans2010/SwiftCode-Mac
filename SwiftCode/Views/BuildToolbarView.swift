@@ -54,83 +54,89 @@ struct BuildToolbarView: View {
 
     var body: some View {
         @Bindable var buildManager = self.buildManager
-        HStack(spacing: 12) {
-            Button {
-                NotificationCenter.default.post(
-                    name: .toolbarToolActivated,
-                    object: nil,
-                    userInfo: ["toolID": "main_tools"]
-                )
-            } label: {
-                Label("Tools Hub", systemImage: "wrench.and.screwdriver.fill")
-            }
-            .buttonStyle(.bordered)
-            .help("Open Workspace Tools Hub")
+        HStack {
+            Spacer()
 
-            // ESSENTIAL ACTIONS: Scheme selector
-            if !buildManager.discoveredSchemes.isEmpty {
-                Picker("Scheme", selection: $buildManager.selectedScheme) {
-                    ForEach(buildManager.discoveredSchemes, id: \.self) { scheme in
-                        Text(scheme).tag(scheme as String?)
+            HStack(spacing: 12) {
+                Button {
+                    NotificationCenter.default.post(
+                        name: .toolbarToolActivated,
+                        object: nil,
+                        userInfo: ["toolID": "main_tools"]
+                    )
+                } label: {
+                    Label("Tools Hub", systemImage: "wrench.and.screwdriver.fill")
+                }
+                .buttonStyle(.bordered)
+                .help("Open Workspace Tools Hub")
+
+                // ESSENTIAL ACTIONS: Scheme selector
+                if !buildManager.discoveredSchemes.isEmpty {
+                    Picker("Scheme", selection: $buildManager.selectedScheme) {
+                        ForEach(buildManager.discoveredSchemes, id: \.self) { scheme in
+                            Text(scheme).tag(scheme as String?)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 130)
+                    .labelsHidden()
+                    .help("Select Build Scheme")
+                    .accessibilityLabel("Build Scheme Selector")
+                }
+
+                openSwiftFilesMenu
+
+                // Pinned & Optional Tools: Only show options that are explicitly pinned (enabled)
+                HStack(spacing: 8) {
+                    ForEach(toolbarManager.enabledTools) { tool in
+                        ToolbarToolView(tool: tool, toolbarManager: toolbarManager, buildManager: buildManager)
                     }
                 }
-                .pickerStyle(.menu)
-                .frame(width: 130)
-                .labelsHidden()
-                .help("Select Build Scheme")
-                .accessibilityLabel("Build Scheme Selector")
-            }
+                .animation(.spring(), value: toolbarManager.enabledTools)
 
-            openSwiftFilesMenu
+                Divider()
+                    .frame(height: 16)
 
-            // Pinned & Optional Tools: Only show options that are explicitly pinned (enabled)
-            HStack(spacing: 8) {
-                ForEach(toolbarManager.enabledTools) { tool in
-                    ToolbarToolView(tool: tool, toolbarManager: toolbarManager, buildManager: buildManager)
-                }
-            }
-            .animation(.spring(), value: toolbarManager.enabledTools)
-
-            Divider()
-                .frame(height: 16)
-
-            // ESSENTIAL ACTIONS: Build & Stop Buttons
-            HStack(spacing: 8) {
-                Button(action: {
-                    Task {
-                        // Automatically open XcodeBuildLogView
-                        NotificationCenter.default.post(
-                            name: .toolbarToolActivated,
-                            object: nil,
-                            userInfo: ["toolID": "xcode_build_logs"]
-                        )
-                        // Trigger build in background
-                        await buildManager.runBuild(projectURL: projectURL)
+                // ESSENTIAL ACTIONS: Build & Stop Buttons
+                HStack(spacing: 8) {
+                    Button(action: {
+                        Task {
+                            // Automatically open XcodeBuildLogView
+                            NotificationCenter.default.post(
+                                name: .toolbarToolActivated,
+                                object: nil,
+                                userInfo: ["toolID": "xcode_build_logs"]
+                            )
+                            // Trigger build in background
+                            await buildManager.runBuild(projectURL: projectURL)
+                        }
+                    }) {
+                        Label("Build", systemImage: "play.fill")
+                            .foregroundStyle(.green)
                     }
-                }) {
-                    Label("Build", systemImage: "play.fill")
-                        .foregroundStyle(.green)
-                }
-                .disabled(buildManager.isBuilding)
-                .help("Run Xcodebuild on active project")
-                .accessibilityLabel("Start Build")
+                    .disabled(buildManager.isBuilding)
+                    .help("Run Xcodebuild on active project")
+                    .accessibilityLabel("Start Build")
 
-                Button(action: {
-                    buildManager.cancelBuild()
-                }) {
-                    Label("Stop", systemImage: "stop.fill")
-                        .foregroundStyle(.red)
+                    Button(action: {
+                        buildManager.cancelBuild()
+                    }) {
+                        Label("Stop", systemImage: "stop.fill")
+                            .foregroundStyle(.red)
+                    }
+                    .disabled(!buildManager.isBuilding)
+                    .help("Stop active Xcodebuild run")
+                    .accessibilityLabel("Stop Build")
                 }
-                .disabled(!buildManager.isBuilding)
-                .help("Stop active Xcodebuild run")
-                .accessibilityLabel("Stop Build")
+
+                if buildManager.isBuilding {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel("Building in progress")
+                }
             }
 
-            if buildManager.isBuilding {
-                ProgressView()
-                    .controlSize(.small)
-                    .accessibilityLabel("Building in progress")
-            }
+            Spacer()
         }
         .onAppear {
             buildManager.discoverSchemes(at: projectURL)

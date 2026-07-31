@@ -338,6 +338,10 @@ struct WorkspaceView: View {
                     VisualUIBuilderView()
                         .frame(minWidth: 1000, minHeight: 700)
 
+                case .databaseExplorer:
+                    DatabaseExplorerView()
+                        .frame(minWidth: 1000, minHeight: 700)
+
                 case .settings:
                     SettingsView()
                         .environmentObject(AppSettings.shared)
