@@ -108,7 +108,7 @@ public enum VisualComponentType: String, Codable, CaseIterable, Sendable {
 
 /// Serializable design node representing components in the layout canvas.
 @Observable
-public final class VisualComponentNode: Identifiable, Codable, Sendable, Hashable {
+public final class VisualComponentNode: Identifiable, Codable, Hashable {
     public let id: UUID
     public var type: VisualComponentType
     public var name: String
@@ -186,7 +186,7 @@ public final class VisualComponentNode: Identifiable, Codable, Sendable, Hashabl
 
 /// Represents an Artboard / Canvas screen target with customizable device frame
 @Observable
-public final class VisualUIArtboard: Identifiable, Codable, Sendable, Hashable {
+public final class VisualUIArtboard: Identifiable, Codable, Hashable {
     public let id: UUID
     public var name: String
     public var deviceFrame: String // iPhone 16 Pro, iPad Pro, Apple Vision Pro, etc.
@@ -235,7 +235,7 @@ public final class VisualUIArtboard: Identifiable, Codable, Sendable, Hashable {
 
 /// Full Visual UI Builder document structure
 @Observable
-public final class VisualUIScene: Identifiable, Codable, Sendable, Hashable {
+public final class VisualUIScene: Identifiable, Codable, Hashable {
     public let id: UUID
     public var artboards: [VisualUIArtboard]
     public var selectedNodeIDs: Set<UUID>

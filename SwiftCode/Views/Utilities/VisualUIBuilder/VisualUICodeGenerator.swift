@@ -188,6 +188,9 @@ struct VisualUIExportView: View {
         case .spacer:
             str = "Spacer()"
 
+        case .canvas:
+            str = "Canvas { context, size in\n    let rect = CGRect(origin: .zero, size: size)\n    context.stroke(Path(rect), with: .color(.accentColor))\n}"
+
         case .charts:
             str = "Chart {\n    BarMark(x: .value(\"Label\", \"Category 1\"), y: .value(\"Value\", 5))\n    BarMark(x: .value(\"Label\", \"Category 2\"), y: .value(\"Value\", 12))\n}"
 

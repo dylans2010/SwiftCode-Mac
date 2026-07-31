@@ -1893,6 +1893,7 @@
 		7A810247C000000000000060 /* EcosystemViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EcosystemViews.swift; sourceTree = "<group>"; };
 		7A810247C000000000000062 /* PersonalDocCommandPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalDocCommandPalette.swift; sourceTree = "<group>"; };
 
+		FBA416A7923E88F7C4A43231 /* DatabaseExplorerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseExplorerView.swift; sourceTree = "<group>"; };
 		9566538F7BD55C7409795C89 /* DesignerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignerDevToolView.swift; sourceTree = "<group>"; };
 		59BECEBFFFFD21DB1AEE9891 /* AESEncryptionDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AESEncryptionDevToolView.swift; sourceTree = "<group>"; };
 		C097EA749425723B6887F835 /* APIResponseViewerDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIResponseViewerDevToolView.swift; sourceTree = "<group>"; };

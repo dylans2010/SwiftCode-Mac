@@ -8,49 +8,49 @@ public struct VisualUIRenderer: View {
     @Bindable var document: VisualUIDocument
 
     public var body: some View {
-        RenderNode(node: rootNode)
+        renderNode(node: rootNode)
     }
 
-    @ViewBuilder
-    private func RenderNode(node: VisualComponentNode) -> some View {
+    private func renderNode(node: VisualComponentNode) -> AnyView {
         if node.isHidden {
-            Color.clear.frame(width: 0, height: 0)
-        } else {
-            let baseView = Group {
+            return AnyView(Color.clear.frame(width: 0, height: 0))
+        }
+
+        let baseView = Group {
                 switch node.type {
                 // Layout & Stacks
                 case .vStack:
                     VStack(alignment: .center, spacing: CGFloat(Double(node.properties["spacing"] ?? "8") ?? 8)) {
                         ForEach(node.children) { child in
-                            RenderNode(node: child)
+                            renderNode(node: child)
                         }
                     }
 
                 case .hStack:
                     HStack(alignment: .center, spacing: CGFloat(Double(node.properties["spacing"] ?? "8") ?? 8)) {
                         ForEach(node.children) { child in
-                            RenderNode(node: child)
+                            renderNode(node: child)
                         }
                     }
 
                 case .zStack:
                     ZStack {
                         ForEach(node.children) { child in
-                            RenderNode(node: child)
+                            renderNode(node: child)
                         }
                     }
 
                 case .group:
                     Group {
                         ForEach(node.children) { child in
-                            RenderNode(node: child)
+                            renderNode(node: child)
                         }
                     }
 
                 case .groupBox:
                     GroupBox(node.name) {
                         ForEach(node.children) { child in
-                            RenderNode(node: child)
+                            renderNode(node: child)
                         }
                     }
 
@@ -59,7 +59,7 @@ public struct VisualUIRenderer: View {
                     ScrollView {
                         VStack(spacing: 8) {
                             ForEach(node.children) { child in
-                                RenderNode(node: child)
+                                renderNode(node: child)
                             }
                         }
                     }
@@ -67,14 +67,14 @@ public struct VisualUIRenderer: View {
                 case .list:
                     List {
                         ForEach(node.children) { child in
-                            RenderNode(node: child)
+                            renderNode(node: child)
                         }
                     }
 
                 case .form:
                     Form {
                         ForEach(node.children) { child in
-                            RenderNode(node: child)
+                            renderNode(node: child)
                         }
                     }
 
@@ -184,7 +184,7 @@ public struct VisualUIRenderer: View {
                 }
             }
 
-            // Apply universal modifiers
+        return AnyView(
             baseView
                 .padding(CGFloat(Double(node.properties["padding"] ?? "0") ?? 0))
                 .foregroundColor(node.properties["foregroundColor"].map { Color(hex: $0) })
@@ -204,7 +204,7 @@ public struct VisualUIRenderer: View {
                 .onTapGesture {
                     document.scene.selectedNodeIDs = [node.id]
                 }
-        }
+        )
     }
 
     private func customFont(from node: VisualComponentNode) -> Font {

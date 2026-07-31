@@ -103,8 +103,9 @@ public final class InspectorProjectScanner {
         }
 
         // Run scanning on background task
-        let metrics = await Task.detached(priority: .userInitiated) { [fileCache] in
-            return self.performBackgroundScan(at: url, cache: fileCache)
+        let cachedFiles = fileCache
+        let metrics = await Task.detached(priority: .userInitiated) {
+            return InspectorProjectScanner.performBackgroundScan(at: url, cache: cachedFiles)
         }.value
 
         // Update state
@@ -178,7 +179,7 @@ public final class InspectorProjectScanner {
         let newCache: [String: CacheEntry]
     }
 
-    private func performBackgroundScan(at rootURL: URL, cache: [String: CacheEntry]) -> BackgroundScanResult {
+    nonisolated private static func performBackgroundScan(at rootURL: URL, cache: [String: CacheEntry]) -> BackgroundScanResult {
         let fileManager = FileManager.default
         var localCache = cache
 
@@ -325,7 +326,7 @@ public final class InspectorProjectScanner {
                 if uikit { uikitUsageCount += 1 }
                 if appkit { appkitUsageCount += 1 }
                 if observation { observationUsageCount += 1 }
-                if asyncAwait { asyncAwaitUsageCount += 1 }
+                if asyncAwait { asyncUsageCount += 1 }
                 if actorDefined { actorUsageCount += 1 }
             }
 

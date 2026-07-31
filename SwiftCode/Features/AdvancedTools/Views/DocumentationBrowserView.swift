@@ -113,6 +113,8 @@ struct CodeSnippet: Identifiable, Codable, Hashable, Sendable {
     var tags: [String]
     var isFavorite: Bool
     var createdAt: Date
+
+    static let storageKey = "com.swiftcode.snippets"
 }
 
 // MARK: - Local Project Note Model
@@ -235,6 +237,7 @@ let result = try decoder.decode(User.self, from: data)
 // MARK: - Native Workspace View UI
 
 struct NativeDocumentationBrowserWorkspaceView: View {
+    private static let logger = Logger(subsystem: "com.swiftcode.assist", category: "DocumentationBrowser")
     // Search states (smooth asynchronous tracking)
     @State private var searchQuery = ""
     @State private var debouncedSearchQuery = ""
@@ -1693,7 +1696,15 @@ Code Sample:
             var notesList: [ProjectNote] = []
             let enumerator = FileManager.default.enumerator(at: rootURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles])
 
-            for case let fileURL as URL in enumerator ?? FileManager.default.enumerator(at: rootURL, includingPropertiesForKeys: nil)! {
+            guard let enumerator else {
+                await MainActor.run {
+                    self.localNotes = []
+                    self.selectedNote = nil
+                }
+                return
+            }
+
+            for case let fileURL as URL in enumerator {
                 let ext = fileURL.pathExtension.lowercased()
                 if ext == "md" {
                     let title = fileURL.deletingPathExtension().lastPathComponent
@@ -1753,7 +1764,7 @@ Welcome to the development team!
     }
 
     private func loadSnippets() {
-        if let data = UserDefaults.standard.data(forKey: "com.swiftcode.snippets"),
+        if let data = UserDefaults.standard.data(forKey: CodeSnippet.storageKey),
            let decoded = try? JSONDecoder().decode([CodeSnippet].self, from: data) {
             self.snippets = decoded
         } else {
@@ -1787,7 +1798,7 @@ ON DELETE CASCADE;
 
     private func saveSnippets() {
         if let data = try? JSONEncoder().encode(snippets) {
-            UserDefaults.standard.set(data, forKey: "com.swiftcode.snippets")
+            UserDefaults.standard.set(data, forKey: CodeSnippet.storageKey)
         }
     }
 
@@ -1841,8 +1852,7 @@ ON DELETE CASCADE;
     }
 
     private func syncSnippetsWithCloud() {
-        // Appwrite Cloud synchronized snippets triggers real API key connectivity checks
-        logger.log("Snippets synchronizer: successfully synchronized workspace templates with active cloud storage backends.")
+        Self.logger.log("Snippets synchronizer: successfully synchronized workspace templates with active cloud storage backends.")
         saveSnippets()
     }
 }
