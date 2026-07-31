@@ -6,7 +6,7 @@ public struct PreviewSandboxPolicy: Sendable {
     public let blockedPaths: [String]
 }
 
-public final class PreviewSandbox {
+public final class PreviewSandbox: Sendable {
     public init() {}
 
     public func makePolicy(projectDirectory: URL, allowNetwork: Bool = false) -> PreviewSandboxPolicy {

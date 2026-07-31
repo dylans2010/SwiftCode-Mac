@@ -7,7 +7,7 @@ public struct PreviewProjectStructure: Sendable {
     public let dependencies: [URL: Set<String>]
 }
 
-public final class PreviewProjectScanner {
+public final class PreviewProjectScanner: Sendable {
     public init() {}
 
     public func scan(projectDirectory: URL) throws -> PreviewProjectStructure {
