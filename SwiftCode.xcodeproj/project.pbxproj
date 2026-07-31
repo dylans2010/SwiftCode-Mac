@@ -7,6 +7,24 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		EF1ACDC12F8B3E1D05941474 /* DatabaseExplorerSplitViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A79C13484AD40A8EF4A5661 /* DatabaseExplorerSplitViewController.swift */; };
+		AB4AE89C1B426171D040FDAD /* DatabaseExplorerWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95AFB793EF423DAF803A82D2 /* DatabaseExplorerWindowController.swift */; };
+		EAF9F396C9EA633982C1E929 /* DatabaseExplorerWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42F138BCA3527703B892FF27 /* DatabaseExplorerWindowManager.swift */; };
+		561E83DBEC0A8596D9A44393 /* VisualUIBuilderSplitViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B694D4568479A214F8C23FB /* VisualUIBuilderSplitViewController.swift */; };
+		09B5D1E3BC7FDBA0B6D0F049 /* VisualUIBuilderWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FF7E8198E7D7EF1F101CC /* VisualUIBuilderWindowController.swift */; };
+		ECA3C479323DC5C02A21DCCE /* VisualUIBuilderWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C568AE2E394A47C25E83A9C0 /* VisualUIBuilderWindowManager.swift */; };
+		658C3C722947739F83542979 /* PreviewCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D7AC327571B411E0C0A5336 /* PreviewCoordinator.swift */; };
+		204B1C36E7EE89AC0BD71D15 /* PreviewErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F29AC33AE957EDD9C414B75F /* PreviewErrorHandler.swift */; };
+		E1155D3B8826BDA3D026EB5F /* PreviewWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A1C8AAC2222FCF75442E67E /* PreviewWindowController.swift */; };
+		BC722803C2A6FC58D4235C02 /* PreviewSnapshotManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 396A57BC2AE5DFA118F30037 /* PreviewSnapshotManager.swift */; };
+		698176C649637EFCBCD6C282 /* PreviewPerformanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 325F8509D67FA876E871B443 /* PreviewPerformanceMonitor.swift */; };
+		7531A00DB24865112A0C489D /* PreviewDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1DFF8B13C2092ADF6D257ED /* PreviewDiagnostics.swift */; };
+		559EBA2D791452A4DCB60429 /* PreviewCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1291367C25C1D64371E0C52 /* PreviewCache.swift */; };
+		329F07948B75F30AE487B76C /* PreviewContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04BFAFC8FA1D01F32707250E /* PreviewContainer.swift */; };
+		B8C07439E71AB195F43237B5 /* PreviewHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5532398EEC8C6045EAB87071 /* PreviewHost.swift */; };
+		1AD7E4130ADE55950FB13747 /* PreviewScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 930A379AB8B45DA60A9B5B4D /* PreviewScene.swift */; };
+		1260ACF1BB5FC88EEAE3CDB7 /* PreviewEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86EB89893E9DB3F6705F4795 /* PreviewEnvironment.swift */; };
+		E23BCF67C0648DB9DCE043FB /* PreviewState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DF637C7AB42D9BCAA0A56AA /* PreviewState.swift */; };
 		E531319FCE8EE69C222447D3 /* InspectorProjectScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36EC49CDA424309ECD938DD8 /* InspectorProjectScanner.swift */; };
 		7D6E683ED2324E32A19E14C4 /* LocalizationManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50D0BCB28DA2BD49A623F6F7 /* LocalizationManagerView.swift */; };
 		123E3F766CA6DBCC4F18A883 /* LocalizationCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97BE726EA4718791998361C5 /* LocalizationCore.swift */; };
@@ -1505,6 +1523,24 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0A79C13484AD40A8EF4A5661 /* DatabaseExplorerSplitViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DatabaseExplorerSplitViewController.swift; sourceTree = "<group>"; };
+		95AFB793EF423DAF803A82D2 /* DatabaseExplorerWindowController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DatabaseExplorerWindowController.swift; sourceTree = "<group>"; };
+		42F138BCA3527703B892FF27 /* DatabaseExplorerWindowManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DatabaseExplorerWindowManager.swift; sourceTree = "<group>"; };
+		3B694D4568479A214F8C23FB /* VisualUIBuilderSplitViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VisualUIBuilderSplitViewController.swift; sourceTree = "<group>"; };
+		452FF7E8198E7D7EF1F101CC /* VisualUIBuilderWindowController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VisualUIBuilderWindowController.swift; sourceTree = "<group>"; };
+		C568AE2E394A47C25E83A9C0 /* VisualUIBuilderWindowManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VisualUIBuilderWindowManager.swift; sourceTree = "<group>"; };
+		7D7AC327571B411E0C0A5336 /* PreviewCoordinator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewCoordinator.swift; sourceTree = "<group>"; };
+		F29AC33AE957EDD9C414B75F /* PreviewErrorHandler.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewErrorHandler.swift; sourceTree = "<group>"; };
+		8A1C8AAC2222FCF75442E67E /* PreviewWindowController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewWindowController.swift; sourceTree = "<group>"; };
+		396A57BC2AE5DFA118F30037 /* PreviewSnapshotManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewSnapshotManager.swift; sourceTree = "<group>"; };
+		325F8509D67FA876E871B443 /* PreviewPerformanceMonitor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewPerformanceMonitor.swift; sourceTree = "<group>"; };
+		B1DFF8B13C2092ADF6D257ED /* PreviewDiagnostics.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewDiagnostics.swift; sourceTree = "<group>"; };
+		F1291367C25C1D64371E0C52 /* PreviewCache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewCache.swift; sourceTree = "<group>"; };
+		04BFAFC8FA1D01F32707250E /* PreviewContainer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewContainer.swift; sourceTree = "<group>"; };
+		5532398EEC8C6045EAB87071 /* PreviewHost.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewHost.swift; sourceTree = "<group>"; };
+		930A379AB8B45DA60A9B5B4D /* PreviewScene.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewScene.swift; sourceTree = "<group>"; };
+		86EB89893E9DB3F6705F4795 /* PreviewEnvironment.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewEnvironment.swift; sourceTree = "<group>"; };
+		9DF637C7AB42D9BCAA0A56AA /* PreviewState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewState.swift; sourceTree = "<group>"; };
 		36EC49CDA424309ECD938DD8 /* InspectorProjectScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProjectInspector/InspectorProjectScanner.swift"; sourceTree = "<group>"; };
 		50D0BCB28DA2BD49A623F6F7 /* LocalizationManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Localization/LocalizationManagerView.swift"; sourceTree = "<group>"; };
 		97BE726EA4718791998361C5 /* LocalizationCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Localization/LocalizationCore.swift"; sourceTree = "<group>"; };
@@ -3022,6 +3058,9 @@
 		791D31C38A869B0F335DAF24 /* Database */ = {
 			isa = PBXGroup;
 			children = (
+				0A79C13484AD40A8EF4A5661 /* DatabaseExplorerSplitViewController.swift */,
+				95AFB793EF423DAF803A82D2 /* DatabaseExplorerWindowController.swift */,
+				42F138BCA3527703B892FF27 /* DatabaseExplorerWindowManager.swift */,
 				1862FDF96B6EBECA18C5638B /* Views */,
 				316091E9EFFB81D28292D786 /* Core */,
 				E9362509F0E0049E1F1B628F /* Helpers */,
@@ -3128,6 +3167,9 @@
 		0D2B220E774949989C088E30 /* VisualUIBuilder */ = {
 			isa = PBXGroup;
 			children = (
+				3B694D4568479A214F8C23FB /* VisualUIBuilderSplitViewController.swift */,
+				452FF7E8198E7D7EF1F101CC /* VisualUIBuilderWindowController.swift */,
+				C568AE2E394A47C25E83A9C0 /* VisualUIBuilderWindowManager.swift */,
 				ED8CC27FE26D4615A9293682 /* VisualUIBuilderView.swift */,
 				78B951F1A7D4425CA2CB36F5 /* VisualUICanvasView.swift */,
 				3BB579DCE8004D0DB7B8FF93 /* VisualUIToolbar.swift */,
@@ -5651,6 +5693,18 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 		F6DD5CD680DE3E7770BB6701 /* Preview */ = {
 			isa = PBXGroup;
 			children = (
+				7D7AC327571B411E0C0A5336 /* PreviewCoordinator.swift */,
+				F29AC33AE957EDD9C414B75F /* PreviewErrorHandler.swift */,
+				8A1C8AAC2222FCF75442E67E /* PreviewWindowController.swift */,
+				396A57BC2AE5DFA118F30037 /* PreviewSnapshotManager.swift */,
+				325F8509D67FA876E871B443 /* PreviewPerformanceMonitor.swift */,
+				B1DFF8B13C2092ADF6D257ED /* PreviewDiagnostics.swift */,
+				F1291367C25C1D64371E0C52 /* PreviewCache.swift */,
+				04BFAFC8FA1D01F32707250E /* PreviewContainer.swift */,
+				5532398EEC8C6045EAB87071 /* PreviewHost.swift */,
+				930A379AB8B45DA60A9B5B4D /* PreviewScene.swift */,
+				86EB89893E9DB3F6705F4795 /* PreviewEnvironment.swift */,
+				9DF637C7AB42D9BCAA0A56AA /* PreviewState.swift */,
 				1157AF2E3007185EE211AEFA /* PreviewManager.swift */,
 				3BF6699B237E914128CBDA09 /* PreviewEngine.swift */,
 				6A22BE9BAA25809A6CA4AC87 /* PreviewSession.swift */,
@@ -5985,6 +6039,24 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EF1ACDC12F8B3E1D05941474 /* DatabaseExplorerSplitViewController.swift in Sources */,
+				AB4AE89C1B426171D040FDAD /* DatabaseExplorerWindowController.swift in Sources */,
+				EAF9F396C9EA633982C1E929 /* DatabaseExplorerWindowManager.swift in Sources */,
+				561E83DBEC0A8596D9A44393 /* VisualUIBuilderSplitViewController.swift in Sources */,
+				09B5D1E3BC7FDBA0B6D0F049 /* VisualUIBuilderWindowController.swift in Sources */,
+				ECA3C479323DC5C02A21DCCE /* VisualUIBuilderWindowManager.swift in Sources */,
+				658C3C722947739F83542979 /* PreviewCoordinator.swift in Sources */,
+				204B1C36E7EE89AC0BD71D15 /* PreviewErrorHandler.swift in Sources */,
+				E1155D3B8826BDA3D026EB5F /* PreviewWindowController.swift in Sources */,
+				BC722803C2A6FC58D4235C02 /* PreviewSnapshotManager.swift in Sources */,
+				698176C649637EFCBCD6C282 /* PreviewPerformanceMonitor.swift in Sources */,
+				7531A00DB24865112A0C489D /* PreviewDiagnostics.swift in Sources */,
+				559EBA2D791452A4DCB60429 /* PreviewCache.swift in Sources */,
+				329F07948B75F30AE487B76C /* PreviewContainer.swift in Sources */,
+				B8C07439E71AB195F43237B5 /* PreviewHost.swift in Sources */,
+				1AD7E4130ADE55950FB13747 /* PreviewScene.swift in Sources */,
+				1260ACF1BB5FC88EEAE3CDB7 /* PreviewEnvironment.swift in Sources */,
+				E23BCF67C0648DB9DCE043FB /* PreviewState.swift in Sources */,
 				E531319FCE8EE69C222447D3 /* InspectorProjectScanner.swift in Sources */,
 				7D6E683ED2324E32A19E14C4 /* LocalizationManagerView.swift in Sources */,
 				123E3F766CA6DBCC4F18A883 /* LocalizationCore.swift in Sources */,

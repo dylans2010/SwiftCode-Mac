@@ -52,6 +52,7 @@ public final class LocalizationCore {
     public static let shared = LocalizationCore()
 
     public var availableFiles: [LocalizationFile] = []
+    public var isScanning: Bool = false
 
     // Changing selectedFile dynamically loads the actual keys and translations from disk!
     public var selectedFile: LocalizationFile? = nil {
@@ -73,57 +74,94 @@ public final class LocalizationCore {
 
     private init() {
         loadSettings()
-        scanProjectFiles()
+        // Do not scan synchronously in init() to prevent any MainActor freeze!
     }
 
+    /// Run the directory scanning processes asynchronously on detached background contexts
+    /// (Task.detached(priority: .userInitiated)) and publish updates to the @MainActor thread.
     public func scanProjectFiles() {
+        guard !isScanning else { return }
+        isScanning = true
+
         let rootPath = FileManager.default.currentDirectoryPath
         let rootURL = URL(fileURLWithPath: rootPath)
 
-        var found: [LocalizationFile] = []
-        let enumerator = FileManager.default.enumerator(at: rootURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles])
+        Task.detached(priority: .userInitiated) {
+            logger.log("Beginning asynchronous off-thread file system scanning for localizations...")
+            let startTime = Date()
 
-        for case let fileURL as URL in enumerator ?? FileManager.default.enumerator(at: rootURL, includingPropertiesForKeys: nil)! {
-            let ext = fileURL.pathExtension.lowercased()
-            if ["strings", "stringsdict", "xcstrings"].contains(ext) {
-                let type: String
-                if fileURL.lastPathComponent == "InfoPlist.strings" {
-                    type = "infoplist"
-                } else {
-                    type = ext
-                }
-                let relPath = fileURL.path.replacingOccurrences(of: rootURL.path + "/", with: "")
-                found.append(LocalizationFile(name: fileURL.lastPathComponent, path: relPath, type: type))
-            }
-        }
+            var found: [LocalizationFile] = []
+            let fileManager = FileManager()
+            let enumerator = fileManager.enumerator(
+                at: rootURL,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            )
 
-        // Seed default file structures on disk if none are found
-        if found.isEmpty {
-            let xcstringsPath = "Localizable.xcstrings"
-            let xcstringsURL = rootURL.appendingPathComponent(xcstringsPath)
-            if !FileManager.default.fileExists(atPath: xcstringsURL.path) {
-                let initialCatalog = XCStringsFile(
-                    sourceLanguage: "en",
-                    strings: [
-                        "welcome_message": XCStringsEntry(
-                            localizations: [
-                                "en": XCStringsLocalization(stringUnit: XCStringsUnit(state: "translated", value: "Welcome to SwiftCode!")),
-                                "es": XCStringsLocalization(stringUnit: XCStringsUnit(state: "translated", value: "¡Bienvenido a SwiftCode!")),
-                                "fr": XCStringsLocalization(stringUnit: XCStringsUnit(state: "translated", value: "Bienvenue sur SwiftCode!"))
-                            ],
-                            comment: "Welcome onboarding message"
-                        )
-                    ]
-                )
-                if let data = try? JSONEncoder().encode(initialCatalog) {
-                    try? data.write(to: xcstringsURL)
+            if let enumerator = enumerator {
+                for case let fileURL as URL in enumerator {
+                    // Fast path: skip scanning within heavy non-source directories
+                    let pathString = fileURL.path
+                    if pathString.contains("/build/") ||
+                       pathString.contains("/.git/") ||
+                       pathString.contains("/.github/") ||
+                       pathString.contains("/node_modules/") {
+                        enumerator.skipDescendants()
+                        continue
+                    }
+
+                    let ext = fileURL.pathExtension.lowercased()
+                    if ["strings", "stringsdict", "xcstrings"].contains(ext) {
+                        let type: String
+                        if fileURL.lastPathComponent == "InfoPlist.strings" {
+                            type = "infoplist"
+                        } else {
+                            type = ext
+                        }
+                        let relPath = fileURL.path.replacingOccurrences(of: rootURL.path + "/", with: "")
+                        found.append(LocalizationFile(name: fileURL.lastPathComponent, path: relPath, type: type))
+                    }
                 }
             }
-            found = [LocalizationFile(name: "Localizable.xcstrings", path: xcstringsPath, type: "xcstrings")]
-        }
 
-        self.availableFiles = found
-        self.selectedFile = found.first
+            // Seed default file structures on disk if none are found
+            if found.isEmpty {
+                let xcstringsPath = "Localizable.xcstrings"
+                let xcstringsURL = rootURL.appendingPathComponent(xcstringsPath)
+                if !fileManager.fileExists(atPath: xcstringsURL.path) {
+                    let initialCatalog = XCStringsFile(
+                        sourceLanguage: "en",
+                        strings: [
+                            "welcome_message": XCStringsEntry(
+                                localizations: [
+                                    "en": XCStringsLocalization(stringUnit: XCStringsUnit(state: "translated", value: "Welcome to SwiftCode!")),
+                                    "es": XCStringsLocalization(stringUnit: XCStringsUnit(state: "translated", value: "¡Bienvenido a SwiftCode!")),
+                                    "fr": XCStringsLocalization(stringUnit: XCStringsUnit(state: "translated", value: "Bienvenue sur SwiftCode!"))
+                                ],
+                                comment: "Welcome onboarding message"
+                            )
+                        ]
+                    )
+                    if let data = try? JSONEncoder().encode(initialCatalog) {
+                        try? data.write(to: xcstringsURL)
+                    }
+                }
+                found = [LocalizationFile(name: "Localizable.xcstrings", path: xcstringsPath, type: "xcstrings")]
+            }
+
+            let duration = Date().timeIntervalSince(startTime)
+            logger.log("Asynchronous scanning completed in \(duration)s. Found \(found.count) files.")
+
+            // Safe MainActor publishing update
+            let finalFound = found
+            await MainActor.run {
+                self.availableFiles = finalFound
+                if self.selectedFile == nil {
+                    self.selectedFile = finalFound.first
+                }
+                self.isScanning = false
+            }
+        }
     }
 
     // MARK: - Disk Read / Write Engine

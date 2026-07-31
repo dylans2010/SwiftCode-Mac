@@ -1,11 +1,12 @@
 import SwiftUI
 
-/// Preview panel displaying real-time rendering, side-by-side device targets, environment overrides, and diagnostic logs.
+/// Preview panel displaying real-time rendering using the modernized PreviewEngine and PreviewHost.
 public struct VisualUIPreviewPanel: View {
     let document: VisualUIDocument
     let settings: VisualUISettings
 
     @State private var showingDiagnostics = false
+    @State private var previewState = PreviewManager.shared.state
 
     public var body: some View {
         VStack(spacing: 0) {
@@ -32,7 +33,7 @@ public struct VisualUIPreviewPanel: View {
 
             ZStack {
                 if showingDiagnostics {
-                    // Diagnostic Logs & Rendering Metrics
+                    // Diagnostic Logs & Rendering Metrics from performance monitor
                     ScrollView {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
@@ -40,33 +41,50 @@ public struct VisualUIPreviewPanel: View {
                                     .font(.headline)
                                 Spacer()
                                 Button("Clear") {
-                                    settings.clearLogs()
+                                    PreviewDiagnostics.shared.clearLogs()
                                 }
                                 .buttonStyle(.borderless)
                             }
 
                             Divider()
 
-                            ForEach(settings.diagnosticsLogs, id: \.self) { log in
-                                Text(log)
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(.secondary)
+                            let monitor = PreviewPerformanceMonitor.shared
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Average Compile Time: \(String(format: "%.3f", monitor.averageCompileTime))s")
+                                Text("Average Render Time: \(String(format: "%.3f", monitor.averageRenderTime))s")
+                                Text("Total Renders: \(monitor.totalRenders)")
+                                Text("Cache Hit Rate: \(String(format: "%.1f", monitor.cacheHitRate * 100))%")
+                            }
+                            .font(.system(.subheadline, design: .monospaced))
+                            .padding(.bottom, 8)
+
+                            Divider()
+
+                            ForEach(PreviewDiagnostics.shared.logs) { log in
+                                HStack {
+                                    Text(log.category.uppercased())
+                                        .bold()
+                                        .foregroundColor(log.category == "error" ? .red : .blue)
+                                    Text(log.message)
+                                }
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
                             }
                         }
                         .padding(16)
                     }
                 } else {
-                    // Render Active Artboard Preview Environment
+                    // Render Active Artboard Preview Environment using PreviewHost & PreviewContainer
                     if let activeID = document.scene.activeArtboardID,
                        let artboard = document.scene.artboards.first(where: { $0.id == activeID }) {
                         ScrollView([.horizontal, .vertical]) {
                             VStack {
-                                VisualUIRenderer(rootNode: artboard.rootNode, document: document)
-                                    .padding(32)
-                                    .background(settings.isDarkMode ? Color.black : Color.white)
-                                    .cornerRadius(16)
-                                    .shadow(radius: 8)
-                                    .scaleEffect(0.9)
+                                PreviewContainer(state: previewState) {
+                                    PreviewHost {
+                                        VisualUIRenderer(rootNode: artboard.rootNode, document: document)
+                                    }
+                                }
+                                .padding(32)
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
