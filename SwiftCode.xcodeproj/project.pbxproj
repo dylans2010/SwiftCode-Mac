@@ -3603,11 +3603,6 @@
 			path = "Custom Tools";
 			sourceTree = "<group>";
 		};
-			isa = PBXGroup;
-			children = (
-			);
-			sourceTree = "<group>";
-		};
 		0CD5CC286B08493985F778B6 /* Sidebar */ = {
 			isa = PBXGroup;
 			children = (
