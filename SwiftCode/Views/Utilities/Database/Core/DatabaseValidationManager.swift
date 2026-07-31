@@ -7,7 +7,7 @@ public struct SchemaValidationIssue: Identifiable, Hashable {
     public var severity: String // "WARNING" or "ERROR"
 }
 
-public final class DatabaseValidationManager {
+public final class DatabaseValidationManager: Sendable {
     public static let shared = DatabaseValidationManager()
 
     private init() {}

@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 public final class DatabaseCache {
     public static let shared = DatabaseCache()
 
