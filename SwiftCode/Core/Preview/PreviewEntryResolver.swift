@@ -6,7 +6,7 @@ public struct PreviewSimulationEntry: Sendable {
     public let sceneType: String
 }
 
-public final class PreviewEntryResolver {
+public final class PreviewEntryResolver: Sendable {
     public init() {}
 
     public func resolve(projectStructure: PreviewProjectStructure, preferredView: String?) throws -> PreviewSimulationEntry {

@@ -17,7 +17,7 @@ public struct PreviewCompilationDiagnostic: Sendable, Identifiable {
     public let line: Int?
 }
 
-public final class PreviewRuntimeCompiler {
+public actor PreviewRuntimeCompiler {
     private var cachedSignatures: [URL: Date] = [:]
 
     public init() {}
