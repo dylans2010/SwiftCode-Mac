@@ -30,10 +30,10 @@ struct PreviewCanvasView: View {
 
                         ScrollView([.horizontal, .vertical]) {
                             PreviewDeviceFrameView(
-                                deviceName: manager.configuration.deviceName,
-                                isPortrait: manager.configuration.isPortrait,
-                                isDarkMode: manager.configuration.isDarkMode,
-                                scale: manager.scale
+                                deviceName: manager.state.currentDevice,
+                                isPortrait: manager.state.isPortrait,
+                                isDarkMode: manager.state.isDarkMode,
+                                scale: manager.state.scale
                             ) {
                                 VStack(spacing: 20) {
                                     HStack {
@@ -70,7 +70,7 @@ struct PreviewCanvasView: View {
                                         .multilineTextAlignment(.center)
                                 }
                                 .padding(24)
-                                .background(manager.configuration.isDarkMode ? Color.black : Color.white)
+                                .background(manager.state.isDarkMode ? Color.black : Color.white)
                             }
                             .padding(32)
                         }

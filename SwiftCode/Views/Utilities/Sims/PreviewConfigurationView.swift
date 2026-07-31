@@ -14,7 +14,7 @@ struct PreviewConfigurationView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Picker("Preview Target Device", selection: $manager.configuration.deviceName) {
+            Picker("Preview Target Device", selection: $manager.state.currentDevice) {
                 ForEach(supportedDevices, id: \.self) { device in
                     Text(device).tag(device)
                 }
@@ -25,7 +25,7 @@ struct PreviewConfigurationView: View {
             Button {
                 manager.toggleOrientation()
             } label: {
-                Image(systemName: manager.configuration.isPortrait ? "rectangle.portrait.rotate" : "rectangle.landscape.rotate")
+                Image(systemName: manager.state.isPortrait ? "rectangle.portrait.rotate" : "rectangle.landscape.rotate")
                     .help("Toggle Device Orientation")
             }
             .buttonStyle(.bordered)
@@ -33,7 +33,7 @@ struct PreviewConfigurationView: View {
             Button {
                 manager.toggleDarkMode()
             } label: {
-                Image(systemName: manager.configuration.isDarkMode ? "moon.fill" : "sun.max.fill")
+                Image(systemName: manager.state.isDarkMode ? "moon.fill" : "sun.max.fill")
                     .help("Toggle Appearance (Light/Dark)")
             }
             .buttonStyle(.bordered)
@@ -43,7 +43,7 @@ struct PreviewConfigurationView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                Picker("Scale", selection: $manager.scale) {
+                Picker("Scale", selection: $manager.state.scale) {
                     Text("50%").tag(0.5)
                     Text("75%").tag(0.75)
                     Text("100%").tag(1.0)
