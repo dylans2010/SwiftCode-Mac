@@ -206,6 +206,60 @@ struct VisualUIExportView: View {
         case .sfSymbol:
             let sym = node.properties["sfSymbolName"] ?? "sparkles"
             str = "Image(systemName: \"\(sym)\")"
+
+        case .grid:
+            str = "Grid {\n"
+            for child in node.children {
+                str += indentLines(generateNodeSwiftUI(node: child), indentCount: 1) + "\n"
+            }
+            str += "}"
+
+        case .lazyVGrid:
+            str = "LazyVGrid(columns: [GridItem(.flexible())]) {\n"
+            for child in node.children {
+                str += indentLines(generateNodeSwiftUI(node: child), indentCount: 1) + "\n"
+            }
+            str += "}"
+
+        case .lazyHGrid:
+            str = "LazyHGrid(rows: [GridItem(.flexible())]) {\n"
+            for child in node.children {
+                str += indentLines(generateNodeSwiftUI(node: child), indentCount: 1) + "\n"
+            }
+            str += "}"
+
+        case .navigationStack:
+            str = "NavigationStack {\n"
+            for child in node.children {
+                str += indentLines(generateNodeSwiftUI(node: child), indentCount: 1) + "\n"
+            }
+            str += "}"
+
+        case .navigationSplitView:
+            str = "NavigationSplitView {\n"
+            if node.children.count >= 1 {
+                str += "    // Sidebar\n"
+                str += indentLines(generateNodeSwiftUI(node: node.children[0]), indentCount: 1) + "\n"
+            } else {
+                str += "    Text(\"Sidebar\")\n"
+            }
+            str += "} detail: {\n"
+            if node.children.count >= 2 {
+                str += indentLines(generateNodeSwiftUI(node: node.children[1]), indentCount: 1) + "\n"
+            } else {
+                str += "    Text(\"Detail View\")\n"
+            }
+            str += "}"
+
+        case .tabView:
+            str = "TabView {\n"
+            for child in node.children {
+                str += indentLines(generateNodeSwiftUI(node: child), indentCount: 1) + "\n"
+                str += "    .tabItem {\n"
+                str += "        Label(\"\(child.name)\", systemImage: \"star\")\n"
+                str += "    }\n"
+            }
+            str += "}"
         }
 
         // Apply universal styling modifiers
