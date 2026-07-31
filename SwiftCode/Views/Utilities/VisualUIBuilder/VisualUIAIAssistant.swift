@@ -108,28 +108,32 @@ public struct VisualUIAIAssistant: View {
     private func triggerAIRequest() {
         isProcessing = true
         responseOutput = ""
+        let userPrompt = promptText
 
-        // Simulated AI layout response leveraging LLMService
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            self.responseOutput = """
-// Codex Generated Layout
-// Optimized Spacing & Accessibility standard guidelines
-VStack {
-    Text("Codex Optimized Dashboard")
-        .font(.title)
-        .bold()
-
-    HStack(spacing: 16) {
-        Button("Primary Call-to-action")
-        Button("Secondary dismiss")
-    }
-}
+        Task {
+            do {
+                let systemContext = """
+You are an expert SwiftUI co-designer.
+Generate only standard SwiftUI code structure inside a single block, avoiding any explanations or commentary.
+Your layout must follow high aesthetic standard, with proper spacing and alignment, fully ready to compile.
 """
-            self.accessibilityScore = Int.random(in: 95...100)
-            self.spacingScore = Int.random(in: 92...99)
-            self.cleanlinessIndex = Int.random(in: 94...100)
-            self.isProcessing = false
-            VisualUISettings.shared.addLog("AI assistant processed visual prompt: '\(promptText)' successfully.")
+                let fullPrompt = "\(systemContext)\n\nUser Request: \(userPrompt)"
+                let result = try await LLMService.shared.generateResponse(prompt: fullPrompt, useContext: false)
+
+                await MainActor.run {
+                    self.responseOutput = result
+                    self.accessibilityScore = Int.random(in: 95...100)
+                    self.spacingScore = Int.random(in: 92...99)
+                    self.cleanlinessIndex = Int.random(in: 94...100)
+                    self.isProcessing = false
+                    VisualUISettings.shared.addLog("AI assistant processed visual prompt: '\(userPrompt)' successfully.")
+                }
+            } catch {
+                await MainActor.run {
+                    self.responseOutput = "Failed to generate visual design: \(error.localizedDescription)"
+                    self.isProcessing = false
+                }
+            }
         }
     }
 

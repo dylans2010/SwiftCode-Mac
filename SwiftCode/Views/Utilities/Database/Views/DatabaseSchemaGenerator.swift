@@ -115,9 +115,25 @@ struct DatabaseSchemaGenerator: View {
             code += "    public init(databasePath: String) {\n"
             code += "        self.databasePath = databasePath\n"
             code += "    }\n\n"
+            code += "    @MainActor\n"
             code += "    public func fetchAll() async throws -> [\(structName)] {\n"
-            code += "        // Implementation\n"
-            code += "        return []\n"
+            code += "        let sql = \"SELECT * FROM \(table.name);\"\n"
+            code += "        let rows = try DatabaseManager.shared.executeSQLiteQuery(filePath: databasePath, sql: sql)\n"
+            code += "        return rows.map { row in\n"
+            code += "            \(structName)(\n"
+            let initParams = table.columns.map { col -> String in
+                let sType = col.type.contains("INT") ? "Int" : col.type.contains("REAL") ? "Double" : "String"
+                if sType == "Int" {
+                    return "                \(col.name): Int(row[\"\(col.name)\"] ?? \"0\") ?? 0"
+                } else if sType == "Double" {
+                    return "                \(col.name): Double(row[\"\(col.name)\"] ?? \"0.0\") ?? 0.0"
+                } else {
+                    return "                \(col.name): row[\"\(col.name)\"] ?? \"\""
+                }
+            }.joined(separator: ",\n")
+            code += initParams + "\n"
+            code += "            )\n"
+            code += "        }\n"
             code += "    }\n}"
             generatedCode = code
         }

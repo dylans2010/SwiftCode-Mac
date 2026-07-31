@@ -1,12 +1,7 @@
 import SwiftUI
 
 struct DatabaseLogsView: View {
-    @State private var logs: [String] = [
-        "2026-07-31 10:00:00 - Database connection established successfully.",
-        "2026-07-31 10:01:15 - Schema synchronization initiated from Default Local SQLite.",
-        "2026-07-31 10:01:17 - PRAGMA foreign_keys = ON; successfully executed.",
-        "2026-07-31 10:02:40 - Table 'users' schema successfully loaded."
-    ]
+    @State private var historyItems: [QueryHistoryItem] = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -15,7 +10,8 @@ struct DatabaseLogsView: View {
                     .font(.headline)
                 Spacer()
                 Button("Clear Logs") {
-                    logs.removeAll()
+                    DatabaseHistoryService.shared.clearHistory()
+                    loadLogs()
                 }
             }
             .padding()
@@ -23,11 +19,47 @@ struct DatabaseLogsView: View {
 
             Divider()
 
-            List(logs, id: \.self) { log in
-                Text(log)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundColor(.secondary)
+            if historyItems.isEmpty {
+                ContentUnavailableView("No logs recorded", systemImage: "doc.text", description: Text("Execute SQL statements or apply templates to generate logs."))
+            } else {
+                List(historyItems) { item in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(item.timestamp, style: .date)
+                            Text(item.timestamp, style: .time)
+                            Spacer()
+                            Text(item.status)
+                                .font(.caption.bold())
+                                .foregroundColor(item.status == "SUCCESS" ? .green : .red)
+                        }
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                        Text(item.sql)
+                            .font(.system(.body, design: .monospaced))
+                            .padding(4)
+                            .background(Color.secondary.opacity(0.05))
+
+                        if let errMsg = item.errorMessage {
+                            Text("Error: \(errMsg)")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        } else {
+                            Text("Execution Time: \(String(format: "%.1f", item.executionTimeMs)) ms | Rows Affected: \(item.rowsAffected)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
             }
         }
+        .onAppear {
+            loadLogs()
+        }
+    }
+
+    private func loadLogs() {
+        historyItems = DatabaseHistoryService.shared.fetchHistory()
     }
 }

@@ -186,6 +186,14 @@ struct DatabaseQueryEditor: View {
                     let log = try await SupabaseService.shared.executeSQL(connection: conn, sql: query)
                     executionStats = log
                     queryResult = []
+
+                    let duration = Date().timeIntervalSince(startTime) * 1000
+                    DatabaseHistoryService.shared.addHistoryItem(QueryHistoryItem(
+                        sql: query,
+                        executionTimeMs: duration,
+                        rowsAffected: 0,
+                        status: "SUCCESS"
+                    ))
                 }
             } catch {
                 errorMessage = error.localizedDescription
