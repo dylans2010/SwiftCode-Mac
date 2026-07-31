@@ -5,6 +5,11 @@ struct PreviewCanvasView: View {
     @State private var manager = PreviewManager.shared
     @State private var rotateValue = 0.0
 
+    private var activeSessionContent: String {
+        guard let path = manager.activeSession?.sourceFilePath else { return "" }
+        return (try? String(contentsOfFile: path)) ?? ""
+    }
+
     var body: some View {
         VStack(spacing: 20) {
             PreviewConfigurationView()
@@ -35,7 +40,7 @@ struct PreviewCanvasView: View {
                                 isDarkMode: manager.state.isDarkMode,
                                 scale: manager.state.scale
                             ) {
-                                DynamicSwiftUIPreviewRenderer(content: manager.activeSession?.sourceFilePath.flatMap { try? String(contentsOfFile: $0) } ?? "")
+                                DynamicSwiftUIPreviewRenderer(content: activeSessionContent)
                             }
                             .padding(32)
                         }
