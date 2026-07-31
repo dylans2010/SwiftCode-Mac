@@ -3030,7 +3030,7 @@
 				B3B554FCCA8A1D6773CE92C5 /* DatabaseTemplatesView.swift */,
 			);
 			name = Database;
-			path = SwiftCode/Views/Utilities/Database;
+			path = Database;
 			sourceTree = "<group>";
 		};
 		755E592A0A2790B7F8B98C70 /* Services */ = {
