@@ -7,6 +7,28 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		99DCE8A9F4E94D3F950EB883 /* VisualUIBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED8CC27FE26D4615A9293682 /* VisualUIBuilderView.swift */; };
+		C084DFF0721D4DF2A7FBE579 /* VisualUICanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78B951F1A7D4425CA2CB36F5 /* VisualUICanvasView.swift */; };
+		52DA41F4AE23416D953021E4 /* VisualUIToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BB579DCE8004D0DB7B8FF93 /* VisualUIToolbar.swift */; };
+		2348CA060B714622A3B635E7 /* VisualUIHierarchy.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE2E0654F13A4056899F6EA8 /* VisualUIHierarchy.swift */; };
+		FB65951A37BF4B27B987915F /* VisualUIInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2351285C038947659A338E2C /* VisualUIInspector.swift */; };
+		23D13A951EFE406F86727193 /* VisualUIComponentLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC22723B1B8C456E89785322 /* VisualUIComponentLibrary.swift */; };
+		972F8CE11B874A0A84D75E07 /* VisualUIPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A1B92D973144DAA96813D5 /* VisualUIPreviewPanel.swift */; };
+		326087BF39744B1F9DADB3E1 /* VisualUIPropertiesPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 107C6F7BC6984B42940B12C1 /* VisualUIPropertiesPanel.swift */; };
+		896E957E48EC4F94B95B3244 /* VisualUILayersPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E40EE64D55E4036A42C41E6 /* VisualUILayersPanel.swift */; };
+		E90B1C56BABE48058A486996 /* VisualUIAssetsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBC8670F25314EF19797D25C /* VisualUIAssetsPanel.swift */; };
+		69362696D7C24638945E679F /* VisualUIBindingsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36335245CF464D0EA774360E /* VisualUIBindingsPanel.swift */; };
+		57621F23DF03466E865E5B87 /* VisualUIAnimationsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48A745219366436BA7A4E91D /* VisualUIAnimationsPanel.swift */; };
+		C35DDF492D0F46E2B982626A /* VisualUINavigationPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66C0C781445041ACA13DC447 /* VisualUINavigationPanel.swift */; };
+		48E104FFA2C443799334345E /* VisualUIAIAssistant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55C89EEB71F74E2D900B1DF5 /* VisualUIAIAssistant.swift */; };
+		7BF68E53634B4C6B88A41E1F /* VisualUICodePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9457A0300D524AA2914248DB /* VisualUICodePanel.swift */; };
+		6078562D0C8E4E6F9B8D7333 /* VisualUIExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0159877D744CF4814303C5 /* VisualUIExportView.swift */; };
+		FD03A62590EF400CAD3E96C4 /* VisualUITemplatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 133F6F06846B4431A01A763F /* VisualUITemplatesView.swift */; };
+		FC5C5E63FB6740D28E1BC488 /* VisualUIScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E077BA052DC4D3B85758E81 /* VisualUIScene.swift */; };
+		669B6011647E4D54AEEC9023 /* VisualUIRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46A718A3EE404FAD9FE94BCB /* VisualUIRenderer.swift */; };
+		C9D983012AE34A8BBBC267B6 /* VisualUICodeGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6DA3D1F487048D292E2AE15 /* VisualUICodeGenerator.swift */; };
+		F9969214C7E745C6BABED632 /* VisualUIDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10DC6C1E60154001A5B2A725 /* VisualUIDocument.swift */; };
+		5B959DD3B5CE4F0D899F47FD /* VisualUISettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FBDA03E7AC64A2397D0EA2E /* VisualUISettings.swift */; };
 		A83491FC57C3309ECF4AD14 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A83491FC57C3309ECF4AD13 /* AppConfig.swift */; };
 		CF35CA016F59E7177DDC0AEF /* CloudError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1447B9E2C008F414C2B00A48 /* CloudError.swift */; };
 		C3A5B22197BFC2392607D317 /* CloudRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDF7400BCC2204B1C8E5E58D /* CloudRecord.swift */; };
@@ -1425,6 +1447,28 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		ED8CC27FE26D4615A9293682 /* VisualUIBuilderView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIBuilderView.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIBuilderView.swift; sourceTree = "<group>"; };
+		78B951F1A7D4425CA2CB36F5 /* VisualUICanvasView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUICanvasView.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUICanvasView.swift; sourceTree = "<group>"; };
+		3BB579DCE8004D0DB7B8FF93 /* VisualUIToolbar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIToolbar.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIToolbar.swift; sourceTree = "<group>"; };
+		DE2E0654F13A4056899F6EA8 /* VisualUIHierarchy.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIHierarchy.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIHierarchy.swift; sourceTree = "<group>"; };
+		2351285C038947659A338E2C /* VisualUIInspector.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIInspector.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIInspector.swift; sourceTree = "<group>"; };
+		EC22723B1B8C456E89785322 /* VisualUIComponentLibrary.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIComponentLibrary.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIComponentLibrary.swift; sourceTree = "<group>"; };
+		15A1B92D973144DAA96813D5 /* VisualUIPreviewPanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIPreviewPanel.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIPreviewPanel.swift; sourceTree = "<group>"; };
+		107C6F7BC6984B42940B12C1 /* VisualUIPropertiesPanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIPropertiesPanel.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIPropertiesPanel.swift; sourceTree = "<group>"; };
+		6E40EE64D55E4036A42C41E6 /* VisualUILayersPanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUILayersPanel.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUILayersPanel.swift; sourceTree = "<group>"; };
+		FBC8670F25314EF19797D25C /* VisualUIAssetsPanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIAssetsPanel.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIAssetsPanel.swift; sourceTree = "<group>"; };
+		36335245CF464D0EA774360E /* VisualUIBindingsPanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIBindingsPanel.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIBindingsPanel.swift; sourceTree = "<group>"; };
+		48A745219366436BA7A4E91D /* VisualUIAnimationsPanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIAnimationsPanel.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIAnimationsPanel.swift; sourceTree = "<group>"; };
+		66C0C781445041ACA13DC447 /* VisualUINavigationPanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUINavigationPanel.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUINavigationPanel.swift; sourceTree = "<group>"; };
+		55C89EEB71F74E2D900B1DF5 /* VisualUIAIAssistant.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIAIAssistant.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIAIAssistant.swift; sourceTree = "<group>"; };
+		9457A0300D524AA2914248DB /* VisualUICodePanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUICodePanel.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUICodePanel.swift; sourceTree = "<group>"; };
+		0A0159877D744CF4814303C5 /* VisualUIExportView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIExportView.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIExportView.swift; sourceTree = "<group>"; };
+		133F6F06846B4431A01A763F /* VisualUITemplatesView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUITemplatesView.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUITemplatesView.swift; sourceTree = "<group>"; };
+		0E077BA052DC4D3B85758E81 /* VisualUIScene.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIScene.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIScene.swift; sourceTree = "<group>"; };
+		46A718A3EE404FAD9FE94BCB /* VisualUIRenderer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIRenderer.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIRenderer.swift; sourceTree = "<group>"; };
+		E6DA3D1F487048D292E2AE15 /* VisualUICodeGenerator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUICodeGenerator.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUICodeGenerator.swift; sourceTree = "<group>"; };
+		10DC6C1E60154001A5B2A725 /* VisualUIDocument.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIDocument.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIDocument.swift; sourceTree = "<group>"; };
+		5FBDA03E7AC64A2397D0EA2E /* VisualUISettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUISettings.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUISettings.swift; sourceTree = "<group>"; };
 		A83491FC57C3309ECF4AD13 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		A83491FC57C3309ECF4AD15 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		1447B9E2C008F414C2B00A48 /* CloudError.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Core/CloudError.swift; sourceTree = "<group>"; };
@@ -2859,6 +2903,35 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0D2B220E774949989C088E30 /* VisualUIBuilder */ = {
+			isa = PBXGroup;
+			children = (
+				ED8CC27FE26D4615A9293682 /* VisualUIBuilderView.swift */,
+				78B951F1A7D4425CA2CB36F5 /* VisualUICanvasView.swift */,
+				3BB579DCE8004D0DB7B8FF93 /* VisualUIToolbar.swift */,
+				DE2E0654F13A4056899F6EA8 /* VisualUIHierarchy.swift */,
+				2351285C038947659A338E2C /* VisualUIInspector.swift */,
+				EC22723B1B8C456E89785322 /* VisualUIComponentLibrary.swift */,
+				15A1B92D973144DAA96813D5 /* VisualUIPreviewPanel.swift */,
+				107C6F7BC6984B42940B12C1 /* VisualUIPropertiesPanel.swift */,
+				6E40EE64D55E4036A42C41E6 /* VisualUILayersPanel.swift */,
+				FBC8670F25314EF19797D25C /* VisualUIAssetsPanel.swift */,
+				36335245CF464D0EA774360E /* VisualUIBindingsPanel.swift */,
+				48A745219366436BA7A4E91D /* VisualUIAnimationsPanel.swift */,
+				66C0C781445041ACA13DC447 /* VisualUINavigationPanel.swift */,
+				55C89EEB71F74E2D900B1DF5 /* VisualUIAIAssistant.swift */,
+				9457A0300D524AA2914248DB /* VisualUICodePanel.swift */,
+				0A0159877D744CF4814303C5 /* VisualUIExportView.swift */,
+				133F6F06846B4431A01A763F /* VisualUITemplatesView.swift */,
+				0E077BA052DC4D3B85758E81 /* VisualUIScene.swift */,
+				46A718A3EE404FAD9FE94BCB /* VisualUIRenderer.swift */,
+				E6DA3D1F487048D292E2AE15 /* VisualUICodeGenerator.swift */,
+				10DC6C1E60154001A5B2A725 /* VisualUIDocument.swift */,
+				5FBDA03E7AC64A2397D0EA2E /* VisualUISettings.swift */,
+			);
+			path = VisualUIBuilder;
+			sourceTree = "<group>";
+		};
 		A83491FC57C3309ECF4AD12 /* Config */ = {
 			isa = PBXGroup;
 			children = (
@@ -3970,6 +4043,7 @@
 		576E45E47FC5098A3A96ECB8 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				0D2B220E774949989C088E30 /* VisualUIBuilder */,
 				3A1B570AF9E4F916D3CCA144 /* build_ipa.sh */,
 				7A810247C000000000000056 /* NSPersonalDocumentation */,
 				E5E9A1260294B0DD1562EA23 /* FilePreviewView.swift */,
@@ -5683,6 +5757,28 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				99DCE8A9F4E94D3F950EB883 /* VisualUIBuilderView.swift in Sources */,
+				C084DFF0721D4DF2A7FBE579 /* VisualUICanvasView.swift in Sources */,
+				52DA41F4AE23416D953021E4 /* VisualUIToolbar.swift in Sources */,
+				2348CA060B714622A3B635E7 /* VisualUIHierarchy.swift in Sources */,
+				FB65951A37BF4B27B987915F /* VisualUIInspector.swift in Sources */,
+				23D13A951EFE406F86727193 /* VisualUIComponentLibrary.swift in Sources */,
+				972F8CE11B874A0A84D75E07 /* VisualUIPreviewPanel.swift in Sources */,
+				326087BF39744B1F9DADB3E1 /* VisualUIPropertiesPanel.swift in Sources */,
+				896E957E48EC4F94B95B3244 /* VisualUILayersPanel.swift in Sources */,
+				E90B1C56BABE48058A486996 /* VisualUIAssetsPanel.swift in Sources */,
+				69362696D7C24638945E679F /* VisualUIBindingsPanel.swift in Sources */,
+				57621F23DF03466E865E5B87 /* VisualUIAnimationsPanel.swift in Sources */,
+				C35DDF492D0F46E2B982626A /* VisualUINavigationPanel.swift in Sources */,
+				48E104FFA2C443799334345E /* VisualUIAIAssistant.swift in Sources */,
+				7BF68E53634B4C6B88A41E1F /* VisualUICodePanel.swift in Sources */,
+				6078562D0C8E4E6F9B8D7333 /* VisualUIExportView.swift in Sources */,
+				FD03A62590EF400CAD3E96C4 /* VisualUITemplatesView.swift in Sources */,
+				FC5C5E63FB6740D28E1BC488 /* VisualUIScene.swift in Sources */,
+				669B6011647E4D54AEEC9023 /* VisualUIRenderer.swift in Sources */,
+				C9D983012AE34A8BBBC267B6 /* VisualUICodeGenerator.swift in Sources */,
+				F9969214C7E745C6BABED632 /* VisualUIDocument.swift in Sources */,
+				5B959DD3B5CE4F0D899F47FD /* VisualUISettings.swift in Sources */,
 				A83491FC57C3309ECF4AD14 /* AppConfig.swift in Sources */,
 				CF35CA016F59E7177DDC0AEF /* CloudError.swift in Sources */,
 				C3A5B22197BFC2392607D317 /* CloudRecord.swift in Sources */,

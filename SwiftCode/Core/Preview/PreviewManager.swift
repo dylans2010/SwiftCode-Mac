@@ -22,6 +22,9 @@ public final class PreviewManager {
         }
     }
 
+    // Support for multiple simultaneous preview windows
+    public private(set) var secondarySessions: [String: PreviewSession] = [:]
+
     private let engine = PreviewEngine()
     private let discoveryService = PreviewDiscoveryService()
     private let communicationService = PreviewCommunicationService()
@@ -52,6 +55,7 @@ public final class PreviewManager {
         buildLogs = ["Initializing preview environment..."]
 
         do {
+            // Run on engine actor (off-main-thread rendering work)
             let session = try await engine.runPreviewSession(
                 sourceFilePath: sourcePath,
                 sourceCode: sourceCode,
@@ -65,6 +69,7 @@ public final class PreviewManager {
             self.activeSession = session
             buildLogs.append("Preview load succeeded.")
         } catch {
+            // Graceful recovery when rendering fails
             self.activeSession = PreviewSession(
                 sessionID: UUID().uuidString,
                 sourceFilePath: sourcePath,
@@ -72,14 +77,35 @@ public final class PreviewManager {
                 lastCompiledAt: Date(),
                 status: "Failed"
             )
-            buildLogs.append("Preview load failed: \(error.localizedDescription)")
+            buildLogs.append("Graceful Recovery: Preview load failed, but workspace remains operational. details: \(error.localizedDescription)")
+            logger.error("Preview Session failed: \(error.localizedDescription). Recovered gracefully.")
         }
         isCompiling = false
+    }
+
+    /// Exposes rendering pipeline mapping based on visual builders
+    public func pipelineForFramework(_ framework: VisualUIFramework) async -> String {
+        await engine.determineRenderingPipeline(for: framework)
+    }
+
+    /// Supports starting a secondary simultaneous preview window
+    public func startSecondaryPreviewSession(windowID: String, sourcePath: String, sourceCode: String, targetView: String) async {
+        do {
+            let session = try await engine.runPreviewSession(
+                sourceFilePath: sourcePath,
+                sourceCode: sourceCode,
+                targetView: targetView
+            ) { _ in }
+            secondarySessions[windowID] = session
+        } catch {
+            logger.error("Failed to start secondary preview window: \(error.localizedDescription)")
+        }
     }
 
     public func stopActiveSession() async {
         await engine.stopPreviewSession()
         self.activeSession = nil
+        self.secondarySessions.removeAll()
         self.buildLogs = []
     }
 
