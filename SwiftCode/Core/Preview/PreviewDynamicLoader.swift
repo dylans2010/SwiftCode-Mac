@@ -56,7 +56,10 @@ public final class PreviewDynamicLoader {
     }
 }
 
-public struct LoadedPreviewSimulation: Sendable {
+// SAFETY JUSTIFICATION: LoadedPreviewSimulation is used purely for UI observation/rendering
+// and runtime dynamic linking handle cleanup on the @MainActor thread. Its properties
+// are only accessed and mutated on @MainActor, ensuring thread safety.
+public struct LoadedPreviewSimulation: @unchecked Sendable {
     public let anyView: AnyView
     public let hierarchyDescription: [String]
     public let handle: UnsafeMutableRawPointer?
