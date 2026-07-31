@@ -3,6 +3,10 @@ import os
 
 public actor PreviewBuildService {
     private let logger = Logger(subsystem: "com.swiftcode.preview", category: "BuildService")
+    private let scanner = PreviewProjectScanner()
+    private let resolver = PreviewEntryResolver()
+    private let compiler = PreviewRuntimeCompiler()
+    private let sandbox = PreviewSandbox()
 
     public init() {}
 
@@ -14,20 +18,25 @@ public actor PreviewBuildService {
         logger.info("[BEGIN] Compiling target preview view '\(targetName)' for file '\(sourcePath)'")
         let startTime = Date()
 
-        outputHandler("Analyzing file imports and SwiftUI structures...")
-        try await Task.sleep(nanoseconds: 200_000_000)
+        let fileURL = URL(fileURLWithPath: sourcePath)
+        let projectDir = fileURL.deletingLastPathComponent()
 
-        outputHandler("Building preview symbols using swiftc...")
-        try await Task.sleep(nanoseconds: 300_000_000)
+        outputHandler("Scanning project hierarchy...")
+        let structure = try scanner.scan(projectDirectory: projectDir)
 
-        // Return a simulated URL path representing the dynamically compiled dylib/bundle
-        let tempDirectory = FileManager.default.temporaryDirectory
-        let moduleURL = tempDirectory.appendingPathComponent("\(targetName)_PreviewModule.dylib")
+        outputHandler("Resolving SwiftUI entry targets...")
+        let entry = try resolver.resolve(projectStructure: structure, preferredView: targetName)
+
+        outputHandler("Applying workspace sandboxing...")
+        let sandboxPolicy = sandbox.makePolicy(projectDirectory: projectDir)
+
+        outputHandler("Compiling modules using swiftc...")
+        let module = try await compiler.compile(projectStructure: structure, entry: entry, sandboxPolicy: sandboxPolicy)
 
         let duration = Date().timeIntervalSince(startTime)
         logger.info("[END] Completed compilation of '\(targetName)' in \(duration)s")
         outputHandler("Build succeeded in \(String(format: "%.2f", duration))s.")
 
-        return moduleURL
+        return module.libraryURL
     }
 }

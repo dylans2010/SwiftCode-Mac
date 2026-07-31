@@ -35,42 +35,7 @@ struct PreviewCanvasView: View {
                                 isDarkMode: manager.state.isDarkMode,
                                 scale: manager.state.scale
                             ) {
-                                VStack(spacing: 20) {
-                                    HStack {
-                                        Image(systemName: "sparkles")
-                                            .foregroundColor(.purple)
-                                        Text("SwiftUI Live Preview")
-                                            .font(.headline)
-                                        Spacer()
-                                    }
-
-                                    Divider()
-
-                                    Text("Active Preview Target: '\(manager.selectedPreviewName ?? "None")'")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-
-                                    Spacer()
-
-                                    Image(systemName: "hammer.fill")
-                                        .font(.system(size: 40))
-                                        .foregroundColor(.accentColor)
-                                        .rotationEffect(Angle(degrees: rotateValue))
-                                        .onAppear {
-                                            withAnimation(.linear(duration: 4).repeatForever(autoreverses: false)) {
-                                                rotateValue = 360
-                                            }
-                                        }
-
-                                    Spacer()
-
-                                    Text("Real-time visual feedback compiles continuously as you type.")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                        .multilineTextAlignment(.center)
-                                }
-                                .padding(24)
-                                .background(manager.state.isDarkMode ? Color.black : Color.white)
+                                DynamicSwiftUIPreviewRenderer(content: manager.activeSession?.sourceFilePath.flatMap { try? String(contentsOfFile: $0) } ?? "")
                             }
                             .padding(32)
                         }

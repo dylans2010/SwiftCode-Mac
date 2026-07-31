@@ -3,22 +3,24 @@ import Foundation
 import Darwin
 #endif
 
-final class LiveReloadManager {
+public final class PreviewLiveReloadManager {
     #if canImport(Darwin)
     private var source: DispatchSourceFileSystemObject?
     private var fileDescriptor: CInt = -1
     #endif
 
-    var onChange: (() -> Void)?
+    public var onChange: (() -> Void)?
 
-    func startWatching(directory: URL) {
+    public init() {}
+
+    public func startWatching(directory: URL) {
         #if canImport(Darwin)
         stopWatching()
 
         fileDescriptor = open(directory.path, O_EVTONLY)
         guard fileDescriptor >= 0 else { return }
 
-        let queue = DispatchQueue(label: "swiftcode.local-simulation.live-reload")
+        let queue = DispatchQueue(label: "swiftcode.preview.live-reload")
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fileDescriptor,
             eventMask: [.write, .extend, .rename, .delete],
@@ -44,7 +46,7 @@ final class LiveReloadManager {
         #endif
     }
 
-    func stopWatching() {
+    public func stopWatching() {
         #if canImport(Darwin)
         source?.cancel()
         source = nil

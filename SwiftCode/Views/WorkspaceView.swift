@@ -263,7 +263,7 @@ struct WorkspaceView: View {
                 case .codeReview: CodeReviewView()
                 case .gitHubIssues: LegacyGitHubIssuesView()
                 case .complexityAnalyzer: ComplexityAnalyzerView()
-                case .localSimulation: LocalSimulationView()
+                case .localSimulation: SimulatorPreviewView()
                 case .simulatorMain: SimulatorMainView()
                 case .searchDocumentation: SearchDocumentationView()
                 case .sfSymbolsBrowser: SFSymbolPickerView()

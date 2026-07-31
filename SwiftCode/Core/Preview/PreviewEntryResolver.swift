@@ -1,23 +1,31 @@
 import Foundation
 
-final class SwiftUIEntryResolver {
-    func resolve(projectStructure: ProjectStructure, preferredView: String?) throws -> SimulationEntry {
+public struct PreviewSimulationEntry: Sendable {
+    public let appName: String
+    public let rootViewType: String
+    public let sceneType: String
+}
+
+public final class PreviewEntryResolver {
+    public init() {}
+
+    public func resolve(projectStructure: PreviewProjectStructure, preferredView: String?) throws -> PreviewSimulationEntry {
         if let preferredView, projectStructure.swiftUIViewTypes.contains(preferredView) {
-            return SimulationEntry(appName: "View Preview", rootViewType: preferredView, sceneType: "WindowGroup")
+            return PreviewSimulationEntry(appName: "View Preview", rootViewType: preferredView, sceneType: "WindowGroup")
         }
 
         guard let entryFile = projectStructure.appEntryPoint else {
-            throw SimulationError(type: .resolve, message: "No @main App entry point was found.", file: nil, line: nil, stackTrace: nil)
+            throw PreviewError.resolveFailed(message: "No @main App entry point was found.")
         }
 
         let source = try String(contentsOf: entryFile, encoding: .utf8)
         let appName = firstMatch(in: source, pattern: #"@main\s+struct\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*App"#) ?? "SimulationApp"
 
         guard let rootView = firstMatch(in: source, pattern: #"WindowGroup\s*\{[\s\S]*?([A-Za-z_][A-Za-z0-9_]*)\s*\("#) else {
-            throw SimulationError(type: .resolve, message: "Unable to resolve initial View from WindowGroup.", file: entryFile.path, line: nil, stackTrace: nil)
+            throw PreviewError.resolveFailed(message: "Unable to resolve initial View from WindowGroup.")
         }
 
-        return SimulationEntry(appName: appName, rootViewType: rootView, sceneType: "WindowGroup")
+        return PreviewSimulationEntry(appName: appName, rootViewType: rootView, sceneType: "WindowGroup")
     }
 
     private func firstMatch(in source: String, pattern: String) -> String? {
