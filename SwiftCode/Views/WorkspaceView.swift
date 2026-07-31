@@ -342,6 +342,14 @@ struct WorkspaceView: View {
                     DatabaseExplorerView()
                         .frame(minWidth: 1000, minHeight: 700)
 
+                case .projectInspector:
+                    ProjectInspectorView()
+                        .frame(minWidth: 1000, minHeight: 700)
+
+                case .localizationManager:
+                    LocalizationManagerView()
+                        .frame(minWidth: 1000, minHeight: 700)
+
                 case .settings:
                     SettingsView()
                         .environmentObject(AppSettings.shared)

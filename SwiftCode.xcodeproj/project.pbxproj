@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E531319FCE8EE69C222447D3 /* InspectorProjectScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36EC49CDA424309ECD938DD8 /* InspectorProjectScanner.swift */; };
+		7D6E683ED2324E32A19E14C4 /* LocalizationManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50D0BCB28DA2BD49A623F6F7 /* LocalizationManagerView.swift */; };
+		123E3F766CA6DBCC4F18A883 /* LocalizationCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97BE726EA4718791998361C5 /* LocalizationCore.swift */; };
+		72C5253CC2DACDB3470714A3 /* ProjectInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A114197E60D9E765B59FB600 /* ProjectInspectorView.swift */; };
+		D16D4B5F87C1CE19FD43BBD3 /* ProjectArchitectureGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A51FDFE85BDBDE52D344925 /* ProjectArchitectureGraph.swift */; };
 		6A81AC120686EEFE856E6D6A /* DatabaseTemplatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3B554FCCA8A1D6773CE92C5 /* DatabaseTemplatesView.swift */; };
 		5C5C1B487B8500E8BED39616 /* DatabaseTablesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47999CC7463C91AF396CB8D1 /* DatabaseTablesView.swift */; };
 		661D164256573DBBCEF45F3F /* DatabaseTableEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 508432AC46A53F4DA7CBEE48 /* DatabaseTableEditor.swift */; };
@@ -1500,6 +1505,11 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		36EC49CDA424309ECD938DD8 /* InspectorProjectScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProjectInspector/InspectorProjectScanner.swift"; sourceTree = "<group>"; };
+		50D0BCB28DA2BD49A623F6F7 /* LocalizationManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Localization/LocalizationManagerView.swift"; sourceTree = "<group>"; };
+		97BE726EA4718791998361C5 /* LocalizationCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Localization/LocalizationCore.swift"; sourceTree = "<group>"; };
+		A114197E60D9E765B59FB600 /* ProjectInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProjectInspector/ProjectInspectorView.swift"; sourceTree = "<group>"; };
+		5A51FDFE85BDBDE52D344925 /* ProjectArchitectureGraph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProjectInspector/ProjectArchitectureGraph.swift"; sourceTree = "<group>"; };
 		ED8CC27FE26D4615A9293682 /* VisualUIBuilderView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIBuilderView.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIBuilderView.swift; sourceTree = "<group>"; };
 		78B951F1A7D4425CA2CB36F5 /* VisualUICanvasView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUICanvasView.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUICanvasView.swift; sourceTree = "<group>"; };
 		3BB579DCE8004D0DB7B8FF93 /* VisualUIToolbar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIToolbar.swift; path = SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIToolbar.swift; sourceTree = "<group>"; };
@@ -4202,6 +4212,11 @@
 		576E45E47FC5098A3A96ECB8 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				36EC49CDA424309ECD938DD8 /* InspectorProjectScanner.swift */,
+				50D0BCB28DA2BD49A623F6F7 /* LocalizationManagerView.swift */,
+				97BE726EA4718791998361C5 /* LocalizationCore.swift */,
+				A114197E60D9E765B59FB600 /* ProjectInspectorView.swift */,
+				5A51FDFE85BDBDE52D344925 /* ProjectArchitectureGraph.swift */,
 				0D2B220E774949989C088E30 /* VisualUIBuilder */,
 				3A1B570AF9E4F916D3CCA144 /* build_ipa.sh */,
 				7A810247C000000000000056 /* NSPersonalDocumentation */,
@@ -5917,6 +5932,11 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E531319FCE8EE69C222447D3 /* InspectorProjectScanner.swift in Sources */,
+				7D6E683ED2324E32A19E14C4 /* LocalizationManagerView.swift in Sources */,
+				123E3F766CA6DBCC4F18A883 /* LocalizationCore.swift in Sources */,
+				72C5253CC2DACDB3470714A3 /* ProjectInspectorView.swift in Sources */,
+				D16D4B5F87C1CE19FD43BBD3 /* ProjectArchitectureGraph.swift in Sources */,
 				99DCE8A9F4E94D3F950EB883 /* VisualUIBuilderView.swift in Sources */,
 				C084DFF0721D4DF2A7FBE579 /* VisualUICanvasView.swift in Sources */,
 				52DA41F4AE23416D953021E4 /* VisualUIToolbar.swift in Sources */,
