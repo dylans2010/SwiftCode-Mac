@@ -1,8 +1,11 @@
 import SwiftUI
 
 struct DatabaseTemplatesView: View {
+    @EnvironmentObject var connManager: DatabaseConnectionManager
     @StateObject private var templateManager = DatabaseTemplateManager.shared
     @State private var searchQuery = ""
+    @State private var alertMessage = ""
+    @State private var showingAlert = false
 
     var filteredTemplates: [DatabaseTemplate] {
         if searchQuery.isEmpty { return templateManager.templates }
@@ -60,7 +63,7 @@ struct DatabaseTemplatesView: View {
                             }
 
                             Button("Apply Template") {
-                                // Applies the template schema automatically
+                                applyTemplate(template)
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
@@ -71,6 +74,44 @@ struct DatabaseTemplatesView: View {
                     }
                 }
                 .padding()
+            }
+        }
+        .alert("Schema Status", isPresented: $showingAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(alertMessage)
+        }
+    }
+
+    private func applyTemplate(_ template: DatabaseTemplate) {
+        guard let conn = connManager.activeConnection else {
+            alertMessage = "No active database connection selected. Please activate a connection first."
+            showingAlert = true
+            return
+        }
+
+        Task {
+            var appliedCount = 0
+            var errorOccurred = false
+            var lastErrorMessage = ""
+
+            for table in template.tables {
+                do {
+                    try await DatabaseSchemaManager.shared.createTable(connection: conn, table: table)
+                    appliedCount += 1
+                } catch {
+                    errorOccurred = true
+                    lastErrorMessage = error.localizedDescription
+                }
+            }
+
+            await MainActor.run {
+                if errorOccurred {
+                    alertMessage = "Successfully applied \(appliedCount) tables. Error applying remaining: \(lastErrorMessage)"
+                } else {
+                    alertMessage = "Successfully applied \(appliedCount) tables from template '\(template.name)' to connection '\(conn.name)'!"
+                }
+                showingAlert = true
             }
         }
     }
