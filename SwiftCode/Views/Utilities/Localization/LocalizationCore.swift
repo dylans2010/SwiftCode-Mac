@@ -99,7 +99,7 @@ public final class LocalizationCore {
             )
 
             if let enumerator = enumerator {
-                for case let fileURL as URL in enumerator {
+                while let fileURL = enumerator.nextObject() as? URL {
                     // Fast path: skip scanning within heavy non-source directories
                     let pathString = fileURL.path
                     if pathString.contains("/build/") ||
