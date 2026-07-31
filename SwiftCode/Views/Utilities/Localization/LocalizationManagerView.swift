@@ -191,7 +191,15 @@ public struct LocalizationManagerView: View {
                 Divider()
 
                 // Key rows grid scroll list
-                if filteredKeys.isEmpty {
+                if core.isScanning && filteredKeys.isEmpty {
+                    VStack(spacing: 12) {
+                        ProgressView("Scanning project for string catalogs...")
+                        Text("This is run asynchronously and won't block the workspace.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxHeight: .infinity)
+                } else if filteredKeys.isEmpty {
                     ContentUnavailableView("No Keys Found", systemImage: "text.badge.plus", description: Text("Create translation keys or adjust search criteria to inspect records."))
                         .frame(maxHeight: .infinity)
                 } else {

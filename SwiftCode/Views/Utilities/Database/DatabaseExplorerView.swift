@@ -34,116 +34,45 @@ public enum DatabaseSection: String, CaseIterable, Identifiable {
     }
 }
 
+/// Main entry point for the Database Explorer.
+/// Optimizes and routes the workspace to a native macOS AppKit split-view window.
 public struct DatabaseExplorerView: View {
-    @StateObject private var connManager = DatabaseConnectionManager.shared
-    @State private var selectedSection: DatabaseSection = .dashboard
-    @State private var showSidebar = true
-    @State private var showInspector = true
-
-    // Schema selection states
-    @State private var selectedTable: DatabaseTable?
-    @State private var selectedColumn: DatabaseColumn?
+    @Environment(\.dismiss) private var dismiss
 
     public init() {}
 
     public var body: some View {
-        HStack(spacing: 0) {
-            // Panel 1: Left Navigation Sidebar
-            if showSidebar {
-                DatabaseSidebar(selectedSection: $selectedSection, connManager: connManager)
-                    .frame(width: 250)
-                    .transition(.move(edge: .leading))
+        VStack(spacing: 16) {
+            Image(systemName: "tablecells.badge.ellipsis")
+                .font(.system(size: 64))
+                .foregroundColor(.green)
 
-                Divider()
+            Text("Database Explorer Workspace")
+                .font(.title)
+                .bold()
+
+            Text("The database workspace is optimized as a native macOS AppKit split-view layout with direct SQLite3 connection mappings, PostgREST API synchronizers, and AI assistant query consoles.")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+
+            Button(action: openWorkspace) {
+                Label("Launch Workspace", systemImage: "arrow.up.forward.app")
+                    .font(.headline)
             }
-
-            // Panel 2: Central Main Content Workspace
-            VStack(spacing: 0) {
-                // Header Toolbar
-                HStack {
-                    Button {
-                        withAnimation { showSidebar.toggle() }
-                    } label: {
-                        Image(systemName: "sidebar.left")
-                    }
-                    .buttonStyle(.plain)
-                    .help("Toggle Left Sidebar")
-
-                    Text("Database Explorer")
-                        .font(.headline)
-                        .padding(.leading, 8)
-
-                    if let active = connManager.activeConnection {
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(Color.green)
-                                .frame(width: 8, height: 8)
-                            Text(active.name)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.secondary.opacity(0.12), in: Capsule())
-                        .padding(.leading, 8)
-                    }
-
-                    Spacer()
-
-                    Button {
-                        withAnimation { showInspector.toggle() }
-                    } label: {
-                        Image(systemName: "sidebar.right")
-                    }
-                    .buttonStyle(.plain)
-                    .help("Toggle Right Inspector")
-                }
-                .padding(12)
-                .background(Color(NSColor.windowBackgroundColor))
-
-                Divider()
-
-                // Active workspace layout
-                Group {
-                    switch selectedSection {
-                    case .dashboard:
-                        DatabaseDashboard(selectedSection: $selectedSection)
-                    case .tables:
-                        DatabaseTablesView(selectedTable: $selectedTable)
-                    case .schemaDesigner:
-                        DatabaseSchemaView()
-                    case .sqlEditor:
-                        DatabaseQueryEditor()
-                    case .migrations:
-                        DatabaseMigrationView()
-                    case .backups:
-                        DatabaseBackupView()
-                    case .importExport:
-                        DatabaseImportExportView()
-                    case .templates:
-                        DatabaseTemplatesView()
-                    case .aiAssistant:
-                        DatabaseAIView()
-                    case .performance:
-                        DatabasePerformanceView()
-                    case .logs:
-                        DatabaseLogsView()
-                    case .settings:
-                        DatabaseSettingsView()
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-
-            // Panel 3: Right Inspector Panel
-            if showInspector {
-                Divider()
-
-                DatabaseInspector(selectedTable: $selectedTable, selectedColumn: $selectedColumn)
-                    .frame(width: 260)
-                    .transition(.move(edge: .trailing))
-            }
+            .buttonStyle(.borderedProminent)
+            .tint(.green)
+            .controlSize(.large)
         }
-        .environmentObject(connManager)
+        .frame(minWidth: 500, minHeight: 400)
+        .onAppear {
+            openWorkspace()
+        }
+    }
+
+    private func openWorkspace() {
+        DatabaseExplorerWindowManager.shared.showWindow()
+        dismiss()
     }
 }

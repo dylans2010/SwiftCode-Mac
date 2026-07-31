@@ -7,23 +7,14 @@ import os
 public final class PreviewManager {
     public static let shared = PreviewManager()
 
-    // Public state
-    public private(set) var activeSession: PreviewSession?
-    public private(set) var buildLogs: [String] = []
-    public var selectedPreviewName: String?
+    // Reactive State Isolation
+    public var activeSession: PreviewSession?
+    public var secondarySessions: [String: PreviewSession] = [:]
+    public var state = PreviewState()
+    public var buildLogs: [String] = []
     public var availablePreviews: [String] = []
-
+    public var selectedPreviewName: String?
     public var isCompiling = false
-    public var configuration = PreviewConfiguration()
-    public var scale: Double = 1.0 {
-        didSet {
-            configuration.scale = scale
-            updateConfiguration()
-        }
-    }
-
-    // Support for multiple simultaneous preview windows
-    public private(set) var secondarySessions: [String: PreviewSession] = [:]
 
     private let engine = PreviewEngine()
     private let discoveryService = PreviewDiscoveryService()
@@ -55,7 +46,6 @@ public final class PreviewManager {
         buildLogs = ["Initializing preview environment..."]
 
         do {
-            // Run on engine actor (off-main-thread rendering work)
             let session = try await engine.runPreviewSession(
                 sourceFilePath: sourcePath,
                 sourceCode: sourceCode,
@@ -69,7 +59,6 @@ public final class PreviewManager {
             self.activeSession = session
             buildLogs.append("Preview load succeeded.")
         } catch {
-            // Graceful recovery when rendering fails
             self.activeSession = PreviewSession(
                 sessionID: UUID().uuidString,
                 sourceFilePath: sourcePath,
@@ -83,12 +72,6 @@ public final class PreviewManager {
         isCompiling = false
     }
 
-    /// Exposes rendering pipeline mapping based on visual builders
-    public func pipelineForFramework(_ framework: VisualUIFramework) async -> String {
-        await engine.determineRenderingPipeline(for: framework)
-    }
-
-    /// Supports starting a secondary simultaneous preview window
     public func startSecondaryPreviewSession(windowID: String, sourcePath: String, sourceCode: String, targetView: String) async {
         do {
             let session = try await engine.runPreviewSession(
@@ -110,17 +93,17 @@ public final class PreviewManager {
     }
 
     public func toggleDarkMode() {
-        configuration.isDarkMode.toggle()
+        state.isDarkMode.toggle()
         updateConfiguration()
     }
 
     public func toggleOrientation() {
-        configuration.isPortrait.toggle()
+        state.isPortrait.toggle()
         updateConfiguration()
     }
 
     public func changeDevice(to device: String) {
-        configuration.deviceName = device
+        state.currentDevice = device
         updateConfiguration()
     }
 
@@ -130,7 +113,14 @@ public final class PreviewManager {
 
     private func updateConfiguration() {
         Task {
-            await communicationService.sendConfigurationUpdate(configuration)
+            let config = PreviewConfiguration(
+                deviceName: state.currentDevice,
+                isPortrait: state.isPortrait,
+                isDarkMode: state.isDarkMode,
+                scale: state.scale,
+                dynamicTypeSize: String(describing: state.dynamicTypeSize)
+            )
+            await communicationService.sendConfigurationUpdate(config)
         }
     }
 }
