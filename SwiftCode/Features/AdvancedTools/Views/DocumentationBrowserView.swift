@@ -1704,7 +1704,8 @@ Code Sample:
                 return
             }
 
-            for case let fileURL as URL in enumerator {
+            let fileURLs = enumerator.allObjects.compactMap { $0 as? URL }
+            for fileURL in fileURLs {
                 let ext = fileURL.pathExtension.lowercased()
                 if ext == "md" {
                     let title = fileURL.deletingPathExtension().lastPathComponent
