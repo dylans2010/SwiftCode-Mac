@@ -60,6 +60,7 @@ final class ToolbarActionManager {
         case appDetailsInfo
         case personalDocumentation
         case mainTools
+        case visualUIBuilder
 
         // Sidebar & Inspector additions
         case debugSessions
@@ -201,6 +202,8 @@ final class ToolbarActionManager {
             return .personalDocumentation
         case "main_tools":
             return .mainTools
+        case "visual_ui_builder", "visualUIBuilder":
+            return .visualUIBuilder
 
         case "debug_sessions":
             return .debugSessions
