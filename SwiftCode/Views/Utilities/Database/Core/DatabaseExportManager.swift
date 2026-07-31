@@ -1,6 +1,6 @@
 import Foundation
 
-public final class DatabaseExportManager {
+public final class DatabaseExportManager: Sendable {
     public static let shared = DatabaseExportManager()
 
     private init() {}
