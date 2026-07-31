@@ -2,22 +2,24 @@ import Foundation
 import SwiftUI
 import Darwin
 
-final class SwiftDynamicLoader {
+public final class PreviewDynamicLoader {
     private var activeHandle: UnsafeMutableRawPointer?
 
-    func load(module: CompiledSimulationModule, entry: SimulationEntry) throws -> LoadedSimulation {
+    public init() {}
+
+    public func load(module: CompiledPreviewModule, entry: PreviewSimulationEntry) throws -> LoadedPreviewSimulation {
         unloadCurrentModule()
 
         guard let handle = dlopen(module.libraryURL.path, RTLD_NOW | RTLD_LOCAL) else {
             let message = String(cString: dlerror())
-            throw SimulationError(type: .load, message: "dlopen failed: \(message)", file: module.libraryURL.path, line: nil, stackTrace: nil)
+            throw PreviewError.compilationError(details: "dlopen failed: \(message)")
         }
 
         activeHandle = handle
 
         let symbolName = "__swiftcode_make_root_view"
         guard let symbol = dlsym(handle, symbolName) else {
-            return LoadedSimulation(
+            return LoadedPreviewSimulation(
                 anyView: AnyView(Text(entry.rootViewType).padding()),
                 hierarchyDescription: [entry.rootViewType],
                 handle: handle
@@ -43,13 +45,19 @@ final class SwiftDynamicLoader {
             .padding()
         )
 
-        return LoadedSimulation(anyView: view, hierarchyDescription: [resolvedName], handle: handle)
+        return LoadedPreviewSimulation(anyView: view, hierarchyDescription: [resolvedName], handle: handle)
     }
 
-    func unloadCurrentModule() {
+    public func unloadCurrentModule() {
         if let activeHandle {
             dlclose(activeHandle)
             self.activeHandle = nil
         }
     }
+}
+
+public struct LoadedPreviewSimulation: Sendable {
+    public let anyView: AnyView
+    public let hierarchyDescription: [String]
+    public let handle: UnsafeMutableRawPointer?
 }

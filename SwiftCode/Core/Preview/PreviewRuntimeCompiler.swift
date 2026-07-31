@@ -4,10 +4,29 @@ import Foundation
 import class Foundation.Process
 #endif
 
-final class SwiftRuntimeCompiler {
+public struct CompiledPreviewModule: Sendable {
+    public let libraryURL: URL
+    public let diagnostics: [PreviewCompilationDiagnostic]
+    public let metadata: [String: String]
+}
+
+public struct PreviewCompilationDiagnostic: Sendable, Identifiable {
+    public let id = UUID()
+    public let message: String
+    public let file: String?
+    public let line: Int?
+}
+
+public final class PreviewRuntimeCompiler {
     private var cachedSignatures: [URL: Date] = [:]
 
-    func compile(projectStructure: ProjectStructure, entry: SimulationEntry, sandboxPolicy: SimulationSandboxPolicy) async throws -> CompiledSimulationModule {
+    public init() {}
+
+    public func compile(
+        projectStructure: PreviewProjectStructure,
+        entry: PreviewSimulationEntry,
+        sandboxPolicy: PreviewSandboxPolicy
+    ) async throws -> CompiledPreviewModule {
         let temporaryRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("swiftcode-simulation", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -61,13 +80,7 @@ final class SwiftRuntimeCompiler {
             throw parseCompilerError(message)
         }
 #else
-        throw SimulationError(
-            type: .compile,
-            message: "Dynamic compilation is not supported on iOS.",
-            file: nil,
-            line: nil,
-            stackTrace: nil
-        )
+        throw PreviewError.compilationError(details: "Dynamic compilation is not supported on iOS.")
 #endif
 
         var metadata: [String: String] = [
@@ -77,7 +90,7 @@ final class SwiftRuntimeCompiler {
         ]
         metadata["sandboxNetwork"] = sandboxPolicy.allowNetwork ? "enabled" : "disabled"
 
-        return CompiledSimulationModule(libraryURL: outputLibrary, diagnostics: [], metadata: metadata)
+        return CompiledPreviewModule(libraryURL: outputLibrary, diagnostics: [], metadata: metadata)
     }
 
     private func changedSwiftFiles(in files: [URL]) -> [URL] {
@@ -92,15 +105,13 @@ final class SwiftRuntimeCompiler {
         return changed
     }
 
-    private func parseCompilerError(_ message: String) -> SimulationError {
+    private func parseCompilerError(_ message: String) -> PreviewError {
         let parts = message.components(separatedBy: ":")
         if parts.count > 3 {
-            let file = parts[0]
-            let line = Int(parts[1])
             let body = parts.dropFirst(3).joined(separator: ":").trimmingCharacters(in: .whitespacesAndNewlines)
-            return SimulationError(type: .compile, message: body.isEmpty ? message : body, file: file, line: line, stackTrace: nil)
+            return PreviewError.compilationError(details: body.isEmpty ? message : body)
         }
-        return SimulationError(type: .compile, message: message, file: nil, line: nil, stackTrace: nil)
+        return PreviewError.compilationError(details: message)
     }
 
     private func makeBootstrapSource(viewTypes: [String], defaultRoot: String) -> String {

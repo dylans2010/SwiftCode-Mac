@@ -6,6 +6,8 @@ public enum PreviewError: LocalizedError, Sendable {
     case hostTimeout(details: String)
     case parsingFailed(details: String)
     case xcodeProjectNotLoaded
+    case scanFailed(message: String)
+    case resolveFailed(message: String)
 
     public var errorDescription: String? {
         switch self {
@@ -19,6 +21,10 @@ public enum PreviewError: LocalizedError, Sendable {
             return "Failed to parse SwiftUI source previews: \(details)"
         case .xcodeProjectNotLoaded:
             return "No active workspace or Xcode project is currently loaded."
+        case .scanFailed(let message):
+            return "File system scanner failed: \(message)"
+        case .resolveFailed(let message):
+            return "Target resolver failed: \(message)"
         }
     }
 }

@@ -1,10 +1,19 @@
 import Foundation
 
-final class ProjectScanner {
-    func scan(projectDirectory: URL) throws -> ProjectStructure {
+public struct PreviewProjectStructure: Sendable {
+    public let swiftFiles: [URL]
+    public let swiftUIViewTypes: [String]
+    public let appEntryPoint: URL?
+    public let dependencies: [URL: Set<String>]
+}
+
+public final class PreviewProjectScanner {
+    public init() {}
+
+    public func scan(projectDirectory: URL) throws -> PreviewProjectStructure {
         let fileManager = FileManager.default
         guard let enumerator = fileManager.enumerator(at: projectDirectory, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else {
-            throw SimulationError(type: .scan, message: "Failed to enumerate project directory.", file: projectDirectory.path, line: nil, stackTrace: nil)
+            throw PreviewError.scanFailed(message: "Failed to enumerate project directory: \(projectDirectory.path)")
         }
 
         var swiftFiles: [URL] = []
@@ -32,7 +41,7 @@ final class ProjectScanner {
             dependencies[fileURL] = importedModules
         }
 
-        return ProjectStructure(
+        return PreviewProjectStructure(
             swiftFiles: swiftFiles.sorted { $0.path < $1.path },
             swiftUIViewTypes: Array(viewTypes).sorted(),
             appEntryPoint: appEntry,

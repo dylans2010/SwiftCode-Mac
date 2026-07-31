@@ -19,10 +19,8 @@ public class VisualUIBuilderSplitViewController: NSSplitViewController {
         splitView.dividerStyle = .thin
         splitView.autoresizingMask = [.width, .height]
 
-        // 1. Left Sidebar View
-        let leftVC = NSHostingController(rootView: VisualUIBuilderSidebarWrapper(document: document))
-        leftVC.sizingOptions = []
-        leftVC.view.autoresizingMask = [.width, .height]
+        // 1. Left Sidebar View (Native AppKit Outline View Controller)
+        let leftVC = VisualUIBuilderSidebarViewController(document: document)
         let leftItem = NSSplitViewItem(sidebarWithViewController: leftVC)
         leftItem.minimumThickness = 240
         leftItem.maximumThickness = 320

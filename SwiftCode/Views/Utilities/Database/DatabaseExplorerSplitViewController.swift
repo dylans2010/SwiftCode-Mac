@@ -17,10 +17,8 @@ public class DatabaseExplorerSplitViewController: NSSplitViewController {
         splitView.dividerStyle = .thin
         splitView.autoresizingMask = [.width, .height]
 
-        // 1. Left Sidebar Panel (Database connections & navigation)
-        let leftVC = NSHostingController(rootView: DatabaseExplorerSidebarWrapper())
-        leftVC.sizingOptions = []
-        leftVC.view.autoresizingMask = [.width, .height]
+        // 1. Left Sidebar Panel (Native AppKit Outline View Controller)
+        let leftVC = DatabaseExplorerSidebarViewController()
         let leftItem = NSSplitViewItem(sidebarWithViewController: leftVC)
         leftItem.minimumThickness = 240
         leftItem.maximumThickness = 320
