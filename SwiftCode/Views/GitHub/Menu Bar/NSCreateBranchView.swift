@@ -3,6 +3,7 @@ import SwiftUI
 public struct NSCreateBranchView: View {
     @State private var branchName = ""
     @State private var checkout = true
+    @State private var pushToRemote = false
     @State private var successMsg = ""
     @State private var errorMsg = ""
     @State private var isLoading = false
@@ -25,6 +26,10 @@ public struct NSCreateBranchView: View {
                         .toggleStyle(.checkbox)
                         .disabled(isLoading)
 
+                    Toggle("Push branch to GitHub remote", isOn: $pushToRemote)
+                        .toggleStyle(.checkbox)
+                        .disabled(isLoading)
+
                     if isLoading {
                         ProgressView()
                             .progressViewStyle(.linear)
@@ -38,9 +43,7 @@ public struct NSCreateBranchView: View {
                     }
 
                     if !errorMsg.isEmpty {
-                        Text(errorMsg)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                        NSGitErrorView(message: errorMsg)
                     }
 
                     Button("Create Branch") {
@@ -56,7 +59,14 @@ public struct NSCreateBranchView: View {
                                 } else {
                                     try await GitMenuBarCommandExecutor.runGit(args: ["branch", name])
                                 }
-                                successMsg = "Branch '\(name)' created successfully."
+
+                                if pushToRemote {
+                                    try await GitMenuBarCommandExecutor.runGit(args: ["push", "-u", "origin", name])
+                                    successMsg = "Branch '\(name)' created and pushed to GitHub successfully."
+                                } else {
+                                    successMsg = "Branch '\(name)' created locally successfully."
+                                }
+
                                 branchName = ""
                             } catch {
                                 errorMsg = "Failed: \(error.localizedDescription)"

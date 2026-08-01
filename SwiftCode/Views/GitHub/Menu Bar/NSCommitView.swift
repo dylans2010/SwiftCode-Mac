@@ -42,9 +42,7 @@ public struct NSCommitView: View {
                     }
 
                     if !errorMsg.isEmpty {
-                        Text(errorMsg)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                        NSGitErrorView(message: errorMsg)
                     }
 
                     Button("Commit Changes") {

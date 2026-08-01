@@ -38,9 +38,7 @@ public struct NSCreatePRView: View {
                     }
 
                     if !errorMsg.isEmpty {
-                        Text(errorMsg)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                        NSGitErrorView(message: errorMsg)
                     }
 
                     Button("Publish Pull Request") {

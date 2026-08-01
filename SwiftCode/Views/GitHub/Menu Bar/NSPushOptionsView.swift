@@ -38,9 +38,7 @@ public struct NSPushOptionsView: View {
                     }
 
                     if !errorMsg.isEmpty {
-                        Text(errorMsg)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                        NSGitErrorView(message: errorMsg)
                     }
 
                     Button("Apply & Push") {

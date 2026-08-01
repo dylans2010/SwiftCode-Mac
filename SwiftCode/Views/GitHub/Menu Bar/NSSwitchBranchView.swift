@@ -38,9 +38,7 @@ public struct NSSwitchBranchView: View {
                     }
 
                     if !errorMsg.isEmpty {
-                        Text(errorMsg)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                        NSGitErrorView(message: errorMsg)
                     }
 
                     HStack {

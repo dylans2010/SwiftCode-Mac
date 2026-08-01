@@ -33,9 +33,7 @@ public struct NSIncludeTagsView: View {
                     }
 
                     if !errorMsg.isEmpty {
-                        Text(errorMsg)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                        NSGitErrorView(message: errorMsg)
                     }
 
                     Button("Execute Tag Push") {
