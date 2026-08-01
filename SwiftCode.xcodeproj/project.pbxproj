@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		60A73D1E8BE8B5E078E10AEF /* ProjectCompatibilityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEADAB9179D503EFBDAB6705 /* ProjectCompatibilityView.swift */; };
+		141D05674E5129028B13B931 /* SecurityCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7EC5AE379601C498231A42 /* SecurityCenterView.swift */; };
+		4F97C1A7F1889B690CC843F8 /* DependencyVisualizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28591269D756C465F30283D5 /* DependencyVisualizerView.swift */; };
+		78C4397D928ADD7645278698 /* PackageCollectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9A462932029BEB938ABBB26 /* PackageCollectionsView.swift */; };
+		26646E9A6E2FFEFA42B575FC /* PackageAIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3711B95B126D501483E11F7A /* PackageAIView.swift */; };
+		A5023013A70FBEA0811769D8 /* PackageAnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 024AA7C746C3B03EE4FE8CD5 /* PackageAnalyticsView.swift */; };
+		C547E13556A0581D40719C66 /* PackageInstallationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF1DDE57839544179B8FA70 /* PackageInstallationView.swift */; };
+		65C7368F2E986B10E0664A3E /* PackageDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9920F3F0AE6A52AB0B27A5C /* PackageDetailsView.swift */; };
+		767E6197B22B8C128B12F7DD /* GitHubDiscoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86729B61998348AD8F8D66EA /* GitHubDiscoveryView.swift */; };
+		CEA2DBF3BFE8E0E500EEFE45 /* PackageExplorerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F82D4B1B2F41A3369386C93 /* PackageExplorerView.swift */; };
+		AC639785CB163E7AB4C5B322 /* DependencyPlatformManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F528A1C9D821FBF9997D180 /* DependencyPlatformManager.swift */; };
 		56DCA4825580495588D77641 /* NSGitErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21ECBFD851434757AA1552F6 /* NSGitErrorView.swift */; };
 		C9255F6C04794975A46EC9FD /* DocumentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD40778B4DB34FCAAF0A509B /* DocumentCoordinator.swift */; };
 		8AF7A4DBC58448B79766C3DB /* PreviewInteractionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F8E6086CE9485E91EF5ED8 /* PreviewInteractionManager.swift */; };
@@ -1523,6 +1534,17 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		BEADAB9179D503EFBDAB6705 /* ProjectCompatibilityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DependencyManager/ProjectCompatibilityView.swift"; sourceTree = "<group>"; };
+		8A7EC5AE379601C498231A42 /* SecurityCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DependencyManager/SecurityCenterView.swift"; sourceTree = "<group>"; };
+		28591269D756C465F30283D5 /* DependencyVisualizerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DependencyManager/DependencyVisualizerView.swift"; sourceTree = "<group>"; };
+		D9A462932029BEB938ABBB26 /* PackageCollectionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DependencyManager/PackageCollectionsView.swift"; sourceTree = "<group>"; };
+		3711B95B126D501483E11F7A /* PackageAIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DependencyManager/PackageAIView.swift"; sourceTree = "<group>"; };
+		024AA7C746C3B03EE4FE8CD5 /* PackageAnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DependencyManager/PackageAnalyticsView.swift"; sourceTree = "<group>"; };
+		CCF1DDE57839544179B8FA70 /* PackageInstallationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DependencyManager/PackageInstallationView.swift"; sourceTree = "<group>"; };
+		F9920F3F0AE6A52AB0B27A5C /* PackageDetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DependencyManager/PackageDetailsView.swift"; sourceTree = "<group>"; };
+		86729B61998348AD8F8D66EA /* GitHubDiscoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DependencyManager/GitHubDiscoveryView.swift"; sourceTree = "<group>"; };
+		6F82D4B1B2F41A3369386C93 /* PackageExplorerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DependencyManager/PackageExplorerView.swift"; sourceTree = "<group>"; };
+		2F528A1C9D821FBF9997D180 /* DependencyPlatformManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DependencyManager/DependencyPlatformManager.swift"; sourceTree = "<group>"; };
 		21ECBFD851434757AA1552F6 /* NSGitErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSGitErrorView.swift"; sourceTree = SOURCE_ROOT; };
 		BD40778B4DB34FCAAF0A509B /* DocumentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentCoordinator.swift; sourceTree = "<group>"; };
 		A4F8E6086CE9485E91EF5ED8 /* PreviewInteractionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewInteractionManager.swift; sourceTree = "<group>"; };
@@ -4287,6 +4309,17 @@
 		576E45E47FC5098A3A96ECB8 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				BEADAB9179D503EFBDAB6705 /* ProjectCompatibilityView.swift */,
+				8A7EC5AE379601C498231A42 /* SecurityCenterView.swift */,
+				28591269D756C465F30283D5 /* DependencyVisualizerView.swift */,
+				D9A462932029BEB938ABBB26 /* PackageCollectionsView.swift */,
+				3711B95B126D501483E11F7A /* PackageAIView.swift */,
+				024AA7C746C3B03EE4FE8CD5 /* PackageAnalyticsView.swift */,
+				CCF1DDE57839544179B8FA70 /* PackageInstallationView.swift */,
+				F9920F3F0AE6A52AB0B27A5C /* PackageDetailsView.swift */,
+				86729B61998348AD8F8D66EA /* GitHubDiscoveryView.swift */,
+				6F82D4B1B2F41A3369386C93 /* PackageExplorerView.swift */,
+				2F528A1C9D821FBF9997D180 /* DependencyPlatformManager.swift */,
 				36EC49CDA424309ECD938DD8 /* InspectorProjectScanner.swift */,
 				50D0BCB28DA2BD49A623F6F7 /* LocalizationManagerView.swift */,
 				97BE726EA4718791998361C5 /* LocalizationCore.swift */,
@@ -6031,6 +6064,17 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				60A73D1E8BE8B5E078E10AEF /* ProjectCompatibilityView.swift in Sources */,
+				141D05674E5129028B13B931 /* SecurityCenterView.swift in Sources */,
+				4F97C1A7F1889B690CC843F8 /* DependencyVisualizerView.swift in Sources */,
+				78C4397D928ADD7645278698 /* PackageCollectionsView.swift in Sources */,
+				26646E9A6E2FFEFA42B575FC /* PackageAIView.swift in Sources */,
+				A5023013A70FBEA0811769D8 /* PackageAnalyticsView.swift in Sources */,
+				C547E13556A0581D40719C66 /* PackageInstallationView.swift in Sources */,
+				65C7368F2E986B10E0664A3E /* PackageDetailsView.swift in Sources */,
+				767E6197B22B8C128B12F7DD /* GitHubDiscoveryView.swift in Sources */,
+				CEA2DBF3BFE8E0E500EEFE45 /* PackageExplorerView.swift in Sources */,
+				AC639785CB163E7AB4C5B322 /* DependencyPlatformManager.swift in Sources */,
 				56DCA4825580495588D77641 /* NSGitErrorView.swift in Sources */,
 				C9255F6C04794975A46EC9FD /* DocumentCoordinator.swift in Sources */,
 				8AF7A4DBC58448B79766C3DB /* PreviewInteractionManager.swift in Sources */,
