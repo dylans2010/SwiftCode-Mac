@@ -193,40 +193,31 @@ public struct MainToolsView: View {
                     )
                 }
             } else {
-                GeometryReader { proxy in
-                    let columnCount = max(1, Int((proxy.size.width + gridSpacing) / (cardMinWidth + gridSpacing)))
-                    let columns = Array(
-                        repeating: GridItem(.flexible(), spacing: gridSpacing, alignment: .top),
-                        count: columnCount
-                    )
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Text(detailTitle)
+                                .font(.title3.weight(.semibold))
+                            Spacer()
+                            Text("\(searchResults.count) tool\(searchResults.count == 1 ? "" : "s")")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
 
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Text(detailTitle)
-                                    .font(.title3.weight(.semibold))
-                                Spacer()
-                                Text("\(searchResults.count) tool\(searchResults.count == 1 ? "" : "s")")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            LazyVGrid(columns: columns, alignment: .leading, spacing: gridSpacing) {
-                                ForEach(searchResults) { tool in
-                                    ToolGridCard(
-                                        tool: tool,
-                                        onOpen: { launchTool(tool) },
-                                        onHide: {
-                                            hiddenTools.insert(tool.id)
-                                            saveSettings()
-                                        }
-                                    )
-                                }
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: cardMinWidth, maximum: .infinity), spacing: gridSpacing)], alignment: .leading, spacing: gridSpacing) {
+                            ForEach(searchResults) { tool in
+                                ToolGridCard(
+                                    tool: tool,
+                                    onOpen: { launchTool(tool) },
+                                    onHide: {
+                                        hiddenTools.insert(tool.id)
+                                        saveSettings()
+                                    }
+                                )
                             }
                         }
-                        .padding(20)
                     }
-                    .clipped()
+                    .padding(20)
                 }
             }
         }

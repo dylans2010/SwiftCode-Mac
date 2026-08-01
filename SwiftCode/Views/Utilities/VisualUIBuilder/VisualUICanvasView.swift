@@ -1,12 +1,14 @@
 import SwiftUI
 
 /// Infinite zoomable and pannable layout canvas supporting multiple device frames, grids, snapping, and smart alignment guides.
+/// Optimized for maximum productivity, smooth panning, and gestures.
 public struct VisualUICanvasView: View {
     @Bindable var document: VisualUIDocument
     @Bindable var settings: VisualUISettings
 
     @GestureState private var isPanning = false
-    @GestureState private var magnifyScale = 1.0
+    @State private var magnifyScale = 1.0
+    @State private var dragStartOffset = CGSize.zero
 
     public var body: some View {
         GeometryReader { geo in
@@ -17,11 +19,28 @@ public struct VisualUICanvasView: View {
                         .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
                 }
 
+                // Keyboard Shortcuts Bridge
+                Group {
+                    Button(action: { adjustZoom(by: 0.25) }) { Text("") }
+                        .keyboardShortcut("+", modifiers: .command)
+                    Button(action: { adjustZoom(by: -0.25) }) { Text("") }
+                        .keyboardShortcut("-", modifiers: .command)
+                    Button(action: {
+                        document.scene.panOffsetX = 0
+                        document.scene.panOffsetY = 0
+                        document.scene.zoomScale = 1.0
+                    }) { Text("") }
+                        .keyboardShortcut("0", modifiers: .command)
+                }
+                .opacity(0)
+                .frame(width: 0, height: 0)
+
                 // Multiple Artboards Container
                 ScrollView([.horizontal, .vertical], showsIndicators: true) {
                     HStack(spacing: 64) {
                         ForEach(document.scene.artboards) { artboard in
                             ArtboardView(artboard: artboard, document: document, settings: settings)
+                                .transition(.slide)
                         }
 
                         // Add Artboard Button
@@ -45,10 +64,26 @@ public struct VisualUICanvasView: View {
                     .offset(x: document.scene.panOffsetX, y: document.scene.panOffsetY)
                 }
                 .simultaneousGesture(
-                    DragGesture()
+                    DragGesture(minimumDistance: 0)
                         .onChanged { val in
-                            document.scene.panOffsetX += val.translation.width * 0.1
-                            document.scene.panOffsetY += val.translation.height * 0.1
+                            if dragStartOffset == .zero {
+                                dragStartOffset = CGSize(width: document.scene.panOffsetX, height: document.scene.panOffsetY)
+                            }
+                            document.scene.panOffsetX = dragStartOffset.width + val.translation.width
+                            document.scene.panOffsetY = dragStartOffset.height + val.translation.height
+                        }
+                        .onEnded { _ in
+                            dragStartOffset = .zero
+                        }
+                )
+                .simultaneousGesture(
+                    MagnificationGesture()
+                        .onChanged { value in
+                            magnifyScale = value
+                        }
+                        .onEnded { value in
+                            document.scene.zoomScale = max(0.25, min(4.0, document.scene.zoomScale * value))
+                            magnifyScale = 1.0
                         }
                 )
 
@@ -85,14 +120,16 @@ public struct VisualUICanvasView: View {
                                 .frame(height: 16)
 
                             Button {
-                                document.scene.panOffsetX = 0
-                                document.scene.panOffsetY = 0
-                                document.scene.zoomScale = 1.0
+                                withAnimation(.spring()) {
+                                    document.scene.panOffsetX = 0
+                                    document.scene.panOffsetY = 0
+                                    document.scene.zoomScale = 1.0
+                                }
                             } label: {
                                 Image(systemName: "scope")
                             }
                             .buttonStyle(.plain)
-                            .help("Recenter Canvas")
+                            .help("Recenter Canvas (⌘0)")
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
@@ -108,7 +145,9 @@ public struct VisualUICanvasView: View {
     private func adjustZoom(by offset: Double) {
         let currentIdx = settings.zoomLevels.firstIndex(of: document.scene.zoomScale) ?? 3
         let targetIdx = max(0, min(settings.zoomLevels.count - 1, currentIdx + (offset > 0 ? 1 : -1)))
-        document.scene.zoomScale = settings.zoomLevels[targetIdx]
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            document.scene.zoomScale = settings.zoomLevels[targetIdx]
+        }
         settings.addLog("Adjusted workspace zoom to \(Int(document.scene.zoomScale * 100))%")
     }
 
@@ -122,104 +161,9 @@ public struct VisualUICanvasView: View {
             ]
         )
         let newArt = VisualUIArtboard(name: "Artboard \(count)", rootNode: rootNode)
-        document.scene.artboards.append(newArt)
+        withAnimation {
+            document.scene.artboards.append(newArt)
+        }
         settings.addLog("Created new artboard: \(newArt.name)")
-    }
-}
-
-// MARK: - Infinite Canvas Grid
-
-struct InfiniteCanvasGrid: Shape {
-    let gridSize: Double
-
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let horizontalCount = Int(rect.width / CGFloat(gridSize)) + 1
-        let verticalCount = Int(rect.height / CGFloat(gridSize)) + 1
-
-        for i in 0..<horizontalCount {
-            let x = CGFloat(i) * CGFloat(gridSize)
-            path.move(to: CGPoint(x: x, y: 0))
-            path.addLine(to: CGPoint(x: x, y: rect.height))
-        }
-
-        for i in 0..<verticalCount {
-            let y = CGFloat(i) * CGFloat(gridSize)
-            path.move(to: CGPoint(x: 0, y: y))
-            path.addLine(to: CGPoint(x: rect.width, y: y))
-        }
-
-        return path
-    }
-}
-
-// MARK: - Smart Guides Overlay
-
-struct SmartGuidesOverlay: View {
-    var body: some View {
-        ZStack {
-            // Horizontal Guide Line
-            Path { path in
-                path.move(to: CGPoint(x: 0, y: 350))
-                path.addLine(to: CGPoint(x: 2000, y: 350))
-            }
-            .stroke(Color.pink.opacity(0.8), style: StrokeStyle(lineWidth: 1, dash: [4, 2]))
-
-            // Vertical Guide Line
-            Path { path in
-                path.move(to: CGPoint(x: 520, y: 0))
-                path.addLine(to: CGPoint(x: 520, y: 2000))
-            }
-            .stroke(Color.pink.opacity(0.8), style: StrokeStyle(lineWidth: 1, dash: [4, 2]))
-        }
-        .allowsHitTesting(false)
-    }
-}
-
-// MARK: - Artboard / Device View
-
-struct ArtboardView: View {
-    let artboard: VisualUIArtboard
-    let document: VisualUIDocument
-    let settings: VisualUISettings
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Artboard Title
-            Text(artboard.name)
-                .font(.subheadline.bold())
-                .foregroundStyle(.secondary)
-
-            // Device Frame Wrapper
-            VStack(spacing: 0) {
-                // Content Viewport Renderer
-                VisualUIRenderer(rootNode: artboard.rootNode, document: document)
-                    .frame(width: viewportWidth, height: viewportHeight)
-                    .background(settings.isDarkMode ? Color.black : Color.white)
-                    .cornerRadius(24)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 24)
-                            .stroke(Color.secondary.opacity(0.4), lineWidth: 2)
-                    )
-                    .shadow(radius: 12)
-            }
-            .overlay(alignment: .top) {
-                if settings.showSafeAreas {
-                    // Simulated Dynamic Island / Notch Bounds
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.black)
-                        .frame(width: 110, height: 30)
-                        .padding(.top, 10)
-                }
-            }
-        }
-    }
-
-    private var viewportWidth: CGFloat {
-        artboard.deviceFrame == "iPad Pro" ? 820 : (artboard.deviceFrame == "Apple Vision Pro" ? 900 : 393)
-    }
-
-    private var viewportHeight: CGFloat {
-        artboard.deviceFrame == "iPad Pro" ? 1180 : (artboard.deviceFrame == "Apple Vision Pro" ? 560 : 852)
     }
 }

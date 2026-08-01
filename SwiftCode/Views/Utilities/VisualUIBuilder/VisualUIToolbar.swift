@@ -112,6 +112,15 @@ public struct VisualUIToolbar: View {
                 .buttonStyle(.bordered)
                 .help("Ask Codex to redesign, optimize or generate SwiftUI screens")
 
+                // Open in SwiftCode Editor
+                Button {
+                    openInSwiftCodeEditor()
+                } label: {
+                    Label("Open in Editor", systemImage: "chevron.left.forwardslash.chevron.right")
+                }
+                .buttonStyle(.bordered)
+                .help("Open the generated Swift file inside the main editor")
+
                 // Export Options
                 Button {
                     showingExportSheet = true
@@ -129,6 +138,36 @@ public struct VisualUIToolbar: View {
         }
         .sheet(isPresented: $showingAIAssistantSheet) {
             VisualUIAIAssistant(document: document)
+        }
+    }
+
+    private func openInSwiftCodeEditor() {
+        let generator = VisualUICodeGenerator()
+        let code = generator.generateCode(for: document.scene, targetFramework: .swiftUI)
+
+        let fileManager = FileManager.default
+        let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL ?? fileManager.temporaryDirectory
+        let fileURL = projectURL.appendingPathComponent("VisualUIExportView.swift")
+
+        do {
+            try code.write(to: fileURL, atomically: true, encoding: .utf8)
+            document.filePath = fileURL.path
+            document.isDirty = false
+
+            if let activeProject = ProjectSessionStore.shared.activeProject {
+                ProjectSessionStore.shared.refreshFileTree(for: activeProject)
+            }
+
+            settings.addLog("Saved latest generated SwiftUI code to \(fileURL.lastPathComponent)")
+
+            NotificationCenter.default.post(
+                name: NSNotification.Name("com.swiftcode.openFileInWorkspace"),
+                object: nil,
+                userInfo: ["filePath": fileURL.path]
+            )
+            settings.addLog("Dispatched notification to open \(fileURL.lastPathComponent) in editor.")
+        } catch {
+            settings.addLog("Error opening in editor: \(error.localizedDescription)")
         }
     }
 
