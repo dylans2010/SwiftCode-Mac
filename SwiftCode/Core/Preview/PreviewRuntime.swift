@@ -60,31 +60,11 @@ public final class PreviewRuntime {
         do {
             let loadedSimulation = try loader.load(module: module, entry: entry)
 
-            // 1. Persistent Sessions & Incremental Rendering
-            // Check if we already have an existing NSHostingView<AnyView> container.
-            // If so, update its root view directly, allowing SwiftUI to perform layout and state differential updates incrementally,
-            // preserving state (navigation, scroll position, focus, etc.) natively.
-            if let existingHostingView = activeViewInstances[cacheKey] as? NSHostingView<AnyView> {
-                logger.info("[RUNTIME] Reusing existing NSHostingView and incrementally rendering root view.")
-                existingHostingView.rootView = loadedSimulation.anyView
-                existingHostingView.needsLayout = true
+            let nativeView = loadedSimulation.nativeView
+            nativeView.translatesAutoresizingMaskIntoConstraints = false
+            nativeView.autoresizingMask = [.width, .height]
 
-                activeSessionID = activeSessionID ?? UUID().uuidString
-                isRunning = false
-
-                let duration = Date().timeIntervalSince(startTime)
-                PreviewPerformanceMonitor.shared.recordRenderTime(duration)
-                PreviewDiagnostics.shared.addLog(category: "render", message: "Incrementally rendered \(targetView) in \(String(format: "%.2f", duration))s")
-
-                return existingHostingView
-            }
-
-            // Otherwise, initialize a new NSHostingView containing the SwiftUI preview representation.
-            let hostingView = NSHostingView(rootView: loadedSimulation.anyView)
-            hostingView.translatesAutoresizingMaskIntoConstraints = false
-            hostingView.autoresizingMask = [.width, .height]
-
-            activeViewInstances[cacheKey] = hostingView
+            activeViewInstances[cacheKey] = nativeView
             activeSessionID = UUID().uuidString
             isRunning = false
 
@@ -92,7 +72,7 @@ public final class PreviewRuntime {
             PreviewPerformanceMonitor.shared.recordRenderTime(duration)
             PreviewDiagnostics.shared.addLog(category: "render", message: "Rendered \(targetView) in \(String(format: "%.2f", duration))s")
 
-            return hostingView
+            return nativeView
         } catch {
             isRunning = false
             logger.error("[RUNTIME] Loader failed: \(error.localizedDescription)")
