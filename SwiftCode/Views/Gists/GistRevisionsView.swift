@@ -3,79 +3,133 @@ import SwiftUI
 struct GistRevisionsView: View {
     let gistId: String
     @EnvironmentObject private var gistService: GitHubGistService
+    @Environment(\.dismiss) private var dismiss
     @State private var revisions: [GistRevision] = []
     @State private var isLoading = false
     @State private var selectedRevision: GistRevision?
-    @State private var showDiff = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            if isLoading {
-                ProgressView("Fetching revisions...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if revisions.isEmpty {
-                Text("No revisions found")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List(revisions) { revision in
-                    Button {
-                        selectedRevision = revision
-                        showDiff = true
-                    } label: {
-                        VStack(alignment: .leading, spacing: 6) {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header Card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Text(revision.version.prefix(7))
-                                    .font(.system(size: 13, design: .monospaced))
-                                    .foregroundStyle(.white)
-
+                                Label("Revision History", systemImage: "clock.arrow.circlepath")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
                                 Spacer()
+                            }
+                            Text("Browse and view changes for past revisions of this gist.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(8)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                                Text(revision.committedAt, style: .date)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                    // Revisions List Card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Versions", systemImage: "doc.text.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
                             }
 
-                            HStack(spacing: 8) {
-                                if let avatar = revision.user?.avatarUrl, let url = URL(string: avatar) {
-                                    AsyncImage(url: url) { image in
-                                        image.resizable()
-                                    } placeholder: {
-                                        Color.gray
-                                    }
-                                    .frame(width: 16, height: 16)
-                                    .clipShape(Circle())
+                            if isLoading {
+                                HStack {
+                                    Spacer()
+                                    ProgressView("Fetching revisions...")
+                                        .padding()
+                                    Spacer()
                                 }
+                            } else if revisions.isEmpty {
+                                HStack {
+                                    Spacer()
+                                    Text("No revisions found")
+                                        .foregroundStyle(.secondary)
+                                        .padding()
+                                    Spacer()
+                                }
+                            } else {
+                                VStack(spacing: 12) {
+                                    ForEach(revisions) { revision in
+                                        Button {
+                                            selectedRevision = revision
+                                        } label: {
+                                            VStack(alignment: .leading, spacing: 8) {
+                                                HStack {
+                                                    Text(revision.version.prefix(7))
+                                                        .font(.system(.subheadline, design: .monospaced))
+                                                        .fontWeight(.bold)
+                                                        .foregroundStyle(.primary)
 
-                                Text(revision.user?.login ?? "anonymous")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                                    Spacer()
 
-                                Spacer()
+                                                    Text(revision.committedAt, style: .date)
+                                                        .font(.caption2)
+                                                        .foregroundStyle(.secondary)
+                                                }
 
-                                if let status = revision.changeStatus {
-                                    HStack(spacing: 4) {
-                                        Text("+\(status.additions ?? 0)")
-                                            .foregroundStyle(.green)
-                                        Text("-\(status.deletions ?? 0)")
-                                            .foregroundStyle(.red)
+                                                HStack(spacing: 8) {
+                                                    if let avatar = revision.user?.avatarUrl, let url = URL(string: avatar) {
+                                                        AsyncImage(url: url) { image in
+                                                            image.resizable()
+                                                        } placeholder: {
+                                                            Color.gray
+                                                        }
+                                                        .frame(width: 16, height: 16)
+                                                        .clipShape(Circle())
+                                                    }
+
+                                                    Text(revision.user?.login ?? "anonymous")
+                                                        .font(.caption)
+                                                        .foregroundStyle(.secondary)
+
+                                                    Spacer()
+
+                                                    if let status = revision.changeStatus {
+                                                        HStack(spacing: 4) {
+                                                            Text("+\(status.additions ?? 0)")
+                                                                .foregroundStyle(.green)
+                                                            Text("-\(status.deletions ?? 0)")
+                                                                .foregroundStyle(.red)
+                                                        }
+                                                        .font(.caption2.weight(.bold))
+                                                    }
+                                                }
+                                            }
+                                            .padding(12)
+                                            .background(Color.secondary.opacity(0.04))
+                                            .cornerRadius(8)
+                                        }
+                                        .buttonStyle(.plain)
                                     }
-                                    .font(.caption2.weight(.bold))
                                 }
                             }
                         }
-                        .padding(.vertical, 8)
+                        .padding(8)
                     }
-                    .listRowBackground(Color.clear)
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
+                .padding(24)
+            }
+            .navigationTitle("Revisions")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
             }
         }
-        .navigationTitle("Revisions")
-        .background(Color(red: 0.10, green: 0.10, blue: 0.14))
+        .frame(width: 550, height: 600)
         .sheet(item: $selectedRevision) { revision in
             GistDiffView(gistId: gistId, revision: revision)
+                .environmentObject(gistService)
         }
         .task {
             await loadRevisions()
