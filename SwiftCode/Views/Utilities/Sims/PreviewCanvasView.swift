@@ -34,13 +34,16 @@ struct PreviewCanvasView: View {
                         }
 
                         ScrollView([.horizontal, .vertical]) {
-                            PreviewDeviceFrameView(
-                                deviceName: manager.state.currentDevice,
-                                isPortrait: manager.state.isPortrait,
-                                isDarkMode: manager.state.isDarkMode,
-                                scale: manager.state.scale
-                            ) {
-                                DynamicSwiftUIPreviewRenderer(content: activeSessionContent)
+                            VStack {
+                                if let hostedView = manager.hostedView {
+                                    PreviewContainer(state: manager.state) {
+                                        NativePreviewHost(hostedView: hostedView)
+                                    }
+                                } else {
+                                    PreviewContainer(state: manager.state) {
+                                        DynamicSwiftUIPreviewRenderer(content: activeSessionContent)
+                                    }
+                                }
                             }
                             .padding(32)
                         }
