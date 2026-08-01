@@ -15,8 +15,9 @@ public final class PreviewManager {
     public var availablePreviews: [String] = []
     public var selectedPreviewName: String?
     public var isCompiling = false
+    public var hostedView: NSView?
 
-    private let engine = PreviewEngine()
+    private let runtime = PreviewRuntime.shared
     private let discoveryService = PreviewDiscoveryService()
     private let communicationService = PreviewCommunicationService()
     private let logger = Logger(subsystem: "com.swiftcode.preview", category: "PreviewManager")
@@ -36,6 +37,7 @@ public final class PreviewManager {
         } else {
             selectedPreviewName = nil
             self.activeSession = nil
+            self.hostedView = nil
             buildLogs.append("No SwiftUI Previews or PreviewProvider targets were found in this file.")
         }
         isCompiling = false
@@ -43,11 +45,11 @@ public final class PreviewManager {
 
     public func startPreviewSession(sourcePath: String, sourceCode: String, targetView: String) async {
         isCompiling = true
-        buildLogs = ["Initializing preview environment..."]
+        buildLogs = ["Initializing persistent runtime session..."]
 
         do {
-            let session = try await engine.runPreviewSession(
-                sourceFilePath: sourcePath,
+            let view = try await runtime.updateRuntimeSession(
+                sourcePath: sourcePath,
                 sourceCode: sourceCode,
                 targetView: targetView
             ) { [weak self] message in
@@ -56,8 +58,20 @@ public final class PreviewManager {
                     self.buildLogs.append(message)
                 }
             }
+
+            let sessionID = runtime.activeSessionID ?? UUID().uuidString
+            let session = PreviewSession(
+                sessionID: sessionID,
+                sourceFilePath: sourcePath,
+                targetViewName: targetView,
+                lastCompiledAt: runtime.lastCompiledAt ?? Date(),
+                status: "Ready"
+            )
+
             self.activeSession = session
-            buildLogs.append("Preview load succeeded.")
+            self.hostedView = view
+            PreviewCoordinator.shared.registerSession(session)
+            buildLogs.append("Persistent runtime session connected successfully.")
         } catch {
             self.activeSession = PreviewSession(
                 sessionID: UUID().uuidString,
@@ -66,28 +80,18 @@ public final class PreviewManager {
                 lastCompiledAt: Date(),
                 status: "Failed"
             )
-            buildLogs.append("Graceful Recovery: Preview load failed, but workspace remains operational. details: \(error.localizedDescription)")
-            logger.error("Preview Session failed: \(error.localizedDescription). Recovered gracefully.")
+            self.hostedView = nil
+            buildLogs.append("Error loading preview: \(error.localizedDescription)")
+            logger.error("Preview runtime session failed: \(error.localizedDescription)")
+            PreviewErrorHandler.shared.handleError(error, message: "Runtime failed to load view '\(targetView)'")
         }
         isCompiling = false
     }
 
-    public func startSecondaryPreviewSession(windowID: String, sourcePath: String, sourceCode: String, targetView: String) async {
-        do {
-            let session = try await engine.runPreviewSession(
-                sourceFilePath: sourcePath,
-                sourceCode: sourceCode,
-                targetView: targetView
-            ) { _ in }
-            secondarySessions[windowID] = session
-        } catch {
-            logger.error("Failed to start secondary preview window: \(error.localizedDescription)")
-        }
-    }
-
     public func stopActiveSession() async {
-        await engine.stopPreviewSession()
+        runtime.stopRuntime()
         self.activeSession = nil
+        self.hostedView = nil
         self.secondarySessions.removeAll()
         self.buildLogs = []
     }

@@ -1,5 +1,6 @@
 import SwiftUI
 import Observation
+import Charts
 
 // MARK: - Reactive Playground Observable Model (Swift 6 strict concurrency safe)
 @Observable
@@ -41,29 +42,8 @@ public final class PreviewPlaygroundState {
     }
 }
 
-// MARK: - Dynamic parsed element helper models
-struct ParsedComponent: Identifiable, Sendable {
-    let id = UUID()
-    let type: ParsedType
-    let text: String
-    let value: String?
-}
-
-enum ParsedType: String, Sendable {
-    case text
-    case button
-    case toggle
-    case textField
-    case image
-    case divider
-    case spacer
-    case progressView
-    case vStack
-    case hStack
-    case zStack
-}
-
-// MARK: - Dynamic SwiftUI Preview Renderer View
+// MARK: - Native SwiftUI Preview Playground View
+/// Highly polished native SwiftUI view hierarchy that operates on real state, bindings, and native SwiftUI layouts.
 public struct DynamicSwiftUIPreviewRenderer: View {
     let content: String
 
@@ -76,161 +56,9 @@ public struct DynamicSwiftUIPreviewRenderer: View {
     }
 
     public var body: some View {
-        let parsed = parseSwiftUI(from: content)
-
-        Group {
-            if parsed.isEmpty {
-                // If no SwiftUI structures are parsed, display the professional Interactive Playground suite
-                playgroundSuiteView
-            } else {
-                // If SwiftUI components are found, render them live and interactively!
-                VStack(spacing: 0) {
-                    HStack {
-                        Image(systemName: "sparkles")
-                            .foregroundColor(.purple)
-                        Text("DYNAMIC PARSED INTERACTIVE VIEW")
-                            .font(.caption.bold())
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                    }
-                    .padding(12)
-                    .background(Color.secondary.opacity(0.04))
-
-                    Divider()
-
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            ForEach(parsed) { comp in
-                                renderParsed(comp)
-                            }
-                        }
-                        .padding(24)
-                        .frame(maxWidth: .infinity)
-                    }
-                    .background(Color.secondary.opacity(0.02))
-                }
-            }
-        }
-    }
-
-    // MARK: - Parsed SwiftUI Live Elements Renderer
-    @ViewBuilder
-    private func renderParsed(_ comp: ParsedComponent) -> some View {
-        switch comp.type {
-        case .text:
-            Text(comp.text)
-                .font(.body)
-                .multilineTextAlignment(.leading)
-        case .button:
-            Button(action: {
-                withAnimation(.spring()) {
-                    playgroundState.counter += 1
-                }
-            }) {
-                Label(comp.text, systemImage: "hand.tap.fill")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(playgroundState.accentColor)
-        case .toggle:
-            Toggle(comp.text, isOn: Binding(
-                get: { playgroundState.isNotificationsEnabled },
-                set: { playgroundState.isNotificationsEnabled = $0 }
-            ))
-            .toggleStyle(.switch)
-        case .textField:
-            VStack(alignment: .leading, spacing: 4) {
-                Text(comp.text)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                TextField(comp.text, text: Binding(
-                    get: { playgroundState.username },
-                    set: { playgroundState.username = $0 }
-                ))
-                .textFieldStyle(.roundedBorder)
-            }
-        case .image:
-            Image(systemName: comp.text)
-                .font(.system(size: 32))
-                .foregroundColor(playgroundState.accentColor)
-        case .divider:
-            Divider()
-        case .spacer:
-            Spacer()
-        case .progressView:
-            ProgressView()
-        case .vStack, .hStack, .zStack:
-            // Group-like layout fallbacks
-            HStack {
-                Image(systemName: "arrow.right.to.line")
-                    .foregroundColor(.secondary)
-                Text(comp.text)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            .padding(6)
-            .background(Color.secondary.opacity(0.06))
-            .cornerRadius(4)
-        }
-    }
-
-    // MARK: - RegEx-based source parser
-    private func parseSwiftUI(from sourceCode: String) -> [ParsedComponent] {
-        guard !sourceCode.isEmpty else { return [] }
-        var list: [ParsedComponent] = []
-
-        let lines = sourceCode.components(separatedBy: .newlines)
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty || trimmed.hasPrefix("//") { continue }
-
-            // 1. Text match
-            if let textMatch = firstMatch(in: trimmed, pattern: #"Text\s*\(\s*"([^"]+)"\s*\)"#) {
-                list.append(ParsedComponent(type: .text, text: textMatch, value: nil))
-            }
-            // 2. Button match
-            else if let buttonMatch = firstMatch(in: trimmed, pattern: #"Button\s*\(\s*"([^"]+)"\s*\)"#) {
-                list.append(ParsedComponent(type: .button, text: buttonMatch, value: nil))
-            }
-            // 3. Toggle match
-            else if let toggleMatch = firstMatch(in: trimmed, pattern: #"Toggle\s*\(\s*"([^"]+)"\s*,"#) {
-                list.append(ParsedComponent(type: .toggle, text: toggleMatch, value: nil))
-            }
-            // 4. TextField match
-            else if let tfMatch = firstMatch(in: trimmed, pattern: #"TextField\s*\(\s*"([^"]+)"\s*,"#) {
-                list.append(ParsedComponent(type: .textField, text: tfMatch, value: nil))
-            }
-            // 5. Image match
-            else if let imageMatch = firstMatch(in: trimmed, pattern: #"Image\s*\(\s*systemName:\s*"([^"]+)"\s*\)"#) {
-                list.append(ParsedComponent(type: .image, text: imageMatch, value: nil))
-            }
-            // 6. ProgressView
-            else if trimmed.contains("ProgressView()") {
-                list.append(ParsedComponent(type: .progressView, text: "", value: nil))
-            }
-            // 7. Divider
-            else if trimmed.contains("Divider()") {
-                list.append(ParsedComponent(type: .divider, text: "", value: nil))
-            }
-        }
-        return list
-    }
-
-    private func firstMatch(in source: String, pattern: String) -> String? {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
-        let range = NSRange(source.startIndex..., in: source)
-        guard let match = regex.firstMatch(in: source, range: range), match.numberOfRanges > 1,
-              let valueRange = Range(match.range(at: 1), in: source) else { return nil }
-        return String(source[valueRange])
-    }
-
-    // ====================================================================
-    // PLAYGROUND INTERACTIVE CONTROL SUITE (PLAYGROUNDS-QUALITY GOAL)
-    // ====================================================================
-    private var playgroundSuiteView: some View {
         NavigationStack(path: $navigationPath) {
             VStack(spacing: 0) {
-                // Deck category bar
+                // Header category selector
                 Picker("Playground Deck", selection: $tabSelection) {
                     Text("Controls").tag(0)
                     Text("List & Cards").tag(1)

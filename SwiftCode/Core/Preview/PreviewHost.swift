@@ -21,3 +21,33 @@ public struct PreviewHost<Content: View>: NSViewRepresentable {
         nsView.needsLayout = true
     }
 }
+
+/// A native host that bridges pre-instantiated AppKit views into SwiftUI, utilized by the Dynamic Link Runtime.
+public struct NativePreviewHost: NSViewRepresentable {
+    public let hostedView: NSView
+
+    public init(hostedView: NSView) {
+        self.hostedView = hostedView
+    }
+
+    public func makeNSView(context: Context) -> NSView {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        hostedView.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(hostedView)
+
+        NSLayoutConstraint.activate([
+            hostedView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            hostedView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            hostedView.topAnchor.constraint(equalTo: container.topAnchor),
+            hostedView.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+        ])
+
+        return container
+    }
+
+    public func updateNSView(_ nsView: NSView, context: Context) {
+        // Core AppKit layout handles update notifications automatically
+        nsView.needsLayout = true
+    }
+}

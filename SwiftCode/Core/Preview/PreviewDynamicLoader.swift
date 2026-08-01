@@ -1,7 +1,9 @@
 import Foundation
 import SwiftUI
 import Darwin
+import AppKit
 
+/// Loads dynamically compiled SwiftUI libraries and extracts native interactive views.
 public final class PreviewDynamicLoader {
     private var activeHandle: UnsafeMutableRawPointer?
 
@@ -17,35 +19,44 @@ public final class PreviewDynamicLoader {
 
         activeHandle = handle
 
-        let symbolName = "__swiftcode_make_root_view"
+        let symbolName = "__swiftcode_make_hosting_view"
         guard let symbol = dlsym(handle, symbolName) else {
+            // Fallback to static descriptive container if dlsym is not found
+            let fallbackView = AnyView(
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.title)
+                        .foregroundColor(.amber)
+                    Text("SwiftUI view loaded dynamically, but entry point is missing.")
+                        .font(.subheadline)
+                    Text(entry.rootViewType)
+                        .font(.headline)
+                }
+                .padding()
+            )
             return LoadedPreviewSimulation(
-                anyView: AnyView(Text(entry.rootViewType).padding()),
+                anyView: fallbackView,
                 hierarchyDescription: [entry.rootViewType],
                 handle: handle
             )
         }
 
-        typealias Factory = @convention(c) (UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>?
+        typealias Factory = @convention(c) (UnsafePointer<CChar>?) -> UnsafeMutableRawPointer?
         let factory = unsafeBitCast(symbol, to: Factory.self)
-        let resolvedNamePtr = entry.rootViewType.withCString { pointer in
-            factory(pointer)
-        }
-        let resolvedName = resolvedNamePtr.map { String(cString: $0) } ?? entry.rootViewType
-        resolvedNamePtr.map { free($0) }
 
-        let view = AnyView(
-            VStack(spacing: 10) {
-                Text("Runtime Loaded")
-                    .font(.headline)
-                Text(resolvedName)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            .padding()
+        let resolvedName = entry.rootViewType
+        guard let viewPtr = resolvedName.withCString({ factory($0) }) else {
+            throw PreviewError.compilationError(details: "Failed to instantiate view '\(resolvedName)' from dylib.")
+        }
+
+        let hostingView = Unmanaged<NSView>.fromOpaque(viewPtr).takeRetainedValue()
+
+        // Wrap the native view inside SwiftUI representation
+        let wrappedView = AnyView(
+            NativePreviewHost(hostedView: hostingView)
         )
 
-        return LoadedPreviewSimulation(anyView: view, hierarchyDescription: [resolvedName], handle: handle)
+        return LoadedPreviewSimulation(anyView: wrappedView, hierarchyDescription: [resolvedName], handle: handle)
     }
 
     public func unloadCurrentModule() {
