@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		56DCA4825580495588D77641 /* NSGitErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21ECBFD851434757AA1552F6 /* NSGitErrorView.swift */; };
 		C9255F6C04794975A46EC9FD /* DocumentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD40778B4DB34FCAAF0A509B /* DocumentCoordinator.swift */; };
 		8AF7A4DBC58448B79766C3DB /* PreviewInteractionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F8E6086CE9485E91EF5ED8 /* PreviewInteractionManager.swift */; };
 		AA524F6139E340CCA25E5896 /* PreviewRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 794AE660D22E4A1E9314DD3F /* PreviewRuntime.swift */; };
@@ -1522,6 +1523,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		21ECBFD851434757AA1552F6 /* NSGitErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NSGitErrorView.swift; sourceTree = "<group>"; };
 		BD40778B4DB34FCAAF0A509B /* DocumentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentCoordinator.swift; sourceTree = "<group>"; };
 		A4F8E6086CE9485E91EF5ED8 /* PreviewInteractionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewInteractionManager.swift; sourceTree = "<group>"; };
 		794AE660D22E4A1E9314DD3F /* PreviewRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewRuntime.swift; sourceTree = "<group>"; };
@@ -4496,6 +4498,7 @@
 		718173758FBD56C156A0D0F5 /* GitHub */ = {
 			isa = PBXGroup;
 			children = (
+				21ECBFD851434757AA1552F6 /* NSGitErrorView.swift */,
 				718173758FBD56C156A0D0FA /* GitWorktreesView.swift */,
 				430147FAAEEF9D972C019A45 /* WorkflowsCreateView.swift */,
 				A9B73BCEC27A7CE2A29991DA /* NSCreateRepositoryView.swift */,
@@ -6028,6 +6031,7 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				56DCA4825580495588D77641 /* NSGitErrorView.swift in Sources */,
 				C9255F6C04794975A46EC9FD /* DocumentCoordinator.swift in Sources */,
 				8AF7A4DBC58448B79766C3DB /* PreviewInteractionManager.swift in Sources */,
 				AA524F6139E340CCA25E5896 /* PreviewRuntime.swift in Sources */,

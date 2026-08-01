@@ -144,7 +144,7 @@ struct MenuBarRootView: View {
 
                         Divider()
 
-                        ScrollView {
+                        VStack(spacing: 0) {
                             Group {
                                 switch selectedTab {
                                 case "Commit": NSCommitView()
