@@ -24,9 +24,46 @@ This is the operating contract for any autonomous agent working in this reposito
 - [ ] No stubs, no `// TODO: implement`, no mocked responses, no simulated SDK behavior. A partially working feature is a failed task, not a partial success — see §6.
 
 ### 2.3 After writing code
-- [ ] Every new Swift file is registered in `.xcodeproj` — exact procedure in §4. Compiling locally but not being registered makes it an orphan file, which is a failed task.
+- [ ] Every new Swift file you make NEEDS to be registered in `.xcodeproj` without me having to tell you on the prompt. Exact procedure in §4. Compiling locally but not being registered makes it an orphan file, which is a failed task.
 - [ ] No broken imports, no unused imports left behind.
 - [ ] Re-read the diff once, specifically hunting for shortcuts — a suppressed warning, an unjustified force-unwrap, a copy-pasted block that should have been refactored.
+## 2.4 Linux Sandbox Execution Restrictions (CRITICAL)
+
+Autonomous agents execute inside a Linux sandbox, not on macOS. The sandbox does not contain Xcode, Apple's SDKs, or other macOS-only developer tooling.
+
+Because of this, the agent MUST NOT attempt to execute, validate, or rely on any macOS-only command, including but not limited to:
+
+- `xcodebuild`
+- `swift build`
+- `swift test`
+- `swift package`
+- `swift run`
+- `swift package resolve`
+- `swift package update`
+- `swiftlint`
+- `xcrun`
+- `simctl`
+- `instruments`
+- `codesign`
+- `security`
+- `plutil`
+- `ibtool`
+- `actool`
+- `assetutil`
+- `notarytool`
+- `altool`
+- `productbuild`
+- `pkgbuild`
+- Any command that requires Xcode, Apple's SDKs, the macOS toolchain, or a Darwin-only environment.
+
+Do not attempt to install Xcode, switch toolchains, invoke SDKs, or work around these restrictions.
+
+If a task requests building, testing, linting, packaging, signing, profiling, or validating using macOS tooling, the agent must instead:
+1. Complete every source code modification that can be performed statically.
+2. State that build or runtime validation requires execution on a macOS machine with Xcode installed.
+3. Never report a successful build, test, lint, or archive unless it was actually performed on a compatible macOS environment.
+
+Attempting to execute unsupported macOS commands inside the Linux sandbox is considered a process violation.
 
 ## 3. Concurrency & Observation Rules (Swift 6 strict mode)
 - Shared mutable state lives behind an `actor`. If a type needs to be read from multiple isolation domains, make the type itself an actor rather than adding locks.
