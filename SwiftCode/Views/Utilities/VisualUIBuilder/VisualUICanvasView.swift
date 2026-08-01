@@ -89,7 +89,7 @@ public struct VisualUICanvasView: View {
 
                 // Smart Snapping & Guides Overlay
                 if settings.smartGuidesEnabled, !document.scene.selectedNodeIDs.isEmpty {
-                    SmartGuidesOverlay()
+                    SmartGuidesOverlay(document: document, settings: settings)
                 }
 
                 // Floating HUD Zoom/Pan Dashboard
@@ -165,5 +165,175 @@ public struct VisualUICanvasView: View {
             document.scene.artboards.append(newArt)
         }
         settings.addLog("Created new artboard: \(newArt.name)")
+    }
+}
+
+/// Infinite grid that repeats vertical and horizontal lines based on gridSize settings.
+public struct InfiniteCanvasGrid: Shape {
+    public var gridSize: Double
+
+    public func path(in rect: CGRect) -> Path {
+        var path = Path()
+
+        // Draw horizontal grid lines
+        var y = 0.0
+        while y < rect.height {
+            path.move(to: CGPoint(x: 0, y: y))
+            path.addLine(to: CGPoint(x: rect.width, y: y))
+            y += gridSize
+        }
+
+        // Draw vertical grid lines
+        var x = 0.0
+        while x < rect.width {
+            path.move(to: CGPoint(x: x, y: 0))
+            path.addLine(to: CGPoint(x: x, y: rect.height))
+            x += gridSize
+        }
+
+        return path
+    }
+}
+
+/// Interactive rendering container for a single device canvas.
+public struct ArtboardView: View {
+    let artboard: VisualUIArtboard
+    @Bindable var document: VisualUIDocument
+    let settings: VisualUISettings
+
+    var size: CGSize {
+        switch artboard.deviceFrame {
+        case "iPhone 16 Pro":
+            return CGSize(width: 393, height: 852)
+        case "iPad Pro":
+            return CGSize(width: 834, height: 1112)
+        case "Apple Watch":
+            return CGSize(width: 242, height: 280)
+        case "Apple Vision Pro":
+            return CGSize(width: 900, height: 500)
+        default:
+            return CGSize(width: 393, height: 852)
+        }
+    }
+
+    public var body: some View {
+        let isActive = document.scene.activeArtboardID == artboard.id
+
+        VStack(alignment: .leading, spacing: 12) {
+            // Header panel for renaming/deleting artboards
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
+                        .foregroundColor(isActive ? .accentColor : .secondary)
+
+                    TextField("Artboard Name", text: Binding(
+                        get: { artboard.name },
+                        set: { artboard.name = $0 }
+                    ))
+                    .textFieldStyle(.plain)
+                    .font(.headline)
+                    .frame(maxWidth: 200)
+                }
+
+                Spacer()
+
+                Text(artboard.deviceFrame)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.secondary.opacity(0.1), in: Capsule())
+
+                if document.scene.artboards.count > 1 {
+                    Button {
+                        deleteArtboard()
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Delete Artboard")
+                }
+            }
+            .padding(.horizontal, 4)
+
+            // Render output inside the simulated device frame
+            VStack {
+                VisualUIRenderer(rootNode: artboard.rootNode, document: document)
+                    .frame(width: size.width, height: size.height)
+                    .background(settings.isDarkMode ? Color.black : Color.white)
+                    .cornerRadius(settings.showSafeAreas ? 40 : 0)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: settings.showSafeAreas ? 40 : 0)
+                            .stroke(isActive ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: isActive ? 3 : 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.15), radius: 15, x: 0, y: 10)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                document.scene.activeArtboardID = artboard.id
+            }
+        }
+    }
+
+    private func deleteArtboard() {
+        document.checkpoint()
+        if let idx = document.scene.artboards.firstIndex(where: { $0.id == artboard.id }) {
+            document.scene.artboards.remove(at: idx)
+            if document.scene.activeArtboardID == artboard.id {
+                document.scene.activeArtboardID = document.scene.artboards.first?.id
+            }
+            settings.addLog("Deleted artboard: \(artboard.name)")
+        }
+    }
+}
+
+/// Fine-grained layout guide displaying dimensions, snaps, and spatial constraints for selection.
+public struct SmartGuidesOverlay: View {
+    @Bindable var document: VisualUIDocument
+    @Bindable var settings: VisualUISettings
+
+    public var body: some View {
+        if let selectedID = document.scene.selectedNodeIDs.first,
+           let node = document.scene.findNode(byID: selectedID) {
+            GeometryReader { geo in
+                ZStack {
+                    // Floating dimension metric card
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "pencil.and.outline")
+                                .foregroundColor(.pink)
+                            Text("Smart Snapping")
+                                .font(.caption.bold())
+                                .foregroundColor(.pink)
+                        }
+
+                        Text("Selected: \(node.name)")
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.secondary)
+
+                        if let width = node.properties["width"] {
+                            Text("W: \(width) px")
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundColor(.pink)
+                        }
+                        if let height = node.properties["height"] {
+                            Text("H: \(height) px")
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundColor(.pink)
+                        }
+                    }
+                    .padding(8)
+                    .background(Color.pink.opacity(0.08))
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.pink.opacity(0.3), lineWidth: 1)
+                    )
+                    .position(x: 120, y: 40)
+                }
+            }
+            .allowsHitTesting(false)
+        }
     }
 }
