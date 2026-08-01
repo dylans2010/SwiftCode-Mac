@@ -20,6 +20,7 @@ public class DatabaseExplorerSplitViewController: NSSplitViewController {
         // 1. Left Sidebar Panel (Native AppKit Outline View Controller)
         let leftVC = DatabaseExplorerSidebarViewController()
         let leftItem = NSSplitViewItem(sidebarWithViewController: leftVC)
+        leftItem.canCollapse = true
         leftItem.minimumThickness = 240
         leftItem.maximumThickness = 320
         leftItem.holdingPriority = .defaultLow + 10
@@ -41,6 +42,7 @@ public class DatabaseExplorerSplitViewController: NSSplitViewController {
         rightVC.sizingOptions = []
         rightVC.view.autoresizingMask = [.width, .height]
         let rightItem = NSSplitViewItem(viewController: rightVC)
+        rightItem.canCollapse = true
         rightItem.minimumThickness = 260
         rightItem.maximumThickness = 320
         rightItem.holdingPriority = .defaultLow + 20
@@ -102,8 +104,8 @@ struct DatabaseExplorerCenterWrapper: View {
     var body: some View {
         VStack(spacing: 0) {
             // Header bar
-            HStack {
-                Text("Database Explorer Workspace")
+            HStack(spacing: 16) {
+                Text("Database Explorer")
                     .font(.headline)
 
                 if let active = connManager.activeConnection {
@@ -119,6 +121,26 @@ struct DatabaseExplorerCenterWrapper: View {
                     .padding(.vertical, 3)
                     .background(Color.secondary.opacity(0.12), in: Capsule())
                 }
+
+                Spacer()
+
+                // Native segmented control reducing sidebar reliance
+                Picker("Workspace Panel", selection: Binding(
+                    get: { observableState.selectedSection },
+                    set: { observableState.selectedSection = $0; DatabaseSplitViewState.shared.selectedSection = $0 }
+                )) {
+                    Text("Dashboard").tag(DatabaseSection.dashboard)
+                    Text("Tables").tag(DatabaseSection.tables)
+                    Text("Designer").tag(DatabaseSection.schemaDesigner)
+                    Text("SQL").tag(DatabaseSection.sqlEditor)
+                    Text("AI").tag(DatabaseSection.aiAssistant)
+                    Text("Templates").tag(DatabaseSection.templates)
+                    Text("Logs").tag(DatabaseSection.logs)
+                    Text("Settings").tag(DatabaseSection.settings)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 580)
+
                 Spacer()
             }
             .padding(12)
