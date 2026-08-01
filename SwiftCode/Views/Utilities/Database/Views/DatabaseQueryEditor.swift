@@ -15,146 +15,393 @@ struct DatabaseQueryEditor: View {
     @State private var aiResponse = ""
     @State private var isGeneratingAI = false
 
+    // Tabs / Panel selectors
+    @State private var selectedEditorTab = 0 // 0 = Editor, 1 = History, 2 = Saved & Favorites
+
+    // Save Query Dialog states
+    @State private var saveTitle = ""
+    @State private var saveCategory = "General"
+    @State private var saveTags = "Utility"
+    @State private var showSaveSheet = false
+
     var body: some View {
         VStack(spacing: 0) {
-            // Editor Toolbar
+            // Upper Editor Navigation / Tab switcher
             HStack {
-                Button(action: runQuery) {
-                    Label("Run SQL", systemImage: "play.fill")
-                        .foregroundColor(.green)
+                Picker("", selection: $selectedEditorTab) {
+                    Text("SQL Console").tag(0)
+                    Text("Query History").tag(1)
+                    Text("Saved Queries & Favorites").tag(2)
                 }
-                .disabled(isExecuting)
-
-                Button(action: runExplain) {
-                    Label("Explain Plan", systemImage: "questionmark.circle")
-                }
-                .disabled(isExecuting)
+                .pickerStyle(.segmented)
+                .frame(width: 400)
 
                 Spacer()
 
-                Button(action: askAICopilot) {
-                    Label("AI Optimize", systemImage: "sparkles")
-                        .foregroundColor(.purple)
+                if selectedEditorTab == 0 {
+                    Button(action: { showSaveSheet = true }) {
+                        Label("Save Script", systemImage: "bookmark")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(query.isEmpty)
                 }
-                .disabled(query.isEmpty)
             }
             .padding(10)
-            .background(Color.secondary.opacity(0.08))
+            .background(Color(NSColor.windowBackgroundColor))
 
             Divider()
 
-            // SQL Text Editor & AI Panel Split
-            HStack(spacing: 0) {
+            if selectedEditorTab == 0 {
+                // Main Console Editor View
                 VStack(spacing: 0) {
-                    TextEditor(text: $query)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(height: 180)
-                        .padding(4)
-                        .background(Color(NSColor.controlBackgroundColor))
+                    // Editor Toolbar
+                    HStack {
+                        Button(action: runQuery) {
+                            Label("Run SQL", systemImage: "play.fill")
+                                .foregroundColor(.green)
+                        }
+                        .disabled(isExecuting)
 
-                    Divider()
+                        Button(action: runExplain) {
+                            Label("Explain Plan", systemImage: "questionmark.circle")
+                        }
+                        .disabled(isExecuting)
 
-                    // Stats / Errors Panel
-                    if !errorMessage.isEmpty {
-                        Text(errorMessage)
-                            .foregroundColor(.red)
-                            .font(.caption)
-                            .padding(8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.red.opacity(0.1))
-                    } else if !executionStats.isEmpty {
-                        Text(executionStats)
-                            .foregroundColor(.secondary)
-                            .font(.caption)
-                            .padding(8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.secondary.opacity(0.05))
+                        Spacer()
+
+                        Button(action: askAICopilot) {
+                            Label("AI Optimize", systemImage: "sparkles")
+                                .foregroundColor(.purple)
+                        }
+                        .disabled(query.isEmpty)
                     }
+                    .padding(10)
+                    .background(Color.secondary.opacity(0.08))
 
                     Divider()
 
-                    // Results spreadsheet Viewer
-                    if !queryResult.isEmpty {
-                        ScrollView([.horizontal, .vertical]) {
-                            LazyVStack(alignment: .leading, spacing: 0) {
-                                // Header row
-                                HStack(spacing: 0) {
-                                    ForEach(columns, id: \.self) { col in
-                                        Text(col)
-                                            .font(.system(size: 11, weight: .bold))
-                                            .padding(6)
-                                            .frame(width: 120, alignment: .leading)
-                                            .background(Color.secondary.opacity(0.15))
-                                            .border(Color.secondary.opacity(0.2), width: 0.5)
-                                    }
-                                }
+                    // SQL Text Editor & AI Panel Split
+                    HStack(spacing: 0) {
+                        VStack(spacing: 0) {
+                            TextEditor(text: $query)
+                                .font(.system(.body, design: .monospaced))
+                                .frame(height: 180)
+                                .padding(4)
+                                .background(Color(NSColor.controlBackgroundColor))
 
-                                // Records rows
-                                ForEach(0..<queryResult.count, id: \.self) { rowIdx in
-                                    let row = queryResult[rowIdx]
-                                    HStack(spacing: 0) {
-                                        ForEach(columns, id: \.self) { col in
-                                            Text(row[col] ?? "NULL")
-                                                .font(.system(size: 11))
-                                                .padding(6)
-                                                .frame(width: 120, alignment: .leading)
-                                                .border(Color.secondary.opacity(0.1), width: 0.5)
+                            Divider()
+
+                            // Stats / Errors Panel
+                            if !errorMessage.isEmpty {
+                                Text(errorMessage)
+                                    .foregroundColor(.red)
+                                    .font(.caption)
+                                    .padding(8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.red.opacity(0.1))
+                            } else if !executionStats.isEmpty {
+                                Text(executionStats)
+                                    .foregroundColor(.secondary)
+                                    .font(.caption)
+                                    .padding(8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.secondary.opacity(0.05))
+                            }
+
+                            Divider()
+
+                            // Results spreadsheet Viewer
+                            if !queryResult.isEmpty {
+                                ScrollView([.horizontal, .vertical]) {
+                                    LazyVStack(alignment: .leading, spacing: 0) {
+                                        // Header row
+                                        HStack(spacing: 0) {
+                                            ForEach(columns, id: \.self) { col in
+                                                Text(col)
+                                                    .font(.system(size: 11, weight: .bold))
+                                                    .padding(6)
+                                                    .frame(width: 120, alignment: .leading)
+                                                    .background(Color.secondary.opacity(0.15))
+                                                    .border(Color.secondary.opacity(0.2), width: 0.5)
+                                            }
+                                        }
+
+                                        // Records rows
+                                        ForEach(0..<queryResult.count, id: \.self) { rowIdx in
+                                            let row = queryResult[rowIdx]
+                                            HStack(spacing: 0) {
+                                                ForEach(columns, id: \.self) { col in
+                                                    Text(row[col] ?? "NULL")
+                                                        .font(.system(size: 11))
+                                                        .padding(6)
+                                                        .frame(width: 120, alignment: .leading)
+                                                        .border(Color.secondary.opacity(0.1), width: 0.5)
+                                                }
+                                            }
+                                            .background(rowIdx % 2 == 0 ? Color.clear : Color.secondary.opacity(0.03))
                                         }
                                     }
-                                    .background(rowIdx % 2 == 0 ? Color.clear : Color.secondary.opacity(0.03))
+                                }
+                            } else if !explainOutput.isEmpty {
+                                ScrollView {
+                                    Text(explainOutput)
+                                        .font(.system(.body, design: .monospaced))
+                                        .padding()
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            } else {
+                                ContentUnavailableView("No query results", systemImage: "terminal", description: Text("Run an SQL statement to view and inspect records details."))
+                            }
+                        }
+
+                        // AI Co-pilot Suggestions Sidebar panel
+                        if !aiResponse.isEmpty || isGeneratingAI {
+                            Divider()
+
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Image(systemName: "sparkles")
+                                        .foregroundColor(.purple)
+                                    Text("AI SQL Assistant")
+                                        .font(.headline)
+                                    Spacer()
+                                    Button(action: { aiResponse = "" }) {
+                                        Image(systemName: "xmark")
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+
+                                if isGeneratingAI {
+                                    ProgressView("Optimizing query...")
+                                        .padding()
+                                } else {
+                                    ScrollView {
+                                        Text(aiResponse)
+                                            .font(.caption)
+                                            .padding()
+                                            .background(Color.purple.opacity(0.08))
+                                            .cornerRadius(6)
+                                    }
                                 }
                             }
+                            .frame(width: 250)
+                            .padding()
+                            .background(Color.secondary.opacity(0.04))
                         }
-                    } else if !explainOutput.isEmpty {
-                        ScrollView {
-                            Text(explainOutput)
-                                .font(.system(.body, design: .monospaced))
-                                .padding()
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    } else {
-                        ContentUnavailableView("No query results", systemImage: "terminal", description: Text("Run an SQL statement to view and inspect records details."))
                     }
                 }
+            } else if selectedEditorTab == 1 {
+                // SQL Query History view
+                queryHistoryPane()
+            } else {
+                // Saved & Bookmarked Queries
+                savedQueriesPane()
+            }
+        }
+        .sheet(isPresented: $showSaveSheet) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Save Active SQL Script")
+                    .font(.headline)
 
-                // AI Co-pilot Suggestions Sidebar panel
-                if !aiResponse.isEmpty || isGeneratingAI {
-                    Divider()
+                Form {
+                    TextField("Script Title", text: $saveTitle)
+                    TextField("Category", text: $saveCategory)
+                    TextField("Tags (comma separated)", text: $saveTags)
+                }
+                .formStyle(.grouped)
 
-                    VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Button("Cancel") { showSaveSheet = false }
+                        .buttonStyle(.bordered)
+                    Spacer()
+                    Button("Save Snippet") {
+                        let tagsList = saveTags.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                        DatabaseHistoryService.shared.saveQuery(title: saveTitle, sql: query, category: saveCategory, tags: tagsList)
+                        showSaveSheet = false
+                        selectedEditorTab = 2
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(saveTitle.isEmpty)
+                }
+            }
+            .padding()
+            .frame(width: 400, height: 260)
+        }
+    }
+
+    // MARK: - Query History Pane
+    @ViewBuilder
+    private func queryHistoryPane() -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Executed Queries Log")
+                        .font(.headline)
+                    Text("Double click or select a record to restore raw SQL to the compiler console.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Button("Purge Logs", role: .destructive) {
+                    DatabaseHistoryService.shared.clearHistory()
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(14)
+            .background(Color.secondary.opacity(0.04))
+
+            Divider()
+
+            let historyList = DatabaseHistoryService.shared.fetchHistory()
+            if historyList.isEmpty {
+                ContentUnavailableView("No Executed History", systemImage: "clock", description: Text("Executed SQL statements will be logged here with timers and execution status."))
+            } else {
+                List(historyList) { item in
+                    VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Image(systemName: "sparkles")
-                                .foregroundColor(.purple)
-                            Text("AI SQL Assistant")
-                                .font(.headline)
-                            Spacer()
-                            Button(action: { aiResponse = "" }) {
-                                Image(systemName: "xmark")
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(item.status == "SUCCESS" ? Color.green.opacity(0.12) : Color.red.opacity(0.12))
+                                    .frame(width: 64, height: 18)
+                                Text(item.status)
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(item.status == "SUCCESS" ? .green : .red)
                             }
-                            .buttonStyle(.plain)
+
+                            Text("Duration: \(String(format: "%.2f", item.executionTimeMs)) ms")
+                                .font(.caption2.monospaced())
+                                .foregroundColor(.secondary)
+
+                            Spacer()
+
+                            Text(item.timestamp, style: .time)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
                         }
 
-                        if isGeneratingAI {
-                            ProgressView("Optimizing query...")
-                                .padding()
-                        } else {
-                            ScrollView {
-                                Text(aiResponse)
-                                    .font(.caption)
-                                    .padding()
-                                    .background(Color.purple.opacity(0.08))
-                                    .cornerRadius(6)
+                        Text(item.sql)
+                            .font(.system(.body, design: .monospaced))
+                            .lineLimit(2)
+                            .padding(8)
+                            .background(Color.black.opacity(0.15))
+                            .cornerRadius(4)
+
+                        if let err = item.errorMessage {
+                            Text("Error message: \(err)")
+                                .font(.caption2)
+                                .foregroundColor(.red)
+                        }
+
+                        HStack {
+                            Button("Copy to Console") {
+                                query = item.sql
+                                selectedEditorTab = 0
                             }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+
+                            Button("Rerun Query") {
+                                query = item.sql
+                                selectedEditorTab = 0
+                                runQuery()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
                         }
                     }
-                    .frame(width: 250)
-                    .padding()
-                    .background(Color.secondary.opacity(0.04))
+                    .padding(.vertical, 8)
                 }
             }
         }
     }
 
+    // MARK: - Saved Queries Pane
+    @ViewBuilder
+    private func savedQueriesPane() -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Saved Queries & Favorites Library")
+                        .font(.headline)
+                    Text("Instant-access collection of frequently executed procedures, migration statements, or schema audits.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+            }
+            .padding(14)
+            .background(Color.secondary.opacity(0.04))
+
+            Divider()
+
+            let savedList = DatabaseHistoryService.shared.fetchSavedQueries()
+            if savedList.isEmpty {
+                ContentUnavailableView("Library Empty", systemImage: "star", description: Text("Save queries using 'Save Script' button inside raw SQL Console."))
+            } else {
+                List(savedList) { item in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(item.title)
+                                .font(.headline)
+
+                            if item.isFavorite {
+                                Image(systemName: "star.fill")
+                                    .foregroundColor(.yellow)
+                            }
+
+                            Spacer()
+
+                            Text(item.category)
+                                .font(.system(size: 9, weight: .bold))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.blue.opacity(0.15), in: Capsule())
+                        }
+
+                        Text(item.sql)
+                            .font(.system(.body, design: .monospaced))
+                            .padding(8)
+                            .background(Color.black.opacity(0.15))
+                            .cornerRadius(4)
+
+                        HStack {
+                            ForEach(item.tags, id: \.self) { tag in
+                                Text("#" + tag)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        HStack {
+                            Button("Open in Console") {
+                                query = item.sql
+                                selectedEditorTab = 0
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+
+                            Button(item.isFavorite ? "Unfavorite" : "Favorite") {
+                                DatabaseHistoryService.shared.toggleSavedQueryFavorite(id: item.id)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+
+                            Spacer()
+
+                            Button("Delete", role: .destructive) {
+                                DatabaseHistoryService.shared.deleteSavedQuery(id: item.id)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.red)
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
+        }
+    }
+
+    // MARK: - Handlers & Actions
     private func runQuery() {
         guard let conn = connManager.activeConnection else { return }
         isExecuting = true

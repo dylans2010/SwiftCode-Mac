@@ -4,30 +4,52 @@ struct DatabaseSchemaGenerator: View {
     @EnvironmentObject var connManager: DatabaseConnectionManager
     @State private var tables: [DatabaseTable] = []
     @State private var selectedTable = ""
-    @State private var modelType = "SwiftData"
+    @State private var modelType = "SwiftData" // SwiftData, Codable, Repository, JSONSchema
     @State private var generatedCode = ""
     @State private var copied = false
 
+    // Custom configurations
+    @State private var customClassName = ""
+    @State private var targetNamespace = "AppModel"
+    @State private var logMessage = ""
+
     var body: some View {
         VStack(spacing: 0) {
-            GroupBox("Generate Swift APIs") {
-                HStack {
-                    Picker("Table Source", selection: $selectedTable) {
-                        ForEach(tables) { t in
-                            Text(t.name).tag(t.name)
+            GroupBox("Generate Swift APIs & Model Layers") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 16) {
+                        Picker("Table Source", selection: $selectedTable) {
+                            ForEach(tables) { t in
+                                Text(t.name).tag(t.name)
+                            }
                         }
+                        .onChange(of: selectedTable) { _, newValue in
+                            customClassName = newValue.capitalized.replacingOccurrences(of: "_", with: "")
+                        }
+
+                        Picker("Framework Target", selection: $modelType) {
+                            Text("SwiftData Model Entity").tag("SwiftData")
+                            Text("Codable Model Struct").tag("Codable")
+                            Text("Repository DB Wrapper").tag("Repository")
+                            Text("JSON Schema definition").tag("JSONSchema")
+                        }
+
+                        Button("Generate Code") {
+                            generateCode()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(selectedTable.isEmpty)
                     }
 
-                    Picker("Framework Target", selection: $modelType) {
-                        Text("SwiftData").tag("SwiftData")
-                        Text("Codable Model").tag("Codable")
-                        Text("Repository Class").tag("Repository")
-                    }
+                    HStack(spacing: 16) {
+                        TextField("Class Name Override", text: $customClassName)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 250)
 
-                    Button("Generate Code") {
-                        generateCode()
+                        TextField("Target Namespace / Module", text: $targetNamespace)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 250)
                     }
-                    .buttonStyle(.borderedProminent)
                 }
                 .padding(8)
             }
@@ -40,10 +62,25 @@ struct DatabaseSchemaGenerator: View {
                     HStack {
                         Text("Generated Code Outputs")
                             .font(.headline)
+
                         Spacer()
-                        Button(action: copyToClipboard) {
-                            Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+
+                        Button(action: saveToProjectFiles) {
+                            Label("Save to Project", systemImage: "square.and.arrow.down")
                         }
+                        .buttonStyle(.bordered)
+
+                        Button(action: copyToClipboard) {
+                            Label(copied ? "Copied" : "Copy to Clipboard", systemImage: copied ? "checkmark" : "doc.on.doc")
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+
+                    if !logMessage.isEmpty {
+                        Text(logMessage)
+                            .font(.caption)
+                            .foregroundColor(.green)
+                            .padding(.vertical, 4)
                     }
 
                     ScrollView {
@@ -52,6 +89,8 @@ struct DatabaseSchemaGenerator: View {
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(Color.secondary.opacity(0.08))
+                            .cornerRadius(8)
+                            .textSelection(.enabled)
                     }
                 }
                 .padding()
@@ -62,6 +101,9 @@ struct DatabaseSchemaGenerator: View {
         .onAppear {
             loadTables()
         }
+        .onChange(of: connManager.activeConnection) {
+            loadTables()
+        }
     }
 
     private func loadTables() {
@@ -70,6 +112,7 @@ struct DatabaseSchemaGenerator: View {
             if let t = try? DatabaseManager.shared.fetchSQLiteTables(filePath: path) {
                 tables = t
                 selectedTable = t.first?.name ?? ""
+                customClassName = selectedTable.capitalized.replacingOccurrences(of: "_", with: "")
             }
         }
     }
@@ -77,10 +120,11 @@ struct DatabaseSchemaGenerator: View {
     private func generateCode() {
         guard let table = tables.first(where: { $0.name == selectedTable }) else { return }
 
-        let structName = table.name.capitalized.replacingOccurrences(of: "_", with: "")
+        let structName = customClassName.isEmpty ? table.name.capitalized.replacingOccurrences(of: "_", with: "") : customClassName
+        logMessage = ""
 
         if modelType == "SwiftData" {
-            var code = "import Foundation\nimport SwiftData\n\n@Model\npublic final class \(structName) {\n"
+            var code = "import Foundation\nimport SwiftData\n\n// Target Module: \(targetNamespace)\n\n@Model\npublic final class \(structName) {\n"
             for col in table.columns {
                 let sType = col.type.contains("INT") ? "Int" : col.type.contains("REAL") ? "Double" : "String"
                 if col.isPrimaryKey {
@@ -101,16 +145,21 @@ struct DatabaseSchemaGenerator: View {
             code += "    }\n}"
             generatedCode = code
         } else if modelType == "Codable" {
-            var code = "import Foundation\n\npublic struct \(structName): Codable, Identifiable, Hashable {\n"
+            var code = "import Foundation\n\n// Target Module: \(targetNamespace)\n\npublic struct \(structName): Codable, Identifiable, Hashable {\n"
+            var primaryColName = "id"
             for col in table.columns {
                 let sType = col.type.contains("INT") ? "Int" : col.type.contains("REAL") ? "Double" : "String"
                 code += "    public var \(col.name): \(sType)\n"
+                if col.isPrimaryKey { primaryColName = col.name }
+            }
+            if primaryColName != "id" {
+                code += "\n    public var id: String { String(\(primaryColName)) }\n"
             }
             code += "}"
             generatedCode = code
-        } else {
+        } else if modelType == "Repository" {
             // Repository class
-            var code = "import Foundation\n\npublic final class \(structName)Repository {\n"
+            var code = "import Foundation\n\n// Target Module: \(targetNamespace)\n\npublic final class \(structName)Repository {\n"
             code += "    private let databasePath: String\n\n"
             code += "    public init(databasePath: String) {\n"
             code += "        self.databasePath = databasePath\n"
@@ -136,6 +185,37 @@ struct DatabaseSchemaGenerator: View {
             code += "        }\n"
             code += "    }\n}"
             generatedCode = code
+        } else {
+            // JSON Schema Definition
+            var code = "{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n"
+            code += "  \"title\": \"\(structName)\",\n"
+            code += "  \"type\": \"object\",\n"
+            code += "  \"properties\": {\n"
+            var propsList: [String] = []
+            for col in table.columns {
+                let typeStr = col.type.contains("INT") ? "integer" : col.type.contains("REAL") ? "number" : "string"
+                propsList.append("    \"\(col.name)\": { \"type\": \"\(typeStr)\" }")
+            }
+            code += propsList.joined(separator: ",\n") + "\n"
+            code += "  },\n"
+            let requiredList = table.columns.filter { !$0.isNullable && !$0.isAutoIncrement }.map { "\"\($0.name)\"" }
+            code += "  \"required\": [ " + requiredList.joined(separator: ", ") + " ]\n"
+            code += "}"
+            generatedCode = code
+        }
+    }
+
+    private func saveToProjectFiles() {
+        let fileName = "\(customClassName).swift"
+        let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL ?? FileManager.default.temporaryDirectory
+        let targetURL = projectURL.appendingPathComponent("Models/\(fileName)")
+
+        do {
+            try FileManager.default.createDirectory(at: targetURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try generatedCode.write(to: targetURL, atomically: true, encoding: .utf8)
+            logMessage = "Successfully exported and saved file onto active development session: \(targetURL.path)"
+        } catch {
+            logMessage = "Failed writing file: \(error.localizedDescription)"
         }
     }
 
