@@ -1,4 +1,0 @@
-module Markdown {
-header "Markdown-Swift.h"
-export *
-}

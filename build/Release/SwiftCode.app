@@ -1,1 +1,0 @@
-../../../../../../../../tmp/SwiftCode.dst/Applications/SwiftCode.app

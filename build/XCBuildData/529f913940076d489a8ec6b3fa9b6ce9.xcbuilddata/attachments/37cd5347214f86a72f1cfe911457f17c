@@ -1,4 +1,0 @@
-module MLXNN {
-header "MLXNN-Swift.h"
-export *
-}

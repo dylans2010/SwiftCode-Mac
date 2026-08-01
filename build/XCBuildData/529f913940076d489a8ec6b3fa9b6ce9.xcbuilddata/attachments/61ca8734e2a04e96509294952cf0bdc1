@@ -1,4 +1,0 @@
-module MLX {
-header "MLX-Swift.h"
-export *
-}

@@ -1,4 +1,0 @@
-module MLXRandom {
-header "MLXRandom-Swift.h"
-export *
-}
