@@ -117,39 +117,6 @@ struct CodeSnippet: Identifiable, Codable, Hashable, Sendable {
     static let storageKey = "com.swiftcode.snippets"
 }
 
-// MARK: - Local Project Note Model
-
-struct ProjectNote: Identifiable, Hashable, Sendable {
-    var id: String { path }
-    let title: String
-    let path: String
-    var content: String
-    let isMarkdown: Bool
-
-    var isPinned: Bool {
-        content.contains("[PINNED]") || content.contains("pinned: true")
-    }
-    var isFavorite: Bool {
-        content.contains("[FAVORITE]") || content.contains("favorite: true")
-    }
-    var category: String {
-        if content.contains("[CATEGORY:Todo]") { return "Todo" }
-        if content.contains("[CATEGORY:Meeting]") { return "Meeting" }
-        if content.contains("[CATEGORY:Build]") { return "Build" }
-        return "General"
-    }
-    var tags: [String] {
-        let pattern = #"#\w+"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return [] }
-        let nsRange = NSRange(content.startIndex..<content.endIndex, in: content)
-        let matches = regex.matches(in: content, options: [], range: nsRange)
-        return matches.compactMap { match -> String? in
-            guard let range = Range(match.range, in: content) else { return nil }
-            return String(content[range])
-        }
-    }
-}
-
 // MARK: - Safe Asynchronous Loader with Caching
 @globalActor actor DocSymbolsLoaderActor {
     static let shared = DocSymbolsLoaderActor()
@@ -275,17 +242,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
     // MARK: - Added Workspace Expansion States
     @State private var selectedWorkspaceTab = "Apple Docs" // "Apple Docs", "Local Notes", "Snippets", "AI Assistant"
 
-    // Markdown/Rich text editing
-    @State private var localNotes: [ProjectNote] = []
-    @State private var selectedNote: ProjectNote? = nil
-    @State private var noteEditorText = ""
-    @State private var isEditingNote = false
-    @State private var noteSearchQuery = ""
-    @State private var isSummarizingNote = false
-    @State private var noteSummaryResult = ""
-    @State private var selectedNoteFilter = "All" // "All", "Pinned", "Favorites", "Todo", "Meeting", "Build"
-    @State private var showNoteSummarySheet = false
-
     // Snippet library
     @State private var snippets: [CodeSnippet] = []
     @State private var selectedSnippet: CodeSnippet? = nil
@@ -360,11 +316,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
         }
     }
 
-    // Statistics
-    private var docStatistics: String {
-        "Index: \(symbols.count) | Notes: \(localNotes.count) | Snippets: \(snippets.count)"
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             // Workspace top tab selector
@@ -396,7 +347,7 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                 if selectedWorkspaceTab == "Apple Docs" {
                     appleDocsWorkspaceView()
                 } else if selectedWorkspaceTab == "Local Notes" {
-                    localNotesWorkspaceView()
+                    ProjectNotesWorkspaceView()
                 } else if selectedWorkspaceTab == "Snippets" {
                     snippetLibraryWorkspaceView()
                 } else {
@@ -407,7 +358,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
         .onAppear {
             Task {
                 await loadDatabase()
-                loadLocalNotes()
                 loadSnippets()
             }
         }
@@ -530,20 +480,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                 }
             }
             .listStyle(.sidebar)
-
-            Divider()
-
-            // Statistics Bottom Bar
-            VStack(alignment: .leading, spacing: 6) {
-                Text("DOCUMENTATION METRICS")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.secondary)
-                Text(docStatistics)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(16)
-            .background(Color(NSColor.windowBackgroundColor))
         }
         .frame(minWidth: 240, idealWidth: 260, maxWidth: 320)
 
@@ -682,354 +618,6 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                 }
             }
             .frame(minWidth: 600)
-        }
-    }
-
-    // MARK: - Project Notes Workspace Zone
-
-    @ViewBuilder
-    private func localNotesWorkspaceView() -> some View {
-        // Left Column: Note Browser
-        VStack(spacing: 0) {
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                TextField("Search notes...", text: $noteSearchQuery)
-                    .textFieldStyle(.plain)
-
-                Button(action: createNewLocalNote) {
-                    Image(systemName: "doc.badge.plus")
-                        .foregroundColor(.blue)
-                }
-                .buttonStyle(.plain)
-                .help("Create New Project Note")
-            }
-            .padding(10)
-            .background(Color.secondary.opacity(0.1))
-            .padding(10)
-
-            Picker("Filter", selection: $selectedNoteFilter) {
-                Text("All").tag("All")
-                Text("Pinned 📌").tag("Pinned")
-                Text("Favorites ⭐").tag("Favorites")
-                Text("Todo ✅").tag("Todo")
-                Text("Meetings 👥").tag("Meeting")
-                Text("Build 🛠️").tag("Build")
-            }
-            .pickerStyle(.menu)
-            .padding(.horizontal, 10)
-            .padding(.bottom, 8)
-
-            Divider()
-
-            List(filteredNotes, selection: $selectedNote) { note in
-                HStack {
-                    Image(systemName: note.category == "Todo" ? "checkmark.circle.fill" : (note.category == "Meeting" ? "person.2.fill" : "doc.text.fill"))
-                        .foregroundColor(note.category == "Todo" ? .green : (note.category == "Meeting" ? .purple : .blue))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(note.title)
-                            .bold()
-                        Text(note.path)
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-                    Spacer()
-                    if note.isPinned {
-                        Image(systemName: "pin.fill")
-                            .foregroundColor(.orange)
-                            .font(.caption)
-                    }
-                    if note.isFavorite {
-                        Image(systemName: "star.fill")
-                            .foregroundColor(.yellow)
-                            .font(.caption)
-                    }
-                }
-                .padding(.vertical, 4)
-                .tag(note)
-            }
-            .listStyle(.inset)
-        }
-        .frame(width: 280)
-
-        // Right Column: Editor with Split Editor Live Preview
-        VStack(spacing: 0) {
-            if let note = selectedNote {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(note.title)
-                                .font(.title2.bold())
-                            if note.isPinned {
-                                Image(systemName: "pin.fill")
-                                    .foregroundColor(.orange)
-                                    .font(.subheadline)
-                            }
-                            if note.isFavorite {
-                                Image(systemName: "star.fill")
-                                    .foregroundColor(.yellow)
-                                    .font(.subheadline)
-                            }
-                        }
-                        Text("Category: \(note.category) | Tags: \(note.tags.joined(separator: ", "))")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-
-                    Spacer()
-
-                    // Quick Toggle metadata helper buttons
-                    Group {
-                        Button {
-                            toggleNoteMeta("[PINNED]")
-                        } label: {
-                            Image(systemName: note.isPinned ? "pin.slash.fill" : "pin.fill")
-                                .foregroundColor(.orange)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Pin Note")
-
-                        Button {
-                            toggleNoteMeta("[FAVORITE]")
-                        } label: {
-                            Image(systemName: note.isFavorite ? "star.slash.fill" : "star.fill")
-                                .foregroundColor(.yellow)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Favorite Note")
-
-                        Menu {
-                            Button("General") { setNoteCategory("General") }
-                            Button("Todo") { setNoteCategory("Todo") }
-                            Button("Meeting") { setNoteCategory("Meeting") }
-                            Button("Build") { setNoteCategory("Build") }
-                        } label: {
-                            Label("Category", systemImage: "tag")
-                        }
-                        .menuStyle(.borderlessButton)
-                        .frame(width: 90)
-                    }
-                    .padding(.trailing, 8)
-
-                    Toggle("Edit Mode", isOn: $isEditingNote)
-                        .toggleStyle(.button)
-
-                    if isEditingNote {
-                        Button("Save changes") {
-                            saveNoteChanges()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                }
-                .padding()
-
-                if isEditingNote {
-                    // Rich Editor toolbar controls
-                    HStack(spacing: 12) {
-                        Button {
-                            insertNoteText("- [ ] ")
-                        } label: {
-                            Label("Todo", systemImage: "checkmark.square")
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            insertNoteText("\n| Column 1 | Column 2 |\n| --- | --- |\n| Cell 1 | Cell 2 |\n")
-                        } label: {
-                            Label("Table", systemImage: "tablecells")
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            insertNoteText("\n```swift\n// Code snippet\n\n```\n")
-                        } label: {
-                            Label("Code Block", systemImage: "curlybraces")
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            let textToCopy = "[\(note.title)](\(note.path))"
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(textToCopy, forType: .string)
-                        } label: {
-                            Label("Copy Link", systemImage: "link")
-                        }
-                        .buttonStyle(.plain)
-
-                        Spacer()
-
-                        Button {
-                            runAINoteSummary()
-                        } label: {
-                            Label(isSummarizingNote ? "Summarizing..." : "AI Summarize", systemImage: "sparkles")
-                                .foregroundColor(.purple)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(isSummarizingNote)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
-                }
-
-                Divider()
-
-                HSplitView {
-                    // Left Column of Split: Editing area
-                    VStack {
-                        if isEditingNote {
-                            TextEditor(text: $noteEditorText)
-                                .font(.system(.body, design: .monospaced))
-                                .padding()
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        } else {
-                            ScrollView {
-                                Text(noteEditorText)
-                                    .font(.system(.body, design: .monospaced))
-                                    .padding()
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                    // Right Column of Split: Live Preview rendered markdown
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 14) {
-                            Text("Live Preview")
-                                .font(.caption.bold())
-                                .foregroundColor(.secondary)
-
-                            Divider()
-
-                            if noteEditorText.isEmpty {
-                                Text("*No content to preview*")
-                                    .foregroundColor(.secondary)
-                            } else {
-                                MarkdownBlockListView(blocks: MarkdownParser.shared.parse(noteEditorText))
-                            }
-                        }
-                        .padding()
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(NSColor.controlBackgroundColor))
-                }
-            } else {
-                ContentUnavailableView("No Note Selected", systemImage: "doc.text")
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .sheet(isPresented: $showNoteSummarySheet) {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Label("AI Technical Note Summary", systemImage: "sparkles")
-                        .font(.headline)
-                        .foregroundColor(.purple)
-                    Spacer()
-                    Button("Close") { showNoteSummarySheet = false }
-                        .buttonStyle(.bordered)
-                }
-
-                Divider()
-
-                ScrollView {
-                    Text(noteSummaryResult)
-                        .textSelection(.enabled)
-                        .font(.body)
-                        .lineSpacing(4)
-                }
-
-                HStack {
-                    Button("Insert Summary at Top") {
-                        noteEditorText = "# AI Summary\n\(noteSummaryResult)\n\n" + noteEditorText
-                        showNoteSummarySheet = false
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    Spacer()
-                }
-            }
-            .padding()
-            .frame(width: 500, height: 400)
-        }
-        .onChange(of: selectedNote) { _, newValue in
-            if let note = newValue {
-                noteEditorText = note.content
-                isEditingNote = false
-            }
-        }
-    }
-
-    private func insertNoteText(_ text: String) {
-        noteEditorText += text
-    }
-
-    private func toggleNoteMeta(_ meta: String) {
-        guard let note = selectedNote, let idx = localNotes.firstIndex(where: { $0.path == note.path }) else { return }
-        var currentContent = note.content
-        if currentContent.contains(meta) {
-            currentContent = currentContent.replacingOccurrences(of: "\n" + meta, with: "")
-            currentContent = currentContent.replacingOccurrences(of: meta, with: "")
-        } else {
-            currentContent += "\n" + meta
-        }
-        let updatedNote = ProjectNote(title: note.title, path: note.path, content: currentContent, isMarkdown: note.isMarkdown)
-        localNotes[idx] = updatedNote
-        selectedNote = updatedNote
-        noteEditorText = currentContent
-
-        // Write back to disk immediately!
-        let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL ?? FileManager.default.temporaryDirectory
-        let fileURL = projectURL.appendingPathComponent(note.path)
-        try? currentContent.write(to: fileURL, atomically: true, encoding: .utf8)
-    }
-
-    private func setNoteCategory(_ cat: String) {
-        guard let note = selectedNote, let idx = localNotes.firstIndex(where: { $0.path == note.path }) else { return }
-        var currentContent = note.content
-
-        // Remove existing category headers
-        let categories = ["[CATEGORY:Todo]", "[CATEGORY:Meeting]", "[CATEGORY:Build]"]
-        for c in categories {
-            currentContent = currentContent.replacingOccurrences(of: "\n" + c, with: "")
-            currentContent = currentContent.replacingOccurrences(of: c, with: "")
-        }
-
-        if cat != "General" {
-            currentContent += "\n[CATEGORY:\(cat)]"
-        }
-
-        let updatedNote = ProjectNote(title: note.title, path: note.path, content: currentContent, isMarkdown: note.isMarkdown)
-        localNotes[idx] = updatedNote
-        selectedNote = updatedNote
-        noteEditorText = currentContent
-
-        // Write back to disk immediately!
-        let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL ?? FileManager.default.temporaryDirectory
-        let fileURL = projectURL.appendingPathComponent(note.path)
-        try? currentContent.write(to: fileURL, atomically: true, encoding: .utf8)
-    }
-
-    private func runAINoteSummary() {
-        guard !noteEditorText.isEmpty else { return }
-        isSummarizingNote = true
-        noteSummaryResult = ""
-
-        let prompt = """
-Generate a concise, highly-polished technical summary and bullet-point key objectives for the following technical document:
-\(noteEditorText)
-"""
-
-        Task {
-            do {
-                let response = try await LLMService.shared.generateResponse(prompt: prompt, useContext: false)
-                noteSummaryResult = response
-                showNoteSummarySheet = true
-            } catch {
-                noteSummaryResult = "Failed to summarize technical document: \(error.localizedDescription)"
-                showNoteSummarySheet = true
-            }
-            isSummarizingNote = false
         }
     }
 
@@ -1729,30 +1317,6 @@ Request: \(aiSelectedPromptPreset)
         return list
     }
 
-    private var filteredNotes: [ProjectNote] {
-        var list = localNotes
-
-        switch selectedNoteFilter {
-        case "Pinned":
-            list = list.filter { $0.isPinned }
-        case "Favorites":
-            list = list.filter { $0.isFavorite }
-        case "Todo":
-            list = list.filter { $0.category == "Todo" }
-        case "Meeting":
-            list = list.filter { $0.category == "Meeting" }
-        case "Build":
-            list = list.filter { $0.category == "Build" }
-        default:
-            break
-        }
-
-        if !noteSearchQuery.isEmpty {
-            list = list.filter { $0.title.localizedCaseInsensitiveContains(noteSearchQuery) || $0.content.localizedCaseInsensitiveContains(noteSearchQuery) }
-        }
-        return list
-    }
-
     private var filteredSnippets: [CodeSnippet] {
         if snippetSearchQuery.isEmpty { return snippets }
         return snippets.filter { $0.title.localizedCaseInsensitiveContains(snippetSearchQuery) || $0.code.localizedCaseInsensitiveContains(snippetSearchQuery) }
@@ -1938,83 +1502,6 @@ Code Sample:
     }
 
     // MARK: - Workspace Expansion Logic & Data Persistences
-
-    private func loadLocalNotes() {
-        // Read actual .md or .strings files inside SwiftCode directory to let users browse documentation
-        Task.detached(priority: .userInitiated) {
-            let rootPath = FileManager.default.currentDirectoryPath
-            let rootURL = URL(fileURLWithPath: rootPath)
-
-            var notesList: [ProjectNote] = []
-            let enumerator = FileManager.default.enumerator(at: rootURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles])
-
-            guard let enumerator else {
-                await MainActor.run {
-                    self.localNotes = []
-                    self.selectedNote = nil
-                }
-                return
-            }
-
-            let fileURLs = enumerator.allObjects.compactMap { $0 as? URL }
-            for fileURL in fileURLs {
-                let ext = fileURL.pathExtension.lowercased()
-                if ext == "md" {
-                    let title = fileURL.deletingPathExtension().lastPathComponent
-                    let relPath = fileURL.path.replacingOccurrences(of: rootURL.path + "/", with: "")
-                    if let content = try? String(contentsOf: fileURL, encoding: .utf8) {
-                        notesList.append(ProjectNote(title: title, path: relPath, content: content, isMarkdown: true))
-                    }
-                }
-            }
-
-            if notesList.isEmpty {
-                notesList = [
-                    ProjectNote(title: "Architecture Decisions", path: "Docs/Architecture.md", content: """
-# System Architecture
-This outlines the core module layers of the project.
-
-## Components
-1. **Views (UI)**: Built exclusively using SwiftUI and modern Concurrency isolation models.
-2. **AI Engine**: Routes requests to external LLM providers or Apple on-device models.
-""", isMarkdown: true),
-                    ProjectNote(title: "Team Onboarding Guide", path: "Docs/Onboarding.md", content: """
-# Team Onboarding
-Welcome to the development team!
-
-## Setup Steps
-1. Open the project in Xcode.
-2. Validate Appwrite API services or configure Supabase keys in Settings.
-3. Keep code files cleanly registered inside project.pbxproj via the registration scripts.
-""", isMarkdown: true)
-                ]
-            }
-
-            let finalNotes = notesList
-            await MainActor.run {
-                self.localNotes = finalNotes
-                self.selectedNote = finalNotes.first
-            }
-        }
-    }
-
-    private func createNewLocalNote() {
-        let newTitle = "Untitled Note \(localNotes.count + 1)"
-        let newPath = "Docs/\(newTitle).md"
-        let newNote = ProjectNote(title: newTitle, path: newPath, content: "# \(newTitle)\n\nStart drafting your technical guidelines here.", isMarkdown: true)
-        localNotes.append(newNote)
-        selectedNote = newNote
-        noteEditorText = newNote.content
-        isEditingNote = true
-    }
-
-    private func saveNoteChanges() {
-        guard let note = selectedNote, let idx = localNotes.firstIndex(where: { $0.path == note.path }) else { return }
-        let updatedNote = ProjectNote(title: note.title, path: note.path, content: noteEditorText, isMarkdown: note.isMarkdown)
-        localNotes[idx] = updatedNote
-        selectedNote = updatedNote
-        isEditingNote = false
-    }
 
     private func loadSnippets() {
         if let data = UserDefaults.standard.data(forKey: CodeSnippet.storageKey),
