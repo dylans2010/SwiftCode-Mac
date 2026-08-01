@@ -10,9 +10,17 @@ struct WorkspaceHubTool: Identifiable, Hashable {
     let destination: String
 }
 
+// MARK: - Sidebar Selection
+
+private enum ToolsSidebarSelection: Hashable {
+    case all
+    case category(String)
+}
+
 public struct MainToolsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var searchQuery = ""
+    @State private var selectedSection: ToolsSidebarSelection = .all
 
     // User Customization States
     @State private var hiddenTools: Set<String> = []
@@ -24,6 +32,9 @@ public struct MainToolsView: View {
     @State private var showingHiddenToolsSheet = false
 
     public init() {}
+
+    private let cardMinWidth: CGFloat = 232
+    private let gridSpacing: CGFloat = 14
 
     // Static baseline definition of all tools migrated from WorkspaceView, including DocumentationBrowser
     private let allAvailableTools: [WorkspaceHubTool] = [
@@ -38,7 +49,7 @@ public struct MainToolsView: View {
         WorkspaceHubTool(id: "simulator_main", name: "Simulator & Previews", description: "Simulate devices, manage simulators, and inspect preview screens.", iconName: "iphone", colorHex: "#FF2D55", category: "Utilities", destination: "simulatorMain"),
         WorkspaceHubTool(id: "personal_documentation", name: "Personal Documentation", description: "Access personal markdown wikis, notes, and local code references.", iconName: "book.fill", colorHex: "#A2845E", category: "Utilities", destination: "personalDocumentation"),
         WorkspaceHubTool(id: "visual_ui_builder", name: "Visual UI Builder", description: "Build modern Apple user interfaces visually for SwiftUI, AppKit, UIKit, visionOS, WidgetKit, and watchOS.", iconName: "paintpalette.fill", colorHex: "#FF2D55", category: "Utilities", destination: "visualUIBuilder"),
-        WorkspaceHubTool(id: "dev_tools", name: "Developer utility bundle", description: "JSON formatters, base64 encoders, regex checkers, and JWT tools.", iconName: "wrench.and.screwdriver.fill", colorHex: "#FF3B30", category: "Utilities", destination: "devTools"),
+        WorkspaceHubTool(id: "dev_tools", name: "Developer Utility Bundle", description: "JSON formatters, base64 encoders, regex checkers, and JWT tools.", iconName: "wrench.and.screwdriver.fill", colorHex: "#FF3B30", category: "Utilities", destination: "devTools"),
         WorkspaceHubTool(id: "collaboration", name: "Live Collaboration", description: "Coordinate real-time coding sessions with team members.", iconName: "person.2.fill", colorHex: "#34C759", category: "Utilities", destination: "collaboration"),
         WorkspaceHubTool(id: "sf_symbols", name: "SF Symbols Browser", description: "Search and copy native SF Symbol identifiers.", iconName: "sparkles", colorHex: "#FFCC00", category: "Utilities", destination: "sfSymbolsBrowser"),
         WorkspaceHubTool(id: "extension_marketplace", name: "Extension Marketplace", description: "Browse and install community tools, themes, and extensions.", iconName: "bag.fill", colorHex: "#AF52DE", category: "Utilities", destination: "extensionMarketplace"),
@@ -56,186 +67,171 @@ public struct MainToolsView: View {
         categoryOrder.filter { !hiddenCategories.contains($0) }
     }
 
+    private var visibleTools: [WorkspaceHubTool] {
+        allAvailableTools.filter { !hiddenTools.contains($0.id) && filteredCategories.contains($0.category) }
+    }
+
+    private var scopedTools: [WorkspaceHubTool] {
+        switch selectedSection {
+        case .all:
+            return visibleTools
+        case .category(let category):
+            return visibleTools.filter { $0.category == category }
+        }
+    }
+
+    private var searchResults: [WorkspaceHubTool] {
+        guard !searchQuery.isEmpty else { return scopedTools }
+        return scopedTools.filter {
+            $0.name.localizedCaseInsensitiveContains(searchQuery) ||
+            $0.description.localizedCaseInsensitiveContains(searchQuery)
+        }
+    }
+
+    private var detailTitle: String {
+        switch selectedSection {
+        case .all: return "All Tools"
+        case .category(let category): return category
+        }
+    }
+
     public var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Search Bar
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Search Workspace Tools", systemImage: "magnifyingglass")
-                                    .font(.headline)
-                                    .foregroundColor(.blue)
-                                Spacer()
-                            }
-
-                            HStack {
-                                Image(systemName: "magnifyingglass")
-                                    .foregroundStyle(.secondary)
-                                TextField("Type to search tools...", text: $searchQuery)
-                                    .textFieldStyle(.plain)
-                                    .autocorrectionDisabled()
-
-                                if !searchQuery.isEmpty {
-                                    Button {
-                                        searchQuery = ""
-                                    } label: {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
-                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                        }
-                        .padding()
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Tool Category GroupBoxes matching DeploymentsView
-                    ForEach(filteredCategories, id: \.self) { category in
-                        let categoryTools = toolsForCategory(category)
-                        if !categoryTools.isEmpty {
-                            GroupBox {
-                                VStack(alignment: .leading, spacing: 14) {
-                                    HStack {
-                                        Label(category, systemImage: iconForCategory(category))
-                                            .font(.headline)
-                                            .foregroundColor(colorForCategory(category))
-                                        Spacer()
-                                    }
-
-                                    VStack(spacing: 16) {
-                                        ForEach(categoryTools) { tool in
-                                            HStack(spacing: 12) {
-                                                ZStack {
-                                                    RoundedRectangle(cornerRadius: 8)
-                                                        .fill(Color(hex: tool.colorHex).opacity(0.12))
-                                                        .frame(width: 36, height: 32)
-                                                    Image(systemName: tool.iconName)
-                                                        .font(.title3)
-                                                        .foregroundStyle(Color(hex: tool.colorHex))
-                                                }
-
-                                                VStack(alignment: .leading, spacing: 4) {
-                                                    Text(tool.name)
-                                                        .font(.subheadline.bold())
-                                                        .foregroundStyle(.primary)
-                                                    Text(tool.description)
-                                                        .font(.caption)
-                                                        .foregroundStyle(.secondary)
-                                                        .lineLimit(2)
-                                                        .fixedSize(horizontal: false, vertical: true)
-                                                }
-
-                                                Spacer()
-
-                                                Button("Open Tool") {
-                                                    launchTool(tool)
-                                                }
-                                                .buttonStyle(.bordered)
-                                                .controlSize(.regular)
-                                            }
-
-                                            if tool != categoryTools.last {
-                                                Divider()
-                                            }
-                                        }
-                                    }
-                                }
-                                .padding()
-                            }
-                            .groupBoxStyle(ModernGroupBoxStyle())
-                        }
-                    }
-
-                    if filteredCategories.isEmpty || allToolsHiddenAndFiltered() {
-                        VStack(spacing: 12) {
-                            Image(systemName: "square.dashed")
-                                .font(.system(size: 40))
-                                .foregroundStyle(.secondary)
-                            Text("No active tools are visible.")
-                                .font(.subheadline.bold())
-                                .foregroundStyle(.secondary)
-                            Text("Try adjusting your custom layout or unhiding categories/tools.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 40)
-                    }
-                }
-                .padding(24)
+            VStack(spacing: 0) {
+                tabBar
+                Divider()
+                content
             }
-            .navigationTitle("Workspace Tools Hub")
+            .navigationTitle("Tools")
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button {
                         showingHiddenToolsSheet = true
                     } label: {
-                        Label("Hidden Tools", systemImage: "eye.slash.fill")
+                        Label("Hidden Tools", systemImage: "eye.slash")
                     }
-                    .help("View and launch hidden tools")
+                    .help("View and restore hidden tools")
 
                     Button {
                         showingCustomizer = true
                     } label: {
-                        Label("Customize Layout", systemImage: "slider.horizontal.3")
+                        Label("Customize", systemImage: "slider.horizontal.3")
                     }
-                    .help("Configure sections, ordering, and tool visibility")
+                    .help("Reorder sections and manage tool visibility")
                 }
             }
-            .onAppear {
-                loadSettings()
-            }
-            .sheet(isPresented: $showingCustomizer) {
-                LayoutCustomizerView(
-                    allAvailableTools: allAvailableTools,
-                    hiddenTools: $hiddenTools,
-                    hiddenCategories: $hiddenCategories,
-                    categoryOrder: $categoryOrder,
-                    onSave: {
-                        saveSettings()
-                    }
-                )
-            }
-            .sheet(isPresented: $showingHiddenToolsSheet) {
-                HiddenToolsView(
-                    allAvailableTools: allAvailableTools,
-                    hiddenTools: $hiddenTools,
-                    onRestore: {
-                        saveSettings()
-                    },
-                    onLaunch: { tool in
-                        showingHiddenToolsSheet = false
-                        launchTool(tool)
-                    }
-                )
+        }
+        .searchable(text: $searchQuery, placement: .toolbar, prompt: "Search tools")
+        .onAppear { loadSettings() }
+        .onChange(of: filteredCategories) { _, updated in
+            if case .category(let category) = selectedSection, !updated.contains(category) {
+                selectedSection = .all
             }
         }
+        .sheet(isPresented: $showingCustomizer) {
+            LayoutCustomizerView(
+                allAvailableTools: allAvailableTools,
+                hiddenTools: $hiddenTools,
+                hiddenCategories: $hiddenCategories,
+                categoryOrder: $categoryOrder,
+                onSave: { saveSettings() }
+            )
+        }
+        .sheet(isPresented: $showingHiddenToolsSheet) {
+            HiddenToolsView(
+                allAvailableTools: allAvailableTools,
+                hiddenTools: $hiddenTools,
+                onRestore: { saveSettings() },
+                onLaunch: { tool in
+                    showingHiddenToolsSheet = false
+                    launchTool(tool)
+                }
+            )
+        }
+        .frame(minWidth: 700, minHeight: 540)
     }
 
-    private func toolsForCategory(_ category: String) -> [WorkspaceHubTool] {
-        let categoryList = allAvailableTools.filter { $0.category == category && !hiddenTools.contains($0.id) }
-        if searchQuery.isEmpty {
-            return categoryList
-        } else {
-            return categoryList.filter {
-                $0.name.localizedCaseInsensitiveContains(searchQuery) ||
-                $0.description.localizedCaseInsensitiveContains(searchQuery)
+    // MARK: - Tab Bar
+
+    @ViewBuilder
+    private var tabBar: some View {
+        Picker("", selection: $selectedSection) {
+            Label("All", systemImage: "square.grid.2x2.fill")
+                .tag(ToolsSidebarSelection.all)
+
+            ForEach(filteredCategories, id: \.self) { category in
+                Label(category, systemImage: iconForCategory(category))
+                    .tag(ToolsSidebarSelection.category(category))
             }
         }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 10)
     }
 
-    private func allToolsHiddenAndFiltered() -> Bool {
-        for category in filteredCategories {
-            if !toolsForCategory(category).isEmpty {
-                return false
+    // MARK: - Content
+
+    @ViewBuilder
+    private var content: some View {
+        Group {
+            if searchResults.isEmpty {
+                if !searchQuery.isEmpty {
+                    ContentUnavailableView.search(text: searchQuery)
+                } else if visibleTools.isEmpty {
+                    ContentUnavailableView(
+                        "No Tools Available",
+                        systemImage: "square.dashed",
+                        description: Text("Unhide sections or tools from Customize Layout to see them here.")
+                    )
+                } else {
+                    ContentUnavailableView(
+                        "Nothing Here Yet",
+                        systemImage: "tray",
+                        description: Text("This section has no visible tools.")
+                    )
+                }
+            } else {
+                GeometryReader { proxy in
+                    let columnCount = max(1, Int((proxy.size.width + gridSpacing) / (cardMinWidth + gridSpacing)))
+                    let columns = Array(
+                        repeating: GridItem(.flexible(), spacing: gridSpacing, alignment: .top),
+                        count: columnCount
+                    )
+
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Text(detailTitle)
+                                    .font(.title3.weight(.semibold))
+                                Spacer()
+                                Text("\(searchResults.count) tool\(searchResults.count == 1 ? "" : "s")")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            LazyVGrid(columns: columns, alignment: .leading, spacing: gridSpacing) {
+                                ForEach(searchResults) { tool in
+                                    ToolGridCard(
+                                        tool: tool,
+                                        onOpen: { launchTool(tool) },
+                                        onHide: {
+                                            hiddenTools.insert(tool.id)
+                                            saveSettings()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        .padding(20)
+                    }
+                    .clipped()
+                }
             }
         }
-        return true
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.background)
     }
 
     private func iconForCategory(_ category: String) -> String {
@@ -280,10 +276,8 @@ public struct MainToolsView: View {
         if let co = defaults.stringArray(forKey: "com.swiftcode.assist.toolsCategoryOrder") {
             let existingCats = Set(allAvailableTools.map { $0.category })
             categoryOrder = co.filter { existingCats.contains($0) }
-            for cat in existingCats {
-                if !categoryOrder.contains(cat) {
-                    categoryOrder.append(cat)
-                }
+            for cat in existingCats where !categoryOrder.contains(cat) {
+                categoryOrder.append(cat)
             }
         } else {
             categoryOrder = Array(Set(allAvailableTools.map { $0.category })).sorted()
@@ -295,6 +289,80 @@ public struct MainToolsView: View {
         defaults.set(Array(hiddenTools), forKey: "com.swiftcode.assist.hiddenTools")
         defaults.set(Array(hiddenCategories), forKey: "com.swiftcode.assist.hiddenCategories")
         defaults.set(categoryOrder, forKey: "com.swiftcode.assist.toolsCategoryOrder")
+    }
+}
+
+// MARK: - Tool Grid Card
+
+private struct ToolGridCard: View {
+    let tool: WorkspaceHubTool
+    let onOpen: () -> Void
+    let onHide: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .fill(Color(hex: tool.colorHex).opacity(0.15))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: tool.iconName)
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(Color(hex: tool.colorHex))
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                        .opacity(isHovering ? 1 : 0)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(tool.name)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Text(tool.description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .frame(height: 132, alignment: .top)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(.background.secondary)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(
+                        isHovering ? Color(hex: tool.colorHex).opacity(0.4) : Color.primary.opacity(0.07),
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .compositingGroup()
+        .shadow(color: .black.opacity(isHovering ? 0.10 : 0.03), radius: isHovering ? 8 : 2, y: isHovering ? 4 : 1)
+        .scaleEffect(isHovering ? 1.015 : 1)
+        .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isHovering)
+        .onHover { isHovering = $0 }
+        .contextMenu {
+            Button("Open Tool", systemImage: "arrow.up.forward.app") { onOpen() }
+            Divider()
+            Button("Hide Tool", systemImage: "eye.slash", role: .destructive) { onHide() }
+        }
+        .help(tool.description)
     }
 }
 
@@ -311,142 +379,60 @@ struct LayoutCustomizerView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Category configuration card
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Sections Reordering & Visibility", systemImage: "list.bullet.indent")
-                                    .font(.headline)
-                                    .foregroundColor(.blue)
-                                Spacer()
-                            }
-
-                            Text("Arrange the order in which sections are displayed in the Tools Hub and choose which sections to show or hide.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            Divider()
-
-                            VStack(spacing: 12) {
-                                ForEach(Array(categoryOrder.enumerated()), id: \.offset) { index, category in
-                                    HStack(spacing: 12) {
-                                        Toggle("", isOn: Binding(
-                                            get: { !hiddenCategories.contains(category) },
-                                            set: { isVisible in
-                                                if isVisible {
-                                                    hiddenCategories.remove(category)
-                                                } else {
-                                                    hiddenCategories.insert(category)
-                                                }
-                                            }
-                                        ))
-                                        .toggleStyle(.checkbox)
-
-                                        Text(category)
-                                            .font(.subheadline.bold())
-
-                                        Spacer()
-
-                                        // Reordering control buttons
-                                        HStack(spacing: 4) {
-                                            Button {
-                                                moveCategory(from: index, to: index - 1)
-                                            } label: {
-                                                Image(systemName: "chevron.up")
-                                            }
-                                            .disabled(index == 0)
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-
-                                            Button {
-                                                moveCategory(from: index, to: index + 1)
-                                            } label: {
-                                                Image(systemName: "chevron.down")
-                                            }
-                                            .disabled(index == categoryOrder.count - 1)
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-                                        }
-                                    }
-                                    .padding(.vertical, 4)
-
-                                    if index != categoryOrder.count - 1 {
-                                        Divider()
-                                    }
+            List {
+                Section {
+                    ForEach(categoryOrder, id: \.self) { category in
+                        Toggle(isOn: Binding(
+                            get: { !hiddenCategories.contains(category) },
+                            set: { isVisible in
+                                if isVisible {
+                                    hiddenCategories.remove(category)
+                                } else {
+                                    hiddenCategories.insert(category)
                                 }
                             }
+                        )) {
+                            Text(category)
+                                .font(.body.weight(.medium))
                         }
-                        .padding()
+                        .toggleStyle(.checkbox)
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Individual Tools configuration card
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Individual Tool Visibility", systemImage: "wrench.and.screwdriver")
-                                    .font(.headline)
-                                    .foregroundColor(.orange)
-                                Spacer()
-                            }
-
-                            Text("Toggle visibility for individual tools within active sections.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            Divider()
-
-                            VStack(alignment: .leading, spacing: 16) {
-                                ForEach(categoryOrder, id: \.self) { category in
-                                    let tools = allAvailableTools.filter { $0.category == category }
-                                    VStack(alignment: .leading, spacing: 10) {
-                                        Text(category)
-                                            .font(.caption.bold())
-                                            .foregroundStyle(.secondary)
-
-                                        ForEach(tools) { tool in
-                                            HStack(spacing: 12) {
-                                                Toggle("", isOn: Binding(
-                                                    get: { !hiddenTools.contains(tool.id) },
-                                                    set: { isVisible in
-                                                        if isVisible {
-                                                            hiddenTools.remove(tool.id)
-                                                        } else {
-                                                            hiddenTools.insert(tool.id)
-                                                        }
-                                                    }
-                                                ))
-                                                .toggleStyle(.checkbox)
-
-                                                ZStack {
-                                                    RoundedRectangle(cornerRadius: 6)
-                                                        .fill(Color(hex: tool.colorHex).opacity(0.12))
-                                                        .frame(width: 28, height: 24)
-                                                    Image(systemName: tool.iconName)
-                                                        .font(.caption)
-                                                        .foregroundStyle(Color(hex: tool.colorHex))
-                                                }
-
-                                                Text(tool.name)
-                                                    .font(.subheadline)
-
-                                                Spacer()
-                                            }
-                                        }
-                                    }
-                                    .padding(.bottom, 6)
-                                }
-                            }
-                        }
-                        .padding()
+                    .onMove { indices, newOffset in
+                        categoryOrder.move(fromOffsets: indices, toOffset: newOffset)
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                } header: {
+                    Text("Sections")
+                } footer: {
+                    Text("Drag rows to reorder sections. Uncheck to hide a section from the Tools Hub.")
                 }
-                .padding(24)
+
+                ForEach(categoryOrder, id: \.self) { category in
+                    let tools = allAvailableTools.filter { $0.category == category }
+                    Section(category) {
+                        ForEach(tools) { tool in
+                            Toggle(isOn: Binding(
+                                get: { !hiddenTools.contains(tool.id) },
+                                set: { isVisible in
+                                    if isVisible {
+                                        hiddenTools.remove(tool.id)
+                                    } else {
+                                        hiddenTools.insert(tool.id)
+                                    }
+                                }
+                            )) {
+                                Label {
+                                    Text(tool.name)
+                                } icon: {
+                                    Image(systemName: tool.iconName)
+                                        .foregroundStyle(Color(hex: tool.colorHex))
+                                }
+                            }
+                            .toggleStyle(.checkbox)
+                        }
+                    }
+                }
             }
-            .background(Color(NSColor.windowBackgroundColor))
+            .listStyle(.inset(alternatesRowBackgrounds: true))
             .navigationTitle("Customize Tools Layout")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -457,12 +443,7 @@ struct LayoutCustomizerView: View {
                 }
             }
         }
-        .frame(width: 500, height: 600)
-    }
-
-    private func moveCategory(from: Int, to: Int) {
-        guard to >= 0 && to < categoryOrder.count else { return }
-        categoryOrder.swapAt(from, to)
+        .frame(width: 520, height: 640)
     }
 }
 
@@ -482,83 +463,64 @@ struct HiddenToolsView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Hidden Tools Archive", systemImage: "eye.slash")
-                                    .font(.headline)
-                                    .foregroundColor(.purple)
-                                Spacer()
-                            }
+            Group {
+                if hiddenToolsList.isEmpty {
+                    ContentUnavailableView(
+                        "No Hidden Tools",
+                        systemImage: "checkmark.seal",
+                        description: Text("Every tool is currently visible in the Tools Hub.")
+                    )
+                } else {
+                    List {
+                        ForEach(hiddenToolsList) { tool in
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(Color(hex: tool.colorHex).opacity(0.12))
+                                        .frame(width: 36, height: 32)
+                                    Image(systemName: tool.iconName)
+                                        .font(.title3)
+                                        .foregroundStyle(Color(hex: tool.colorHex))
+                                }
 
-                            if hiddenToolsList.isEmpty {
-                                VStack(spacing: 12) {
-                                    Image(systemName: "checkmark.seal")
-                                        .font(.system(size: 32))
-                                        .foregroundStyle(.green)
-                                    Text("No tools are currently hidden")
-                                        .font(.subheadline.bold())
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(tool.name)
+                                        .font(.subheadline.weight(.semibold))
+                                    Text(tool.category)
+                                        .font(.caption2.weight(.semibold))
                                         .foregroundStyle(.secondary)
                                 }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 30)
-                            } else {
-                                VStack(spacing: 16) {
-                                    ForEach(hiddenToolsList) { tool in
-                                        HStack(spacing: 12) {
-                                            ZStack {
-                                                RoundedRectangle(cornerRadius: 8)
-                                                    .fill(Color(hex: tool.colorHex).opacity(0.12))
-                                                    .frame(width: 36, height: 32)
-                                                Image(systemName: tool.iconName)
-                                                    .font(.title3)
-                                                    .foregroundStyle(Color(hex: tool.colorHex))
-                                            }
 
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text(tool.name)
-                                                    .font(.subheadline.bold())
-                                                    .foregroundStyle(.primary)
-                                                Text(tool.category)
-                                                    .font(.caption2.bold())
-                                                    .foregroundStyle(.secondary)
-                                            }
+                                Spacer()
 
-                                            Spacer()
-
-                                            HStack(spacing: 8) {
-                                                Button("Restore") {
-                                                    hiddenTools.remove(tool.id)
-                                                    onRestore()
-                                                }
-                                                .buttonStyle(.bordered)
-                                                .controlSize(.regular)
-
-                                                Button("Open") {
-                                                    onLaunch(tool)
-                                                }
-                                                .buttonStyle(.borderedProminent)
-                                                .controlSize(.regular)
-                                            }
-                                        }
-
-                                        if tool != hiddenToolsList.last {
-                                            Divider()
-                                        }
-                                    }
+                                Button("Open") {
+                                    onLaunch(tool)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                            .padding(.vertical, 2)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button {
+                                    hiddenTools.remove(tool.id)
+                                    onRestore()
+                                } label: {
+                                    Label("Restore", systemImage: "arrow.uturn.backward")
+                                }
+                                .tint(.blue)
+                            }
+                            .contextMenu {
+                                Button("Restore Tool", systemImage: "arrow.uturn.backward") {
+                                    hiddenTools.remove(tool.id)
+                                    onRestore()
                                 }
                             }
                         }
-                        .padding()
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                    .listStyle(.inset(alternatesRowBackgrounds: true))
                 }
-                .padding(24)
             }
-            .background(Color(NSColor.windowBackgroundColor))
-            .navigationTitle("Hidden Tools Workspace")
+            .navigationTitle("Hidden Tools")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Close") {
@@ -567,6 +529,6 @@ struct HiddenToolsView: View {
                 }
             }
         }
-        .frame(width: 480, height: 500)
+        .frame(width: 480, height: 520)
     }
 }
