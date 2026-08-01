@@ -19,6 +19,16 @@ public class EditorViewModel {
             activeDocument = existing
             selectedTabID = existing.id
             await tokenize()
+
+            if existing.content.contains("@SwiftCodeVisualUIBuilderDocument") {
+                Task {
+                    await PreviewManager.shared.startPreviewSession(
+                        sourcePath: existing.url.path,
+                        sourceCode: existing.content,
+                        targetView: "VisualUIExportView"
+                    )
+                }
+            }
             return
         }
 
@@ -36,6 +46,16 @@ public class EditorViewModel {
             activeDocument = doc
             selectedTabID = doc.id
             await tokenize()
+
+            if content.contains("@SwiftCodeVisualUIBuilderDocument") {
+                Task {
+                    await PreviewManager.shared.startPreviewSession(
+                        sourcePath: url.path,
+                        sourceCode: content,
+                        targetView: "VisualUIExportView"
+                    )
+                }
+            }
         } catch {
             LoggingTool.error("Failed to open file: \(error)")
         }
@@ -59,6 +79,15 @@ public class EditorViewModel {
         activeDocument?.isDirty = true
         Task {
             await tokenize()
+        }
+
+        if content.contains("@SwiftCodeVisualUIBuilderDocument") {
+            // Automatically synchronize edits back to the Visual UI Builder document!
+            NotificationCenter.default.post(
+                name: NSNotification.Name("com.swiftcode.visualUIBuilderSync"),
+                object: nil,
+                userInfo: ["code": content]
+            )
         }
     }
 

@@ -163,6 +163,28 @@ public struct VisualUIInspector: View {
                             }
                             .padding(.vertical, 4)
                         }
+
+                        // Section 5: External Editor Action
+                        GroupBox("Developer Workspace Integration") {
+                            VStack(spacing: 8) {
+                                Button(action: {
+                                    openInSwiftCodeEditor()
+                                }) {
+                                    Label("Open in SwiftCode Editor", systemImage: "chevron.left.forwardslash.chevron.right")
+                                        .frame(maxWidth: .infinity)
+                                        .bold()
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.purple)
+                                .controlSize(.large)
+
+                                Text("This will save the layout as a compilation-ready SwiftUI source file 'VisualUIExportView.swift' in your project root, open it in the editor tab, and bind real-time previews.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                            }
+                            .padding(.vertical, 4)
+                        }
                     }
                     .padding(8)
                 }
@@ -173,6 +195,35 @@ public struct VisualUIInspector: View {
                     Text("Select an element in the canvas or scene tree to inspect properties.")
                 }
             }
+        }
+    }
+
+    private func openInSwiftCodeEditor() {
+        let generator = VisualUICodeGenerator()
+        let code = generator.generateCode(for: document.scene, targetFramework: .swiftUI)
+
+        let fileManager = FileManager.default
+        let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL ?? fileManager.temporaryDirectory
+        let fileURL = projectURL.appendingPathComponent("VisualUIExportView.swift")
+
+        do {
+            try code.write(to: fileURL, atomically: true, encoding: .utf8)
+            document.filePath = fileURL.path
+            document.isDirty = false
+
+            if let activeProject = ProjectSessionStore.shared.activeProject {
+                ProjectSessionStore.shared.refreshFileTree(for: activeProject)
+            }
+
+            VisualUISettings.shared.addLog("Saved latest generated SwiftUI code to \(fileURL.lastPathComponent)")
+
+            NotificationCenter.default.post(
+                name: NSNotification.Name("com.swiftcode.openFileInWorkspace"),
+                object: nil,
+                userInfo: ["filePath": fileURL.path]
+            )
+        } catch {
+            VisualUISettings.shared.addLog("Error opening in editor: \(error.localizedDescription)")
         }
     }
 }

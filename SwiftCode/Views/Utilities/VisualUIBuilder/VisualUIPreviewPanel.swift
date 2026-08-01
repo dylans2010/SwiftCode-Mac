@@ -77,7 +77,7 @@ public struct VisualUIPreviewPanel: View {
                 } else {
                     // Render Active Artboard Preview Environment using PreviewHost & PreviewContainer
                     if let activeID = document.scene.activeArtboardID,
-                       let _ = document.scene.artboards.first(where: { $0.id == activeID }) {
+                       let activeArtboard = document.scene.artboards.first(where: { $0.id == activeID }) {
                         ScrollView([.horizontal, .vertical]) {
                             VStack {
                                 if let hostedView = PreviewManager.shared.hostedView {
@@ -87,7 +87,7 @@ public struct VisualUIPreviewPanel: View {
                                 } else {
                                     // Fallback to high-fidelity live preview runtime workspace
                                     PreviewContainer(state: previewState) {
-                                        DynamicSwiftUIPreviewRenderer(content: generateCurrentSwiftUISource())
+                                        VisualUIRenderer(rootNode: activeArtboard.rootNode, document: document)
                                     }
                                 }
                             }

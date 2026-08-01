@@ -156,6 +156,14 @@ struct WorkspaceView: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("com.swiftcode.openFileInWorkspace"))) { notification in
+            if let filePath = notification.userInfo?["filePath"] as? String {
+                let url = URL(fileURLWithPath: filePath)
+                Task {
+                    await viewModel.editor.openFile(url: url)
+                }
+            }
+        }
         .background(Color(hex: themeVM.currentTheme.background))
         .foregroundStyle(Color(hex: themeVM.currentTheme.foreground))
         .navigationBarBackButtonHidden(true)

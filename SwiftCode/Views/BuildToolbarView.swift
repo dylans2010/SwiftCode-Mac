@@ -70,6 +70,30 @@ struct BuildToolbarView: View {
                 .buttonStyle(.bordered)
                 .help("Open Workspace Tools Hub")
 
+                if let activeDoc = editorViewModel.activeDocument, activeDoc.content.contains("@SwiftCodeVisualUIBuilderDocument") {
+                    Button {
+                        // Open Visual UI Builder immediately
+                        NotificationCenter.default.post(
+                            name: .toolbarToolActivated,
+                            object: nil,
+                            userInfo: ["toolID": "visual_ui_builder"]
+                        )
+                        // Connect / update existing preview session
+                        Task {
+                            await PreviewManager.shared.startPreviewSession(
+                                sourcePath: activeDoc.url.path,
+                                sourceCode: activeDoc.content,
+                                targetView: "VisualUIExportView"
+                            )
+                        }
+                    } label: {
+                        Label("Live Preview", systemImage: "play.desktopcomputer")
+                            .foregroundColor(.purple)
+                    }
+                    .buttonStyle(.bordered)
+                    .help("Launch Live Viewport for the active Visual UI Builder document")
+                }
+
                 // ESSENTIAL ACTIONS: Scheme selector
                 if !buildManager.discoveredSchemes.isEmpty {
                     Picker("Scheme", selection: $buildManager.selectedScheme) {
