@@ -40,7 +40,6 @@ struct DatabaseSettingsView: View {
 
                         Toggle("Enforce SSL/TLS for PostgreSQL", isOn: $useSSLForPostgres)
                     }
-                    .formStyle(.plain)
                     .padding(8)
                 }
 

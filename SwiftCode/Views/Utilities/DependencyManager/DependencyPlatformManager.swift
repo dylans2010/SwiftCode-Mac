@@ -740,7 +740,7 @@ Give specific package recommendations, Package.swift configurations, or dependen
         var aiAnswer = ""
         do {
             // Leverage the central LLMService if available
-            aiAnswer = try await LLMService.shared.generateResponse(prompt: promptWithContext)
+            aiAnswer = try await LLMService.shared.generateResponse(prompt: promptWithContext, useContext: false)
         } catch {
             // Robust offline knowledge-base fallback response
             aiAnswer = generateAIFallback(for: trimmed)

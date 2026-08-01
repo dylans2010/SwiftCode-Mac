@@ -331,6 +331,45 @@ public struct SavedArtboardsListView: View {
     }
 }
 
+// MARK: - Template Item Card
+
+struct TemplateItemCard: View {
+    let title: String
+    let icon: String
+    let desc: String
+    let category: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundColor(.accentColor)
+                Spacer()
+                Text(category)
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(0.15))
+                    .foregroundColor(.accentColor)
+                    .clipShape(Capsule())
+            }
+
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            Text(desc)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(3)
+                .multilineTextAlignment(.leading)
+        }
+        .padding()
+        .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
 // MARK: - Saved Artboards Workspace View (Center Workspace)
 
 public struct SavedArtboardsWorkspaceView: View {

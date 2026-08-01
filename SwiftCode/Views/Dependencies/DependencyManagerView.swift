@@ -64,7 +64,7 @@ struct DependencyManagerView: View {
                         .buttonStyle(.plain)
 
                         // Card 2: GitHub Discovery
-                        NavigationLink(destination: GitHubDiscoveryView()) {
+                        NavigationLink(destination: DependencyGitHubDiscoveryView()) {
                             renderDashboardCard(
                                 title: "GitHub Discovery Engine",
                                 systemImage: "magnifyingglass.circle.fill",
@@ -128,7 +128,7 @@ struct DependencyManagerView: View {
                         .buttonStyle(.plain)
 
                         // Card 6: Security Center
-                        NavigationLink(destination: SecurityCenterView()) {
+                        NavigationLink(destination: DependencySecurityCenterView()) {
                             renderDashboardCard(
                                 title: "Ecosystem Security & Audit",
                                 systemImage: "shield.checkerboard",

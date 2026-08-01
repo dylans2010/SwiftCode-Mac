@@ -261,6 +261,8 @@ struct VisualUIExportView: View {
                 str += "    }\n"
             }
             str += "}"
+        default:
+            str = "Text(\"\(node.name)\")"
         }
 
         // Apply universal styling modifiers
