@@ -58,7 +58,9 @@ public final class LocalizationCore {
     public var selectedFile: LocalizationFile? = nil {
         didSet {
             if let file = selectedFile {
-                loadFileContents(file)
+                Task {
+                    await loadFileContentsAsync(file)
+                }
             }
         }
     }
@@ -166,18 +168,21 @@ public final class LocalizationCore {
 
     // MARK: - Disk Read / Write Engine
 
-    private func loadFileContents(_ file: LocalizationFile) {
+    private func loadFileContentsAsync(_ file: LocalizationFile) async {
         let fileURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(file.path)
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
 
-        logger.log("Reading real localization asset from disk: \(file.path)")
+        logger.log("Reading real localization asset from disk asynchronously: \(file.path)")
+
+        let defaultLang = self.defaultLanguage
 
         if file.type == "xcstrings" {
-            // Parse Xcode String Catalog JSON
-            if let data = try? Data(contentsOf: fileURL),
-               let catalog = try? JSONDecoder().decode(XCStringsFile.self, from: data) {
-                self.defaultLanguage = catalog.sourceLanguage
-
+            // Parse Xcode String Catalog JSON in a background context
+            let loadedKeys = await Task.detached(priority: .userInitiated) { () -> [LocalizedKey]? in
+                guard let data = try? Data(contentsOf: fileURL),
+                      let catalog = try? JSONDecoder().decode(XCStringsFile.self, from: data) else {
+                    return nil
+                }
                 var loaded: [LocalizedKey] = []
                 for (keyName, entry) in catalog.strings {
                     var trans: [String: String] = [:]
@@ -193,12 +198,21 @@ public final class LocalizationCore {
                         isFavorite: false
                     ))
                 }
-                self.keys = loaded
-                logger.log("Loaded \(loaded.count) keys from String Catalog.")
+                return loaded
+            }.value
+
+            if let loadedKeys = loadedKeys {
+                await MainActor.run {
+                    self.keys = loadedKeys
+                }
+                logger.log("Loaded \(loadedKeys.count) keys from String Catalog.")
             }
         } else {
-            // Parse standard .strings format: "key" = "value";
-            if let content = try? String(contentsOf: fileURL, encoding: .utf8) {
+            // Parse standard .strings format: "key" = "value"; in a background context
+            let loadedKeys = await Task.detached(priority: .userInitiated) { () -> [LocalizedKey]? in
+                guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else {
+                    return nil
+                }
                 var loaded: [LocalizedKey] = []
                 let lines = content.components(separatedBy: .newlines)
 
@@ -217,15 +231,21 @@ public final class LocalizationCore {
 
                             loaded.append(LocalizedKey(
                                 key: key,
-                                translations: [defaultLanguage: val],
+                                translations: [defaultLang: val],
                                 comment: nil,
                                 isFavorite: false
                             ))
                         }
                     }
                 }
-                self.keys = loaded
-                logger.log("Loaded \(loaded.count) keys from .strings asset.")
+                return loaded
+            }.value
+
+            if let loadedKeys = loadedKeys {
+                await MainActor.run {
+                    self.keys = loadedKeys
+                }
+                logger.log("Loaded \(loadedKeys.count) keys from .strings asset.")
             }
         }
     }
@@ -234,38 +254,44 @@ public final class LocalizationCore {
         guard let file = selectedFile else { return }
         let fileURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(file.path)
 
-        logger.log("Serializing and writing updated localizations back to disk at: \(file.path)")
+        logger.log("Serializing and writing updated localizations back to disk asynchronously at: \(file.path)")
 
-        if file.type == "xcstrings" {
-            // Format back to Xcode String Catalog schema
-            var stringsMap: [String: XCStringsEntry] = [:]
-            for record in keys {
-                var locs: [String: XCStringsLocalization] = [:]
-                for (lang, val) in record.translations {
-                    locs[lang] = XCStringsLocalization(stringUnit: XCStringsUnit(state: "translated", value: val))
-                }
-                stringsMap[record.key] = XCStringsEntry(localizations: locs, comment: record.comment)
-            }
+        let keysToSave = self.keys
+        let fileType = file.type
+        let defaultLang = self.defaultLanguage
 
-            let catalog = XCStringsFile(sourceLanguage: defaultLanguage, strings: stringsMap)
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = .prettyPrinted
-            if let data = try? encoder.encode(catalog) {
-                try? data.write(to: fileURL, options: .atomic)
-                logger.log("String Catalog saved successfully.")
-            }
-        } else {
-            // Format to standard .strings structure
-            var output = ""
-            for record in keys {
-                if let comment = record.comment, !comment.isEmpty {
-                    output += "/* \(comment) */\n"
+        Task.detached(priority: .background) {
+            if fileType == "xcstrings" {
+                // Format back to Xcode String Catalog schema
+                var stringsMap: [String: XCStringsEntry] = [:]
+                for record in keysToSave {
+                    var locs: [String: XCStringsLocalization] = [:]
+                    for (lang, val) in record.translations {
+                        locs[lang] = XCStringsLocalization(stringUnit: XCStringsUnit(state: "translated", value: val))
+                    }
+                    stringsMap[record.key] = XCStringsEntry(localizations: locs, comment: record.comment)
                 }
-                let val = record.translations[defaultLanguage] ?? ""
-                output += "\"\(record.key)\" = \"\(val)\";\n\n"
+
+                let catalog = XCStringsFile(sourceLanguage: defaultLang, strings: stringsMap)
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = .prettyPrinted
+                if let data = try? encoder.encode(catalog) {
+                    try? data.write(to: fileURL, options: .atomic)
+                    logger.log("String Catalog saved successfully asynchronously.")
+                }
+            } else {
+                // Format to standard .strings structure
+                var output = ""
+                for record in keysToSave {
+                    if let comment = record.comment, !comment.isEmpty {
+                        output += "/* \(comment) */\n"
+                    }
+                    let val = record.translations[defaultLang] ?? ""
+                    output += "\"\(record.key)\" = \"\(val)\";\n\n"
+                }
+                try? output.write(to: fileURL, atomically: true, encoding: .utf8)
+                logger.log(".strings asset saved successfully asynchronously.")
             }
-            try? output.write(to: fileURL, atomically: true, encoding: .utf8)
-            logger.log(".strings asset saved successfully.")
         }
     }
 
@@ -321,9 +347,12 @@ public final class LocalizationCore {
 
     public func updateTranslation(key: String, lang: String, value: String) {
         if let idx = keys.firstIndex(where: { $0.key == key }) {
-            keys[idx].translations[lang] = value
-            saveSettings()
-            saveFileContents()
+            let oldValue = keys[idx].translations[lang] ?? ""
+            if oldValue != value {
+                keys[idx].translations[lang] = value
+                saveSettings()
+                saveFileContents()
+            }
         }
     }
 
