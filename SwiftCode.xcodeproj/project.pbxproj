@@ -1523,7 +1523,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		21ECBFD851434757AA1552F6 /* NSGitErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NSGitErrorView.swift; sourceTree = "<group>"; };
+		21ECBFD851434757AA1552F6 /* NSGitErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSGitErrorView.swift"; sourceTree = SOURCE_ROOT; };
 		BD40778B4DB34FCAAF0A509B /* DocumentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentCoordinator.swift; sourceTree = "<group>"; };
 		A4F8E6086CE9485E91EF5ED8 /* PreviewInteractionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewInteractionManager.swift; sourceTree = "<group>"; };
 		794AE660D22E4A1E9314DD3F /* PreviewRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewRuntime.swift; sourceTree = "<group>"; };
