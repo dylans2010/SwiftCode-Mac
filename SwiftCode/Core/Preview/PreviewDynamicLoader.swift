@@ -34,8 +34,11 @@ public final class PreviewDynamicLoader {
                 }
                 .padding()
             )
+            let fallbackHostingView = NSHostingView(rootView: fallbackView)
+            fallbackHostingView.translatesAutoresizingMaskIntoConstraints = false
+            fallbackHostingView.autoresizingMask = [.width, .height]
             return LoadedPreviewSimulation(
-                anyView: fallbackView,
+                nativeView: fallbackHostingView,
                 hierarchyDescription: [entry.rootViewType],
                 handle: handle
             )
@@ -51,12 +54,11 @@ public final class PreviewDynamicLoader {
 
         let hostingView = Unmanaged<NSView>.fromOpaque(viewPtr).takeRetainedValue()
 
-        // Wrap the native view inside SwiftUI representation
-        let wrappedView = AnyView(
-            NativePreviewHost(hostedView: hostingView)
+        return LoadedPreviewSimulation(
+            nativeView: hostingView,
+            hierarchyDescription: [resolvedName],
+            handle: handle
         )
-
-        return LoadedPreviewSimulation(anyView: wrappedView, hierarchyDescription: [resolvedName], handle: handle)
     }
 
     public func unloadCurrentModule() {
@@ -71,7 +73,7 @@ public final class PreviewDynamicLoader {
 // and runtime dynamic linking handle cleanup on the @MainActor thread. Its properties
 // are only accessed and mutated on @MainActor, ensuring thread safety.
 public struct LoadedPreviewSimulation: @unchecked Sendable {
-    public let anyView: AnyView
+    public let nativeView: NSView
     public let hierarchyDescription: [String]
     public let handle: UnsafeMutableRawPointer?
 }
