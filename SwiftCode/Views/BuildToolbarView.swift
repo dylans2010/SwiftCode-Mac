@@ -70,28 +70,43 @@ struct BuildToolbarView: View {
                 .buttonStyle(.bordered)
                 .help("Open Workspace Tools Hub")
 
-                if let activeDoc = editorViewModel.activeDocument, activeDoc.content.contains("@SwiftCodeVisualUIBuilderDocument") {
+                if let activeDoc = editorViewModel.activeDocument, activeDoc.url.pathExtension.lowercased() == "swift" {
                     Button {
-                        // Open Visual UI Builder immediately
-                        NotificationCenter.default.post(
-                            name: .toolbarToolActivated,
-                            object: nil,
-                            userInfo: ["toolID": "visual_ui_builder"]
-                        )
-                        // Connect / update existing preview session
-                        Task {
-                            await PreviewManager.shared.startPreviewSession(
-                                sourcePath: activeDoc.url.path,
-                                sourceCode: activeDoc.content,
-                                targetView: "VisualUIExportView"
+                        if activeDoc.content.contains("@SwiftCodeVisualUIBuilderDocument") {
+                            // Open Visual UI Builder immediately
+                            NotificationCenter.default.post(
+                                name: .toolbarToolActivated,
+                                object: nil,
+                                userInfo: ["toolID": "visual_ui_builder"]
                             )
+                            // Connect / update existing preview session
+                            Task {
+                                await PreviewManager.shared.startPreviewSession(
+                                    sourcePath: activeDoc.url.path,
+                                    sourceCode: activeDoc.content,
+                                    targetView: "VisualUIExportView"
+                                )
+                            }
+                        } else {
+                            // Standard SwiftUI document: Launch Live Simulation
+                            NotificationCenter.default.post(
+                                name: .toolbarToolActivated,
+                                object: nil,
+                                userInfo: ["toolID": "local_simulation"]
+                            )
+                            Task {
+                                await PreviewManager.shared.loadPreviews(
+                                    forFileAt: activeDoc.url.path,
+                                    content: activeDoc.content
+                                )
+                            }
                         }
                     } label: {
                         Label("Live Preview", systemImage: "play.desktopcomputer")
                             .foregroundColor(.purple)
                     }
                     .buttonStyle(.bordered)
-                    .help("Launch Live Viewport for the active Visual UI Builder document")
+                    .help("Launch Live Viewport for the active Swift document")
                 }
 
                 // ESSENTIAL ACTIONS: Scheme selector

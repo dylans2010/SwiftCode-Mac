@@ -10,7 +10,21 @@ public class EditorViewModel {
     public var selectedTabID: UUID?
     public var tokenizedLines: [TokenizedLine] = []
 
-    public init() {}
+    public init() {
+        // Observe edits from Visual UI Builder and sync them seamlessly
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("com.swiftcode.visualUIEditorUpdate"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self, let code = notification.userInfo?["code"] as? String else { return }
+            if let activeDoc = self.activeDocument {
+                if activeDoc.content != code {
+                    self.updateContent(code)
+                }
+            }
+        }
+    }
 
     public func openFile(url: URL) async {
         if let existing = openDocuments.first(where: { $0.url == url }) {
@@ -19,6 +33,9 @@ public class EditorViewModel {
             activeDocument = existing
             selectedTabID = existing.id
             await tokenize()
+
+            // Update centralized DocumentCoordinator!
+            DocumentCoordinator.shared.activeDocument = existing
 
             if existing.content.contains("@SwiftCodeVisualUIBuilderDocument") {
                 Task {
@@ -47,6 +64,9 @@ public class EditorViewModel {
             selectedTabID = doc.id
             await tokenize()
 
+            // Update centralized DocumentCoordinator!
+            DocumentCoordinator.shared.activeDocument = doc
+
             if content.contains("@SwiftCodeVisualUIBuilderDocument") {
                 Task {
                     await PreviewManager.shared.startPreviewSession(
@@ -69,6 +89,7 @@ public class EditorViewModel {
                 openDocuments[index].isDirty = false
             }
             activeDocument?.isDirty = false
+            DocumentCoordinator.shared.updateUnsavedStatus(isDirty: false)
         } catch {
             LoggingTool.error("Failed to save file: \(error)")
         }
@@ -77,6 +98,8 @@ public class EditorViewModel {
     public func updateContent(_ content: String) {
         activeDocument?.content = content
         activeDocument?.isDirty = true
+        DocumentCoordinator.shared.updateUnsavedStatus(isDirty: true)
+
         Task {
             await tokenize()
         }

@@ -93,8 +93,14 @@ public final class InspectorProjectScanner {
 
         logger.log("Starting background project scan...")
 
-        let rootPath = FileManager.default.currentDirectoryPath
-        let url = URL(fileURLWithPath: rootPath)
+        // Direct linkage to the active project currently open in the workspace!
+        let url: URL
+        if let activeProject = ProjectSessionStore.shared.activeProject {
+            url = activeProject.directoryURL
+        } else {
+            let rootPath = FileManager.default.currentDirectoryPath
+            url = URL(fileURLWithPath: rootPath)
+        }
 
         // Read plist or project config info
         self.projectName = url.lastPathComponent

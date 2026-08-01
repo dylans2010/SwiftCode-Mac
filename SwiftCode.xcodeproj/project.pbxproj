@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C9255F6C04794975A46EC9FD /* DocumentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD40778B4DB34FCAAF0A509B /* DocumentCoordinator.swift */; };
 		8AF7A4DBC58448B79766C3DB /* PreviewInteractionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F8E6086CE9485E91EF5ED8 /* PreviewInteractionManager.swift */; };
 		AA524F6139E340CCA25E5896 /* PreviewRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 794AE660D22E4A1E9314DD3F /* PreviewRuntime.swift */; };
 		D9FB167791F84FB39E20AB8F /* PreviewDeviceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB42A73CC4BD4D10AA335FCA /* PreviewDeviceManager.swift */; };
@@ -1521,6 +1522,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		BD40778B4DB34FCAAF0A509B /* DocumentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentCoordinator.swift; sourceTree = "<group>"; };
 		A4F8E6086CE9485E91EF5ED8 /* PreviewInteractionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewInteractionManager.swift; sourceTree = "<group>"; };
 		794AE660D22E4A1E9314DD3F /* PreviewRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewRuntime.swift; sourceTree = "<group>"; };
 		CB42A73CC4BD4D10AA335FCA /* PreviewDeviceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewDeviceManager.swift; sourceTree = "<group>"; };
@@ -4386,6 +4388,7 @@
 		61E964C9D3569A4036FE5296 /* Editor */ = {
 			isa = PBXGroup;
 			children = (
+				BD40778B4DB34FCAAF0A509B /* DocumentCoordinator.swift */,
 				CE101005E34BBDA370490001 /* EntitlementsEditorManager.swift */,
 				CE101003E34BBDA370490001 /* InfoPlistEditor.swift */,
 				CE101001E34BBDA370490001 /* ProjectEditorCoordinator.swift */,
@@ -6025,6 +6028,7 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C9255F6C04794975A46EC9FD /* DocumentCoordinator.swift in Sources */,
 				8AF7A4DBC58448B79766C3DB /* PreviewInteractionManager.swift in Sources */,
 				AA524F6139E340CCA25E5896 /* PreviewRuntime.swift in Sources */,
 				D9FB167791F84FB39E20AB8F /* PreviewDeviceManager.swift in Sources */,

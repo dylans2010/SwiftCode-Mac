@@ -8,7 +8,14 @@ public final class VisualUIDocument: Identifiable {
     public let id = UUID()
     public var scene: VisualUIScene
     public var filePath: String?
-    public var isDirty = false
+    public var isDirty = false {
+        didSet {
+            // Keep DocumentCoordinator in sync
+            Task { @MainActor in
+                DocumentCoordinator.shared.updateUnsavedStatus(isDirty: isDirty)
+            }
+        }
+    }
 
     // Undo / Redo Stacks
     private var undoStack: [String] = [] // Encoded JSON state representations
@@ -43,6 +50,16 @@ public final class VisualUIDocument: Identifiable {
             guard let self = self, let code = notification.userInfo?["code"] as? String else { return }
             self.synchronizeFromCode(code)
         }
+    }
+
+    public func propagateToEditor() {
+        let generator = VisualUICodeGenerator()
+        let code = generator.generateCode(for: scene, targetFramework: .swiftUI)
+        NotificationCenter.default.post(
+            name: NSNotification.Name("com.swiftcode.visualUIEditorUpdate"),
+            object: nil,
+            userInfo: ["code": code]
+        )
     }
 
     public func synchronizeFromCode(_ code: String) {
@@ -121,6 +138,7 @@ public final class VisualUIDocument: Identifiable {
             redoStack.removeAll()
             isDirty = true
             logger.debug("Checkpoint recorded for Undo.")
+            propagateToEditor()
         }
     }
 
@@ -135,6 +153,7 @@ public final class VisualUIDocument: Identifiable {
             self.scene = restoredScene
             isDirty = true
             logger.info("Executed Undo.")
+            propagateToEditor()
         }
     }
 
@@ -149,6 +168,7 @@ public final class VisualUIDocument: Identifiable {
             self.scene = restoredScene
             isDirty = true
             logger.info("Executed Redo.")
+            propagateToEditor()
         }
     }
 
