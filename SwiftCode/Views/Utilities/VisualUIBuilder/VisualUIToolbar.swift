@@ -8,130 +8,152 @@ public struct VisualUIToolbar: View {
     @State private var showingExportSheet = false
     @State private var showingAIAssistantSheet = false
 
-    public var body: some View {
-        HStack {
-            // Target Framework Selection Picker
-            HStack(spacing: 8) {
-                Image(systemName: "square.grid.3x3.topleft.filled")
-                    .foregroundColor(.accentColor)
-                Text("Framework:")
-                    .font(.subheadline.bold())
+    public init(document: VisualUIDocument, settings: VisualUISettings) {
+        self.document = document
+        self.settings = settings
+    }
 
-                Picker("", selection: $document.scene.currentFramework) {
-                    ForEach(VisualUIFramework.allCases) { framework in
-                        Label(framework.rawValue, systemImage: framework.systemIcon)
-                            .tag(framework)
-                    }
+    public var body: some View {
+        HStack(spacing: 16) {
+            // Group 1: Workspace Mode & Framework
+            HStack(spacing: 12) {
+                Toggle(isOn: Binding(
+                    get: { settings.showCompiledView },
+                    set: { settings.showCompiledView = $0 }
+                )) {
+                    Label("Compiled View", systemImage: "play.desktopcomputer")
+                        .font(.subheadline.bold())
                 }
-                .frame(width: 130)
-                .controlSize(.regular)
+                .toggleStyle(.button)
+                .help("Toggle between Canvas design mode and live compiled editor document")
+
+                if !settings.showCompiledView {
+                    Picker("Framework", selection: $document.scene.currentFramework) {
+                        ForEach(VisualUIFramework.allCases) { framework in
+                            Text(framework.rawValue).tag(framework)
+                        }
+                    }
+                    .frame(width: 110)
+                    .controlSize(.small)
+                }
             }
 
             Spacer()
 
-            // Configuration Options (Grid, Dark Mode, device sizes, orientation)
-            HStack(spacing: 12) {
-                // Device Frames Selection
-                Picker("Device Frame", selection: $settings.selectedDevice) {
+            // Group 2: Layout & Viewport Configuration
+            HStack(spacing: 8) {
+                Picker("Device", selection: $settings.selectedDevice) {
                     Text("iPhone 16 Pro").tag("iPhone 16 Pro")
                     Text("iPad Pro").tag("iPad Pro")
                     Text("Apple Watch").tag("Apple Watch")
                     Text("Apple Vision Pro").tag("Apple Vision Pro")
                 }
-                .frame(width: 150)
+                .frame(width: 140)
+                .controlSize(.small)
                 .onChange(of: settings.selectedDevice) { _, newValue in
                     updateSelectedDeviceFrames(to: newValue)
                 }
 
-                // Light / Dark Mode Override
+                Divider()
+                    .frame(height: 16)
+
                 Button {
                     settings.isDarkMode.toggle()
                     settings.addLog("Theme switched to \(settings.isDarkMode ? "Dark" : "Light") Mode.")
                 } label: {
-                    Image(systemName: settings.isDarkMode ? "moon.stars.fill" : "sun.max.fill")
-                        .foregroundStyle(settings.isDarkMode ? .purple : .orange)
+                    Image(systemName: settings.isDarkMode ? "moon.fill" : "sun.max.fill")
+                        .foregroundColor(settings.isDarkMode ? .purple : .orange)
                 }
                 .buttonStyle(.bordered)
-                .help("Toggle Color Scheme (Light/Dark)")
+                .controlSize(.small)
+                .help("Toggle Dark/Light Mode")
 
-                // Toggle Grid visibility
                 Button {
                     settings.showGrid.toggle()
                 } label: {
-                    Image(systemName: settings.showGrid ? "grid.diagonal" : "grid")
+                    Image(systemName: "grid")
+                        .foregroundColor(settings.showGrid ? .accentColor : .secondary)
                 }
                 .buttonStyle(.bordered)
-                .help("Toggle Snap-to-Grid")
+                .controlSize(.small)
+                .help("Toggle Grid")
 
-                // Safe Areas visualization
                 Button {
                     settings.showSafeAreas.toggle()
                 } label: {
-                    Image(systemName: settings.showSafeAreas ? "iphone.badge.play" : "iphone")
+                    Image(systemName: "iphone.badge.play")
+                        .foregroundColor(settings.showSafeAreas ? .accentColor : .secondary)
                 }
                 .buttonStyle(.bordered)
-                .help("Toggle Simulated Device Bezels & Safe Areas")
+                .controlSize(.small)
+                .help("Toggle Device Bezels & Safe Areas")
             }
 
             Spacer()
 
-            // Actions panel: Undo, Redo, AI Assistant, Export View
+            // Group 3: Document Actions
             HStack(spacing: 12) {
-                // Undo
-                Button {
-                    document.undo()
-                    settings.addLog("Undo executed.")
-                } label: {
-                    Image(systemName: "arrow.uturn.backward")
-                }
-                .buttonStyle(.plain)
-                .disabled(!document.canUndo)
-                .help("Undo (⌘Z)")
+                // Undo / Redo group
+                HStack(spacing: 4) {
+                    Button {
+                        document.undo()
+                        settings.addLog("Undo executed.")
+                    } label: {
+                        Image(systemName: "arrow.uturn.backward")
+                    }
+                    .disabled(!document.canUndo)
+                    .help("Undo (⌘Z)")
 
-                // Redo
-                Button {
-                    document.redo()
-                    settings.addLog("Redo executed.")
-                } label: {
-                    Image(systemName: "arrow.uturn.forward")
+                    Button {
+                        document.redo()
+                        settings.addLog("Redo executed.")
+                    } label: {
+                        Image(systemName: "arrow.uturn.forward")
+                    }
+                    .disabled(!document.canRedo)
+                    .help("Redo (⌘⇧Z)")
                 }
-                .buttonStyle(.plain)
-                .disabled(!document.canRedo)
-                .help("Redo (⌘⇧Z)")
+                .buttonStyle(.bordered)
+                .controlSize(.small)
 
                 Divider()
                     .frame(height: 16)
 
-                // Ask AI Assistant Prompt Trigger
+                // Sparkles AI Assistant
                 Button {
                     showingAIAssistantSheet = true
                 } label: {
                     Label("AI Assistant", systemImage: "sparkles")
-                        .foregroundStyle(.purple)
-                }
-                .buttonStyle(.bordered)
-                .help("Ask Codex to redesign, optimize or generate SwiftUI screens")
-
-                // Open in SwiftCode Editor
-                Button {
-                    openInSwiftCodeEditor()
-                } label: {
-                    Label("Open in Editor", systemImage: "chevron.left.forwardslash.chevron.right")
-                }
-                .buttonStyle(.bordered)
-                .help("Open the generated Swift file inside the main editor")
-
-                // Export Options
-                Button {
-                    showingExportSheet = true
-                } label: {
-                    Label("Export Code", systemImage: "square.and.arrow.up")
+                        .foregroundStyle(.white)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(.purple)
+                .controlSize(.small)
+                .help("Ask Codex AI Assistant")
+
+                // Overflow Menu for Exporting / Code actions
+                Menu {
+                    Button {
+                        openInSwiftCodeEditor()
+                    } label: {
+                        Label("Open in Editor", systemImage: "chevron.left.forwardslash.chevron.right")
+                    }
+
+                    Button {
+                        showingExportSheet = true
+                    } label: {
+                        Label("Export Code...", systemImage: "square.and.arrow.up")
+                    }
+                } label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                }
+                .menuStyle(.borderlessButton)
+                .controlSize(.small)
+                .frame(width: 80)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
         .background(Color(NSColor.controlBackgroundColor))
         .sheet(isPresented: $showingExportSheet) {
             VisualUIExportView(document: document)

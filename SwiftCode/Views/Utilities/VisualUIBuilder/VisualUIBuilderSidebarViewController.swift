@@ -118,7 +118,8 @@ public class VisualUIBuilderSidebarViewController: NSViewController, NSOutlineVi
         let group = VisualUIBuilderSidebarNode(title: "COMPONENTS", isGroup: true)
         group.children = [
             VisualUIBuilderSidebarNode(title: "Component Library", icon: "square.grid.2x2", tag: 0),
-            VisualUIBuilderSidebarNode(title: "View Hierarchy", icon: "list.bullet.indent", tag: 1)
+            VisualUIBuilderSidebarNode(title: "View Hierarchy", icon: "list.bullet.indent", tag: 1),
+            VisualUIBuilderSidebarNode(title: "Saved Artboards", icon: "folder.badge.plus", tag: 2)
         ]
         return [group]
     }
@@ -138,9 +139,14 @@ public class VisualUIBuilderSidebarViewController: NSViewController, NSOutlineVi
                 VisualUIComponentLibrary(document: document)
                     .environment(document)
             )
-        } else {
+        } else if selectedIndex == 1 {
             swiftUIView = AnyView(
                 VisualUIHierarchy(document: document)
+                    .environment(document)
+            )
+        } else {
+            swiftUIView = AnyView(
+                SavedArtboardsListView(document: document)
                     .environment(document)
             )
         }

@@ -31,6 +31,16 @@ public struct VisualUICanvasView: View {
                         document.scene.zoomScale = 1.0
                     }) { Text("") }
                         .keyboardShortcut("0", modifiers: .command)
+
+                    Button(action: {
+                        settings.isFullScreenCanvas.toggle()
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("com.swiftcode.visualUIBuilder.toggleFullScreen"),
+                            object: nil,
+                            userInfo: ["isFullScreen": settings.isFullScreenCanvas]
+                        )
+                    }) { Text("") }
+                        .keyboardShortcut("f", modifiers: [.command, .option])
                 }
                 .opacity(0)
                 .frame(width: 0, height: 0)
@@ -174,23 +184,16 @@ public struct InfiniteCanvasGrid: Shape {
 
     public func path(in rect: CGRect) -> Path {
         var path = Path()
-
-        // Draw horizontal grid lines
         var y = 0.0
         while y < rect.height {
-            path.move(to: CGPoint(x: 0, y: y))
-            path.addLine(to: CGPoint(x: rect.width, y: y))
+            var x = 0.0
+            while x < rect.width {
+                // Draw a tiny dot at (x, y)
+                path.addEllipse(in: CGRect(x: x - 1, y: y - 1, width: 2, height: 2))
+                x += gridSize
+            }
             y += gridSize
         }
-
-        // Draw vertical grid lines
-        var x = 0.0
-        while x < rect.width {
-            path.move(to: CGPoint(x: x, y: 0))
-            path.addLine(to: CGPoint(x: x, y: rect.height))
-            x += gridSize
-        }
-
         return path
     }
 }
@@ -259,16 +262,33 @@ public struct ArtboardView: View {
 
             // Render output inside the simulated device frame
             VStack {
-                VisualUIRenderer(rootNode: artboard.rootNode, document: document)
-                    .frame(width: size.width, height: size.height)
-                    .background(settings.isDarkMode ? Color.black : Color.white)
-                    .cornerRadius(settings.showSafeAreas ? 40 : 0)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: settings.showSafeAreas ? 40 : 0)
-                            .stroke(isActive ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: isActive ? 3 : 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.15), radius: 15, x: 0, y: 10)
+                if settings.showCompiledView {
+                    if let hostedView = PreviewManager.shared.hostedView {
+                        NativePreviewHost(hostedView: hostedView)
+                            .frame(width: size.width, height: size.height)
+                            .background(settings.isDarkMode ? Color.black : Color.white)
+                    } else {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                            Text("Compiling SwiftUI View...")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(width: size.width, height: size.height)
+                        .background(settings.isDarkMode ? Color.black : Color.white)
+                    }
+                } else {
+                    VisualUIRenderer(rootNode: artboard.rootNode, document: document)
+                        .frame(width: size.width, height: size.height)
+                        .background(settings.isDarkMode ? Color.black : Color.white)
+                }
             }
+            .cornerRadius(settings.showSafeAreas ? 40 : 0)
+            .overlay(
+                RoundedRectangle(cornerRadius: settings.showSafeAreas ? 40 : 0)
+                    .stroke(isActive ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: isActive ? 3 : 1)
+            )
+            .shadow(color: Color.black.opacity(0.15), radius: 15, x: 0, y: 10)
             .contentShape(Rectangle())
             .onTapGesture {
                 document.scene.activeArtboardID = artboard.id

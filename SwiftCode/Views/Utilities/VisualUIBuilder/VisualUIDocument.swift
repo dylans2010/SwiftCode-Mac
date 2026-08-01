@@ -215,3 +215,156 @@ public final class VisualUIDocument: Identifiable {
         }
     }
 }
+
+// MARK: - Saved Artboard Model
+
+@Observable
+public final class SavedArtboard: Identifiable, Codable, Hashable {
+    public let id: UUID
+    public var name: String
+    public var layout: VisualUIArtboard
+    public var tags: [String]
+    public var category: String
+    public var isFavorite: Bool
+    public var creationDate: Date
+    public var lastModifiedDate: Date
+    public var previewConfigDevice: String
+    public var isDarkMode: Bool
+
+    public init(
+        id: UUID = UUID(),
+        name: String,
+        layout: VisualUIArtboard,
+        tags: [String] = [],
+        category: String = "Uncategorized",
+        isFavorite: Bool = false,
+        creationDate: Date = Date(),
+        lastModifiedDate: Date = Date(),
+        previewConfigDevice: String = "iPhone 16 Pro",
+        isDarkMode: Bool = false
+    ) {
+        self.id = id
+        self.name = name
+        self.layout = layout
+        self.tags = tags
+        self.category = category
+        self.isFavorite = isFavorite
+        self.creationDate = creationDate
+        self.lastModifiedDate = lastModifiedDate
+        self.previewConfigDevice = previewConfigDevice
+        self.isDarkMode = isDarkMode
+    }
+
+    enum CodingKeys: CodingKey {
+        case id, name, layout, tags, category, isFavorite, creationDate, lastModifiedDate, previewConfigDevice, isDarkMode
+    }
+
+    public required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        layout = try container.decode(VisualUIArtboard.self, forKey: .layout)
+        name = try container.decode(String.self, forKey: .name)
+        tags = try container.decode([String].self, forKey: .tags)
+        category = try container.decode(String.self, forKey: .category)
+        isFavorite = try container.decode(Bool.self, forKey: .isFavorite)
+        creationDate = try container.decode(Date.self, forKey: .creationDate)
+        lastModifiedDate = try container.decode(Date.self, forKey: .lastModifiedDate)
+        previewConfigDevice = try container.decode(String.self, forKey: .previewConfigDevice)
+        isDarkMode = try container.decode(Bool.self, forKey: .isDarkMode)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(layout, forKey: .layout)
+        try container.encode(name, forKey: .name)
+        try container.encode(tags, forKey: .tags)
+        try container.encode(category, forKey: .category)
+        try container.encode(isFavorite, forKey: .isFavorite)
+        try container.encode(creationDate, forKey: .creationDate)
+        try container.encode(lastModifiedDate, forKey: .lastModifiedDate)
+        try container.encode(previewConfigDevice, forKey: .previewConfigDevice)
+        try container.encode(isDarkMode, forKey: .isDarkMode)
+    }
+
+    public static func == (lhs: SavedArtboard, rhs: SavedArtboard) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+}
+
+// MARK: - Saved Artboard Manager
+
+@MainActor
+@Observable
+public final class SavedArtboardManager {
+    public static let shared = SavedArtboardManager()
+
+    public var savedArtboards: [SavedArtboard] = []
+
+    private init() {
+        loadSavedArtboards()
+    }
+
+    public func loadSavedArtboards() {
+        if let data = UserDefaults.standard.data(forKey: "com.swiftcode.visualUIBuilder.savedArtboards") {
+            do {
+                self.savedArtboards = try JSONDecoder().decode([SavedArtboard].self, from: data)
+            } catch {
+                self.savedArtboards = []
+            }
+        } else {
+            self.savedArtboards = []
+        }
+    }
+
+    public func saveAll() {
+        do {
+            let data = try JSONEncoder().encode(savedArtboards)
+            UserDefaults.standard.set(data, forKey: "com.swiftcode.visualUIBuilder.savedArtboards")
+        } catch {
+            print("Failed to save artboards: \(error)")
+        }
+    }
+
+    public func createArtboard(name: String, artboard: VisualUIArtboard, category: String = "Uncategorized") {
+        // Deep copy root node so it's fully isolated
+        let copiedLayout = VisualUIArtboard(
+            name: artboard.name,
+            deviceFrame: artboard.deviceFrame,
+            rootNode: artboard.rootNode.duplicated()
+        )
+        let saved = SavedArtboard(name: name, layout: copiedLayout, category: category)
+        savedArtboards.append(saved)
+        saveAll()
+    }
+
+    public func deleteArtboard(id: UUID) {
+        savedArtboards.removeAll { $0.id == id }
+        saveAll()
+    }
+
+    public func duplicateArtboard(id: UUID) {
+        if let original = savedArtboards.first(where: { $0.id == id }) {
+            let dupLayout = VisualUIArtboard(
+                name: "\(original.layout.name) Copy",
+                deviceFrame: original.layout.deviceFrame,
+                rootNode: original.layout.rootNode.duplicated()
+            )
+            let duplicated = SavedArtboard(
+                name: "\(original.name) Copy",
+                layout: dupLayout,
+                tags: original.tags,
+                category: original.category,
+                isFavorite: original.isFavorite,
+                previewConfigDevice: original.previewConfigDevice,
+                isDarkMode: original.isDarkMode
+            )
+            savedArtboards.append(duplicated)
+            saveAll()
+        }
+    }
+}

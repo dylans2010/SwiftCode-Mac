@@ -4,16 +4,22 @@ import SwiftUI
 public struct VisualUIComponentLibrary: View {
     @Bindable var document: VisualUIDocument
     @State private var searchText = ""
+    @State private var settings = VisualUISettings.shared
 
-    // Component categories mapped beautifully
+    // Substantially expanded categories
     private let categories: [String: [VisualComponentType]] = [
-        "Layout & Stacks": [.vStack, .hStack, .zStack, .group, .groupBox],
-        "Input Controls": [.button, .toggle, .picker, .slider, .stepper, .textField, .secureField],
-        "Content & Media": [.text, .label, .image, .asyncImage, .sfSymbol],
-        "Containers & Lists": [.form, .list, .scrollView, .grid, .lazyVGrid, .lazyHGrid],
-        "Navigation Models": [.navigationStack, .navigationSplitView, .tabView],
-        "Advanced Frameworks": [.charts, .map, .videoPlayer, .webView, .canvas]
+        "Layout & Stacks": [.vStack, .hStack, .zStack, .group, .groupBox, .grid, .lazyVGrid, .lazyHGrid, .anyLayout, .viewThatFits, .safeAreaInset],
+        "Input Controls": [.button, .toggle, .picker, .slider, .stepper, .textField, .secureField, .photosPicker, .shareLink, .menu],
+        "Content & Media": [.text, .label, .image, .asyncImage, .sfSymbol, .contentUnavailableView, .meshGradient, .videoPlayer],
+        "Containers & Lists": [.form, .list, .scrollView, .disclosureGroup, .scrollViewReader],
+        "Navigation Models": [.navigationStack, .navigationSplitView, .tabView, .toolbar, .toolbarItem, .searchable, .inspector],
+        "Advanced Frameworks": [.charts, .map, .webView, .canvas, .timelineView, .gauge, .phaseAnimator, .keyframeAnimator, .matchedGeometryEffect],
+        "Data & Integration": [.swiftData, .observation, .accessibility]
     ]
+
+    public init(document: VisualUIDocument) {
+        self.document = document
+    }
 
     public var body: some View {
         VStack(spacing: 0) {
@@ -34,6 +40,53 @@ public struct VisualUIComponentLibrary: View {
             // Library List
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    // 1. Recently Used (if not empty)
+                    let recents = settings.recentlyUsedComponents
+                    if !recents.isEmpty && searchText.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .foregroundColor(.purple)
+                                Text("Recently Used")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.purple)
+                            }
+                            .padding(.horizontal, 8)
+
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                                ForEach(recents, id: \.self) { type in
+                                    ComponentItemButton(type: type, settings: settings) {
+                                        insertComponent(type)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Favorites (if not empty)
+                    let favorites = Array(settings.favoriteComponents).sorted(by: { $0.rawValue < $1.rawValue })
+                    if !favorites.isEmpty && searchText.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Image(systemName: "star.fill")
+                                    .foregroundColor(.yellow)
+                                Text("Favorites")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.yellow)
+                            }
+                            .padding(.horizontal, 8)
+
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                                ForEach(favorites, id: \.self) { type in
+                                    ComponentItemButton(type: type, settings: settings) {
+                                        insertComponent(type)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Regular Categories
                     ForEach(categories.keys.sorted(), id: \.self) { category in
                         let items = filteredItems(forCategory: category)
                         if !items.isEmpty {
@@ -45,7 +98,7 @@ public struct VisualUIComponentLibrary: View {
 
                                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                                     ForEach(items, id: \.self) { type in
-                                        ComponentItemButton(type: type) {
+                                        ComponentItemButton(type: type, settings: settings) {
                                             insertComponent(type)
                                         }
                                     }
@@ -69,6 +122,9 @@ public struct VisualUIComponentLibrary: View {
         document.checkpoint()
         let newNode = VisualComponentNode(type: type)
 
+        // Track in Recently Used
+        settings.addToRecentlyUsed(type)
+
         if let activeID = document.scene.activeArtboardID,
            let artboard = document.scene.artboards.first(where: { $0.id == activeID }) {
 
@@ -90,6 +146,7 @@ public struct VisualUIComponentLibrary: View {
 
 struct ComponentItemButton: View {
     let type: VisualComponentType
+    @Bindable var settings: VisualUISettings
     let action: () -> Void
 
     @State private var isHovering = false
@@ -120,6 +177,25 @@ struct ComponentItemButton: View {
         .buttonStyle(.plain)
         .onHover { hovering in
             isHovering = hovering
+        }
+        .contextMenu {
+            if settings.favoriteComponents.contains(type) {
+                Button {
+                    var favs = settings.favoriteComponents
+                    favs.remove(type)
+                    settings.favoriteComponents = favs
+                } label: {
+                    Label("Remove from Favorites", systemImage: "star.slash")
+                }
+            } else {
+                Button {
+                    var favs = settings.favoriteComponents
+                    favs.insert(type)
+                    settings.favoriteComponents = favs
+                } label: {
+                    Label("Add to Favorites", systemImage: "star.fill")
+                }
+            }
         }
     }
 }

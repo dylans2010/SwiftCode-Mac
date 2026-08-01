@@ -155,47 +155,344 @@ public struct VisualUITemplatesView: View {
     }
 }
 
-// MARK: - Individual Template Item view card
+// MARK: - Saved Artboards List View (Sidebar)
 
-struct TemplateItemCard: View {
-    let title: String
-    let icon: String
-    let desc: String
-    let category: String
+public struct SavedArtboardsListView: View {
+    @Bindable var document: VisualUIDocument
+    @State private var searchText = ""
+    @State private var filterCategory = "All"
+    @State private var sortBy = "Date" // Name, Date
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    @State private var manager = SavedArtboardManager.shared
+
+    public init(document: VisualUIDocument) {
+        self.document = document
+    }
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            // Header Action
             HStack {
-                Image(systemName: icon)
-                    .font(.title2)
-                    .foregroundColor(.accentColor)
-                    .frame(width: 40, height: 40)
-                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-
+                Text("Library (\(manager.savedArtboards.count))")
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
                 Spacer()
-
-                Text(category)
-                    .font(.caption2.bold())
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color.secondary.opacity(0.12), in: Capsule())
+                Button {
+                    createNewArtboard()
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.plain)
+                .help("Save current active canvas as a new Saved Artboard")
             }
+            .padding(8)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.primary)
+            Divider()
 
-                Text(desc)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+            // Filters & Search
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                TextField("Search saved...", text: $searchText)
+                    .textFieldStyle(.plain)
+            }
+            .padding(6)
+            .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+            .padding(8)
+
+            // Sorting & Categorizing Picker
+            HStack {
+                Picker("Category", selection: $filterCategory) {
+                    Text("All").tag("All")
+                    Text("Auth").tag("Auth")
+                    Text("Settings").tag("Settings")
+                    Text("Dashboard").tag("Dashboard")
+                    Text("Uncategorized").tag("Uncategorized")
+                }
+                .labelsHidden()
+                .controlSize(.small)
+
+                Picker("Sort", selection: $sortBy) {
+                    Text("By Date").tag("Date")
+                    Text("By Name").tag("Name")
+                }
+                .labelsHidden()
+                .controlSize(.small)
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
+
+            Divider()
+
+            // List of Saved Artboards
+            ScrollView {
+                VStack(spacing: 4) {
+                    if filteredArtboards().isEmpty {
+                        ContentUnavailableView("No Artboards", systemImage: "folder")
+                            .scaleEffect(0.8)
+                            .padding(.top, 20)
+                    } else {
+                        ForEach(filteredArtboards()) { saved in
+                            let isSelected = document.scene.activeArtboardID == saved.layout.id
+                            Button {
+                                selectArtboard(saved)
+                            } label: {
+                                HStack {
+                                    Image(systemName: "macwindow")
+                                        .foregroundColor(saved.isFavorite ? .yellow : .accentColor)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(saved.name)
+                                            .font(.subheadline.bold())
+                                            .lineLimit(1)
+                                        Text(saved.category)
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    if saved.isFavorite {
+                                        Image(systemName: "star.fill")
+                                            .foregroundColor(.yellow)
+                                            .font(.caption)
+                                    }
+                                }
+                                .padding(8)
+                                .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+                                .cornerRadius(6)
+                            }
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                Button {
+                                    saved.isFavorite.toggle()
+                                    manager.saveAll()
+                                } label: {
+                                    Label(saved.isFavorite ? "Unfavorite" : "Favorite", systemImage: "star")
+                                }
+
+                                Button {
+                                    manager.duplicateArtboard(id: saved.id)
+                                } label: {
+                                    Label("Duplicate", systemImage: "plus.square.on.square")
+                                }
+
+                                Button {
+                                    deleteArtboard(saved)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(4)
             }
         }
-        .padding()
-        .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.secondary.opacity(0.08), lineWidth: 1))
-        .contentShape(Rectangle())
+    }
+
+    private func filteredArtboards() -> [SavedArtboard] {
+        var list = manager.savedArtboards
+        if !searchText.isEmpty {
+            list = list.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        }
+        if filterCategory != "All" {
+            list = list.filter { $0.category == filterCategory }
+        }
+        if sortBy == "Name" {
+            list.sort { $0.name < $1.name }
+        } else {
+            list.sort { $0.lastModifiedDate > $1.lastModifiedDate }
+        }
+        return list
+    }
+
+    private func createNewArtboard() {
+        if let activeID = document.scene.activeArtboardID,
+           let activeArtboard = document.scene.artboards.first(where: { $0.id == activeID }) {
+            let name = "Artboard \(manager.savedArtboards.count + 1)"
+            manager.createArtboard(name: name, artboard: activeArtboard)
+            VisualUISettings.shared.addLog("Saved artboard '\(name)' successfully.")
+        }
+    }
+
+    private func selectArtboard(_ saved: SavedArtboard) {
+        document.checkpoint()
+        // Reopen and restore previous editing session
+        if !document.scene.artboards.contains(where: { $0.id == saved.layout.id }) {
+            document.scene.artboards.append(saved.layout)
+        }
+        document.scene.activeArtboardID = saved.layout.id
+    }
+
+    private func deleteArtboard(_ saved: SavedArtboard) {
+        manager.deleteArtboard(id: saved.id)
+        document.scene.artboards.removeAll { $0.id == saved.layout.id }
+        if document.scene.activeArtboardID == saved.layout.id {
+            document.scene.activeArtboardID = document.scene.artboards.first?.id
+        }
+    }
+}
+
+// MARK: - Saved Artboards Workspace View (Center Workspace)
+
+public struct SavedArtboardsWorkspaceView: View {
+    @Bindable var document: VisualUIDocument
+    @State private var viewMode = 0 // 0 = Visual Mode, 1 = Code Mode
+    @State private var manager = SavedArtboardManager.shared
+
+    public init(document: VisualUIDocument) {
+        self.document = document
+    }
+
+    public var body: some View {
+        Group {
+            if manager.savedArtboards.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "folder.badge.plus")
+                        .font(.system(size: 48))
+                        .foregroundColor(.secondary)
+                    Text("Saved Artboards Library")
+                        .font(.title2.bold())
+                    Text("Keep your favorite visual screen designs, forms, and layouts organized. Save current canvas configurations from the sidebar to populate your workspace.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                let activeID = document.scene.activeArtboardID
+                let selectedSaved = manager.savedArtboards.first(where: { $0.layout.id == activeID }) ?? manager.savedArtboards.first
+
+                if let saved = selectedSaved {
+                    VStack(spacing: 0) {
+                        // Sub-toolbar with Visual/Code Segment and metadata
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(saved.name)
+                                    .font(.headline)
+                                Text("Last modified: \(formattedDate(saved.lastModifiedDate))")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            // Seamless View Mode Toggle
+                            Picker("View Mode", selection: $viewMode) {
+                                Text("Visual Mode").tag(0)
+                                Text("Code Mode").tag(1)
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(width: 200)
+
+                            Spacer()
+
+                            HStack(spacing: 8) {
+                                Button {
+                                    reopenInDesigner(saved)
+                                } label: {
+                                    Label("Open in Designer", systemImage: "paintbrush.fill")
+                                }
+                                .buttonStyle(.borderedProminent)
+
+                                Button {
+                                    exportToJSON(saved)
+                                } label: {
+                                    Image(systemName: "square.and.arrow.up")
+                                }
+                                .buttonStyle(.bordered)
+                                .help("Export Artboard JSON")
+                            }
+                        }
+                        .padding(12)
+                        .background(Color(NSColor.controlBackgroundColor))
+
+                        Divider()
+
+                        // Workspace Content View Mode
+                        if viewMode == 0 {
+                            // Visual Mode
+                            ScrollView([.horizontal, .vertical]) {
+                                VStack {
+                                    ArtboardView(artboard: saved.layout, document: document, settings: VisualUISettings.shared)
+                                }
+                                .padding(40)
+                            }
+                            .background(Color.secondary.opacity(0.02))
+                        } else {
+                            // Code Mode
+                            VStack(alignment: .leading, spacing: 0) {
+                                let code = generateCode(for: saved.layout)
+                                HStack {
+                                    Text("SwiftUI Source Code")
+                                        .font(.caption.bold())
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                    Button {
+                                        NSPasteboard.general.clearContents()
+                                        NSPasteboard.general.setString(code, forType: .string)
+                                    } label: {
+                                        Label("Copy Code", systemImage: "doc.on.doc")
+                                    }
+                                    .buttonStyle(.borderless)
+                                }
+                                .padding(8)
+                                .background(Color(NSColor.controlBackgroundColor))
+
+                                Divider()
+
+                                ScrollView {
+                                    Text(code)
+                                        .font(.system(.subheadline, design: .monospaced))
+                                        .padding(16)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .background(Color(NSColor.underPageBackgroundColor))
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+        }
+    }
+
+    private func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
+    private func generateCode(for artboard: VisualUIArtboard) -> String {
+        // Generate clean code for a single artboard
+        let scene = VisualUIScene(artboards: [artboard], activeArtboardID: artboard.id)
+        let generator = VisualUICodeGenerator()
+        return generator.generateCode(for: scene, targetFramework: .swiftUI)
+    }
+
+    private func reopenInDesigner(_ saved: SavedArtboard) {
+        // Set as active and switch tab to Library (tag 0)
+        if !document.scene.artboards.contains(where: { $0.id == saved.layout.id }) {
+            document.scene.artboards.append(saved.layout)
+        }
+        document.scene.activeArtboardID = saved.layout.id
+        VisualUIBuilderSidebarState.shared.selectedIndex = 0
+    }
+
+    private func exportToJSON(_ saved: SavedArtboard) {
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.json]
+        savePanel.nameFieldStringValue = "\(saved.name).json"
+        savePanel.begin { response in
+            if response == .OK, let url = savePanel.url {
+                do {
+                    let data = try JSONEncoder().encode(saved)
+                    try data.write(to: url)
+                    VisualUISettings.shared.addLog("Exported artboard JSON successfully.")
+                } catch {
+                    print("Failed to export JSON: \(error)")
+                }
+            }
+        }
     }
 }
