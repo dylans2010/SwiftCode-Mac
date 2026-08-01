@@ -35,6 +35,7 @@ public struct MainToolsView: View {
 
     private let cardMinWidth: CGFloat = 232
     private let gridSpacing: CGFloat = 14
+    private let contentPadding: CGFloat = 20
 
     // Static baseline definition of all tools migrated from WorkspaceView, including DocumentationBrowser
     private let allAvailableTools: [WorkspaceHubTool] = [
@@ -148,7 +149,7 @@ public struct MainToolsView: View {
                 }
             )
         }
-        .frame(minWidth: 700, minHeight: 540)
+        .frame(minWidth: 560, minHeight: 620)
     }
 
     // MARK: - Tab Bar
@@ -166,7 +167,7 @@ public struct MainToolsView: View {
         }
         .pickerStyle(.segmented)
         .labelsHidden()
-        .padding(.horizontal, 16)
+        .padding(.horizontal, contentPadding)
         .padding(.top, 12)
         .padding(.bottom, 10)
     }
@@ -193,31 +194,41 @@ public struct MainToolsView: View {
                     )
                 }
             } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack {
-                            Text(detailTitle)
-                                .font(.title3.weight(.semibold))
-                            Spacer()
-                            Text("\(searchResults.count) tool\(searchResults.count == 1 ? "" : "s")")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                GeometryReader { proxy in
+                    let availableWidth = proxy.size.width - (contentPadding * 2)
+                    let columnCount = max(1, Int((availableWidth + gridSpacing) / (cardMinWidth + gridSpacing)))
+                    let columns = Array(
+                        repeating: GridItem(.flexible(), spacing: gridSpacing, alignment: .top),
+                        count: columnCount
+                    )
 
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: cardMinWidth, maximum: .infinity), spacing: gridSpacing)], alignment: .leading, spacing: gridSpacing) {
-                            ForEach(searchResults) { tool in
-                                ToolGridCard(
-                                    tool: tool,
-                                    onOpen: { launchTool(tool) },
-                                    onHide: {
-                                        hiddenTools.insert(tool.id)
-                                        saveSettings()
-                                    }
-                                )
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Text(detailTitle)
+                                    .font(.title3.weight(.semibold))
+                                Spacer()
+                                Text("\(searchResults.count) tool\(searchResults.count == 1 ? "" : "s")")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            LazyVGrid(columns: columns, alignment: .leading, spacing: gridSpacing) {
+                                ForEach(searchResults) { tool in
+                                    ToolGridCard(
+                                        tool: tool,
+                                        onOpen: { launchTool(tool) },
+                                        onHide: {
+                                            hiddenTools.insert(tool.id)
+                                            saveSettings()
+                                        }
+                                    )
+                                }
                             }
                         }
+                        .padding(contentPadding)
                     }
-                    .padding(20)
+                    .clipped()
                 }
             }
         }
@@ -296,14 +307,11 @@ private struct ToolGridCard: View {
         Button(action: onOpen) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .fill(Color(hex: tool.colorHex).opacity(0.15))
-                            .frame(width: 40, height: 40)
-                        Image(systemName: tool.iconName)
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundStyle(Color(hex: tool.colorHex))
-                    }
+                    Image(systemName: tool.iconName)
+                        .font(.system(size: 24, weight: .medium))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(Color(hex: tool.colorHex))
+                        .frame(width: 32, height: 32)
 
                     Spacer()
 
@@ -465,14 +473,11 @@ struct HiddenToolsView: View {
                     List {
                         ForEach(hiddenToolsList) { tool in
                             HStack(spacing: 12) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .fill(Color(hex: tool.colorHex).opacity(0.12))
-                                        .frame(width: 36, height: 32)
-                                    Image(systemName: tool.iconName)
-                                        .font(.title3)
-                                        .foregroundStyle(Color(hex: tool.colorHex))
-                                }
+                                Image(systemName: tool.iconName)
+                                    .font(.title3)
+                                    .symbolRenderingMode(.hierarchical)
+                                    .foregroundStyle(Color(hex: tool.colorHex))
+                                    .frame(width: 28, height: 28)
 
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(tool.name)
