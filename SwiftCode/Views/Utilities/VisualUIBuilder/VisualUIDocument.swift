@@ -4,6 +4,7 @@ import os
 
 /// Document controller managing file I/O, autosave, and standard undo/redo states
 @Observable
+@MainActor
 public final class VisualUIDocument: Identifiable {
     public let id = UUID()
     public var scene: VisualUIScene
@@ -11,8 +12,9 @@ public final class VisualUIDocument: Identifiable {
     public var isDirty = false {
         didSet {
             // Keep DocumentCoordinator in sync
+            let dirty = isDirty
             Task { @MainActor in
-                DocumentCoordinator.shared.updateUnsavedStatus(isDirty: isDirty)
+                DocumentCoordinator.shared.updateUnsavedStatus(isDirty: dirty)
             }
         }
     }
