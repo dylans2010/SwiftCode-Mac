@@ -14,6 +14,11 @@ public final class PreviewState {
     public var customWidth: Double? = nil
     public var customHeight: Double? = nil
     public var safeAreaInsets: EdgeInsets = EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0)
+    public var isHighContrast: Bool = false
+    public var layoutDirection: LayoutDirection = .leftToRight
+    public var displayScale: CGFloat = 2.0
+    public var isBoldTextEnabled: Bool = false
+    public var isReduceMotionEnabled: Bool = false
 
     public init() {}
 }
