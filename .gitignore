@@ -1,0 +1,40 @@
+# .gitignore
+
+# Common macOS Artifacts
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+.TemporaryItems
+.AppleDouble
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xccheckout
+*.moved-aside
+*.ipa
+*.dSYM
+*.dSYM.zip
+xcuserdata/
+
+# SwiftPM
+.build/
+.swiftpm/
+Packages/
+.package.resolved
+
+# Development & Text Editor Artifacts
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+.cache/
+logs/
+*.log
+
+# Environment & Config
+.env
+.env.*
