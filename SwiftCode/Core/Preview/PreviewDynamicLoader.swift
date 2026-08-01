@@ -26,7 +26,7 @@ public final class PreviewDynamicLoader {
                 VStack(spacing: 12) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.title)
-                        .foregroundColor(.amber)
+                        .foregroundColor(.yellow)
                     Text("SwiftUI view loaded dynamically, but entry point is missing.")
                         .font(.subheadline)
                     Text(entry.rootViewType)
