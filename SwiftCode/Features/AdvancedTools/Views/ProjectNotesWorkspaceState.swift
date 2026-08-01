@@ -44,7 +44,7 @@ public final class ProjectNotesWorkspaceState {
     }
 
     // MARK: - Path Resolution
-    private var baseDirectoryURL: URL {
+    var baseDirectoryURL: URL {
         let fileManager = FileManager.default
         let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL
         let resolvedURL = projectURL ?? fileManager.urls(for: .documentDirectory, in: .userDomainMask).first ?? fileManager.temporaryDirectory
@@ -487,7 +487,7 @@ Feel free to customize, create notebooks, and start organizing your engineering 
     }
 
     // MARK: - AI Action Features
-    public func executeAICopilotStreaming(prompt: String, onToken: @escaping (String) -> Void) async {
+    public func executeAICopilotStreaming(prompt: String, onToken: @escaping @Sendable @MainActor (String) -> Void) async {
         isAIProcessing = true
         activeAIPrompt = ""
 
@@ -510,7 +510,11 @@ Context of active note:
 
         activeAIConversation.append(LocalChatMsg(isUser: true, content: prompt))
 
-        var accumulatedTokens = ""
+        @MainActor
+        final class TokenHolder {
+            var value = ""
+        }
+        let holder = TokenHolder()
 
         do {
             try await LLMService.shared.streamChat(
@@ -518,14 +522,17 @@ Context of active note:
                 model: AppSettings.shared.selectedModel.isEmpty ? "meta-llama/llama-3-70b-instruct" : AppSettings.shared.selectedModel,
                 systemPrompt: systemPrompt
             ) { token in
-                accumulatedTokens += token
-                onToken(token)
+                await MainActor.run {
+                    holder.value += token
+                    onToken(token)
+                }
             }
 
-            activeAIConversation.append(LocalChatMsg(isUser: false, content: accumulatedTokens))
+            let finalTokens = await MainActor.run { holder.value }
+            activeAIConversation.append(LocalChatMsg(isUser: false, content: finalTokens))
         } catch {
             let errorText = "\n[AI Error: \(error.localizedDescription)]"
-            onToken(errorText)
+            await MainActor.run { onToken(errorText) }
             activeAIConversation.append(LocalChatMsg(isUser: false, content: errorText))
         }
 

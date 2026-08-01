@@ -36,98 +36,7 @@ struct PackageInstallationView: View {
             Divider()
 
             HSplitView {
-                // Settings & Actions Control Panel
-                VStack(alignment: .leading, spacing: 20) {
-                    Text("Target Package")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(package.name)
-                            .font(.title3.bold())
-                        Text(package.cloneUrl)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-
-                    Divider()
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Requirement Specification")
-                            .font(.caption.bold())
-                            .foregroundStyle(.secondary)
-
-                        Picker("", selection: $selectedRequirement) {
-                            ForEach(DependencyRequirementType.allCases) { type in
-                                Text(type.rawValue).tag(type)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-
-                        TextField("e.g. 5.9.1, main, exact release", text: $requirementValue)
-                            .textFieldStyle(.roundedBorder)
-                    }
-
-                    VStack(spacing: 12) {
-                        Button {
-                            runInstall()
-                        } label: {
-                            Label(platformManager.isOperationRunning ? "Processing..." : "Install Package", systemImage: "square.and.arrow.down")
-                                .fontWeight(.bold)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .disabled(platformManager.isOperationRunning)
-
-                        Button {
-                            runUpdate()
-                        } label: {
-                            Label("Update / Downgrade", systemImage: "arrow.up.and.down.circle")
-                                .fontWeight(.bold)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(platformManager.isOperationRunning)
-
-                        Button {
-                            runUninstall()
-                        } label: {
-                            Label("Uninstall / Remove", systemImage: "trash")
-                                .foregroundStyle(.red)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(platformManager.isOperationRunning)
-                    }
-
-                    Divider()
-
-                    // Maintenance Actions
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Maintenance & Repair")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-
-                        Button("Repair Manifest Integrity") {
-                            runRepair()
-                        }
-                        .buttonStyle(.bordered)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                        Button("Verify Dependencies Resolvability") {
-                            runVerify()
-                        }
-                        .buttonStyle(.bordered)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    Spacer()
-                }
-                .padding(20)
-                .frame(width: 300, maxHeight: .infinity)
-                .background(Color(NSColor.windowBackgroundColor))
+                settingsAndActionsPanel
 
                 // Logging & Process Monitor Panel
                 VStack(spacing: 0) {
@@ -257,5 +166,100 @@ struct PackageInstallationView: View {
             alertMessage = "Dependency verification successfully completed."
             showAlert = true
         }
+    }
+
+    @ViewBuilder
+    private var settingsAndActionsPanel: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Target Package")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(package.name)
+                    .font(.title3.bold())
+                Text(package.cloneUrl)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Requirement Specification")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+
+                Picker("", selection: $selectedRequirement) {
+                    ForEach(DependencyRequirementType.allCases) { type in
+                        Text(type.rawValue).tag(type)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                TextField("e.g. 5.9.1, main, exact release", text: $requirementValue)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            VStack(spacing: 12) {
+                Button {
+                    runInstall()
+                } label: {
+                    Label(platformManager.isOperationRunning ? "Processing..." : "Install Package", systemImage: "square.and.arrow.down")
+                        .fontWeight(.bold)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(platformManager.isOperationRunning)
+
+                Button {
+                    runUpdate()
+                } label: {
+                    Label("Update / Downgrade", systemImage: "arrow.up.and.down.circle")
+                        .fontWeight(.bold)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(platformManager.isOperationRunning)
+
+                Button {
+                    runUninstall()
+                } label: {
+                    Label("Uninstall / Remove", systemImage: "trash")
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(platformManager.isOperationRunning)
+            }
+
+            Divider()
+
+            // Maintenance Actions
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Maintenance & Repair")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+
+                Button("Repair Manifest Integrity") {
+                    runRepair()
+                }
+                .buttonStyle(.bordered)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button("Verify Dependencies Resolvability") {
+                    runVerify()
+                }
+                .buttonStyle(.bordered)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Spacer()
+        }
+        .padding(20)
+        .frame(width: 300, maxHeight: .infinity)
+        .background(Color(NSColor.windowBackgroundColor))
     }
 }

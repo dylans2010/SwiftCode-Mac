@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct SecurityCenterView: View {
+struct DependencySecurityCenterView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(ProjectSessionStore.self) private var sessionStore
 
@@ -59,7 +59,7 @@ struct SecurityCenterView: View {
                         Image(systemName: platformManager.securityScore > 80 ? "shield.fill" : "exclamationmark.shield.fill")
                             .foregroundStyle(platformManager.securityScore > 80 ? .green : (platformManager.securityScore > 50 ? .orange : .red))
                         Text("\(platformManager.securityScore)/100")
-                            .font(.title1.bold())
+                            .font(.title.bold())
                     }
                 }
 
@@ -68,7 +68,7 @@ struct SecurityCenterView: View {
                         .font(.caption.bold())
                         .foregroundStyle(.secondary)
                     Text("\(dependencies.count) targets")
-                        .font(.title1.bold())
+                        .font(.title.bold())
                 }
 
                 VStack(alignment: .leading) {
@@ -77,7 +77,7 @@ struct SecurityCenterView: View {
                         .foregroundStyle(.secondary)
                     let matches = countAdvisories()
                     Text("\(matches) warnings")
-                        .font(.title1.bold())
+                        .font(.title.bold())
                         .foregroundStyle(matches > 0 ? .red : .primary)
                 }
 

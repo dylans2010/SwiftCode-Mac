@@ -81,7 +81,7 @@ struct PackageAnalyticsView: View {
                     HStack(spacing: 40) {
                         VStack(alignment: .leading) {
                             Text("\(package.stars)")
-                                .font(.title1.bold())
+                                .font(.title.bold())
                                 .foregroundStyle(.yellow)
                             Text("GitHub Stars")
                                 .font(.caption)
@@ -90,7 +90,7 @@ struct PackageAnalyticsView: View {
 
                         VStack(alignment: .leading) {
                             Text("\(package.forks)")
-                                .font(.title1.bold())
+                                .font(.title.bold())
                                 .foregroundStyle(.blue)
                             Text("Forks Count")
                                 .font(.caption)
@@ -99,7 +99,7 @@ struct PackageAnalyticsView: View {
 
                         VStack(alignment: .leading) {
                             Text("18.4K")
-                                .font(.title1.bold())
+                                .font(.title.bold())
                                 .foregroundStyle(.green)
                             Text("Estimated Weekly Downloads")
                                 .font(.caption)

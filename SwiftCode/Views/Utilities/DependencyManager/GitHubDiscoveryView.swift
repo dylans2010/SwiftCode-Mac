@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct GitHubDiscoveryView: View {
+struct DependencyGitHubDiscoveryView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(ProjectSessionStore.self) private var sessionStore
     @State private var platformManager = DependencyPlatformManager.shared
@@ -51,96 +51,7 @@ struct GitHubDiscoveryView: View {
             Divider()
 
             HSplitView {
-                // Sidebar Filters Panel
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Search Parameters")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Keywords")
-                            .font(.caption.bold())
-                        TextField("e.g. Alamofire, GRDB", text: $keyword)
-                            .textFieldStyle(.roundedBorder)
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Topic tag")
-                            .font(.caption.bold())
-                        TextField("e.g. swiftui, caching", text: $topic)
-                            .textFieldStyle(.roundedBorder)
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Owner / User")
-                            .font(.caption.bold())
-                        TextField("e.g. apple, pointfreeco", text: $owner)
-                            .textFieldStyle(.roundedBorder)
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Organization")
-                            .font(.caption.bold())
-                        TextField("e.g. github, stripe", text: $organization)
-                            .textFieldStyle(.roundedBorder)
-                    }
-
-                    HStack {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("License")
-                                .font(.caption.bold())
-                            Picker("", selection: $selectedLicense) {
-                                ForEach(licenses, id: \.self) { lic in
-                                    Text(lic).tag(lic)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                        }
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Language")
-                                .font(.caption.bold())
-                            Picker("", selection: $selectedLanguage) {
-                                ForEach(languages, id: \.self) { lang in
-                                    Text(lang).tag(lang)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("Min Stars:")
-                            Spacer()
-                            Text("\(Int(minStars))")
-                                .font(.system(.caption, design: .monospaced))
-                        }
-                        .font(.caption.bold())
-                        Slider(value: $minStars, in: 0...5000, step: 50)
-                    }
-
-                    Divider()
-
-                    Toggle("Include Archived Repos", isOn: $includeArchived)
-                    Toggle("Verified Maintainers Only", isOn: $onlyVerified)
-
-                    Spacer()
-
-                    Button {
-                        triggerSearch()
-                    } label: {
-                        Label("Search GitHub API", systemImage: "magnifyingglass")
-                            .fontWeight(.bold)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(platformManager.isOperationRunning)
-                }
-                .padding(20)
-                .frame(width: 280, maxHeight: .infinity)
-                .background(Color(NSColor.windowBackgroundColor))
+                searchParametersSidebarPanel
 
                 // Content Results View
                 VStack(spacing: 0) {
@@ -245,5 +156,98 @@ struct GitHubDiscoveryView: View {
                 minStars: Int(minStars)
             )
         }
+    }
+
+    @ViewBuilder
+    private var searchParametersSidebarPanel: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Search Parameters")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Keywords")
+                    .font(.caption.bold())
+                TextField("e.g. Alamofire, GRDB", text: $keyword)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Topic tag")
+                    .font(.caption.bold())
+                TextField("e.g. swiftui, caching", text: $topic)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Owner / User")
+                    .font(.caption.bold())
+                TextField("e.g. apple, pointfreeco", text: $owner)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Organization")
+                    .font(.caption.bold())
+                TextField("e.g. github, stripe", text: $organization)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("License")
+                        .font(.caption.bold())
+                    Picker("", selection: $selectedLicense) {
+                        ForEach(licenses, id: \.self) { lic in
+                            Text(lic).tag(lic)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Language")
+                        .font(.caption.bold())
+                    Picker("", selection: $selectedLanguage) {
+                        ForEach(languages, id: \.self) { lang in
+                            Text(lang).tag(lang)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Min Stars:")
+                    Spacer()
+                    Text("\(Int(minStars))")
+                        .font(.system(.caption, design: .monospaced))
+                }
+                .font(.caption.bold())
+                Slider(value: $minStars, in: 0...5000, step: 50)
+            }
+
+            Divider()
+
+            Toggle("Include Archived Repos", isOn: $includeArchived)
+            Toggle("Verified Maintainers Only", isOn: $onlyVerified)
+
+            Spacer()
+
+            Button {
+                triggerSearch()
+            } label: {
+                Label("Search GitHub API", systemImage: "magnifyingglass")
+                    .fontWeight(.bold)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(platformManager.isOperationRunning)
+        }
+        .padding(20)
+        .frame(width: 280, maxHeight: .infinity)
+        .background(Color(NSColor.windowBackgroundColor))
     }
 }

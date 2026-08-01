@@ -2,11 +2,23 @@ import SwiftUI
 import AppKit
 
 // MARK: - Smart Note Version Snapshot
-struct NoteVersion: Identifiable, Codable, Hashable {
+struct SearchNoteVersion: Identifiable, Codable, Hashable {
     let id: UUID
     var notePath: String
     var contentSnapshot: String
     var timestamp: Date
+}
+
+struct SearchProjectNote: Identifiable, Codable, Hashable {
+    var id = UUID()
+    var title: String
+    var path: String
+    var content: String
+    var isMarkdown: Bool
+    var isPinned = false
+    var isFavorite = false
+    var category = "General"
+    var tags: [String] = []
 }
 
 struct SearchDocumentationView: View {
@@ -30,8 +42,8 @@ struct SearchDocumentationView: View {
     // ==================================================
     // 2. PROJECT NOTES WORKSPACE STATE
     // ==================================================
-    @State private var notes: [ProjectNote] = []
-    @State private var selectedNote: ProjectNote?
+    @State private var notes: [SearchProjectNote] = []
+    @State private var selectedNote: SearchProjectNote?
     @State private var noteEditorText = ""
     @State private var noteSearchQuery = ""
     @State private var isEditingNote = false
@@ -41,7 +53,7 @@ struct SearchDocumentationView: View {
     @State private var showAISheet = false
 
     // Note Snapshots Version History
-    @State private var noteVersions: [NoteVersion] = []
+    @State private var noteVersions: [SearchNoteVersion] = []
     @State private var showVersionHistorySheet = false
 
     // Selected Template
@@ -55,7 +67,7 @@ struct SearchDocumentationView: View {
         "Release Notes Template": "# Release Notes - Version 1.0.0\n\n## Summary\nConcise recap of this build cycle.\n\n## Highlights & Fixes\n- **Feature:** Expanded database performance analyzer\n- **Fix:** Add Row button constraint integrity resolver"
     ]
 
-    var filteredNotes: [ProjectNote] {
+    var filteredNotes: [SearchProjectNote] {
         var list = notes
         switch noteFilter {
         case "Pinned":
@@ -631,7 +643,7 @@ Avoid returning conversational fluff or preambles before or after the markdown. 
             let rootPath = FileManager.default.currentDirectoryPath
             let rootURL = URL(fileURLWithPath: rootPath)
 
-            var notesList: [ProjectNote] = []
+            var notesList: [SearchProjectNote] = []
             let enumerator = FileManager.default.enumerator(at: rootURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles])
 
             if let enumerator {
@@ -642,7 +654,7 @@ Avoid returning conversational fluff or preambles before or after the markdown. 
                         let title = fileURL.deletingPathExtension().lastPathComponent
                         let relPath = fileURL.path.replacingOccurrences(of: rootURL.path + "/", with: "")
                         if let content = try? String(contentsOf: fileURL, encoding: .utf8) {
-                            notesList.append(ProjectNote(title: title, path: relPath, content: content, isMarkdown: true))
+                            notesList.append(SearchProjectNote(title: title, path: relPath, content: content, isMarkdown: true))
                         }
                     }
                 }
@@ -650,7 +662,7 @@ Avoid returning conversational fluff or preambles before or after the markdown. 
 
             if notesList.isEmpty {
                 notesList = [
-                    ProjectNote(title: "Architecture Decisions", path: "Docs/Architecture.md", content: """
+                    SearchProjectNote(title: "Architecture Decisions", path: "Docs/Architecture.md", content: """
 # System Architecture Decisions
 This outlines the core design specifications.
 
@@ -672,7 +684,7 @@ This outlines the core design specifications.
     private func createNewLocalNote() {
         let newTitle = "Untitled Note \(notes.count + 1)"
         let newPath = "Docs/\(newTitle).md"
-        let newNote = ProjectNote(title: newTitle, path: newPath, content: "# \(newTitle)\n\nStart drafting technical guidelines here.", isMarkdown: true)
+        let newNote = SearchProjectNote(title: newTitle, path: newPath, content: "# \(newTitle)\n\nStart drafting technical guidelines here.", isMarkdown: true)
         notes.append(newNote)
         selectedNote = newNote
         noteEditorText = newNote.content
@@ -683,7 +695,7 @@ This outlines the core design specifications.
         guard let note = selectedNote else { return }
         let newTitle = "\(note.title) Copy"
         let newPath = "Docs/\(newTitle).md"
-        let newNote = ProjectNote(title: newTitle, path: newPath, content: note.content, isMarkdown: note.isMarkdown)
+        let newNote = SearchProjectNote(title: newTitle, path: newPath, content: note.content, isMarkdown: note.isMarkdown)
         notes.append(newNote)
         selectedNote = newNote
         noteEditorText = newNote.content
@@ -694,10 +706,10 @@ This outlines the core design specifications.
         guard let note = selectedNote, let idx = notes.firstIndex(where: { $0.path == note.path }) else { return }
 
         // Save current version snapshot before overwriting
-        let snap = NoteVersion(id: UUID(), notePath: note.path, contentSnapshot: note.content, timestamp: Date())
+        let snap = SearchNoteVersion(id: UUID(), notePath: note.path, contentSnapshot: note.content, timestamp: Date())
         noteVersions.append(snap)
 
-        let updatedNote = ProjectNote(title: note.title, path: note.path, content: noteEditorText, isMarkdown: note.isMarkdown)
+        let updatedNote = SearchProjectNote(title: note.title, path: note.path, content: noteEditorText, isMarkdown: note.isMarkdown)
         notes[idx] = updatedNote
         selectedNote = updatedNote
         isEditingNote = false
@@ -724,7 +736,7 @@ This outlines the core design specifications.
             currentContent += "\n" + meta
         }
 
-        let updatedNote = ProjectNote(title: note.title, path: note.path, content: currentContent, isMarkdown: note.isMarkdown)
+        let updatedNote = SearchProjectNote(title: note.title, path: note.path, content: currentContent, isMarkdown: note.isMarkdown)
         notes[idx] = updatedNote
         selectedNote = updatedNote
         noteEditorText = currentContent
@@ -749,7 +761,7 @@ This outlines the core design specifications.
             currentContent += "\n[CATEGORY:\(cat)]"
         }
 
-        let updatedNote = ProjectNote(title: note.title, path: note.path, content: currentContent, isMarkdown: note.isMarkdown)
+        let updatedNote = SearchProjectNote(title: note.title, path: note.path, content: currentContent, isMarkdown: note.isMarkdown)
         notes[idx] = updatedNote
         selectedNote = updatedNote
         noteEditorText = currentContent

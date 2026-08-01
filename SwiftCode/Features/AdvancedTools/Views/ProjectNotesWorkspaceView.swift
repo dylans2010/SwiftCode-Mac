@@ -1114,9 +1114,7 @@ public struct ProjectNotesWorkspaceView: View {
 
         Task {
             await state.executeAICopilotStreaming(prompt: prompt) { token in
-                Task { @MainActor in
-                    streamOutputText += token
-                }
+                streamOutputText += token
             }
         }
     }

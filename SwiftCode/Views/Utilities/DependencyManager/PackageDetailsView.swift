@@ -36,7 +36,7 @@ struct PackageDetailsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(package.name)
-                            .font(.title1.bold())
+                            .font(.title.bold())
                         if package.isVerified {
                             Image(systemName: "checkmark.seal.fill")
                                 .foregroundStyle(.blue)

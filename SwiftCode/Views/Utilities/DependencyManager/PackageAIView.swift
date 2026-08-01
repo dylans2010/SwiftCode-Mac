@@ -43,65 +43,7 @@ struct PackageAIView: View {
             Divider()
 
             HSplitView {
-                // Left Panel: Presets & Templates
-                VStack(alignment: .leading, spacing: 20) {
-                    Text("Prompt Templates")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ForEach(Array(platformManager.promptTemplates.keys), id: \.self) { key in
-                                Button {
-                                    if let p = platformManager.promptTemplates[key] {
-                                        inputPrompt = p
-                                    }
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(key)
-                                            .font(.caption.bold())
-                                            .foregroundStyle(.blue)
-                                        Text(platformManager.promptTemplates[key] ?? "")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(2)
-                                            .multilineTextAlignment(.leading)
-                                    }
-                                    .padding(10)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
-                                }
-                                .buttonStyle(.plain)
-                            }
-
-                            Divider()
-
-                            Text("Quick Saved Prompts")
-                                .font(.headline)
-                                .foregroundStyle(.secondary)
-                                .padding(.top, 8)
-
-                            ForEach(platformManager.savedPrompts, id: \.self) { p in
-                                Button {
-                                    inputPrompt = p
-                                } label: {
-                                    Text(p)
-                                        .font(.caption)
-                                        .lineLimit(2)
-                                        .multilineTextAlignment(.leading)
-                                        .foregroundStyle(.secondary)
-                                        .padding(8)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(Color.secondary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                }
-                .padding(20)
-                .frame(width: 280, maxHeight: .infinity)
-                .background(Color(NSColor.windowBackgroundColor))
+                presetsAndTemplatesPanel
 
                 // Right Panel: Conversation timeline & chat input
                 VStack(spacing: 0) {
@@ -233,5 +175,67 @@ struct PackageAIView: View {
             platformManager.chatHistory[idx].isFavorite.toggle()
             platformManager.saveState()
         }
+    }
+
+    @ViewBuilder
+    private var presetsAndTemplatesPanel: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Prompt Templates")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(platformManager.promptTemplates.keys), id: \.self) { key in
+                        Button {
+                            if let p = platformManager.promptTemplates[key] {
+                                inputPrompt = p
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(key)
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.blue)
+                                Text(platformManager.promptTemplates[key] ?? "")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                            }
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Divider()
+
+                    Text("Quick Saved Prompts")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 8)
+
+                    ForEach(platformManager.savedPrompts, id: \.self) { p in
+                        Button {
+                            inputPrompt = p
+                        } label: {
+                            Text(p)
+                                .font(.caption)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                                .foregroundStyle(.secondary)
+                                .padding(8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.secondary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(20)
+        .frame(width: 280, maxHeight: .infinity)
+        .background(Color(NSColor.windowBackgroundColor))
     }
 }
