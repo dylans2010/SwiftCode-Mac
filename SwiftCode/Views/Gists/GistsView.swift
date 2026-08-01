@@ -1,13 +1,18 @@
 import SwiftUI
 
+enum GistsScreen: Hashable {
+    case list
+    case create
+    case detail(id: String)
+}
+
 struct GistsView: View {
     @EnvironmentObject private var gistService: GitHubGistService
     @Environment(\.dismiss) private var dismiss
 
     @State private var searchQuery = ""
-    @State private var showCreateSheet = false
-    @State private var selectedGist: GistResponse?
     @State private var starredGistIDs: Set<String> = []
+    @State private var currentScreen: GistsScreen = .list
 
     var filteredGists: [GistResponse] {
         if searchQuery.isEmpty {
@@ -20,137 +25,113 @@ struct GistsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Header Card
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Label("Gists Workspace", systemImage: "doc.on.doc.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.orange)
-                                Spacer()
-                            }
-                            Text("Manage, view, and edit your GitHub Gists, all synchronized from your GitHub account.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(8)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Search & Actions Card
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Search & Actions")
-                                .font(.subheadline.bold())
-                                .foregroundColor(.blue)
-
-                            HStack(spacing: 12) {
-                                HStack {
-                                    Image(systemName: "magnifyingglass")
-                                        .foregroundStyle(.secondary)
-                                    TextField("Search gists...", text: $searchQuery)
-                                        .textFieldStyle(.plain)
-                                }
-                                .padding(6)
-                                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-
-                                Button {
-                                    showCreateSheet = true
-                                } label: {
-                                    Label("New Gist", systemImage: "plus")
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.regular)
-
-                                Button {
-                                    Task { try? await gistService.fetchGists() }
-                                } label: {
-                                    Label("Reload", systemImage: "arrow.clockwise")
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.regular)
-                            }
-                        }
-                        .padding(8)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Gists List Card
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Your Gists", systemImage: "doc.text")
-                                    .font(.headline)
-                                    .foregroundColor(.green)
-                                Spacer()
-                            }
-
-                            if gistService.isLoading && gistService.gists.isEmpty {
-                                HStack {
-                                    Spacer()
-                                    ProgressView("Loading Gists...")
-                                        .padding()
-                                    Spacer()
-                                }
-                            } else if filteredGists.isEmpty {
-                                HStack {
-                                    Spacer()
-                                    ContentUnavailableView(
-                                        "No Gists Found",
-                                        systemImage: "doc.on.doc",
-                                        description: Text("Create your first gist to get started.")
-                                    )
-                                    .padding()
-                                    Spacer()
-                                }
-                            } else {
-                                VStack(spacing: 8) {
-                                    ForEach(filteredGists) { gist in
-                                        Button {
-                                            selectedGist = gist
-                                        } label: {
-                                            HStack {
-                                                GistRowView(gist: gist, isStarred: starredGistIDs.contains(gist.id))
-                                                Spacer()
-                                                Image(systemName: "chevron.right")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.tertiary)
-                                            }
-                                            .padding(10)
-                                            .background(Color.secondary.opacity(0.04))
-                                            .cornerRadius(8)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .contextMenu {
-                                            Button("Delete", role: .destructive) {
-                                                Task { try? await gistService.deleteGist(id: gist.id) }
-                                            }
-                                            Button(starredGistIDs.contains(gist.id) ? "Unstar" : "Star") {
-                                                toggleStar(gist)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        .padding(8)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+        Group {
+            switch currentScreen {
+            case .list:
+                listView
+            case .create:
+                CreateGistView {
+                    currentScreen = .list
                 }
-                .padding(24)
+            case .detail(let id):
+                GistDetailView(gistId: id) {
+                    currentScreen = .list
+                }
             }
-            .navigationTitle("Gists")
         }
-        .sheet(isPresented: $showCreateSheet) {
-            CreateGistView()
-                .environmentObject(gistService)
-        }
-        .sheet(item: $selectedGist) { gist in
-            GistDetailView(gistId: gist.id)
-                .environmentObject(gistService)
+    }
+
+    @ViewBuilder
+    private var listView: some View {
+        VStack(spacing: 0) {
+            // Header actions row (inspired by IssuesView / ReleasesView)
+            HStack(spacing: 12) {
+                Label("GitHub Gists", systemImage: "doc.on.doc.fill")
+                    .font(.headline)
+                    .foregroundColor(.orange)
+
+                Spacer()
+
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search gists...", text: $searchQuery)
+                        .textFieldStyle(.plain)
+                }
+                .padding(6)
+                .background(Color.secondary.opacity(0.12))
+                .cornerRadius(6)
+                .frame(width: 220)
+
+                Button {
+                    Task { try? await gistService.fetchGists() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(gistService.isLoading)
+
+                Button {
+                    currentScreen = .create
+                } label: {
+                    Label("New Gist", systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+            }
+            .padding()
+            .background(Color.secondary.opacity(0.03))
+
+            Divider()
+
+            if gistService.isLoading && gistService.gists.isEmpty {
+                VStack {
+                    Spacer()
+                    ProgressView("Loading Gists...")
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if filteredGists.isEmpty {
+                VStack {
+                    Spacer()
+                    ContentUnavailableView(
+                        "No Gists Found",
+                        systemImage: "doc.on.doc",
+                        description: Text("Create your first gist to get started.")
+                    )
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    Section("Your Gist Directory") {
+                        ForEach(filteredGists) { gist in
+                            Button {
+                                currentScreen = .detail(id: gist.id)
+                            } label: {
+                                HStack {
+                                    GistRowView(gist: gist, isStarred: starredGistIDs.contains(gist.id))
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .padding(.vertical, 6)
+                            }
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                Button("Delete", role: .destructive) {
+                                    Task { try? await gistService.deleteGist(id: gist.id) }
+                                }
+                                Button(starredGistIDs.contains(gist.id) ? "Unstar" : "Star") {
+                                    toggleStar(gist)
+                                }
+                            }
+                            Divider()
+                        }
+                    }
+                }
+                .listStyle(.plain)
+            }
         }
         .task {
             if gistService.gists.isEmpty {

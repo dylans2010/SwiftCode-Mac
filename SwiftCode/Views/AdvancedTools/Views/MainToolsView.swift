@@ -62,7 +62,8 @@ public struct MainToolsView: View {
         WorkspaceHubTool(id: "search_documentation", name: "Search Documentation", description: "Search project documentation, DocSymbols, project notes, API documentation, and other indexed resources.", iconName: "magnifyingglass", colorHex: "#AF52DE", category: "Utilities", destination: "searchDocumentation"),
         WorkspaceHubTool(id: "database_explorer", name: "Database Explorer", description: "Visually design, manage, connect, inspect, query, generate, and synchronize databases.", iconName: "cylinder.split.1x2.fill", colorHex: "#34C759", category: "Utilities", destination: "databaseExplorer"),
         WorkspaceHubTool(id: "project_inspector", name: "Project Inspector", description: "Recursive directory scanner, live modules analysis, and AI layer refactoring reviews.", iconName: "square.text.square", colorHex: "#FF9500", category: "Utilities", destination: "projectInspector"),
-        WorkspaceHubTool(id: "localization_manager", name: "Localization Manager", description: "Multi-pane string catalogs and .xcstrings editor with layout previews & validation checks.", iconName: "text.book.closed.fill", colorHex: "#007AFF", category: "Utilities", destination: "localizationManager")
+        WorkspaceHubTool(id: "localization_manager", name: "Localization Manager", description: "Multi-pane string catalogs and .xcstrings editor with layout previews & validation checks.", iconName: "text.book.closed.fill", colorHex: "#007AFF", category: "Utilities", destination: "localizationManager"),
+        WorkspaceHubTool(id: "licenses_add", name: "Licenses", description: "Quickly add open source license templates directly to your project codebase.", iconName: "doc.text.fill", colorHex: "#FF9500", category: "Utilities", destination: "licensesAdd")
     ]
 
     private var filteredCategories: [String] {
