@@ -49,8 +49,8 @@ public final class DocumentCoordinator: Sendable {
     /// Synchronizes isDirty/unsaved indicators across editor and visual designer
     public func updateUnsavedStatus(isDirty: Bool) {
         self.unsavedChanges = isDirty
-        if let doc = activeDocument {
-            doc.isDirty = isDirty
+        if activeDocument != nil {
+            activeDocument?.isDirty = isDirty
         }
         if let visDoc = visualUIDocument {
             visDoc.isDirty = isDirty
