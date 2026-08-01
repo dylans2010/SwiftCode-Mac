@@ -28,6 +28,19 @@ public class VisualUIBuilderSplitViewController: NSSplitViewController {
         }
 
         setupSplitView()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleFullScreenToggle(_:)),
+            name: NSNotification.Name("com.swiftcode.visualUIBuilder.toggleFullScreen"),
+            object: nil
+        )
+    }
+
+    @objc private func handleFullScreenToggle(_ notification: Notification) {
+        guard let isFull = notification.userInfo?["isFullScreen"] as? Bool else { return }
+        leftItem?.isCollapsed = isFull
+        rightItem?.isCollapsed = isFull
     }
 
     private func setupSplitView() {
@@ -41,6 +54,7 @@ public class VisualUIBuilderSplitViewController: NSSplitViewController {
         leftItem.minimumThickness = 240
         leftItem.maximumThickness = 320
         leftItem.holdingPriority = .defaultLow + 10
+        leftItem.canCollapse = true
         self.leftItem = leftItem
         addSplitViewItem(leftItem)
 
@@ -62,6 +76,7 @@ public class VisualUIBuilderSplitViewController: NSSplitViewController {
         rightItem.minimumThickness = 280
         rightItem.maximumThickness = 350
         rightItem.holdingPriority = .defaultLow + 20
+        rightItem.canCollapse = true
         self.rightItem = rightItem
         addSplitViewItem(rightItem)
     }
@@ -106,16 +121,22 @@ struct VisualUIBuilderSidebarWrapper: View {
 struct VisualUIBuilderCenterWrapper: View {
     let document: VisualUIDocument
     @State private var settings = VisualUISettings.shared
+    @State private var sidebarState = VisualUIBuilderSidebarState.shared
 
     var body: some View {
         VStack(spacing: 0) {
             VisualUIToolbar(document: document, settings: settings)
             Divider()
-            HSplitView {
-                VisualUICanvasView(document: document, settings: settings)
-                    .frame(minWidth: 350)
-                VisualUIPreviewPanel(document: document, settings: settings)
-                    .frame(minWidth: 350)
+
+            if sidebarState.selectedIndex == 2 {
+                SavedArtboardsWorkspaceView(document: document)
+            } else {
+                HSplitView {
+                    VisualUICanvasView(document: document, settings: settings)
+                        .frame(minWidth: 350)
+                    VisualUIPreviewPanel(document: document, settings: settings)
+                        .frame(minWidth: 350)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

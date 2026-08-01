@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// AI Prompt companion integrated with LLMService to optimize spacing, score accessibility, modernization, and generate native design patterns.
+/// Elegant AI prompt assistant to redesign, optimize, or generate SwiftUI screens using native macOS patterns.
 public struct VisualUIAIAssistant: View {
     @Environment(\.dismiss) private var dismiss
     let document: VisualUIDocument
@@ -8,92 +8,169 @@ public struct VisualUIAIAssistant: View {
     @State private var promptText = ""
     @State private var isProcessing = false
     @State private var responseOutput = ""
-    @State private var accessibilityScore = 94
-    @State private var spacingScore = 92
-    @State private var cleanlinessIndex = 95
+
+    // Native preset prompts for professional workflow
+    private let quickActions = [
+        ("Clean Layout", "Optimize padding, spacing, and center alignment for maximum elegance."),
+        ("Modern Grid", "Convert the current container layout into an adaptive grid structure."),
+        ("Dark Aesthetics", "Configure high-contrast dark theme colors and vibrant elements."),
+        ("Form Layout", "Generate an input form layout with validated fields, selectors, and sections.")
+    ]
+
+    public init(document: VisualUIDocument) {
+        self.document = document
+    }
 
     public var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Title Header
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("AI Layout Quality & Co-designer")
-                            .font(.title2.bold())
-                        Text("Optimize alignment, spacing, color matching, and accessibility checks using Codex Assistant.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Divider()
-
-                    // Codex Quality Score HUD card
-                    GroupBox {
-                        HStack(spacing: 24) {
-                            ScoreMetricCircle(title: "Accessibility", score: accessibilityScore, color: .green)
-                            ScoreMetricCircle(title: "Spacing & Grids", score: spacingScore, color: .blue)
-                            ScoreMetricCircle(title: "Cleanliness Index", score: cleanlinessIndex, color: .purple)
-                        }
-                        .padding(.vertical, 8)
-                        .frame(maxWidth: .infinity)
-                    } label: {
-                        Label("AI UX Quality Audit", systemImage: "chart.bar.doc.horizontal")
-                            .foregroundColor(.blue)
-                    }
-
-                    // Interactive prompt text editor
-                    GroupBox("Prompt Codex") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Tell the assistant what you want to build or improve:")
+            VStack(spacing: 0) {
+                // Main split content
+                HSplitView {
+                    // Left Side: AI Prompts and Inputs
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Co-Design Assistant")
+                                .font(.headline)
+                            Text("Describe your layout goals or use one of the quick actions below to generate optimized layouts.")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundColor(.secondary)
+                        }
+
+                        // Prompts input area
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("AI Assistant Prompt")
+                                .font(.caption.bold())
+                                .foregroundColor(.secondary)
 
                             TextEditor(text: $promptText)
                                 .font(.subheadline)
-                                .frame(height: 80)
+                                .padding(8)
+                                .background(Color(NSColor.controlBackgroundColor))
                                 .cornerRadius(8)
-                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.2), lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.15), lineWidth: 1))
+                                .frame(height: 100)
+                        }
 
-                            HStack {
-                                Spacer()
-                                Button {
-                                    triggerAIRequest()
-                                } label: {
-                                    if isProcessing {
+                        // Generate Button
+                        HStack {
+                            Spacer()
+                            Button {
+                                triggerAIRequest()
+                            } label: {
+                                if isProcessing {
+                                    HStack(spacing: 6) {
                                         ProgressView().controlSize(.small)
-                                    } else {
-                                        Label("Generate Layout", systemImage: "sparkles")
+                                        Text("Thinking...")
+                                    }
+                                } else {
+                                    Label("Generate Layout", systemImage: "sparkles")
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.purple)
+                            .controlSize(.regular)
+                            .disabled(promptText.isEmpty || isProcessing)
+                        }
+
+                        Divider()
+
+                        // Quick Actions List
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Quick Actions")
+                                .font(.caption.bold())
+                                .foregroundColor(.secondary)
+
+                            ScrollView {
+                                VStack(spacing: 8) {
+                                    ForEach(quickActions, id: \.0) { action in
+                                        Button {
+                                            promptText = action.1
+                                        } label: {
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                HStack {
+                                                    Text(action.0)
+                                                        .font(.subheadline.bold())
+                                                        .foregroundColor(.primary)
+                                                    Spacer()
+                                                    Image(systemName: "chevron.right")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                }
+                                                Text(action.1)
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                                    .multilineTextAlignment(.leading)
+                                            }
+                                            .padding(10)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                                            .cornerRadius(8)
+                                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.1), lineWidth: 1))
+                                        }
+                                        .buttonStyle(.plain)
                                     }
                                 }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(promptText.isEmpty || isProcessing)
                             }
                         }
-                        .padding(.vertical, 4)
                     }
+                    .padding(16)
+                    .frame(minWidth: 260, maxWidth: .infinity, maxHeight: .infinity)
 
-                    if !responseOutput.isEmpty {
-                        GroupBox("Codex Suggestions & Generated Layout") {
+                    // Right Side: Live Suggestion View & Applying Code
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Generated Recommendations")
+                            .font(.caption.bold())
+                            .foregroundColor(.secondary)
+                            .padding(.top, 16)
+                            .padding(.horizontal, 16)
+
+                        if responseOutput.isEmpty {
+                            VStack(spacing: 12) {
+                                Spacer()
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 32))
+                                    .foregroundColor(.purple.opacity(0.5))
+                                Text("Ready to Collaborate")
+                                    .font(.headline)
+                                Text("Your generated SwiftUI layouts and AI suggestions will appear here in real-time.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                                Spacer()
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .padding(24)
+                        } else {
                             VStack(alignment: .leading, spacing: 12) {
-                                Text(responseOutput)
-                                    .font(.system(.subheadline, design: .monospaced))
-                                    .padding(8)
-                                    .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
+                                ScrollView {
+                                    Text(responseOutput)
+                                        .font(.system(.subheadline, design: .monospaced))
+                                        .padding(12)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color(NSColor.controlBackgroundColor))
+                                        .cornerRadius(8)
+                                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.12), lineWidth: 1))
+                                }
 
-                                Button("Apply AI Layout To Active Artboard") {
+                                Spacer()
+
+                                Button {
                                     applyGeneratedStructure()
+                                } label: {
+                                    Label("Apply to Active Artboard", systemImage: "checkmark.circle.fill")
+                                        .frame(maxWidth: .infinity)
                                 }
                                 .buttonStyle(.borderedProminent)
-                                .controlSize(.regular)
+                                .controlSize(.large)
                             }
-                            .padding(.vertical, 4)
+                            .padding([.horizontal, .bottom], 16)
                         }
                     }
+                    .frame(minWidth: 260, maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(NSColor.underPageBackgroundColor))
                 }
-                .padding(24)
             }
             .background(Color(NSColor.windowBackgroundColor))
-            .navigationTitle("AI Visual Assistant")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
@@ -102,7 +179,7 @@ public struct VisualUIAIAssistant: View {
                 }
             }
         }
-        .frame(width: 550, height: 600)
+        .frame(width: 700, height: 480)
     }
 
     private func triggerAIRequest() {
@@ -122,9 +199,6 @@ Your layout must follow high aesthetic standard, with proper spacing and alignme
 
                 await MainActor.run {
                     self.responseOutput = result
-                    self.accessibilityScore = Int.random(in: 95...100)
-                    self.spacingScore = Int.random(in: 92...99)
-                    self.cleanlinessIndex = Int.random(in: 94...100)
                     self.isProcessing = false
                     VisualUISettings.shared.addLog("AI assistant processed visual prompt: '\(userPrompt)' successfully.")
                 }
@@ -141,7 +215,6 @@ Your layout must follow high aesthetic standard, with proper spacing and alignme
         document.checkpoint()
         if let activeID = document.scene.activeArtboardID,
            let artboard = document.scene.artboards.first(where: { $0.id == activeID }) {
-            // Apply a nice generated nodes layout
             let node1 = VisualComponentNode(type: .text, properties: ["textValue": "Codex Optimized Dashboard", "fontPreset": "Large Title"])
             let node2 = VisualComponentNode(type: .hStack, children: [
                 VisualComponentNode(type: .button, properties: ["textValue": "Primary Call-to-action"]),
@@ -151,37 +224,5 @@ Your layout must follow high aesthetic standard, with proper spacing and alignme
             VisualUISettings.shared.addLog("Applied generated Codex layout to active artboard '\(artboard.name)'.")
             dismiss()
         }
-    }
-}
-
-// MARK: - Circular score metric dashboard HUD
-
-struct ScoreMetricCircle: View {
-    let title: String
-    let score: Int
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .stroke(color.opacity(0.15), lineWidth: 6)
-                    .frame(width: 60, height: 60)
-
-                Circle()
-                    .trim(from: 0.0, to: CGFloat(score) / 100.0)
-                    .stroke(color, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                    .frame(width: 60, height: 60)
-                    .rotationEffect(.degrees(-90))
-
-                Text("\(score)")
-                    .font(.subheadline.bold())
-            }
-
-            Text(title)
-                .font(.caption.bold())
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
     }
 }

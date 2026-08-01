@@ -101,6 +101,11 @@ public struct VisualUIPreviewPanel: View {
                                 await refreshPreviewSession()
                             }
                         }
+                        .onChange(of: settings.showCompiledView) { _, _ in
+                            Task {
+                                await refreshPreviewSession()
+                            }
+                        }
                     } else {
                         ContentUnavailableView {
                             Label("No Active Artboard", systemImage: "macwindow")
@@ -118,11 +123,25 @@ public struct VisualUIPreviewPanel: View {
     }
 
     private func refreshPreviewSession() async {
-        let code = generateCurrentSwiftUISource()
-        await PreviewManager.shared.startPreviewSession(
-            sourcePath: "VisualUIExportView.swift",
-            sourceCode: code,
-            targetView: "VisualUIExportView"
-        )
+        if settings.showCompiledView {
+            // Use active editor document
+            if let activeDoc = DocumentCoordinator.shared.activeDocument {
+                let (preparedCode, targetView) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
+                let resolvedTarget = targetView ?? "SwiftUI Preview"
+                await PreviewManager.shared.startPreviewSession(
+                    sourcePath: activeDoc.url.path,
+                    sourceCode: preparedCode,
+                    targetView: resolvedTarget
+                )
+            }
+        } else {
+            // Use placeholder project code
+            let code = generateCurrentSwiftUISource()
+            await PreviewManager.shared.startPreviewSession(
+                sourcePath: "VisualUIExportView.swift",
+                sourceCode: code,
+                targetView: "VisualUIExportView"
+            )
+        }
     }
 }
