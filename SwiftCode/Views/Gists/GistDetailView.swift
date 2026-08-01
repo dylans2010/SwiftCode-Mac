@@ -10,88 +10,124 @@ struct GistDetailView: View {
     @State private var editableDescription = ""
     @State private var editableFiles: [GistFile] = []
     @State private var selectedFileID: UUID?
+    @State private var showRevisions = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            if let currentGist = gist {
-                headerView(currentGist)
+        NavigationStack {
+            VStack(spacing: 16) {
+                if let currentGist = gist {
+                    // Gist Metadata & Description Card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Label("Gist Details", systemImage: "doc.text.magnifyingglass")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
 
-                GistFileTabBar(
-                    files: editableFiles,
-                    selectedFileID: $selectedFileID,
-                    isEditing: isEditing,
-                    onRemoveFile: { id in
-                        editableFiles.removeAll { $0.id == id }
+                                Button {
+                                    showRevisions = true
+                                } label: {
+                                    Label("Revision History", systemImage: "clock.arrow.circlepath")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+
+                            if isEditing {
+                                TextField("Description", text: $editableDescription)
+                                    .textFieldStyle(.roundedBorder)
+                            } else {
+                                Text(currentGist.description ?? "No description")
+                                    .font(.title3.bold())
+                            }
+
+                            HStack {
+                                Text(currentGist.owner?.login ?? "anonymous")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text("Updated \(currentGist.updatedAt, style: .relative)")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .padding(8)
                     }
-                )
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                Divider()
+                    // Files Card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 10) {
+                            GistFileTabBar(
+                                files: editableFiles,
+                                selectedFileID: $selectedFileID,
+                                isEditing: isEditing,
+                                onRemoveFile: { id in
+                                    editableFiles.removeAll { $0.id == id }
+                                }
+                            )
 
-                if let selectedFileIndex = editableFiles.firstIndex(where: { $0.id == selectedFileID }) {
-                    GistFileEditorView(file: $editableFiles[selectedFileIndex], isEditing: isEditing)
-                        .padding(16)
+                            Divider()
+
+                            if let selectedFileIndex = editableFiles.firstIndex(where: { $0.id == selectedFileID }) {
+                                GistFileEditorView(file: $editableFiles[selectedFileIndex], isEditing: isEditing)
+                                    .frame(minHeight: 300)
+                                    .cornerRadius(8)
+                            } else {
+                                ContentUnavailableView(
+                                    "Select a file",
+                                    systemImage: "doc.text",
+                                    description: Text("Select a file from the tab bar above to edit its content.")
+                                )
+                                .frame(maxHeight: .infinity)
+                            }
+                        }
+                        .padding(8)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
                 } else {
-                    ContentUnavailableView(
-                        "Select a file",
-                        systemImage: "doc.text",
-                        description: Text("Select a file from the tab bar above to edit its content.")
-                    )
-                    .frame(maxHeight: .infinity)
+                    Spacer()
+                    ProgressView("Loading Gist...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    Spacer()
                 }
-            } else {
-                ProgressView("Loading Gist...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .padding(24)
+            .navigationTitle("Gist Details")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .primaryAction) {
+                    HStack {
+                        if isEditing {
+                            Button("Save") {
+                                Task { await saveGist() }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.orange)
+                        } else {
+                            Button("Edit") {
+                                isEditing = true
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
             }
         }
-        .background(Color(NSColor.windowBackgroundColor))
-        .navigationTitle("Gist Details")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                HStack {
-                    if isEditing {
-                        Button("Save") {
-                            Task { await saveGist() }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.orange)
-                    } else {
-                        Button("Edit") {
-                            isEditing = true
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-            }
+        .frame(minWidth: 800, minHeight: 650)
+        .sheet(isPresented: $showRevisions) {
+            GistRevisionsView(gistId: gistId)
+                .environmentObject(gistService)
         }
         .task {
             await loadGist()
         }
-    }
-
-    private func headerView(_ currentGist: GistResponse) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if isEditing {
-                TextField("Description", text: $editableDescription)
-                    .textFieldStyle(.roundedBorder)
-            } else {
-                Text(currentGist.description ?? "No description")
-                    .font(.title3.bold())
-            }
-
-            HStack {
-                Text(currentGist.owner?.login ?? "anonymous")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("Updated \(currentGist.updatedAt, style: .relative)")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .padding(16)
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(8)
-        .padding([.horizontal, .top], 16)
     }
 
     private func loadGist() async {

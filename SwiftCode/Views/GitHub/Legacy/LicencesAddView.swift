@@ -18,7 +18,7 @@ struct LicencesAddView: View {
     @State private var searchText = ""
     @State private var selectedCategory = "All"
     @State private var sortMode: SortMode = .nameAZ
-    @State private var previewLicense: LicenseTemplate?
+    @State private var selectedLicenseForPreview: LicenseTemplate?
     @State private var isWriting = false
     @State private var alertMessage = ""
     @State private var showAlert = false
@@ -52,174 +52,141 @@ struct LicencesAddView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Label("Project Licenses", systemImage: "doc.text.fill")
-                    .font(.headline)
-                    .foregroundColor(.orange)
-                Spacer()
-                Button("Close") {
-                    dismiss()
-                }
-                .buttonStyle(.bordered)
-            }
-            .padding(.bottom, 16)
-
-            HSplitView {
-                // Left Pane: Search and License Selection List
-                VStack(spacing: 12) {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header card
                     GroupBox {
-                        VStack(spacing: 8) {
+                        VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Image(systemName: "magnifyingglass")
-                                    .foregroundStyle(.secondary)
-                                TextField("Search licenses...", text: $searchText)
-                                    .textFieldStyle(.plain)
+                                Label("Project Licenses", systemImage: "doc.text.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
                             }
-                            .padding(6)
-                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                            Text("Quickly add open source license templates directly to your project codebase.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(8)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-                            HStack(spacing: 6) {
+                    // Filter controls card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Filters & Selection")
+                                .font(.subheadline.bold())
+                                .foregroundColor(.blue)
+
+                            HStack(spacing: 12) {
+                                HStack {
+                                    Image(systemName: "magnifyingglass")
+                                        .foregroundStyle(.secondary)
+                                    TextField("Search licenses...", text: $searchText)
+                                        .textFieldStyle(.plain)
+                                }
+                                .padding(6)
+                                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+
                                 Picker("Category", selection: $selectedCategory) {
                                     ForEach(categories, id: \.self) { Text($0).tag($0) }
                                 }
                                 .pickerStyle(.menu)
-                                .controlSize(.small)
+                                .controlSize(.regular)
 
                                 Picker("Sort", selection: $sortMode) {
                                     ForEach(SortMode.allCases) { Text($0.rawValue).tag($0) }
                                 }
                                 .pickerStyle(.menu)
-                                .controlSize(.small)
+                                .controlSize(.regular)
                             }
                         }
+                        .padding(8)
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Scrollable List of Licenses
-                    ScrollView {
-                        VStack(spacing: 8) {
+                    // License Directory list card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("License Templates", systemImage: "list.bullet.rectangle")
+                                    .font(.headline)
+                                    .foregroundColor(.green)
+                                Spacer()
+                            }
+
                             if filteredLicenses.isEmpty {
-                                ContentUnavailableView(
-                                    "No Licenses Found",
-                                    systemImage: "doc.text.magnifyingglass",
-                                    description: Text("Try adjusting search or category filters.")
-                                )
-                                .padding()
+                                HStack {
+                                    Spacer()
+                                    ContentUnavailableView(
+                                        "No Licenses Found",
+                                        systemImage: "doc.text.magnifyingglass",
+                                        description: Text("Try adjusting search or category filters.")
+                                    )
+                                    .padding()
+                                    Spacer()
+                                }
                             } else {
-                                ForEach(filteredLicenses) { license in
-                                    Button {
-                                        previewLicense = license
-                                    } label: {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            HStack {
-                                                Text(license.name)
-                                                    .font(.subheadline.bold())
-                                                    .foregroundColor(previewLicense?.id == license.id ? .orange : .primary)
-                                                Spacer()
-                                                Text(license.category)
-                                                    .font(.system(size: 8, weight: .bold))
-                                                    .padding(.horizontal, 6)
-                                                    .padding(.vertical, 2)
-                                                    .background(Color.blue.opacity(0.15), in: Capsule())
-                                                    .foregroundStyle(.blue)
-                                            }
-
-                                            Text(license.summary)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                                .lineLimit(2)
-                                                .multilineTextAlignment(.leading)
-                                        }
-                                        .padding(10)
-                                        .background(previewLicense?.id == license.id ? Color.orange.opacity(0.1) : Color.secondary.opacity(0.04))
-                                        .cornerRadius(8)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                    }
-                }
-                .frame(minWidth: 260, idealWidth: 320, maxWidth: 400)
-                .padding(.trailing, 12)
-
-                // Right Pane: Detailed License Preview
-                ScrollView {
-                    VStack(spacing: 20) {
-                        if let license = previewLicense {
-                            // Action & Description Card
-                            GroupBox {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    HStack {
-                                        Text(license.name)
-                                            .font(.title3.bold())
-                                        Spacer()
+                                VStack(spacing: 8) {
+                                    ForEach(filteredLicenses) { license in
                                         Button {
-                                            Task { await addLicense(license) }
+                                            selectedLicenseForPreview = license
                                         } label: {
-                                            if isWriting {
-                                                ProgressView().scaleEffect(0.8)
-                                            } else {
-                                                Label("Add to Project", systemImage: "plus.circle.fill")
+                                            VStack(alignment: .leading, spacing: 6) {
+                                                HStack {
+                                                    Text(license.name)
+                                                        .font(.subheadline.bold())
+                                                        .foregroundColor(.primary)
+                                                    Spacer()
+                                                    Text(license.category)
+                                                        .font(.system(size: 9, weight: .bold))
+                                                        .padding(.horizontal, 6)
+                                                        .padding(.vertical, 2)
+                                                        .background(Color.blue.opacity(0.15), in: Capsule())
+                                                        .foregroundStyle(.blue)
+                                                }
+
+                                                Text(license.summary)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                                    .lineLimit(2)
+                                                    .multilineTextAlignment(.leading)
                                             }
+                                            .padding(12)
+                                            .background(Color.secondary.opacity(0.04))
+                                            .cornerRadius(8)
                                         }
-                                        .buttonStyle(.borderedProminent)
-                                        .tint(.orange)
-                                        .disabled(isWriting)
+                                        .buttonStyle(.plain)
                                     }
-
-                                    Text(license.summary)
-                                        .font(.body)
-                                        .foregroundColor(.secondary)
                                 }
-                                .padding()
                             }
-                            .groupBoxStyle(ModernGroupBoxStyle())
-
-                            // Code Body Card
-                            GroupBox {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    Label("License Template Body", systemImage: "scroll")
-                                        .font(.subheadline.bold())
-                                        .foregroundColor(.blue)
-
-                                    Text(license.body)
-                                        .font(.system(.body, design: .monospaced))
-                                        .textSelection(.enabled)
-                                        .lineSpacing(4)
-                                        .padding()
-                                        .background(Color.black.opacity(0.15))
-                                        .cornerRadius(8)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .padding()
-                            }
-                            .groupBoxStyle(ModernGroupBoxStyle())
-                        } else {
-                            ContentUnavailableView(
-                                "Select a License",
-                                systemImage: "doc.text",
-                                description: Text("Choose a license template from the list on the left to preview.")
-                            )
-                            .padding(.top, 40)
                         }
+                        .padding(8)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+                }
+                .padding(24)
+            }
+            .navigationTitle("Add License")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        dismiss()
                     }
                 }
-                .frame(minWidth: 400, idealWidth: 600, maxWidth: .infinity)
-                .padding(.leading, 12)
             }
         }
         .sourceControlEmbedded()
+        .frame(width: 600, height: 650)
         .alert("License Installation", isPresented: $showAlert) {
             Button("OK") {}
         } message: {
             Text(alertMessage)
         }
-        .onAppear {
-            if previewLicense == nil, let first = filteredLicenses.first {
-                previewLicense = first
+        .sheet(item: $selectedLicenseForPreview) { license in
+            LicensePreviewDetailView(license: license) {
+                Task { await addLicense(license) }
             }
         }
     }
@@ -239,5 +206,76 @@ struct LicencesAddView: View {
             alertMessage = "Failed to add license: \(error.localizedDescription)"
             showAlert = true
         }
+    }
+}
+
+struct LicensePreviewDetailView: View {
+    let license: LicenseTemplate
+    let onAdd: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Summary card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Label("License Summary", systemImage: "info.circle.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
+
+                                Button {
+                                    onAdd()
+                                    dismiss()
+                                } label: {
+                                    Label("Add to Project", systemImage: "plus.circle.fill")
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.orange)
+                            }
+
+                            Text(license.summary)
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(8)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // Body card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("License Template Body", systemImage: "scroll")
+                                .font(.subheadline.bold())
+                                .foregroundColor(.blue)
+
+                            Text(license.body)
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+                                .lineSpacing(4)
+                                .padding()
+                                .background(Color.black.opacity(0.15))
+                                .cornerRadius(8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(8)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+                }
+                .padding(24)
+            }
+            .navigationTitle(license.name)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .frame(width: 650, height: 600)
     }
 }
