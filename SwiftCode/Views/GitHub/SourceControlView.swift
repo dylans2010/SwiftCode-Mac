@@ -242,6 +242,7 @@ public enum SourceControlSelection: String, CaseIterable, Identifiable, Codable 
     case onboarding = "Onboarding"
     case githubInspector = "GitHub Inspector"
     case conflictResolver = "Conflict Resolver"
+    case gists = "Gists"
     case repositoryIntelligence = "Repository Intelligence"
     case knowledgeGraph = "Repository Knowledge Graph"
     case repositoryTimeline = "Repository Timeline"
@@ -303,6 +304,7 @@ public enum SourceControlSelection: String, CaseIterable, Identifiable, Codable 
         case .onboarding: return "person.badge.key.fill"
         case .githubInspector: return "info.circle.fill"
         case .conflictResolver: return "arrow.triangle.merge"
+        case .gists: return "doc.on.doc.fill"
         }
     }
 }
@@ -348,6 +350,7 @@ public class SourceControlSplitViewController: NSSplitViewController {
         let mainView = SourceControlMainWrapper(gitViewModel: gitViewModel, project: project)
             .environment(ProjectSessionStore.shared)
             .environmentObject(AppSettings.shared)
+            .environmentObject(GitHubGistService.shared)
         let mainVC = NSHostingController(rootView: StylingBootstrap.configureEnvironment(mainView))
         mainVC.sizingOptions = []
         mainVC.view.autoresizingMask = [.width, .height]
@@ -618,6 +621,7 @@ func buildSourceControlSidebarNodes() -> [SourceControlSidebarNode] {
     let github = SourceControlSidebarNode(title: "GITHUB INTEGRATION", isGroup: true)
     github.children = [
         SourceControlSidebarNode(title: "GitHub Account", icon: "person.crop.circle.fill", selection: .githubAccount),
+        SourceControlSidebarNode(title: "Gists", icon: "doc.on.doc.fill", selection: .gists),
         SourceControlSidebarNode(title: "GitHub Inspector", icon: "info.circle.fill", selection: .githubInspector),
         SourceControlSidebarNode(title: "Activity Feed", icon: "bolt.fill", selection: .activityFeed),
         SourceControlSidebarNode(title: "Pull Requests", icon: "arrow.triangle.pull", selection: .pullRequests),
@@ -680,6 +684,8 @@ struct SourceControlMainWrapper: View {
                 SourceControlOffView()
             } else {
                 switch state.selection {
+                case .gists:
+                    GistsView()
                 case .gitWorktrees:
                     GitWorktreesView()
                 case .localWorkspace:

@@ -9,18 +9,27 @@ struct GistRevisionsView: View {
     @State private var selectedRevision: GistRevision?
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            // Header Card
+            HStack {
+                Label("Revision History", systemImage: "clock.arrow.circlepath")
+                    .font(.headline)
+                    .foregroundColor(.orange)
+                Spacer()
+                Button("Done") {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding()
+            .background(Color(NSColor.windowBackgroundColor))
+
+            Divider()
+
             ScrollView {
                 VStack(spacing: 24) {
-                    // Header Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Label("Revision History", systemImage: "clock.arrow.circlepath")
-                                    .font(.headline)
-                                    .foregroundColor(.orange)
-                                Spacer()
-                            }
                             Text("Browse and view changes for past revisions of this gist.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -116,14 +125,6 @@ struct GistRevisionsView: View {
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
                 .padding(24)
-            }
-            .navigationTitle("Revisions")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                }
             }
         }
         .frame(width: 550, height: 600)

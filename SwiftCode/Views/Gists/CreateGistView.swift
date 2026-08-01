@@ -4,12 +4,15 @@ struct CreateGistView: View {
     @EnvironmentObject private var gistService: GitHubGistService
     @Environment(\.dismiss) private var dismiss
 
+    var onDismiss: () -> Void
+
     @State private var description = ""
     @State private var isPublic = false
     @State private var files: [GistFile]
     @State private var selectedFileID: UUID?
 
-    init(initialFilename: String? = nil, initialContent: String = "") {
+    init(initialFilename: String? = nil, initialContent: String = "", onDismiss: @escaping () -> Void = {}) {
+        self.onDismiss = onDismiss
         _description = State(initialValue: "")
         _isPublic = State(initialValue: false)
         let initialFile = GistFile(filename: initialFilename ?? "untitled.swift", content: initialContent)
@@ -18,7 +21,25 @@ struct CreateGistView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            // Header actions row (inspired by IssuesView / ReleasesView / IssueDetailView)
+            HStack {
+                Label("New Gist Specification", systemImage: "plus.circle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.orange)
+
+                Spacer()
+
+                Button("Cancel") {
+                    handleDismiss()
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding()
+            .background(Color.secondary.opacity(0.03))
+
+            Divider()
+
             ScrollView {
                 VStack(spacing: 24) {
                     // Metadata Details Card
@@ -109,27 +130,32 @@ struct CreateGistView: View {
                         .padding(8)
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
-                }
-                .padding(24)
-            }
-            .navigationTitle("New Gist")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
+
+                    Button {
                         Task {
-                            try? await gistService.createGist(files: files, description: description, isPublic: isPublic)
-                            dismiss()
+                            do {
+                                try await gistService.createGist(files: files, description: description, isPublic: isPublic)
+                                handleDismiss()
+                            } catch {
+                                print("Failed to create gist: \(error)")
+                            }
                         }
+                    } label: {
+                        Text("Create Gist")
+                            .fontWeight(.bold)
+                            .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.orange)
                     .disabled(description.isEmpty || files.isEmpty)
                 }
+                .padding(24)
             }
         }
-        .frame(width: 650, height: 600)
+    }
+
+    private func handleDismiss() {
+        onDismiss()
+        dismiss()
     }
 }

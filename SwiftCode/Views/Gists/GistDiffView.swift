@@ -18,18 +18,36 @@ struct GistDiffView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Label("Diff Viewer", systemImage: "arrow.left.and.right.square.fill")
+                    .font(.headline)
+                    .foregroundColor(.orange)
+                Spacer()
+
+                Picker("Style", selection: $diffStyle) {
+                    ForEach(DiffStyle.allCases) { style in
+                        Text(style.rawValue).tag(style)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 150)
+
+                Button("Done") {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding()
+            .background(Color(NSColor.windowBackgroundColor))
+
+            Divider()
+
             ScrollView {
                 VStack(spacing: 24) {
-                    // Header Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Label("Diff Viewer", systemImage: "arrow.left.and.right.square.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.orange)
-                                Spacer()
-                            }
                             Text("Revision: \(revision.version.prefix(7))")
                                 .font(.system(.body, design: .monospaced))
                                 .bold()
@@ -128,23 +146,6 @@ struct GistDiffView: View {
                     }
                 }
                 .padding(24)
-            }
-            .navigationTitle("Diff (\(revision.version.prefix(7)))")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                }
-
-                ToolbarItem(placement: .primaryAction) {
-                    Picker("Style", selection: $diffStyle) {
-                        ForEach(DiffStyle.allCases) { style in
-                            Text(style.rawValue).tag(style)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
             }
         }
         .frame(width: 700, height: 650)
