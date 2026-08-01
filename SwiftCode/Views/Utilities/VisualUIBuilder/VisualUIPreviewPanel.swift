@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Preview panel displaying real-time rendering using the modernized PreviewEngine and PreviewHost.
+/// Visual UI Builder acts as a pure client of the Preview Engine, generating SwiftUI source code and delegating execution.
 public struct VisualUIPreviewPanel: View {
     let document: VisualUIDocument
     let settings: VisualUISettings
@@ -76,17 +77,29 @@ public struct VisualUIPreviewPanel: View {
                 } else {
                     // Render Active Artboard Preview Environment using PreviewHost & PreviewContainer
                     if let activeID = document.scene.activeArtboardID,
-                       let artboard = document.scene.artboards.first(where: { $0.id == activeID }) {
+                       let _ = document.scene.artboards.first(where: { $0.id == activeID }) {
                         ScrollView([.horizontal, .vertical]) {
                             VStack {
-                                PreviewContainer(state: previewState) {
-                                    PreviewHost {
-                                        VisualUIRenderer(rootNode: artboard.rootNode, document: document)
+                                if let hostedView = PreviewManager.shared.hostedView {
+                                    PreviewContainer(state: previewState) {
+                                        NativePreviewHost(hostedView: hostedView)
+                                    }
+                                } else {
+                                    // Fallback to high-fidelity live preview runtime workspace
+                                    PreviewContainer(state: previewState) {
+                                        DynamicSwiftUIPreviewRenderer(content: generateCurrentSwiftUISource())
                                     }
                                 }
-                                .padding(32)
                             }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .padding(32)
+                        }
+                        .task {
+                            await refreshPreviewSession()
+                        }
+                        .onChange(of: document.scene.selectedNodeIDs) { _, _ in
+                            Task {
+                                await refreshPreviewSession()
+                            }
                         }
                     } else {
                         ContentUnavailableView {
@@ -97,5 +110,19 @@ public struct VisualUIPreviewPanel: View {
             }
             .background(Color.secondary.opacity(0.02))
         }
+    }
+
+    private func generateCurrentSwiftUISource() -> String {
+        let generator = VisualUICodeGenerator()
+        return generator.generateCode(for: document.scene, targetFramework: .swiftUI)
+    }
+
+    private func refreshPreviewSession() async {
+        let code = generateCurrentSwiftUISource()
+        await PreviewManager.shared.startPreviewSession(
+            sourcePath: "VisualUIExportView.swift",
+            sourceCode: code,
+            targetView: "VisualUIExportView"
+        )
     }
 }

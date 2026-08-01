@@ -17,6 +17,7 @@ public struct PreviewCompilationDiagnostic: Sendable, Identifiable {
     public let line: Int?
 }
 
+/// Actor-isolated compiler coordinates native swiftc live SwiftUI library generation.
 public actor PreviewRuntimeCompiler {
     private var cachedSignatures: [URL: Date] = [:]
 
@@ -116,23 +117,27 @@ public actor PreviewRuntimeCompiler {
 
     private func makeBootstrapSource(viewTypes: [String], defaultRoot: String) -> String {
         let cases = viewTypes.map { viewType in
-            "case \"\(viewType)\": resolved = \"\(viewType)\""
-        }.joined(separator: "\n            ")
+            "case \"\(viewType)\": root = AnyView(\(viewType)())"
+        }.joined(separator: "\n        ")
 
         return """
         import SwiftUI
-        import Foundation
+        import AppKit
 
-        @_cdecl("__swiftcode_make_root_view")
-        public func __swiftcode_make_root_view(_ viewNamePtr: UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>? {
+        @_cdecl("__swiftcode_make_hosting_view")
+        public func __swiftcode_make_hosting_view(_ viewNamePtr: UnsafePointer<CChar>?) -> UnsafeMutableRawPointer? {
             let requested = viewNamePtr.map { String(cString: $0) } ?? "\(defaultRoot)"
-            let resolved: String
+            var root = AnyView(Text("Unknown Target View"))
+
             switch requested {
             \(cases)
             default:
-                resolved = "\(defaultRoot)"
+                break
             }
-            return strdup(resolved)
+
+            let hostingView = NSHostingView(rootView: root)
+            hostingView.frame = NSRect(x: 0, y: 0, width: 393, height: 852)
+            return Unmanaged.passRetained(hostingView).toOpaque()
         }
         """
     }

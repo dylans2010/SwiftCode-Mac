@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8AF7A4DBC58448B79766C3DB /* PreviewInteractionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F8E6086CE9485E91EF5ED8 /* PreviewInteractionManager.swift */; };
+		AA524F6139E340CCA25E5896 /* PreviewRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 794AE660D22E4A1E9314DD3F /* PreviewRuntime.swift */; };
+		D9FB167791F84FB39E20AB8F /* PreviewDeviceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB42A73CC4BD4D10AA335FCA /* PreviewDeviceManager.swift */; };
 		51D5126856C94EE2A69DF5A6 /* DynamicSwiftUIPreviewRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B499C96718F45DB8FB944A6 /* DynamicSwiftUIPreviewRenderer.swift */; };
 		74AF6C9A4FC04591A48A3731 /* PreviewDynamicLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F431FF56C094445D9348322D /* PreviewDynamicLoader.swift */; };
 		FEB1F19B22E840CB85E47428 /* PreviewRuntimeCompiler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99A11BAAD27C482B83200088 /* PreviewRuntimeCompiler.swift */; };
@@ -1518,6 +1521,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A4F8E6086CE9485E91EF5ED8 /* PreviewInteractionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewInteractionManager.swift; sourceTree = "<group>"; };
+		794AE660D22E4A1E9314DD3F /* PreviewRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewRuntime.swift; sourceTree = "<group>"; };
+		CB42A73CC4BD4D10AA335FCA /* PreviewDeviceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewDeviceManager.swift; sourceTree = "<group>"; };
 		0B499C96718F45DB8FB944A6 /* DynamicSwiftUIPreviewRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicSwiftUIPreviewRenderer.swift; sourceTree = "<group>"; };
 		F431FF56C094445D9348322D /* PreviewDynamicLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewDynamicLoader.swift; sourceTree = "<group>"; };
 		99A11BAAD27C482B83200088 /* PreviewRuntimeCompiler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewRuntimeCompiler.swift; sourceTree = "<group>"; };
@@ -5663,6 +5669,9 @@ ECAAA1260294B0DD15620104 /* sfsymbol4.txt */,
 		F6DD5CD680DE3E7770BB6701 /* Preview */ = {
 			isa = PBXGroup;
 			children = (
+				A4F8E6086CE9485E91EF5ED8 /* PreviewInteractionManager.swift */,
+				794AE660D22E4A1E9314DD3F /* PreviewRuntime.swift */,
+				CB42A73CC4BD4D10AA335FCA /* PreviewDeviceManager.swift */,
 				0B499C96718F45DB8FB944A6 /* DynamicSwiftUIPreviewRenderer.swift */,
 				F431FF56C094445D9348322D /* PreviewDynamicLoader.swift */,
 				99A11BAAD27C482B83200088 /* PreviewRuntimeCompiler.swift */,
@@ -6016,6 +6025,9 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8AF7A4DBC58448B79766C3DB /* PreviewInteractionManager.swift in Sources */,
+				AA524F6139E340CCA25E5896 /* PreviewRuntime.swift in Sources */,
+				D9FB167791F84FB39E20AB8F /* PreviewDeviceManager.swift in Sources */,
 				51D5126856C94EE2A69DF5A6 /* DynamicSwiftUIPreviewRenderer.swift in Sources */,
 				74AF6C9A4FC04591A48A3731 /* PreviewDynamicLoader.swift in Sources */,
 				FEB1F19B22E840CB85E47428 /* PreviewRuntimeCompiler.swift in Sources */,
