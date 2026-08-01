@@ -202,9 +202,13 @@ public struct VisualUIInspector: View {
         let generator = VisualUICodeGenerator()
         let code = generator.generateCode(for: document.scene, targetFramework: .swiftUI)
 
-        let fileManager = FileManager.default
-        let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL ?? fileManager.temporaryDirectory
-        let fileURL = projectURL.appendingPathComponent("VisualUIExportView.swift")
+        let fileURL: URL
+        if let activeDoc = DocumentCoordinator.shared.activeDocument {
+            fileURL = activeDoc.url
+        } else {
+            let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL ?? FileManager.default.temporaryDirectory
+            fileURL = projectURL.appendingPathComponent("VisualUIExportView.swift")
+        }
 
         do {
             try code.write(to: fileURL, atomically: true, encoding: .utf8)
@@ -222,6 +226,9 @@ public struct VisualUIInspector: View {
                 object: nil,
                 userInfo: ["filePath": fileURL.path]
             )
+
+            // Close the Visual UI Builder window to bring editor back to the foreground
+            VisualUIBuilderWindowManager.shared.closeWindow()
         } catch {
             VisualUISettings.shared.addLog("Error opening in editor: \(error.localizedDescription)")
         }

@@ -125,6 +125,29 @@ struct ProjectNote: Identifiable, Hashable, Sendable {
     let path: String
     var content: String
     let isMarkdown: Bool
+
+    var isPinned: Bool {
+        content.contains("[PINNED]") || content.contains("pinned: true")
+    }
+    var isFavorite: Bool {
+        content.contains("[FAVORITE]") || content.contains("favorite: true")
+    }
+    var category: String {
+        if content.contains("[CATEGORY:Todo]") { return "Todo" }
+        if content.contains("[CATEGORY:Meeting]") { return "Meeting" }
+        if content.contains("[CATEGORY:Build]") { return "Build" }
+        return "General"
+    }
+    var tags: [String] {
+        let pattern = #"#\w+"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return [] }
+        let nsRange = NSRange(content.startIndex..<content.endIndex, in: content)
+        let matches = regex.matches(in: content, options: [], range: nsRange)
+        return matches.compactMap { match -> String? in
+            guard let range = Range(match.range, in: content) else { return nil }
+            return String(content[range])
+        }
+    }
 }
 
 // MARK: - Safe Asynchronous Loader with Caching
@@ -136,6 +159,7 @@ struct ProjectNote: Identifiable, Hashable, Sendable {
 final class DocSymbolsLoader {
     private static let logger = Logger(subsystem: "com.swiftcode.assist", category: "DocSymbolsLoader")
     private static var cachedSymbols: [DocSymbol]? = nil
+    private static var symbolIndex: [String: DocSymbol] = [:]
 
     static func loadSymbols() async throws -> [DocSymbol] {
         if let cached = cachedSymbols {
@@ -143,90 +167,69 @@ final class DocSymbolsLoader {
             return cached
         }
 
-        logger.info("Loading doc symbols from bundle...")
+        logger.info("Loading doc symbols from DocSymbols.json...")
 
-        // Since we may not have DocSymbols.json, let's hardcode or generate rich default symbols
-        cachedSymbols = getSeedSymbols()
-        return cachedSymbols!
+        guard let url = Bundle.main.url(forResource: "DocSymbols", withExtension: "json") else {
+            logger.error("DocSymbols.json not found in main bundle!")
+            throw LoaderError.fileNotFound
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+
+            // JSON validation
+            guard !data.isEmpty else {
+                throw LoaderError.emptyFile
+            }
+
+            let decoded = try JSONDecoder().decode([DocSymbol].self, from: data)
+
+            // Schema Validation, Duplicate Detection & Invalid Symbol Detection
+            var validSymbols: [DocSymbol] = []
+            var seenNames = Set<String>()
+
+            for sym in decoded {
+                // Missing field / invalid field validation
+                if sym.name.isEmpty || sym.kind.isEmpty || sym.framework.isEmpty {
+                    logger.warning("Skipping invalid symbol with empty key properties: \(sym.name)")
+                    continue
+                }
+
+                // Duplicate detection
+                if seenNames.contains(sym.name) {
+                    logger.warning("Skipping duplicate symbol: \(sym.name)")
+                    continue
+                }
+
+                seenNames.insert(sym.name)
+                validSymbols.append(sym)
+                symbolIndex[sym.name.lowercased()] = sym
+            }
+
+            cachedSymbols = validSymbols
+            logger.info("Loaded and verified \(validSymbols.count) symbols from DocSymbols.json")
+            return validSymbols
+        } catch {
+            logger.error("Failed to parse DocSymbols.json: \(error.localizedDescription)")
+            throw LoaderError.decodingError(error)
+        }
     }
 
-    private static func getSeedSymbols() -> [DocSymbol] {
-        return [
-            DocSymbol(
-                name: "VStack",
-                kind: "struct",
-                framework: "SwiftUI",
-                summary: "A view that arranges its subviews in a vertical line. Use a vertical stack to place views sequentially from top to bottom.",
-                syntax: "struct VStack<Content> : View where Content : View",
-                platforms: ["macOS": "10.15", "iOS": "13.0", "visionOS": "1.0"],
-                inheritsFrom: "View",
-                conformsTo: ["View", "Sendable"],
-                codeSample: """
-VStack(alignment: .leading, spacing: 10) {
-    Text("Title").font(.headline)
-    Text("Subtitle").font(.subheadline)
-}
-""",
-                availability: "macOS 10.15+, iOS 13.0+, tvOS 13.0+, watchOS 6.0+, visionOS 1.0+"
-            ),
-            DocSymbol(
-                name: "URLSession",
-                kind: "class",
-                framework: "Foundation",
-                summary: "An object that coordinates a group of related, network-data-transfer tasks. It provides APIs for uploading and downloading content.",
-                syntax: "class URLSession : NSObject, @unchecked Sendable",
-                platforms: ["macOS": "10.9", "iOS": "7.0", "visionOS": "1.0"],
-                inheritsFrom: "NSObject",
-                conformsTo: ["Sendable"],
-                codeSample: """
-let (data, response) = try await URLSession.shared.data(from: url)
-""",
-                availability: "macOS 10.9+, iOS 7.0+, tvOS 9.0+, watchOS 2.0+, visionOS 1.0+"
-            ),
-            DocSymbol(
-                name: "Actor",
-                kind: "protocol",
-                framework: "Swift",
-                summary: "A protocol that guarantees thread-safe, mutually exclusive access to its internal state, isolating variables to prevent race conditions.",
-                syntax: "protocol Actor : AnyObject, Sendable",
-                platforms: ["macOS": "12.0", "iOS": "15.0", "visionOS": "1.0"],
-                inheritsFrom: "AnyObject",
-                conformsTo: ["Sendable"],
-                codeSample: """
-actor DataCache {
-    private var store: [String: String] = [:]
-    func set(_ value: String, for key: String) { store[key] = value }
-}
-""",
-                availability: "macOS 12.0+, iOS 15.0+, tvOS 15.0+, watchOS 8.0+, visionOS 1.0+"
-            ),
-            DocSymbol(
-                name: "JSONDecoder",
-                kind: "class",
-                framework: "Foundation",
-                summary: "An object that decodes instances of a data type from JSON objects. It supports key-decoding strategies and raw formatting options.",
-                syntax: "class JSONDecoder",
-                platforms: ["macOS": "10.13", "iOS": "11.0", "visionOS": "1.0"],
-                inheritsFrom: "NSObject",
-                conformsTo: [],
-                codeSample: """
-let decoder = JSONDecoder()
-decoder.keyDecodingStrategy = .convertFromSnakeCase
-let result = try decoder.decode(User.self, from: data)
-""",
-                availability: "macOS 10.13+, iOS 11.0+, tvOS 11.0+, watchOS 4.0+, visionOS 1.0+"
-            )
-        ]
+    static func lookupSymbol(_ name: String) -> DocSymbol? {
+        return symbolIndex[name.lowercased()]
     }
 
     enum LoaderError: Error, LocalizedError {
         case fileNotFound
+        case emptyFile
         case decodingError(Error)
 
         var errorDescription: String? {
             switch self {
             case .fileNotFound:
                 return "The database resource 'DocSymbols.json' was not found in the application bundle. Ensure it is correctly registered in the build phase."
+            case .emptyFile:
+                return "The database resource 'DocSymbols.json' is empty or invalid."
             case .decodingError(let inner):
                 return "Failed to decode 'DocSymbols.json'. The JSON may be malformed or incompatible with the DocSymbol schema. Details: \(inner.localizedDescription)"
             }
@@ -278,6 +281,10 @@ struct NativeDocumentationBrowserWorkspaceView: View {
     @State private var noteEditorText = ""
     @State private var isEditingNote = false
     @State private var noteSearchQuery = ""
+    @State private var isSummarizingNote = false
+    @State private var noteSummaryResult = ""
+    @State private var selectedNoteFilter = "All" // "All", "Pinned", "Favorites", "Todo", "Meeting", "Build"
+    @State private var showNoteSummarySheet = false
 
     // Snippet library
     @State private var snippets: [CodeSnippet] = []
@@ -701,12 +708,24 @@ struct NativeDocumentationBrowserWorkspaceView: View {
             .background(Color.secondary.opacity(0.1))
             .padding(10)
 
+            Picker("Filter", selection: $selectedNoteFilter) {
+                Text("All").tag("All")
+                Text("Pinned 📌").tag("Pinned")
+                Text("Favorites ⭐").tag("Favorites")
+                Text("Todo ✅").tag("Todo")
+                Text("Meetings 👥").tag("Meeting")
+                Text("Build 🛠️").tag("Build")
+            }
+            .pickerStyle(.menu)
+            .padding(.horizontal, 10)
+            .padding(.bottom, 8)
+
             Divider()
 
             List(filteredNotes, selection: $selectedNote) { note in
                 HStack {
-                    Image(systemName: "doc.text.fill")
-                        .foregroundColor(.blue)
+                    Image(systemName: note.category == "Todo" ? "checkmark.circle.fill" : (note.category == "Meeting" ? "person.2.fill" : "doc.text.fill"))
+                        .foregroundColor(note.category == "Todo" ? .green : (note.category == "Meeting" ? .purple : .blue))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(note.title)
                             .bold()
@@ -716,6 +735,16 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                             .lineLimit(1)
                     }
                     Spacer()
+                    if note.isPinned {
+                        Image(systemName: "pin.fill")
+                            .foregroundColor(.orange)
+                            .font(.caption)
+                    }
+                    if note.isFavorite {
+                        Image(systemName: "star.fill")
+                            .foregroundColor(.yellow)
+                            .font(.caption)
+                    }
                 }
                 .padding(.vertical, 4)
                 .tag(note)
@@ -728,10 +757,60 @@ struct NativeDocumentationBrowserWorkspaceView: View {
         VStack(spacing: 0) {
             if let note = selectedNote {
                 HStack {
-                    Text(note.title)
-                        .font(.title2.bold())
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(note.title)
+                                .font(.title2.bold())
+                            if note.isPinned {
+                                Image(systemName: "pin.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.subheadline)
+                            }
+                            if note.isFavorite {
+                                Image(systemName: "star.fill")
+                                    .foregroundColor(.yellow)
+                                    .font(.subheadline)
+                            }
+                        }
+                        Text("Category: \(note.category) | Tags: \(note.tags.joined(separator: ", "))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
 
                     Spacer()
+
+                    // Quick Toggle metadata helper buttons
+                    Group {
+                        Button {
+                            toggleNoteMeta("[PINNED]")
+                        } label: {
+                            Image(systemName: note.isPinned ? "pin.slash.fill" : "pin.fill")
+                                .foregroundColor(.orange)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Pin Note")
+
+                        Button {
+                            toggleNoteMeta("[FAVORITE]")
+                        } label: {
+                            Image(systemName: note.isFavorite ? "star.slash.fill" : "star.fill")
+                                .foregroundColor(.yellow)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Favorite Note")
+
+                        Menu {
+                            Button("General") { setNoteCategory("General") }
+                            Button("Todo") { setNoteCategory("Todo") }
+                            Button("Meeting") { setNoteCategory("Meeting") }
+                            Button("Build") { setNoteCategory("Build") }
+                        } label: {
+                            Label("Category", systemImage: "tag")
+                        }
+                        .menuStyle(.borderlessButton)
+                        .frame(width: 90)
+                    }
+                    .padding(.trailing, 8)
 
                     Toggle("Edit Mode", isOn: $isEditingNote)
                         .toggleStyle(.button)
@@ -744,6 +823,54 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                     }
                 }
                 .padding()
+
+                if isEditingNote {
+                    // Rich Editor toolbar controls
+                    HStack(spacing: 12) {
+                        Button {
+                            insertNoteText("- [ ] ")
+                        } label: {
+                            Label("Todo", systemImage: "checkmark.square")
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            insertNoteText("\n| Column 1 | Column 2 |\n| --- | --- |\n| Cell 1 | Cell 2 |\n")
+                        } label: {
+                            Label("Table", systemImage: "tablecells")
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            insertNoteText("\n```swift\n// Code snippet\n\n```\n")
+                        } label: {
+                            Label("Code Block", systemImage: "curlybraces")
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            let textToCopy = "[\(note.title)](\(note.path))"
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(textToCopy, forType: .string)
+                        } label: {
+                            Label("Copy Link", systemImage: "link")
+                        }
+                        .buttonStyle(.plain)
+
+                        Spacer()
+
+                        Button {
+                            runAINoteSummary()
+                        } label: {
+                            Label(isSummarizingNote ? "Summarizing..." : "AI Summarize", systemImage: "sparkles")
+                                .foregroundColor(.purple)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isSummarizingNote)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+                }
 
                 Divider()
 
@@ -792,11 +919,117 @@ struct NativeDocumentationBrowserWorkspaceView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(isPresented: $showNoteSummarySheet) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Label("AI Technical Note Summary", systemImage: "sparkles")
+                        .font(.headline)
+                        .foregroundColor(.purple)
+                    Spacer()
+                    Button("Close") { showNoteSummarySheet = false }
+                        .buttonStyle(.bordered)
+                }
+
+                Divider()
+
+                ScrollView {
+                    Text(noteSummaryResult)
+                        .textSelection(.enabled)
+                        .font(.body)
+                        .lineSpacing(4)
+                }
+
+                HStack {
+                    Button("Insert Summary at Top") {
+                        noteEditorText = "# AI Summary\n\(noteSummaryResult)\n\n" + noteEditorText
+                        showNoteSummarySheet = false
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Spacer()
+                }
+            }
+            .padding()
+            .frame(width: 500, height: 400)
+        }
         .onChange(of: selectedNote) { _, newValue in
             if let note = newValue {
                 noteEditorText = note.content
                 isEditingNote = false
             }
+        }
+    }
+
+    private func insertNoteText(_ text: String) {
+        noteEditorText += text
+    }
+
+    private func toggleNoteMeta(_ meta: String) {
+        guard let note = selectedNote, let idx = localNotes.firstIndex(where: { $0.path == note.path }) else { return }
+        var currentContent = note.content
+        if currentContent.contains(meta) {
+            currentContent = currentContent.replacingOccurrences(of: "\n" + meta, with: "")
+            currentContent = currentContent.replacingOccurrences(of: meta, with: "")
+        } else {
+            currentContent += "\n" + meta
+        }
+        let updatedNote = ProjectNote(title: note.title, path: note.path, content: currentContent, isMarkdown: note.isMarkdown)
+        localNotes[idx] = updatedNote
+        selectedNote = updatedNote
+        noteEditorText = currentContent
+
+        // Write back to disk immediately!
+        let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL ?? FileManager.default.temporaryDirectory
+        let fileURL = projectURL.appendingPathComponent(note.path)
+        try? currentContent.write(to: fileURL, atomically: true, encoding: .utf8)
+    }
+
+    private func setNoteCategory(_ cat: String) {
+        guard let note = selectedNote, let idx = localNotes.firstIndex(where: { $0.path == note.path }) else { return }
+        var currentContent = note.content
+
+        // Remove existing category headers
+        let categories = ["[CATEGORY:Todo]", "[CATEGORY:Meeting]", "[CATEGORY:Build]"]
+        for c in categories {
+            currentContent = currentContent.replacingOccurrences(of: "\n" + c, with: "")
+            currentContent = currentContent.replacingOccurrences(of: c, with: "")
+        }
+
+        if cat != "General" {
+            currentContent += "\n[CATEGORY:\(cat)]"
+        }
+
+        let updatedNote = ProjectNote(title: note.title, path: note.path, content: currentContent, isMarkdown: note.isMarkdown)
+        localNotes[idx] = updatedNote
+        selectedNote = updatedNote
+        noteEditorText = currentContent
+
+        // Write back to disk immediately!
+        let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL ?? FileManager.default.temporaryDirectory
+        let fileURL = projectURL.appendingPathComponent(note.path)
+        try? currentContent.write(to: fileURL, atomically: true, encoding: .utf8)
+    }
+
+    private func runAINoteSummary() {
+        guard !noteEditorText.isEmpty else { return }
+        isSummarizingNote = true
+        noteSummaryResult = ""
+
+        let prompt = """
+Generate a concise, highly-polished technical summary and bullet-point key objectives for the following technical document:
+\(noteEditorText)
+"""
+
+        Task {
+            do {
+                let response = try await LLMService.shared.generateResponse(prompt: prompt, useContext: false)
+                noteSummaryResult = response
+                showNoteSummarySheet = true
+            } catch {
+                noteSummaryResult = "Failed to summarize technical document: \(error.localizedDescription)"
+                showNoteSummarySheet = true
+            }
+            isSummarizingNote = false
         }
     }
 
@@ -1497,8 +1730,27 @@ Request: \(aiSelectedPromptPreset)
     }
 
     private var filteredNotes: [ProjectNote] {
-        if noteSearchQuery.isEmpty { return localNotes }
-        return localNotes.filter { $0.title.localizedCaseInsensitiveContains(noteSearchQuery) || $0.content.localizedCaseInsensitiveContains(noteSearchQuery) }
+        var list = localNotes
+
+        switch selectedNoteFilter {
+        case "Pinned":
+            list = list.filter { $0.isPinned }
+        case "Favorites":
+            list = list.filter { $0.isFavorite }
+        case "Todo":
+            list = list.filter { $0.category == "Todo" }
+        case "Meeting":
+            list = list.filter { $0.category == "Meeting" }
+        case "Build":
+            list = list.filter { $0.category == "Build" }
+        default:
+            break
+        }
+
+        if !noteSearchQuery.isEmpty {
+            list = list.filter { $0.title.localizedCaseInsensitiveContains(noteSearchQuery) || $0.content.localizedCaseInsensitiveContains(noteSearchQuery) }
+        }
+        return list
     }
 
     private var filteredSnippets: [CodeSnippet] {

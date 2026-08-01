@@ -3,7 +3,15 @@ import SwiftUI
 
 @MainActor
 public class VisualUIBuilderSplitViewController: NSSplitViewController {
-    public let document = VisualUIDocument()
+
+    public var document: VisualUIDocument {
+        if let existing = DocumentCoordinator.shared.visualUIDocument {
+            return existing
+        }
+        let doc = VisualUIDocument()
+        DocumentCoordinator.shared.visualUIDocument = doc
+        return doc
+    }
 
     private var leftItem: NSSplitViewItem?
     private var centerItem: NSSplitViewItem?
@@ -11,6 +19,14 @@ public class VisualUIBuilderSplitViewController: NSSplitViewController {
 
     override public func viewDidLoad() {
         super.viewDidLoad()
+
+        // Sync Visual UI Document with Active Code Document on load
+        if let activeDoc = DocumentCoordinator.shared.activeDocument {
+            document.synchronizeFromCode(activeDoc.content)
+            document.filePath = activeDoc.url.path
+            document.isDirty = activeDoc.isDirty
+        }
+
         setupSplitView()
     }
 
