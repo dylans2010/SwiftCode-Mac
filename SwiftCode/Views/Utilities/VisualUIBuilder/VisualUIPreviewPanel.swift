@@ -59,46 +59,7 @@ public struct VisualUIPreviewPanel: View {
 
             ZStack {
                 if showingDiagnostics {
-                    // Diagnostic Logs & Rendering Metrics from performance monitor
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Text("Rendering Diagnostics")
-                                    .font(.headline)
-                                Spacer()
-                                Button("Clear") {
-                                    PreviewDiagnostics.shared.clearLogs()
-                                }
-                                .buttonStyle(.borderless)
-                            }
-
-                            Divider()
-
-                            let monitor = PreviewPerformanceMonitor.shared
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Average Compile Time: \(String(format: "%.3f", monitor.averageCompileTime))s")
-                                Text("Average Render Time: \(String(format: "%.3f", monitor.averageRenderTime))s")
-                                Text("Total Renders: \(monitor.totalRenders)")
-                                Text("Cache Hit Rate: \(String(format: "%.1f", monitor.cacheHitRate * 100))%")
-                            }
-                            .font(.system(.subheadline, design: .monospaced))
-                            .padding(.bottom, 8)
-
-                            Divider()
-
-                            ForEach(PreviewDiagnostics.shared.logs) { log in
-                                HStack {
-                                    Text(log.category.uppercased())
-                                        .bold()
-                                        .foregroundColor(log.category == "error" ? .red : .blue)
-                                    Text(log.message)
-                                }
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(16)
-                    }
+                    PreviewLogsView()
                 } else {
                     if settings.showCompiledView {
                         if let hostedView = PreviewManager.shared.hostedView {
