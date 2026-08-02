@@ -333,9 +333,13 @@ public struct ArtboardView: View {
                     } else {
                         // Display real compiler diagnostics in place of preview!
                         VStack(alignment: .leading, spacing: 12) {
-                            Label("Compilation Failed", systemImage: "xmark.octagon.fill")
-                                .font(.headline)
-                                .foregroundColor(.red)
+                            HStack {
+                                Label("Compilation Failed", systemImage: "xmark.octagon.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.red)
+                                Spacer()
+                                CopyLogsButton(logs: PreviewManager.shared.buildLogs.joined(separator: "\n"))
+                            }
 
                             ScrollView {
                                 Text(PreviewManager.shared.buildLogs.joined(separator: "\n"))

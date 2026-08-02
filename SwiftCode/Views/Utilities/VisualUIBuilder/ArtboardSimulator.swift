@@ -210,9 +210,13 @@ struct LivePreviewSubView: View {
                                     // Compile error diagnostics or empty state
                                     if !previewManager.buildLogs.isEmpty {
                                         VStack(alignment: .leading, spacing: 12) {
-                                            Label("Compilation Failed", systemImage: "xmark.octagon.fill")
-                                                .font(.headline)
-                                                .foregroundColor(.red)
+                                            HStack {
+                                                Label("Compilation Failed", systemImage: "xmark.octagon.fill")
+                                                    .font(.headline)
+                                                    .foregroundColor(.red)
+                                                Spacer()
+                                                CopyLogsButton(logs: previewManager.buildLogs.joined(separator: "\n"))
+                                            }
 
                                             Divider()
 
