@@ -32,7 +32,7 @@ struct BuildDiagnosticsView: View {
         .navigationTitle("Build Diagnostics")
     }
 
-    private func iconForStatus(_ status: BuildStatus) -> String {
+    private func iconForStatus(_ status: BuildDiagnosticsStatus) -> String {
         switch status {
         case .success: return "checkmark.circle.fill"
         case .warning: return "exclamationmark.triangle.fill"
@@ -40,7 +40,7 @@ struct BuildDiagnosticsView: View {
         }
     }
 
-    private func colorForStatus(_ status: BuildStatus) -> Color {
+    private func colorForStatus(_ status: BuildDiagnosticsStatus) -> Color {
         switch status {
         case .success: return .green
         case .warning: return .orange
@@ -49,11 +49,11 @@ struct BuildDiagnosticsView: View {
     }
 }
 
-enum BuildStatus { case success, warning, failure }
+enum BuildDiagnosticsStatus { case success, warning, failure }
 struct BuildLogEntry: Identifiable {
     let id = UUID()
     let step: String
-    let status: BuildStatus
+    let status: BuildDiagnosticsStatus
     let duration: String
     var detail: String? = nil
 }
