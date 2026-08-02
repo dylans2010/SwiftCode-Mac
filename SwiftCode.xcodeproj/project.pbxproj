@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		403E47099A1AD4A273772012 /* FullAppRunManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D5212E8467AD31B9775EE2 /* FullAppRunManager.swift */; };
+		8AA2D5714044741A85C1C887 /* ProjectResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0163934412DEA832BA803F0 /* ProjectResolver.swift */; };
+		078FACB2E8BADEDA3F08C1A1 /* CopyLogsButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA9F6ADE169A8733ECDBA630 /* CopyLogsButton.swift */; };
+		942444865399618081EBDB7E /* UnifiedLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B77DEEACFA2A0E407D801C91 /* UnifiedLogger.swift */; };
 		82406EB2857C4E35A3A6A058 /* DeviceConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAB4FD08A9894691B353A0D4 /* DeviceConnectView.swift */; };
 		48A24491B6E24CB9BCBF4262 /* RuntimeStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164EEB2D538B45F08D49E25C /* RuntimeStatus.swift */; };
 		68736F7317B9411580F9AD79 /* BuildStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B46162981714016AC5A314A /* BuildStatus.swift */; };
@@ -2349,6 +2353,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		B9D5212E8467AD31B9775EE2 /* FullAppRunManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Services/FullAppRunManager.swift; sourceTree = SOURCE_ROOT; };
+		F0163934412DEA832BA803F0 /* ProjectResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Services/ProjectResolver.swift; sourceTree = SOURCE_ROOT; };
+		DA9F6ADE169A8733ECDBA630 /* CopyLogsButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Utilities/CopyLogsButton.swift; sourceTree = SOURCE_ROOT; };
+		B77DEEACFA2A0E407D801C91 /* UnifiedLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Services/UnifiedLogger.swift; sourceTree = SOURCE_ROOT; };
 		CAB4FD08A9894691B353A0D4 /* DeviceConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/DeviceConnectKit/DeviceConnectView.swift"; sourceTree = SOURCE_ROOT; };
 		164EEB2D538B45F08D49E25C /* RuntimeStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/DeviceConnectKit/Models/RuntimeStatus.swift"; sourceTree = SOURCE_ROOT; };
 		8B46162981714016AC5A314A /* BuildStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/DeviceConnectKit/Models/BuildStatus.swift"; sourceTree = SOURCE_ROOT; };
@@ -5874,7 +5882,8 @@
 		576E45E47FC5098A3A96ECB8 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
-				BEADAB9179D503EFBDAB6705 /* DependencyManager/ProjectCompatibilityView.swift */,
+								DA9F6ADE169A8733ECDBA630 /* CopyLogsButton.swift */,
+BEADAB9179D503EFBDAB6705 /* DependencyManager/ProjectCompatibilityView.swift */,
 				8A7EC5AE379601C498231A42 /* DependencyManager/SecurityCenterView.swift */,
 				28591269D756C465F30283D5 /* DependencyManager/DependencyVisualizerView.swift */,
 				D9A462932029BEB938ABBB26 /* DependencyManager/PackageCollectionsView.swift */,
@@ -5908,7 +5917,10 @@
 		57AFC04E569B8BDE2658ECD4 /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				57AFC04E569B8BDE2658ECDA /* Appwrite */,
+																B9D5212E8467AD31B9775EE2 /* FullAppRunManager.swift */,
+F0163934412DEA832BA803F0 /* ProjectResolver.swift */,
+B77DEEACFA2A0E407D801C91 /* UnifiedLogger.swift */,
+57AFC04E569B8BDE2658ECDA /* Appwrite */,
 				6EA587A9596DB10A37781F22 /* SwiftCode/Services/IPABuildService.swift */,
 				CE68646614763378D91E7012 /* FoundationModels.swift */,
 				BB362A061CA144FC9EB1A0FC /* AgentSkillManager.swift */,
@@ -9440,7 +9452,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				82406EB2857C4E35A3A6A058 /* DeviceConnectView.swift in Sources */,
+																				403E47099A1AD4A273772012 /* FullAppRunManager.swift in Sources */,
+8AA2D5714044741A85C1C887 /* ProjectResolver.swift in Sources */,
+078FACB2E8BADEDA3F08C1A1 /* CopyLogsButton.swift in Sources */,
+942444865399618081EBDB7E /* UnifiedLogger.swift in Sources */,
+82406EB2857C4E35A3A6A058 /* DeviceConnectView.swift in Sources */,
 				48A24491B6E24CB9BCBF4262 /* RuntimeStatus.swift in Sources */,
 				68736F7317B9411580F9AD79 /* BuildStatus.swift in Sources */,
 				B695736A718A4829B7F1B9EC /* ConnectedDevice.swift in Sources */,

@@ -77,9 +77,13 @@ public struct VisualUIPreviewPanel: View {
                         } else {
                             // Real compiler error diagnostics
                             VStack(alignment: .leading, spacing: 12) {
-                                Label("Compilation Failed", systemImage: "xmark.octagon.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.red)
+                                HStack {
+                                    Label("Compilation Failed", systemImage: "xmark.octagon.fill")
+                                        .font(.headline)
+                                        .foregroundColor(.red)
+                                    Spacer()
+                                    CopyLogsButton(logs: PreviewManager.shared.buildLogs.joined(separator: "\n"))
+                                }
 
                                 Divider()
 
@@ -110,9 +114,13 @@ public struct VisualUIPreviewPanel: View {
                                             }
                                         } else if let errorMsg = DocumentCoordinator.shared.compiledArtboardErrors[activeArtboard.id] {
                                             VStack(alignment: .leading, spacing: 12) {
-                                                Label("Artboard Compile Error", systemImage: "exclamationmark.triangle.fill")
-                                                    .font(.headline)
-                                                    .foregroundColor(.red)
+                                                HStack {
+                                                    Label("Artboard Compile Error", systemImage: "exclamationmark.triangle.fill")
+                                                        .font(.headline)
+                                                        .foregroundColor(.red)
+                                                    Spacer()
+                                                    CopyLogsButton(logs: errorMsg)
+                                                }
                                                 Divider()
                                                 Text(errorMsg)
                                                     .font(.system(.body, design: .monospaced))

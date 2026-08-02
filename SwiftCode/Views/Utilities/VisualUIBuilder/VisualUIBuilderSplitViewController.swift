@@ -152,109 +152,270 @@ struct VisualUIBuilderCenterWrapper: View {
     }
 }
 
+public enum ModernInspectorSection: String, CaseIterable, Identifiable, Sendable {
+    case general = "General"
+    case properties = "Properties"
+    case preview = "Preview"
+    case diagnostics = "Diagnostics"
+    case runtime = "Runtime"
+    case build = "Build"
+    case environment = "Environment"
+    case logs = "Logs"
+
+    public var id: String { rawValue }
+
+    public var icon: String {
+        switch self {
+        case .general: return "info.circle"
+        case .properties: return "slider.horizontal.3"
+        case .preview: return "eye"
+        case .diagnostics: return "waveform.path.ecg"
+        case .runtime: return "play.circle"
+        case .build: return "hammer"
+        case .environment: return "globe"
+        case .logs: return "doc.text"
+        }
+    }
+}
+
 struct VisualUIBuilderInspectorWrapper: View {
     let document: VisualUIDocument
     @State private var settings = VisualUISettings.shared
-    @State private var rightInspectorTab = 0
+
+    // Persist and remember the last selected section while the inspector remains open
+    @AppStorage("com.swiftcode.workspace.lastSelectedInspectorSection")
+    private var selectedSectionRaw = ModernInspectorSection.properties.rawValue
+
+    private var selectedSection: ModernInspectorSection {
+        get { ModernInspectorSection(rawValue: selectedSectionRaw) ?? .properties }
+        nonisolated(unsafe) set { selectedSectionRaw = newValue.rawValue }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            if settings.showCompiledView {
-                Picker("Inspector Section", selection: $rightInspectorTab) {
-                    Text("Preview").tag(0)
-                    Text("Logs").tag(1)
-                    Text("Diagnostics").tag(2)
-                    Text("Environment").tag(3)
-                    Text("Build").tag(4)
+            // Native SwiftUI Picker as navigation control
+            HStack {
+                Label("Inspector:", systemImage: "sidebar.trailing")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                Picker("", selection: Binding(
+                    get: { selectedSection },
+                    set: { selectedSection = $0 }
+                )) {
+                    ForEach(ModernInspectorSection.allCases) { section in
+                        Label(section.rawValue, systemImage: section.icon)
+                            .tag(section)
+                    }
                 }
-                .pickerStyle(.segmented)
-                .padding(8)
+                .pickerStyle(.automatic)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+            }
+            .padding(10)
+            .background(Color(NSColor.windowBackgroundColor))
 
-                Divider()
+            Divider()
 
-                Group {
-                    switch rightInspectorTab {
-                    case 0:
-                        VisualUIInspector(document: document)
-                    case 1:
-                        PreviewLogsView()
-                    case 2:
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Label("System Diagnostics", systemImage: "waveform.path.ecg")
-                                    .font(.headline)
-                                Text("Dynamic sandbox runtime: Active")
-                                    .font(.caption)
-                                    .foregroundColor(.green)
-                                Divider()
-                                ForEach(PreviewDiagnostics.shared.logs.filter { $0.category == "error" }) { err in
-                                    Text(err.message)
-                                        .font(.system(.caption, design: .monospaced))
-                                        .foregroundColor(.red)
-                                        .padding(8)
-                                        .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
-                                }
+            // State preservation when switching between sections is achieved using a ZStack with opacity
+            ZStack {
+                // Properties Section
+                VisualUIInspector(document: document)
+                    .opacity(selectedSection == .properties ? 1 : 0)
+                    .disabled(selectedSection != .properties)
+
+                // General Section (Identical wrapper or metadata)
+                VStack(spacing: 12) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Label("General Info", systemImage: "info.circle")
+                                .font(.headline)
+                            Text("Visual Workspace Engine")
+                                .font(.subheadline.bold())
+                            Text("Provides interactive preview compilation and high fidelity layout rendering using a native sandboxed AppKit and SwiftUI workspace container.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+
+                            Divider()
+
+                            HStack {
+                                Text("File Path:")
+                                    .bold()
+                                Spacer()
                             }
-                            .padding()
-                        }
-                    case 3:
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Label("Environment Variables", systemImage: "globe")
-                                    .font(.headline)
-                                Toggle("Dark Mode", isOn: $settings.isDarkMode)
-                                Toggle("Show Grid", isOn: $settings.showGrid)
-                                Picker("Device", selection: $settings.selectedDevice) {
-                                    Text("iPhone 16 Pro").tag("iPhone 16 Pro")
-                                    Text("iPad Pro").tag("iPad Pro")
-                                    Text("Apple Watch").tag("Apple Watch")
-                                }
+                            Text(document.filePath ?? "In-Memory / Sandbox Document")
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundColor(.secondary)
+
+                            HStack {
+                                Text("Modified Status:")
+                                    .bold()
+                                Spacer()
+                                Text(document.isDirty ? "Unsaved Changes" : "Saved")
+                                    .foregroundColor(document.isDirty ? .orange : .green)
+                                    .bold()
                             }
-                            .padding()
+                            .font(.caption)
                         }
-                    default:
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Label("Build Console", systemImage: "hammer")
-                                    .font(.headline)
-                                Text("Module name: SimulationApp")
-                                    .font(.subheadline)
-                                Text(PreviewManager.shared.buildLogs.joined(separator: "\n"))
+                        .padding()
+                    }
+                }
+                .opacity(selectedSection == .general ? 1 : 0)
+                .disabled(selectedSection != .general)
+
+                // Preview Section
+                VStack(spacing: 12) {
+                    if let hostedView = PreviewManager.shared.hostedView {
+                        Text("Active Compiled View Hosted")
+                            .font(.subheadline.bold())
+                            .padding(.top)
+                        NativePreviewHost(hostedView: hostedView)
+                            .padding()
+                            .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                            .padding()
+                    } else {
+                        ContentUnavailableView {
+                            Label("No Active Preview Host", systemImage: "eye.slash")
+                        } description: {
+                            Text("Enable 'Show Compiled View' or open a Swift file to run dynamic live preview hosts.")
+                        }
+                    }
+                }
+                .opacity(selectedSection == .preview ? 1 : 0)
+                .disabled(selectedSection != .preview)
+
+                // Diagnostics Section
+                VStack(spacing: 0) {
+                    HStack {
+                        Label("Diagnostics", systemImage: "waveform.path.ecg")
+                            .font(.headline)
+                        Spacer()
+                        // Copy button using reusable CopyLogsButton
+                        CopyLogsButton(logs: {
+                            let logs = PreviewDiagnostics.shared.logs.filter { $0.category == "error" }
+                            return logs.map { "[\($0.category.uppercased())] \($0.message)" }.joined(separator: "\n")
+                        }())
+                    }
+                    .padding()
+
+                    Divider()
+
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Dynamic sandbox runtime status: Active")
+                                .font(.caption)
+                                .foregroundColor(.green)
+
+                            ForEach(PreviewDiagnostics.shared.logs.filter { $0.category == "error" }) { err in
+                                Text(err.message)
                                     .font(.system(.caption, design: .monospaced))
+                                    .foregroundColor(.red)
+                                    .padding(8)
+                                    .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
                                     .textSelection(.enabled)
                             }
-                            .padding()
+
+                            if PreviewDiagnostics.shared.logs.filter({ $0.category == "error" }).isEmpty {
+                                ContentUnavailableView("No Diagnostics Errors", systemImage: "checkmark.circle", description: Text("All diagnostics signals look normal."))
+                            }
+                        }
+                        .padding()
+                    }
+                }
+                .opacity(selectedSection == .diagnostics ? 1 : 0)
+                .disabled(selectedSection != .diagnostics)
+
+                // Runtime Section
+                VStack(spacing: 0) {
+                    HStack {
+                        Label("Runtime Stream", systemImage: "play.circle")
+                            .font(.headline)
+                        Spacer()
+                        CopyLogsButton(logs: SimulatorManager.shared.consoleLogs.joined(separator: "\n"))
+                    }
+                    .padding()
+
+                    Divider()
+
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(SimulatorManager.shared.consoleLogs.indices, id: \.self) { idx in
+                                Text(SimulatorManager.shared.consoleLogs[idx])
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .textSelection(.enabled)
+                            }
+                            if SimulatorManager.shared.consoleLogs.isEmpty {
+                                ContentUnavailableView("No Runtime Logs", systemImage: "terminal", description: Text("Run the full application to stream simulator execution messages."))
+                            }
+                        }
+                        .padding()
+                    }
+                }
+                .opacity(selectedSection == .runtime ? 1 : 0)
+                .disabled(selectedSection != .runtime)
+
+                // Build Section
+                VStack(spacing: 0) {
+                    HStack {
+                        Label("Build Console", systemImage: "hammer")
+                            .font(.headline)
+                        Spacer()
+                        CopyLogsButton(logs: PreviewManager.shared.buildLogs.joined(separator: "\n"))
+                    }
+                    .padding()
+
+                    Divider()
+
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Module name: SimulationApp")
+                                .font(.subheadline.bold())
+                            Text(PreviewManager.shared.buildLogs.joined(separator: "\n"))
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                        }
+                        .padding()
+                    }
+                }
+                .opacity(selectedSection == .build ? 1 : 0)
+                .disabled(selectedSection != .build)
+
+                // Environment Section
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Label("Environment Variables", systemImage: "globe")
+                            .font(.headline)
+
+                        GroupBox("Display Modes") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Toggle("Dark Mode", isOn: $settings.isDarkMode)
+                                Toggle("Show Grid", isOn: $settings.showGrid)
+                            }
+                            .padding(.vertical, 4)
+                        }
+
+                        GroupBox("Device Hardware Frame") {
+                            Picker("Device", selection: $settings.selectedDevice) {
+                                Text("iPhone 16 Pro").tag("iPhone 16 Pro")
+                                Text("iPad Pro").tag("iPad Pro")
+                                Text("Apple Watch").tag("Apple Watch")
+                            }
                         }
                     }
+                    .padding()
                 }
-            } else {
-                Picker("Inspector Section", selection: $rightInspectorTab) {
-                    Image(systemName: "slider.horizontal.3").tag(0) // Properties
-                    Image(systemName: "square.3.layers.3d").tag(1)    // Layers/Structure
-                    Image(systemName: "folder").tag(2)               // Assets/Colors
-                    Image(systemName: "link").tag(3)                 // Bindings & Navigation
-                    Image(systemName: "play.circle").tag(4)           // Animations
-                }
-                .pickerStyle(.segmented)
-                .padding(8)
+                .opacity(selectedSection == .environment ? 1 : 0)
+                .disabled(selectedSection != .environment)
 
-                Divider()
-
-                Group {
-                    switch rightInspectorTab {
-                    case 0:
-                        VisualUIInspector(document: document)
-                    case 1:
-                        VisualUILayersPanel(document: document)
-                    case 2:
-                        VisualUIAssetsPanel(document: document)
-                    case 3:
-                        VisualUIBindingsPanel(document: document)
-                    default:
-                        VisualUIAnimationsPanel(document: document)
-                    }
+                // Logs Section
+                VStack(spacing: 0) {
+                    PreviewLogsView()
                 }
+                .opacity(selectedSection == .logs ? 1 : 0)
+                .disabled(selectedSection != .logs)
             }
+            .animation(.easeInOut(duration: 0.15), value: selectedSection)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(NSColor.windowBackgroundColor))
