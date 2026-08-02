@@ -1234,15 +1234,6 @@ struct ExecutionModeSheet: View {
 
 // MARK: - Diagnostics Sheet
 
-struct UnifiedLogEntry: Identifiable, Equatable {
-    let id: UUID
-    let timestamp: Date
-    let source: String      // "Assist", "SwiftCode", "Deployment"
-    let level: String       // "INFO", "WARN", "ERROR", "DEBUG", "SUCCESS"
-    let category: String?   // Category or tool ID
-    let message: String
-}
-
 struct DiagnosticsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var manager: AssistManager
