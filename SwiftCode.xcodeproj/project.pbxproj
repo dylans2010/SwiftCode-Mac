@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CD37146E780D0CBA769EC126 /* XcodeBuildAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD37146E780D0CBA769EC125 /* XcodeBuildAPI.swift */; };
+		50449986FA13E01B106DB1E6 /* BuildingXcodeProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50449986FA13E01B106DB1E5 /* BuildingXcodeProject.swift */; };
 		403E47099A1AD4A273772012 /* FullAppRunManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D5212E8467AD31B9775EE2 /* FullAppRunManager.swift */; };
 		8AA2D5714044741A85C1C887 /* ProjectResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0163934412DEA832BA803F0 /* ProjectResolver.swift */; };
 		078FACB2E8BADEDA3F08C1A1 /* CopyLogsButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA9F6ADE169A8733ECDBA630 /* CopyLogsButton.swift */; };
@@ -2353,6 +2355,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		CD37146E780D0CBA769EC125 /* XcodeBuildAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Backend/Build/XcodeBuildAPI.swift; sourceTree = SOURCE_ROOT; };
+		50449986FA13E01B106DB1E5 /* BuildingXcodeProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Build/BuildingXcodeProject.swift; sourceTree = SOURCE_ROOT; };
 		B9D5212E8467AD31B9775EE2 /* FullAppRunManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Services/FullAppRunManager.swift; sourceTree = SOURCE_ROOT; };
 		F0163934412DEA832BA803F0 /* ProjectResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Services/ProjectResolver.swift; sourceTree = SOURCE_ROOT; };
 		DA9F6ADE169A8733ECDBA630 /* CopyLogsButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Utilities/CopyLogsButton.swift; sourceTree = SOURCE_ROOT; };
@@ -5850,6 +5854,7 @@
 				B82F81DB2C00E00100000006 /* AppleSignInView.swift */,
 				070568FDFE009D932399AA92 /* AppDetailsInfo.swift */,
 				520E553F89642C2F5E118C85 /* BuildLogsView.swift */,
+				50449986FA13E01B106DB1E5 /* BuildingXcodeProject.swift */,
 				677867FB275018155CE87ED1 /* PrepareCompileWaitingView.swift */,
 				85B4212740267470136E60B6 /* LocalBuildView.swift */,
 				C47D05763F6CC4D3BFEC1DA8 /* BuildStatusView.swift */,
@@ -7996,6 +8001,7 @@ B77DEEACFA2A0E407D801C91 /* UnifiedLogger.swift */,
 				043A3EFE3A78B70C25DE79E4 /* BuildLogLineParser.swift */,
 				174D928A1C6FD5BA57A38295 /* SwiftPackageBuildService.swift */,
 				6B3B80D19F13306CBD14DB76 /* XcodeBuildService.swift */,
+				CD37146E780D0CBA769EC125 /* XcodeBuildAPI.swift */,
 			);
 			path = Build;
 			sourceTree = "<group>";
@@ -10286,6 +10292,7 @@ B77DEEACFA2A0E407D801C91 /* UnifiedLogger.swift */,
 				A04D3CDD615F36AEA46856BB /* LocalBuildView.swift in Sources */,
 				0974227AF1980222EDFA1626 /* BuildStatusView.swift in Sources */,
 				43F34CCC43A33B84102B0F83 /* BuildLogsView.swift in Sources */,
+				50449986FA13E01B106DB1E6 /* BuildingXcodeProject.swift in Sources */,
 				CE9E0B1FEE82EE958787245A /* TerminalView.swift in Sources */,
 				600543D7E6B7E1A1B8B81B21 /* CIBuildView.swift in Sources */,
 				2416B2BFAAC1F95FED7A02DE /* LocalBuildDemoView.swift in Sources */,
@@ -10480,6 +10487,7 @@ B77DEEACFA2A0E407D801C91 /* UnifiedLogger.swift */,
 				91060AA105594631B747E0EC /* BuildLogLineParser.swift in Sources */,
 				1FCF4AC8AC8548B8AB893000 /* SwiftPackageBuildService.swift in Sources */,
 				CD698452CC774222AD51732A /* XcodeBuildService.swift in Sources */,
+				CD37146E780D0CBA769EC126 /* XcodeBuildAPI.swift in Sources */,
 				AE58252FDB914D25BD7CB702 /* DebugRunnerService.swift in Sources */,
 				1E95A1E5F9CF42BBAE89191F /* FileSystemService.swift in Sources */,
 				EED87D3CC82B43988BA5F326 /* FileSystemWatcher.swift in Sources */,

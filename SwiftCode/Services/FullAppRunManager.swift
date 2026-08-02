@@ -3,7 +3,7 @@ import Observation
 import os.log
 
 /// Main coordinate manager for running the full sandbox application workflow.
-/// Driving coordination between Views, Project Resolver, XcodeBuildManager, and SimulatorManager.
+/// Driving coordination between Views, Project Resolver, XcodeBuildAPI, and SimulatorManager.
 @Observable
 @MainActor
 public final class FullAppRunManager: Sendable {
@@ -39,39 +39,42 @@ public final class FullAppRunManager: Sendable {
         await saveAllEditorBuffers()
 
         do {
-            // 2. RESOLVE: Centralized automatic project resolution
+            // 2. RESOLVE: Resolve active project using XcodeBuildAPI
             currentStep = "Resolving active project..."
             appendLog("[SYSTEM] Discovered active project workspace path...")
-            let metadata = try ProjectResolver.shared.resolveActiveProject()
 
-            appendLog("[SYSTEM] Resolved Metadata -> Name: \(metadata.projectName)")
-            appendLog("  - Root Path: \(metadata.rootURL.path)")
-            appendLog("  - Build Destination: \(metadata.buildDestination)")
-
-            // 3. VALIDATE: Ensure toolchain pathways are healthy
-            currentStep = "Validating compiler tools..."
-            appendLog("[SYSTEM] Checking compiler path validity...")
-            let buildPath = XcodeBuildManager.shared.getXcodeBuildPath()
-            guard FileManager.default.fileExists(atPath: buildPath) else {
-                throw NSError(domain: "FullAppRun", code: 1, userInfo: [NSLocalizedDescriptionKey: "xcodebuild tool path is invalid or unconfigured at: \(buildPath)"])
+            guard let activeProj = XcodeBuildAPI.shared.discoverActiveProject() else {
+                throw NSError(domain: "FullAppRun", code: 10, userInfo: [NSLocalizedDescriptionKey: "No supported Xcode project or Package.swift found to build."])
             }
 
-            // 4. BUILD: Perform compile and link
+            appendLog("[SYSTEM] Resolved Metadata -> Name: \(activeProj.name)")
+            appendLog("  - Root Path: \(activeProj.url.path)")
+            appendLog("  - Build Destination: \(XcodeBuildAPI.shared.determineBuildDestination().destination)")
+
+            // 3. VALIDATE: Ensure toolchain pathways are healthy using XcodeBuildAPI
+            currentStep = "Validating compiler tools..."
+            appendLog("[SYSTEM] Checking compiler path validity...")
+            let validation = await XcodeBuildAPI.shared.validateBuildEnvironment()
+            if !validation.isValid {
+                throw NSError(domain: "FullAppRun", code: 1, userInfo: [NSLocalizedDescriptionKey: validation.errorDescription ?? "Build environment is invalid."])
+            }
+
+            // 4. BUILD: Perform compile and link using XcodeBuildAPI
             currentStep = "Compiling application project..."
             appendLog("[SYSTEM] Executing project compilation context...")
 
-            await XcodeBuildManager.shared.runBuild(projectURL: metadata.rootURL)
+            let buildResult = await XcodeBuildAPI.shared.buildProject()
 
-            if XcodeBuildManager.shared.currentStatus == .failed {
+            if buildResult.status == .failed {
                 // Pipe compiler logs
-                for log in XcodeBuildManager.shared.buildLogs {
+                for log in buildResult.logs.lines {
                     appendLog(log)
                     UnifiedLogger.shared.log(log, severity: .error, subsystem: "Compiler", operation: "Compile")
                 }
                 throw NSError(domain: "FullAppRun", code: 2, userInfo: [NSLocalizedDescriptionKey: "Project compilation failed. Review the compiler output."])
             }
 
-            if XcodeBuildManager.shared.currentStatus == .cancelled {
+            if buildResult.status == .cancelled {
                 appendLog("[SYSTEM] Build cancelled by the user.")
                 stopPipeline()
                 return
@@ -97,13 +100,8 @@ public final class FullAppRunManager: Sendable {
                 await SimulatorManager.shared.bootSelectedDevice()
             }
 
-            // Locate copy-aligned .app bundle
-            let fm = FileManager.default
-            let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            let buildsDir = appSupport.appendingPathComponent("SwiftCode/Builds/\(metadata.rootURL.lastPathComponent)")
-
-            let items = try fm.contentsOfDirectory(at: buildsDir, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
-            guard let appBundleURL = items.first(where: { $0.pathExtension == "app" }) else {
+            // Locate copy-aligned .app bundle via XcodeBuildAPI
+            guard let appBundleURL = XcodeBuildAPI.shared.determineAppBundleURL() else {
                 throw NSError(domain: "FullAppRun", code: 4, userInfo: [NSLocalizedDescriptionKey: "Failed to locate compiled .app bundle inside aligned packaging folder."])
             }
 
@@ -111,8 +109,7 @@ public final class FullAppRunManager: Sendable {
 
             await SimulatorManager.shared.installApplication(at: appBundleURL)
 
-            let schemeName = XcodeBuildManager.shared.selectedScheme ?? metadata.rootURL.lastPathComponent
-            let bundleID = "com.example.\(schemeName.lowercased().replacingOccurrences(of: " ", with: ""))"
+            let bundleID = XcodeBuildAPI.shared.determineBundleIdentifier()
 
             appendLog("[RUNNER] Launching sandbox container identifier: \(bundleID)")
 
@@ -136,7 +133,7 @@ public final class FullAppRunManager: Sendable {
 
     /// Terminates the application and resets execution states
     public func stopApplication() {
-        XcodeBuildManager.shared.cancelBuild()
+        XcodeBuildAPI.shared.cancelBuild()
         stopPipeline()
         appendLog("[SYSTEM] Sandbox application process halted.")
     }

@@ -53,8 +53,6 @@ struct StructuredLogEntry: Identifiable {
             }
         }
     }
-
-
 }
 
 
@@ -98,6 +96,10 @@ struct BuildLogsView: View {
     @State private var isLoading = false
     @State private var selectedRun: WorkflowRunInfo?
     @State private var filterLevel: StructuredLogEntry.LogLevel?
+
+    // Project Verification States
+    @State private var showNoProjectAlert = false
+    @State private var showProjectGeneratorSheet = false
 
     // AI Chat Assistant state
     @State private var showAssistant = false
@@ -254,10 +256,35 @@ struct BuildLogsView: View {
                     }
                 }
             }
-            .onAppear { loadLogs() }
+            .onAppear {
+                checkForProject()
+                loadLogs()
+            }
+            .alert("No Supported Xcode Project", isPresented: $showNoProjectAlert) {
+                Button("Dismiss", role: .cancel) {
+                    dismiss()
+                }
+                Button("Retry") {
+                    checkForProject()
+                }
+                Button("Create Project") {
+                    showProjectGeneratorSheet = true
+                }
+            } message: {
+                Text("No supported Xcode project (.xcodeproj, .xcworkspace, or Package.swift) could be located in the current workspace folders.")
+            }
+            .sheet(isPresented: $showProjectGeneratorSheet) {
+                BuildingXcodeProject()
+            }
             .sheet(isPresented: $showAssistant) {
                 buildAssistantSheet
             }
+        }
+    }
+
+    private func checkForProject() {
+        if XcodeBuildAPI.shared.discoverActiveProject() == nil {
+            showNoProjectAlert = true
         }
     }
 
@@ -584,5 +611,4 @@ struct BuildLogsView: View {
             }
         }
     }
-
 }
