@@ -1,6 +1,6 @@
 import Foundation
 
-public struct LogService {
+public struct LogService: Sendable {
     public init() {}
 
     public func streamLogs(

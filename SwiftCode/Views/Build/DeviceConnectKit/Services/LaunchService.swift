@@ -1,6 +1,6 @@
 import Foundation
 
-public struct LaunchService {
+public struct LaunchService: Sendable {
     public init() {}
 
     public func launch(

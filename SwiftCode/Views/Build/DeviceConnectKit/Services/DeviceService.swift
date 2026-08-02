@@ -1,6 +1,6 @@
 import Foundation
 
-public struct DeviceService {
+public struct DeviceService: Sendable {
     public init() {}
 
     public func discover() async throws -> [ConnectedDevice] {

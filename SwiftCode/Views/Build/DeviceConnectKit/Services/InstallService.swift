@@ -1,6 +1,6 @@
 import Foundation
 
-public struct InstallService {
+public struct InstallService: Sendable {
     public init() {}
 
     public func install(
