@@ -52,77 +52,7 @@ struct DependencyGitHubDiscoveryView: View {
 
             HSplitView {
                 searchParametersSidebarPanel
-
-                // Content Results View
-                VStack(spacing: 0) {
-                    if platformManager.searchResults.isEmpty {
-                        VStack(spacing: 16) {
-                            Spacer()
-                            Image(systemName: "magnifyingglass.circle")
-                                .font(.system(size: 48))
-                                .foregroundStyle(.secondary)
-                            Text("Start discovering packages containing 'Package.swift' manifest on GitHub.")
-                                .font(.headline)
-                                .foregroundStyle(.secondary)
-                            Text("Refine filters in the sidebar and trigger a secure search query.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                        }
-                    } else {
-                        List {
-                            ForEach(platformManager.searchResults) { pkg in
-                                NavigationLink(destination: PackageDetailsView(package: pkg)) {
-                                    HStack(spacing: 16) {
-                                        VStack(alignment: .leading, spacing: 6) {
-                                            HStack {
-                                                Text(pkg.fullName)
-                                                    .font(.headline)
-                                                    .foregroundStyle(.blue)
-
-                                                if pkg.isVerified || onlyVerified {
-                                                    Image(systemName: "checkmark.seal.fill")
-                                                        .foregroundStyle(.blue)
-                                                }
-                                            }
-
-                                            if let desc = pkg.description {
-                                                Text(desc)
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                                    .lineLimit(2)
-                                            }
-
-                                            HStack(spacing: 16) {
-                                                Label("\(pkg.stars) stars", systemImage: "star.fill")
-                                                    .foregroundStyle(.yellow)
-                                                Label("\(pkg.forks) forks", systemImage: "arrow.branch")
-                                                Label(pkg.license ?? "MIT", systemImage: "doc.text")
-                                                Label(selectedLanguage, systemImage: "chevron.left.forwardslash.chevron.right")
-                                            }
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                        }
-                                        .padding(.vertical, 8)
-
-                                        Spacer()
-
-                                        Button {
-                                            platformManager.toggleFavorite(url: pkg.cloneUrl)
-                                        } label: {
-                                            Image(systemName: platformManager.favoritePackages.contains(pkg.cloneUrl) ? "star.fill" : "star")
-                                                .foregroundStyle(.yellow)
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(NSColor.controlBackgroundColor))
+                contentResultsView
             }
         }
         .background(Color(NSColor.windowBackgroundColor))
@@ -249,5 +179,78 @@ struct DependencyGitHubDiscoveryView: View {
         .padding(20)
         .frame(width: 280, maxHeight: .infinity)
         .background(Color(NSColor.windowBackgroundColor))
+    }
+
+    @ViewBuilder
+    private var contentResultsView: some View {
+        VStack(spacing: 0) {
+            if platformManager.searchResults.isEmpty {
+                VStack(spacing: 16) {
+                    Spacer()
+                    Image(systemName: "magnifyingglass.circle")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.secondary)
+                    Text("Start discovering packages containing 'Package.swift' manifest on GitHub.")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    Text("Refine filters in the sidebar and trigger a secure search query.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+            } else {
+                List {
+                    ForEach(platformManager.searchResults) { pkg in
+                        NavigationLink(destination: PackageDetailsView(package: pkg)) {
+                            HStack(spacing: 16) {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Text(pkg.fullName)
+                                            .font(.headline)
+                                            .foregroundStyle(.blue)
+
+                                        if pkg.isVerified || onlyVerified {
+                                            Image(systemName: "checkmark.seal.fill")
+                                                .foregroundStyle(.blue)
+                                        }
+                                    }
+
+                                    if let desc = pkg.description {
+                                        Text(desc)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                    }
+
+                                    HStack(spacing: 16) {
+                                        Label("\(pkg.stars) stars", systemImage: "star.fill")
+                                            .foregroundStyle(.yellow)
+                                        Label("\(pkg.forks) forks", systemImage: "arrow.branch")
+                                        Label(pkg.license ?? "MIT", systemImage: "doc.text")
+                                        Label(selectedLanguage, systemImage: "chevron.left.forwardslash.chevron.right")
+                                    }
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                }
+                                .padding(.vertical, 8)
+
+                                Spacer()
+
+                                Button {
+                                    platformManager.toggleFavorite(url: pkg.cloneUrl)
+                                } label: {
+                                    Image(systemName: platformManager.favoritePackages.contains(pkg.cloneUrl) ? "star.fill" : "star")
+                                        .foregroundStyle(.yellow)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(NSColor.controlBackgroundColor))
     }
 }

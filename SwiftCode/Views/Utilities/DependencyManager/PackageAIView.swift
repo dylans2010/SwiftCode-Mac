@@ -44,118 +44,7 @@ struct PackageAIView: View {
 
             HSplitView {
                 presetsAndTemplatesPanel
-
-                // Right Panel: Conversation timeline & chat input
-                VStack(spacing: 0) {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 18) {
-                                if filteredChatHistory.isEmpty {
-                                    VStack(spacing: 16) {
-                                        Spacer()
-                                        Image(systemName: "sparkles")
-                                            .font(.system(size: 40))
-                                            .foregroundStyle(.blue)
-                                        Text("How can I assist your Package Architecture today?")
-                                            .font(.headline)
-                                        Text("Ask about module division, alternative packages, circular dependencies, or security practices.")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .multilineTextAlignment(.center)
-                                        Spacer()
-                                    }
-                                    .frame(maxWidth: .infinity, minHeight: 300)
-                                } else {
-                                    ForEach(filteredChatHistory) { chat in
-                                        VStack(alignment: .leading, spacing: 12) {
-                                            // User block
-                                            HStack(alignment: .top, spacing: 10) {
-                                                Image(systemName: "person.circle.fill")
-                                                    .font(.title3)
-                                                    .foregroundStyle(.secondary)
-
-                                                VStack(alignment: .leading, spacing: 4) {
-                                                    Text("You")
-                                                        .font(.caption.bold())
-                                                        .foregroundStyle(.secondary)
-                                                    Text(chat.prompt)
-                                                        .font(.body)
-                                                        .padding(12)
-                                                        .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-                                                }
-                                                Spacer()
-
-                                                Button {
-                                                    toggleFavoriteChat(chat.id)
-                                                } label: {
-                                                    Image(systemName: chat.isFavorite ? "star.fill" : "star")
-                                                        .foregroundStyle(.yellow)
-                                                }
-                                                .buttonStyle(.plain)
-                                            }
-
-                                            // AI response block
-                                            HStack(alignment: .top, spacing: 10) {
-                                                Image(systemName: "sparkles")
-                                                    .font(.title3)
-                                                    .foregroundStyle(.blue)
-
-                                                VStack(alignment: .leading, spacing: 4) {
-                                                    Text("AI Co-Designer")
-                                                        .font(.caption.bold())
-                                                        .foregroundStyle(.blue)
-                                                    Text(chat.response)
-                                                        .font(.body)
-                                                        .padding(12)
-                                                        .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
-                                                }
-                                            }
-                                        }
-                                        .id(chat.id)
-                                        .padding(.horizontal)
-                                    }
-                                }
-                            }
-                            .padding(.vertical, 20)
-                        }
-                        .onChange(of: platformManager.chatHistory) { _, _ in
-                            if let last = platformManager.chatHistory.last {
-                                withAnimation {
-                                    proxy.scrollTo(last.id, anchor: .bottom)
-                                }
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(NSColor.controlBackgroundColor))
-
-                    Divider()
-
-                    // Input Bar
-                    HStack(spacing: 12) {
-                        TextField("Ask the package assistant...", text: $inputPrompt)
-                            .textFieldStyle(.plain)
-                            .padding(12)
-                            .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
-                            .onSubmit {
-                                triggerAIQuery()
-                            }
-
-                        Button {
-                            triggerAIQuery()
-                        } label: {
-                            Image(systemName: "paperplane.fill")
-                                .padding(10)
-                                .background(inputPrompt.isEmpty ? Color.gray : Color.blue, in: Circle())
-                                .foregroundStyle(.white)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(inputPrompt.isEmpty || platformManager.isOperationRunning)
-                    }
-                    .padding(16)
-                    .background(Color(NSColor.windowBackgroundColor))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                conversationTimelineView
             }
         }
         .background(Color(NSColor.windowBackgroundColor))
@@ -237,5 +126,119 @@ struct PackageAIView: View {
         .padding(20)
         .frame(width: 280, maxHeight: .infinity)
         .background(Color(NSColor.windowBackgroundColor))
+    }
+
+    @ViewBuilder
+    private var conversationTimelineView: some View {
+        VStack(spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        if filteredChatHistory.isEmpty {
+                            VStack(spacing: 16) {
+                                Spacer()
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 40))
+                                    .foregroundStyle(.blue)
+                                Text("How can I assist your Package Architecture today?")
+                                    .font(.headline)
+                                Text("Ask about module division, alternative packages, circular dependencies, or security practices.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+                                Spacer()
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 300)
+                        } else {
+                            ForEach(filteredChatHistory) { chat in
+                                VStack(alignment: .leading, spacing: 12) {
+                                    // User block
+                                    HStack(alignment: .top, spacing: 10) {
+                                        Image(systemName: "person.circle.fill")
+                                            .font(.title3)
+                                            .foregroundStyle(.secondary)
+
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("You")
+                                                .font(.caption.bold())
+                                                .foregroundStyle(.secondary)
+                                            Text(chat.prompt)
+                                                .font(.body)
+                                                .padding(12)
+                                                .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                                        }
+                                        Spacer()
+
+                                        Button {
+                                            toggleFavoriteChat(chat.id)
+                                        } label: {
+                                            Image(systemName: chat.isFavorite ? "star.fill" : "star")
+                                                .foregroundStyle(.yellow)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+
+                                    // AI response block
+                                    HStack(alignment: .top, spacing: 10) {
+                                        Image(systemName: "sparkles")
+                                            .font(.title3)
+                                            .foregroundStyle(.blue)
+
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("AI Co-Designer")
+                                                .font(.caption.bold())
+                                                .foregroundStyle(.blue)
+                                            Text(chat.response)
+                                                .font(.body)
+                                                .padding(12)
+                                                .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+                                        }
+                                    }
+                                }
+                                .id(chat.id)
+                                .padding(.horizontal)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 20)
+                }
+                .onChange(of: platformManager.chatHistory) { _, _ in
+                    if let last = platformManager.chatHistory.last {
+                        withAnimation {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(NSColor.controlBackgroundColor))
+
+            Divider()
+
+            // Input Bar
+            HStack(spacing: 12) {
+                TextField("Ask the package assistant...", text: $inputPrompt)
+                    .textFieldStyle(.plain)
+                    .padding(12)
+                    .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
+                    .onSubmit {
+                        triggerAIQuery()
+                    }
+
+                Button {
+                    triggerAIQuery()
+                } label: {
+                    Image(systemName: "paperplane.fill")
+                        .padding(10)
+                        .background(inputPrompt.isEmpty ? Color.gray : Color.blue, in: Circle())
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .disabled(inputPrompt.isEmpty || platformManager.isOperationRunning)
+            }
+            .padding(16)
+            .background(Color(NSColor.windowBackgroundColor))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
