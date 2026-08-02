@@ -7,75 +7,79 @@ public struct DeviceConnectSessionsView: View {
     public init() {}
 
     public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Deployment Sessions & History")
-                            .font(.title2.weight(.bold))
-                        Text("Audit and review previous build, deployment, and run sessions.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button(action: {
-                        sessionManager.clearHistory()
-                        historyManager.clearHistory()
-                    }) {
-                        Label("Clear History", systemImage: "trash")
-                    }
-                    .buttonStyle(.bordered)
-                }
-
-                // History List Rendered in GroupBoxes
-                if historyManager.historyItems.isEmpty {
-                    VStack(spacing: 12) {
-                        Image(systemName: "clock.badge.exclamationmark")
-                            .font(.system(size: 32))
-                            .foregroundStyle(.secondary)
-                        Text("No Session History Discovered")
+        VStack(spacing: 24) {
+            GroupBox {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Label("Deployment Sessions & History", systemImage: "clock.badge.exclamationmark")
                             .font(.headline)
-                        Text("Your previous deployment iterations will be displayed here once ran.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.purple)
+                        Spacer()
+                        if !historyManager.historyItems.isEmpty {
+                            Button(action: {
+                                sessionManager.clearHistory()
+                                historyManager.clearHistory()
+                            }) {
+                                Label("Clear History", systemImage: "trash")
+                            }
+                            .buttonStyle(.bordered)
+                        }
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 40)
-                } else {
-                    ForEach(historyManager.historyItems) { item in
-                        GroupBox(label: HStack {
-                            Text("Project: \(item.projectName)")
-                                .font(.subheadline.weight(.bold))
-                            Spacer()
-                            Text(formattedDate(item.timestamp))
+
+                    if historyManager.historyItems.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "clock")
+                                .font(.system(size: 32))
+                                .foregroundStyle(.secondary)
+                            Text("No Session History Discovered")
+                                .font(.headline)
+                            Text("Your previous deployment iterations will be displayed here once run.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                        }) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Label("Target: \(item.deviceName)", systemImage: "iphone")
-                                        .font(.subheadline)
-                                    Spacer()
-                                    Label(String(format: "%.1fs", item.duration), systemImage: "stopwatch")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                Divider()
-
-                                HStack(spacing: 12) {
-                                    StatusBadgePair(label: "Build", status: item.buildResult.rawValue)
-                                    StatusBadgePair(label: "Deploy", status: item.deployResult.rawValue)
-                                    StatusBadgePair(label: "Runtime", status: item.runResult.rawValue)
-                                }
-                            }
-                            .padding(.vertical, 4)
+                                .multilineTextAlignment(.center)
                         }
-                        .groupBoxStyle(ModernGroupBoxStyle())
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 20)
+                    } else {
+                        VStack(spacing: 12) {
+                            ForEach(historyManager.historyItems) { item in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("Project: \(item.projectName)")
+                                            .font(.subheadline.weight(.bold))
+                                        Spacer()
+                                        Text(formattedDate(item.timestamp))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    HStack {
+                                        Label("Target: \(item.deviceName)", systemImage: "iphone")
+                                            .font(.subheadline)
+                                        Spacer()
+                                        Label(String(format: "%.1fs", item.duration), systemImage: "stopwatch")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Divider()
+
+                                    HStack(spacing: 12) {
+                                        StatusBadgePair(label: "Build", status: item.buildResult.rawValue)
+                                        StatusBadgePair(label: "Deploy", status: item.deployResult.rawValue)
+                                        StatusBadgePair(label: "Runtime", status: item.runResult.rawValue)
+                                    }
+                                }
+                                .padding()
+                                .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                        }
                     }
                 }
+                .padding()
             }
-            .padding()
+            .groupBoxStyle(ModernGroupBoxStyle())
         }
     }
 

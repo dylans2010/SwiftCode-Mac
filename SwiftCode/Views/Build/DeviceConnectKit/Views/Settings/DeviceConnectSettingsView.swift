@@ -6,17 +6,16 @@ public struct DeviceConnectSettingsView: View {
     public init() {}
 
     public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("DeviceConnect Settings")
-                        .font(.title2.weight(.bold))
-                    Text("Configure deployment execution triggers and discovery preferences.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+        VStack(spacing: 24) {
+            GroupBox {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Label("Automation Controls", systemImage: "bolt.ring.closed")
+                            .font(.headline)
+                            .foregroundColor(.orange)
+                        Spacer()
+                    }
 
-                GroupBox(label: Label("Automation Actions", systemImage: "bolt.ring.closed")) {
                     VStack(alignment: .leading, spacing: 12) {
                         Toggle("Automatically Discover Connected Devices", isOn: $prefs.autoDiscover)
                         Toggle("Auto-Validate Environment on Open", isOn: $prefs.autoValidate)
@@ -24,11 +23,20 @@ public struct DeviceConnectSettingsView: View {
                         Toggle("Automatically Launch Application post Successful Install", isOn: $prefs.autoLaunch)
                         Toggle("Automatically stream Runtime Syslog Console on run", isOn: $prefs.autoStreamLogs)
                     }
-                    .padding(.vertical, 8)
                 }
-                .groupBoxStyle(ModernGroupBoxStyle())
+                .padding()
+            }
+            .groupBoxStyle(ModernGroupBoxStyle())
 
-                GroupBox(label: Label("Log & History Retention", systemImage: "clock.arrow.circlepath")) {
+            GroupBox {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Label("Log & History Retention", systemImage: "clock.arrow.circlepath")
+                            .font(.headline)
+                            .foregroundColor(.blue)
+                        Spacer()
+                    }
+
                     VStack(alignment: .leading, spacing: 12) {
                         Toggle("Keep Deployment & Session history", isOn: $prefs.keepHistory)
                         HStack {
@@ -43,11 +51,10 @@ public struct DeviceConnectSettingsView: View {
                             .frame(width: 120)
                         }
                     }
-                    .padding(.vertical, 8)
                 }
-                .groupBoxStyle(ModernGroupBoxStyle())
+                .padding()
             }
-            .padding()
+            .groupBoxStyle(ModernGroupBoxStyle())
         }
     }
 }

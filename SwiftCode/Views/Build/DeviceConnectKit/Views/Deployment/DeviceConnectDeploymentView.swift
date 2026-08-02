@@ -5,63 +5,90 @@ public struct DeviceConnectDeploymentView: View {
     @State private var deploymentManager = DeploymentManager.shared
     @State private var buildManager = BuildManager.shared
     @State private var runtimeManager = DeviceConnectRuntimeManager.shared
+    @State private var environmentManager = EnvironmentManager.shared
 
     public init() {}
 
     public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // 1. Overview Header
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Deployment Dashboard")
-                            .font(.title2.weight(.bold))
-                        Text("Build, install, and run applications on linked developer targets.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+        VStack(spacing: 24) {
+            // Action Box (Run, Stop, Clear)
+            GroupBox {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Label("Deployment Actions", systemImage: "play.circle")
+                            .font(.headline)
+                            .foregroundColor(.green)
+                        Spacer()
                     }
-                    Spacer()
-                    if deploymentManager.isDeploying {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                }
 
-                // 2. Active Device Card
-                if let device = deviceManager.selectedDevice {
-                    GroupBox(label: Label("Selected Target Device", systemImage: "iphone")) {
-                        HStack(spacing: 16) {
-                            Image(systemName: "iphone.radiowaves.left.and.right")
-                                .font(.system(size: 40))
-                                .foregroundStyle(.blue)
-                                .padding(.horizontal, 8)
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(device.name)
-                                    .font(.headline)
-                                Text("\(device.model) • iOS \(device.osVersion) (\(device.buildVersion))")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                HStack {
-                                    DeviceStatusBadge(status: device.isConnected ? "Connected" : "Disconnected")
-                                    DeviceStatusBadge(status: device.isWireless ? "Wireless" : "USB")
+                    HStack(spacing: 12) {
+                        Button(action: triggerDeploymentRun) {
+                            HStack {
+                                if deploymentManager.isDeploying {
+                                    ProgressView().scaleEffect(0.8).padding(.trailing, 8)
+                                } else {
+                                    Image(systemName: "play.fill")
                                 }
+                                Text("Run App")
+                                    .fontWeight(.semibold)
                             }
-                            Spacer()
+                            .frame(maxWidth: .infinity)
                         }
-                        .padding(.vertical, 8)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-                } else {
-                    ContentUnavailableView(
-                        "No Target Device",
-                        systemImage: "iphone.slash",
-                        description: Text("Please select a target device from the sidebar to begin building or deploying.")
-                    )
-                }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .disabled(deviceManager.selectedDevice == nil || deploymentManager.isDeploying)
 
-                // 3. Deployment Pipeline Timeline Progress
-                GroupBox(label: Label("Deployment Timeline", systemImage: "arrow.triangle.2.circlepath")) {
+                        Button(action: stopDeploymentRun) {
+                            HStack {
+                                Image(systemName: "stop.fill")
+                                Text("Stop App")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+                        .foregroundColor(.red)
+                        .disabled(deviceManager.selectedDevice == nil || (!deploymentManager.isDeploying && runtimeManager.runtimeStatus != .running))
+                    }
+
+                    if deviceManager.selectedDevice == nil {
+                        Text("Please select or connect a target device first.")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+
+                    Button(action: {
+                        Task {
+                            await environmentManager.clearDerivedData()
+                        }
+                    }) {
+                        HStack {
+                            if environmentManager.isDerivedDataClearing {
+                                ProgressView().scaleEffect(0.8).padding(.trailing, 8)
+                            } else {
+                                Image(systemName: "trash.slash")
+                            }
+                            Text("Clear DerivedData")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(environmentManager.isDerivedDataClearing)
+                }
+                .padding()
+            }
+            .groupBoxStyle(ModernGroupBoxStyle())
+
+            // Deployment Timeline progress
+            GroupBox {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Label("Deployment Timeline", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.headline)
+                            .foregroundColor(.orange)
+                        Spacer()
+                    }
+
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Text("Pipeline Status:")
@@ -76,7 +103,7 @@ public struct DeviceConnectDeploymentView: View {
 
                         Divider()
 
-                        // Render sequential milestones with checkboxes or indicators
+                        // Render sequential milestones
                         VStack(alignment: .leading, spacing: 8) {
                             MilestoneRow(title: "Save Project Changes", isCompleted: deploymentManager.deploymentStatus != .idle)
                             MilestoneRow(title: "Validate Environment", isCompleted: deploymentManager.deploymentStatus != .idle && deploymentManager.deploymentStatus != .savingProject)
@@ -85,19 +112,51 @@ public struct DeviceConnectDeploymentView: View {
                             MilestoneRow(title: "Launch & Stream Syslog", isCompleted: deploymentManager.deploymentStatus == .running || deploymentManager.deploymentStatus == .completed)
                         }
                     }
-                    .padding(.vertical, 4)
                 }
-                .groupBoxStyle(ModernGroupBoxStyle())
+                .padding()
+            }
+            .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 4. Console output peek
-                GroupBox(label: Label("Deployment Terminal Logs", systemImage: "terminal")) {
+            // Console output peek
+            GroupBox {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Label("Deployment Terminal Logs", systemImage: "terminal")
+                            .font(.headline)
+                            .foregroundColor(.cyan)
+                        Spacer()
+                    }
+
                     DeviceConnectConsole()
                         .frame(height: 300)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
-                .groupBoxStyle(ModernGroupBoxStyle())
+                .padding()
             }
-            .padding()
+            .groupBoxStyle(ModernGroupBoxStyle())
+        }
+    }
+
+    private func triggerDeploymentRun() {
+        guard let selected = deviceManager.selectedDevice else { return }
+        Task {
+            // Simulate typical parameters for deployment target
+            await deploymentManager.startDeployment(
+                device: selected,
+                projectName: "SwiftCodeDemo",
+                projectPath: "/tmp/SwiftCodeDemo.xcodeproj",
+                scheme: "SwiftCodeDemo",
+                appBundleURL: URL(fileURLWithPath: "/tmp/SwiftCodeDemo.app"),
+                bundleIdentifier: "com.swiftcode.demo"
+            )
+        }
+    }
+
+    private func stopDeploymentRun() {
+        guard let selected = deviceManager.selectedDevice else { return }
+        Task {
+            _ = try? await RuntimeService().stop(deviceUDID: selected.udid, bundleIdentifier: "com.swiftcode.demo")
+            runtimeManager.stopMonitoring(deviceUDID: selected.udid)
         }
     }
 }

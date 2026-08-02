@@ -6,32 +6,28 @@ public struct DeviceConnectEnvironmentView: View {
     public init() {}
 
     public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("System Environment & Toolchain")
-                            .font(.title2.weight(.bold))
-                        Text("Verify local installation state of compiler, builder SDKs, and developer directory paths.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if environmentManager.isValidating {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Button("Re-Validate") {
-                            Task {
-                                await environmentManager.validateEnvironment()
+        VStack(spacing: 24) {
+            // Checklist GroupBox
+            GroupBox {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Label("Toolchain Verification Checklist", systemImage: "checkmark.seal")
+                            .font(.headline)
+                            .foregroundColor(.orange)
+                        Spacer()
+                        if environmentManager.isValidating {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Button("Re-Validate") {
+                                Task {
+                                    await environmentManager.validateEnvironment()
+                                }
                             }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.borderedProminent)
                     }
-                }
 
-                // Checklist GroupBox
-                GroupBox(label: Label("Toolchain Verification Checklist", systemImage: "checkmark.seal")) {
                     VStack(alignment: .leading, spacing: 12) {
                         ChecklistRow(title: "Xcode Installed & Registered", isMet: environmentManager.currentEnvironment.xcodeVersion != nil)
                         ChecklistRow(title: "Developer Directory Configuration", isMet: environmentManager.currentEnvironment.xcodePath != nil)
@@ -39,12 +35,21 @@ public struct DeviceConnectEnvironmentView: View {
                         ChecklistRow(title: "iOS Simulator SDK Support", isMet: environmentManager.currentEnvironment.hasSimulatorSDK)
                         ChecklistRow(title: "Code Signing Infrastructure verified", isMet: environmentManager.currentEnvironment.isSigningSetup)
                     }
-                    .padding(.vertical, 8)
                 }
-                .groupBoxStyle(ModernGroupBoxStyle())
+                .padding()
+            }
+            .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Detailed environment parameters
-                GroupBox(label: Label("Configuration Parameters", systemImage: "gearshape.2")) {
+            // Detailed environment parameters
+            GroupBox {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Label("Configuration Parameters", systemImage: "gearshape.2")
+                            .font(.headline)
+                            .foregroundColor(.blue)
+                        Spacer()
+                    }
+
                     VStack(alignment: .leading, spacing: 8) {
                         InspectorRow(label: "macOS Version", value: environmentManager.currentEnvironment.macOSVersion)
                         InspectorRow(label: "Xcode Path", value: environmentManager.currentEnvironment.xcodePath ?? "Not Detected")
@@ -52,27 +57,41 @@ public struct DeviceConnectEnvironmentView: View {
                         InspectorRow(label: "Swift Compiler Version", value: environmentManager.currentEnvironment.swiftVersion ?? "Not Detected")
                         InspectorRow(label: "DerivedData Size", value: OutputFormatter.formatBytes(environmentManager.derivedDataSize))
                     }
-                    .padding(.vertical, 4)
                 }
-                .groupBoxStyle(ModernGroupBoxStyle())
+                .padding()
+            }
+            .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Diagnostics output
-                GroupBox(label: Label("System Diagnostics Log", systemImage: "doc.text.magnifyingglass")) {
+            // Diagnostics output
+            GroupBox {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Label("System Diagnostics Log", systemImage: "doc.text.magnifyingglass")
+                            .font(.headline)
+                            .foregroundColor(.gray)
+                        Spacer()
+                    }
+
                     VStack(alignment: .leading, spacing: 8) {
-                        ForEach(environmentManager.diagnostics, id: \.self) { diagnostic in
-                            HStack(alignment: .top, spacing: 8) {
-                                Image(systemName: "info.circle.fill")
-                                    .foregroundStyle(.blue)
-                                Text(diagnostic)
-                                    .font(.subheadline)
+                        if environmentManager.diagnostics.isEmpty {
+                            Text("No diagnostic entries recorded.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(environmentManager.diagnostics, id: \.self) { diagnostic in
+                                HStack(alignment: .top, spacing: 8) {
+                                    Image(systemName: "info.circle.fill")
+                                        .foregroundStyle(.blue)
+                                    Text(diagnostic)
+                                        .font(.subheadline)
+                                }
                             }
                         }
                     }
-                    .padding(.vertical, 4)
                 }
-                .groupBoxStyle(ModernGroupBoxStyle())
+                .padding()
             }
-            .padding()
+            .groupBoxStyle(ModernGroupBoxStyle())
         }
         .onAppear {
             if environmentManager.currentEnvironment.xcodeVersion == nil {
