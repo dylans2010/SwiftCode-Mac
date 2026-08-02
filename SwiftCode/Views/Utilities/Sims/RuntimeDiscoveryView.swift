@@ -10,7 +10,7 @@ struct RuntimeDiscoveryView: View {
     @State private var errorMessage: String? = nil
     @State private var scanPath: String? = nil
 
-    private let runtimeManager = RuntimeManager.shared
+    private let runtimeManager = SimulatorRuntimeManager.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {

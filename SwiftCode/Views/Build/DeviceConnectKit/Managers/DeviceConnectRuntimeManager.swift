@@ -3,8 +3,8 @@ import Observation
 
 @Observable
 @MainActor
-public final class RuntimeManager {
-    public static let shared = RuntimeManager()
+public final class DeviceConnectRuntimeManager {
+    public static let shared = DeviceConnectRuntimeManager()
 
     public private(set) var runtimeStatus: RuntimeStatus = .idle
     public private(set) var metrics: DeviceMetrics = DeviceMetrics()

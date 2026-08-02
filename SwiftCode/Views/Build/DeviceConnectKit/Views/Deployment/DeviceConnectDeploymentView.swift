@@ -4,7 +4,7 @@ public struct DeviceConnectDeploymentView: View {
     @State private var deviceManager = DeviceManager.shared
     @State private var deploymentManager = DeploymentManager.shared
     @State private var buildManager = BuildManager.shared
-    @State private var runtimeManager = RuntimeManager.shared
+    @State private var runtimeManager = DeviceConnectRuntimeManager.shared
 
     public init() {}
 

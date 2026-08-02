@@ -42,7 +42,7 @@
 		7118F2BC874E404396852582 /* EnvironmentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30D0F841028F464986B5257C /* EnvironmentManager.swift */; };
 		4288A258A1E94EC2AB5F6CDA /* DeploymentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D14186C149A44AAAC071325 /* DeploymentManager.swift */; };
 		0E31A99F607645CA9462D0A0 /* SessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1782239C9FC43A59BE67A64 /* SessionManager.swift */; };
-		1FF64D7187404B588721F8D3 /* RuntimeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F1F2643106B435FBE356311 /* RuntimeManager.swift */; };
+		1FF64D7187404B588721F8D3 /* DeviceConnectRuntimeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F1F2643106B435FBE356311 /* DeviceConnectRuntimeManager.swift */; };
 		32358200B3B84E65B75DC810 /* HistoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DB9F5B5EFA343C181131ABF /* HistoryManager.swift */; };
 		72A081C9CC0543648FEA55A7 /* DeviceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D2AF3210C5141CDB98D3296 /* DeviceManager.swift */; };
 		194E741D0B2C4EF18EB7712E /* PreferencesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88C7C34BD98A46B88381F472 /* PreferencesManager.swift */; };
@@ -1460,7 +1460,7 @@
 		F38B8DDB02D2E997C8A7E030 /* SimulatorMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45ED4CFCDFDAED75055E8082 /* SimulatorMainView.swift */; };
 		F39AF745D9F2DDFAF3C67532 /* CodeRefactoringView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E00B0D5F2DB68D7430C276 /* CodeRefactoringView.swift */; };
 		F39DED1B7371D84FD242456F /* CodeEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBAB409C7BAE9FEAEB52CBFD /* CodeEditorView.swift */; };
-		F3A4B5C6D7E8F90100000001 /* RuntimeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A4B5C6D7E8F90100000002 /* RuntimeManager.swift */; };
+		F3A4B5C6D7E8F90100000001 /* SimulatorRuntimeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A4B5C6D7E8F90100000002 /* SimulatorRuntimeManager.swift */; };
 		F3A4B5C6D7E8F90100000003 /* RuntimeDiscoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A4B5C6D7E8F90100000004 /* RuntimeDiscoveryView.swift */; };
 		F3C91293D22C3D9B42EB2941 /* CodeStatsExtensionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8526C47363D79394BD1A44D6 /* CodeStatsExtensionView.swift */; };
 		F3EDBE8B82434A8EC5F2561E /* ColorGradientGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A221F69DA8500711D893C373 /* ColorGradientGeneratorView.swift */; };
@@ -2384,7 +2384,7 @@
 		30D0F841028F464986B5257C /* EnvironmentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/DeviceConnectKit/Managers/EnvironmentManager.swift"; sourceTree = SOURCE_ROOT; };
 		9D14186C149A44AAAC071325 /* DeploymentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/DeviceConnectKit/Managers/DeploymentManager.swift"; sourceTree = SOURCE_ROOT; };
 		D1782239C9FC43A59BE67A64 /* SessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/DeviceConnectKit/Managers/SessionManager.swift"; sourceTree = SOURCE_ROOT; };
-		4F1F2643106B435FBE356311 /* RuntimeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/DeviceConnectKit/Managers/RuntimeManager.swift"; sourceTree = SOURCE_ROOT; };
+		4F1F2643106B435FBE356311 /* DeviceConnectRuntimeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/DeviceConnectKit/Managers/DeviceConnectRuntimeManager.swift"; sourceTree = SOURCE_ROOT; };
 		8DB9F5B5EFA343C181131ABF /* HistoryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/DeviceConnectKit/Managers/HistoryManager.swift"; sourceTree = SOURCE_ROOT; };
 		8D2AF3210C5141CDB98D3296 /* DeviceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/DeviceConnectKit/Managers/DeviceManager.swift"; sourceTree = SOURCE_ROOT; };
 		88C7C34BD98A46B88381F472 /* PreferencesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Build/DeviceConnectKit/Managers/PreferencesManager.swift"; sourceTree = SOURCE_ROOT; };
@@ -3795,7 +3795,7 @@
 		F29B99D50A21305B8FEB86AA /* CollaborationDiffViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollaborationDiffViewerView.swift; sourceTree = "<group>"; };
 		F2C201EB83983B4B1A4AB466 /* Core/DatabaseSchemaManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DatabaseSchemaManager.swift; sourceTree = "<group>"; };
 		F360FE6ECC28ACBA6B4D5196 /* MyersDiffAlgorithm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyersDiffAlgorithm.swift; sourceTree = "<group>"; };
-		F3A4B5C6D7E8F90100000002 /* RuntimeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeManager.swift; sourceTree = "<group>"; };
+		F3A4B5C6D7E8F90100000002 /* SimulatorRuntimeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorRuntimeManager.swift; sourceTree = "<group>"; };
 		F3A4B5C6D7E8F90100000004 /* RuntimeDiscoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeDiscoveryView.swift; sourceTree = "<group>"; };
 		F3C36B98601DBB397AA1017B /* SourceFileDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceFileDocument.swift; sourceTree = "<group>"; };
 		F41E7F18C6B47F81E7C1872A /* ModelDownloadProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloadProgressView.swift; sourceTree = "<group>"; };
@@ -4775,7 +4775,7 @@
 				30D0F841028F464986B5257C /* EnvironmentManager.swift */,
 				9D14186C149A44AAAC071325 /* DeploymentManager.swift */,
 				D1782239C9FC43A59BE67A64 /* SessionManager.swift */,
-				4F1F2643106B435FBE356311 /* RuntimeManager.swift */,
+				4F1F2643106B435FBE356311 /* DeviceConnectRuntimeManager.swift */,
 				8DB9F5B5EFA343C181131ABF /* HistoryManager.swift */,
 				8D2AF3210C5141CDB98D3296 /* DeviceManager.swift */,
 				88C7C34BD98A46B88381F472 /* PreferencesManager.swift */,
@@ -7529,7 +7529,7 @@
 		A561C2FD0D6BFAB77C085A60 /* Simulator */ = {
 			isa = PBXGroup;
 			children = (
-				F3A4B5C6D7E8F90100000002 /* RuntimeManager.swift */,
+				F3A4B5C6D7E8F90100000002 /* SimulatorRuntimeManager.swift */,
 				C010F1111111111111111119 /* Logger+Simulator.swift */,
 				C010F1111111111111111112 /* CommandExecutionRecord.swift */,
 				C010F1111111111111111111 /* CommandExecutionEngine.swift */,
@@ -9475,7 +9475,7 @@
 				7118F2BC874E404396852582 /* EnvironmentManager.swift in Sources */,
 				4288A258A1E94EC2AB5F6CDA /* DeploymentManager.swift in Sources */,
 				0E31A99F607645CA9462D0A0 /* SessionManager.swift in Sources */,
-				1FF64D7187404B588721F8D3 /* RuntimeManager.swift in Sources */,
+				1FF64D7187404B588721F8D3 /* DeviceConnectRuntimeManager.swift in Sources */,
 				32358200B3B84E65B75DC810 /* HistoryManager.swift in Sources */,
 				72A081C9CC0543648FEA55A7 /* DeviceManager.swift in Sources */,
 				194E741D0B2C4EF18EB7712E /* PreferencesManager.swift in Sources */,
@@ -9917,7 +9917,7 @@
 				D0E2734B54672BDCA0CBB342 /* EnvVarInspectorDevToolView.swift in Sources */,
 				8F068F025F93FB6E0C27C3B6 /* EpochConverterDevToolView.swift in Sources */,
 				540E4E5C22F41690BCAE5CC7 /* FPSMonitorDevToolView.swift in Sources */,
-				F3A4B5C6D7E8F90100000001 /* RuntimeManager.swift in Sources */,
+				F3A4B5C6D7E8F90100000001 /* SimulatorRuntimeManager.swift in Sources */,
 				F3A4B5C6D7E8F90100000003 /* RuntimeDiscoveryView.swift in Sources */,
 				C010B2222222222222222229 /* Logger+Simulator.swift in Sources */,
 				C010B2222222222222222222 /* CommandExecutionRecord.swift in Sources */,

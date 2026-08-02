@@ -7,8 +7,8 @@ import os
 /// or scans user-defined custom directories. Discovered runtimes are cached to avoid redundant file scans.
 @Observable
 @MainActor
-public final class RuntimeManager {
-    public static let shared = RuntimeManager()
+public final class SimulatorRuntimeManager {
+    public static let shared = SimulatorRuntimeManager()
 
     // Cache of discovered runtimes by directory path to avoid repeating file system scans.
     private var cachedRuntimes: [String: [SimulatorRuntime]] = [:]
