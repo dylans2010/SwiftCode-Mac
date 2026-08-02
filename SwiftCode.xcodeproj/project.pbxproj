@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9D36AEE3EDE977A669292F07 /* project.yml in Resources */ = {isa = PBXBuildFile; fileRef = 9D36AEE3EDE977A669292F08 /* project.yml */; };
 		CD37146E780D0CBA769EC126 /* XcodeBuildAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD37146E780D0CBA769EC125 /* XcodeBuildAPI.swift */; };
 		50449986FA13E01B106DB1E6 /* BuildingXcodeProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50449986FA13E01B106DB1E5 /* BuildingXcodeProject.swift */; };
 		403E47099A1AD4A273772012 /* FullAppRunManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D5212E8467AD31B9775EE2 /* FullAppRunManager.swift */; };
@@ -6424,6 +6425,7 @@ B77DEEACFA2A0E407D801C91 /* UnifiedLogger.swift */,
 		7F06B6B1231F728421364FE3 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				9D36AEE3EDE977A669292F08 /* project.yml */,
 				F60787477E14031160E05AAA /* DocSymbols.json */,
 				180ED1F5157DACBE8B1D139C /* Codex */,
 				ECAAA1260294B0DD15620104 /* Symbols/sfsymbol4.txt */,
@@ -8569,6 +8571,7 @@ B77DEEACFA2A0E407D801C91 /* UnifiedLogger.swift */,
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9D36AEE3EDE977A669292F07 /* project.yml in Resources */,
 				D48EB73DDC4EC7ADD58C1CAA /* DocSymbols.json in Resources */,
 				5A218C6921DA4803A19F8831 /* CodeReviewSystemAsset.md in Resources */,
 				5C5E70000000000000000501 /* AgentSystemAsset.md in Resources */,

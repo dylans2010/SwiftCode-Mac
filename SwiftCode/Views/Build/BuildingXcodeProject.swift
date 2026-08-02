@@ -4,130 +4,262 @@ public struct BuildingXcodeProject: View {
     @Environment(\.dismiss) private var dismiss
 
     // Shared API reference
-    private let api = XcodeBuildAPI.shared
+    private var api: XcodeBuildAPI {
+        XcodeBuildAPI.shared
+    }
 
-    // State management
-    @State private var stage: String = "Initializing..."
-    @State private var isChecking = true
-    @State private var needsGeneration = false
-    @State private var logs: [String] = []
+    // Configuration Fields (synchronized from defaults or active project)
+    @State private var projectName = ""
+    @State private var scheme = ""
+    @State private var bundleIdentifier = ""
+    @State private var organizationIdentifier = "com.example"
+    @State private var deploymentTarget = "16.0"
+    @State private var targetPlatform = "iOS"
 
-    // Form variables for XcodeProjectDetails
-    @State private var projectName = "MyProject"
-    @State private var scheme = "MyProject"
-    @State private var bundleIdentifier = "com.example.myproject"
+    // Component States
+    @State private var isConfiguring = true
+    @State private var isPerformingAction = false
 
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 24) {
-            if isChecking {
-                VStack(spacing: 16) {
-                    ProgressView()
-                        .controlSize(.large)
-
-                    Text(stage)
+        VStack(spacing: 0) {
+            // Header Bar
+            HStack {
+                Image(systemName: "hammer.fill")
+                    .font(.title2)
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Xcode Project Generator")
                         .font(.headline)
+                    Text("Powered by XcodeGen Integration")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if needsGeneration {
-                XcodeProjectDetails(
-                    projectName: $projectName,
-                    scheme: $scheme,
-                    bundleIdentifier: $bundleIdentifier,
-                    onGenerate: {
-                        startGeneration()
-                    },
-                    onCancel: {
-                        dismiss()
-                    }
-                )
+                Spacer()
+
+                if isPerformingAction {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            .padding(.bottom, 16)
+
+            Divider()
+                .padding(.bottom, 16)
+
+            if isConfiguring {
+                // Step 1: Configuration Form
+                ScrollView {
+                    XcodeProjectDetails(
+                        projectName: $projectName,
+                        scheme: $scheme,
+                        bundleIdentifier: $bundleIdentifier,
+                        organizationIdentifier: $organizationIdentifier,
+                        deploymentTarget: $deploymentTarget,
+                        targetPlatform: $targetPlatform,
+                        onGenerate: {
+                            isConfiguring = false
+                            startVerificationAndGeneration()
+                        },
+                        onCancel: {
+                            api.completeProjectGeneration(success: false)
+                            dismiss()
+                        }
+                    )
+                }
             } else {
-                VStack(spacing: 16) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.green)
+                // Step 2: Action Status, Logs, and Diagnostics View
+                VStack(alignment: .leading, spacing: 16) {
+                    // Status summary card
+                    VStack(alignment: .leading, spacing: 12) {
+                        statusRow(label: "Current Stage:", value: api.currentStage, icon: "hourglass", color: .blue)
+                        statusRow(label: "XcodeGen Status:", value: api.xcodegenState.rawValue.capitalized, icon: "cube.fill", color: stateColor(for: api.xcodegenState))
 
-                    Text("Ready!")
-                        .font(.title2.bold())
+                        if api.xcodegenState == .installing {
+                            statusRow(label: "Installation Progress:", value: api.installationStatusString, icon: "arrow.down.circle", color: .purple)
+                        }
 
-                    Text(stage)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                        statusRow(label: "Project Validation:", value: api.activeGenerationError == nil ? "Pending Verification" : "Failed", icon: "checkmark.seal", color: api.activeGenerationError == nil ? .green : .red)
+                    }
+                    .padding()
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .cornerRadius(12)
+
+                    // Diagnostics / Errors display
+                    if let error = api.activeGenerationError {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.red)
+                                Text("Failure Stage: \(error.stage)")
+                                    .font(.headline)
+                                    .foregroundColor(.red)
+                            }
+
+                            Text(error.message)
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+
+                            if let recovery = error.suggestedRecovery {
+                                Text("Suggested Recovery: \(recovery)")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+
+                            HStack {
+                                Button("Retry Action") {
+                                    startVerificationAndGeneration()
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.blue)
+
+                                Button("Back to Config") {
+                                    isConfiguring = true
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                            .padding(.top, 8)
+                        }
+                        .padding()
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(12)
+                    } else if api.xcodegenState == .missing {
+                        // XcodeGen component installation request
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Image(systemName: "questionmark.circle.fill")
+                                    .foregroundColor(.yellow)
+                                Text("XcodeGen Component Missing")
+                                    .font(.headline)
+                            }
+                            Text("SwiftCode requires XcodeGen to automatically generate production-ready Xcode projects from project.yml configurations.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            if !api.checkHomebrewInstallation() {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Homebrew is missing!")
+                                        .font(.caption.bold())
+                                        .foregroundColor(.red)
+                                    Text("XcodeGen installation requires Homebrew. Please install Homebrew by visiting https://brew.sh, or manually install XcodeGen in your system.")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(8)
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(8)
+                            }
+
+                            HStack {
+                                Button("Install Component") {
+                                    Task {
+                                        _ = await api.installXcodeGen()
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.green)
+                                .disabled(!api.checkHomebrewInstallation() || api.xcodegenState == .installing)
+
+                                Button("Cancel Build") {
+                                    api.completeProjectGeneration(success: false)
+                                    dismiss()
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+                        .padding()
+                        .background(Color.yellow.opacity(0.05))
+                        .cornerRadius(12)
+                    }
+
+                    // Live Log View
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Execution Logs")
+                                .font(.headline)
+                            Spacer()
+                            CopyLogsButton(logs: api.currentLogs.joined(separator: "\n"))
+                        }
+
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(api.currentLogs, id: \.self) { log in
+                                    Text(log)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                        }
+                        .padding(8)
+                        .frame(height: 120)
+                        .background(Color.black)
+                        .cornerRadius(8)
+                    }
                 }
-                .padding()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .padding(32)
-        .frame(width: 450, height: 400)
+        .padding(24)
+        .frame(width: 500, height: 550)
         .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
-            runPrecheck()
+            initializeDefaults()
         }
     }
 
-    private func runPrecheck() {
-        stage = "Searching for existing Xcode projects..."
-        isChecking = true
-        needsGeneration = false
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            stage = "Validating build environment..."
-
-            Task {
-                let validation = await api.validateBuildEnvironment()
-
-                if let project = api.discoverActiveProject() {
-                    stage = "Located project: \(project.name)"
-                    isChecking = false
-                    // Auto-close on success
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        dismiss()
-                    }
-                } else {
-                    stage = "No supported project found. Ready to generate."
-                    isChecking = false
-                    needsGeneration = true
-                }
-            }
-        }
+    private func initializeDefaults() {
+        projectName = api.determineProductName()
+        scheme = projectName
+        bundleIdentifier = api.determineBundleIdentifier()
     }
 
-    private func startGeneration() {
-        isChecking = true
-        stage = "Generating Xcode project '\(projectName)'..."
-
+    private func startVerificationAndGeneration() {
+        isPerformingAction = true
         Task {
-            // Determine target destination directory. Use standard projectsRoot or current project folder.
-            let targetURL = ProjectSessionStore.shared.activeProject?.directoryURL ?? CodingManager.shared.projectsRoot.appendingPathComponent(projectName)
+            // Verify XcodeGen installation
+            let state = await api.checkXcodeGenInstallation()
+            if state != .installed {
+                isPerformingAction = false
+                return
+            }
 
-            let result = await api.generateProject(
+            // Run project generation
+            let success = await api.generateProjectWithXcodeGen(
                 projectName: projectName,
                 scheme: scheme,
                 bundleIdentifier: bundleIdentifier,
-                targetURL: targetURL
+                organizationIdentifier: organizationIdentifier,
+                deploymentTarget: deploymentTarget,
+                targetPlatform: targetPlatform
             )
 
-            if result.success, let projPath = result.generatedProjectPath {
-                stage = "Project successfully generated!"
-                isChecking = false
-                needsGeneration = false
-
-                // Refresh folder tree so that it updates instantly in the editor
-                if let activeProj = ProjectSessionStore.shared.activeProject {
-                    ProjectSessionStore.shared.refreshFileTree(for: activeProj)
-                }
-
-                // Close window after completion
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    dismiss()
-                }
-            } else {
-                stage = "Generation failed: \(result.errorDescription ?? "Unknown error")"
-                isChecking = false
+            isPerformingAction = false
+            if success {
+                // Continue directly into existing build pipeline!
+                api.completeProjectGeneration(success: true)
+                dismiss()
             }
+        }
+    }
+
+    private func statusRow(label: String, value: String, icon: String, color: Color) -> some View {
+        HStack {
+            Label(label, systemImage: icon)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .bold()
+                .foregroundStyle(color)
+        }
+        .font(.subheadline)
+    }
+
+    private func stateColor(for state: XcodeGenInstallationState) -> Color {
+        switch state {
+        case .installed: return .green
+        case .missing: return .yellow
+        case .installing: return .purple
+        case .failed: return .red
         }
     }
 }
@@ -138,68 +270,121 @@ public struct XcodeProjectDetails: View {
     @Binding var projectName: String
     @Binding var scheme: String
     @Binding var bundleIdentifier: String
+    @Binding var organizationIdentifier: String
+    @Binding var deploymentTarget: String
+    @Binding var targetPlatform: String
 
     var onGenerate: () -> Void
     var onCancel: () -> Void
 
+    private var isConfigurationValid: Bool {
+        let trimmedName = projectName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedScheme = scheme.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedBundle = bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedName.isEmpty, !trimmedScheme.isEmpty, !trimmedBundle.isEmpty else { return false }
+        if trimmedName.contains("/") || trimmedName.contains("\\") { return false }
+
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-")
+        if trimmedBundle.rangeOfCharacter(from: allowed.inverted) != nil {
+            return false
+        }
+        return true
+    }
+
     public var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                Image(systemName: "hammer.fill")
-                    .font(.title2)
-                    .foregroundStyle(.orange)
-                Text("New Xcode Project Configuration")
-                    .font(.title3.bold())
-            }
-            .padding(.bottom, 8)
-
-            VStack(alignment: .leading, spacing: 14) {
-                // User input configuration fields
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Project Name")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    TextField("MyProject", text: $projectName)
-                        .textFieldStyle(.roundedBorder)
-                        .onChange(of: projectName) { _, newVal in
-                            // Auto align scheme with project name for convenience
-                            scheme = newVal
-                        }
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Scheme")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    TextField("MyProject", text: $scheme)
-                        .textFieldStyle(.roundedBorder)
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Bundle Identifier")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    TextField("com.example.myproject", text: $bundleIdentifier)
-                        .textFieldStyle(.roundedBorder)
-                }
-
-                Divider()
-                    .padding(.vertical, 4)
-
-                // API Controlled properties (readonly indicators)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("API Controlled Infrastructure")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-
-                    Group {
-                        apiMetadataRow(label: "Project Path", val: "Managed Sandbox Workspace")
-                        apiMetadataRow(label: "Workspace Mode", val: "Automatic Resolution")
-                        apiMetadataRow(label: "Build Directory", val: "Standard Out (API Managed)")
-                        apiMetadataRow(label: "DerivedData", val: "Isolated Sandbox DerivedData")
+        VStack(alignment: .leading, spacing: 14) {
+            // Project Name
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Project Name")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                TextField("MyProject", text: $projectName)
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: projectName) { _, newVal in
+                        scheme = newVal
                     }
-                    .font(.system(size: 11))
+                if projectName.contains("/") || projectName.contains("\\") {
+                    Text("Project name contains invalid characters.")
+                        .font(.caption2)
+                        .foregroundColor(.red)
                 }
+            }
+
+            // Scheme Name
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Scheme Name")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                TextField("MyProject", text: $scheme)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            // Bundle Identifier
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Bundle Identifier")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                TextField("com.example.myproject", text: $bundleIdentifier)
+                    .textFieldStyle(.roundedBorder)
+
+                let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-")
+                if bundleIdentifier.rangeOfCharacter(from: allowed.inverted) != nil {
+                    Text("Bundle ID contains invalid characters (only alphanumeric, dot, and dash allowed).")
+                        .font(.caption2)
+                        .foregroundColor(.red)
+                }
+            }
+
+            // Organization Identifier
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Organization Identifier (Optional)")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                TextField("com.example", text: $organizationIdentifier)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            // Deployment Target
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Deployment Target (Optional)")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                TextField("16.0", text: $deploymentTarget)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            // Target Platform
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Target Platform")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Picker("", selection: $targetPlatform) {
+                    Text("iOS").tag("iOS")
+                    Text("macOS").tag("macOS")
+                    Text("tvOS").tag("tvOS")
+                    Text("watchOS").tag("watchOS")
+                    Text("visionOS").tag("visionOS")
+                }
+                .pickerStyle(.segmented)
+            }
+
+            Divider()
+                .padding(.vertical, 8)
+
+            // API Auto-resolved Configurations Info
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Auto-Resolved Configurations")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+
+                Group {
+                    apiMetadataRow(label: "Project Root", val: XcodeBuildAPI.shared.resolveProjectRoot().lastPathComponent)
+                    apiMetadataRow(label: "Sources Dir", val: XcodeBuildAPI.shared.resolveSourceDirectory())
+                    apiMetadataRow(label: "Output Dir", val: "build/")
+                    apiMetadataRow(label: "DerivedData", val: "build/DerivedData/")
+                }
+                .font(.system(size: 11))
             }
 
             Spacer()
@@ -212,8 +397,9 @@ public struct XcodeProjectDetails: View {
 
                 Button("Generate Project", action: onGenerate)
                     .buttonStyle(.borderedProminent)
-                    .disabled(projectName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(!isConfigurationValid)
             }
+            .padding(.top, 12)
         }
     }
 
