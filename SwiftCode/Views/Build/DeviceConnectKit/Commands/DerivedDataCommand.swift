@@ -12,7 +12,7 @@ public struct DerivedDataCommand {
 
         var totalSize: Double = 0
         if let enumerator = FileManager.default.enumerator(at: derivedDataURL, includingPropertiesForKeys: [.fileSizeKey]) {
-            for case let url as URL in enumerator {
+            while let url = enumerator.nextObject() as? URL {
                 if let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey]),
                    let size = resourceValues.fileSize {
                     totalSize += Double(size)

@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-public struct EnvironmentValidator {
+public struct EnvironmentValidator: Sendable {
     private static let logger = Logger(subsystem: "com.swiftcode.deviceconnect", category: "EnvironmentValidator")
 
     public init() {}
