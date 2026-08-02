@@ -1,10 +1,118 @@
 import SwiftUI
+import AppKit
 import os
 
 private let logger = Logger(subsystem: "com.swiftcode.app", category: "CodingDictionaryView")
 
+// MARK: - Native Window Manager
+@MainActor
+public final class CodingDictionaryWindowManager: NSObject, NSWindowDelegate {
+    public static let shared = CodingDictionaryWindowManager()
+    private var windowController: CodingDictionaryWindowController?
+
+    public func showWindow() {
+        if let existing = windowController {
+            existing.window?.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        let wc = CodingDictionaryWindowController()
+        wc.window?.delegate = self
+        self.windowController = wc
+        wc.window?.makeKeyAndOrderFront(nil)
+    }
+
+    public func closeWindow() {
+        windowController?.close()
+        windowController = nil
+    }
+
+    // MARK: - NSWindowDelegate
+    public func windowWillClose(_ notification: Notification) {
+        windowController = nil
+    }
+}
+
+// MARK: - Custom NSWindow Subclass to enforce properties
+public class CodingDictionaryWindow: NSWindow {
+    override public var toolbar: NSToolbar? {
+        get { super.toolbar }
+        set {
+            newValue?.allowsUserCustomization = false
+            newValue?.autosavesConfiguration = false
+            super.toolbar = newValue
+        }
+    }
+}
+
+// MARK: - Native Window Controller
+@MainActor
+public final class CodingDictionaryWindowController: NSWindowController {
+    public init() {
+        let window = CodingDictionaryWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 850, height: 600),
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Coding Dictionary"
+        window.minSize = NSSize(width: 850, height: 600)
+        window.maxSize = NSSize(width: 850, height: 600)
+
+        // Disable fullscreen completely
+        window.collectionBehavior = []
+
+        // Keep standard window buttons enabled (close and minimize)
+        window.standardWindowButton(.closeButton)?.isEnabled = true
+        window.standardWindowButton(.miniaturizeButton)?.isEnabled = true
+
+        // Enforce no zooming or resizing
+        window.standardWindowButton(.zoomButton)?.isEnabled = false
+
+        super.init(window: window)
+
+        // Restore the last window position on subsequent launches; center on the first launch
+        if !window.setFrameAutosaveName("CodingDictionaryMainWindow") {
+            window.center()
+        }
+
+        let contentView = StylingBootstrap.configureEnvironment(
+            CodingDictionaryContentView()
+        )
+        let hostingVC = NSHostingController(rootView: contentView)
+        hostingVC.sizingOptions = []
+        window.contentViewController = hostingVC
+
+        // Initialize and lock toolbar customization immediately if it exists
+        if let toolbar = window.toolbar {
+            toolbar.allowsUserCustomization = false
+            toolbar.autosavesConfiguration = false
+        }
+    }
+
+    required public init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+// MARK: - Background Trigger View
 public struct CodingDictionaryView: View {
     @Environment(\.dismiss) private var dismiss
+
+    public init() {}
+
+    public var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onAppear {
+                CodingDictionaryWindowManager.shared.showWindow()
+                dismiss()
+            }
+    }
+}
+
+// MARK: - Main Content View
+public struct CodingDictionaryContentView: View {
     @State private var manager = DictionaryManager.shared
     @State private var searchText = ""
     @FocusState private var isSearchFocused: Bool
@@ -25,7 +133,7 @@ public struct CodingDictionaryView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(.background)
         }
-        .frame(minWidth: 850, minHeight: 600)
+        .frame(width: 850, height: 600)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
