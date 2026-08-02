@@ -64,7 +64,8 @@ public struct MainToolsView: View {
         WorkspaceHubTool(id: "project_inspector", name: "Project Inspector", description: "Recursive directory scanner, live modules analysis, and AI layer refactoring reviews.", iconName: "square.text.square", colorHex: "#FF9500", category: "Utilities", destination: "projectInspector"),
         WorkspaceHubTool(id: "localization_manager", name: "Localization Manager", description: "Multi-pane string catalogs and .xcstrings editor with layout previews & validation checks.", iconName: "text.book.closed.fill", colorHex: "#007AFF", category: "Utilities", destination: "localizationManager"),
         WorkspaceHubTool(id: "licenses_add", name: "Licenses", description: "Quickly add open source license templates directly to your project codebase.", iconName: "doc.text.fill", colorHex: "#FF9500", category: "Utilities", destination: "licensesAdd"),
-        WorkspaceHubTool(id: "coding_dictionary", name: "Coding Dictionary", description: "AI-powered coding dictionary & reference companion that searches terminology, concepts, APIs, syntax, and patterns.", iconName: "book.pages.fill", colorHex: "#AF52DE", category: "Utilities", destination: "codingDictionary")
+        WorkspaceHubTool(id: "coding_dictionary", name: "Coding Dictionary", description: "AI-powered coding dictionary & reference companion that searches terminology, concepts, APIs, syntax, and patterns.", iconName: "book.pages.fill", colorHex: "#AF52DE", category: "Utilities", destination: "codingDictionary"),
+        WorkspaceHubTool(id: "device_connect", name: "Device Connect", description: "Native Apple device deployment, runtime, monitoring, diagnostics, and device management platform.", iconName: "play.circle.fill", colorHex: "#34C759", category: "Build & Deploy", destination: "deviceConnect")
     ]
 
     private var filteredCategories: [String] {

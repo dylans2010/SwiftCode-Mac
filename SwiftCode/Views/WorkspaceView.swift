@@ -421,6 +421,9 @@ struct WorkspaceView: View {
                     LocalizationManagerView()
                         .frame(minWidth: 1000, minHeight: 700)
 
+                case .deviceConnect:
+                    DeviceConnectView()
+
                 case .settings:
                     SettingsView()
                         .environmentObject(AppSettings.shared)

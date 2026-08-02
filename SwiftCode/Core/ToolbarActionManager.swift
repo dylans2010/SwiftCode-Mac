@@ -65,6 +65,7 @@ final class ToolbarActionManager {
         case databaseExplorer
         case projectInspector
         case localizationManager
+        case deviceConnect
 
         // Sidebar & Inspector additions
         case debugSessions
@@ -83,7 +84,7 @@ final class ToolbarActionManager {
 
         var isPro: Bool {
             switch self {
-            case .deployments, .documentationBrowser, .debugTools, .extensionMarketplace:
+            case .deployments, .documentationBrowser, .debugTools, .extensionMarketplace, .deviceConnect:
                 return true
             default:
                 return false
@@ -216,6 +217,8 @@ final class ToolbarActionManager {
             return .projectInspector
         case "localization_manager", "localizationManager":
             return .localizationManager
+        case "device_connect", "deviceConnect", "device_connect_kit":
+            return .deviceConnect
 
         case "debug_sessions":
             return .debugSessions
