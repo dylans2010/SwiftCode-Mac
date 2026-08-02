@@ -2,62 +2,105 @@ import SwiftUI
 
 public struct DeviceConnectView: View {
     @State private var sidebarSelection = "dashboard"
-    @State private var showInspector = true
-
     @State private var deviceManager = DeviceManager.shared
 
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 0) {
-            // Central Toolbar
-            DeviceConnectToolbar()
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // 1. Platform / Section Picker
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("DeviceConnect Workspace", systemImage: "macpro.gen3.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
+                            }
 
-            Divider()
+                            Picker("Section", selection: $sidebarSelection) {
+                                Text("Dashboard").tag("dashboard")
+                                Text("Inspector").tag("inspector")
+                                Text("Sessions").tag("sessions")
+                                Text("Environment").tag("environment")
+                                Text("Settings").tag("settings")
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
 
-            HSplitView {
-                // Column 1: Sidebar
-                DeviceConnectSidebar(currentSelection: $sidebarSelection)
-                    .frame(minWidth: 200, idealWidth: 220)
+                    // 2. Target Device GroupBox
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Selected Target Device", systemImage: "iphone")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                                if deviceManager.isDiscovering {
+                                    ProgressView().scaleEffect(0.8)
+                                } else {
+                                    Button(action: {
+                                        Task {
+                                            await deviceManager.refreshDevices()
+                                        }
+                                    }) {
+                                        Label("Refresh", systemImage: "arrow.clockwise")
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            }
 
-                // Column 2: Dashboard/Viewer Pane
-                VStack(spacing: 0) {
-                    switch sidebarSelection {
-                    case "dashboard":
-                        DeviceConnectDeploymentView()
-                    case "sessions":
-                        DeviceConnectSessionsView()
-                    case "environment":
-                        DeviceConnectEnvironmentView()
-                    case "settings":
-                        DeviceConnectSettingsView()
-                    default:
-                        DeviceConnectDeploymentView()
+                            if deviceManager.devices.isEmpty {
+                                Text("No target devices discovered. Ensure your iOS device/Simulator is connected.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Picker("Device Selection", selection: Binding(
+                                    get: { deviceManager.selectedDevice },
+                                    set: { newDevice in
+                                        if let dev = newDevice {
+                                            deviceManager.selectDevice(dev)
+                                        }
+                                    }
+                                )) {
+                                    ForEach(deviceManager.devices) { device in
+                                        Text("\(device.name) (\(device.model) • OS \(device.osVersion))")
+                                            .tag(device as ConnectedDevice?)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    // 3. Dynamic Section Content
+                    VStack(spacing: 0) {
+                        switch sidebarSelection {
+                        case "dashboard":
+                            DeviceConnectDeploymentView()
+                        case "inspector":
+                            DeviceConnectInspector()
+                        case "sessions":
+                            DeviceConnectSessionsView()
+                        case "environment":
+                            DeviceConnectEnvironmentView()
+                        case "settings":
+                            DeviceConnectSettingsView()
+                        default:
+                            DeviceConnectDeploymentView()
+                        }
                     }
                 }
-                .frame(minWidth: 400, maxWidth: .infinity)
-                .background(.background)
-
-                // Column 3: Inspector Panel
-                if showInspector {
-                    DeviceConnectInspector()
-                        .frame(minWidth: 260, idealWidth: 280)
-                        .transition(.move(edge: .trailing))
-                }
+                .padding(24)
             }
-        }
-        .frame(minWidth: 900, minHeight: 650)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: {
-                    withAnimation {
-                        showInspector.toggle()
-                    }
-                }) {
-                    Label("Toggle Inspector", systemImage: "sidebar.right")
-                }
-                .help("Toggle Right Inspector Panel")
-            }
+            .navigationTitle("DeviceConnect")
         }
         .onAppear {
             Task {
