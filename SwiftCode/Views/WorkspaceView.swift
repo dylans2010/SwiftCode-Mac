@@ -22,6 +22,11 @@ struct WorkspaceView: View {
     @AppStorage("com.swiftcode.workspace.agentInspectorWidth") private var agentInspectorWidth = 320.0
     @State private var dragStartWidth: CGFloat? = nil
 
+    // Collapsible Artboard Simulator Panel
+    @AppStorage("com.swiftcode.workspace.showArtboardSimulator") private var showArtboardSimulator = false
+    @AppStorage("com.swiftcode.workspace.artboardSimulatorWidth") private var artboardSimulatorWidth = 360.0
+    @State private var dragStartWidthSimulator: CGFloat? = nil
+
     // Feature sheet states
     @State private var activeSheet: ToolbarActionManager.SheetDestination?
     @State private var showingExportSheet = false
@@ -64,6 +69,43 @@ struct WorkspaceView: View {
                 // Center Code Editor View
                 EditorView(viewModel: viewModel.editor)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if showArtboardSimulator {
+                    // Resizing drag handle for Simulator
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.2))
+                        .frame(width: 4)
+                        .contentShape(Rectangle())
+                        .onHover { isHovered in
+                            if isHovered {
+                                NSCursor.resizeLeftRight.push()
+                            } else {
+                                NSCursor.pop()
+                            }
+                        }
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    if dragStartWidthSimulator == nil {
+                                        dragStartWidthSimulator = artboardSimulatorWidth
+                                    }
+                                    let delta = value.translation.width
+                                    let newWidth = (dragStartWidthSimulator ?? 360.0) - delta
+                                    artboardSimulatorWidth = max(280, min(800, newWidth))
+                                }
+                                .onEnded { _ in
+                                    dragStartWidthSimulator = nil
+                                }
+                        )
+
+                    ArtboardSimulator(onClose: {
+                        withAnimation(.spring()) {
+                            showArtboardSimulator = false
+                        }
+                    })
+                    .frame(width: artboardSimulatorWidth)
+                    .transition(.move(edge: .trailing))
+                }
 
                 if showAgentInspector {
                     // Custom drag handle divider
@@ -125,6 +167,16 @@ struct WorkspaceView: View {
 
                 Button {
                     withAnimation(.spring()) {
+                        showArtboardSimulator.toggle()
+                    }
+                } label: {
+                    Image(systemName: "macwindow.on.rectangle")
+                        .foregroundColor(showArtboardSimulator ? .accentColor : .secondary)
+                }
+                .help("Toggle Artboard Simulator")
+
+                Button {
+                    withAnimation(.spring()) {
                         showAgentInspector.toggle()
                     }
                 } label: {
@@ -161,6 +213,16 @@ struct WorkspaceView: View {
                 let url = URL(fileURLWithPath: filePath)
                 Task {
                     await viewModel.editor.openFile(url: url)
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("com.swiftcode.openArtboardSimulator"))) { notification in
+            withAnimation(.spring()) {
+                showArtboardSimulator = true
+            }
+            if let artboardID = notification.userInfo?["artboardID"] as? UUID {
+                if let visDoc = DocumentCoordinator.shared.visualUIDocument {
+                    visDoc.scene.activeArtboardID = artboardID
                 }
             }
         }

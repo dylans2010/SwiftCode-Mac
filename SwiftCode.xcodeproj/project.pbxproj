@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0D2B220E774949989C088E31 /* ArtboardSimulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D2B220E774949989C088E32 /* ArtboardSimulator.swift */; };
+		0D2B220E774949989C088E33 /* RunFullAppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D2B220E774949989C088E34 /* RunFullAppView.swift */; };
 		004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = BBB818A276304EA881DBF6E6 /* MLXOptimizers */; };
 		016298C4F533D83B2A4FB1B0 /* ApplicationDeploymentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF38596E6CBBF00108C7D98 /* ApplicationDeploymentView.swift */; };
 		0166E43D0F249661F65BDD62 /* AssistLogCaptureTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C63871C9F424ED65E6604B87 /* AssistLogCaptureTool.swift */; };
@@ -2278,6 +2280,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0D2B220E774949989C088E32 /* ArtboardSimulator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ArtboardSimulator.swift; sourceTree = "<group>"; };
+		0D2B220E774949989C088E34 /* RunFullAppView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RunFullAppView.swift; sourceTree = "<group>"; };
 		00048987BBB25A712D49051C /* NordThemeExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NordThemeExtensionView.swift; sourceTree = "<group>"; };
 		00573C77C75B8076494A575A /* _AssistCriticalValidationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = _AssistCriticalValidationEngine.swift; sourceTree = "<group>"; };
 		0076F070FA7E4422B0FBAAB8 /* ParseMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseMarkdown.swift; sourceTree = "<group>"; };
@@ -4760,6 +4764,8 @@
 		0D2B220E774949989C088E30 /* VisualUIBuilder */ = {
 			isa = PBXGroup;
 			children = (
+				0D2B220E774949989C088E32 /* ArtboardSimulator.swift */,
+				0D2B220E774949989C088E34 /* RunFullAppView.swift */,
 				88426EA2688646258A5A133B /* VisualUIBuilderSidebarViewController.swift */,
 				3B694D4568479A214F8C23FB /* VisualUIBuilderSplitViewController.swift */,
 				452FF7E8198E7D7EF1F101CC /* VisualUIBuilderWindowController.swift */,
@@ -9083,6 +9089,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0D2B220E774949989C088E31 /* ArtboardSimulator.swift in Sources */,
+				0D2B220E774949989C088E33 /* RunFullAppView.swift in Sources */,
 				FC57A0A0301F2A8700BD1BCB /* CodingDictionaryModels.swift in Sources */,
 				FC57A09E301F297F00BD1BCB /* DictionaryManager.swift in Sources */,
 				FC57A09C301F28AE00BD1BCB /* CodingDictionaryView.swift in Sources */,

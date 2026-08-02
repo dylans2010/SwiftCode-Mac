@@ -287,6 +287,20 @@ public struct ArtboardView: View {
                     .padding(.vertical, 4)
                     .background(Color.secondary.opacity(0.1), in: Capsule())
 
+                // Open in Simulator button
+                Button {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("com.swiftcode.openArtboardSimulator"),
+                        object: nil,
+                        userInfo: ["artboardID": artboard.id]
+                    )
+                } label: {
+                    Image(systemName: "rectangle.portrait.and.arrow.right.fill")
+                        .foregroundColor(.accentColor)
+                }
+                .buttonStyle(.plain)
+                .help("Open in Workspace Artboard Simulator")
+
                 if artboard.name != "Default" && document.scene.artboards.count > 1 {
                     Button {
                         deleteArtboard()
