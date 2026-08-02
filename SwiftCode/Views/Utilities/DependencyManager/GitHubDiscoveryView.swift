@@ -211,7 +211,8 @@ private struct SearchParametersSidebarPanel: View {
             .disabled(platformManager.isOperationRunning)
         }
         .padding(20)
-        .frame(width: 280, maxHeight: .infinity)
+        .frame(width: 280)
+        .frame(maxHeight: .infinity)
         .background(Color(NSColor.windowBackgroundColor))
     }
 }
@@ -293,3 +294,4 @@ private struct ContentResultsView: View {
         .background(Color(NSColor.controlBackgroundColor))
     }
 }
+

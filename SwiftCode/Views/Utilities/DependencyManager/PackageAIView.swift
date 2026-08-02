@@ -138,7 +138,8 @@ private struct PresetsAndTemplatesPanel: View {
             }
         }
         .padding(20)
-        .frame(width: 280, maxHeight: .infinity)
+        .frame(width: 280)
+        .frame(maxHeight: .infinity)
         .background(Color(NSColor.windowBackgroundColor))
     }
 }
@@ -263,3 +264,4 @@ private struct ConversationTimelineView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
+

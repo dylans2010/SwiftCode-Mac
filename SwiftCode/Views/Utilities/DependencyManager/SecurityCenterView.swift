@@ -355,7 +355,7 @@ struct DependencySecurityCenterView: View {
             Spacer()
         }
         .padding(20)
-        .frame(width: 280, maxHeight: .infinity)
+        .frame(minWidth: 280, idealWidth: 280, maxWidth: 280, minHeight: nil, idealHeight: nil, maxHeight: .infinity, alignment: .center)
         .background(Color(NSColor.windowBackgroundColor))
     }
 }

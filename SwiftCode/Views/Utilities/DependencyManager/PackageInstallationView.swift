@@ -230,7 +230,7 @@ private struct SettingsAndActionsPanel: View {
             Spacer()
         }
         .padding(20)
-        .frame(width: 300, maxHeight: .infinity)
+        .frame(minWidth: 300, maxHeight: .infinity)
         .background(Color(NSColor.windowBackgroundColor))
     }
 }
@@ -291,3 +291,4 @@ private struct LoggingAndProcessMonitorPanel: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
+

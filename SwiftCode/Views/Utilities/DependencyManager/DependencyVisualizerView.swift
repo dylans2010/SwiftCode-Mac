@@ -251,7 +251,7 @@ private struct DetailsInspectorPanel: View {
             Spacer()
         }
         .padding(20)
-        .frame(width: 260, maxHeight: .infinity)
+        .frame(minWidth: 260, idealWidth: 260, maxWidth: 260, minHeight: nil, idealHeight: nil, maxHeight: .infinity, alignment: .center)
         .background(Color(NSColor.windowBackgroundColor))
     }
 }
