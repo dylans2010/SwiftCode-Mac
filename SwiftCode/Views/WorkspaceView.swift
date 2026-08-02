@@ -194,6 +194,9 @@ struct WorkspaceView: View {
         .sheet(isPresented: $showingExportSheet) {
             ExportProjView()
         }
+        .sheet(isPresented: Bindable(XcodeBuildAPI.shared).showProjectGenerationUI) {
+            BuildingXcodeProject()
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowExportSheet"))) { _ in
             showingExportSheet = true
         }
