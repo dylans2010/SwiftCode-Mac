@@ -51,8 +51,26 @@ struct DependencyGitHubDiscoveryView: View {
             Divider()
 
             HSplitView {
-                searchParametersSidebarPanel
-                contentResultsView
+                SearchParametersSidebarPanel(
+                    platformManager: platformManager,
+                    keyword: $keyword,
+                    topic: $topic,
+                    owner: $owner,
+                    organization: $organization,
+                    selectedLicense: $selectedLicense,
+                    selectedLanguage: $selectedLanguage,
+                    minStars: $minStars,
+                    includeArchived: $includeArchived,
+                    onlyVerified: $onlyVerified,
+                    triggerSearch: { triggerSearch() },
+                    licenses: licenses,
+                    languages: languages
+                )
+                ContentResultsView(
+                    platformManager: platformManager,
+                    onlyVerified: onlyVerified,
+                    selectedLanguage: selectedLanguage
+                )
             }
         }
         .background(Color(NSColor.windowBackgroundColor))
@@ -87,9 +105,25 @@ struct DependencyGitHubDiscoveryView: View {
             )
         }
     }
+}
 
-    @ViewBuilder
-    private var searchParametersSidebarPanel: some View {
+// MARK: - Private Subviews to Prevent Compiler Type-Checking Timeout
+private struct SearchParametersSidebarPanel: View {
+    var platformManager: DependencyPlatformManager
+    @Binding var keyword: String
+    @Binding var topic: String
+    @Binding var owner: String
+    @Binding var organization: String
+    @Binding var selectedLicense: String
+    @Binding var selectedLanguage: String
+    @Binding var minStars: Double
+    @Binding var includeArchived: Bool
+    @Binding var onlyVerified: Bool
+    let triggerSearch: () -> Void
+    let licenses: [String]
+    let languages: [String]
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Search Parameters")
                 .font(.headline)
@@ -180,9 +214,14 @@ struct DependencyGitHubDiscoveryView: View {
         .frame(width: 280, maxHeight: .infinity)
         .background(Color(NSColor.windowBackgroundColor))
     }
+}
 
-    @ViewBuilder
-    private var contentResultsView: some View {
+private struct ContentResultsView: View {
+    var platformManager: DependencyPlatformManager
+    let onlyVerified: Bool
+    let selectedLanguage: String
+
+    var body: some View {
         VStack(spacing: 0) {
             if platformManager.searchResults.isEmpty {
                 VStack(spacing: 16) {

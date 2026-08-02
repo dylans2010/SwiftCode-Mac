@@ -43,8 +43,17 @@ struct PackageAIView: View {
             Divider()
 
             HSplitView {
-                presetsAndTemplatesPanel
-                conversationTimelineView
+                PresetsAndTemplatesPanel(
+                    platformManager: platformManager,
+                    inputPrompt: $inputPrompt
+                )
+                ConversationTimelineView(
+                    platformManager: platformManager,
+                    inputPrompt: $inputPrompt,
+                    filteredChatHistory: filteredChatHistory,
+                    triggerAIQuery: { triggerAIQuery() },
+                    toggleFavoriteChat: { toggleFavoriteChat($0) }
+                )
             }
         }
         .background(Color(NSColor.windowBackgroundColor))
@@ -65,9 +74,14 @@ struct PackageAIView: View {
             platformManager.saveState()
         }
     }
+}
 
-    @ViewBuilder
-    private var presetsAndTemplatesPanel: some View {
+// MARK: - Private Subviews to Prevent Compiler Type-Checking Timeout
+private struct PresetsAndTemplatesPanel: View {
+    var platformManager: DependencyPlatformManager
+    @Binding var inputPrompt: String
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Prompt Templates")
                 .font(.headline)
@@ -127,9 +141,16 @@ struct PackageAIView: View {
         .frame(width: 280, maxHeight: .infinity)
         .background(Color(NSColor.windowBackgroundColor))
     }
+}
 
-    @ViewBuilder
-    private var conversationTimelineView: some View {
+private struct ConversationTimelineView: View {
+    var platformManager: DependencyPlatformManager
+    @Binding var inputPrompt: String
+    let filteredChatHistory: [PackageAIChat]
+    let triggerAIQuery: () -> Void
+    let toggleFavoriteChat: (UUID) -> Void
+
+    var body: some View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
