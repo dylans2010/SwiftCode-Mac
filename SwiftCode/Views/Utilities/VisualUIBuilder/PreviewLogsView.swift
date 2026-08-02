@@ -25,7 +25,7 @@ public struct PreviewLogsView: View {
                 .disabled(diagnostics.logs.isEmpty)
             }
             .padding()
-            .background(Color(.windowBackground))
+            .background(Color(NSColor.windowBackgroundColor))
 
             Divider()
 
@@ -44,7 +44,7 @@ public struct PreviewLogsView: View {
                         .padding(.horizontal, 40)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(.windowBackground))
+                .background(Color(NSColor.windowBackgroundColor))
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 8) {
@@ -74,7 +74,7 @@ public struct PreviewLogsView: View {
                     }
                     .padding(.vertical, 12)
                 }
-                .background(Color(.windowBackground))
+                .background(Color(NSColor.windowBackgroundColor))
             }
         }
         .frame(minWidth: 600, minHeight: 400)

@@ -1136,26 +1136,24 @@ private struct FlowLayoutView: View {
         self.itemContent = { AnyView(itemContent($0)) }
     }
 
+    private var rows: [[String]] {
+        var result: [[String]] = []
+        var currentRow: [String] = []
+        for item in items {
+            currentRow.append(item)
+            if currentRow.count >= 4 {
+                result.append(currentRow)
+                currentRow = []
+            }
+        }
+        if !currentRow.isEmpty {
+            result.append(currentRow)
+        }
+        return result
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Minimal layout - simple HStack wrapped in scroll or flow if needed.
-            // Since we want standard layouts without layout loops:
-            var rows: [[String]] {
-                var result: [[String]] = []
-                var currentRow: [String] = []
-                for item in items {
-                    currentRow.append(item)
-                    if currentRow.count >= 4 {
-                        result.append(currentRow)
-                        currentRow = []
-                    }
-                }
-                if !currentRow.isEmpty {
-                    result.append(currentRow)
-                }
-                return result
-            }
-
             ForEach(0..<rows.count, id: \.self) { rowIndex in
                 HStack(spacing: 8) {
                     ForEach(rows[rowIndex], id: \.self) { item in
