@@ -50,6 +50,7 @@ final class ToolbarActionManager {
         case assetManager
         case debugTools
         case deployments
+        case codingDictionary
         case testTools
         case collaboration
         case assistView
@@ -185,6 +186,8 @@ final class ToolbarActionManager {
             return .debugTools
         case "deployments":
             return .deployments
+        case "codingDictionary", "coding_dictionary":
+            return .codingDictionary
         case "run_tests":
             return .testTools
         case "collaboration":

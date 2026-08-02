@@ -255,6 +255,7 @@ struct WorkspaceView: View {
                 case .buildLogs: BuildLogsView(owner: owner, repo: repo)
                 case .gistManager: GistsView()
                 case .deployments: DeploymentsView()
+                case .codingDictionary: CodingDictionaryView()
                 case .testTools: TestToolsView(project: project)
                 case .collaboration:
                     CollaborationMainView(manager: CollaborationSessionStore.shared.manager(for: project, creatorID: Host.current().localizedName ?? "macOS"))
