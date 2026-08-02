@@ -33,79 +33,19 @@ struct DependencyVisualizerView: View {
             Divider()
 
             HSplitView {
-                interactiveVectorCanvasView
-                detailsInspectorPanel
+                InteractiveVectorCanvasView(
+                    dependencies: dependencies,
+                    sessionStore: sessionStore,
+                    platformManager: platformManager,
+                    selectedNode: $selectedNode
+                )
+                DetailsInspectorPanel(selectedNode: selectedNode)
             }
         }
         .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
             loadDependencies()
         }
-    }
-
-    @ViewBuilder
-    private var detailsInspectorPanel: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("Dependency Details")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-
-            if let node = selectedNode {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text(node.name)
-                        .font(.title3.bold())
-
-                    Label("Version: \(node.version)", systemImage: "tag")
-                        .font(.subheadline)
-
-                    Label("Type: \(node.isLocal ? "Local Directory" : "Remote SPM URL")", systemImage: node.isLocal ? "folder" : "link")
-                        .font(.subheadline)
-
-                    Divider()
-
-                    if node.hasConflict {
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Label("Security Vulnerability", systemImage: "exclamationmark.shield.fill")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.red)
-                                Text("This package contains severe known advisories. Open Security Center for details.")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(6)
-                        }
-                        .groupBoxStyle(ModernGroupBoxStyle())
-                    }
-
-                    Text("Sub-dependencies:")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-
-                    if node.dependencies.isEmpty {
-                        Text("No secondary sub-dependencies.")
-                            .font(.caption)
-                            .italic()
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(node.dependencies, id: \.self) { sub in
-                            Label(sub, systemImage: "arrow.turn.down.right")
-                                .font(.caption.monospaced())
-                        }
-                    }
-                }
-            } else {
-                ContentUnavailableView {
-                    Label("No Node Selected", systemImage: "hand.tap")
-                } description: {
-                    Text("Select a dependency block on the left canvas to inspect nested relationships.")
-                }
-            }
-            Spacer()
-        }
-        .padding(20)
-        .frame(width: 260, maxHeight: .infinity)
-        .background(Color(NSColor.windowBackgroundColor))
     }
 
     private func loadDependencies() {
@@ -141,9 +81,16 @@ struct DependencyVisualizerView: View {
 
         self.dependencies = parsedList
     }
+}
 
-    @ViewBuilder
-    private var interactiveVectorCanvasView: some View {
+// MARK: - Private Subviews to Prevent Compiler Type-Checking Timeout
+private struct InteractiveVectorCanvasView: View {
+    let dependencies: [ParsedDependency]
+    let sessionStore: ProjectSessionStore
+    var platformManager: DependencyPlatformManager
+    @Binding var selectedNode: DependencyVisualNode?
+
+    var body: some View {
         VStack(spacing: 0) {
             HStack {
                 Label("Dependency Relations Map", systemImage: "network")
@@ -238,5 +185,73 @@ struct DependencyVisualizerView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct DetailsInspectorPanel: View {
+    let selectedNode: DependencyVisualNode?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Dependency Details")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            if let node = selectedNode {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(node.name)
+                        .font(.title3.bold())
+
+                    Label("Version: \(node.version)", systemImage: "tag")
+                        .font(.subheadline)
+
+                    Label("Type: \(node.isLocal ? "Local Directory" : "Remote SPM URL")", systemImage: node.isLocal ? "folder" : "link")
+                        .font(.subheadline)
+
+                    Divider()
+
+                    if node.hasConflict {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Label("Security Vulnerability", systemImage: "exclamationmark.shield.fill")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.red)
+                                Text("This package contains severe known advisories. Open Security Center for details.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(6)
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+                    }
+
+                    Text("Sub-dependencies:")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+
+                    if node.dependencies.isEmpty {
+                        Text("No secondary sub-dependencies.")
+                            .font(.caption)
+                            .italic()
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(node.dependencies, id: \.self) { sub in
+                            Label(sub, systemImage: "arrow.turn.down.right")
+                                .font(.caption.monospaced())
+                        }
+                    }
+                }
+            } else {
+                ContentUnavailableView {
+                    Label("No Node Selected", systemImage: "hand.tap")
+                } description: {
+                    Text("Select a dependency block on the left canvas to inspect nested relationships.")
+                }
+            }
+            Spacer()
+        }
+        .padding(20)
+        .frame(width: 260, maxHeight: .infinity)
+        .background(Color(NSColor.windowBackgroundColor))
     }
 }

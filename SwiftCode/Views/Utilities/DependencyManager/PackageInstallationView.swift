@@ -36,8 +36,18 @@ struct PackageInstallationView: View {
             Divider()
 
             HSplitView {
-                settingsAndActionsPanel
-                loggingAndProcessMonitorPanel
+                SettingsAndActionsPanel(
+                    package: package,
+                    platformManager: platformManager,
+                    selectedRequirement: $selectedRequirement,
+                    requirementValue: $requirementValue,
+                    runInstall: { runInstall() },
+                    runUpdate: { runUpdate() },
+                    runUninstall: { runUninstall() },
+                    runRepair: { runRepair() },
+                    runVerify: { runVerify() }
+                )
+                LoggingAndProcessMonitorPanel(platformManager: platformManager)
             }
         }
         .background(Color(NSColor.windowBackgroundColor))
@@ -116,9 +126,21 @@ struct PackageInstallationView: View {
             showAlert = true
         }
     }
+}
 
-    @ViewBuilder
-    private var settingsAndActionsPanel: some View {
+// MARK: - Private Subviews to Prevent Compiler Type-Checking Timeout
+private struct SettingsAndActionsPanel: View {
+    let package: PackageMetadata
+    var platformManager: DependencyPlatformManager
+    @Binding var selectedRequirement: DependencyRequirementType
+    @Binding var requirementValue: String
+    let runInstall: () -> Void
+    let runUpdate: () -> Void
+    let runUninstall: () -> Void
+    let runRepair: () -> Void
+    let runVerify: () -> Void
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Target Package")
                 .font(.headline)
@@ -211,9 +233,12 @@ struct PackageInstallationView: View {
         .frame(width: 300, maxHeight: .infinity)
         .background(Color(NSColor.windowBackgroundColor))
     }
+}
 
-    @ViewBuilder
-    private var loggingAndProcessMonitorPanel: some View {
+private struct LoggingAndProcessMonitorPanel: View {
+    var platformManager: DependencyPlatformManager
+
+    var body: some View {
         VStack(spacing: 0) {
             HStack {
                 Label("Console Output Logs", systemImage: "terminal")
