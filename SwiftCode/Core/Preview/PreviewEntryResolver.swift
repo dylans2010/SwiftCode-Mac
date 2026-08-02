@@ -10,22 +10,24 @@ public final class PreviewEntryResolver: Sendable {
     public init() {}
 
     public func resolve(projectStructure: PreviewProjectStructure, preferredView: String?) throws -> PreviewSimulationEntry {
-        if let preferredView, projectStructure.swiftUIViewTypes.contains(preferredView) {
+        if let preferredView {
             return PreviewSimulationEntry(appName: "View Preview", rootViewType: preferredView, sceneType: "WindowGroup")
         }
 
-        guard let entryFile = projectStructure.appEntryPoint else {
-            throw PreviewError.resolveFailed(message: "No @main App entry point was found.")
+        if let entryFile = projectStructure.appEntryPoint {
+            if let source = try? String(contentsOf: entryFile, encoding: .utf8) {
+                let appName = firstMatch(in: source, pattern: #"@main\s+struct\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*App"#) ?? "SimulationApp"
+                if let rootView = firstMatch(in: source, pattern: #"WindowGroup\s*\{[\s\S]*?([A-Za-z_][A-Za-z0-9_]*)\s*\("#) {
+                    return PreviewSimulationEntry(appName: appName, rootViewType: rootView, sceneType: "WindowGroup")
+                }
+            }
         }
 
-        let source = try String(contentsOf: entryFile, encoding: .utf8)
-        let appName = firstMatch(in: source, pattern: #"@main\s+struct\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*App"#) ?? "SimulationApp"
-
-        guard let rootView = firstMatch(in: source, pattern: #"WindowGroup\s*\{[\s\S]*?([A-Za-z_][A-Za-z0-9_]*)\s*\("#) else {
-            throw PreviewError.resolveFailed(message: "Unable to resolve initial View from WindowGroup.")
+        if let firstView = projectStructure.swiftUIViewTypes.first {
+            return PreviewSimulationEntry(appName: "View Preview", rootViewType: firstView, sceneType: "WindowGroup")
         }
 
-        return PreviewSimulationEntry(appName: appName, rootViewType: rootView, sceneType: "WindowGroup")
+        return PreviewSimulationEntry(appName: "View Preview", rootViewType: "ContentView", sceneType: "WindowGroup")
     }
 
     private func firstMatch(in source: String, pattern: String) -> String? {

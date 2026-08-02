@@ -1,6 +1,9 @@
 import Foundation
 import Observation
 import os
+#if os(macOS)
+import AppKit
+#endif
 
 /// Centralized coordinator managing editor, visual UI, and preview session synchronization
 @Observable
@@ -37,6 +40,14 @@ public final class DocumentCoordinator: Sendable {
     // Visual UI Builder state
     public var visualUIDocument: VisualUIDocument?
     public var lastOpenedComponent: String?
+
+    // Compiled Artboards Cache
+    #if os(macOS)
+    public var compiledArtboardViews: [UUID: NSView] = [:]
+    #else
+    public var compiledArtboardViews: [UUID: Any] = [:]
+    #endif
+    public var compiledArtboardErrors: [UUID: String] = [:]
 
     // Preview session reference
     public var previewSession: PreviewSession?

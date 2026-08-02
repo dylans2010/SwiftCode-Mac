@@ -239,21 +239,39 @@ public final class VisualUIArtboard: Identifiable, Codable, Hashable {
     public var name: String
     public var deviceFrame: String // iPhone 16 Pro, iPad Pro, Apple Vision Pro, etc.
     public var rootNode: VisualComponentNode
+    public var customSwiftUISource: String?
+    public var appearance: String? // "Light", "Dark", "System"
+    public var isPortrait: Bool?
+    public var dynamicTypeSize: String?
+    public var previewScale: Double?
+    public var showSafeAreas: Bool?
 
     public init(
         id: UUID = UUID(),
         name: String,
         deviceFrame: String = "iPhone 16 Pro",
-        rootNode: VisualComponentNode
+        rootNode: VisualComponentNode,
+        customSwiftUISource: String? = nil,
+        appearance: String? = "System",
+        isPortrait: Bool? = true,
+        dynamicTypeSize: String? = "Medium",
+        previewScale: Double? = 1.0,
+        showSafeAreas: Bool? = true
     ) {
         self.id = id
         self.name = name
         self.deviceFrame = deviceFrame
         self.rootNode = rootNode
+        self.customSwiftUISource = customSwiftUISource
+        self.appearance = appearance
+        self.isPortrait = isPortrait
+        self.dynamicTypeSize = dynamicTypeSize
+        self.previewScale = previewScale
+        self.showSafeAreas = showSafeAreas
     }
 
     enum CodingKeys: CodingKey {
-        case id, name, deviceFrame, rootNode
+        case id, name, deviceFrame, rootNode, customSwiftUISource, appearance, isPortrait, dynamicTypeSize, previewScale, showSafeAreas
     }
 
     public required init(from decoder: Decoder) throws {
@@ -262,6 +280,12 @@ public final class VisualUIArtboard: Identifiable, Codable, Hashable {
         name = try container.decode(String.self, forKey: .name)
         deviceFrame = try container.decode(String.self, forKey: .deviceFrame)
         rootNode = try container.decode(VisualComponentNode.self, forKey: .rootNode)
+        customSwiftUISource = try container.decodeIfPresent(String.self, forKey: .customSwiftUISource)
+        appearance = try container.decodeIfPresent(String.self, forKey: .appearance) ?? "System"
+        isPortrait = try container.decodeIfPresent(Bool.self, forKey: .isPortrait) ?? true
+        dynamicTypeSize = try container.decodeIfPresent(String.self, forKey: .dynamicTypeSize) ?? "Medium"
+        previewScale = try container.decodeIfPresent(Double.self, forKey: .previewScale) ?? 1.0
+        showSafeAreas = try container.decodeIfPresent(Bool.self, forKey: .showSafeAreas) ?? true
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -270,6 +294,12 @@ public final class VisualUIArtboard: Identifiable, Codable, Hashable {
         try container.encode(name, forKey: .name)
         try container.encode(deviceFrame, forKey: .deviceFrame)
         try container.encode(rootNode, forKey: .rootNode)
+        try container.encodeIfPresent(customSwiftUISource, forKey: .customSwiftUISource)
+        try container.encodeIfPresent(appearance, forKey: .appearance)
+        try container.encodeIfPresent(isPortrait, forKey: .isPortrait)
+        try container.encodeIfPresent(dynamicTypeSize, forKey: .dynamicTypeSize)
+        try container.encodeIfPresent(previewScale, forKey: .previewScale)
+        try container.encodeIfPresent(showSafeAreas, forKey: .showSafeAreas)
     }
 
     public static func == (lhs: VisualUIArtboard, rhs: VisualUIArtboard) -> Bool {
