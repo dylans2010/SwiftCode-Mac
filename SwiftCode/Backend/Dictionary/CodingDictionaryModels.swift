@@ -103,6 +103,14 @@ public struct CodingDictionaryResult: Codable, Sendable, Equatable {
     public let seeAlso: [String]
     public let references: [String]
 
+    // Rich expanded fields
+    public let appleDocsSummary: String
+    public let swiftVersion: String
+    public let alternativeAPIs: [String]
+    public let codeSnippet: String
+    public let complexity: String
+    public let memoryConsiderations: String
+
     public init(
         version: String = "1.0",
         confidence: Int = 100,
@@ -131,7 +139,13 @@ public struct CodingDictionaryResult: Codable, Sendable, Equatable {
         warnings: [String] = [],
         notes: [String] = [],
         seeAlso: [String] = [],
-        references: [String] = []
+        references: [String] = [],
+        appleDocsSummary: String = "",
+        swiftVersion: String = "",
+        alternativeAPIs: [String] = [],
+        codeSnippet: String = "",
+        complexity: String = "",
+        memoryConsiderations: String = ""
     ) {
         self.version = version
         self.confidence = confidence
@@ -161,6 +175,12 @@ public struct CodingDictionaryResult: Codable, Sendable, Equatable {
         self.notes = notes
         self.seeAlso = seeAlso
         self.references = references
+        self.appleDocsSummary = appleDocsSummary
+        self.swiftVersion = swiftVersion
+        self.alternativeAPIs = alternativeAPIs
+        self.codeSnippet = codeSnippet
+        self.complexity = complexity
+        self.memoryConsiderations = memoryConsiderations
     }
 
     public init(from decoder: Decoder) throws {
@@ -193,5 +213,13 @@ public struct CodingDictionaryResult: Codable, Sendable, Equatable {
         self.notes = try container.decodeIfPresent([String].self, forKey: .notes) ?? []
         self.seeAlso = try container.decodeIfPresent([String].self, forKey: .seeAlso) ?? []
         self.references = try container.decodeIfPresent([String].self, forKey: .references) ?? []
+
+        // Decode rich fields with defaults to remain fully backward compatible
+        self.appleDocsSummary = try container.decodeIfPresent(String.self, forKey: .appleDocsSummary) ?? ""
+        self.swiftVersion = try container.decodeIfPresent(String.self, forKey: .swiftVersion) ?? ""
+        self.alternativeAPIs = try container.decodeIfPresent([String].self, forKey: .alternativeAPIs) ?? []
+        self.codeSnippet = try container.decodeIfPresent(String.self, forKey: .codeSnippet) ?? ""
+        self.complexity = try container.decodeIfPresent(String.self, forKey: .complexity) ?? ""
+        self.memoryConsiderations = try container.decodeIfPresent(String.self, forKey: .memoryConsiderations) ?? ""
     }
 }

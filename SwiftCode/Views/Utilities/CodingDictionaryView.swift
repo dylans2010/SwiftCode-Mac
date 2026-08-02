@@ -175,6 +175,19 @@ public class CodingDictionarySplitViewController: NSSplitViewController {
     override public func viewDidLoad() {
         super.viewDidLoad()
         setupSplitView()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleToggleSidebar(_:)),
+            name: NSNotification.Name("com.swiftcode.dictionary.toggleSidebar"),
+            object: nil
+        )
+    }
+
+    @objc private func handleToggleSidebar(_ notification: Notification) {
+        if let leftItem = splitViewItems.first {
+            leftItem.animator().isCollapsed.toggle()
+        }
     }
 
     private func setupSplitView() {
@@ -243,6 +256,7 @@ public final class CodingDictionaryCoordinator {
 // MARK: - Split View Wrappers
 struct CodingDictionarySidebarWrapper: View {
     @State private var coordinator = CodingDictionaryCoordinator.shared
+    @State private var showingSpotlight = false
 
     var body: some View {
         @Bindable var coord = coordinator
@@ -252,6 +266,12 @@ struct CodingDictionarySidebarWrapper: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("CodingDictionaryClearHistory"))) { _ in
                 coordinator.performClearHistory()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("com.swiftcode.dictionary.showSpotlight"))) { _ in
+                showingSpotlight = true
+            }
+            .sheet(isPresented: $showingSpotlight) {
+                CodeDictionarySearch()
             }
     }
 }
@@ -302,30 +322,27 @@ private struct DictionarySidebarView: View {
                     .font(.headline)
                     .foregroundStyle(.primary)
 
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("Search terminology, concepts...", text: $searchText)
-                        .focused($isFieldFocused)
-                        .textFieldStyle(.plain)
-                        .onSubmit {
-                            let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-                            if !trimmed.isEmpty {
-                                manager.search(query: trimmed)
-                            }
-                        }
-                    if !searchText.isEmpty {
-                        Button {
-                            searchText = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
+                Button {
+                    NotificationCenter.default.post(name: NSNotification.Name("com.swiftcode.dictionary.showSpotlight"), object: nil)
+                } label: {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        Text("Spotlight Search...")
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("⌘K")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 4)
+                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
                     }
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.06)))
                 }
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.06)))
+                .buttonStyle(.plain)
+                // Register standard Command-K shortcut to activate Spotlight
+                .keyboardShortcut("k", modifiers: .command)
             }
             .padding([.top, .horizontal], 14)
 
@@ -470,7 +487,18 @@ private struct DictionaryDetailView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         // Title Header Area
                         VStack(alignment: .leading, spacing: 6) {
-                            HStack(alignment: .top) {
+                            HStack(alignment: .top, spacing: 12) {
+                                Button {
+                                    NotificationCenter.default.post(name: NSNotification.Name("com.swiftcode.dictionary.toggleSidebar"), object: nil)
+                                } label: {
+                                    Image(systemName: "sidebar.left")
+                                        .font(.title2)
+                                        .foregroundColor(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Toggle Sidebar")
+                                .padding(.top, 4)
+
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack(spacing: 8) {
                                         Text(result.kind)
@@ -817,6 +845,66 @@ private struct DictionaryDetailView: View {
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 } copyText: { result.references.joined(separator: "\n") }
+                            }
+
+                            // Expanded AI Cards
+                            if !result.appleDocsSummary.isEmpty {
+                                DictionarySectionCard(title: "Apple Documentation Summary", icon: "doc.text.fill") {
+                                    Text(result.appleDocsSummary)
+                                        .font(.body)
+                                        .foregroundStyle(.secondary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .textSelection(.enabled)
+                                } copyText: { result.appleDocsSummary }
+                            }
+
+                            if !result.swiftVersion.isEmpty {
+                                DictionarySectionCard(title: "Swift Version Compatibility", icon: "swift") {
+                                    Text(result.swiftVersion)
+                                        .font(.body)
+                                        .foregroundStyle(.secondary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .textSelection(.enabled)
+                                } copyText: { result.swiftVersion }
+                            }
+
+                            if !result.alternativeAPIs.isEmpty {
+                                DictionarySectionCard(title: "Alternative APIs", icon: "arrow.3.trianglepath") {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        ForEach(result.alternativeAPIs, id: \.self) { api in
+                                            Text("• \(api)")
+                                                .font(.body)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                } copyText: { result.alternativeAPIs.joined(separator: "\n") }
+                            }
+
+                            if !result.codeSnippet.isEmpty {
+                                DictionarySectionCard(title: "Primary Code Snippet", icon: "curlybraces.square") {
+                                    DictionaryCodeBlock(code: result.codeSnippet)
+                                } copyText: { result.codeSnippet }
+                            }
+
+                            if !result.complexity.isEmpty {
+                                DictionarySectionCard(title: "Time & Space Complexity", icon: "clock.arrow.2.circlepath") {
+                                    Text(result.complexity)
+                                        .font(.body)
+                                        .foregroundStyle(.secondary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .textSelection(.enabled)
+                                } copyText: { result.complexity }
+                            }
+
+                            if !result.memoryConsiderations.isEmpty {
+                                DictionarySectionCard(title: "Memory Considerations (ARC)", icon: "memorychip") {
+                                    Text(result.memoryConsiderations)
+                                        .font(.body)
+                                        .foregroundStyle(.secondary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .textSelection(.enabled)
+                                } copyText: { result.memoryConsiderations }
                             }
                         }
                     }

@@ -86,6 +86,36 @@ public final class PreviewManager {
         isCompiling = false
     }
 
+    @MainActor
+    public func synchronizeArtboardsForPreviews(sourcePath: String, sourceCode: String) {
+        guard let document = DocumentCoordinator.shared.visualUIDocument else { return }
+        let parsed = PreviewBlockParser.parsePreviews(in: sourceCode)
+
+        var newArtboards = document.scene.artboards.filter { $0.name == "Default" }
+        if newArtboards.isEmpty {
+            let rootNode = VisualComponentNode(type: .vStack)
+            let defaultArtboard = VisualUIArtboard(name: "Default", deviceFrame: VisualUISettings.shared.selectedDevice, rootNode: rootNode)
+            newArtboards.append(defaultArtboard)
+        }
+
+        for preview in parsed {
+            let name = preview.title
+            if name == "Default" { continue }
+            if let existing = document.scene.artboards.first(where: { $0.name == name }) {
+                newArtboards.append(existing)
+            } else {
+                let rootNode = VisualComponentNode(type: .vStack)
+                let artboard = VisualUIArtboard(name: name, deviceFrame: VisualUISettings.shared.selectedDevice, rootNode: rootNode)
+                newArtboards.append(artboard)
+            }
+        }
+
+        document.scene.artboards = newArtboards
+        if document.scene.activeArtboardID == nil || !document.scene.artboards.contains(where: { $0.id == document.scene.activeArtboardID }) {
+            document.scene.activeArtboardID = document.scene.artboards.first?.id
+        }
+    }
+
     public func startPreviewSession(sourcePath: String, sourceCode: String, targetView: String, requestID: UUID? = nil) async {
         let actualRequestID = requestID ?? UUID()
         if requestID == nil {
@@ -95,7 +125,8 @@ public final class PreviewManager {
         isCompiling = true
         buildLogs = ["Initializing persistent runtime session..."]
 
-        var session = self.activeSession ?? PreviewSession(
+        // ALWAYS create a brand new PreviewSession and never reuse/continue an existing session
+        var session = PreviewSession(
             sessionID: UUID().uuidString,
             sourceFilePath: sourcePath,
             targetViewName: targetView,
@@ -110,6 +141,9 @@ public final class PreviewManager {
         PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to COMPILING for target '\(targetView)'")
 
         guard self.currentSessionRequestID == actualRequestID else { return }
+
+        // Synchronize parsed previews with artboards automatically
+        synchronizeArtboardsForPreviews(sourcePath: sourcePath, sourceCode: sourceCode)
 
         do {
             // 5. Transition to RENDERING
