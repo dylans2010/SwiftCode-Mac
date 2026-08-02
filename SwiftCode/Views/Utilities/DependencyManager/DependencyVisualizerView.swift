@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct DependencyVisualizerView: View {
-    @Environment(\.dismiss) private var dismiss
     @Environment(ProjectSessionStore.self) private var sessionStore
 
     @State private var platformManager = DependencyPlatformManager.shared
@@ -9,40 +8,185 @@ struct DependencyVisualizerView: View {
     @State private var selectedNode: DependencyVisualNode?
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header Bar
-            HStack {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.title3)
+        ScrollView {
+            VStack(spacing: 24) {
+                // Info Header Card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Label("Interactive Dependency Graph Visualizer", systemImage: "network")
+                                .font(.title2.bold())
+                                .foregroundColor(.cyan)
+                            Spacer()
+                        }
+
+                        Text("Interactive structural map showing direct, nested, and conflicting targets.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
                 }
-                .buttonStyle(.plain)
-                .keyboardShortcut("[", modifiers: .command)
+                .groupBoxStyle(ModernGroupBoxStyle())
 
-                Text("Interactive Dependency Graph Visualizer")
-                    .font(.title2.bold())
+                // Graph Map Canvas Card
+                GroupBox {
+                    VStack(spacing: 12) {
+                        HStack {
+                            Label("Dependency Relations Map", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                                .font(.headline)
+                                .foregroundColor(.blue)
+                            Spacer()
+                        }
 
-                Spacer()
+                        Divider()
+
+                        if dependencies.isEmpty {
+                            ContentUnavailableView(
+                                "No Active Packages",
+                                systemImage: "puzzlepiece.extension",
+                                description: Text("No active packages detected in Package.swift.")
+                            )
+                            .padding(.vertical, 32)
+                        } else {
+                            ScrollView([.horizontal, .vertical], showsIndicators: true) {
+                                VStack(spacing: 32) {
+                                    // Root Node (Active Project)
+                                    VStack(spacing: 6) {
+                                        Image(systemName: "folder.badge.gearshape")
+                                            .font(.title2)
+                                            .foregroundStyle(.blue)
+                                        Text(sessionStore.activeProject?.name ?? "Active Project")
+                                            .font(.headline)
+                                        Text("v1.0.0 (Root)")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding()
+                                    .frame(width: 150)
+                                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+
+                                    let graphNodes = platformManager.buildDependencyGraph(dependencies: dependencies)
+
+                                    HStack(alignment: .top, spacing: 20) {
+                                        ForEach(graphNodes) { node in
+                                            Button {
+                                                selectedNode = node
+                                            } label: {
+                                                VStack(spacing: 8) {
+                                                    Image(systemName: node.isLocal ? "folder.fill" : "puzzlepiece.extension.fill")
+                                                        .font(.title3)
+                                                        .foregroundStyle(node.hasConflict ? .red : (node.isLocal ? .orange : .blue))
+
+                                                    Text(node.name)
+                                                        .font(.subheadline.bold())
+                                                        .lineLimit(1)
+
+                                                    Text(node.version)
+                                                        .font(.system(size: 9, design: .monospaced))
+                                                        .foregroundStyle(.secondary)
+
+                                                    if node.hasConflict {
+                                                        Label("Risk", systemImage: "exclamationmark.triangle.fill")
+                                                            .font(.system(size: 8))
+                                                            .foregroundStyle(.red)
+                                                    }
+                                                }
+                                                .padding()
+                                                .frame(width: 130)
+                                                .background(
+                                                    selectedNode?.id == node.id
+                                                    ? Color.accentColor.opacity(0.12)
+                                                    : Color.secondary.opacity(0.04),
+                                                    in: RoundedRectangle(cornerRadius: 10)
+                                                )
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 10)
+                                                        .stroke(selectedNode?.id == node.id ? Color.accentColor : Color.clear, lineWidth: 2)
+                                                )
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                    }
+                                }
+                                .padding(24)
+                            }
+                            .frame(height: 280)
+                            .background(Color.black.opacity(0.1))
+                            .cornerRadius(10)
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // Details Inspector Card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Label("Dependency Details", systemImage: "doc.text.magnifyingglass")
+                            .font(.headline)
+                            .foregroundColor(.orange)
+
+                        Divider()
+
+                        if let node = selectedNode {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text(node.name)
+                                    .font(.title3.bold())
+
+                                HStack(spacing: 16) {
+                                    Label("Version: \(node.version)", systemImage: "tag")
+                                        .font(.subheadline)
+
+                                    Label("Type: \(node.isLocal ? "Local Directory" : "Remote SPM URL")", systemImage: node.isLocal ? "folder" : "link")
+                                        .font(.subheadline)
+                                }
+
+                                if node.hasConflict {
+                                    HStack {
+                                        Image(systemName: "exclamationmark.shield.fill")
+                                            .foregroundColor(.red)
+                                        Text("This package contains severe known advisories. Open Security Center for details.")
+                                            .font(.caption)
+                                            .foregroundColor(.red)
+                                    }
+                                    .padding(10)
+                                    .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                                }
+
+                                Text("Sub-dependencies:")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+
+                                if node.dependencies.isEmpty {
+                                    Text("No secondary sub-dependencies.")
+                                        .font(.caption)
+                                        .italic()
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 180))], alignment: .leading, spacing: 8) {
+                                        ForEach(node.dependencies, id: \.self) { sub in
+                                            Label(sub, systemImage: "arrow.turn.down.right")
+                                                .font(.system(size: 11, design: .monospaced))
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            ContentUnavailableView(
+                                "No Selection",
+                                systemImage: "hand.tap",
+                                description: Text("Select a dependency block on the relations map above to inspect details.")
+                            )
+                            .padding(.vertical, 16)
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
-            .background(Color(NSColor.windowBackgroundColor))
-
-            Divider()
-
-            HSplitView {
-                InteractiveVectorCanvasView(
-                    dependencies: dependencies,
-                    sessionStore: sessionStore,
-                    platformManager: platformManager,
-                    selectedNode: $selectedNode
-                )
-                DetailsInspectorPanel(selectedNode: selectedNode)
-            }
+            .padding(24)
         }
-        .background(Color(NSColor.windowBackgroundColor))
+        .navigationTitle("Graph Visualizer")
         .onAppear {
             loadDependencies()
         }
@@ -80,178 +224,5 @@ struct DependencyVisualizerView: View {
         }
 
         self.dependencies = parsedList
-    }
-}
-
-// MARK: - Private Subviews to Prevent Compiler Type-Checking Timeout
-private struct InteractiveVectorCanvasView: View {
-    let dependencies: [ParsedDependency]
-    let sessionStore: ProjectSessionStore
-    var platformManager: DependencyPlatformManager
-    @Binding var selectedNode: DependencyVisualNode?
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Label("Dependency Relations Map", systemImage: "network")
-                    .font(.headline)
-                Spacer()
-            }
-            .padding()
-            .background(Color(NSColor.windowBackgroundColor))
-
-            Divider()
-
-            if dependencies.isEmpty {
-                VStack(spacing: 16) {
-                    Spacer()
-                    Image(systemName: "puzzlepiece.extension")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.secondary)
-                    Text("No active packages detected in Package.swift.")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(NSColor.controlBackgroundColor))
-            } else {
-                ScrollView([.horizontal, .vertical]) {
-                    VStack(spacing: 40) {
-                        // Root Node (Active Project)
-                        VStack(spacing: 8) {
-                            Image(systemName: "folder.badge.gearshape")
-                                .font(.title)
-                                .foregroundStyle(.blue)
-                            Text(sessionStore.activeProject?.name ?? "Active Project")
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-                            Text("v1.0.0 (Root)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding()
-                        .frame(width: 160)
-                        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
-
-                        // Connector lines & child nodes
-                        let graphNodes = platformManager.buildDependencyGraph(dependencies: dependencies)
-
-                        HStack(alignment: .top, spacing: 30) {
-                            ForEach(graphNodes) { node in
-                                Button {
-                                    selectedNode = node
-                                } label: {
-                                    VStack(spacing: 10) {
-                                        Image(systemName: node.isLocal ? "folder.fill" : "puzzlepiece.extension.fill")
-                                            .font(.title2)
-                                            .foregroundStyle(node.hasConflict ? .red : (node.isLocal ? .orange : .blue))
-
-                                        Text(node.name)
-                                            .font(.subheadline.bold())
-                                            .foregroundStyle(.primary)
-
-                                        Text(node.version)
-                                            .font(.caption2.monospaced())
-                                            .foregroundStyle(.secondary)
-
-                                        if node.hasConflict {
-                                            Label("Risk", systemImage: "exclamationmark.triangle.fill")
-                                                .font(.caption2)
-                                                .foregroundStyle(.red)
-                                        }
-                                    }
-                                    .padding()
-                                    .frame(width: 140)
-                                    .background(
-                                        selectedNode?.id == node.id
-                                        ? Color.accentColor.opacity(0.12)
-                                        : Color.secondary.opacity(0.04),
-                                        in: RoundedRectangle(cornerRadius: 12)
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(selectedNode?.id == node.id ? Color.accentColor : Color.clear, lineWidth: 2)
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                    .padding(40)
-                    .frame(minWidth: 800, minHeight: 400)
-                }
-                .background(Color(NSColor.controlBackgroundColor))
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-private struct DetailsInspectorPanel: View {
-    let selectedNode: DependencyVisualNode?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("Dependency Details")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-
-            if let node = selectedNode {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text(node.name)
-                        .font(.title3.bold())
-
-                    Label("Version: \(node.version)", systemImage: "tag")
-                        .font(.subheadline)
-
-                    Label("Type: \(node.isLocal ? "Local Directory" : "Remote SPM URL")", systemImage: node.isLocal ? "folder" : "link")
-                        .font(.subheadline)
-
-                    Divider()
-
-                    if node.hasConflict {
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Label("Security Vulnerability", systemImage: "exclamationmark.shield.fill")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.red)
-                                Text("This package contains severe known advisories. Open Security Center for details.")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(6)
-                        }
-                        .groupBoxStyle(ModernGroupBoxStyle())
-                    }
-
-                    Text("Sub-dependencies:")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-
-                    if node.dependencies.isEmpty {
-                        Text("No secondary sub-dependencies.")
-                            .font(.caption)
-                            .italic()
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(node.dependencies, id: \.self) { sub in
-                            Label(sub, systemImage: "arrow.turn.down.right")
-                                .font(.caption.monospaced())
-                        }
-                    }
-                }
-            } else {
-                ContentUnavailableView {
-                    Label("No Node Selected", systemImage: "hand.tap")
-                } description: {
-                    Text("Select a dependency block on the left canvas to inspect nested relationships.")
-                }
-            }
-            Spacer()
-        }
-        .padding(20)
-        .frame(minWidth: 260, idealWidth: 260, maxWidth: 260, minHeight: nil, idealHeight: nil, maxHeight: .infinity, alignment: .center)
-        .background(Color(NSColor.windowBackgroundColor))
     }
 }

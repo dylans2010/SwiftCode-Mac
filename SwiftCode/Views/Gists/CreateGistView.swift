@@ -70,11 +70,27 @@ struct CreateGistView: View {
                     // Files Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
-                            HStack {
+                            HStack(spacing: 8) {
                                 Label("Gist Files", systemImage: "doc.text.fill")
                                     .font(.headline)
                                     .foregroundColor(.blue)
                                 Spacer()
+
+                                Button(action: {
+                                    let panel = NSOpenPanel()
+                                    panel.allowsMultipleSelection = false
+                                    panel.canChooseDirectories = false
+                                    panel.canChooseFiles = true
+                                    if panel.runModal() == .OK, let url = panel.url {
+                                        if let content = try? String(contentsOf: url, encoding: .utf8) {
+                                            files.append(GistFile(filename: url.lastPathComponent, content: content))
+                                        }
+                                    }
+                                }) {
+                                    Label("Import Local File", systemImage: "square.and.arrow.down")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
 
                                 Button(action: {
                                     files.append(GistFile(filename: "file.swift", content: ""))

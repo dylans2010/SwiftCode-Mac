@@ -102,20 +102,75 @@ struct GistsView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List {
-                    Section("Your Gist Directory") {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
                         ForEach(filteredGists) { gist in
                             Button {
                                 currentScreen = .detail(id: gist.id)
                             } label: {
-                                HStack {
-                                    GistRowView(gist: gist, isStarred: starredGistIDs.contains(gist.id))
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption)
-                                        .foregroundStyle(.tertiary)
+                                GroupBox {
+                                    HStack(spacing: 16) {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(Color.orange.opacity(0.12))
+                                                .frame(width: 44, height: 44)
+                                            Image(systemName: "doc.on.doc.fill")
+                                                .font(.title3)
+                                                .foregroundColor(.orange)
+                                        }
+
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            HStack {
+                                                Text(gist.description ?? gist.files.keys.first ?? "Untitled Gist")
+                                                    .font(.headline)
+                                                    .foregroundColor(.primary)
+                                                    .lineLimit(1)
+
+                                                Spacer()
+
+                                                if starredGistIDs.contains(gist.id) {
+                                                    Image(systemName: "star.fill")
+                                                        .foregroundColor(.yellow)
+                                                        .font(.caption)
+                                                }
+
+                                                if !gist.public {
+                                                    Image(systemName: "lock.fill")
+                                                        .foregroundColor(.secondary)
+                                                        .font(.caption)
+                                                }
+                                            }
+
+                                            HStack(spacing: 8) {
+                                                ForEach(Array(gist.files.values.prefix(3)), id: \.filename) { file in
+                                                    Text(file.filename)
+                                                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                                        .padding(.horizontal, 6)
+                                                        .padding(.vertical, 2)
+                                                        .background(Color.primary.opacity(0.06), in: Capsule())
+                                                }
+
+                                                if gist.files.count > 3 {
+                                                    Text("+\(gist.files.count - 3) more")
+                                                        .font(.caption2)
+                                                        .foregroundStyle(.secondary)
+                                                }
+
+                                                Spacer()
+
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: "clock")
+                                                        .font(.system(size: 10))
+                                                    Text(gist.updatedAt, style: .relative)
+                                                        .font(.system(size: 10))
+                                                }
+                                                .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                    }
+                                    .padding(6)
                                 }
-                                .padding(.vertical, 6)
+                                .groupBoxStyle(ModernGroupBoxStyle())
                             }
                             .buttonStyle(.plain)
                             .contextMenu {
@@ -126,11 +181,10 @@ struct GistsView: View {
                                     toggleStar(gist)
                                 }
                             }
-                            Divider()
                         }
                     }
+                    .padding(24)
                 }
-                .listStyle(.plain)
             }
         }
         .task {

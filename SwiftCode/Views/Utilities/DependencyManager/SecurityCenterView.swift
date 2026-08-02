@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct DependencySecurityCenterView: View {
-    @Environment(\.dismiss) private var dismiss
     @Environment(ProjectSessionStore.self) private var sessionStore
 
     @State private var platformManager = DependencyPlatformManager.shared
@@ -18,105 +17,221 @@ struct DependencySecurityCenterView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header Bar
-            HStack {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.title3)
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut("[", modifiers: .command)
+        ScrollView {
+            VStack(spacing: 24) {
+                // Header card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Ecosystem Security & Audit Suite", systemImage: "shield.checkerboard")
+                                .font(.title2.bold())
+                                .foregroundColor(.green)
+                            Spacer()
 
-                Text("Ecosystem Security & Audit Suite")
-                    .font(.title2.bold())
+                            Button {
+                                triggerSecurityScan()
+                            } label: {
+                                Label(platformManager.securityScanRunning ? "Scanning..." : "Execute Security Scan", systemImage: "shield.lefthalf.filled")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.green)
+                            .disabled(platformManager.securityScanRunning)
+                        }
 
-                Spacer()
-
-                Button {
-                    triggerSecurityScan()
-                } label: {
-                    Label(platformManager.securityScanRunning ? "Scanning..." : "Execute Security Scan", systemImage: "shield.lefthalf.filled")
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(platformManager.securityScanRunning)
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
-            .background(Color(NSColor.windowBackgroundColor))
-
-            Divider()
-
-            // Health Header Summary
-            HStack(spacing: 30) {
-                VStack(alignment: .leading) {
-                    Text("Risk Score")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                    HStack(spacing: 6) {
-                        Image(systemName: platformManager.securityScore > 80 ? "shield.fill" : "exclamationmark.shield.fill")
-                            .foregroundStyle(platformManager.securityScore > 80 ? .green : (platformManager.securityScore > 50 ? .orange : .red))
-                        Text("\(platformManager.securityScore)/100")
-                            .font(.title.bold())
+                        Text("Vulnerability CVE checking, deprecated repository analyzer, and license compliance audits.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
+                    .padding()
                 }
+                .groupBoxStyle(ModernGroupBoxStyle())
 
-                VStack(alignment: .leading) {
-                    Text("Scanned Dependencies")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                    Text("\(dependencies.count) targets")
-                        .font(.title.bold())
+                // Health Summary Grid Card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Label("Security Dashboard Health Index", systemImage: "heart.text.square.fill")
+                            .font(.headline)
+                            .foregroundColor(.orange)
+
+                        Divider()
+
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 200))], spacing: 16) {
+                            // Risk score metric
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Risk Score")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+                                HStack(spacing: 6) {
+                                    Image(systemName: platformManager.securityScore > 80 ? "shield.fill" : "exclamationmark.shield.fill")
+                                        .foregroundStyle(platformManager.securityScore > 80 ? .green : (platformManager.securityScore > 50 ? .orange : .red))
+                                    Text("\(platformManager.securityScore)/100")
+                                        .font(.title3.bold())
+                                }
+                            }
+                            .padding()
+                            .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+
+                            // Scanned target count metric
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Scanned Targets")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+                                Text("\(dependencies.count) Packages")
+                                    .font(.title3.bold())
+                            }
+                            .padding()
+                            .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+
+                            // Advisory count metric
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Active Advisories")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+                                let matches = countAdvisories()
+                                Text("\(matches) Warnings")
+                                    .font(.title3.bold())
+                                    .foregroundStyle(matches > 0 ? .red : .primary)
+                            }
+                            .padding()
+                            .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+                        }
+                    }
+                    .padding()
                 }
+                .groupBoxStyle(ModernGroupBoxStyle())
 
-                VStack(alignment: .leading) {
-                    Text("Advisories Found")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                    let matches = countAdvisories()
-                    Text("\(matches) warnings")
-                        .font(.title.bold())
-                        .foregroundStyle(matches > 0 ? .red : .primary)
+                // Tab Selector Card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Label("Audit Dimensions", systemImage: "checklist")
+                            .font(.headline)
+                            .foregroundColor(.blue)
+
+                        Divider()
+
+                        HStack(spacing: 8) {
+                            ForEach(SecurityTab.allCases) { tab in
+                                Button {
+                                    activeTab = tab
+                                } label: {
+                                    Text(tab.rawValue)
+                                        .fontWeight(activeTab == tab ? .bold : .regular)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 8)
+                                        .background(activeTab == tab ? Color.accentColor.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
+                                        .foregroundStyle(activeTab == tab ? Color.accentColor : .primary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .padding()
                 }
+                .groupBoxStyle(ModernGroupBoxStyle())
 
-                Spacer()
+                // Audit Results Card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Label("Scanned Findings Report", systemImage: "doc.text")
+                            .font(.headline)
+                            .foregroundColor(.purple)
+
+                        Divider()
+
+                        if platformManager.securityScanRunning {
+                            VStack(spacing: 16) {
+                                ProgressView()
+                                Text("Running static vulnerability scanner...")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 24)
+                        } else {
+                            switch activeTab {
+                            case .vulnerabilities:
+                                renderVulnerabilities()
+                            case .licenses:
+                                renderLicenses()
+                            case .maintenance:
+                                renderMaintenance()
+                            }
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // Selected Advisory Detailed Inspector (Inline Card)
+                if let advisory = selectedAdvisory {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Risk Details Inspector", systemImage: "exclamationmark.shield.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.red)
+                                Spacer()
+                                Button {
+                                    selectedAdvisory = nil
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+
+                            Divider()
+
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text(advisory.packageName)
+                                    .font(.title3.bold())
+
+                                Text(advisory.title)
+                                    .font(.headline)
+
+                                Text(advisory.severity)
+                                    .font(.caption.bold())
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(advisory.severity == "Critical" ? Color.red.opacity(0.15) : Color.orange.opacity(0.15), in: Capsule())
+                                    .foregroundStyle(advisory.severity == "Critical" ? Color.red : Color.orange)
+
+                                Divider()
+
+                                HStack(spacing: 24) {
+                                    Text("Affected: \(advisory.affectedVersions)")
+                                        .font(.caption.bold())
+                                    Text("Fixed Version: \(advisory.fixedVersion)")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.green)
+                                }
+
+                                Divider()
+
+                                Text("Advisory Explanation:")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+                                Text(advisory.details)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                if !advisory.advisoryUrl.isEmpty {
+                                    Link(destination: URL(string: advisory.advisoryUrl)!) {
+                                        Label("View Official Advisory Reference", systemImage: "link")
+                                            .font(.caption.bold())
+                                    }
+                                }
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+                }
             }
             .padding(24)
-            .background(Color(NSColor.windowBackgroundColor))
-
-            Divider()
-
-            // Tab switcher
-            HStack {
-                ForEach(SecurityTab.allCases) { tab in
-                    Button {
-                        activeTab = tab
-                    } label: {
-                        Text(tab.rawValue)
-                            .fontWeight(activeTab == tab ? .bold : .regular)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(activeTab == tab ? Color.accentColor.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
-                            .foregroundStyle(activeTab == tab ? Color.accentColor : .primary)
-                    }
-                    .buttonStyle(.plain)
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 10)
-            .background(Color(NSColor.windowBackgroundColor))
-
-            Divider()
-
-            HSplitView {
-                scanListAndBreakdownView
-                detailsInspectorCardView
-            }
         }
-        .background(Color(NSColor.windowBackgroundColor))
+        .navigationTitle("Security Center")
         .onAppear {
             loadDependencies()
         }
@@ -127,17 +242,18 @@ struct DependencySecurityCenterView: View {
         let matches = getActiveAdvisories()
 
         if matches.isEmpty {
-            VStack(spacing: 16) {
-                Spacer()
+            VStack(spacing: 12) {
                 Image(systemName: "checkmark.shield.fill")
-                    .font(.system(size: 40))
+                    .font(.system(size: 32))
                     .foregroundStyle(.green)
                 Text("No active vulnerabilities found in imported packages.")
-                    .font(.headline)
-                Spacer()
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
             }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 24)
         } else {
-            List {
+            VStack(spacing: 10) {
                 ForEach(matches) { adv in
                     Button {
                         selectedAdvisory = adv
@@ -145,7 +261,8 @@ struct DependencySecurityCenterView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(adv.packageName)
-                                    .font(.headline)
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(.primary)
                                 Text(adv.title)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -156,7 +273,8 @@ struct DependencySecurityCenterView: View {
                                 .font(.caption2.bold())
                                 .foregroundStyle(adv.severity == "Critical" ? .red : .orange)
                         }
-                        .padding(8)
+                        .padding(12)
+                        .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
                 }
@@ -166,15 +284,15 @@ struct DependencySecurityCenterView: View {
 
     @ViewBuilder
     private func renderLicenses() -> some View {
-        List {
+        VStack(spacing: 10) {
             ForEach(dependencies) { dep in
                 let name = dep.url.split(separator: "/").last?.replacingOccurrences(of: ".git", with: "") ?? dep.url
                 HStack {
                     Image(systemName: "doc.text.fill")
                         .foregroundStyle(.blue)
-                    VStack(alignment: .leading) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(name)
-                            .font(.headline)
+                            .font(.subheadline.bold())
                         Text(dep.isLocal ? "Local Path" : dep.url)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -185,23 +303,25 @@ struct DependencySecurityCenterView: View {
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(Color.green.opacity(0.12), in: Capsule())
+                        .foregroundStyle(.green)
                 }
-                .padding(.vertical, 4)
+                .padding(12)
+                .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
             }
         }
     }
 
     @ViewBuilder
     private func renderMaintenance() -> some View {
-        List {
+        VStack(spacing: 10) {
             ForEach(dependencies) { dep in
                 let name = dep.url.split(separator: "/").last?.replacingOccurrences(of: ".git", with: "") ?? dep.url
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.yellow)
-                    VStack(alignment: .leading) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(name)
-                            .font(.headline)
+                            .font(.subheadline.bold())
                         Text("Release cadence: Stable (~4 releases / year)")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -211,7 +331,8 @@ struct DependencySecurityCenterView: View {
                         .font(.caption)
                         .foregroundStyle(.green)
                 }
-                .padding(.vertical, 4)
+                .padding(12)
+                .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
             }
         }
     }
@@ -269,93 +390,5 @@ struct DependencySecurityCenterView: View {
         Task {
             await platformManager.executeSecurityScan(dependencies: dependencies)
         }
-    }
-
-    @ViewBuilder
-    private var scanListAndBreakdownView: some View {
-        VStack(spacing: 0) {
-            if platformManager.securityScanRunning {
-                VStack(spacing: 16) {
-                    Spacer()
-                    ProgressView()
-                    Text("Running static vulnerability scanner...")
-                        .font(.headline)
-                    Spacer()
-                }
-            } else {
-                switch activeTab {
-                case .vulnerabilities:
-                    renderVulnerabilities()
-                case .licenses:
-                    renderLicenses()
-                case .maintenance:
-                    renderMaintenance()
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(NSColor.controlBackgroundColor))
-    }
-
-    @ViewBuilder
-    private var detailsInspectorCardView: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("Risk Details Inspector")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-
-            if let advisory = selectedAdvisory {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(advisory.packageName)
-                        .font(.title3.bold())
-
-                    Text(advisory.title)
-                        .font(.headline)
-
-                    HStack {
-                        Text(advisory.severity)
-                            .font(.caption.bold())
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(advisory.severity == "Critical" ? Color.red.opacity(0.15) : Color.orange.opacity(0.15), in: Capsule())
-                            .foregroundStyle(advisory.severity == "Critical" ? Color.red : Color.orange)
-
-                        Spacer()
-                    }
-
-                    Divider()
-
-                    Text("Affected: \(advisory.affectedVersions)")
-                        .font(.caption.bold())
-                    Text("Fixed Version: \(advisory.fixedVersion)")
-                        .font(.caption.bold())
-                        .foregroundStyle(.green)
-
-                    Divider()
-
-                    Text("Details:")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                    Text(advisory.details)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    if !advisory.advisoryUrl.isEmpty {
-                        Link("View Security Advisory", destination: URL(string: advisory.advisoryUrl)!)
-                            .font(.caption)
-                    }
-                }
-            } else {
-                ContentUnavailableView {
-                    Label("Select Advisory", systemImage: "shield.questionmark")
-                } description: {
-                    Text("Select a vulnerability report on the left panel to inspect CVE details and upgrade advice.")
-                }
-            }
-            Spacer()
-        }
-        .padding(20)
-        .frame(minWidth: 280, idealWidth: 280, maxWidth: 280, minHeight: nil, idealHeight: nil, maxHeight: .infinity, alignment: .center)
-        .background(Color(NSColor.windowBackgroundColor))
     }
 }

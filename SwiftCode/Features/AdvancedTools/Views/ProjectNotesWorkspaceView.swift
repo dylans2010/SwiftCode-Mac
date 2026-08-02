@@ -9,8 +9,8 @@ public struct ProjectNotesWorkspaceView: View {
     @State private var state = ProjectNotesWorkspaceState.shared
 
     // Collapsible states
-    @State private var showSidebar = true
-    @State private var showInspector = true
+    @State private var showSidebar = false
+    @State private var showInspector = false
 
     // Sidebar states
     @State private var editingNotebookId: UUID? = nil
@@ -219,31 +219,31 @@ public struct ProjectNotesWorkspaceView: View {
                         state.noteFilter = "All"
                     }
 
-                    SidebarRowButton(title: "Pinned 📌", icon: "pin.fill", color: .orange, isSelected: state.noteFilter == "Pinned") {
+                    SidebarRowButton(title: "Pinned", icon: "pin.fill", color: .orange, isSelected: state.noteFilter == "Pinned") {
                         state.noteFilter = "Pinned"
                     }
 
-                    SidebarRowButton(title: "Favorites ⭐", icon: "star.fill", color: .yellow, isSelected: state.noteFilter == "Favorites") {
+                    SidebarRowButton(title: "Favorites", icon: "star.fill", color: .yellow, isSelected: state.noteFilter == "Favorites") {
                         state.noteFilter = "Favorites"
                     }
 
-                    SidebarRowButton(title: "Recently Viewed 👥", icon: "clock.fill", color: .purple, isSelected: state.noteFilter == "Recent") {
+                    SidebarRowButton(title: "Recently Viewed", icon: "clock.fill", color: .purple, isSelected: state.noteFilter == "Recent") {
                         state.noteFilter = "Recent"
                     }
 
-                    SidebarRowButton(title: "Tasks & To-Dos ✅", icon: "checkmark.circle.fill", color: .green, isSelected: state.noteFilter == "Todo") {
+                    SidebarRowButton(title: "Tasks & To-Dos", icon: "checkmark.circle.fill", color: .green, isSelected: state.noteFilter == "Todo") {
                         state.noteFilter = "Todo"
                     }
 
-                    SidebarRowButton(title: "Daily Notes 📅", icon: "calendar", color: .teal, isSelected: state.noteFilter == "Daily Notes") {
+                    SidebarRowButton(title: "Daily Notes", icon: "calendar", color: .teal, isSelected: state.noteFilter == "Daily Notes") {
                         state.noteFilter = "Daily Notes"
                     }
 
-                    SidebarRowButton(title: "Scratch Pad 📝", icon: "note.text", color: .pink, isSelected: state.noteFilter == "Scratch Pad") {
+                    SidebarRowButton(title: "Scratch Pad", icon: "note.text", color: .pink, isSelected: state.noteFilter == "Scratch Pad") {
                         state.noteFilter = "Scratch Pad"
                     }
 
-                    SidebarRowButton(title: "Archived Notes 🗄️", icon: "archivebox.fill", color: .secondary, isSelected: state.noteFilter == "Archived") {
+                    SidebarRowButton(title: "Archived Notes", icon: "archivebox.fill", color: .secondary, isSelected: state.noteFilter == "Archived") {
                         state.noteFilter = "Archived"
                     }
                 }
