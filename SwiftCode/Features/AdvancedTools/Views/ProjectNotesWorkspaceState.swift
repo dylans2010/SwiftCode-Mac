@@ -144,7 +144,7 @@ public final class ProjectNotesWorkspaceState {
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted
             let data = try encoder.encode(dto)
-            try data.write(to: metadataURL, atomically: true)
+            try data.write(to: metadataURL, options: .atomic)
         } catch {
             logger.error("Failed to save project notes metadata: \(error.localizedDescription)")
         }

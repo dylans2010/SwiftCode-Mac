@@ -112,89 +112,8 @@ struct DependencySecurityCenterView: View {
             Divider()
 
             HSplitView {
-                // Left Area: Scan List/Breakdown
-                VStack(spacing: 0) {
-                    if platformManager.securityScanRunning {
-                        VStack(spacing: 16) {
-                            Spacer()
-                            ProgressView()
-                            Text("Running static vulnerability scanner...")
-                                .font(.headline)
-                            Spacer()
-                        }
-                    } else {
-                        switch activeTab {
-                        case .vulnerabilities:
-                            renderVulnerabilities()
-                        case .licenses:
-                            renderLicenses()
-                        case .maintenance:
-                            renderMaintenance()
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(NSColor.controlBackgroundColor))
-
-                // Right Area: Details Inspector Card
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Risk Details Inspector")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-
-                    if let advisory = selectedAdvisory {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text(advisory.packageName)
-                                .font(.title3.bold())
-
-                            Text(advisory.title)
-                                .font(.headline)
-
-                            HStack {
-                                Text(advisory.severity)
-                                    .font(.caption.bold())
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(advisory.severity == "Critical" ? Color.red.opacity(0.15) : Color.orange.opacity(0.15), in: Capsule())
-                                    .foregroundStyle(advisory.severity == "Critical" ? Color.red : Color.orange)
-
-                                Spacer()
-                            }
-
-                            Divider()
-
-                            Text("Affected: \(advisory.affectedVersions)")
-                                .font(.caption.bold())
-                            Text("Fixed Version: \(advisory.fixedVersion)")
-                                .font(.caption.bold())
-                                .foregroundStyle(.green)
-
-                            Divider()
-
-                            Text("Details:")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
-                            Text(advisory.details)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            if !advisory.advisoryUrl.isEmpty {
-                                Link("View Security Advisory", destination: URL(string: advisory.advisoryUrl)!)
-                                    .font(.caption)
-                            }
-                        }
-                    } else {
-                        ContentUnavailableView {
-                            Label("Select Advisory", systemImage: "shield.questionmark")
-                        } description: {
-                            Text("Select a vulnerability report on the left panel to inspect CVE details and upgrade advice.")
-                        }
-                    }
-                    Spacer()
-                }
-                .padding(20)
-                .frame(width: 280, maxHeight: .infinity)
-                .background(Color(NSColor.windowBackgroundColor))
+                scanListAndBreakdownView
+                detailsInspectorCardView
             }
         }
         .background(Color(NSColor.windowBackgroundColor))
@@ -350,5 +269,93 @@ struct DependencySecurityCenterView: View {
         Task {
             await platformManager.executeSecurityScan(dependencies: dependencies)
         }
+    }
+
+    @ViewBuilder
+    private var scanListAndBreakdownView: some View {
+        VStack(spacing: 0) {
+            if platformManager.securityScanRunning {
+                VStack(spacing: 16) {
+                    Spacer()
+                    ProgressView()
+                    Text("Running static vulnerability scanner...")
+                        .font(.headline)
+                    Spacer()
+                }
+            } else {
+                switch activeTab {
+                case .vulnerabilities:
+                    renderVulnerabilities()
+                case .licenses:
+                    renderLicenses()
+                case .maintenance:
+                    renderMaintenance()
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(NSColor.controlBackgroundColor))
+    }
+
+    @ViewBuilder
+    private var detailsInspectorCardView: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Risk Details Inspector")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            if let advisory = selectedAdvisory {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(advisory.packageName)
+                        .font(.title3.bold())
+
+                    Text(advisory.title)
+                        .font(.headline)
+
+                    HStack {
+                        Text(advisory.severity)
+                            .font(.caption.bold())
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(advisory.severity == "Critical" ? Color.red.opacity(0.15) : Color.orange.opacity(0.15), in: Capsule())
+                            .foregroundStyle(advisory.severity == "Critical" ? Color.red : Color.orange)
+
+                        Spacer()
+                    }
+
+                    Divider()
+
+                    Text("Affected: \(advisory.affectedVersions)")
+                        .font(.caption.bold())
+                    Text("Fixed Version: \(advisory.fixedVersion)")
+                        .font(.caption.bold())
+                        .foregroundStyle(.green)
+
+                    Divider()
+
+                    Text("Details:")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                    Text(advisory.details)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if !advisory.advisoryUrl.isEmpty {
+                        Link("View Security Advisory", destination: URL(string: advisory.advisoryUrl)!)
+                            .font(.caption)
+                    }
+                }
+            } else {
+                ContentUnavailableView {
+                    Label("Select Advisory", systemImage: "shield.questionmark")
+                } description: {
+                    Text("Select a vulnerability report on the left panel to inspect CVE details and upgrade advice.")
+                }
+            }
+            Spacer()
+        }
+        .padding(20)
+        .frame(width: 280, maxHeight: .infinity)
+        .background(Color(NSColor.windowBackgroundColor))
     }
 }

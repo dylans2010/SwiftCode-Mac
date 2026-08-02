@@ -37,58 +37,7 @@ struct PackageInstallationView: View {
 
             HSplitView {
                 settingsAndActionsPanel
-
-                // Logging & Process Monitor Panel
-                VStack(spacing: 0) {
-                    HStack {
-                        Label("Console Output Logs", systemImage: "terminal")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Button("Clear") {
-                            platformManager.operationLogs.removeAll()
-                        }
-                        .buttonStyle(.borderless)
-                    }
-                    .padding()
-                    .background(Color(NSColor.windowBackgroundColor))
-
-                    Divider()
-
-                    if platformManager.isOperationRunning {
-                        HStack {
-                            ProgressView(value: platformManager.operationProgress)
-                                .frame(width: 140)
-                            Text(platformManager.operationStatus)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding()
-                        .background(Color.secondary.opacity(0.04))
-                    }
-
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if platformManager.operationLogs.isEmpty {
-                                Text("No activity logs captured yet. Execute installation operations above.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .italic()
-                            } else {
-                                ForEach(platformManager.operationLogs, id: \.self) { log in
-                                    Text(log)
-                                        .font(.system(.caption, design: .monospaced))
-                                        .foregroundStyle(.green)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                            }
-                        }
-                        .padding()
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.black.opacity(0.85))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                loggingAndProcessMonitorPanel
             }
         }
         .background(Color(NSColor.windowBackgroundColor))
@@ -261,5 +210,59 @@ struct PackageInstallationView: View {
         .padding(20)
         .frame(width: 300, maxHeight: .infinity)
         .background(Color(NSColor.windowBackgroundColor))
+    }
+
+    @ViewBuilder
+    private var loggingAndProcessMonitorPanel: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Label("Console Output Logs", systemImage: "terminal")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Clear") {
+                    platformManager.operationLogs.removeAll()
+                }
+                .buttonStyle(.borderless)
+            }
+            .padding()
+            .background(Color(NSColor.windowBackgroundColor))
+
+            Divider()
+
+            if platformManager.isOperationRunning {
+                HStack {
+                    ProgressView(value: platformManager.operationProgress)
+                        .frame(width: 140)
+                    Text(platformManager.operationStatus)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding()
+                .background(Color.secondary.opacity(0.04))
+            }
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    if platformManager.operationLogs.isEmpty {
+                        Text("No activity logs captured yet. Execute installation operations above.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .italic()
+                    } else {
+                        ForEach(platformManager.operationLogs, id: \.self) { log in
+                            Text(log)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.green)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+                .padding()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black.opacity(0.85))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

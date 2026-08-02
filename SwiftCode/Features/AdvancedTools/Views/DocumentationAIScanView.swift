@@ -1,10 +1,17 @@
 import SwiftUI
 
-struct LocalChatMsg: Identifiable, Sendable, Hashable {
-    let id = UUID()
-    let isUser: Bool
-    let content: String
-    let timestamp = Date()
+public struct LocalChatMsg: Identifiable, Sendable, Hashable {
+    public let id: UUID
+    public let isUser: Bool
+    public let content: String
+    public let timestamp: Date
+
+    public init(id: UUID = UUID(), isUser: Bool, content: String, timestamp: Date = Date()) {
+        self.id = id
+        self.isUser = isUser
+        self.content = content
+        self.timestamp = timestamp
+    }
 }
 
 @MainActor

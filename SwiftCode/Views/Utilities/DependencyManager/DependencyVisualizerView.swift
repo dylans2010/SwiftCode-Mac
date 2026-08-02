@@ -33,102 +33,7 @@ struct DependencyVisualizerView: View {
             Divider()
 
             HSplitView {
-                // Interactive Vector Canvas
-                VStack(spacing: 0) {
-                    HStack {
-                        Label("Dependency Relations Map", systemImage: "network")
-                            .font(.headline)
-                        Spacer()
-                    }
-                    .padding()
-                    .background(Color(NSColor.windowBackgroundColor))
-
-                    Divider()
-
-                    if dependencies.isEmpty {
-                        VStack(spacing: 16) {
-                            Spacer()
-                            Image(systemName: "puzzlepiece.extension")
-                                .font(.system(size: 40))
-                                .foregroundStyle(.secondary)
-                            Text("No active packages detected in Package.swift.")
-                                .font(.headline)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(NSColor.controlBackgroundColor))
-                    } else {
-                        ScrollView([.horizontal, .vertical]) {
-                            VStack(spacing: 40) {
-                                // Root Node (Active Project)
-                                VStack(spacing: 8) {
-                                    Image(systemName: "folder.badge.gearshape")
-                                        .font(.title)
-                                        .foregroundStyle(.blue)
-                                    Text(sessionStore.activeProject?.name ?? "Active Project")
-                                        .font(.headline)
-                                        .foregroundStyle(.primary)
-                                    Text("v1.0.0 (Root)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .padding()
-                                .frame(width: 160)
-                                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
-
-                                // Connector lines & child nodes
-                                let graphNodes = platformManager.buildDependencyGraph(dependencies: dependencies)
-
-                                HStack(alignment: .top, spacing: 30) {
-                                    ForEach(graphNodes) { node in
-                                        Button {
-                                            selectedNode = node
-                                        } label: {
-                                            VStack(spacing: 10) {
-                                                Image(systemName: node.isLocal ? "folder.fill" : "puzzlepiece.extension.fill")
-                                                    .font(.title2)
-                                                    .foregroundStyle(node.hasConflict ? .red : (node.isLocal ? .orange : .blue))
-
-                                                Text(node.name)
-                                                    .font(.subheadline.bold())
-                                                    .foregroundStyle(.primary)
-
-                                                Text(node.version)
-                                                    .font(.caption2.monospaced())
-                                                    .foregroundStyle(.secondary)
-
-                                                if node.hasConflict {
-                                                    Label("Risk", systemImage: "exclamationmark.triangle.fill")
-                                                        .font(.caption2)
-                                                        .foregroundStyle(.red)
-                                                }
-                                            }
-                                            .padding()
-                                            .frame(width: 140)
-                                            .background(
-                                                selectedNode?.id == node.id
-                                                ? Color.accentColor.opacity(0.12)
-                                                : Color.secondary.opacity(0.04),
-                                                in: RoundedRectangle(cornerRadius: 12)
-                                            )
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(selectedNode?.id == node.id ? Color.accentColor : Color.clear, lineWidth: 2)
-                                            )
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                            }
-                            .padding(40)
-                            .frame(minWidth: 800, minHeight: 400)
-                        }
-                        .background(Color(NSColor.controlBackgroundColor))
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
+                interactiveVectorCanvasView
                 detailsInspectorPanel
             }
         }
@@ -235,5 +140,103 @@ struct DependencyVisualizerView: View {
         }
 
         self.dependencies = parsedList
+    }
+
+    @ViewBuilder
+    private var interactiveVectorCanvasView: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Label("Dependency Relations Map", systemImage: "network")
+                    .font(.headline)
+                Spacer()
+            }
+            .padding()
+            .background(Color(NSColor.windowBackgroundColor))
+
+            Divider()
+
+            if dependencies.isEmpty {
+                VStack(spacing: 16) {
+                    Spacer()
+                    Image(systemName: "puzzlepiece.extension")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.secondary)
+                    Text("No active packages detected in Package.swift.")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(NSColor.controlBackgroundColor))
+            } else {
+                ScrollView([.horizontal, .vertical]) {
+                    VStack(spacing: 40) {
+                        // Root Node (Active Project)
+                        VStack(spacing: 8) {
+                            Image(systemName: "folder.badge.gearshape")
+                                .font(.title)
+                                .foregroundStyle(.blue)
+                            Text(sessionStore.activeProject?.name ?? "Active Project")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                            Text("v1.0.0 (Root)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                        .frame(width: 160)
+                        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+
+                        // Connector lines & child nodes
+                        let graphNodes = platformManager.buildDependencyGraph(dependencies: dependencies)
+
+                        HStack(alignment: .top, spacing: 30) {
+                            ForEach(graphNodes) { node in
+                                Button {
+                                    selectedNode = node
+                                } label: {
+                                    VStack(spacing: 10) {
+                                        Image(systemName: node.isLocal ? "folder.fill" : "puzzlepiece.extension.fill")
+                                            .font(.title2)
+                                            .foregroundStyle(node.hasConflict ? .red : (node.isLocal ? .orange : .blue))
+
+                                        Text(node.name)
+                                            .font(.subheadline.bold())
+                                            .foregroundStyle(.primary)
+
+                                        Text(node.version)
+                                            .font(.caption2.monospaced())
+                                            .foregroundStyle(.secondary)
+
+                                        if node.hasConflict {
+                                            Label("Risk", systemImage: "exclamationmark.triangle.fill")
+                                                .font(.caption2)
+                                                .foregroundStyle(.red)
+                                        }
+                                    }
+                                    .padding()
+                                    .frame(width: 140)
+                                    .background(
+                                        selectedNode?.id == node.id
+                                        ? Color.accentColor.opacity(0.12)
+                                        : Color.secondary.opacity(0.04),
+                                        in: RoundedRectangle(cornerRadius: 12)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(selectedNode?.id == node.id ? Color.accentColor : Color.clear, lineWidth: 2)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(40)
+                    .frame(minWidth: 800, minHeight: 400)
+                }
+                .background(Color(NSColor.controlBackgroundColor))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
