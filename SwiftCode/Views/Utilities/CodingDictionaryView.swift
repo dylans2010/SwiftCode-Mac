@@ -417,7 +417,7 @@ private struct DictionarySidebarView: View {
             if item.isPinned {
                 Image(systemName: "pin.fill")
                     .font(.caption2)
-                    .foregroundStyle(.accentColor)
+                    .foregroundStyle(Color.accentColor)
             }
         }
         .contentShape(Rectangle())
@@ -465,11 +465,6 @@ private struct DictionaryDetailView: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
-            } else if let errorState = manager.errorState {
-                DictionaryErrorView(errorState: errorState) {
-                    // Retry action
-                    manager.search(query: searchText)
-                }
             } else if let result = manager.currentResult {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
@@ -483,7 +478,7 @@ private struct DictionaryDetailView: View {
                                             .padding(.horizontal, 6)
                                             .padding(.vertical, 2)
                                             .background(Capsule().fill(Color.accentColor.opacity(0.12)))
-                                            .foregroundStyle(.accentColor)
+                                            .foregroundStyle(Color.accentColor)
 
                                         Text(result.category)
                                             .font(.caption.weight(.semibold))
@@ -574,7 +569,7 @@ private struct DictionaryDetailView: View {
                                                     if !param.type.isEmpty {
                                                         Text(": \(param.type)")
                                                             .font(.system(.caption, design: .monospaced))
-                                                            .foregroundStyle(.accentColor)
+                                                            .foregroundStyle(Color.accentColor)
                                                     }
                                                 }
                                                 Text(param.description)
@@ -666,7 +661,7 @@ private struct DictionaryDetailView: View {
                                                     .foregroundStyle(.secondary)
                                                 Text("How to fix:")
                                                     .font(.caption.weight(.semibold))
-                                                    .foregroundStyle(.accentColor)
+                                                    .foregroundStyle(Color.accentColor)
                                                 Text(mistake.fix)
                                                     .font(.subheadline)
                                                     .foregroundStyle(.secondary)
@@ -740,7 +735,7 @@ private struct DictionaryDetailView: View {
                                                 .padding(.horizontal, 8)
                                                 .padding(.vertical, 4)
                                                 .background(Capsule().strokeBorder(Color.accentColor.opacity(0.3)))
-                                                .foregroundStyle(.accentColor)
+                                                .foregroundStyle(Color.accentColor)
                                         }
                                         .buttonStyle(.plain)
                                     }
@@ -827,7 +822,7 @@ private struct DictionaryDetailView: View {
                     }
                     .frame(maxWidth: 700)
                     .padding(24)
-                    .frame(maxWidth: .infinity, alignment: .topCenter)
+                    .frame(maxWidth: .infinity, alignment: .top)
                 }
             } else {
                 VStack(spacing: 16) {
@@ -921,7 +916,7 @@ private struct DictionarySectionCard<Content: View>: View {
             HStack {
                 Image(systemName: icon)
                     .font(.subheadline)
-                    .foregroundStyle(.accentColor)
+                    .foregroundStyle(Color.accentColor)
                 Text(title)
                     .font(.headline)
                     .foregroundStyle(.primary)
@@ -1165,3 +1160,4 @@ private struct FlowLayoutView: View {
         }
     }
 }
+

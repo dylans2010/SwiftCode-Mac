@@ -2257,6 +2257,8 @@
 		FBD3E2F40A214197BDC7CB27 /* SwiftCode/Views/Agent/AgentAttachmentChipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9CCDC265B5F4E9FA3BFFEBF /* SwiftCode/Views/Agent/AgentAttachmentChipView.swift */; };
 		FBFC5862FED14D7C97A19AB0 /* GitHubAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 042A71F7B36A453C8FE4BF53 /* GitHubAccountView.swift */; };
 		FC57A09C301F28AE00BD1BCB /* CodingDictionaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC57A09B301F28AE00BD1BCB /* CodingDictionaryView.swift */; };
+		FC57A09E301F297F00BD1BCB /* DictionaryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC57A09D301F297F00BD1BCB /* DictionaryManager.swift */; };
+		FC57A0A0301F2A8700BD1BCB /* CodingDictionaryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC57A09F301F2A8700BD1BCB /* CodingDictionaryModels.swift */; };
 		FC5C5E63FB6740D28E1BC488 /* VisualUIScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E077BA052DC4D3B85758E81 /* VisualUIScene.swift */; };
 		FC90C49ECF974E48BE53E0F0 /* SearchFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D9B5ECD6D804EFDBC2D0B28 /* SearchFiles.swift */; };
 		FCE346B6A8594C599371747B /* ThemeGalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62238748230CA02A3DED159C /* ThemeGalleryView.swift */; };
@@ -4519,6 +4521,8 @@
 		FBC8670F25314EF19797D25C /* VisualUIAssetsPanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VisualUIAssetsPanel.swift; sourceTree = "<group>"; };
 		FBEBD3A4ABAF787AD20D1524 /* AssistDeleteDirectoryTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDeleteDirectoryTool.swift; sourceTree = "<group>"; };
 		FC57A09B301F28AE00BD1BCB /* CodingDictionaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CodingDictionaryView.swift; path = SwiftCode/Views/Utilities/CodingDictionaryView.swift; sourceTree = "<group>"; };
+		FC57A09D301F297F00BD1BCB /* DictionaryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DictionaryManager.swift; path = SwiftCode/Backend/Dictionary/DictionaryManager.swift; sourceTree = "<group>"; };
+		FC57A09F301F2A8700BD1BCB /* CodingDictionaryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CodingDictionaryModels.swift; path = SwiftCode/Backend/Dictionary/CodingDictionaryModels.swift; sourceTree = "<group>"; };
 		FD0EFEEFF10842969DB5A893 /* ParseJSON.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseJSON.swift; sourceTree = "<group>"; };
 		FD158DEA1E8D463E25C6A4EC /* GistCommentSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GistCommentSectionView.swift; sourceTree = "<group>"; };
 		FD199B0FD6644340A3C609DC /* AgentToolRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentToolRegistry.swift; sourceTree = "<group>"; };
@@ -5683,6 +5687,8 @@
 		6CFC827E67DCAE34C72B9CED = {
 			isa = PBXGroup;
 			children = (
+				FC57A09F301F2A8700BD1BCB /* CodingDictionaryModels.swift */,
+				FC57A09D301F297F00BD1BCB /* DictionaryManager.swift */,
 				FC57A09B301F28AE00BD1BCB /* CodingDictionaryView.swift */,
 				A83491FC57C3309ECF4AD0DD /* SwiftCode */,
 				021F2B7F3E0C61452C987484 /* Products */,
@@ -9074,6 +9080,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FC57A0A0301F2A8700BD1BCB /* CodingDictionaryModels.swift in Sources */,
+				FC57A09E301F297F00BD1BCB /* DictionaryManager.swift in Sources */,
 				FC57A09C301F28AE00BD1BCB /* CodingDictionaryView.swift in Sources */,
 				DEC001DFB00C0DEB12345672 /* (null) in Sources */,
 				DEC001DFB00C0DEB12345674 /* (null) in Sources */,
