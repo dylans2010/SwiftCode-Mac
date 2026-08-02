@@ -210,6 +210,75 @@ public final class PreviewManager {
         isCompiling = false
     }
 
+    public func refreshActiveSession(sourcePath: String, sourceCode: String, targetView: String) async {
+        isCompiling = true
+        buildLogs = ["Recompiling currently active persistent session..."]
+
+        let sID = self.activeSession?.sessionID ?? UUID().uuidString
+        var session = PreviewSession(
+            sessionID: sID,
+            sourceFilePath: sourcePath,
+            targetViewName: targetView,
+            status: "Compiling",
+            state: .compiling
+        )
+        self.activeSession = session
+        PreviewDiagnostics.shared.addLog(category: "state", message: "Refreshing session '\(sID)' for '\(targetView)'")
+
+        synchronizeArtboardsForPreviews(sourcePath: sourcePath, sourceCode: sourceCode)
+
+        do {
+            session.state = .rendering
+            session.status = "Rendering"
+            self.activeSession = session
+
+            let view = try await runtime.updateRuntimeSession(
+                sourcePath: sourcePath,
+                sourceCode: sourceCode,
+                targetView: targetView
+            ) { [weak self] message in
+                guard let self = self else { return }
+                Task { @MainActor in
+                    self.buildLogs.append(message)
+                }
+            }
+
+            let finalSession = PreviewSession(
+                sessionID: sID,
+                sourceFilePath: sourcePath,
+                targetViewName: targetView,
+                lastCompiledAt: Date(),
+                status: "Ready",
+                state: .rendered
+            )
+            self.activeSession = finalSession
+            self.hostedView = view
+            PreviewDiagnostics.shared.addLog(category: "state", message: "Refreshed session '\(sID)' successfully")
+            buildLogs.append("Session refreshed successfully.")
+        } catch {
+            let hasPrior = self.hostedView != nil
+            let finalState: PreviewSessionState = hasPrior ? .failedKeepLast : .failedNoPrior
+
+            let finalSession = PreviewSession(
+                sessionID: sID,
+                sourceFilePath: sourcePath,
+                targetViewName: targetView,
+                lastCompiledAt: Date(),
+                status: "Failed",
+                state: finalState
+            )
+            self.activeSession = finalSession
+            buildLogs.append("Error during session refresh: \(error.localizedDescription)")
+            PreviewDiagnostics.shared.addLog(category: "state", message: "Session refresh failed, transitioning to \(finalState.rawValue)")
+        }
+        isCompiling = false
+    }
+
+    public func startNewSession(sourcePath: String, sourceCode: String, targetView: String) async {
+        await stopActiveSession()
+        await startPreviewSession(sourcePath: sourcePath, sourceCode: sourceCode, targetView: targetView)
+    }
+
     public func stopActiveSession() async {
         runtime.stopRuntime()
         self.activeSession = nil
