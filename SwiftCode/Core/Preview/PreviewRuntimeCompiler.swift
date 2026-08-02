@@ -28,19 +28,52 @@ public actor PreviewRuntimeCompiler {
         entry: PreviewSimulationEntry,
         sandboxPolicy: PreviewSandboxPolicy
     ) async throws -> CompiledPreviewModule {
+        let uniqueID = UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        let uniqueModuleName = "SimulationApp_\(uniqueID)"
+
         let temporaryRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("swiftcode-simulation", isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent(uniqueID, isDirectory: true)
         try FileManager.default.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
 
+        // Read active files to parse previews
+        var parsedPreviews: [ParsedPreview] = []
+        for file in projectStructure.swiftFiles {
+            if let content = try? String(contentsOf: file, encoding: .utf8) {
+                let parsed = PreviewBlockParser.parsePreviews(in: content)
+                parsedPreviews.append(contentsOf: parsed)
+            }
+        }
+
         let bootstrapFile = temporaryRoot.appendingPathComponent("SimulationBootstrap.swift")
-        let bootstrapSource = makeBootstrapSource(viewTypes: projectStructure.swiftUIViewTypes, defaultRoot: entry.rootViewType)
+        let bootstrapSource = makeBootstrapSource(viewTypes: projectStructure.swiftUIViewTypes, defaultRoot: entry.rootViewType, parsedPreviews: parsedPreviews)
         try bootstrapSource.write(to: bootstrapFile, atomically: true, encoding: .utf8)
 
-        let outputLibrary = temporaryRoot.appendingPathComponent("libSimulationApp.dylib")
+        let outputLibrary = temporaryRoot.appendingPathComponent("lib\(uniqueModuleName).dylib")
 
-        let changedFiles = changedSwiftFiles(in: projectStructure.swiftFiles)
-        let allInputs = projectStructure.swiftFiles + [bootstrapFile]
+        // Isolate files into temporary folder with unique names to completely avoid duplicate filename conflicts
+        var isolatedFiles: [URL] = []
+        var seenFilenames: [String: Int] = [:]
+
+        for file in projectStructure.swiftFiles {
+            let originalName = file.deletingPathExtension().lastPathComponent
+            let ext = file.pathExtension
+
+            var uniqueName = originalName
+            if let count = seenFilenames[originalName.lowercased()] {
+                seenFilenames[originalName.lowercased()] = count + 1
+                uniqueName = "\(originalName)_\(count + 1)"
+            } else {
+                seenFilenames[originalName.lowercased()] = 1
+            }
+
+            let targetFileURL = temporaryRoot.appendingPathComponent("\(uniqueName).\(ext)")
+            try? FileManager.default.copyItem(at: file, to: targetFileURL)
+            isolatedFiles.append(targetFileURL)
+        }
+
+        let changedFiles = changedSwiftFiles(in: isolatedFiles)
+        let allInputs = isolatedFiles + [bootstrapFile]
 
 #if os(macOS)
         let process = Process()
@@ -65,7 +98,7 @@ public actor PreviewRuntimeCompiler {
         process.arguments = [
             "-swift-version", "6",
             "-emit-library",
-            "-module-name", "SimulationApp",
+            "-module-name", uniqueModuleName,
             "-o", outputLibrary.path
         ] + allInputs.map(\.path)
 
@@ -73,7 +106,18 @@ public actor PreviewRuntimeCompiler {
         process.standardError = stderr
 
         try process.run()
-        process.waitUntilExit()
+
+        // Implement compile process timeout handling to prevent indefinite compile blocks
+        let timeout: TimeInterval = 20.0
+        let startTime = Date()
+
+        while process.isRunning {
+            if Date().timeIntervalSince(startTime) > timeout {
+                process.terminate()
+                throw PreviewError.compilationError(details: "Compiler timed out after \(timeout) seconds.")
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
 
         guard process.terminationStatus == 0 else {
             let data = stderr.fileHandleForReading.readDataToEndOfFile()
@@ -115,13 +159,27 @@ public actor PreviewRuntimeCompiler {
         return PreviewError.compilationError(details: message)
     }
 
-    private func makeBootstrapSource(viewTypes: [String], defaultRoot: String) -> String {
-        var allViews = Set(viewTypes)
-        allViews.insert(defaultRoot)
+    private func makeBootstrapSource(viewTypes: [String], defaultRoot: String, parsedPreviews: [ParsedPreview]) -> String {
+        var cases: [String] = []
 
-        let cases = allViews.map { viewType in
-            "case \"\(viewType)\": root = AnyView(\(viewType)())"
-        }.joined(separator: "\n        ")
+        // Add cases for parsed #Previews
+        for preview in parsedPreviews {
+            cases.append("case \"\(preview.title)\": root = AnyView({\n            \(preview.body)\n        }())")
+        }
+
+        // Add default cases for bare views
+        for viewType in viewTypes {
+            if !parsedPreviews.contains(where: { $0.title == viewType }) {
+                cases.append("case \"\(viewType)\": root = AnyView(\(viewType)())")
+            }
+        }
+
+        // Add case for default root
+        if !parsedPreviews.contains(where: { $0.title == defaultRoot }) && !viewTypes.contains(defaultRoot) {
+            cases.append("case \"\(defaultRoot)\": root = AnyView(\(defaultRoot)())")
+        }
+
+        let casesString = cases.joined(separator: "\n        ")
 
         return """
         import SwiftUI
@@ -133,7 +191,7 @@ public actor PreviewRuntimeCompiler {
             var root = AnyView(Text("Unknown Target View"))
 
             switch requested {
-            \(cases)
+            \(casesString)
             default:
                 break
             }

@@ -303,13 +303,18 @@ Feel free to customize, create notebooks, and start organizing your engineering 
 
         // Sync backlinks automatically from double bracket tags [[Note Title]]
         syncBacklinks(for: notes[noteIdx])
-
-        saveData()
     }
 
-    public func saveActiveNote() {
-        guard let note = activeNote else { return }
-        saveCurrentVersionSnapshot(for: note)
+    public func saveActiveNote(content: String) {
+        guard let noteIdx = notes.firstIndex(where: { $0.id == selectedNoteId }) else { return }
+        notes[noteIdx].content = content
+        notes[noteIdx].characterCount = content.count
+        notes[noteIdx].wordCount = content.split { $0.isWhitespace }.count
+        notes[noteIdx].readingTime = max(1, notes[noteIdx].wordCount / 200)
+        notes[noteIdx].updatedAt = Date()
+
+        syncBacklinks(for: notes[noteIdx])
+        saveCurrentVersionSnapshot(for: notes[noteIdx])
         isEditingNote = false
         saveData()
     }

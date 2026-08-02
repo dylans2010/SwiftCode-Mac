@@ -263,13 +263,19 @@ public struct ArtboardView: View {
                     Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
                         .foregroundColor(isActive ? .accentColor : .secondary)
 
-                    TextField("Artboard Name", text: Binding(
-                        get: { artboard.name },
-                        set: { artboard.name = $0 }
-                    ))
-                    .textFieldStyle(.plain)
-                    .font(.headline)
-                    .frame(maxWidth: 200)
+                    if artboard.name == "Default" {
+                        Text("Default")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                    } else {
+                        TextField("Artboard Name", text: Binding(
+                            get: { artboard.name },
+                            set: { artboard.name = $0 }
+                        ))
+                        .textFieldStyle(.plain)
+                        .font(.headline)
+                        .frame(maxWidth: 200)
+                    }
                 }
 
                 Spacer()
@@ -281,7 +287,7 @@ public struct ArtboardView: View {
                     .padding(.vertical, 4)
                     .background(Color.secondary.opacity(0.1), in: Capsule())
 
-                if document.scene.artboards.count > 1 {
+                if artboard.name != "Default" && document.scene.artboards.count > 1 {
                     Button {
                         deleteArtboard()
                     } label: {
@@ -296,7 +302,7 @@ public struct ArtboardView: View {
 
             // Render output inside the simulated device frame
             VStack {
-                if settings.showCompiledView {
+                if artboard.name == "Default" {
                     if let hostedView = PreviewManager.shared.hostedView {
                         NativePreviewHost(hostedView: hostedView)
                             .frame(width: size.width, height: size.height)

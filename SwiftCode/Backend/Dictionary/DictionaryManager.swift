@@ -181,7 +181,13 @@ public final class DictionaryManager: Sendable {
               "warnings": ["Potential pitfalls to look out for"],
               "notes": ["Extra informational tips"],
               "seeAlso": ["Related API names"],
-              "references": ["Official Documentation Link or Resource Name"]
+              "references": ["Official Documentation Link or Resource Name"],
+              "appleDocsSummary": "A highly detailed summary of the official Apple developer reference documentation for this term.",
+              "swiftVersion": "Swift language version compatibility or introduction version (e.g. 'Swift 6.0' or 'Swift 5.0+').",
+              "alternativeAPIs": ["Alternative API name 1", "Alternative API name 2"],
+              "codeSnippet": "Primary production-ready coding snippet or template illustrating real-world use.",
+              "complexity": "Execution runtime or algorithmic space/time complexity notes (e.g., O(1), O(N)).",
+              "memoryConsiderations": "Notes on reference cycles (weak/unowned), ARC constraints, or heap allocation overhead."
             }
 
             STRICT INSTRUCTION:

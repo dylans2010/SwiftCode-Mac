@@ -705,19 +705,23 @@ public struct ProjectNotesWorkspaceView: View {
                             // Editor text input
                             VStack(spacing: 0) {
                                 if state.isEditingNote {
-                                    TextEditor(text: $scratchPadText)
-                                        .font(.system(.body, design: .monospaced))
-                                        .padding(10)
-                                        .onChange(of: scratchPadText) { _, newValue in
-                                            state.noteEditorText = newValue
-                                            state.updateActiveNoteContent(newValue)
-                                        }
-                                        .onAppear {
-                                            scratchPadText = note.content
-                                        }
-                                        .onChange(of: state.selectedNoteId) { _, _ in
-                                            scratchPadText = note.content
-                                        }
+                                    TextEditorRepresentable(
+                                        text: $scratchPadText,
+                                        wordWrap: true,
+                                        searchQuery: "",
+                                        fileExtension: "md"
+                                    )
+                                    .padding(10)
+                                    .onChange(of: scratchPadText) { _, newValue in
+                                        state.noteEditorText = newValue
+                                        state.updateActiveNoteContent(newValue)
+                                    }
+                                    .onAppear {
+                                        scratchPadText = note.content
+                                    }
+                                    .onChange(of: state.selectedNoteId) { _, _ in
+                                        scratchPadText = note.content
+                                    }
                                 } else {
                                     ScrollView {
                                         Text(state.noteEditorText)
@@ -860,7 +864,7 @@ public struct ProjectNotesWorkspaceView: View {
                 // Save or edit trigger
                 if state.isEditingNote {
                     Button {
-                        state.saveActiveNote()
+                        state.saveActiveNote(content: scratchPadText)
                     } label: {
                         Text("Save Note")
                     }

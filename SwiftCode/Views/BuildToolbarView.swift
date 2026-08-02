@@ -83,25 +83,26 @@ struct BuildToolbarView: View {
                                 userInfo: ["toolID": "visual_ui_builder"]
                             )
 
-                            if activeDoc.content.contains("@SwiftCodeVisualUIBuilderDocument") {
-                                // Visual UI Design mode: Show Canvas layout
-                                VisualUISettings.shared.showCompiledView = false
-                                await PreviewManager.shared.startPreviewSession(
-                                    sourcePath: activeDoc.url.path,
-                                    sourceCode: activeDoc.content,
-                                    targetView: "VisualUIExportView"
-                                )
-                            } else {
-                                // Compiled View mode: Show real editor SwiftUI view
-                                VisualUISettings.shared.showCompiledView = true
-                                let (preparedCode, targetView) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
-                                let resolvedTarget = targetView ?? "SwiftUI Preview"
-                                await PreviewManager.shared.startPreviewSession(
-                                    sourcePath: activeDoc.url.path,
-                                    sourceCode: preparedCode,
-                                    targetView: resolvedTarget
-                                )
+                            // 3. Focus the Default Artboard
+                            if let visDoc = DocumentCoordinator.shared.visualUIDocument {
+                                if let defaultArtboard = visDoc.scene.artboards.first(where: { $0.name == "Default" }) {
+                                    visDoc.scene.activeArtboardID = defaultArtboard.id
+                                }
                             }
+
+                            // 4. Resolve the target preview dynamically and start a fresh PreviewSession
+                            let parsed = PreviewBlockParser.parsePreviews(in: activeDoc.content)
+                            let detected = parsed.isEmpty ? SwiftViewDetector.detectViews(in: activeDoc.content) : parsed.map { $0.title }
+                            PreviewManager.shared.availablePreviews = detected.isEmpty ? ["ContentView"] : detected
+
+                            let resolvedTarget = PreviewManager.shared.selectedPreviewName ?? PreviewManager.shared.availablePreviews.first ?? "ContentView"
+                            let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
+
+                            await PreviewManager.shared.startPreviewSession(
+                                sourcePath: activeDoc.url.path,
+                                sourceCode: preparedCode,
+                                targetView: resolvedTarget
+                            )
                         }
                     } label: {
                         Label("Live Preview", systemImage: "play.desktopcomputer")

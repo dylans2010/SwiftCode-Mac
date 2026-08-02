@@ -143,16 +143,7 @@ struct VisualUIBuilderCenterWrapper: View {
             if sidebarState.selectedIndex == 2 {
                 SavedArtboardsWorkspaceView(document: document)
             } else {
-                if settings.showLiveViewport {
-                    HSplitView {
-                        VisualUICanvasView(document: document, settings: settings)
-                            .frame(minWidth: 350)
-                        VisualUIPreviewPanel(document: document, settings: settings)
-                            .frame(minWidth: 350)
-                    }
-                } else {
-                    VisualUICanvasView(document: document, settings: settings)
-                }
+                VisualUICanvasView(document: document, settings: settings)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -163,34 +154,105 @@ struct VisualUIBuilderCenterWrapper: View {
 
 struct VisualUIBuilderInspectorWrapper: View {
     let document: VisualUIDocument
+    @State private var settings = VisualUISettings.shared
     @State private var rightInspectorTab = 0
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Inspector Section", selection: $rightInspectorTab) {
-                Image(systemName: "slider.horizontal.3").tag(0) // Properties
-                Image(systemName: "square.3.layers.3d").tag(1)    // Layers/Structure
-                Image(systemName: "folder").tag(2)               // Assets/Colors
-                Image(systemName: "link").tag(3)                 // Bindings & Navigation
-                Image(systemName: "play.circle").tag(4)           // Animations
-            }
-            .pickerStyle(.segmented)
-            .padding(8)
+            if settings.showCompiledView {
+                Picker("Inspector Section", selection: $rightInspectorTab) {
+                    Text("Preview").tag(0)
+                    Text("Logs").tag(1)
+                    Text("Diagnostics").tag(2)
+                    Text("Environment").tag(3)
+                    Text("Build").tag(4)
+                }
+                .pickerStyle(.segmented)
+                .padding(8)
 
-            Divider()
+                Divider()
 
-            Group {
-                switch rightInspectorTab {
-                case 0:
-                    VisualUIInspector(document: document)
-                case 1:
-                    VisualUILayersPanel(document: document)
-                case 2:
-                    VisualUIAssetsPanel(document: document)
-                case 3:
-                    VisualUIBindingsPanel(document: document)
-                default:
-                    VisualUIAnimationsPanel(document: document)
+                Group {
+                    switch rightInspectorTab {
+                    case 0:
+                        VisualUIInspector(document: document)
+                    case 1:
+                        PreviewLogsView()
+                    case 2:
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Label("System Diagnostics", systemImage: "waveform.path.ecg")
+                                    .font(.headline)
+                                Text("Dynamic sandbox runtime: Active")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                                Divider()
+                                ForEach(PreviewDiagnostics.shared.logs.filter { $0.category == "error" }) { err in
+                                    Text(err.message)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundColor(.red)
+                                        .padding(8)
+                                        .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                                }
+                            }
+                            .padding()
+                        }
+                    case 3:
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Label("Environment Variables", systemImage: "globe")
+                                    .font(.headline)
+                                Toggle("Dark Mode", isOn: $settings.isDarkMode)
+                                Toggle("Show Grid", isOn: $settings.showGrid)
+                                Picker("Device", selection: $settings.selectedDevice) {
+                                    Text("iPhone 16 Pro").tag("iPhone 16 Pro")
+                                    Text("iPad Pro").tag("iPad Pro")
+                                    Text("Apple Watch").tag("Apple Watch")
+                                }
+                            }
+                            .padding()
+                        }
+                    default:
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Label("Build Console", systemImage: "hammer")
+                                    .font(.headline)
+                                Text("Module name: SimulationApp")
+                                    .font(.subheadline)
+                                Text(PreviewManager.shared.buildLogs.joined(separator: "\n"))
+                                    .font(.system(.caption, design: .monospaced))
+                                    .textSelection(.enabled)
+                            }
+                            .padding()
+                        }
+                    }
+                }
+            } else {
+                Picker("Inspector Section", selection: $rightInspectorTab) {
+                    Image(systemName: "slider.horizontal.3").tag(0) // Properties
+                    Image(systemName: "square.3.layers.3d").tag(1)    // Layers/Structure
+                    Image(systemName: "folder").tag(2)               // Assets/Colors
+                    Image(systemName: "link").tag(3)                 // Bindings & Navigation
+                    Image(systemName: "play.circle").tag(4)           // Animations
+                }
+                .pickerStyle(.segmented)
+                .padding(8)
+
+                Divider()
+
+                Group {
+                    switch rightInspectorTab {
+                    case 0:
+                        VisualUIInspector(document: document)
+                    case 1:
+                        VisualUILayersPanel(document: document)
+                    case 2:
+                        VisualUIAssetsPanel(document: document)
+                    case 3:
+                        VisualUIBindingsPanel(document: document)
+                    default:
+                        VisualUIAnimationsPanel(document: document)
+                    }
                 }
             }
         }

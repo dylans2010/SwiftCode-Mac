@@ -27,18 +27,18 @@ public final class VisualUIDocument: Identifiable {
 
     public init(scene: VisualUIScene = VisualUIScene()) {
         self.scene = scene
-        // Setup initial default artboard if empty
+
+        let rootNode = VisualComponentNode(type: .vStack)
+        let defaultArtboard = VisualUIArtboard(name: "Default", deviceFrame: "iPhone 16 Pro", rootNode: rootNode)
+
         if scene.artboards.isEmpty {
-            let rootNode = VisualComponentNode(
-                type: .vStack,
-                children: [
-                    VisualComponentNode(type: .text, properties: ["textValue": "Welcome to Visual UI Builder"]),
-                    VisualComponentNode(type: .button, properties: ["textValue": "Get Started"])
-                ]
-            )
-            let defaultArtboard = VisualUIArtboard(name: "Home View", rootNode: rootNode)
             scene.artboards.append(defaultArtboard)
             scene.activeArtboardID = defaultArtboard.id
+        } else {
+            // Ensure "Default" artboard is always present and first
+            if !scene.artboards.contains(where: { $0.name == "Default" }) {
+                scene.artboards.insert(defaultArtboard, at: 0)
+            }
         }
         startListeningToCodeSync()
     }
@@ -349,6 +349,8 @@ public final class SavedArtboardManager {
 
     public func duplicateArtboard(id: UUID) {
         if let original = savedArtboards.first(where: { $0.id == id }) {
+            // Prevent duplicate of Default artboard
+            if original.name == "Default" || original.layout.name == "Default" { return }
             let dupLayout = VisualUIArtboard(
                 name: "\(original.layout.name) Copy",
                 deviceFrame: original.layout.deviceFrame,

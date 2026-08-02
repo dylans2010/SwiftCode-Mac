@@ -337,8 +337,82 @@ public final class LLMService: Sendable {
 
     // MARK: - Core Methods
 
+    public func sendChatRequestWithSequenceFallback(prompt: String, messages: [AIMessage]) async throws -> LLMResponse {
+        let startTime = Date()
+        var lastError: Error? = nil
+
+        struct FallbackStage {
+            let provider: LLMProvider
+            let model: String
+        }
+
+        let stages: [FallbackStage] = [
+            FallbackStage(provider: .offline, model: "AFM 3 Core"),
+            FallbackStage(provider: .openRouter, model: AppSettings.shared.selectedModel.isEmpty ? "meta-llama/llama-3-8b-instruct" : AppSettings.shared.selectedModel),
+            FallbackStage(provider: .google, model: "gemini-1.5-flash"),
+            FallbackStage(provider: .openai, model: "gpt-4o-mini"),
+            FallbackStage(provider: .anthropic, model: "claude-3-5-sonnet-20240620")
+        ]
+
+        for (index, stage) in stages.enumerated() {
+            let stageStartTime = Date()
+            logInfo("[Fallback] Stage \(index + 1): Attempting \(stage.provider.rawValue) (\(stage.model))...")
+
+            do {
+                let completionText: String
+                let latency: TimeInterval
+
+                if stage.model == "AFM 3 Core" {
+                    completionText = try await FoundationModels.shared.generatePrivateResponse(prompt: prompt)
+                    latency = Date().timeIntervalSince(stageStartTime)
+                } else {
+                    let response = try await sendChatRequestInternal(model: stage.model, messages: messages, providerOverride: stage.provider)
+                    completionText = response.completionText
+                    latency = response.latency
+                }
+
+                let totalLatency = Date().timeIntervalSince(startTime)
+                let successMessage = "[LLM] Success! Provider: \(stage.provider.rawValue), Model: \(stage.model), Prompt Length: \(prompt.count) chars, Completion Length: \(completionText.count) chars, Latency: \(String(format: "%.2f", latency))s, Total Latency: \(String(format: "%.2f", totalLatency))s, Retries: \(index), Status: Success"
+
+                await MainActor.run {
+                    PreviewDiagnostics.shared.addLog(category: "llm", message: successMessage)
+                }
+
+                return LLMResponse(
+                    modelName: stage.model,
+                    completionText: completionText,
+                    tokenUsage: nil,
+                    latency: totalLatency
+                )
+            } catch {
+                lastError = error
+                let stageLatency = Date().timeIntervalSince(stageStartTime)
+                let failureMessage = "[LLM] Failed Stage \(index + 1)! Provider: \(stage.provider.rawValue), Model: \(stage.model), Latency: \(String(format: "%.2f", stageLatency))s, Error: \(error.localizedDescription), Status: Retrying"
+
+                await MainActor.run {
+                    PreviewDiagnostics.shared.addLog(category: "llm", message: failureMessage)
+                }
+            }
+        }
+
+        let totalLatency = Date().timeIntervalSince(startTime)
+        let finalFailureMessage = "[LLM] All fallback stages failed! Total Latency: \(String(format: "%.2f", totalLatency))s, Status: Failure"
+        await MainActor.run {
+            PreviewDiagnostics.shared.addLog(category: "llm", message: finalFailureMessage)
+        }
+
+        throw lastError ?? LLMError.unknown("All fallback stages failed.")
+    }
+
     @MainActor
     public func generateResponse(prompt: String, useContext: Bool, modelOverride: String? = nil, providerOverride: LLMProvider? = nil) async throws -> String {
+        let messages = [AIMessage(role: .user, content: prompt)]
+
+        if modelOverride == nil && providerOverride == nil {
+            let response = try await sendChatRequestWithSequenceFallback(prompt: prompt, messages: messages)
+            return response.completionText
+        }
+
         let model = modelOverride ?? AppSettings.shared.selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedProvider = providerOverride ?? provider(for: model)
 

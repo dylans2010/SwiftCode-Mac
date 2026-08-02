@@ -87,16 +87,6 @@ public struct VisualUIToolbar: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .help("Toggle Device Bezels & Safe Areas")
-
-                Button {
-                    settings.showLiveViewport.toggle()
-                } label: {
-                    Image(systemName: "play.desktopcomputer")
-                        .foregroundColor(settings.showLiveViewport ? .accentColor : .secondary)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("Toggle Live Viewport")
             }
 
             Spacer()
