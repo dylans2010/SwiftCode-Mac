@@ -87,6 +87,16 @@ public struct VisualUIToolbar: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .help("Toggle Device Bezels & Safe Areas")
+
+                Button {
+                    settings.showLiveViewport.toggle()
+                } label: {
+                    Image(systemName: "play.desktopcomputer")
+                        .foregroundColor(settings.showLiveViewport ? .accentColor : .secondary)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Toggle Live Viewport")
             }
 
             Spacer()
@@ -164,8 +174,19 @@ public struct VisualUIToolbar: View {
     }
 
     private func openInSwiftCodeEditor() {
-        let generator = VisualUICodeGenerator()
-        let code = generator.generateCode(for: document.scene, targetFramework: .swiftUI)
+        let code: String
+
+        // Find if we are rendering a custom artboard with custom SwiftUI source code!
+        if let activeID = document.scene.activeArtboardID,
+           let activeArtboard = document.scene.artboards.first(where: { $0.id == activeID }),
+           let customSource = activeArtboard.customSwiftUISource, !customSource.isEmpty {
+            code = customSource
+        } else if settings.showCompiledView, let activeDoc = DocumentCoordinator.shared.activeDocument {
+            code = activeDoc.content
+        } else {
+            let generator = VisualUICodeGenerator()
+            code = generator.generateCode(for: document.scene, targetFramework: .swiftUI)
+        }
 
         let fileURL: URL
         if let activeDoc = DocumentCoordinator.shared.activeDocument {

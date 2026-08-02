@@ -29,9 +29,18 @@ public final class PreviewManager {
         buildLogs = ["Discovering previews..."]
 
         let discovered = await discoveryService.discoverPreviews(inSourceCode: content)
-        self.availablePreviews = discovered
+        var allTargets = discovered
 
-        if let first = discovered.first {
+        let detectedViews = SwiftViewDetector.detectViews(in: content)
+        for view in detectedViews {
+            if !allTargets.contains(view) {
+                allTargets.append(view)
+            }
+        }
+
+        self.availablePreviews = allTargets
+
+        if let first = allTargets.first {
             selectedPreviewName = first
             await startPreviewSession(sourcePath: path, sourceCode: content, targetView: first)
         } else {

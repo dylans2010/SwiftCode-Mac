@@ -29,6 +29,15 @@ public final class VisualUISettings {
 
     public var isFullScreenCanvas: Bool = false
 
+    public var showLiveViewport: Bool {
+        get {
+            UserDefaults.standard.bool(forKey: "com.swiftcode.visualUIBuilder.showLiveViewport")
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "com.swiftcode.visualUIBuilder.showLiveViewport")
+        }
+    }
+
     public var favoriteComponents: Set<VisualComponentType> {
         get {
             let list = UserDefaults.standard.stringArray(forKey: "com.swiftcode.visualUIBuilder.favorites") ?? []

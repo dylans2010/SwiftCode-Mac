@@ -116,7 +116,10 @@ public actor PreviewRuntimeCompiler {
     }
 
     private func makeBootstrapSource(viewTypes: [String], defaultRoot: String) -> String {
-        let cases = viewTypes.map { viewType in
+        var allViews = Set(viewTypes)
+        allViews.insert(defaultRoot)
+
+        let cases = allViews.map { viewType in
             "case \"\(viewType)\": root = AnyView(\(viewType)())"
         }.joined(separator: "\n        ")
 

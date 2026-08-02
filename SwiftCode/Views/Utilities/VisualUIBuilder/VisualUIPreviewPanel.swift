@@ -19,6 +19,31 @@ public struct VisualUIPreviewPanel: View {
 
                 Spacer()
 
+                if settings.showCompiledView && PreviewManager.shared.availablePreviews.count > 1 {
+                    Picker("Target", selection: Binding(
+                        get: { PreviewManager.shared.selectedPreviewName ?? "" },
+                        set: { newValue in
+                            PreviewManager.shared.selectedPreviewName = newValue
+                            Task {
+                                if let activeDoc = DocumentCoordinator.shared.activeDocument {
+                                    await PreviewManager.shared.startPreviewSession(
+                                        sourcePath: activeDoc.url.path,
+                                        sourceCode: activeDoc.content,
+                                        targetView: newValue
+                                    )
+                                }
+                            }
+                        }
+                    )) {
+                        ForEach(PreviewManager.shared.availablePreviews, id: \.self) { name in
+                            Text(name).tag(name)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .controlSize(.small)
+                    .frame(width: 140)
+                }
+
                 Button {
                     showingDiagnostics.toggle()
                 } label: {
@@ -75,40 +100,103 @@ public struct VisualUIPreviewPanel: View {
                         .padding(16)
                     }
                 } else {
-                    // Render Active Artboard Preview Environment using PreviewHost & PreviewContainer
-                    if let activeID = document.scene.activeArtboardID,
-                       let activeArtboard = document.scene.artboards.first(where: { $0.id == activeID }) {
-                        ScrollView([.horizontal, .vertical]) {
-                            VStack {
-                                if let hostedView = PreviewManager.shared.hostedView {
-                                    PreviewContainer(state: previewState) {
-                                        NativePreviewHost(hostedView: hostedView)
-                                    }
-                                } else {
-                                    // Fallback to high-fidelity live preview runtime workspace
-                                    PreviewContainer(state: previewState) {
-                                        VisualUIRenderer(rootNode: activeArtboard.rootNode, document: document)
-                                    }
+                    if settings.showCompiledView {
+                        if let hostedView = PreviewManager.shared.hostedView {
+                            PreviewContainer(state: previewState) {
+                                NativePreviewHost(hostedView: hostedView)
+                            }
+                        } else if PreviewManager.shared.isCompiling {
+                            VStack(spacing: 12) {
+                                ProgressView()
+                                Text("Compiling SwiftUI View...")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else {
+                            // Real compiler error diagnostics
+                            VStack(alignment: .leading, spacing: 12) {
+                                Label("Compilation Failed", systemImage: "xmark.octagon.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.red)
+
+                                Divider()
+
+                                ScrollView {
+                                    Text(PreviewManager.shared.buildLogs.joined(separator: "\n"))
+                                        .font(.system(.body, design: .monospaced))
+                                        .foregroundColor(.primary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                 }
+                                .padding(8)
+                                .background(Color.red.opacity(0.05))
+                                .cornerRadius(6)
                             }
-                            .padding(32)
-                        }
-                        .task {
-                            await refreshPreviewSession()
-                        }
-                        .onChange(of: document.scene.selectedNodeIDs) { _, _ in
-                            Task {
-                                await refreshPreviewSession()
-                            }
-                        }
-                        .onChange(of: settings.showCompiledView) { _, _ in
-                            Task {
-                                await refreshPreviewSession()
-                            }
+                            .padding()
+                            .background(RoundedRectangle(cornerRadius: 12).stroke(Color.red.opacity(0.2), lineWidth: 1))
+                            .padding(20)
                         }
                     } else {
-                        ContentUnavailableView {
-                            Label("No Active Artboard", systemImage: "macwindow")
+                        // Regular / Custom Artboard View
+                        if let activeID = document.scene.activeArtboardID,
+                           let activeArtboard = document.scene.artboards.first(where: { $0.id == activeID }) {
+                            ScrollView([.horizontal, .vertical]) {
+                                VStack {
+                                    if let customSource = activeArtboard.customSwiftUISource, !customSource.isEmpty {
+                                        if let artboardView = DocumentCoordinator.shared.compiledArtboardViews[activeArtboard.id] {
+                                            PreviewContainer(state: previewState) {
+                                                NativePreviewHost(hostedView: artboardView)
+                                            }
+                                        } else if let errorMsg = DocumentCoordinator.shared.compiledArtboardErrors[activeArtboard.id] {
+                                            VStack(alignment: .leading, spacing: 12) {
+                                                Label("Artboard Compile Error", systemImage: "exclamationmark.triangle.fill")
+                                                    .font(.headline)
+                                                    .foregroundColor(.red)
+                                                Divider()
+                                                Text(errorMsg)
+                                                    .font(.system(.body, design: .monospaced))
+                                                    .foregroundColor(.red)
+                                            }
+                                            .padding()
+                                            .frame(width: 320)
+                                            .background(Color.red.opacity(0.05))
+                                            .cornerRadius(8)
+                                        } else {
+                                            VStack(spacing: 12) {
+                                                ProgressView()
+                                                Text("Compiling Artboard Source...")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                            .task {
+                                                await compileArtboardSource(activeArtboard)
+                                            }
+                                        }
+                                    } else {
+                                        PreviewContainer(state: previewState) {
+                                            VisualUIRenderer(rootNode: activeArtboard.rootNode, document: document)
+                                        }
+                                    }
+                                }
+                                .padding(32)
+                            }
+                            .task {
+                                await refreshPreviewSession()
+                            }
+                            .onChange(of: document.scene.selectedNodeIDs) { _, _ in
+                                Task {
+                                    await refreshPreviewSession()
+                                }
+                            }
+                            .onChange(of: settings.showCompiledView) { _, _ in
+                                Task {
+                                    await refreshPreviewSession()
+                                }
+                            }
+                        } else {
+                            ContentUnavailableView {
+                                Label("No Active Artboard", systemImage: "macwindow")
+                            }
                         }
                     }
                 }
@@ -122,12 +210,39 @@ public struct VisualUIPreviewPanel: View {
         return generator.generateCode(for: document.scene, targetFramework: .swiftUI)
     }
 
+    private func compileArtboardSource(_ artboard: VisualUIArtboard) async {
+        guard let customSource = artboard.customSwiftUISource, !customSource.isEmpty else { return }
+
+        let targetView = SwiftViewDetector.determinePrimaryView(in: customSource, filename: "Artboard_\(artboard.id).swift") ?? "ContentView"
+        let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(customSource, filename: "Artboard_\(artboard.id).swift")
+
+        do {
+            let view = try await PreviewRuntime.shared.updateRuntimeSession(
+                sourcePath: "Artboard_\(artboard.id).swift",
+                sourceCode: preparedCode,
+                targetView: targetView
+            ) { _ in }
+            DocumentCoordinator.shared.compiledArtboardViews[artboard.id] = view
+            DocumentCoordinator.shared.compiledArtboardErrors[artboard.id] = nil
+        } catch {
+            DocumentCoordinator.shared.compiledArtboardViews[artboard.id] = nil
+            DocumentCoordinator.shared.compiledArtboardErrors[artboard.id] = error.localizedDescription
+        }
+    }
+
     private func refreshPreviewSession() async {
         if settings.showCompiledView {
             // Use active editor document
             if let activeDoc = DocumentCoordinator.shared.activeDocument {
-                let (preparedCode, targetView) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
-                let resolvedTarget = targetView ?? "SwiftUI Preview"
+                // Populate available views in PreviewManager
+                let detected = SwiftViewDetector.detectViews(in: activeDoc.content)
+                PreviewManager.shared.availablePreviews = detected.isEmpty ? ["ContentView"] : detected
+                if PreviewManager.shared.selectedPreviewName == nil || !PreviewManager.shared.availablePreviews.contains(PreviewManager.shared.selectedPreviewName!) {
+                    PreviewManager.shared.selectedPreviewName = PreviewManager.shared.availablePreviews.first
+                }
+
+                let resolvedTarget = PreviewManager.shared.selectedPreviewName ?? "ContentView"
+                let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
                 await PreviewManager.shared.startPreviewSession(
                     sourcePath: activeDoc.url.path,
                     sourceCode: preparedCode,

@@ -72,29 +72,30 @@ struct BuildToolbarView: View {
 
                 if let activeDoc = editorViewModel.activeDocument, activeDoc.url.pathExtension.lowercased() == "swift" {
                     Button {
-                        // 1. Launch Visual UI Builder immediately
-                        NotificationCenter.default.post(
-                            name: .toolbarToolActivated,
-                            object: nil,
-                            userInfo: ["toolID": "visual_ui_builder"]
-                        )
+                        Task {
+                            // 1. Save current editor contents immediately
+                            await editorViewModel.saveActiveDocument()
 
-                        if activeDoc.content.contains("@SwiftCodeVisualUIBuilderDocument") {
-                            // Visual UI Design mode: Show Canvas layout
-                            VisualUISettings.shared.showCompiledView = false
-                            Task {
+                            // 2. Launch Visual UI Builder immediately
+                            NotificationCenter.default.post(
+                                name: .toolbarToolActivated,
+                                object: nil,
+                                userInfo: ["toolID": "visual_ui_builder"]
+                            )
+
+                            if activeDoc.content.contains("@SwiftCodeVisualUIBuilderDocument") {
+                                // Visual UI Design mode: Show Canvas layout
+                                VisualUISettings.shared.showCompiledView = false
                                 await PreviewManager.shared.startPreviewSession(
                                     sourcePath: activeDoc.url.path,
                                     sourceCode: activeDoc.content,
                                     targetView: "VisualUIExportView"
                                 )
-                            }
-                        } else {
-                            // Compiled View mode: Show real editor SwiftUI view
-                            VisualUISettings.shared.showCompiledView = true
-                            let (preparedCode, targetView) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
-                            let resolvedTarget = targetView ?? "SwiftUI Preview"
-                            Task {
+                            } else {
+                                // Compiled View mode: Show real editor SwiftUI view
+                                VisualUISettings.shared.showCompiledView = true
+                                let (preparedCode, targetView) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
+                                let resolvedTarget = targetView ?? "SwiftUI Preview"
                                 await PreviewManager.shared.startPreviewSession(
                                     sourcePath: activeDoc.url.path,
                                     sourceCode: preparedCode,

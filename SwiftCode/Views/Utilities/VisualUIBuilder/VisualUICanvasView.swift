@@ -9,6 +9,7 @@ public struct VisualUICanvasView: View {
     @GestureState private var isPanning = false
     @State private var magnifyScale = 1.0
     @State private var dragStartOffset = CGSize.zero
+    @State private var showingAddArtboardSheet = false
 
     public var body: some View {
         GeometryReader { geo in
@@ -55,7 +56,7 @@ public struct VisualUICanvasView: View {
 
                         // Add Artboard Button
                         Button {
-                            addNewArtboard()
+                            showingAddArtboardSheet = true
                         } label: {
                             VStack(spacing: 12) {
                                 Image(systemName: "plus.circle.fill")
@@ -70,6 +71,20 @@ public struct VisualUICanvasView: View {
                         .buttonStyle(.plain)
                     }
                     .padding(100)
+                    .sheet(isPresented: $showingAddArtboardSheet) {
+                        AddArtboardSheet { name, device, app, port, dtSize, scale, sArea, src in
+                            addNewCustomArtboard(
+                                name: name,
+                                device: device,
+                                appearance: app,
+                                isPortrait: port,
+                                dynamicTypeSize: dtSize,
+                                scale: scale,
+                                showSafeAreas: sArea,
+                                sourceCode: src
+                            )
+                        }
+                    }
                     .scaleEffect(document.scene.zoomScale * magnifyScale)
                     .offset(x: document.scene.panOffsetX, y: document.scene.panOffsetY)
                 }
@@ -161,20 +176,39 @@ public struct VisualUICanvasView: View {
         settings.addLog("Adjusted workspace zoom to \(Int(document.scene.zoomScale * 100))%")
     }
 
-    private func addNewArtboard() {
+    private func addNewCustomArtboard(
+        name: String,
+        device: String,
+        appearance: String,
+        isPortrait: Bool,
+        dynamicTypeSize: String,
+        scale: Double,
+        showSafeAreas: Bool,
+        sourceCode: String
+    ) {
         document.checkpoint()
-        let count = document.scene.artboards.count + 1
         let rootNode = VisualComponentNode(
             type: .vStack,
             children: [
-                VisualComponentNode(type: .text, properties: ["textValue": "Screen \(count)"])
+                VisualComponentNode(type: .text, properties: ["textValue": name])
             ]
         )
-        let newArt = VisualUIArtboard(name: "Artboard \(count)", rootNode: rootNode)
+        let newArt = VisualUIArtboard(
+            name: name,
+            deviceFrame: device,
+            rootNode: rootNode,
+            customSwiftUISource: sourceCode,
+            appearance: appearance,
+            isPortrait: isPortrait,
+            dynamicTypeSize: dynamicTypeSize,
+            previewScale: scale,
+            showSafeAreas: showSafeAreas
+        )
         withAnimation {
             document.scene.artboards.append(newArt)
+            document.scene.activeArtboardID = newArt.id
         }
-        settings.addLog("Created new artboard: \(newArt.name)")
+        settings.addLog("Created custom compiled artboard: \(name)")
     }
 }
 
@@ -267,7 +301,7 @@ public struct ArtboardView: View {
                         NativePreviewHost(hostedView: hostedView)
                             .frame(width: size.width, height: size.height)
                             .background(settings.isDarkMode ? Color.black : Color.white)
-                    } else {
+                    } else if PreviewManager.shared.isCompiling {
                         VStack(spacing: 12) {
                             ProgressView()
                             Text("Compiling SwiftUI View...")
@@ -276,11 +310,58 @@ public struct ArtboardView: View {
                         }
                         .frame(width: size.width, height: size.height)
                         .background(settings.isDarkMode ? Color.black : Color.white)
+                    } else {
+                        // Display real compiler diagnostics in place of preview!
+                        VStack(alignment: .leading, spacing: 12) {
+                            Label("Compilation Failed", systemImage: "xmark.octagon.fill")
+                                .font(.headline)
+                                .foregroundColor(.red)
+
+                            ScrollView {
+                                Text(PreviewManager.shared.buildLogs.joined(separator: "\n"))
+                                    .font(.system(.body, design: .monospaced))
+                                    .foregroundColor(.red)
+                            }
+                        }
+                        .padding()
+                        .frame(width: size.width, height: size.height)
+                        .background(Color.red.opacity(0.05))
                     }
                 } else {
-                    VisualUIRenderer(rootNode: artboard.rootNode, document: document)
-                        .frame(width: size.width, height: size.height)
-                        .background(settings.isDarkMode ? Color.black : Color.white)
+                    if let customSource = artboard.customSwiftUISource, !customSource.isEmpty {
+                        if let artboardView = DocumentCoordinator.shared.compiledArtboardViews[artboard.id] {
+                            NativePreviewHost(hostedView: artboardView)
+                                .frame(width: size.width, height: size.height)
+                                .background(settings.isDarkMode ? Color.black : Color.white)
+                        } else if let errorMsg = DocumentCoordinator.shared.compiledArtboardErrors[artboard.id] {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Label("Artboard Compile Error", systemImage: "exclamationmark.triangle.fill")
+                                    .font(.headline)
+                                    .foregroundColor(.red)
+                                ScrollView {
+                                    Text(errorMsg)
+                                        .font(.system(.body, design: .monospaced))
+                                        .foregroundColor(.red)
+                                }
+                            }
+                            .padding()
+                            .frame(width: size.width, height: size.height)
+                            .background(Color.red.opacity(0.05))
+                        } else {
+                            VStack(spacing: 12) {
+                                ProgressView()
+                                Text("Compiling Artboard...")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .frame(width: size.width, height: size.height)
+                            .background(settings.isDarkMode ? Color.black : Color.white)
+                        }
+                    } else {
+                        VisualUIRenderer(rootNode: artboard.rootNode, document: document)
+                            .frame(width: size.width, height: size.height)
+                            .background(settings.isDarkMode ? Color.black : Color.white)
+                    }
                 }
             }
             .cornerRadius(settings.showSafeAreas ? 40 : 0)

@@ -22,7 +22,19 @@ public class VisualUIBuilderSplitViewController: NSSplitViewController {
 
         // Sync Visual UI Document with Active Code Document on load
         if let activeDoc = DocumentCoordinator.shared.activeDocument {
-            document.synchronizeFromCode(activeDoc.content)
+            if VisualUISettings.shared.showCompiledView {
+                document.scene.artboards.removeAll { $0.name == "Home View" && $0.rootNode.children.first?.properties["textValue"] == "Welcome to Visual UI Builder" }
+
+                let name = activeDoc.url.deletingPathExtension().lastPathComponent
+                if !document.scene.artboards.contains(where: { $0.name == name }) {
+                    let rootNode = VisualComponentNode(type: .vStack)
+                    let compiledArtboard = VisualUIArtboard(name: name, deviceFrame: VisualUISettings.shared.selectedDevice, rootNode: rootNode)
+                    document.scene.artboards.append(compiledArtboard)
+                    document.scene.activeArtboardID = compiledArtboard.id
+                }
+            } else {
+                document.synchronizeFromCode(activeDoc.content)
+            }
             document.filePath = activeDoc.url.path
             document.isDirty = activeDoc.isDirty
         }
@@ -131,11 +143,15 @@ struct VisualUIBuilderCenterWrapper: View {
             if sidebarState.selectedIndex == 2 {
                 SavedArtboardsWorkspaceView(document: document)
             } else {
-                HSplitView {
+                if settings.showLiveViewport {
+                    HSplitView {
+                        VisualUICanvasView(document: document, settings: settings)
+                            .frame(minWidth: 350)
+                        VisualUIPreviewPanel(document: document, settings: settings)
+                            .frame(minWidth: 350)
+                    }
+                } else {
                     VisualUICanvasView(document: document, settings: settings)
-                        .frame(minWidth: 350)
-                    VisualUIPreviewPanel(document: document, settings: settings)
-                        .frame(minWidth: 350)
                 }
             }
         }
