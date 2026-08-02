@@ -94,7 +94,7 @@ public struct BuildResult: Sendable, Codable {
     }
 }
 
-public struct ProjectMetadata: Sendable, Codable {
+public struct XcodeProjectMetadata: Sendable, Codable {
     public let name: String
     public let productType: String
     public let targetName: String
@@ -512,9 +512,9 @@ public final class XcodeBuildAPI: Sendable {
         return nil
     }
 
-    public func determineProjectMetadata() -> ProjectMetadata? {
+    public func determineProjectMetadata() -> XcodeProjectMetadata? {
         guard let proj = discoverActiveProject() else { return nil }
-        return ProjectMetadata(
+        return XcodeProjectMetadata(
             name: proj.name,
             productType: "com.apple.product-type.application",
             targetName: proj.name,
