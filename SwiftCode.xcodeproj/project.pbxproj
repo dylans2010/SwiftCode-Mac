@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DEC001DFB00C0DEB12345672 /* CodingDictionaryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEC001DFB00C0DEB12345671 /* CodingDictionaryModels.swift */; };
+		DEC001DFB00C0DEB12345674 /* DictionaryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEC001DFB00C0DEB12345673 /* DictionaryManager.swift */; };
+		DEC001DFB00C0DEB12345676 /* CodingDictionaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEC001DFB00C0DEB12345675 /* CodingDictionaryView.swift */; };
 		60A73D1E8BE8B5E078E10AEF /* ProjectCompatibilityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEADAB9179D503EFBDAB6705 /* ProjectCompatibilityView.swift */; };
 		141D05674E5129028B13B931 /* SecurityCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7EC5AE379601C498231A42 /* SecurityCenterView.swift */; };
 		4F97C1A7F1889B690CC843F8 /* DependencyVisualizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28591269D756C465F30283D5 /* DependencyVisualizerView.swift */; };
@@ -4607,6 +4610,16 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		DEC001DFB00C0DEB12345678 /* Dictionary */ = {
+			isa = PBXGroup;
+			children = (
+				DEC001DFB00C0DEB12345671 /* CodingDictionaryModels.swift */,
+				DEC001DFB00C0DEB12345673 /* DictionaryManager.swift */,
+			);
+			path = Dictionary;
+			sourceTree = "<group>";
+		};
+
 		791D31C38A869B0F335DAF24 /* Database */ = {
 			isa = PBXGroup;
 			children = (
@@ -5094,6 +5107,7 @@
 		001BFD647D5F8303B39B8C64 /* Backend */ = {
 			isa = PBXGroup;
 			children = (
+				DEC001DFB00C0DEB12345678 /* Dictionary */,
 				22C2251C145B8C41B04536A6 /* Offline Models */,
 				B5C6D06004D5DCBD438499FB /* On Device Intelligence */,
 				6D969FB93A3CA6DEB364EE63 /* Deployments */,
@@ -5839,6 +5853,7 @@
 		576E45E47FC5098A3A96ECB8 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				DEC001DFB00C0DEB12345675 /* CodingDictionaryView.swift */,
 				BEADAB9179D503EFBDAB6705 /* ProjectCompatibilityView.swift */,
 				8A7EC5AE379601C498231A42 /* SecurityCenterView.swift */,
 				28591269D756C465F30283D5 /* DependencyVisualizerView.swift */,
