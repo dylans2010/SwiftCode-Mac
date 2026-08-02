@@ -1,5 +1,17 @@
 import Foundation
 
+public enum PreviewSessionState: String, Codable, Sendable {
+    case init_state = "INIT"
+    case sourceReceived = "SOURCE_RECEIVED"
+    case discovering = "DISCOVERING"
+    case noCandidates = "NO_CANDIDATES"
+    case compiling = "COMPILING"
+    case rendering = "RENDERING"
+    case rendered = "RENDERED"
+    case failedKeepLast = "FAILED_KEEP_LAST"
+    case failedNoPrior = "FAILED_NO_PRIOR"
+}
+
 public struct PreviewSession: Identifiable, Hashable, Codable, Sendable {
     public var id: String { sessionID }
     public let sessionID: String
@@ -7,6 +19,7 @@ public struct PreviewSession: Identifiable, Hashable, Codable, Sendable {
     public let targetViewName: String
     public var lastCompiledAt: Date
     public var status: String // Compiling, Ready, Failed, Idle
+    public var state: PreviewSessionState
     public var activeNodeHashes: [String: Int] // Node ID -> properties hash for incremental change detection
 
     public init(
@@ -15,6 +28,7 @@ public struct PreviewSession: Identifiable, Hashable, Codable, Sendable {
         targetViewName: String,
         lastCompiledAt: Date = Date(),
         status: String = "Idle",
+        state: PreviewSessionState = .init_state,
         activeNodeHashes: [String: Int] = [:]
     ) {
         self.sessionID = sessionID
@@ -22,6 +36,7 @@ public struct PreviewSession: Identifiable, Hashable, Codable, Sendable {
         self.targetViewName = targetViewName
         self.lastCompiledAt = lastCompiledAt
         self.status = status
+        self.state = state
         self.activeNodeHashes = activeNodeHashes
     }
 

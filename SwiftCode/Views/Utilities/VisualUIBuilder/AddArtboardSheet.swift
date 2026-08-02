@@ -11,6 +11,7 @@ public struct AddArtboardSheet: View {
     @State private var dynamicTypeSize: String = "Medium"
     @State private var previewScale: Double = 1.0
     @State private var showSafeAreas: Bool = true
+    @State private var showingCodeEditor = false
     @State private var sourceCode: String = """
 import SwiftUI
 
@@ -51,7 +52,7 @@ struct MyCustomView: View {
                 Button("Cancel") {
                     dismiss()
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
             }
             .padding()
             .background(Color(NSColor.windowBackgroundColor))
@@ -107,13 +108,30 @@ struct MyCustomView: View {
                 .padding(.bottom, 12)
 
                 Section(header: Text("SwiftUI Source Code").font(.subheadline.bold())) {
-                    TextEditor(text: $sourceCode)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(height: 180)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                        )
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Edit the custom SwiftUI source code for this artboard in a dedicated editor.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        Button(action: {
+                            showingCodeEditor = true
+                        }) {
+                            Label("Edit Artboard Source Code...", systemImage: "doc.text.fill")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Text(sourceCode)
+                            .font(.system(.caption, design: .monospaced))
+                            .lineLimit(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(8)
+                            .background(Color.secondary.opacity(0.05))
+                            .cornerRadius(6)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+                            )
+                    }
                 }
             }
             .formStyle(.grouped)
@@ -134,5 +152,10 @@ struct MyCustomView: View {
             .background(Color(NSColor.windowBackgroundColor))
         }
         .frame(width: 550, height: 680)
+        .sheet(isPresented: $showingCodeEditor) {
+            CodeForArtboard(initialSource: sourceCode) { updatedCode in
+                sourceCode = updatedCode
+            }
+        }
     }
 }

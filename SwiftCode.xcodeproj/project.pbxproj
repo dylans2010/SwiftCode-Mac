@@ -118,6 +118,9 @@
 		FB65951A37BF4B27B987915F /* VisualUIInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2351285C038947659A338E2C /* VisualUIInspector.swift */; };
 		23D13A951EFE406F86727193 /* VisualUIComponentLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC22723B1B8C456E89785322 /* VisualUIComponentLibrary.swift */; };
 		972F8CE11B874A0A84D75E07 /* VisualUIPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A1B92D973144DAA96813D5 /* VisualUIPreviewPanel.swift */; };
+		A410134A29F4433F9FCEDC7D /* AddArtboardSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AD5AB67A1E5410A85B89602 /* AddArtboardSheet.swift */; };
+		BADB6ED13CC84FBDBF12FACA /* CodeForArtboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A49A854E91254367A9FA01E0 /* CodeForArtboard.swift */; };
+		E204BC250DF74471B374E741 /* PreviewLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C3475A1A9254BA78EEDB360 /* PreviewLogsView.swift */; };
 		326087BF39744B1F9DADB3E1 /* VisualUIPropertiesPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 107C6F7BC6984B42940B12C1 /* VisualUIPropertiesPanel.swift */; };
 		896E957E48EC4F94B95B3244 /* VisualUILayersPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E40EE64D55E4036A42C41E6 /* VisualUILayersPanel.swift */; };
 		E90B1C56BABE48058A486996 /* VisualUIAssetsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBC8670F25314EF19797D25C /* VisualUIAssetsPanel.swift */; };
@@ -2357,6 +2360,9 @@
 		2351285C038947659A338E2C /* VisualUIInspector.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIInspector.swift; path = VisualUIInspector.swift; sourceTree = "<group>"; };
 		EC22723B1B8C456E89785322 /* VisualUIComponentLibrary.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIComponentLibrary.swift; path = VisualUIComponentLibrary.swift; sourceTree = "<group>"; };
 		15A1B92D973144DAA96813D5 /* VisualUIPreviewPanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIPreviewPanel.swift; path = VisualUIPreviewPanel.swift; sourceTree = "<group>"; };
+		1AD5AB67A1E5410A85B89602 /* AddArtboardSheet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = AddArtboardSheet.swift; path = AddArtboardSheet.swift; sourceTree = "<group>"; };
+		A49A854E91254367A9FA01E0 /* CodeForArtboard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = CodeForArtboard.swift; path = CodeForArtboard.swift; sourceTree = "<group>"; };
+		5C3475A1A9254BA78EEDB360 /* PreviewLogsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = PreviewLogsView.swift; path = PreviewLogsView.swift; sourceTree = "<group>"; };
 		107C6F7BC6984B42940B12C1 /* VisualUIPropertiesPanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIPropertiesPanel.swift; path = VisualUIPropertiesPanel.swift; sourceTree = "<group>"; };
 		6E40EE64D55E4036A42C41E6 /* VisualUILayersPanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUILayersPanel.swift; path = VisualUILayersPanel.swift; sourceTree = "<group>"; };
 		FBC8670F25314EF19797D25C /* VisualUIAssetsPanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VisualUIAssetsPanel.swift; path = VisualUIAssetsPanel.swift; sourceTree = "<group>"; };
@@ -4744,6 +4750,9 @@
 				2351285C038947659A338E2C /* VisualUIInspector.swift */,
 				EC22723B1B8C456E89785322 /* VisualUIComponentLibrary.swift */,
 				15A1B92D973144DAA96813D5 /* VisualUIPreviewPanel.swift */,
+				1AD5AB67A1E5410A85B89602 /* AddArtboardSheet.swift */,
+				A49A854E91254367A9FA01E0 /* CodeForArtboard.swift */,
+				5C3475A1A9254BA78EEDB360 /* PreviewLogsView.swift */,
 				107C6F7BC6984B42940B12C1 /* VisualUIPropertiesPanel.swift */,
 				6E40EE64D55E4036A42C41E6 /* VisualUILayersPanel.swift */,
 				FBC8670F25314EF19797D25C /* VisualUIAssetsPanel.swift */,
@@ -9196,6 +9205,9 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 				FB65951A37BF4B27B987915F /* VisualUIInspector.swift in Sources */,
 				23D13A951EFE406F86727193 /* VisualUIComponentLibrary.swift in Sources */,
 				972F8CE11B874A0A84D75E07 /* VisualUIPreviewPanel.swift in Sources */,
+				A410134A29F4433F9FCEDC7D /* AddArtboardSheet.swift in Sources */,
+				BADB6ED13CC84FBDBF12FACA /* CodeForArtboard.swift in Sources */,
+				E204BC250DF74471B374E741 /* PreviewLogsView.swift in Sources */,
 				326087BF39744B1F9DADB3E1 /* VisualUIPropertiesPanel.swift in Sources */,
 				896E957E48EC4F94B95B3244 /* VisualUILayersPanel.swift in Sources */,
 				E90B1C56BABE48058A486996 /* VisualUIAssetsPanel.swift in Sources */,

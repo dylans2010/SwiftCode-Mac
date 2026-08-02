@@ -33,23 +33,42 @@ public final class PreviewRuntime {
         isRunning = true
         let startTime = Date()
 
-        // 1. Invalidate cache if needed or check if we can perform an incremental reload
-        let cacheKey = "\(sourcePath)_\(targetView)"
+        // Generate content hash for caching (ensuring whitespaces/comments are evaluated correctly)
+        let codeHash = String(sourceCode.hashValue)
+        let cacheKey = "\(sourcePath)_\(targetView)_\(codeHash)"
 
-        // 2. Build / compile dynamic library using the compiler
-        logHandler("Compiling user SwiftUI view target '\(targetView)'...")
+        if let cachedView = activeViewInstances[cacheKey] {
+            logHandler("Reusing cached preview render.")
+            PreviewDiagnostics.shared.addLog(category: "cache", message: "Cache hit for '\(targetView)' (hash: \(codeHash))")
+            isRunning = false
+            return cachedView
+        }
+
+        // 2. Build / compile dynamic library using the compiler or query cache
+        logHandler("Checking compilation cache...")
         let libraryURL: URL
-        do {
-            libraryURL = try await buildService.compilePreview(
-                sourcePath: sourcePath,
-                targetName: targetView,
-                outputHandler: logHandler
-            )
-            lastCompiledAt = Date()
-        } catch {
-            logger.error("[RUNTIME] Compilation failed: \(error.localizedDescription)")
-            logHandler("Dynamic compilation failed. Falling back to native sandbox runtime.")
-            throw error
+        if let cachedDylibURL = await PreviewCache.shared.getBinary(forHash: codeHash) {
+            logHandler("Reusing compiled binary from cache.")
+            PreviewDiagnostics.shared.addLog(category: "cache", message: "Cache hit: Compiled binary found for hash \(codeHash)")
+            libraryURL = cachedDylibURL
+        } else {
+            logHandler("Compiling user SwiftUI view target '\(targetView)'...")
+            do {
+                libraryURL = try await buildService.compilePreview(
+                    sourcePath: sourcePath,
+                    targetName: targetView,
+                    outputHandler: logHandler
+                )
+                lastCompiledAt = Date()
+
+                // Cache ONLY on successful builds to prevent poisoning the cache
+                await PreviewCache.shared.setBinary(libraryURL, forHash: codeHash)
+            } catch {
+                isRunning = false
+                logger.error("[RUNTIME] Compilation failed: \(error.localizedDescription)")
+                logHandler("Dynamic compilation failed. Falling back to native sandbox runtime.")
+                throw error
+            }
         }
 
         // 3. Load compiled SwiftUI view as an AppKit native NSView

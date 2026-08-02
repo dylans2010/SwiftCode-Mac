@@ -17,6 +17,9 @@ public final class PreviewManager {
     public var isCompiling = false
     public var hostedView: NSView?
 
+    // Sequence tracking for newest-request-wins concurrency safety
+    private var currentSessionRequestID: UUID?
+
     private let runtime = PreviewRuntime.shared
     private let discoveryService = PreviewDiscoveryService()
     private let communicationService = PreviewCommunicationService()
@@ -28,35 +31,93 @@ public final class PreviewManager {
         isCompiling = true
         buildLogs = ["Discovering previews..."]
 
-        let discovered = await discoveryService.discoverPreviews(inSourceCode: content)
-        var allTargets = discovered
+        let requestID = UUID()
+        self.currentSessionRequestID = requestID
 
-        let detectedViews = SwiftViewDetector.detectViews(in: content)
-        for view in detectedViews {
-            if !allTargets.contains(view) {
-                allTargets.append(view)
-            }
-        }
+        // 1. Transition to INIT
+        var session = PreviewSession(
+            sessionID: UUID().uuidString,
+            sourceFilePath: path,
+            targetViewName: "",
+            status: "Initializing",
+            state: .init_state
+        )
+        self.activeSession = session
+        PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to INIT")
+
+        guard self.currentSessionRequestID == requestID else { return }
+
+        // 2. Transition to SOURCE_RECEIVED
+        session.state = .sourceReceived
+        session.status = "Source received"
+        self.activeSession = session
+        PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to SOURCE_RECEIVED for \(path)")
+
+        guard self.currentSessionRequestID == requestID else { return }
+
+        // 3. Transition to DISCOVERING
+        session.state = .discovering
+        session.status = "Discovering"
+        self.activeSession = session
+        PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to DISCOVERING")
+
+        let discovered = await discoveryService.discoverPreviewTargets(inSourceCode: content, filename: path)
+
+        guard self.currentSessionRequestID == requestID else { return }
+
+        var allTargets = discovered
 
         self.availablePreviews = allTargets
 
         if let first = allTargets.first {
             selectedPreviewName = first
-            await startPreviewSession(sourcePath: path, sourceCode: content, targetView: first)
+            await startPreviewSession(sourcePath: path, sourceCode: content, targetView: first, requestID: requestID)
         } else {
+            // 4. Transition to NO_CANDIDATES
+            session.state = .noCandidates
+            session.status = "No candidates found"
+            self.activeSession = session
+            PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to NO_CANDIDATES")
+
             selectedPreviewName = nil
-            self.activeSession = nil
             self.hostedView = nil
             buildLogs.append("No SwiftUI Previews or PreviewProvider targets were found in this file.")
         }
         isCompiling = false
     }
 
-    public func startPreviewSession(sourcePath: String, sourceCode: String, targetView: String) async {
+    public func startPreviewSession(sourcePath: String, sourceCode: String, targetView: String, requestID: UUID? = nil) async {
+        let actualRequestID = requestID ?? UUID()
+        if requestID == nil {
+            self.currentSessionRequestID = actualRequestID
+        }
+
         isCompiling = true
         buildLogs = ["Initializing persistent runtime session..."]
 
+        var session = self.activeSession ?? PreviewSession(
+            sessionID: UUID().uuidString,
+            sourceFilePath: sourcePath,
+            targetViewName: targetView,
+            status: "Compiling",
+            state: .compiling
+        )
+
+        // 4. Transition to COMPILING
+        session.state = .compiling
+        session.status = "Compiling"
+        self.activeSession = session
+        PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to COMPILING for target '\(targetView)'")
+
+        guard self.currentSessionRequestID == actualRequestID else { return }
+
         do {
+            // 5. Transition to RENDERING
+            session.state = .rendering
+            session.status = "Rendering"
+            self.activeSession = session
+            PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to RENDERING for target '\(targetView)'")
+
             let view = try await runtime.updateRuntimeSession(
                 sourcePath: sourcePath,
                 sourceCode: sourceCode,
@@ -68,28 +129,46 @@ public final class PreviewManager {
                 }
             }
 
-            let sessionID = runtime.activeSessionID ?? UUID().uuidString
-            let session = PreviewSession(
-                sessionID: sessionID,
+            guard self.currentSessionRequestID == actualRequestID else { return }
+
+            // 6. Transition to RENDERED
+            let finalSessionID = runtime.activeSessionID ?? session.sessionID
+            let finalSession = PreviewSession(
+                sessionID: finalSessionID,
                 sourceFilePath: sourcePath,
                 targetViewName: targetView,
                 lastCompiledAt: runtime.lastCompiledAt ?? Date(),
-                status: "Ready"
+                status: "Ready",
+                state: .rendered
             )
 
-            self.activeSession = session
+            self.activeSession = finalSession
             self.hostedView = view
-            PreviewCoordinator.shared.registerSession(session)
+            PreviewCoordinator.shared.registerSession(finalSession)
+            PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to RENDERED successfully")
             buildLogs.append("Persistent runtime session connected successfully.")
         } catch {
-            self.activeSession = PreviewSession(
-                sessionID: UUID().uuidString,
+            guard self.currentSessionRequestID == actualRequestID else { return }
+
+            // 6. Transition to FAILED_KEEP_LAST or FAILED_NO_PRIOR
+            let hasPrior = self.hostedView != nil
+            let finalState: PreviewSessionState = hasPrior ? .failedKeepLast : .failedNoPrior
+
+            let finalSession = PreviewSession(
+                sessionID: session.sessionID,
                 sourceFilePath: sourcePath,
                 targetViewName: targetView,
                 lastCompiledAt: Date(),
-                status: "Failed"
+                status: "Failed",
+                state: finalState
             )
-            self.hostedView = nil
+
+            self.activeSession = finalSession
+            if !hasPrior {
+                self.hostedView = nil
+            }
+            PreviewDiagnostics.shared.addLog(category: "error", message: "Runtime failed to load view '\(targetView)': \(error.localizedDescription)")
+            PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to \(finalState.rawValue)")
             buildLogs.append("Error loading preview: \(error.localizedDescription)")
             logger.error("Preview runtime session failed: \(error.localizedDescription)")
             PreviewErrorHandler.shared.handleError(error, message: "Runtime failed to load view '\(targetView)'")

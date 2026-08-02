@@ -7,35 +7,75 @@ public actor PreviewDiscoveryService {
     public init() {}
 
     public func discoverPreviews(inSourceCode sourceCode: String) async -> [String] {
-        logger.info("[BEGIN] Scanning source code for SwiftUI Previews")
-        var previews: [String] = []
+        return await discoverPreviewTargets(inSourceCode: sourceCode)
+    }
 
-        // Pattern 1: Modern #Preview macro
+    public func discoverPreviewTargets(inSourceCode sourceCode: String, filename: String? = nil) async -> [String] {
+        logger.info("[BEGIN] Scanning source code for SwiftUI Previews with deterministic precedence")
+
+        // 1. Modern #Preview macro
+        var modernPreviews: [String] = []
         if let regexModern = try? NSRegularExpression(pattern: #"#Preview\s*(?:\(\s*\"([^\"]+)\"\s*\))?\s*\{"#, options: []) {
             let nsStr = sourceCode as NSString
             let matches = regexModern.matches(in: sourceCode, options: [], range: NSRange(location: 0, length: nsStr.length))
+            var anonymousCount = 0
             for m in matches {
                 if m.numberOfRanges > 1, let nameRange = Range(m.range(at: 1), in: sourceCode) {
-                    previews.append(String(sourceCode[nameRange]))
+                    modernPreviews.append(String(sourceCode[nameRange]))
                 } else {
-                    previews.append("SwiftUI Preview")
+                    anonymousCount += 1
+                    if anonymousCount == 1 {
+                        modernPreviews.append("SwiftUI Preview")
+                    } else {
+                        modernPreviews.append("SwiftUI Preview \(anonymousCount)")
+                    }
                 }
             }
         }
 
-        // Pattern 2: Legacy PreviewProvider protocol
+        // 2. Legacy PreviewProvider protocol
+        var legacyPreviews: [String] = []
         if let regexLegacy = try? NSRegularExpression(pattern: #"struct\s+(\w+)\s*:\s*PreviewProvider"#, options: []) {
             let nsStr = sourceCode as NSString
             let matches = regexLegacy.matches(in: sourceCode, options: [], range: NSRange(location: 0, length: nsStr.length))
             for m in matches {
                 if m.numberOfRanges > 1, let structRange = Range(m.range(at: 1), in: sourceCode) {
-                    previews.append(String(sourceCode[structRange]))
+                    legacyPreviews.append(String(sourceCode[structRange]))
                 }
             }
         }
 
-        logger.info("[END] Discovered \(previews.count) previews")
-        return previews
+        // 3. Bare View conforming types
+        var bareViews: [String] = []
+        let pattern = #"struct\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?:[^\{]*\s+)?View\b"#
+        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+            let nsString = sourceCode as NSString
+            let matches = regex.matches(in: sourceCode, options: [], range: NSRange(location: 0, length: nsString.length))
+            for m in matches {
+                if m.numberOfRanges > 1, let r = Range(m.range(at: 1), in: sourceCode) {
+                    let viewName = String(sourceCode[r])
+                    // Filter out any PreviewProvider conforming structs or already matched targets
+                    if !legacyPreviews.contains(viewName) {
+                        bareViews.append(viewName)
+                    }
+                }
+            }
+        }
+
+        // Log ambiguity if multiple bare views exist and there are no annotations (#Preview or PreviewProvider)
+        if modernPreviews.isEmpty && legacyPreviews.isEmpty && bareViews.count > 1 {
+            let firstSelected = bareViews.first ?? ""
+            let message = "Ambiguity detected: multiple bare View types exist (\(bareViews.joined(separator: ", "))). Defaulting deterministically to '\(firstSelected)'."
+            logger.warning("\(message)")
+            await MainActor.run {
+                PreviewDiagnostics.shared.addLog(category: "discovery", message: message)
+            }
+        }
+
+        // Assemble final priority order: #Preview first, PreviewProvider next, bare View last
+        let result = modernPreviews + legacyPreviews + bareViews
+        logger.info("[END] Discovered \(result.count) preview targets")
+        return result
     }
 }
 
