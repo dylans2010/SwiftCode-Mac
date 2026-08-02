@@ -188,7 +188,7 @@ struct VisualUIBuilderInspectorWrapper: View {
 
     private var selectedSection: ModernInspectorSection {
         get { ModernInspectorSection(rawValue: selectedSectionRaw) ?? .properties }
-        nonisolated(unsafe) set { selectedSectionRaw = newValue.rawValue }
+        nonmutating set { selectedSectionRaw = newValue.rawValue }
     }
 
     var body: some View {
