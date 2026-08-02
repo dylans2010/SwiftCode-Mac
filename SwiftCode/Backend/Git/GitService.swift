@@ -200,6 +200,37 @@ public actor GitService {
         if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
     }
 
+    public func push(repositoryURL: URL) async throws {
+        // Run git push
+        var result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["push"],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 {
+            // Check if it's because of no upstream branch
+            let stderr = result.stderr.lowercased()
+            if stderr.contains("no upstream") || stderr.contains("set-upstream") {
+                // Get current branch
+                let branchResult = try await ProcessRunnerTool.shared.run(
+                    executableURL: await gitURL,
+                    arguments: ["branch", "--show-current"],
+                    workingDirectory: repositoryURL
+                )
+                let branch = branchResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+                if branchResult.exitCode == 0, !branch.isEmpty {
+                    // Try pushing with -u origin branch
+                    result = try await ProcessRunnerTool.shared.run(
+                        executableURL: await gitURL,
+                        arguments: ["push", "-u", "origin", branch],
+                        workingDirectory: repositoryURL
+                    )
+                }
+            }
+        }
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+    }
+
     private func parseDiff(_ output: String) -> [GitDiffHunk] {
         var hunks: [GitDiffHunk] = []
         let lines = output.components(separatedBy: .newlines)
