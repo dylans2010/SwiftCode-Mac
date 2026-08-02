@@ -9138,6 +9138,9 @@ CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DEC001DFB00C0DEB12345672 /* CodingDictionaryModels.swift in Sources */,
+				DEC001DFB00C0DEB12345674 /* DictionaryManager.swift in Sources */,
+				DEC001DFB00C0DEB12345676 /* CodingDictionaryView.swift in Sources */,
 				60A73D1E8BE8B5E078E10AEF /* ProjectCompatibilityView.swift in Sources */,
 				141D05674E5129028B13B931 /* SecurityCenterView.swift in Sources */,
 				4F97C1A7F1889B690CC843F8 /* DependencyVisualizerView.swift in Sources */,

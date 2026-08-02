@@ -1,10 +1,8 @@
 import SwiftUI
 
 struct PackageAIView: View {
-    @Environment(\.dismiss) private var dismiss
     @State private var platformManager = DependencyPlatformManager.shared
     @State private var inputPrompt: String = ""
-    @State private var selectedTemplate: String? = nil
     @State private var showFavoritesOnly: Bool = false
 
     var filteredChatHistory: [PackageAIChat] {
@@ -16,47 +14,165 @@ struct PackageAIView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header Bar
-            HStack {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.title3)
+        ScrollView {
+            VStack(spacing: 24) {
+                // Header Info card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Label("AI Package Co-Designer & Assistant", systemImage: "sparkles")
+                                .font(.title2.bold())
+                                .foregroundColor(.purple)
+                            Spacer()
+
+                            Toggle("Show Favorites Only", isOn: $showFavoritesOnly)
+                                .toggleStyle(.checkbox)
+                        }
+
+                        Text("Explain dependencies, clear cyclic target paths, and request architectural suggestions.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
                 }
-                .buttonStyle(.plain)
-                .keyboardShortcut("[", modifiers: .command)
+                .groupBoxStyle(ModernGroupBoxStyle())
 
-                Text("AI Package Co-Designer & Assistant")
-                    .font(.title2.bold())
+                // Prompt Templates card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Label("Prompt Templates & Presets", systemImage: "square.stack.3d.up")
+                            .font(.headline)
+                            .foregroundColor(.blue)
 
-                Spacer()
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 220, maximum: .infinity))], spacing: 12) {
+                            ForEach(Array(platformManager.promptTemplates.keys), id: \.self) { key in
+                                Button {
+                                    if let p = platformManager.promptTemplates[key] {
+                                        inputPrompt = p
+                                    }
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(key)
+                                            .font(.caption.bold())
+                                            .foregroundColor(.blue)
+                                        Text(platformManager.promptTemplates[key] ?? "")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(2)
+                                            .multilineTextAlignment(.leading)
+                                    }
+                                    .padding(10)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
 
-                Toggle(showFavoritesOnly ? "Showing Favorites Only" : "Show Favorites Only", isOn: $showFavoritesOnly)
-                    .toggleStyle(.checkbox)
+                // Interactive Chat Input Card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Label("Send Custom Prompt", systemImage: "paperplane")
+                            .font(.headline)
+                            .foregroundColor(.green)
+
+                        HStack(spacing: 12) {
+                            TextField("Ask the package assistant...", text: $inputPrompt)
+                                .textFieldStyle(.roundedBorder)
+                                .onSubmit(triggerAIQuery)
+
+                            Button(action: triggerAIQuery) {
+                                HStack {
+                                    Image(systemName: "sparkles")
+                                    Text("Ask Copilot")
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.purple)
+                            .disabled(inputPrompt.isEmpty || platformManager.isOperationRunning)
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // Conversation History card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Label("Conversation Logs", systemImage: "text.bubble")
+                            .font(.headline)
+                            .foregroundColor(.orange)
+
+                        if filteredChatHistory.isEmpty {
+                            ContentUnavailableView(
+                                "No Conversations Yet",
+                                systemImage: "sparkles",
+                                description: Text("Ask about module division, alternative packages, cyclic dependencies, or security practices.")
+                            )
+                            .padding(.vertical, 24)
+                        } else {
+                            VStack(spacing: 16) {
+                                ForEach(filteredChatHistory) { chat in
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        // User block
+                                        HStack(alignment: .top, spacing: 8) {
+                                            Image(systemName: "person.circle.fill")
+                                                .foregroundColor(.secondary)
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text("You")
+                                                    .font(.caption.bold())
+                                                    .foregroundColor(.secondary)
+                                                Text(chat.prompt)
+                                                    .font(.body)
+                                                    .padding(10)
+                                                    .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                                            }
+                                            Spacer()
+
+                                            Button {
+                                                toggleFavoriteChat(chat.id)
+                                            } label: {
+                                                Image(systemName: chat.isFavorite ? "star.fill" : "star")
+                                                    .foregroundColor(.yellow)
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+
+                                        // AI response block
+                                        HStack(alignment: .top, spacing: 8) {
+                                            Image(systemName: "sparkles")
+                                                .foregroundColor(.blue)
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text("AI Co-Designer")
+                                                    .font(.caption.bold())
+                                                    .foregroundColor(.blue)
+                                                Text(chat.response)
+                                                    .font(.body)
+                                                    .padding(10)
+                                                    .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+                                            }
+                                        }
+                                    }
+                                    .padding(.vertical, 8)
+
+                                    if chat.id != filteredChatHistory.last?.id {
+                                        Divider()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
-            .background(Color(NSColor.windowBackgroundColor))
-
-            Divider()
-
-            HSplitView {
-                PresetsAndTemplatesPanel(
-                    platformManager: platformManager,
-                    inputPrompt: $inputPrompt
-                )
-                ConversationTimelineView(
-                    platformManager: platformManager,
-                    inputPrompt: $inputPrompt,
-                    filteredChatHistory: filteredChatHistory,
-                    triggerAIQuery: { triggerAIQuery() },
-                    toggleFavoriteChat: { toggleFavoriteChat($0) }
-                )
-            }
+            .padding(24)
         }
-        .background(Color(NSColor.windowBackgroundColor))
+        .navigationTitle("AI Assistant")
     }
 
     private func triggerAIQuery() {
@@ -75,193 +191,3 @@ struct PackageAIView: View {
         }
     }
 }
-
-// MARK: - Private Subviews to Prevent Compiler Type-Checking Timeout
-private struct PresetsAndTemplatesPanel: View {
-    var platformManager: DependencyPlatformManager
-    @Binding var inputPrompt: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Prompt Templates")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(Array(platformManager.promptTemplates.keys), id: \.self) { key in
-                        Button {
-                            if let p = platformManager.promptTemplates[key] {
-                                inputPrompt = p
-                            }
-                        } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(key)
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.blue)
-                                Text(platformManager.promptTemplates[key] ?? "")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.leading)
-                            }
-                            .padding(10)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    Divider()
-
-                    Text("Quick Saved Prompts")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 8)
-
-                    ForEach(platformManager.savedPrompts, id: \.self) { p in
-                        Button {
-                            inputPrompt = p
-                        } label: {
-                            Text(p)
-                                .font(.caption)
-                                .lineLimit(2)
-                                .multilineTextAlignment(.leading)
-                                .foregroundStyle(.secondary)
-                                .padding(8)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.secondary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-        .padding(20)
-        .frame(width: 280)
-        .frame(maxHeight: .infinity)
-        .background(Color(NSColor.windowBackgroundColor))
-    }
-}
-
-private struct ConversationTimelineView: View {
-    var platformManager: DependencyPlatformManager
-    @Binding var inputPrompt: String
-    let filteredChatHistory: [PackageAIChat]
-    let triggerAIQuery: () -> Void
-    let toggleFavoriteChat: (UUID) -> Void
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        if filteredChatHistory.isEmpty {
-                            VStack(spacing: 16) {
-                                Spacer()
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 40))
-                                    .foregroundStyle(.blue)
-                                Text("How can I assist your Package Architecture today?")
-                                    .font(.headline)
-                                Text("Ask about module division, alternative packages, circular dependencies, or security practices.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.center)
-                                Spacer()
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 300)
-                        } else {
-                            ForEach(filteredChatHistory) { chat in
-                                VStack(alignment: .leading, spacing: 12) {
-                                    // User block
-                                    HStack(alignment: .top, spacing: 10) {
-                                        Image(systemName: "person.circle.fill")
-                                            .font(.title3)
-                                            .foregroundStyle(.secondary)
-
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text("You")
-                                                .font(.caption.bold())
-                                                .foregroundStyle(.secondary)
-                                            Text(chat.prompt)
-                                                .font(.body)
-                                                .padding(12)
-                                                .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-                                        }
-                                        Spacer()
-
-                                        Button {
-                                            toggleFavoriteChat(chat.id)
-                                        } label: {
-                                            Image(systemName: chat.isFavorite ? "star.fill" : "star")
-                                                .foregroundStyle(.yellow)
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-
-                                    // AI response block
-                                    HStack(alignment: .top, spacing: 10) {
-                                        Image(systemName: "sparkles")
-                                            .font(.title3)
-                                            .foregroundStyle(.blue)
-
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text("AI Co-Designer")
-                                                .font(.caption.bold())
-                                                .foregroundStyle(.blue)
-                                            Text(chat.response)
-                                                .font(.body)
-                                                .padding(12)
-                                                .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
-                                        }
-                                    }
-                                }
-                                .id(chat.id)
-                                .padding(.horizontal)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 20)
-                }
-                .onChange(of: platformManager.chatHistory) { _, _ in
-                    if let last = platformManager.chatHistory.last {
-                        withAnimation {
-                            proxy.scrollTo(last.id, anchor: .bottom)
-                        }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(NSColor.controlBackgroundColor))
-
-            Divider()
-
-            // Input Bar
-            HStack(spacing: 12) {
-                TextField("Ask the package assistant...", text: $inputPrompt)
-                    .textFieldStyle(.plain)
-                    .padding(12)
-                    .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
-                    .onSubmit {
-                        triggerAIQuery()
-                    }
-
-                Button {
-                    triggerAIQuery()
-                } label: {
-                    Image(systemName: "paperplane.fill")
-                        .padding(10)
-                        .background(inputPrompt.isEmpty ? Color.gray : Color.blue, in: Circle())
-                        .foregroundStyle(.white)
-                }
-                .buttonStyle(.plain)
-                .disabled(inputPrompt.isEmpty || platformManager.isOperationRunning)
-            }
-            .padding(16)
-            .background(Color(NSColor.windowBackgroundColor))
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-

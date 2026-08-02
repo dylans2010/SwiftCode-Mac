@@ -8,6 +8,7 @@ struct SwiftCodeApp: App {
         OfflineModelDownloader.shared.registerBackgroundTask()
         AgentSystemInitializer.shared.initialize()
         StylingBootstrap.initialize()
+        LicenseCatalog.prewarm()
     }
 
     @State private var sessionStore = ProjectSessionStore.shared

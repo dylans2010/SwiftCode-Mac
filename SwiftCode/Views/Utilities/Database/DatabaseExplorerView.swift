@@ -35,40 +35,18 @@ public enum DatabaseSection: String, CaseIterable, Identifiable {
 }
 
 /// Main entry point for the Database Explorer.
-/// Optimizes and routes the workspace to a native macOS AppKit split-view window.
+/// Functions as an invisible background trigger that natively launches the AppKit workspace window.
 public struct DatabaseExplorerView: View {
     @Environment(\.dismiss) private var dismiss
 
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "tablecells.badge.ellipsis")
-                .font(.system(size: 64))
-                .foregroundColor(.green)
-
-            Text("Database Explorer Workspace")
-                .font(.title)
-                .bold()
-
-            Text("The database workspace is optimized as a native macOS AppKit split-view layout with direct SQLite3 connection mappings, PostgREST API synchronizers, and AI assistant query consoles.")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-
-            Button(action: openWorkspace) {
-                Label("Launch Workspace", systemImage: "arrow.up.forward.app")
-                    .font(.headline)
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onAppear {
+                openWorkspace()
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
-            .controlSize(.large)
-        }
-        .frame(minWidth: 500, minHeight: 400)
-        .onAppear {
-            openWorkspace()
-        }
     }
 
     private func openWorkspace() {

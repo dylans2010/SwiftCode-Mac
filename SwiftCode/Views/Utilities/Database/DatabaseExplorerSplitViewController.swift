@@ -182,7 +182,7 @@ struct DatabaseExplorerCenterWrapper: View {
                     DatabaseSettingsView()
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .environmentObject(connManager)
     }
