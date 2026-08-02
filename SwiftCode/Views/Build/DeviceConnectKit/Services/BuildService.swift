@@ -1,6 +1,6 @@
 import Foundation
 
-public struct BuildService {
+public struct BuildService: Sendable {
     public init() {}
 
     public func build(

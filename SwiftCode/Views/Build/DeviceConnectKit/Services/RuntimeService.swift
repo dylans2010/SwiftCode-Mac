@@ -1,6 +1,6 @@
 import Foundation
 
-public struct RuntimeService {
+public struct RuntimeService: Sendable {
     public init() {}
 
     public func stop(

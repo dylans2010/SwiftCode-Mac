@@ -1,6 +1,6 @@
 import Foundation
 
-public struct EnvironmentService {
+public struct EnvironmentService: Sendable {
     public init() {}
 
     public func validate() async throws -> DeviceEnvironment {
