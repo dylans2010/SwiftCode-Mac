@@ -76,22 +76,195 @@ public final class CodingDictionaryWindowController: NSWindowController {
             window.center()
         }
 
-        let contentView = StylingBootstrap.configureEnvironment(
-            CodingDictionaryContentView()
-        )
-        let hostingVC = NSHostingController(rootView: contentView)
-        hostingVC.sizingOptions = []
-        window.contentViewController = hostingVC
+        // Use the native split view controller as the contentViewController
+        let splitVC = CodingDictionarySplitViewController()
+        window.contentViewController = splitVC
 
-        // Initialize and lock toolbar customization immediately if it exists
-        if let toolbar = window.toolbar {
-            toolbar.allowsUserCustomization = false
-            toolbar.autosavesConfiguration = false
-        }
+        setupToolbar(window: window)
     }
 
     required public init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    private func setupToolbar(window: NSWindow) {
+        let toolbar = NSToolbar(identifier: "CodingDictionaryToolbar")
+        toolbar.delegate = self
+        toolbar.allowsUserCustomization = false
+        toolbar.autosavesConfiguration = false
+        toolbar.displayMode = .iconOnly
+        window.toolbar = toolbar
+    }
+}
+
+extension CodingDictionaryWindowController: NSToolbarDelegate {
+    public func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+
+        switch itemIdentifier {
+        case .newSearch:
+            item.label = "New Search"
+            item.paletteLabel = "New Search"
+            item.toolTip = "Clear current entry and start a new search"
+            item.image = NSImage(systemSymbolName: "plus", accessibilityDescription: nil)
+            item.target = self
+            item.action = #selector(newSearchAction(_:))
+
+        case .refreshEntry:
+            item.label = "Refresh Entry"
+            item.paletteLabel = "Refresh Entry"
+            item.toolTip = "Refresh the current dictionary entry"
+            item.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: nil)
+            item.target = self
+            item.action = #selector(refreshEntryAction(_:))
+
+        case .clearHistory:
+            item.label = "Clear History"
+            item.paletteLabel = "Clear History"
+            item.toolTip = "Clear all search history"
+            item.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
+            item.target = self
+            item.action = #selector(clearHistoryAction(_:))
+
+        default:
+            return nil
+        }
+        return item
+    }
+
+    public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        return [.newSearch, .refreshEntry, .clearHistory]
+    }
+
+    public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        return [.newSearch, .refreshEntry, .clearHistory, .flexibleSpace, .space]
+    }
+}
+
+extension NSToolbarItem.Identifier {
+    public static let newSearch = NSToolbarItem.Identifier("newSearch")
+    public static let refreshEntry = NSToolbarItem.Identifier("refreshEntry")
+    public static let clearHistory = NSToolbarItem.Identifier("clearHistory")
+}
+
+extension CodingDictionaryWindowController {
+    @objc private func newSearchAction(_ sender: Any?) {
+        NotificationCenter.default.post(name: NSNotification.Name("CodingDictionaryNewSearch"), object: nil)
+    }
+
+    @objc private func refreshEntryAction(_ sender: Any?) {
+        NotificationCenter.default.post(name: NSNotification.Name("CodingDictionaryRefreshEntry"), object: nil)
+    }
+
+    @objc private func clearHistoryAction(_ sender: Any?) {
+        NotificationCenter.default.post(name: NSNotification.Name("CodingDictionaryClearHistory"), object: nil)
+    }
+}
+
+// MARK: - Native Split View Controller
+@MainActor
+public class CodingDictionarySplitViewController: NSSplitViewController {
+    public init() {
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required public init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override public func viewDidLoad() {
+        super.viewDidLoad()
+        setupSplitView()
+    }
+
+    private func setupSplitView() {
+        splitView.isVertical = true
+        splitView.dividerStyle = .thin
+        splitView.autoresizingMask = [.width, .height]
+
+        // Left Panel: Sidebar View (SwiftUI Wrapper)
+        let sidebarView = CodingDictionarySidebarWrapper()
+        let sidebarVC = NSHostingController(rootView: StylingBootstrap.configureEnvironment(sidebarView))
+        sidebarVC.sizingOptions = []
+        sidebarVC.view.autoresizingMask = [.width, .height]
+        let sidebarItem = NSSplitViewItem(viewController: sidebarVC)
+        sidebarItem.minimumThickness = 280
+        sidebarItem.maximumThickness = 280
+        sidebarItem.holdingPriority = .defaultLow + 10
+        addSplitViewItem(sidebarItem)
+
+        // Right Panel: Detail View (SwiftUI Wrapper)
+        let detailView = CodingDictionaryDetailWrapper()
+        let detailVC = NSHostingController(rootView: StylingBootstrap.configureEnvironment(detailView))
+        detailVC.sizingOptions = []
+        detailVC.view.autoresizingMask = [.width, .height]
+        let detailItem = NSSplitViewItem(viewController: detailVC)
+        detailItem.minimumThickness = 570
+        detailItem.holdingPriority = .defaultLow - 10
+        addSplitViewItem(detailItem)
+    }
+}
+
+// MARK: - Shared Coordinator
+@MainActor
+@Observable
+public final class CodingDictionaryCoordinator {
+    public static let shared = CodingDictionaryCoordinator()
+    public var searchText: String = ""
+    public var isSearchFocused: Bool = false
+
+    private init() {}
+
+    public func performNewSearch() {
+        withAnimation {
+            searchText = ""
+            DictionaryManager.shared.currentResult = nil
+            DictionaryManager.shared.errorState = nil
+            isSearchFocused = true
+        }
+    }
+
+    public func performRefreshEntry() {
+        let manager = DictionaryManager.shared
+        if let result = manager.currentResult {
+            manager.search(query: result.query)
+        } else if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            manager.search(query: searchText)
+        }
+    }
+
+    public func performClearHistory() {
+        withAnimation {
+            DictionaryManager.shared.clearHistory()
+        }
+    }
+}
+
+// MARK: - Split View Wrappers
+struct CodingDictionarySidebarWrapper: View {
+    @State private var coordinator = CodingDictionaryCoordinator.shared
+
+    var body: some View {
+        @Bindable var coord = coordinator
+        DictionarySidebarView(searchText: $coord.searchText)
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("CodingDictionaryNewSearch"))) { _ in
+                coordinator.performNewSearch()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("CodingDictionaryClearHistory"))) { _ in
+                coordinator.performClearHistory()
+            }
+    }
+}
+
+struct CodingDictionaryDetailWrapper: View {
+    @State private var coordinator = CodingDictionaryCoordinator.shared
+
+    var body: some View {
+        @Bindable var coord = coordinator
+        DictionaryDetailView(searchText: $coord.searchText)
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("CodingDictionaryRefreshEntry"))) { _ in
+                coordinator.performRefreshEntry()
+            }
     }
 }
 
@@ -111,76 +284,15 @@ public struct CodingDictionaryView: View {
     }
 }
 
-// MARK: - Main Content View
-public struct CodingDictionaryContentView: View {
-    @State private var manager = DictionaryManager.shared
-    @State private var searchText = ""
-    @FocusState private var isSearchFocused: Bool
-
-    public init() {}
-
-    public var body: some View {
-        HStack(spacing: 0) {
-            // Sidebar Panel
-            DictionarySidebarView(searchText: $searchText, isSearchFocused: _isSearchFocused)
-                .frame(width: 280)
-                .background(.background.secondary)
-
-            Divider()
-
-            // Detail Panel
-            DictionaryDetailView(searchText: $searchText, isSearchFocused: _isSearchFocused)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(.background)
-        }
-        .frame(width: 850, height: 600)
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    // Selecting "New" clears the current entry and focuses the search field
-                    withAnimation {
-                        searchText = ""
-                        manager.currentResult = nil
-                        manager.errorState = nil
-                        isSearchFocused = true
-                    }
-                } label: {
-                    Label("New Search", systemImage: "plus")
-                }
-                .help("Clear current entry and start a new search")
-
-                Button {
-                    if let result = manager.currentResult {
-                        manager.search(query: result.query)
-                    } else if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        manager.search(query: searchText)
-                    }
-                } label: {
-                    Label("Refresh Entry", systemImage: "arrow.clockwise")
-                }
-                .disabled(manager.isLoading || (manager.currentResult == nil && searchText.isEmpty))
-                .help("Refresh the current dictionary entry")
-
-                Button {
-                    withAnimation {
-                        manager.clearHistory()
-                    }
-                } label: {
-                    Label("Clear History", systemImage: "trash")
-                }
-                .disabled(manager.history.isEmpty)
-                .help("Clear all search history")
-            }
-        }
-    }
-}
-
 // MARK: - Sidebar View
-
 private struct DictionarySidebarView: View {
     @Bindable var manager = DictionaryManager.shared
-    @Binding var searchText: Binding<String>.Value
-    @FocusState var isSearchFocused: Bool
+    @Binding var searchText: String
+    @FocusState private var isFieldFocused: Bool
+
+    init(searchText: Binding<String>) {
+        self._searchText = searchText
+    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -194,7 +306,7 @@ private struct DictionarySidebarView: View {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
                     TextField("Search terminology, concepts...", text: $searchText)
-                        .focused($isSearchFocused)
+                        .focused($isFieldFocused)
                         .textFieldStyle(.plain)
                         .onSubmit {
                             let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -273,6 +385,19 @@ private struct DictionarySidebarView: View {
                 .listStyle(.sidebar)
             }
         }
+        .onAppear {
+            if CodingDictionaryCoordinator.shared.isSearchFocused {
+                isFieldFocused = true
+            }
+        }
+        .onChange(of: CodingDictionaryCoordinator.shared.isSearchFocused) { oldValue, newValue in
+            if newValue {
+                isFieldFocused = true
+            }
+        }
+        .onChange(of: isFieldFocused) { oldValue, newValue in
+            CodingDictionaryCoordinator.shared.isSearchFocused = newValue
+        }
     }
 
     @ViewBuilder
@@ -317,11 +442,13 @@ private struct DictionarySidebarView: View {
 }
 
 // MARK: - Detail View
-
 private struct DictionaryDetailView: View {
     @Bindable var manager = DictionaryManager.shared
-    @Binding var searchText: Binding<String>.Value
-    @FocusState var isSearchFocused: Bool
+    @Binding var searchText: String
+
+    init(searchText: Binding<String>) {
+        self._searchText = searchText
+    }
 
     var body: some View {
         Group {
@@ -717,7 +844,7 @@ private struct DictionaryDetailView: View {
                         .frame(maxWidth: 400)
 
                     Button("Focus Search") {
-                        isSearchFocused = true
+                        CodingDictionaryCoordinator.shared.isSearchFocused = true
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.regular)
@@ -727,7 +854,7 @@ private struct DictionaryDetailView: View {
         }
         .onAppear {
             if manager.currentResult == nil {
-                isSearchFocused = true
+                CodingDictionaryCoordinator.shared.isSearchFocused = true
             }
         }
     }
@@ -743,7 +870,6 @@ private struct DictionaryDetailView: View {
 }
 
 // MARK: - Confidence Indicator
-
 private struct ConfidenceIndicatorView: View {
     let score: Int
 
@@ -773,7 +899,6 @@ private struct ConfidenceIndicatorView: View {
 }
 
 // MARK: - Section Card
-
 private struct DictionarySectionCard<Content: View>: View {
     let title: String
     let icon: String
@@ -860,7 +985,6 @@ private struct DictionarySectionCard<Content: View>: View {
 }
 
 // MARK: - Code Block View
-
 private struct DictionaryCodeBlock: View {
     let code: String
     @State private var isCopied = false
@@ -919,7 +1043,6 @@ private struct DictionaryCodeBlock: View {
 }
 
 // MARK: - Error View
-
 private struct DictionaryErrorView: View {
     let errorState: DictionaryErrorState
     let onRetry: () -> Void
@@ -1004,7 +1127,6 @@ private struct DictionaryErrorView: View {
 }
 
 // MARK: - Flow Layout Helper
-
 private struct FlowLayoutView: View {
     let items: [String]
     let itemContent: (String) -> AnyView
