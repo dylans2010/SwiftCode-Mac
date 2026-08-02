@@ -83,23 +83,32 @@ public struct DeviceConnectToolbar: View {
 
     private func triggerDeploymentRun() {
         guard let selected = deviceManager.selectedDevice else { return }
+
+        // Dynamically resolve everything from XcodeBuildAPI
+        let api = XcodeBuildAPI.shared
+        let projectName = api.determineProductName()
+        let projectPath = api.determineActiveProject()?.url.path ?? "/tmp/\(projectName).xcodeproj"
+        let scheme = api.determineActiveScheme()?.name ?? projectName
+        let appBundleURL = api.determineAppBundleURL() ?? URL(fileURLWithPath: "/tmp/\(projectName).app")
+        let bundleID = api.determineBundleIdentifier()
+
         Task {
-            // Simulate typical parameters for deployment target
             await deploymentManager.startDeployment(
                 device: selected,
-                projectName: "SwiftCodeDemo",
-                projectPath: "/tmp/SwiftCodeDemo.xcodeproj",
-                scheme: "SwiftCodeDemo",
-                appBundleURL: URL(fileURLWithPath: "/tmp/SwiftCodeDemo.app"),
-                bundleIdentifier: "com.swiftcode.demo"
+                projectName: projectName,
+                projectPath: projectPath,
+                scheme: scheme,
+                appBundleURL: appBundleURL,
+                bundleIdentifier: bundleID
             )
         }
     }
 
     private func stopDeploymentRun() {
         guard let selected = deviceManager.selectedDevice else { return }
+        let bundleID = XcodeBuildAPI.shared.determineBundleIdentifier()
         Task {
-            _ = try? await RuntimeService().stop(deviceUDID: selected.udid, bundleIdentifier: "com.swiftcode.demo")
+            _ = try? await RuntimeService().stop(deviceUDID: selected.udid, bundleIdentifier: bundleID)
             runtimeManager.stopMonitoring(deviceUDID: selected.udid)
         }
     }

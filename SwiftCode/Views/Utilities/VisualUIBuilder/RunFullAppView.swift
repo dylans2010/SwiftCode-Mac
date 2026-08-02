@@ -5,8 +5,8 @@ public struct RunFullAppView: View {
     @State private var runManager = FullAppRunManager.shared
 
     @MainActor
-    private var buildManager: XcodeBuildManager {
-        XcodeBuildManager.shared
+    private var api: XcodeBuildAPI {
+        XcodeBuildAPI.shared
     }
 
     public init() {}
@@ -25,7 +25,7 @@ public struct RunFullAppView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .disabled(runManager.isRunning || buildManager.isBuilding)
+                .disabled(runManager.isRunning || api.isExecuting)
                 .help("Save changes, compile project and run application in sandboxed simulator")
 
                 Button {
@@ -36,7 +36,7 @@ public struct RunFullAppView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .disabled(!runManager.isRunning && !buildManager.isBuilding)
+                .disabled(!runManager.isRunning && !api.isExecuting)
                 .help("Stop application and compilation process")
 
                 Button {
@@ -54,7 +54,7 @@ public struct RunFullAppView: View {
                 CopyLogsButton(logs: runManager.runLogs.joined(separator: "\n"))
 
                 // Active Scheme indicator
-                if let scheme = buildManager.selectedScheme {
+                if let scheme = api.determineActiveScheme()?.name {
                     Text(scheme)
                         .font(.caption.bold())
                         .foregroundColor(.secondary)
@@ -69,10 +69,10 @@ public struct RunFullAppView: View {
             Divider()
 
             // Compilation & Launch HUD Status Panel
-            if runManager.isRunning || buildManager.isBuilding {
+            if runManager.isRunning || api.isExecuting {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        if buildManager.isBuilding {
+                        if api.isExecuting {
                             ProgressView()
                                 .controlSize(.small)
                             Text("Building project...")
