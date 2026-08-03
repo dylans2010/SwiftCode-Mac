@@ -221,19 +221,6 @@ struct FileNavigatorSidebarView: View {
                         .padding()
                 }
 
-                // Recent Files Section (if non-empty)
-                if !recents.isEmpty && searchText.isEmpty {
-                    Section(header: Text("Recent Files")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.secondary)) {
-                            ForEach(recents, id: \.self) { path in
-                                let url = URL(fileURLWithPath: path)
-                                let fakeNode = ProjectNode(url: url, kind: .file)
-                                fileRow(for: fakeNode, indent: 0)
-                            }
-                        }
-                }
-
                 // Project Tree Section
                 if let rootNode = viewModel.rootNode {
                     Section(header: Text("PROJECT FILES")
