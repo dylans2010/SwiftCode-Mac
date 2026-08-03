@@ -314,6 +314,8 @@ public struct SKTransaction: Codable, Sendable, Identifiable, Hashable, Equatabl
     public var isSubscription: Bool
     public var expirationDate: Date?
     public var originalTransactionID: String
+    public var storefront: String
+    public var subscriptionCycleState: String // "Purchase", "Renewal", "GracePeriod", "BillingRetry", "Expired", "Refunded"
 
     public init(
         id: String = UUID().uuidString,
@@ -324,7 +326,9 @@ public struct SKTransaction: Codable, Sendable, Identifiable, Hashable, Equatabl
         ownershipType: String = "purchased",
         isSubscription: Bool = false,
         expirationDate: Date? = nil,
-        originalTransactionID: String = UUID().uuidString
+        originalTransactionID: String = UUID().uuidString,
+        storefront: String = "USA",
+        subscriptionCycleState: String = "Purchase"
     ) {
         self.id = id
         self.productID = productID
@@ -335,6 +339,8 @@ public struct SKTransaction: Codable, Sendable, Identifiable, Hashable, Equatabl
         self.isSubscription = isSubscription
         self.expirationDate = expirationDate
         self.originalTransactionID = originalTransactionID
+        self.storefront = storefront
+        self.subscriptionCycleState = subscriptionCycleState
     }
 }
 
@@ -367,5 +373,107 @@ public struct SKAsset: Codable, Sendable, Identifiable, Hashable {
         self.resolvedPath = resolvedPath
         self.size = size
         self.type = type
+    }
+}
+
+// MARK: - Reusable Simulator Testing Profiles
+
+public struct SKSimulatorProfile: Codable, Sendable, Identifiable, Equatable, Hashable {
+    public var id: String
+    public var name: String
+    public var desc: String
+    public var isOffline: Bool
+    public var isAskToBuy: Bool
+    public var simulateNetworkError: Bool
+    public var failJWSVerification: Bool
+
+    public init(
+        id: String = UUID().uuidString,
+        name: String,
+        desc: String,
+        isOffline: Bool = false,
+        isAskToBuy: Bool = false,
+        simulateNetworkError: Bool = false,
+        failJWSVerification: Bool = false
+    ) {
+        self.id = id
+        self.name = name
+        self.desc = desc
+        self.isOffline = isOffline
+        self.isAskToBuy = isAskToBuy
+        self.simulateNetworkError = simulateNetworkError
+        self.failJWSVerification = failJWSVerification
+    }
+}
+
+// MARK: - Activity Timeline & Simulation Event Log
+
+public struct SKActivityEvent: Codable, Sendable, Identifiable, Equatable, Hashable {
+    public var id: String
+    public var timestamp: Date
+    public var category: String // "Purchase", "Refund", "Validation", "Import", "Export", "Simulation"
+    public var title: String
+    public var message: String
+    public var details: String?
+
+    public init(
+        id: String = UUID().uuidString,
+        timestamp: Date = Date(),
+        category: String,
+        title: String,
+        message: String,
+        details: String? = nil
+    ) {
+        self.id = id
+        self.timestamp = timestamp
+        self.category = category
+        self.title = title
+        self.message = message
+        self.details = details
+    }
+}
+
+// MARK: - Version Revision Snapshots
+
+public struct SKVersionRevision: Codable, Sendable, Identifiable, Equatable {
+    public var id: String
+    public var timestamp: Date
+    public var reason: String
+    public var config: StoreKitConfig
+
+    public init(
+        id: String = UUID().uuidString,
+        timestamp: Date = Date(),
+        reason: String,
+        config: StoreKitConfig
+    ) {
+        self.id = id
+        self.timestamp = timestamp
+        self.reason = reason
+        self.config = config
+    }
+}
+
+// MARK: - Smart Saved Filter
+
+public struct SKSmartFilter: Codable, Sendable, Identifiable, Equatable, Hashable {
+    public var id: String
+    public var name: String
+    public var minPrice: Double?
+    public var maxPrice: Double?
+    public var productType: String? // "Consumable", "NonConsumable", "AutoRenewableSubscription", "NonRenewingSubscription"
+
+    public init(
+        id: String = UUID().uuidString,
+        name: String,
+        minPrice: Double? = nil,
+        maxPrice: Double? = nil,
+        productType: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.minPrice = minPrice
+        self.maxPrice = maxPrice
+        self.productType = productType
     }
 }
