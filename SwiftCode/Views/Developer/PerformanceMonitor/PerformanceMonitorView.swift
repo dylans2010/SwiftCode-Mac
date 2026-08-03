@@ -12,17 +12,17 @@ struct PerformanceMonitorView: View {
         AdaptiveDashboardPage {
             VStack(spacing: 24) {
                 // CPU Metric
-                MetricCard(title: "CPU Usage", value: String(format: "%.1f%%", cpuUsage), icon: "cpu", color: .blue) {
+                PerformanceMetricCard(title: "CPU Usage", value: String(format: "%.1f%%", cpuUsage), icon: "cpu", color: .blue) {
                     PerformanceChart(data: cpuHistory, color: .blue)
                 }
 
                 // Memory Metric
-                MetricCard(title: "Memory Usage", value: String(format: "%.1f MB", memoryUsage), icon: "memorychip", color: .purple) {
+                PerformanceMetricCard(title: "Memory Usage", value: String(format: "%.1f MB", memoryUsage), icon: "memorychip", color: .purple) {
                     PerformanceChart(data: memoryHistory, color: .purple)
                 }
 
                 // App Lifetime
-                MetricCard(title: "Active Threads", value: "\(Thread.isMainThread ? 1 : 2)+", icon: "arrow.up.right.circle", color: .green) {
+                PerformanceMetricCard(title: "Active Threads", value: "\(Thread.isMainThread ? 1 : 2)+", icon: "arrow.up.right.circle", color: .green) {
                     PerformanceChart(data: [1, 1, 1, 1], color: .green)
                 }
             }
@@ -53,7 +53,7 @@ struct PerformanceMonitorView: View {
     }
 }
 
-struct MetricCard<Content: View>: View {
+struct PerformanceMetricCard<Content: View>: View {
     let title: String
     let value: String
     let icon: String

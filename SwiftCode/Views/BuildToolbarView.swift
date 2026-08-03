@@ -79,9 +79,9 @@ struct BuildToolbarView: View {
                             let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
                             await PreviewManager.shared.startFreshLivePreviewSession(sourcePath: activeDoc.url.path, sourceCode: preparedCode)
                         }
+                    } label: {
+                        Label("Live Preview", systemImage: "play.rectangle.on.rectangle")
                     }
-                } label: {
-                    Label("Live Preview", systemImage: "play.rectangle.on.rectangle")
                 }
 
                 Button {
@@ -464,3 +464,4 @@ struct PinnedToolDropDelegate: DropDelegate {
         }
     }
 }
+

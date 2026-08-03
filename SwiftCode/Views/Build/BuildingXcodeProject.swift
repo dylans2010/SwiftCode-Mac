@@ -570,13 +570,19 @@ public struct XcodeProjectDetailsSheet: View {
         sourceDirectoryName = proj.url.path
 
         // Asynchronously scan files and git branch
-        Task {
+        Task.detached { [proj] in
             let fm = FileManager.default
             var fileCount = 0
             var swiftCount = 0
 
-            if let enumerator = fm.enumerator(at: proj.url, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles, .skipsPackageDescendants]) {
-                for case let fileURL as URL in enumerator {
+            if let enumerator = fm.enumerator(
+                at: proj.url,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            ) {
+                // Iterate using nextObject() to avoid makeIterator() in async contexts
+                while let obj = enumerator.nextObject() {
+                    guard let fileURL = obj as? URL else { continue }
                     let isFile = (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile ?? false
                     if isFile {
                         fileCount += 1
@@ -587,32 +593,38 @@ public struct XcodeProjectDetailsSheet: View {
                 }
             }
 
-            numberOfFiles = fileCount
-            numberOfSwiftFiles = swiftCount
-
-            // Asynchronously fetch active git branch
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-            task.arguments = ["rev-parse", "--abbrev-ref", "HEAD"]
-            task.currentDirectoryURL = proj.url
-
-            let pipe = Pipe()
-            task.standardOutput = pipe
-            task.standardError = Pipe()
-
+            // Fetch active git branch synchronously in this background task
+            var resolvedBranch = "main"
             do {
+                let task = Process()
+                task.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+                task.arguments = ["rev-parse", "--abbrev-ref", "HEAD"]
+                task.currentDirectoryURL = proj.url
+
+                let pipe = Pipe()
+                task.standardOutput = pipe
+                task.standardError = Pipe()
+
                 try task.run()
                 task.waitUntilExit()
 
                 if task.terminationStatus == 0,
                    let data = try? pipe.fileHandleForReading.readToEnd(),
-                   let branch = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
-                    activeGitBranch = branch
+                   let branch = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !branch.isEmpty {
+                    resolvedBranch = branch
                 } else {
-                    activeGitBranch = "main (default)"
+                    resolvedBranch = "main (default)"
                 }
             } catch {
-                activeGitBranch = "main"
+                resolvedBranch = "main"
+            }
+
+            // Publish results back to the main actor
+            await MainActor.run {
+                self.numberOfFiles = fileCount
+                self.numberOfSwiftFiles = swiftCount
+                self.activeGitBranch = resolvedBranch
             }
         }
     }
@@ -848,3 +860,4 @@ public struct XcodeProjectDetails: View {
         }
     }
 }
+
