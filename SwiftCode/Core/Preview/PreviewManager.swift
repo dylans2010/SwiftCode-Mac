@@ -324,6 +324,21 @@ public final class PreviewManager {
         self.buildLogs = []
     }
 
+    public func stopAndRestartSession() async {
+        await stopActiveSession()
+
+        if let doc = DocumentCoordinator.shared.activeDocument {
+            let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(doc.content, filename: doc.url.path)
+            await startFreshLivePreviewSession(sourcePath: doc.url.path, sourceCode: preparedCode)
+        } else if let session = self.activeSession {
+            let url = URL(fileURLWithPath: session.sourceFilePath)
+            if let content = try? String(contentsOf: url, encoding: .utf8) {
+                let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(content, filename: url.path)
+                await startFreshLivePreviewSession(sourcePath: url.path, sourceCode: preparedCode)
+            }
+        }
+    }
+
     public func toggleDarkMode() {
         state.isDarkMode.toggle()
         updateConfiguration()

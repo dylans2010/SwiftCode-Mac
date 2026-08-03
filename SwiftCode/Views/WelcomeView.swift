@@ -257,9 +257,11 @@ struct SwiftCodeWelcomeView: View {
         .onDisappear {
             if let window = NSApplication.shared.windows.first(where: { $0.isVisible && !$0.title.isEmpty }) {
                 window.styleMask.insert([.resizable, .miniaturizable, .closable])
-                window.standardWindowButton(.closeButton)?.isHidden = false
-                window.standardWindowButton(.miniaturizeButton)?.isHidden = false
-                window.standardWindowButton(.zoomButton)?.isHidden = false
+                window.titleVisibility = .hidden
+                window.titlebarAppearsTransparent = true
+                window.standardWindowButton(.closeButton)?.isHidden = true
+                window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+                window.standardWindowButton(.zoomButton)?.isHidden = true
                 window.minSize = NSSize(width: 800, height: 600)
                 window.maxSize = NSSize(width: 10000, height: 10000)
                 window.collectionBehavior = [.fullScreenPrimary]

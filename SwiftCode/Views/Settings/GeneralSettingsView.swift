@@ -650,6 +650,34 @@ struct GeneralSettingsView: View {
                         Text("Configure whether newly created templates are saved in the default system sandboxed folder or a custom directory of your choice.")
                     }
 
+                    // Bundle Identifier Configuration Section
+                    SettingsCardSection {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Default Organization Prefix:")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                            TextField("com.example", text: $settings.defaultOrganization)
+                                .textFieldStyle(.roundedBorder)
+                                .autocorrectionDisabled()
+                                .fontDesign(.monospaced)
+
+                            HStack {
+                                Text("Sample Bundle ID:")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                let prefix = settings.defaultOrganization.isEmpty ? "com.SwiftCode" : settings.defaultOrganization
+                                let suffix = prefix.hasSuffix(".") ? "" : "."
+                                Text("\(prefix)\(suffix)yourproject")
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    } header: {
+                        Label("Bundle Identifier Configuration", systemImage: "barcode")
+                    } footer: {
+                        Text("Set your default organization prefix. New projects will automatically combine this prefix with the project name to establish a ready-to-use Bundle ID.")
+                    }
+
                     // THE FOLLOWING SECTIONS ARE PERMANENTLY HIDDEN FROM THE UI VIA #if false BLOCK AS REQUESTED
                     #if false
                     quickSetupSection

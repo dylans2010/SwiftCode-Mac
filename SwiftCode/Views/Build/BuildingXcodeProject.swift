@@ -288,6 +288,8 @@ public struct XcodeProjectDetailsSheet: View {
     // Advanced Metrics & Diagnostics
     @State private var numberOfTargets = 0
     @State private var numberOfFiles = 0
+    @State private var numberOfSwiftFiles = 0
+    @State private var activeGitBranch = "Checking..."
     @State private var buildConfigurationsList: [String] = ["Debug", "Release"]
     @State private var sourceDirectoryName = ""
     @State private var xcodegenVersion = "Checking..."
@@ -297,13 +299,29 @@ public struct XcodeProjectDetailsSheet: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header Info
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Label("Project Inspector", systemImage: "hammer.circle.fill")
-                        .font(.headline)
+            // Elegant Visual Header
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(Color.orange.opacity(0.12))
+                        .frame(width: 46, height: 48)
+                    Image(systemName: "hammer.circle.fill")
+                        .font(.title2)
                         .foregroundStyle(.orange)
-                    Spacer()
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Project Inspector")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                    Text("Real-Time Project Configuration & Metrics")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                HStack(spacing: 12) {
                     if isUpdating {
                         ProgressView()
                             .controlSize(.small)
@@ -328,41 +346,65 @@ public struct XcodeProjectDetailsSheet: View {
                             .frame(width: 250)
                         }
                     }
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Close Panel")
                 }
-                Text("Real-Time Project Configuration Panel")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
             .padding()
-            .background(.thinMaterial)
+            .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
 
             Divider()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Summary Metrics Dashboard
-                    GroupBox(label: Label("WORKSPACE METRICS", systemImage: "chart.bar.doc.horizontal")) {
-                        VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Modern High-Fidelity Stats Dashboard
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("WORKSPACE METRICS")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                            MetricCard(title: "Targets Count", value: "\(numberOfTargets)", icon: "target")
+                            MetricCard(title: "Total Source Files", value: "\(numberOfFiles) items", icon: "doc.text")
+                            MetricCard(title: "Swift Files", value: "\(numberOfSwiftFiles)", icon: "swift")
+                            MetricCard(title: "Git Branch", value: activeGitBranch, icon: "arrow.triangle.branch")
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
                             HStack {
-                                LabeledContent("Targets", value: "\(numberOfTargets)")
-                                Spacer()
-                                LabeledContent("Sources/Assets", value: "\(numberOfFiles) items")
+                                Text("Active Directory:")
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(.secondary)
+                                Text(sourceDirectoryName.isEmpty ? "default" : sourceDirectoryName)
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .lineLimit(1)
                             }
                             HStack {
-                                LabeledContent("Directory", value: sourceDirectoryName.isEmpty ? "default" : sourceDirectoryName)
-                                Spacer()
-                                LabeledContent("Configurations", value: buildConfigurationsList.joined(separator: ", "))
+                                Text("Configurations:")
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(.secondary)
+                                Text(buildConfigurationsList.joined(separator: ", "))
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .lineLimit(1)
                             }
                         }
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .padding(.vertical, 4)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 4)
                     }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                    .padding()
+                    .background(Color(NSColor.controlBackgroundColor).opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.secondary.opacity(0.12), lineWidth: 1))
 
                     // App Name & Bundle ID configuration
                     GroupBox(label: Label("APP IDENTITY", systemImage: "person.crop.square")) {
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("App Name")
                                     .font(.caption.bold())
@@ -391,14 +433,14 @@ public struct XcodeProjectDetailsSheet: View {
                                     .font(.caption.bold())
                                     .foregroundStyle(.secondary)
                                 TextField("1.0", text: $appVersion)
-                                        .textFieldStyle(.roundedBorder)
+                                    .textFieldStyle(.roundedBorder)
                             }
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Build Number")
                                     .font(.caption.bold())
                                     .foregroundStyle(.secondary)
                                 TextField("1", text: $buildNumber)
-                                        .textFieldStyle(.roundedBorder)
+                                    .textFieldStyle(.roundedBorder)
                             }
                         }
                         .padding(.vertical, 4)
@@ -407,7 +449,7 @@ public struct XcodeProjectDetailsSheet: View {
 
                     // Target deployment Platform & Minimum OS
                     GroupBox(label: Label("DEPLOYMENT TARGET", systemImage: "play.circle")) {
-                        VStack(spacing: 10) {
+                        VStack(spacing: 12) {
                             HStack(spacing: 12) {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Platform")
@@ -504,9 +546,11 @@ public struct XcodeProjectDetailsSheet: View {
                 .padding()
             }
         }
+        .frame(minWidth: 420, minHeight: 550)
         .onAppear {
             loadProjectSettings()
             checkXcodeGen()
+            loadAdvancedMetrics()
         }
     }
 
@@ -521,12 +565,67 @@ public struct XcodeProjectDetailsSheet: View {
         }
     }
 
+    private func loadAdvancedMetrics() {
+        guard let proj = XcodeBuildAPI.shared.determineActiveProject() else { return }
+        sourceDirectoryName = proj.url.path
+
+        // Asynchronously scan files and git branch
+        Task {
+            let fm = FileManager.default
+            var fileCount = 0
+            var swiftCount = 0
+
+            if let enumerator = fm.enumerator(at: proj.url, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles, .skipsPackageDescendants]) {
+                for case let fileURL as URL in enumerator {
+                    let isFile = (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile ?? false
+                    if isFile {
+                        fileCount += 1
+                        if fileURL.pathExtension.lowercased() == "swift" {
+                            swiftCount += 1
+                        }
+                    }
+                }
+            }
+
+            numberOfFiles = fileCount
+            numberOfSwiftFiles = swiftCount
+
+            // Asynchronously fetch active git branch
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+            task.arguments = ["rev-parse", "--abbrev-ref", "HEAD"]
+            task.currentDirectoryURL = proj.url
+
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = Pipe()
+
+            do {
+                try task.run()
+                task.waitUntilExit()
+
+                if task.terminationStatus == 0,
+                   let data = try? pipe.fileHandleForReading.readToEnd(),
+                   let branch = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+                    activeGitBranch = branch
+                } else {
+                    activeGitBranch = "main (default)"
+                }
+            } catch {
+                activeGitBranch = "main"
+            }
+        }
+    }
+
     private func loadProjectSettings() {
         guard let proj = XcodeBuildAPI.shared.determineActiveProject() else { return }
         let fm = FileManager.default
         let contents = try? fm.contentsOfDirectory(at: proj.url, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
         if let xcodeproj = proj.url.pathExtension == "xcodeproj" ? proj.url : contents?.first(where: { $0.pathExtension == "xcodeproj" }) {
             if let parsed = try? XcodeProjParse.shared.parse(projectURL: xcodeproj) {
+                numberOfTargets = parsed.targets.count
+                buildConfigurationsList = parsed.buildConfigurations.map { $0.name }
+
                 if let config = parsed.buildConfigurations.first(where: { $0.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] != nil }) {
                     let settings = config.buildSettings
                     if let bid = settings["PRODUCT_BUNDLE_IDENTIFIER"] {
@@ -567,6 +666,36 @@ public struct XcodeProjectDetailsSheet: View {
             }
             isUpdating = false
         }
+    }
+}
+
+// MARK: - MetricCard Helper View
+
+struct MetricCard: View {
+    let title: String
+    let value: String
+    let icon: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.headline)
+                .foregroundStyle(.orange)
+                .frame(width: 24, height: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+            Spacer()
+        }
+        .padding(10)
+        .background(Color(NSColor.windowBackgroundColor).opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 

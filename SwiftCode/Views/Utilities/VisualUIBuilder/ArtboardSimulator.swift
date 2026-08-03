@@ -218,6 +218,18 @@ struct LivePreviewSubView: View {
                                                 CopyLogsButton(logs: previewManager.buildLogs.joined(separator: "\n"))
                                             }
 
+                                            if previewManager.buildLogs.joined(separator: "\n").contains("Build already in progress.") {
+                                                Button(action: {
+                                                    Task {
+                                                        await previewManager.stopAndRestartSession()
+                                                    }
+                                                }) {
+                                                    Label("Stop and Restart", systemImage: "arrow.clockwise")
+                                                }
+                                                .buttonStyle(.borderedProminent)
+                                                .tint(.red)
+                                            }
+
                                             Divider()
 
                                             ScrollView {

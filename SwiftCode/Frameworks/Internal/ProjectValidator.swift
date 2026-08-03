@@ -1,10 +1,26 @@
 import Foundation
+import ZIPFoundation
 
 public final class ProjectValidator: Sendable {
     public static let shared = ProjectValidator()
     private init() {}
 
     public func validate(packageURL: URL) throws {
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        let fileExists = fm.fileExists(atPath: packageURL.path, isDirectory: &isDir)
+
+        if fileExists && !isDir.boolValue {
+            // It's a single file zipped archive. Let's unpack to a temp folder and validate that!
+            let tempDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try fm.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? fm.removeItem(at: tempDir) }
+
+            try fm.unzipItem(at: packageURL, to: tempDir)
+            try validate(packageURL: tempDir)
+            return
+        }
+
         // 1. Validate package structure
         guard ProjectPackageManager.shared.validatePackageStructure(at: packageURL) else {
             throw ProjectErrorManager.ProjectError.corruptedPackage("Invalid directory structure")

@@ -388,6 +388,18 @@ final class ProjectSessionStore {
         project.description = "A new SwiftCode project"
         project.transferConfiguration = .owner
 
+        // Apply default organization prefix to the bundle identifier
+        let prefix = AppSettings.shared.defaultOrganization
+        let suffix = prefix.hasSuffix(".") ? "" : "."
+        let bundleID = "\(prefix)\(suffix)\(sanitized.lowercased().replacingOccurrences(of: " ", with: "-"))"
+        project.ciBuildConfiguration = CIBuildConfiguration(
+            platform: .iOS,
+            deploymentTarget: "16.0",
+            targetDeviceFamily: .iPhoneAndIPad,
+            schemeName: sanitized,
+            bundleIdentifier: bundleID
+        )
+
         try saveMetadata(project)
         projects.insert(project, at: 0)
         return project
@@ -542,7 +554,20 @@ final class ProjectSessionStore {
             return project
         } else {
             let name = url.lastPathComponent
-            let project = Project(name: name)
+            var project = Project(name: name)
+
+            // Apply default organization prefix to the bundle identifier
+            let prefix = AppSettings.shared.defaultOrganization
+            let suffix = prefix.hasSuffix(".") ? "" : "."
+            let bundleID = "\(prefix)\(suffix)\(name.lowercased().replacingOccurrences(of: " ", with: "-"))"
+            project.ciBuildConfiguration = CIBuildConfiguration(
+                platform: .iOS,
+                deploymentTarget: "16.0",
+                targetDeviceFamily: .iPhoneAndIPad,
+                schemeName: name,
+                bundleIdentifier: bundleID
+            )
+
             try saveMetadataInPlace(project)
             return project
         }
