@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DE5ECE000000000000000002 /* FileTemplateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE5ECE000000000000000001 /* FileTemplateManager.swift */; };
 		8011D22065A4C22503627407 /* AppKit.swift.txt in Resources */ = {isa = PBXBuildFile; fileRef = 8904B3290F61326C40772016 /* AppKit.swift.txt */; };
 		A5428FFABC47203D23223068 /* CFile.c.txt in Resources */ = {isa = PBXBuildFile; fileRef = BF649BD482FC814BA60FAD20 /* CFile.c.txt */; };
 		6D94E1AD310954D4608755CC /* CSS.css.txt in Resources */ = {isa = PBXBuildFile; fileRef = B8A3457488C958FE2576E135 /* CSS.css.txt */; };
@@ -2390,6 +2391,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		DE5ECE000000000000000001 /* FileTemplateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTemplateManager.swift; sourceTree = "<group>"; };
 		STK56CCCDF5CF379A2BE0AD4 /* StoreKitModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/StoreKitModels.swift; sourceTree = "<group>"; };
 		STKCEA1571736A4ADED881CE /* StoreKitParser.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Parsers/StoreKitParser.swift; sourceTree = "<group>"; };
 		STKF84C9E25F9B0B0EDFF3E5 /* StoreKitEncoder.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Encoders/StoreKitEncoder.swift; sourceTree = "<group>"; };
@@ -5874,6 +5876,7 @@
 		57AFC04E569B8BDE2658ECD4 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				DE5ECE000000000000000001 /* FileTemplateManager.swift */,
 				B9D5212E8467AD31B9775EE2 /* SwiftCode/Services/FullAppRunManager.swift */,
 				F0163934412DEA832BA803F0 /* SwiftCode/Services/ProjectResolver.swift */,
 				B77DEEACFA2A0E407D801C91 /* SwiftCode/Services/UnifiedLogger.swift */,

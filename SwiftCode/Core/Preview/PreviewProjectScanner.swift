@@ -10,7 +10,40 @@ public struct PreviewProjectStructure: Sendable {
 public final class PreviewProjectScanner: Sendable {
     public init() {}
 
-    public func scan(projectDirectory: URL) throws -> PreviewProjectStructure {
+    private func getActiveTargetFiles(projectDirectory: URL) -> Set<URL>? {
+        guard let targetID = ProjectResolutionService.shared.selectedTargetID else {
+            return nil
+        }
+
+        for (_, model) in ProjectResolutionService.shared.parsedProjects {
+            guard let target = model.targets.first(where: { $0.uuid == targetID }) else { continue }
+
+            var fileRefUUIDs = Set<String>()
+            for phase in model.buildPhases {
+                if phase.isa == "PBXSourcesBuildPhase" && target.buildPhaseUUIDs.contains(phase.uuid) {
+                    for fileUUID in phase.files {
+                        if let fileRefUUID = model.buildFiles[fileUUID] {
+                            fileRefUUIDs.insert(fileRefUUID)
+                        }
+                    }
+                }
+            }
+
+            var files = Set<URL>()
+            for fileRef in model.fileReferences {
+                if fileRefUUIDs.contains(fileRef.uuid), let path = fileRef.path {
+                    let cleanPath = path.replacingOccurrences(of: "\"", with: "")
+                    let resolvedURL = projectDirectory.appendingPathComponent(cleanPath)
+                    files.insert(resolvedURL)
+                }
+            }
+
+            return files
+        }
+        return nil
+    }
+
+    public func scan(projectDirectory: URL, activeFilePath: String? = nil) throws -> PreviewProjectStructure {
         let fileManager = FileManager.default
         guard let enumerator = fileManager.enumerator(at: projectDirectory, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else {
             throw PreviewError.scanFailed(message: "Failed to enumerate project directory: \(projectDirectory.path)")
@@ -41,8 +74,16 @@ public final class PreviewProjectScanner: Sendable {
             dependencies[fileURL] = importedModules
         }
 
+        // Apply target membership filtering
+        var filteredSwiftFiles = swiftFiles
+        if let targetFiles = getActiveTargetFiles(projectDirectory: projectDirectory) {
+            filteredSwiftFiles = swiftFiles.filter { fileURL in
+                targetFiles.contains(fileURL) || fileURL.path == activeFilePath
+            }
+        }
+
         return PreviewProjectStructure(
-            swiftFiles: swiftFiles.sorted { $0.path < $1.path },
+            swiftFiles: filteredSwiftFiles.sorted { $0.path < $1.path },
             swiftUIViewTypes: Array(viewTypes).sorted(),
             appEntryPoint: appEntry,
             dependencies: dependencies

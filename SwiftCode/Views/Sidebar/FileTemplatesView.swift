@@ -1,29 +1,6 @@
 import SwiftUI
 import AppKit
 
-public struct FileTemplate: Identifiable {
-    public let id: String
-    public let name: String
-    public let extensionName: String
-    public let icon: String
-    public let color: Color
-    public let resourceName: String
-    public let resourceExtension: String
-    public let isFolder: Bool
-    public let fileURL: URL?
-    public let category: String
-
-    public var defaultFilename: String {
-        if isFolder {
-            return "New Folder"
-        }
-        if id == "simple_file" {
-            return "Untitled.swift"
-        }
-        return "Untitled.\(extensionName)"
-    }
-}
-
 public struct FileTemplatesView: View {
     @Environment(\.dismiss) private var dismiss
     let viewModel: ProjectTreeViewModel
@@ -34,7 +11,11 @@ public struct FileTemplatesView: View {
     @State private var searchText: String = ""
     @State private var selectedCategory: String = "All"
     @State private var previewContent: String = ""
-    @State private var templates: [FileTemplate] = []
+
+    // Observe the centralized FileTemplateManager
+    private var templateManager: FileTemplateManager {
+        FileTemplateManager.shared
+    }
 
     let categories = ["All", "Code", "Web", "Configs", "Scripting", "Testing", "Docs", "Other"]
 
@@ -66,187 +47,230 @@ public struct FileTemplatesView: View {
 
             Divider()
 
-            HStack(spacing: 0) {
-                // Left Panel: Template List & Selection
-                VStack(spacing: 0) {
-                    // Search & Categories Bar
-                    VStack(spacing: 8) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundStyle(.secondary)
-                            TextField("Search templates...", text: $searchText)
-                                .textFieldStyle(.plain)
-                                .font(.subheadline)
-                            if !searchText.isEmpty {
-                                Button {
-                                    searchText = ""
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(6)
-                        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-
-                        // Segmented-style category picker (custom ScrollView)
-                        ScrollView(.horizontal, showsIndicators: false) {
+            if let error = templateManager.errorMessage {
+                VStack(spacing: 16) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 40))
+                        .foregroundColor(.orange)
+                    Text("Template Discovery Failure")
+                        .font(.headline)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                    Button("Reload Templates") {
+                        templateManager.reloadTemplates()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(.regularMaterial)
+            } else if templateManager.isLoading {
+                VStack(spacing: 16) {
+                    ProgressView()
+                    Text("Loading Templates...")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(.regularMaterial)
+            } else {
+                HStack(spacing: 0) {
+                    // Left Panel: Template List & Selection
+                    VStack(spacing: 0) {
+                        // Search & Categories Bar
+                        VStack(spacing: 8) {
                             HStack(spacing: 6) {
-                                ForEach(categories, id: \.self) { cat in
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundStyle(.secondary)
+                                TextField("Search templates...", text: $searchText)
+                                    .textFieldStyle(.plain)
+                                    .font(.subheadline)
+                                if !searchText.isEmpty {
                                     Button {
-                                        selectedCategory = cat
+                                        searchText = ""
                                     } label: {
-                                        Text(cat)
-                                            .font(.caption)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(selectedCategory == cat ? Color.orange.opacity(0.15) : Color.clear)
-                                            .foregroundStyle(selectedCategory == cat ? Color.orange : Color.primary)
-                                            .cornerRadius(6)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 6)
-                                                    .stroke(selectedCategory == cat ? Color.orange : Color.secondary.opacity(0.2), lineWidth: 1)
-                                            )
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(.secondary)
                                     }
                                     .buttonStyle(.plain)
                                 }
                             }
-                        }
-                    }
-                    .padding(12)
-                    .background(.ultraThinMaterial)
+                            .padding(6)
+                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
 
-                    Divider()
-
-                    // Scrollable Template Grid
-                    ScrollView {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 110, maximum: 130), spacing: 10)], spacing: 10) {
-                            ForEach(filteredTemplates) { item in
-                                Button {
-                                    selectedItem = item
-                                    filename = item.defaultFilename
-                                    loadPreviewContent(for: item)
-                                } label: {
-                                    VStack(spacing: 8) {
-                                        ZStack {
-                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                .fill(item.color.opacity(selectedItem?.id == item.id ? 0.25 : 0.08))
-                                            Image(systemName: item.icon)
-                                                .font(.system(size: 20))
-                                                .foregroundStyle(item.color)
+                            // Segmented-style category picker (custom ScrollView)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 6) {
+                                    ForEach(categories, id: \.self) { cat in
+                                        Button {
+                                            selectedCategory = cat
+                                        } label: {
+                                            Text(cat)
+                                                .font(.caption)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(selectedCategory == cat ? Color.orange.opacity(0.15) : Color.clear)
+                                                .foregroundStyle(selectedCategory == cat ? Color.orange : Color.primary)
+                                                .cornerRadius(6)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 6)
+                                                        .stroke(selectedCategory == cat ? Color.orange : Color.secondary.opacity(0.2), lineWidth: 1)
+                                                )
                                         }
-                                        .frame(width: 42, height: 42)
-
-                                        Text(item.name)
-                                            .font(.system(size: 11, weight: .semibold))
-                                            .foregroundStyle(selectedItem?.id == item.id ? .orange : .primary)
-                                            .multilineTextAlignment(.center)
-                                            .lineLimit(2)
-                                            .frame(height: 28)
+                                        .buttonStyle(.plain)
                                     }
-                                    .padding(8)
-                                    .frame(maxWidth: .infinity, minHeight: 88)
-                                    .background(selectedItem?.id == item.id ? Color.orange.opacity(0.04) : Color.clear)
-                                    .cornerRadius(10)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .stroke(selectedItem?.id == item.id ? Color.orange : Color.clear, lineWidth: 1.5)
-                                    )
                                 }
-                                .buttonStyle(.plain)
                             }
                         }
                         .padding(12)
-                    }
-                }
-                .frame(width: 320)
-
-                Divider()
-
-                // Right Panel: Split into Preview Code & Configuration details
-                VStack(spacing: 0) {
-                    if let item = selectedItem {
-                        // Top Section: Code Preview Pane
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Template Preview")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 16)
-                                .padding(.top, 12)
-
-                            ScrollView {
-                                Text(previewContent)
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(.primary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(12)
-                                    .background(Color.black.opacity(0.15))
-                                    .cornerRadius(8)
-                            }
-                            .padding(.horizontal, 16)
-                        }
-                        .frame(maxHeight: .infinity)
+                        .background(.ultraThinMaterial)
 
                         Divider()
 
-                        // Bottom Section: Configuration details & Actions
-                        VStack(alignment: .leading, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(item.isFolder ? "Folder Name" : "Filename")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(.secondary)
+                        // Scrollable Template Grid
+                        ScrollView {
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 110, maximum: 130), spacing: 10)], spacing: 10) {
+                                ForEach(filteredTemplates) { item in
+                                    Button {
+                                        selectedItem = item
+                                        filename = item.defaultFilename
+                                        loadPreviewContent(for: item)
+                                    } label: {
+                                        VStack(spacing: 8) {
+                                            ZStack {
+                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                    .fill(item.color.opacity(selectedItem?.id == item.id ? 0.25 : 0.08))
+                                                Image(systemName: item.icon)
+                                                    .font(.system(size: 20))
+                                                    .foregroundStyle(item.color)
+                                            }
+                                            .frame(width: 42, height: 42)
 
-                                TextField(item.isFolder ? "New Folder" : "filename.swift", text: $filename)
-                                    .textFieldStyle(.roundedBorder)
-                                    .autocorrectionDisabled()
-                            }
-
-                            if let error = errorMsg {
-                                Text(error)
-                                    .font(.caption)
-                                    .foregroundColor(.red)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-
-                            Button(action: createTemplate) {
-                                HStack {
-                                    Image(systemName: "plus.circle.fill")
-                                    Text(item.isFolder ? "Create Folder" : "Create File")
+                                            Text(item.name)
+                                                .font(.system(size: 11, weight: .semibold))
+                                                .foregroundStyle(selectedItem?.id == item.id ? .orange : .primary)
+                                                .multilineTextAlignment(.center)
+                                                .lineLimit(2)
+                                                .frame(height: 28)
+                                        }
+                                        .padding(8)
+                                        .frame(maxWidth: .infinity, minHeight: 88)
+                                        .background(selectedItem?.id == item.id ? Color.orange.opacity(0.04) : Color.clear)
+                                        .cornerRadius(10)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                .stroke(selectedItem?.id == item.id ? Color.orange : Color.clear, lineWidth: 1.5)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                .frame(maxWidth: .infinity)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.large)
-                            .tint(.orange)
-                            .disabled(filename.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            .padding(12)
                         }
-                        .padding(16)
-                        .background(.ultraThinMaterial)
-                    } else {
-                        VStack(spacing: 12) {
-                            Image(systemName: "doc.badge.plus")
-                                .font(.system(size: 40))
-                                .foregroundStyle(.tertiary)
-                            Text("Select a template to configure & create")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
+                    .frame(width: 320)
+
+                    Divider()
+
+                    // Right Panel: Split into Preview Code & Configuration details
+                    VStack(spacing: 0) {
+                        if let item = selectedItem {
+                            // Top Section: Code Preview Pane
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Template Preview")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 16)
+                                    .padding(.top, 12)
+
+                                ScrollView {
+                                    Text(previewContent)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.primary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(12)
+                                        .background(Color.black.opacity(0.15))
+                                        .cornerRadius(8)
+                                }
+                                .padding(.horizontal, 16)
+                            }
+                            .frame(maxHeight: .infinity)
+
+                            Divider()
+
+                            // Bottom Section: Configuration details & Actions
+                            VStack(alignment: .leading, spacing: 12) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(item.isFolder ? "Folder Name" : "Filename")
+                                        .font(.caption.weight(.medium))
+                                        .foregroundStyle(.secondary)
+
+                                    TextField(item.isFolder ? "New Folder" : "filename.swift", text: $filename)
+                                        .textFieldStyle(.roundedBorder)
+                                        .autocorrectionDisabled()
+                                }
+
+                                if let error = errorMsg {
+                                    Text(error)
+                                        .font(.caption)
+                                        .foregroundColor(.red)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+
+                                Button(action: createTemplate) {
+                                    HStack {
+                                        Image(systemName: "plus.circle.fill")
+                                        Text(item.isFolder ? "Create Folder" : "Create File")
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
+                                .tint(.orange)
+                                .disabled(filename.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            }
+                            .padding(16)
+                            .background(.ultraThinMaterial)
+                        } else {
+                            VStack(spacing: 12) {
+                                Image(systemName: "doc.badge.plus")
+                                    .font(.system(size: 40))
+                                    .foregroundStyle(.tertiary)
+                                Text("Select a template to configure & create")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .background(.regularMaterial)
                 }
-                .frame(maxWidth: .infinity)
-                .background(.regularMaterial)
             }
         }
         .frame(width: 740, height: 480)
         .onAppear {
-            scanAndLoadTemplates()
+            templateManager.reloadTemplates()
+            if let first = templateManager.templates.first {
+                selectedItem = first
+                filename = first.defaultFilename
+                loadPreviewContent(for: first)
+            }
+        }
+        .onChange(of: templateManager.templates) { _, newTemplates in
+            if selectedItem == nil, let first = newTemplates.first {
+                selectedItem = first
+                filename = first.defaultFilename
+                loadPreviewContent(for: first)
+            }
         }
     }
 
     private var filteredTemplates: [FileTemplate] {
-        templates.filter { item in
+        templateManager.templates.filter { item in
             // Search text filter
             let matchSearch: Bool
             if searchText.isEmpty {
@@ -266,154 +290,6 @@ public struct FileTemplatesView: View {
 
             return matchSearch && matchCategory
         }
-    }
-
-    private func scanAndLoadTemplates() {
-        var loaded: [FileTemplate] = []
-
-        // Try to scan from the app bundle first
-        if let bundleDirURL = Bundle.main.url(forResource: "CFile.c", withExtension: "txt", subdirectory: "File Templates")?.deletingLastPathComponent() {
-            if let fileURLs = try? FileManager.default.contentsOfDirectory(at: bundleDirURL, includingPropertiesForKeys: nil) {
-                loaded = parseTemplates(from: fileURLs)
-            }
-        }
-
-        // Fallback to disk relative paths
-        if loaded.isEmpty {
-            let fm = FileManager.default
-            let relativePaths = [
-                "SwiftCode/Resources/File Templates",
-                "../SwiftCode/Resources/File Templates"
-            ]
-            for path in relativePaths {
-                let diskURL = URL(fileURLWithPath: path)
-                if fm.fileExists(atPath: diskURL.path) {
-                    if let fileURLs = try? fm.contentsOfDirectory(at: diskURL, includingPropertiesForKeys: nil) {
-                        loaded = parseTemplates(from: fileURLs)
-                        if !loaded.isEmpty { break }
-                    }
-                }
-            }
-        }
-
-        // Add built-in system templates: Simple Blank File, Clean Folder
-        let cleanFolder = FileTemplate(
-            id: "clean_folder",
-            name: "Clean Folder",
-            extensionName: "",
-            icon: "folder.fill",
-            color: .yellow,
-            resourceName: "",
-            resourceExtension: "",
-            isFolder: true,
-            fileURL: nil,
-            category: "Other"
-        )
-
-        let simpleFile = FileTemplate(
-            id: "simple_file",
-            name: "Simple Blank File",
-            extensionName: "",
-            icon: "doc.badge.plus",
-            color: .teal,
-            resourceName: "",
-            resourceExtension: "",
-            isFolder: false,
-            fileURL: nil,
-            category: "Other"
-        )
-
-        var finalTemplates: [FileTemplate] = []
-        finalTemplates.append(simpleFile)
-        finalTemplates.append(cleanFolder)
-        finalTemplates.append(contentsOf: loaded)
-
-        self.templates = finalTemplates
-        if let first = finalTemplates.first {
-            selectedItem = first
-            filename = first.defaultFilename
-            loadPreviewContent(for: first)
-        }
-    }
-
-    private func parseTemplates(from fileURLs: [URL]) -> [FileTemplate] {
-        var result: [FileTemplate] = []
-
-        for url in fileURLs {
-            let lastComponent = url.lastPathComponent
-            guard lastComponent.hasSuffix(".txt") else { continue }
-
-            // e.g. "CFile.c.txt" -> "CFile.c" and "txt"
-            let baseName = url.deletingPathExtension().lastPathComponent // e.g., "CFile.c"
-            let pathExtension = URL(fileURLWithPath: baseName).pathExtension // e.g., "c"
-            let cleanID = baseName.lowercased().replacingOccurrences(of: ".", with: "_")
-
-            let (name, icon, color, category) = getTemplateAttributes(filename: baseName, ext: pathExtension)
-
-            result.append(FileTemplate(
-                id: cleanID,
-                name: name,
-                extensionName: pathExtension.isEmpty ? "txt" : pathExtension,
-                icon: icon,
-                color: color,
-                resourceName: baseName,
-                resourceExtension: "txt",
-                isFolder: false,
-                fileURL: url,
-                category: category
-            ))
-        }
-
-        return result.sorted { $0.name < $1.name }
-    }
-
-    private func getTemplateAttributes(filename: String, ext: String) -> (name: String, icon: String, color: Color, category: String) {
-        let lowerExt = ext.lowercased()
-        let lowerName = filename.lowercased()
-
-        if lowerName.contains("swiftui") {
-            return ("SwiftUI View", "swift", .orange, "Code")
-        } else if lowerName.contains("uikit") {
-            return ("UIKit Controller", "swift", .blue, "Code")
-        } else if lowerName.contains("appkit") {
-            return ("AppKit Controller", "swift", .purple, "Code")
-        } else if lowerName.contains("swiftactor") {
-            return ("Swift Actor", "swift", .red, "Code")
-        } else if lowerName.contains("packageswift") || lowerName.contains("package.swift") {
-            return ("SPM Manifest", "shippingbox.fill", .blue, "Configs")
-        } else if lowerName.contains("xctest") {
-            return ("XCTest Suite", "checkmark.seal.fill", .teal, "Testing")
-        } else if lowerName.contains("unittest") {
-            return ("Unit Test File", "checkmark.seal.fill", .teal, "Testing")
-        } else if lowerName.contains("cfile") || lowerExt == "c" {
-            return ("C Source File", "chevron.left.forwardslash.chevron.right", .green, "Code")
-        } else if lowerName.contains("storyboard") || lowerExt == "storyboard" {
-            return ("Storyboard", "macwindow", .pink, "Code")
-        } else if lowerName.contains("infoplist") || lowerName.contains("info.plist") || lowerExt == "plist" {
-            return ("Info.plist File", "list.bullet.rectangle.fill", .indigo, "Configs")
-        } else if lowerName.contains("entitlements") {
-            return ("Entitlements", "lock.shield.fill", .red, "Configs")
-        } else if lowerName.contains("shell") || lowerExt == "sh" {
-            return ("Shell Script", "terminal.fill", .primary, "Scripting")
-        } else if lowerName.contains("python") || lowerExt == "py" {
-            return ("Python Script", "terminal.fill", .green, "Scripting")
-        } else if lowerName.contains("yaml") || lowerName.contains("yml") || lowerExt == "yml" || lowerExt == "yaml" {
-            return ("YAML Config", "gearshape.2.fill", .secondary, "Configs")
-        } else if lowerName.contains("readme") {
-            return ("Project README", "doc.text.fill", .secondary, "Docs")
-        } else if lowerExt == "md" {
-            return ("Markdown Doc", "doc.text.fill", .secondary, "Docs")
-        } else if lowerExt == "json" {
-            return ("JSON Configuration", "curlybraces.square.fill", .orange, "Configs")
-        } else if lowerExt == "html" {
-            return ("HTML5 Document", "globe", .blue, "Web")
-        } else if lowerExt == "css" {
-            return ("CSS Stylesheet", "paintbrush.fill", .pink, "Web")
-        } else if lowerExt == "js" {
-            return ("JavaScript File", "chevron.left.forwardslash.chevron.right", .yellow, "Web")
-        }
-
-        return ("Raw \(ext.uppercased()) File", "doc.text.fill", .secondary, "Other")
     }
 
     private func loadPreviewContent(for item: FileTemplate) {

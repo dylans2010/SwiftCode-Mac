@@ -26,10 +26,11 @@ public struct VisualUIPreviewPanel: View {
                             PreviewManager.shared.selectedPreviewName = newValue
                             Task {
                                 if let activeDoc = DocumentCoordinator.shared.activeDocument {
-                                    await PreviewManager.shared.startPreviewSession(
+                                    let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
+                                    await PreviewManager.shared.startFreshLivePreviewSession(
                                         sourcePath: activeDoc.url.path,
-                                        sourceCode: activeDoc.content,
-                                        targetView: newValue
+                                        sourceCode: preparedCode,
+                                        targetViewName: newValue
                                     )
                                 }
                             }
@@ -75,31 +76,19 @@ public struct VisualUIPreviewPanel: View {
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         } else {
-                            // Real compiler error diagnostics
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack {
-                                    Label("Compilation Failed", systemImage: "xmark.octagon.fill")
-                                        .font(.headline)
-                                        .foregroundColor(.red)
-                                    Spacer()
-                                    CopyLogsButton(logs: PreviewManager.shared.buildLogs.joined(separator: "\n"))
+                            // Premium structured diagnostics panel with Retry support
+                            PreviewDiagnosticsPanel(session: PreviewManager.shared.activeSession) {
+                                Task {
+                                    if let activeDoc = DocumentCoordinator.shared.activeDocument {
+                                        let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
+                                        await PreviewManager.shared.startFreshLivePreviewSession(
+                                            sourcePath: activeDoc.url.path,
+                                            sourceCode: preparedCode,
+                                            targetViewName: PreviewManager.shared.selectedPreviewName
+                                        )
+                                    }
                                 }
-
-                                Divider()
-
-                                ScrollView {
-                                    Text(PreviewManager.shared.buildLogs.joined(separator: "\n"))
-                                        .font(.system(.body, design: .monospaced))
-                                        .foregroundColor(.primary)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .padding(8)
-                                .background(Color.red.opacity(0.05))
-                                .cornerRadius(6)
                             }
-                            .padding()
-                            .background(RoundedRectangle(cornerRadius: 12).stroke(Color.red.opacity(0.2), lineWidth: 1))
-                            .padding(20)
                         }
                     } else {
                         // Regular / Custom Artboard View
@@ -203,29 +192,199 @@ public struct VisualUIPreviewPanel: View {
         if settings.showCompiledView {
             // Use active editor document
             if let activeDoc = DocumentCoordinator.shared.activeDocument {
-                // Populate available views in PreviewManager
-                let detected = SwiftViewDetector.detectViews(in: activeDoc.content)
-                PreviewManager.shared.availablePreviews = detected.isEmpty ? ["ContentView"] : detected
-                if PreviewManager.shared.selectedPreviewName == nil || !PreviewManager.shared.availablePreviews.contains(PreviewManager.shared.selectedPreviewName!) {
-                    PreviewManager.shared.selectedPreviewName = PreviewManager.shared.availablePreviews.first
-                }
-
                 let resolvedTarget = PreviewManager.shared.selectedPreviewName ?? "ContentView"
                 let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
-                await PreviewManager.shared.startPreviewSession(
+                await PreviewManager.shared.startFreshLivePreviewSession(
                     sourcePath: activeDoc.url.path,
                     sourceCode: preparedCode,
-                    targetView: resolvedTarget
+                    targetViewName: resolvedTarget
                 )
             }
         } else {
             // Use placeholder project code
             let code = generateCurrentSwiftUISource()
-            await PreviewManager.shared.startPreviewSession(
+            await PreviewManager.shared.startFreshLivePreviewSession(
                 sourcePath: "VisualUIExportView.swift",
                 sourceCode: code,
-                targetView: "VisualUIExportView"
+                targetViewName: "VisualUIExportView"
             )
+        }
+    }
+}
+
+// MARK: - Premium Diagnostics UI Panel
+
+@MainActor
+struct PreviewDiagnosticsPanel: View {
+    let session: PreviewSession?
+    let onRetry: () -> Void
+
+    @State private var showingRawLogs = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header
+            HStack {
+                Label("Preview Build Pipeline Error", systemImage: "xmark.octagon.fill")
+                    .font(.title2.bold())
+                    .foregroundColor(.red)
+                Spacer()
+
+                Button(action: onRetry) {
+                    Label("Retry Build", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
+                .tint(.purple)
+            }
+
+            Divider()
+
+            // Session Environment Grid
+            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
+                GridRow {
+                    HStack {
+                        Text("Current Stage:").bold().foregroundStyle(.secondary)
+                        Text(session?.status ?? "Unknown")
+                    }
+                    HStack {
+                        Text("Current Project:").bold().foregroundStyle(.secondary)
+                        Text(session?.activeProject ?? "None")
+                    }
+                }
+                GridRow {
+                    HStack {
+                        Text("Current Scheme:").bold().foregroundStyle(.secondary)
+                        Text(session?.activeScheme ?? "None")
+                    }
+                    HStack {
+                        Text("Current Preview:").bold().foregroundStyle(.secondary)
+                        Text(session?.targetViewName ?? "None")
+                    }
+                }
+                GridRow {
+                    HStack {
+                        Text("Configuration:").bold().foregroundStyle(.secondary)
+                        Text(session?.buildConfig ?? "Debug")
+                    }
+                    HStack {
+                        Text("Timestamp:").bold().foregroundStyle(.secondary)
+                        Text(session?.lastCompiledAt.formatted() ?? "N/A")
+                    }
+                }
+            }
+            .padding()
+            .background(Color(NSColor.windowBackgroundColor))
+            .cornerRadius(8)
+
+            // Structured Errors / Compiler Diagnostics
+            if let diagnostics = session?.diagnostics, !diagnostics.isEmpty {
+                Text("Structured Errors")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(diagnostics) { diag in
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.red)
+                                    Text("\(diag.stage) - \(diag.subsystem)")
+                                        .font(.subheadline.bold())
+                                    Spacer()
+                                    Text(diag.severity.uppercased())
+                                        .font(.caption2.bold())
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(diag.severity == "error" ? Color.red.opacity(0.15) : Color.orange.opacity(0.15))
+                                        .foregroundColor(diag.severity == "error" ? .red : .orange)
+                                        .cornerRadius(4)
+                                }
+
+                                if let file = diag.file {
+                                    Text("File: \(file)\(diag.line.map { ":\($0)" } ?? "")")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Text(diag.description)
+                                    .font(.body)
+                                    .padding(.vertical, 2)
+
+                                if let fix = diag.suggestedFix {
+                                    Text("Suggested Fix: \(fix)")
+                                        .font(.caption)
+                                        .italic()
+                                        .foregroundColor(.green)
+                                }
+                            }
+                            .padding()
+                            .background(Color.red.opacity(0.05))
+                            .cornerRadius(6)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.red.opacity(0.15), lineWidth: 1)
+                            )
+                        }
+                    }
+                }
+                .frame(maxHeight: 250)
+            }
+
+            // Raw logs & actions
+            HStack {
+                Button(showingRawLogs ? "Hide Raw Logs" : "Show Raw Logs") {
+                    showingRawLogs.toggle()
+                }
+                .buttonStyle(.bordered)
+
+                Spacer()
+
+                Button(action: copyLogs) {
+                    Label("Copy Logs", systemImage: "doc.on.doc")
+                }
+                .buttonStyle(.bordered)
+
+                Button(action: exportLogs) {
+                    Label("Export Logs", systemImage: "square.and.arrow.up")
+                }
+                .buttonStyle(.bordered)
+            }
+
+            if showingRawLogs {
+                ScrollView {
+                    Text(PreviewManager.shared.buildLogs.joined(separator: "\n"))
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(Color.black.opacity(0.15))
+                        .cornerRadius(6)
+                }
+                .frame(maxHeight: 200)
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 12).stroke(Color.red.opacity(0.2), lineWidth: 1))
+        .padding(20)
+    }
+
+    private func copyLogs() {
+        let text = PreviewManager.shared.buildLogs.joined(separator: "\n")
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private func exportLogs() {
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.plainText]
+        savePanel.nameFieldStringValue = "preview_build_logs.txt"
+        savePanel.begin { response in
+            if response == .OK, let url = savePanel.url {
+                let text = PreviewManager.shared.buildLogs.joined(separator: "\n")
+                try? text.write(to: url, atomically: true, encoding: .utf8)
+            }
         }
     }
 }
