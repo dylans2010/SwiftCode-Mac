@@ -71,9 +71,9 @@ struct BuildToolbarView: View {
                     Label("Run Full App", systemImage: "play.desktopcomputer")
                 }
 
-                Button {
-                    Task {
-                        if let activeDoc = editorViewModel.activeDocument {
+                if let activeDoc = editorViewModel.activeDocument, hasLivePreviewComment(content: activeDoc.content) {
+                    Button {
+                        Task {
                             await editorViewModel.saveActiveDocument()
                             NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "visual_ui_builder"])
                             let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
@@ -82,6 +82,29 @@ struct BuildToolbarView: View {
                     }
                 } label: {
                     Label("Live Preview", systemImage: "play.rectangle.on.rectangle")
+                }
+
+                Button {
+                    Task {
+                        if let activeDoc = editorViewModel.activeDocument {
+                            let comment = "// @SwiftCodeVisualUIBuilderDocument\n"
+                            editorViewModel.updateContent(comment + activeDoc.content)
+                            await editorViewModel.saveActiveDocument()
+
+                            NotificationCenter.default.post(
+                                name: .toolbarToolActivated,
+                                object: nil,
+                                userInfo: ["toolID": "visual_ui_builder"]
+                            )
+                            let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
+                            await PreviewManager.shared.startFreshLivePreviewSession(
+                                sourcePath: activeDoc.url.path,
+                                sourceCode: preparedCode
+                            )
+                        }
+                    }
+                } label: {
+                    Label("Supports Live Preview", systemImage: "plus.bubble.fill")
                 }
 
                 Button {
@@ -211,7 +234,7 @@ struct BuildToolbarView: View {
                 .buttonStyle(.bordered)
                 .help("Toggle App Details Sidebar")
 
-                if let activeDoc = editorViewModel.activeDocument, activeDoc.url.pathExtension.lowercased() == "swift" {
+                if let activeDoc = editorViewModel.activeDocument, activeDoc.url.pathExtension.lowercased() == "swift", hasLivePreviewComment(content: activeDoc.content) {
                     Button {
                         Task {
                             // 1. Save current editor contents immediately
@@ -320,6 +343,14 @@ struct BuildToolbarView: View {
         }
         .onChange(of: projectURL) { _, newURL in
             buildManager.discoverSchemes(at: newURL)
+        }
+    }
+
+    private func hasLivePreviewComment(content: String) -> Bool {
+        let lines = content.components(separatedBy: .newlines).prefix(15)
+        return lines.contains { line in
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.contains("//") && trimmed.contains("@SwiftCodeVisualUIBuilderDocument")
         }
     }
 }

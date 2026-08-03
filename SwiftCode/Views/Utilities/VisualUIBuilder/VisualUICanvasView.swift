@@ -341,6 +341,18 @@ public struct ArtboardView: View {
                                 CopyLogsButton(logs: PreviewManager.shared.buildLogs.joined(separator: "\n"))
                             }
 
+                            if PreviewManager.shared.buildLogs.joined(separator: "\n").contains("Build already in progress.") {
+                                Button(action: {
+                                    Task {
+                                        await PreviewManager.shared.stopAndRestartSession()
+                                    }
+                                }) {
+                                    Label("Stop and Restart", systemImage: "arrow.clockwise")
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.red)
+                            }
+
                             ScrollView {
                                 Text(PreviewManager.shared.buildLogs.joined(separator: "\n"))
                                     .font(.system(.body, design: .monospaced))

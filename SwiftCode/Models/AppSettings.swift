@@ -226,6 +226,11 @@ class AppSettings: ObservableObject {
         didSet { debouncedSave("customProjectsFolder", customProjectsFolder) }
     }
 
+    // MARK: - Bundle ID Customization
+    @Published var defaultOrganization: String {
+        didSet { debouncedSave("defaultOrganization", defaultOrganization) }
+    }
+
     // MARK: - Debounced Save
 
     private func debouncedSave(_ key: String, _ value: Any) {
@@ -294,6 +299,7 @@ class AppSettings: ObservableObject {
         hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         saveProjectsOnCustomFolder = UserDefaults.standard.object(forKey: "saveProjectsOnCustomFolder") as? Bool ?? false
         customProjectsFolder = UserDefaults.standard.string(forKey: "customProjectsFolder") ?? ""
+        defaultOrganization = UserDefaults.standard.string(forKey: "defaultOrganization") ?? "com.SwiftCode"
 
         // Load saved repositories
         loadSavedRepositories()
