@@ -228,23 +228,22 @@ struct TemplatePickerView: View {
     }
 
     private func createProject() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        panel.message = "Select where to save your project"
+        Task {
+            do {
+                // 1. Create the project entry in ProjectSessionStore first in the configured projects folder (Default or Custom)
+                let project = try sessionStore.createProject(name: projectName)
 
-        if panel.runModal() == .OK, let url = panel.url {
-            let projectURL = url.appendingPathComponent(projectName)
-            Task {
-                do {
-                    try await ProjectScaffoldTemplateEngine.shared.createProject(at: projectURL, template: selectedTemplate)
-                    let project = try sessionStore.createProject(name: projectName)
-                    await sessionStore.openProject(project)
-                    dismiss()
-                } catch {
-                    LoggingTool.error("Failed to create project: \(error)")
-                }
+                // 2. Scaffold the template directly inside the newly created project's directory
+                try await ProjectScaffoldTemplateEngine.shared.createProject(at: project.directoryURL, template: selectedTemplate)
+
+                // 3. Refresh the project's file navigator tree
+                sessionStore.refreshFileTree(for: project)
+
+                // 4. Open the project and focus the editor
+                await sessionStore.openProject(project)
+                dismiss()
+            } catch {
+                LoggingTool.error("Failed to create project: \(error)")
             }
         }
     }

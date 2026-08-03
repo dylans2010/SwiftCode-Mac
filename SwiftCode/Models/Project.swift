@@ -52,9 +52,10 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
     public var description: String
     public var ciBuildConfiguration: CIBuildConfiguration?
     public var transferConfiguration: ProjectTransferConfiguration?
+    public var customDirectoryPath: String?
 
     public enum CodingKeys: String, CodingKey {
-        case id, name, createdAt, lastOpened, files, fileCount, githubRepo, description, ciBuildConfiguration, transferConfiguration
+        case id, name, createdAt, lastOpened, files, fileCount, githubRepo, description, ciBuildConfiguration, transferConfiguration, customDirectoryPath
     }
 
     public init(from decoder: Decoder) throws {
@@ -69,6 +70,7 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
         description = try container.decode(String.self, forKey: .description)
         ciBuildConfiguration = try container.decodeIfPresent(CIBuildConfiguration.self, forKey: .ciBuildConfiguration)
         transferConfiguration = try container.decodeIfPresent(ProjectTransferConfiguration.self, forKey: .transferConfiguration)
+        customDirectoryPath = try container.decodeIfPresent(String.self, forKey: .customDirectoryPath)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -83,6 +85,7 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
         try container.encode(description, forKey: .description)
         try container.encode(ciBuildConfiguration, forKey: .ciBuildConfiguration)
         try container.encode(transferConfiguration, forKey: .transferConfiguration)
+        try container.encode(customDirectoryPath, forKey: .customDirectoryPath)
     }
 
     public init(name: String) {
@@ -97,14 +100,28 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
         self.description = ""
         self.ciBuildConfiguration = CIBuildConfiguration()
         self.transferConfiguration = .owner
+        self.customDirectoryPath = nil
     }
 
     @MainActor
     public var directoryURL: URL {
+        if let customPath = customDirectoryPath {
+            return URL(fileURLWithPath: customPath)
+        }
         if name.hasPrefix("/") {
             return URL(fileURLWithPath: name)
         }
         return CodingManager.shared.projectsRoot.appendingPathComponent(name)
+    }
+
+    public var displayName: String {
+        if let customPath = customDirectoryPath {
+            return URL(fileURLWithPath: customPath).lastPathComponent
+        }
+        if name.hasPrefix("/") {
+            return URL(fileURLWithPath: name).lastPathComponent
+        }
+        return name
     }
 
     public var fileCount: Int = 0

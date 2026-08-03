@@ -32,6 +32,59 @@ struct SwiftCodeWelcomeView: View {
     @State private var errorMessage: String?
     @State private var showError = false
 
+    // Save Location and Project Action Confirmations
+    @State private var activeConfirmation: ActiveConfirmation?
+    @State private var showConfirmationAlert = false
+    @State private var showingInfoAlert = false
+    @State private var infoAlertTitle = ""
+    @State private var infoAlertMessage = ""
+
+    enum ActiveConfirmation: Identifiable {
+        case remove(Project)
+        case delete(Project)
+
+        var id: UUID {
+            switch self {
+            case .remove(let project): return project.id
+            case .delete(let project): return project.id
+            }
+        }
+    }
+
+    private var confirmationAlertTitle: String {
+        switch activeConfirmation {
+        case .remove: return "Remove From Recent Projects"
+        case .delete: return "Delete Project From Disk"
+        case .none: return ""
+        }
+    }
+
+    private func revealInFinder(_ project: Project) {
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.directoryURL.path)
+    }
+
+    private func openProjectLocation(_ project: Project) {
+        NSWorkspace.shared.open(project.directoryURL)
+    }
+
+    private func copyProjectPath(_ project: Project) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.declareTypes([.string], owner: nil)
+        pasteboard.setString(project.directoryURL.path, forType: .string)
+    }
+
+    private func showProjectInfo(_ project: Project) {
+        infoAlertTitle = "Project Information"
+        infoAlertMessage = """
+        Name: \(project.displayName)
+        Location: \(project.directoryURL.path)
+        Created At: \(project.createdAt.formatted())
+        Last Opened: \(project.lastOpened.formatted())
+        Description: \(project.description.isEmpty ? "None" : project.description)
+        """
+        showingInfoAlert = true
+    }
+
     enum SortMode: String, CaseIterable, Identifiable {
         case lastOpened = "Last Opened"
         case name = "Name"
@@ -74,6 +127,40 @@ struct SwiftCodeWelcomeView: View {
         }
         .sheet(isPresented: $showingNewProject) {
             NewProjectSheetView(viewModel: WelcomeViewModel())
+        }
+        .alert(
+            confirmationAlertTitle,
+            isPresented: $showConfirmationAlert,
+            presenting: activeConfirmation
+        ) { config in
+            switch config {
+            case .remove(let project):
+                Button("Remove from Recents", role: .destructive) {
+                    sessionStore.removeProjectFromRecents(project)
+                }
+                Button("Cancel", role: .cancel) {}
+            case .delete(let project):
+                Button("Delete From Disk", role: .destructive) {
+                    do {
+                        try sessionStore.deleteProject(project)
+                    } catch {
+                        showError(error)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+        } message: { config in
+            switch config {
+            case .remove(let project):
+                Text("Are you sure you want to remove \"\(project.displayName)\" from the list? The folder on disk will NOT be touched.")
+            case .delete(let project):
+                Text("Are you sure you want to permanently delete \"\(project.displayName)\" from your disk? This action is irreversible.")
+            }
+        }
+        .alert(infoAlertTitle, isPresented: $showingInfoAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(infoAlertMessage)
         }
         .background(
             Group {
@@ -320,7 +407,13 @@ struct SwiftCodeWelcomeView: View {
                     await sessionStore.openProject(project)
                 }
             } onDelete: {
-                try? sessionStore.deleteProject(project)
+                activeConfirmation = .delete(project)
+                showConfirmationAlert = true
+            }
+            .onTapGesture(count: 2) {
+                Task {
+                    await sessionStore.openProject(project)
+                }
             }
             .contextMenu { projectContextMenu(for: project) }
         }
@@ -340,7 +433,7 @@ struct SwiftCodeWelcomeView: View {
                             .cornerRadius(8)
 
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(project.name)
+                            Text(project.displayName)
                                 .font(.headline)
                                 .foregroundColor(.primary)
                             Text(project.description.isEmpty ? "No description provided" : project.description)
@@ -366,7 +459,7 @@ struct SwiftCodeWelcomeView: View {
                     .background(Color(NSColor.controlBackgroundColor).opacity(0.4))
                     .cornerRadius(12)
                     .contentShape(Rectangle())
-                    .onTapGesture {
+                    .onTapGesture(count: 2) {
                         Task {
                             await sessionStore.openProject(project)
                         }
@@ -375,6 +468,88 @@ struct SwiftCodeWelcomeView: View {
                 }
             }
             .padding(24)
+        }
+    }
+
+    @ViewBuilder
+    private func projectContextMenu(for project: Project) -> some View {
+        Button {
+            Task {
+                await sessionStore.openProject(project)
+            }
+        } label: {
+            Label("Open Project", systemImage: "play.fill")
+        }
+
+        Button {
+            toggleFavorite(project)
+        } label: {
+            Label(favorites.contains(project.id.uuidString) ? "Remove Favorite" : "Add to Favorites", systemImage: "star")
+        }
+
+        Button {
+            projectToRename = project
+            renameText = project.displayName
+            showRenameSheet = true
+        } label: {
+            Label("Rename", systemImage: "pencil")
+        }
+
+        Button {
+            Task {
+                do { try sessionStore.duplicateProject(project) }
+                catch { showError(error) }
+            }
+        } label: {
+            Label("Duplicate", systemImage: "doc.on.doc")
+        }
+
+        Button {
+            exportProject(project)
+        } label: {
+            Label("Export As ZIP", systemImage: "square.and.arrow.up")
+        }
+
+        Divider()
+
+        Button {
+            revealInFinder(project)
+        } label: {
+            Label("Reveal in Finder", systemImage: "folder")
+        }
+
+        Button {
+            openProjectLocation(project)
+        } label: {
+            Label("Open Project Location", systemImage: "arrow.up.right.square")
+        }
+
+        Button {
+            copyProjectPath(project)
+        } label: {
+            Label("Copy Project Path", systemImage: "doc.on.doc")
+        }
+
+        Button {
+            showProjectInfo(project)
+        } label: {
+            Label("Show Project Information", systemImage: "info.circle")
+        }
+
+        Divider()
+
+        Button {
+            activeConfirmation = .remove(project)
+            showConfirmationAlert = true
+        } label: {
+            Label("Remove From Recent Projects", systemImage: "bookmark.slash")
+        }
+
+        Button(role: .destructive) {
+            activeConfirmation = .delete(project)
+            showConfirmationAlert = true
+        } label: {
+            Label("Delete Project From Disk...", systemImage: "trash")
         }
     }
 
@@ -433,54 +608,6 @@ struct SwiftCodeWelcomeView: View {
         }
     }
 
-    @ViewBuilder
-    private func projectContextMenu(for project: Project) -> some View {
-        Button {
-            Task {
-                await sessionStore.openProject(project)
-            }
-        } label: {
-            Label("Open Project", systemImage: "play.fill")
-        }
-
-        Button {
-            toggleFavorite(project)
-        } label: {
-            Label(favorites.contains(project.id.uuidString) ? "Remove Favorite" : "Add to Favorites", systemImage: "star")
-        }
-
-        Button {
-            projectToRename = project
-            renameText = project.name
-            showRenameSheet = true
-        } label: {
-            Label("Rename", systemImage: "pencil")
-        }
-
-        Button {
-            Task {
-                do { try sessionStore.duplicateProject(project) }
-                catch { showError(error) }
-            }
-        } label: {
-            Label("Duplicate", systemImage: "doc.on.doc")
-        }
-
-        Button {
-            exportProject(project)
-        } label: {
-            Label("Export As ZIP", systemImage: "square.and.arrow.up")
-        }
-
-        Divider()
-
-        Button(role: .destructive) {
-            do { try sessionStore.deleteProject(project) }
-            catch { showError(error) }
-        } label: {
-            Label("Delete", systemImage: "trash")
-        }
-    }
 
     private var emptyStateView: some View {
         VStack(spacing: 24) {

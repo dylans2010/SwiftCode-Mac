@@ -218,6 +218,14 @@ class AppSettings: ObservableObject {
         didSet { debouncedSave("hasCompletedOnboarding", hasCompletedOnboarding) }
     }
 
+    // MARK: - Save Location Customization
+    @Published var saveProjectsOnCustomFolder: Bool {
+        didSet { debouncedSave("saveProjectsOnCustomFolder", saveProjectsOnCustomFolder) }
+    }
+    @Published var customProjectsFolder: String {
+        didSet { debouncedSave("customProjectsFolder", customProjectsFolder) }
+    }
+
     // MARK: - Debounced Save
 
     private func debouncedSave(_ key: String, _ value: Any) {
@@ -284,6 +292,8 @@ class AppSettings: ObservableObject {
         appleIntelligenceEnabled = UserDefaults.standard.object(forKey: "appleIntelligenceEnabled") as? Bool ?? false
         useCodexAsDefaultAgent = UserDefaults.standard.object(forKey: "useCodexAsAgent") as? Bool ?? UserDefaults.standard.object(forKey: "useCodexAsDefaultAgent") as? Bool ?? false
         hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        saveProjectsOnCustomFolder = UserDefaults.standard.object(forKey: "saveProjectsOnCustomFolder") as? Bool ?? false
+        customProjectsFolder = UserDefaults.standard.string(forKey: "customProjectsFolder") ?? ""
 
         // Load saved repositories
         loadSavedRepositories()

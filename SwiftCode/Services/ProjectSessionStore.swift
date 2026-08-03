@@ -25,6 +25,59 @@ enum ProjectOpeningState: Equatable {
 }
 
 @Observable
+public final class ProjectSession: Codable, @unchecked Sendable {
+    public let id: UUID // matches project.id
+    public var projectRootPath: String
+    public var activeFileNode: FileNode?
+    public var activeFileContent: String = ""
+    public var openFileTabs: [FileNode] = []
+    public var modifiedFilePaths: Set<String> = []
+    public var fileLoadError: String?
+
+    // Editor State
+    public var cursorPosition: Int = 0
+    public var scrollPosition: Double = 0.0
+    public var selectionRangeText: String? // Codable representation of NSRange
+    public var foldingState: [String: Bool] = [:]
+
+    enum CodingKeys: String, CodingKey {
+        case id, projectRootPath, activeFileNode, openFileTabs, modifiedFilePaths, cursorPosition, scrollPosition, selectionRangeText, foldingState
+    }
+
+    public init(id: UUID, projectRootPath: String) {
+        self.id = id
+        self.projectRootPath = projectRootPath
+    }
+
+    public required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        projectRootPath = try container.decode(String.self, forKey: .projectRootPath)
+        activeFileNode = try container.decodeIfPresent(FileNode.self, forKey: .activeFileNode)
+        openFileTabs = try container.decodeIfPresent([FileNode].self, forKey: .openFileTabs) ?? []
+        let modifiedPathsArray = try container.decodeIfPresent([String].self, forKey: .modifiedFilePaths) ?? []
+        modifiedFilePaths = Set(modifiedPathsArray)
+        cursorPosition = try container.decodeIfPresent(Int.self, forKey: .cursorPosition) ?? 0
+        scrollPosition = try container.decodeIfPresent(Double.self, forKey: .scrollPosition) ?? 0.0
+        selectionRangeText = try container.decodeIfPresent(String.self, forKey: .selectionRangeText)
+        foldingState = try container.decodeIfPresent([String: Bool].self, forKey: .foldingState) ?? [:]
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(projectRootPath, forKey: .projectRootPath)
+        try container.encode(activeFileNode, forKey: .activeFileNode)
+        try container.encode(openFileTabs, forKey: .openFileTabs)
+        try container.encode(Array(modifiedFilePaths), forKey: .modifiedFilePaths)
+        try container.encode(cursorPosition, forKey: .cursorPosition)
+        try container.encode(scrollPosition, forKey: .scrollPosition)
+        try container.encode(selectionRangeText, forKey: .selectionRangeText)
+        try container.encode(foldingState, forKey: .foldingState)
+    }
+}
+
+@Observable
 @MainActor
 final class ProjectSessionStore {
     static let shared = ProjectSessionStore()
@@ -46,16 +99,59 @@ final class ProjectSessionStore {
         return nil
     }
 
-    var activeFileNode: FileNode?
-    var activeFileContent: String = ""
-    var openFileTabs: [FileNode] = []
-    var modifiedFilePaths: Set<String> = []
-    var fileLoadError: String?
+    // Active session reference
+    var activeSession: ProjectSession?
+
+    // Store all sessions in memory
+    private var sessions: [UUID: ProjectSession] = [:]
+
+    var activeFileNode: FileNode? {
+        get { activeSession?.activeFileNode }
+        set { activeSession?.activeFileNode = newValue }
+    }
+    var activeFileContent: String {
+        get { activeSession?.activeFileContent ?? "" }
+        set { activeSession?.activeFileContent = newValue }
+    }
+    var openFileTabs: [FileNode] {
+        get { activeSession?.openFileTabs ?? [] }
+        set { activeSession?.openFileTabs = newValue }
+    }
+    var modifiedFilePaths: Set<String> {
+        get { activeSession?.modifiedFilePaths ?? [] }
+        set { activeSession?.modifiedFilePaths = newValue }
+    }
+    var fileLoadError: String? {
+        get { activeSession?.fileLoadError }
+        set { activeSession?.fileLoadError = newValue }
+    }
 
     // MARK: - Initializer
 
     init() {
         loadProjects()
+    }
+
+    func getOrCreateSession(for project: Project) -> ProjectSession {
+        if let existing = sessions[project.id] {
+            return existing
+        }
+        let sessionURL = project.directoryURL.appendingPathComponent("session.json")
+        if let data = try? Data(contentsOf: sessionURL),
+           let session = try? JSONDecoder().decode(ProjectSession.self, from: data) {
+            sessions[project.id] = session
+            return session
+        }
+        let session = ProjectSession(id: project.id, projectRootPath: project.directoryURL.path)
+        sessions[project.id] = session
+        return session
+    }
+
+    func saveSession(_ session: ProjectSession) {
+        let sessionURL = URL(fileURLWithPath: session.projectRootPath).appendingPathComponent("session.json")
+        if let data = try? JSONEncoder().encode(session) {
+            try? data.write(to: sessionURL, options: .atomic)
+        }
     }
 
     // MARK: - Library Management
@@ -74,36 +170,50 @@ final class ProjectSessionStore {
 
     func loadProjects() {
         let fm = FileManager.default
-        guard let contents = try? fm.contentsOfDirectory(
+
+        // 1. Load from UserDefaults
+        var loaded: [Project] = []
+        if let data = UserDefaults.standard.data(forKey: Self.projectListKey) {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            if let decoded = try? decoder.decode([Project].self, from: data) {
+                // Verify each project still exists on disk
+                for project in decoded {
+                    if fm.fileExists(atPath: project.directoryURL.path) {
+                        loaded.append(project)
+                    }
+                }
+            }
+        }
+
+        // 2. Also scan projectsDirectory (default or custom save directory) to find any untracked project folders
+        if let contents = try? fm.contentsOfDirectory(
             at: projectsDirectory,
             includingPropertiesForKeys: [.isDirectoryKey],
             options: .skipsHiddenFiles
-        ) else {
-            // Fallback to UserDefaults
-            guard let data = UserDefaults.standard.data(forKey: Self.projectListKey) else { return }
+        ) {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
-            self.projects = (try? decoder.decode([Project].self, from: data)) ?? []
-            if projects.isEmpty {
-                scaffoldIntroProjectIfNeeded()
-            }
-            return
-        }
+            for url in contents {
+                guard (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
 
-        var loaded: [Project] = []
-        for url in contents {
-            guard (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
-            let metaURL = url.appendingPathComponent("project.json")
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            if let data = try? Data(contentsOf: metaURL),
-               var project = try? decoder.decode(Project.self, from: data) {
-                loaded.append(project)
-            } else {
-                let name = url.lastPathComponent
-                let project = Project(name: name)
-                try? saveMetadata(project)
-                loaded.append(project)
+                // Skip if already loaded
+                if loaded.contains(where: {
+                    $0.directoryURL.standardizedFileURL.path == url.standardizedFileURL.path
+                }) {
+                    continue
+                }
+
+                let metaURL = url.appendingPathComponent("project.json")
+                if let data = try? Data(contentsOf: metaURL),
+                   let project = try? decoder.decode(Project.self, from: data) {
+                    loaded.append(project)
+                } else {
+                    let name = url.lastPathComponent
+                    let project = Project(name: name)
+                    try? saveMetadataInPlace(project)
+                    loaded.append(project)
+                }
             }
         }
 
@@ -166,14 +276,27 @@ final class ProjectSessionStore {
                 let loadedProject = try await coordinator.loadProjectWithTimeout(url: project.directoryURL)
                 if Task.isCancelled { return }
 
+                // Get or create independent session
+                let session = self.getOrCreateSession(for: loadedProject)
+                self.activeSession = session
+
                 state = .ready(loadedProject)
 
+                // Reset and isolate DocumentCoordinator state to prevent Project A vs B loading bug
+                DocumentCoordinator.shared.projectURL = loadedProject.directoryURL
+                DocumentCoordinator.shared.activeDocument = nil
+                DocumentCoordinator.shared.visualUIDocument = nil
+                DocumentCoordinator.shared.compiledArtboardViews = [:]
+                DocumentCoordinator.shared.compiledArtboardErrors = [:]
+                DocumentCoordinator.shared.previewSession = nil
+                DocumentCoordinator.shared.inspectorSelection = nil
+
                 // Update last opened date in library
-                if let idx = projects.firstIndex(where: { $0.id == project.id }) {
-                    var updated = projects[idx]
+                if let idx = self.projects.firstIndex(where: { $0.id == project.id }) {
+                    var updated = self.projects[idx]
                     updated.lastOpened = Date()
-                    projects[idx] = updated
-                    saveMetadata(updated)
+                    self.projects[idx] = updated
+                    self.saveMetadata(updated)
                 }
             } catch let error as ProjectOpenError {
                 state = .failed(error)
@@ -187,12 +310,20 @@ final class ProjectSessionStore {
 
     func closeProject() {
         openingTask?.cancel()
+        if let currentSession = activeSession {
+            saveSession(currentSession)
+        }
         state = .idle
-        activeFileNode = nil
-        activeFileContent = ""
-        openFileTabs = []
-        modifiedFilePaths = []
-        fileLoadError = nil
+        activeSession = nil
+
+        // Completely reset DocumentCoordinator
+        DocumentCoordinator.shared.projectURL = nil
+        DocumentCoordinator.shared.activeDocument = nil
+        DocumentCoordinator.shared.visualUIDocument = nil
+        DocumentCoordinator.shared.compiledArtboardViews = [:]
+        DocumentCoordinator.shared.compiledArtboardErrors = [:]
+        DocumentCoordinator.shared.previewSession = nil
+        DocumentCoordinator.shared.inspectorSelection = nil
     }
 
     func retryLoad(for project: Project) async {
@@ -229,6 +360,13 @@ final class ProjectSessionStore {
 
     func deleteProject(_ project: Project) throws {
         try fm.removeItem(at: project.directoryURL)
+        projects.removeAll { $0.id == project.id }
+        if activeProject?.id == project.id {
+            closeProject()
+        }
+    }
+
+    func removeProjectFromRecents(_ project: Project) {
         projects.removeAll { $0.id == project.id }
         if activeProject?.id == project.id {
             closeProject()
@@ -278,28 +416,84 @@ final class ProjectSessionStore {
         return newProject
     }
 
-    func importProject(from url: URL) async throws -> Project {
-        let name = url.lastPathComponent
-        let destinationURL = projectsDirectory.appendingPathComponent(name)
+    func saveMetadataInPlace(_ project: Project) throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(project)
+        let metaURL = project.directoryURL.appendingPathComponent("project.json")
+        try data.write(to: metaURL, options: .atomic)
+    }
 
+    func importProject(from url: URL) async throws -> Project {
         let isAccessing = url.startAccessingSecurityScopedResource()
         defer { if isAccessing { url.stopAccessingSecurityScopedResource() } }
 
-        if url.standardizedFileURL.path == destinationURL.standardizedFileURL.path {
-            let project = try loadOrCreateProject(at: url)
-            if !projects.contains(where: { $0.id == project.id }) {
-                projects.insert(project, at: 0)
+        // Determine project root directory
+        var rootURL = url
+        if url.pathExtension == "xcodeproj" || url.pathExtension == "xcworkspace" {
+            rootURL = url.deletingLastPathComponent()
+        }
+
+        let pathStr = rootURL.path
+
+        // 1. Prevent duplicates: check if directory is already imported
+        if let existing = projects.first(where: {
+            let existingPath = $0.customDirectoryPath ?? (CodingManager.shared.projectsRoot.appendingPathComponent($0.name).path)
+            return existingPath == pathStr
+        }) {
+            return existing
+        }
+
+        // 2. Automatically determine and extract all metadata
+        let name = rootURL.lastPathComponent
+
+        // Scan schemes
+        let schemes = XcodeBuildAPI.shared.discoverActiveProject()?.schemes.map { $0.name } ?? [name]
+
+        // Try parsing bundle ID using XcodeProjParse if xcodeproj exists
+        var bundleID = "com.example.\(name.lowercased())"
+        var targetsList: [String] = []
+        if let fmContents = try? FileManager.default.contentsOfDirectory(at: rootURL, includingPropertiesForKeys: nil),
+           let xcodeproj = fmContents.first(where: { $0.pathExtension == "xcodeproj" }) {
+            if let parsed = try? XcodeProjParse.shared.parse(projectURL: xcodeproj) {
+                targetsList = parsed.targets.map { $0.name }
+                // Find bundle identifier in build configs
+                for config in parsed.buildConfigurations {
+                    if let bid = config.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] {
+                        bundleID = bid
+                        break
+                    }
+                }
             }
-            return project
         }
 
-        if fm.fileExists(atPath: destinationURL.path) {
-            throw ProjectOpenError.underlyingIO(NSError(domain: "SwiftCode", code: 1, userInfo: [NSLocalizedDescriptionKey: "Project already exists"]))
-        }
+        // Create CI build configuration
+        let ciConfig = CIBuildConfiguration(
+            platform: .iOS,
+            deploymentTarget: "16.0",
+            targetDeviceFamily: .iPhoneAndIPad,
+            schemeName: schemes.first ?? name,
+            bundleIdentifier: bundleID
+        )
 
-        try fm.copyItem(at: url, to: destinationURL)
-        let project = try loadOrCreateProject(at: destinationURL)
+        var project = Project(name: name)
+        project.customDirectoryPath = pathStr
+        project.description = "Imported Xcode Project"
+        project.ciBuildConfiguration = ciConfig
+        project.transferConfiguration = .owner
+
+        // Scan files at initial level
+        project.files = try await coordinator.buildFileTreeInternal(at: rootURL, relativeTo: rootURL)
+
+        // Save metadata file in-place inside the project folder
+        try saveMetadataInPlace(project)
+
+        // Add to active library list and persist
         projects.insert(project, at: 0)
+
+        // Create its own independent session
+        _ = getOrCreateSession(for: project)
+
         return project
     }
 
@@ -309,12 +503,12 @@ final class ProjectSessionStore {
         decoder.dateDecodingStrategy = .iso8601
 
         if let data = try? Data(contentsOf: metaURL),
-           var project = try? decoder.decode(Project.self, from: data) {
+           let project = try? decoder.decode(Project.self, from: data) {
             return project
         } else {
             let name = url.lastPathComponent
             let project = Project(name: name)
-            try saveMetadata(project)
+            try saveMetadataInPlace(project)
             return project
         }
     }
@@ -333,6 +527,10 @@ final class ProjectSessionStore {
 
         if !openFileTabs.contains(where: { $0.id == node.id }) {
             openFileTabs.append(node)
+        }
+
+        if let currentSession = activeSession {
+            saveSession(currentSession)
         }
 
         let projectName = project.name
@@ -428,6 +626,9 @@ final class ProjectSessionStore {
                 activeFileContent = ""
             }
         }
+        if let currentSession = activeSession {
+            saveSession(currentSession)
+        }
     }
 
     func saveCurrentFile(content: String) {
@@ -437,6 +638,9 @@ final class ProjectSessionStore {
             activeFileContent = content
             modifiedFilePaths.remove(node.path)
             fileLoadError = nil
+            if let currentSession = activeSession {
+                saveSession(currentSession)
+            }
         } catch {
             fileLoadError = "Failed to save: \(error.localizedDescription)"
         }

@@ -6,15 +6,33 @@ final class CodingManager: ObservableObject {
 
     private let fm = FileManager.default
 
-    var projectsRoot: URL
+    var projectsRoot: URL {
+        let useCustom = UserDefaults.standard.bool(forKey: "saveProjectsOnCustomFolder")
+        if useCustom {
+            let customPath = UserDefaults.standard.string(forKey: "customProjectsFolder") ?? ""
+            if !customPath.isEmpty {
+                return URL(fileURLWithPath: customPath)
+            }
+        }
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return docs.appendingPathComponent("Projects")
+    }
 
     var modelsRoot: URL
 
     private init() {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        projectsRoot = docs.appendingPathComponent("Projects")
         modelsRoot = docs.appendingPathComponent("Models")
-        try? FileManager.default.createDirectory(at: projectsRoot, withIntermediateDirectories: true)
+
+        let useCustom = UserDefaults.standard.bool(forKey: "saveProjectsOnCustomFolder")
+        var currentProjectsRoot = docs.appendingPathComponent("Projects")
+        if useCustom {
+            let customPath = UserDefaults.standard.string(forKey: "customProjectsFolder") ?? ""
+            if !customPath.isEmpty {
+                currentProjectsRoot = URL(fileURLWithPath: customPath)
+            }
+        }
+        try? FileManager.default.createDirectory(at: currentProjectsRoot, withIntermediateDirectories: true)
         try? FileManager.default.createDirectory(at: modelsRoot, withIntermediateDirectories: true)
     }
 

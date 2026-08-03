@@ -52,6 +52,17 @@ public struct DeviceConnectDeploymentView: View {
                         .disabled(deviceManager.selectedDevice == nil || (!deploymentManager.isDeploying && runtimeManager.runtimeStatus != .running))
                     }
 
+                    Button(action: validateOrGenerateXcodeProject) {
+                        HStack {
+                            Image(systemName: "hammer.fill")
+                            Text("Validate or Generate Xcode Project...")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+
                     if deviceManager.selectedDevice == nil {
                         Text("Please select or connect a target device first.")
                             .font(.caption)
@@ -166,6 +177,24 @@ public struct DeviceConnectDeploymentView: View {
         Task {
             _ = try? await RuntimeService().stop(deviceUDID: selected.udid, bundleIdentifier: bundleID)
             runtimeManager.stopMonitoring(deviceUDID: selected.udid)
+        }
+    }
+
+    private func validateOrGenerateXcodeProject() {
+        let api = XcodeBuildAPI.shared
+        if api.hasWorkspaceOrXcodeproj() {
+            // Already exists, run validation
+            Task {
+                let validation = await api.validateBuildEnvironment()
+                if validation.isValid {
+                    UnifiedLogger.shared.log("Xcode Project verified and valid.", severity: .system, subsystem: "DeviceConnect", operation: "Validation")
+                } else {
+                    api.showProjectGenerationUI = true
+                }
+            }
+        } else {
+            // Does not exist, begin generation UI
+            api.showProjectGenerationUI = true
         }
     }
 }

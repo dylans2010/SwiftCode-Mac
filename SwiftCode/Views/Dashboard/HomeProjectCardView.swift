@@ -35,7 +35,7 @@ struct HomeProjectCardView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(project.name)
+                Text(project.displayName)
                     .font(.headline)
                     .lineLimit(1)
                     .foregroundStyle(.primary)
