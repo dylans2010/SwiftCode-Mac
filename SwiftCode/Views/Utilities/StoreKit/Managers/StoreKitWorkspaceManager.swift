@@ -6,8 +6,12 @@ import UniformTypeIdentifiers
 @Observable
 @MainActor
 public final class StoreKitWorkspaceSession: Identifiable {
-    public var id = UUID()
-    public var activeConfig: StoreKitConfig = StoreKitConfig()
+    public nonisolated let id = UUID()
+    public var activeConfig: StoreKitConfig = StoreKitConfig() {
+        didSet {
+            StoreKitWorkspaceManager.shared.activeConfig = activeConfig
+        }
+    }
     public var activeURL: URL? = nil
     public var selectedSection: String = "Dashboard"
 
@@ -208,6 +212,7 @@ public final class StoreKitWorkspaceSession: Identifiable {
 public final class StoreKitWorkspaceManager {
     public static let shared = StoreKitWorkspaceManager()
 
+    public var activeConfig: StoreKitConfig = StoreKitConfig()
     public var recentFiles: [URL] = []
 
     private init() {

@@ -24,7 +24,7 @@ struct StoreKitInspectorView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     // Let user select which product they want to inspect
                     let allProducts = session.activeConfig.products +
-                                      session.activeConfig.subscriptionGroups.flatMap { $0.subscriptions } +
+                                      session.activeConfig.subscriptionGroups.flatMap { $0.subscriptions }.map { sub in SKProduct(productID: sub.productID, referenceName: sub.referenceName, type: sub.type, localizations: sub.localizations, price: sub.price, familySharing: sub.familySharing, index: sub.index, availability: sub.availability) } +
                                       session.activeConfig.nonRenewingSubscriptions.map { SKProduct(productID: $0.productID, referenceName: $0.referenceName, type: $0.type, localizations: $0.localizations, price: $0.price, familySharing: $0.familySharing, index: $0.index, availability: $0.availability) }
 
                     if allProducts.isEmpty {
