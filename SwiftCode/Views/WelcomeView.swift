@@ -122,8 +122,34 @@ struct SwiftCodeWelcomeView: View {
     }
 
     var body: some View {
-        AdaptivePage {
-            mainDashboard
+        NavigationStack {
+            AdaptivePage {
+                mainDashboard
+            }
+            .searchable(text: $searchText, prompt: "Search projects...")
+            .toolbar {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button {
+                        showCreateFolderSheet = true
+                    } label: {
+                        Label("Create Folder", systemImage: "folder.badge.plus")
+                    }
+                    .help("Create Folder")
+
+                    Picker("Sort By", selection: $sortBy) {
+                        ForEach(SortMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    Picker("View Mode", selection: $viewModeRaw) {
+                        Image(systemName: "square.grid.2x2").tag("grid")
+                        Image(systemName: "list.bullet").tag("list")
+                    }
+                    .pickerStyle(.segmented)
+                }
+            }
         }
         .sheet(isPresented: $showingNewProject) {
             NewProjectSheetView(viewModel: WelcomeViewModel())
@@ -196,6 +222,37 @@ struct SwiftCodeWelcomeView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowImportPicker"))) { _ in
             showingNewProject = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("com.swiftcode.project.addToFolder"))) { notification in
+            if let project = notification.object as? Project {
+                projectToAssignFolder = project
+                showAddToFolderSheet = true
+            }
+        }
+        .onAppear {
+            if let window = NSApplication.shared.windows.first(where: { $0.isVisible && !$0.title.isEmpty }) {
+                window.styleMask.remove(.resizable)
+                window.styleMask.remove(.miniaturizable)
+                window.styleMask.remove(.closable)
+                window.standardWindowButton(.closeButton)?.isHidden = true
+                window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+                window.standardWindowButton(.zoomButton)?.isHidden = true
+                window.setContentSize(NSSize(width: 950, height: 620))
+                window.minSize = NSSize(width: 950, height: 620)
+                window.maxSize = NSSize(width: 950, height: 620)
+                window.collectionBehavior = []
+            }
+        }
+        .onDisappear {
+            if let window = NSApplication.shared.windows.first(where: { $0.isVisible && !$0.title.isEmpty }) {
+                window.styleMask.insert([.resizable, .miniaturizable, .closable])
+                window.standardWindowButton(.closeButton)?.isHidden = false
+                window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+                window.standardWindowButton(.zoomButton)?.isHidden = false
+                window.minSize = NSSize(width: 800, height: 600)
+                window.maxSize = NSSize(width: 10000, height: 10000)
+                window.collectionBehavior = [.fullScreenPrimary]
+            }
+        }
     }
 
     private var mainDashboard: some View {
@@ -229,38 +286,65 @@ struct SwiftCodeWelcomeView: View {
 
     private var leftPanel: some View {
         VStack(spacing: 0) {
+            // Premium custom-styled window title buttons
+            HStack(spacing: 8) {
+                Button {
+                    NSApplication.shared.terminate(nil)
+                } label: {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 12, height: 12)
+                }
+                .buttonStyle(.plain)
+                .help("Close Window / Quit App")
+
+                Button {
+                    if let window = NSApplication.shared.windows.first(where: { $0.isKeyWindow }) {
+                        window.miniaturize(nil)
+                    }
+                } label: {
+                    Circle()
+                        .fill(Color.yellow)
+                        .frame(width: 12, height: 12)
+                }
+                .buttonStyle(.plain)
+                .help("Minimize Window")
+
+                Circle()
+                    .fill(Color.secondary.opacity(0.4))
+                    .frame(width: 12, height: 12)
+                    .help("Zoom Disabled")
+            }
+            .padding(.leading, 24)
+            .padding(.top, 20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
             ScrollView {
                 VStack(spacing: 32) {
                     // Modern Stylized Icon
                     ZStack {
                         Circle()
-                            .fill(Color.orange.opacity(0.12).gradient)
+                            .fill(Color.accentColor.opacity(0.12).gradient)
                             .frame(width: 110, height: 110)
                             .blur(radius: 6)
 
                         RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(LinearGradient(colors: [.orange, .red], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .fill(Color.accentColor.gradient)
                             .frame(width: 80, height: 80)
-                            .shadow(color: .orange.opacity(0.4), radius: 12, x: 0, y: 6)
+                            .shadow(color: .accentColor.opacity(0.4), radius: 12, x: 0, y: 6)
 
                         Image(systemName: "swift")
                             .font(.system(size: 44, weight: .semibold))
                             .foregroundStyle(.white)
                     }
-                    .padding(.top, 40)
+                    .padding(.top, 24)
 
-                    // Modernised "Welcome to SwiftCode" Header Text
+                    // Modernised "Welcome to SwiftCode" Header Text - only Accent Color
                     VStack(spacing: 12) {
                         Text("Welcome to SwiftCode")
                             .font(.system(size: 30, weight: .black, design: .rounded))
                             .multilineTextAlignment(.center)
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.orange, .red, Color.accentColor],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
+                            .foregroundStyle(Color.accentColor)
 
                         Text("The desktop IDE for building and organizing cutting-edge Swift applications natively.")
                             .font(.subheadline)
@@ -270,13 +354,13 @@ struct SwiftCodeWelcomeView: View {
                             .padding(.horizontal, 24)
                     }
 
-                    // Modern Quick Action Cards
+                    // Modern Quick Action Cards - only Accent Color
                     VStack(spacing: 14) {
                         ModernActionCard(
                             title: "New Project",
                             subtitle: "Start a fresh app from templates",
                             iconName: "plus.circle.fill",
-                            color: .orange
+                            color: .accentColor
                         ) {
                             showingNewProject = true
                         }
@@ -285,7 +369,7 @@ struct SwiftCodeWelcomeView: View {
                             title: "Import Folder",
                             subtitle: "Open a project directory from disk",
                             iconName: "folder.badge.plus",
-                            color: .blue
+                            color: .accentColor
                         ) {
                             importFolder()
                         }
@@ -294,7 +378,7 @@ struct SwiftCodeWelcomeView: View {
                             title: "Settings",
                             subtitle: "Configure accounts, themes & AI",
                             iconName: "gearshape.fill",
-                            color: .purple
+                            color: .accentColor
                         ) {
                             showingSettings = true
                         }
@@ -338,58 +422,28 @@ struct SwiftCodeWelcomeView: View {
 
     private var rightPanel: some View {
         VStack(spacing: 0) {
-            // Workspace Header Bar
+            // Workspace Header Bar - Shorter header text "Workspaces" and no redundant inline controls
             HStack(spacing: 16) {
-                Text("Your Workspaces")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                Text("Workspaces")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundColor(.primary)
 
                 Spacer()
-
-                // Interactive Filters
-                HStack(spacing: 12) {
-                    // Search Bar
-                    HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.secondary)
-                        TextField("Search projects...", text: $searchText)
-                            .textFieldStyle(.plain)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .frame(width: 180)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                    // Sort Picker
-                    Picker("", selection: $sortBy) {
-                        ForEach(SortMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .frame(width: 120)
-
-                    // View Mode Switcher
-                    Picker("", selection: $viewModeRaw) {
-                        Image(systemName: "square.grid.2x2").tag("grid")
-                        Image(systemName: "list.bullet").tag("list")
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 60)
-                }
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 20)
 
             Divider()
 
-            // Main List/Grid Area
+            // Main List/Grid Area - Grid is wrapped in a ScrollView to solve centered layout shift bug!
             ZStack {
                 if filteredProjects.isEmpty {
                     emptyStateView
                 } else {
                     if viewModeRaw == "grid" {
-                        projectsGrid
+                        ScrollView {
+                            projectsGrid
+                        }
                     } else {
                         projectsList
                     }

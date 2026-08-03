@@ -125,6 +125,28 @@ public struct InfoPlistView: View {
             .macDesktopOptimized()
         } else {
             VStack(spacing: 0) {
+                // Interactive Statistics Banner
+                HStack(spacing: 16) {
+                    Label {
+                        Text("\(editor.entries.count) Active Properties")
+                            .font(.subheadline.bold())
+                    } icon: {
+                        Image(systemName: "list.bullet.rectangle.fill")
+                            .foregroundColor(.orange)
+                    }
+
+                    Spacer()
+
+                    Text(fileURL?.lastPathComponent ?? "Info.plist")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.orange.opacity(0.05))
+
+                Divider()
+
                 // Modern Top Toolbar Panel
                 HStack(spacing: 12) {
                     HStack {

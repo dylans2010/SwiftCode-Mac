@@ -366,6 +366,19 @@ public final class InfoPlistEditor: Sendable {
         return regex?.firstMatch(in: version, options: [], range: range) != nil
     }
 
+    // Advanced capabilities recommendation dictionary validation helper
+    public func validatePrivacyKeys() -> [String: String] {
+        var issues: [String: String] = [:]
+        for key in entries.keys {
+            if key.hasSuffix("UsageDescription") {
+                if let strVal = entries[key] as? String, strVal.count < 10 {
+                    issues[key] = "Description is too short. Apple App Review may reject user-facing descriptions under 10 characters."
+                }
+            }
+        }
+        return issues
+    }
+
     public func generateRawXML() -> String {
         let sortedEntries = sortDictionary(entries)
         guard let data = try? PropertyListSerialization.data(fromPropertyList: sortedEntries, format: .xml, options: 0),

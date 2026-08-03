@@ -55,7 +55,8 @@ public struct GeneralTabView: View {
 
                     Section("Frameworks, Libraries, and Embedded Content") {
                         let linkedFiles = model.fileReferences.filter {
-                            $0.path?.hasSuffix(".framework") == true || $0.path?.hasSuffix(".a") == true
+                            let path = $0.path?.lowercased() ?? ""
+                            return path.hasSuffix(".framework") || path.hasSuffix(".a") || path.hasSuffix(".dylib") || path.hasSuffix(".xcframework")
                         }
 
                         if linkedFiles.isEmpty {
@@ -64,8 +65,14 @@ public struct GeneralTabView: View {
                                 .foregroundStyle(.secondary)
                         } else {
                             ForEach(linkedFiles) { file in
-                                Label(file.name ?? file.path ?? "Framework", systemImage: "square.stack.3d.up")
-                                    .font(.subheadline)
+                                HStack {
+                                    Label(file.name ?? file.path ?? "Framework", systemImage: "square.stack.3d.up")
+                                        .font(.subheadline)
+                                    Spacer()
+                                    Text(file.sourceTree ?? "DEVELOPER_DIR")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
@@ -111,16 +118,25 @@ public struct IdentityTabView: View {
                 Form {
                     Section("App Identity") {
                         LabeledContent("App Name", value: target.name)
-                        LabeledContent("Bundle Identifier", value: "com.example.swiftcode.\(target.name.lowercased())")
-                        LabeledContent("Version", value: "1.0.0")
-                        LabeledContent("Build", value: "1")
+
+                        // Dynamically try to read bundle identifier, version, and build from active build configuration
+                        let config = model.buildConfigurations.first(where: { $0.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] != nil })
+                        let bundleID = config?.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] ?? "com.example.swiftcode.\(target.name.lowercased())"
+                        let version = config?.buildSettings["MARKETING_VERSION"] ?? "1.0.0"
+                        let build = config?.buildSettings["CURRENT_PROJECT_VERSION"] ?? "1"
+
+                        LabeledContent("Bundle Identifier", value: bundleID)
+                        LabeledContent("Version (Marketing)", value: version)
+                        LabeledContent("Build (Version)", value: build)
                     }
 
                     Section("Signing & Capabilities") {
                         Toggle("Automatically manage signing", isOn: .constant(true))
                             .toggleStyle(.checkbox)
+                            .disabled(true)
                         LabeledContent("Team", value: "Personal Apple Developer Account")
                         LabeledContent("Signing Certificate", value: "Apple Development (Developer ID)")
+                        LabeledContent("Provisioning Profile", value: "Automatic Developer Provisioning Profile")
                     }
                 }
                 .formStyle(.grouped)
@@ -274,6 +290,30 @@ public struct BuildPhasesTabView: View {
                                 }
                                 LabeledContent("UUID", value: phase.uuid)
                                     .font(.system(.caption2, design: .monospaced))
+
+                                Divider()
+
+                                // Display actual compiled/copied file lists inside each build phase card!
+                                VStack(alignment: .leading, spacing: 4) {
+                                    if phase.files.isEmpty {
+                                        Text("No files registered in this build phase.")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        ForEach(phase.files, id: \.self) { fileUUID in
+                                            if let ref = model.fileReferences.first(where: { $0.uuid == fileUUID }) {
+                                                HStack {
+                                                    Image(systemName: "doc")
+                                                        .foregroundColor(.secondary)
+                                                    Text(ref.name ?? ref.path ?? "File")
+                                                        .font(.subheadline)
+                                                    Spacer()
+                                                }
+                                                .padding(.leading, 8)
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             .padding()
                             .background(Color.white.opacity(0.03))
