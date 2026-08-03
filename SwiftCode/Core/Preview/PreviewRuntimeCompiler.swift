@@ -97,8 +97,8 @@ public actor PreviewRuntimeCompiler {
         process.currentDirectoryURL = sandboxPolicy.projectDirectory
 
         var sdkName = "iphonesimulator" // default fallback
-        if let project = ProjectSessionStore.shared.activeProject {
-            if let targetPlatform = project.ciBuildConfiguration?.targetPlatform {
+        if let project = await ProjectSessionStore.shared.activeProject {
+            if let targetPlatform = project.ciBuildConfiguration?.platform.rawValue {
                 if targetPlatform.lowercased().contains("macos") {
                     sdkName = "macosx"
                 }
