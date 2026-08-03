@@ -27,63 +27,251 @@ public final class PreviewManager {
 
     private init() {}
 
-    public func loadPreviews(forFileAt path: String, content: String) async {
-        isCompiling = true
-        buildLogs = ["Discovering previews..."]
+    /// Validates the build pipeline constraints strictly. Throws a detailed error on any validation failure.
+    public func validatePreviewBuildPipeline() async throws {
+        // 1. Workspace / Project Resolver validation
+        let metadata: ResolvedProjectMetadata
+        do {
+            metadata = try ProjectResolver.shared.resolveActiveProject()
+        } catch {
+            throw NSError(domain: "PreviewBuild", code: 401, userInfo: [NSLocalizedDescriptionKey: "No active workspace or project resolved."])
+        }
 
+        // 2. Project
+        guard let _ = XcodeBuildAPI.shared.determineActiveProject() else {
+            throw NSError(domain: "PreviewBuild", code: 402, userInfo: [NSLocalizedDescriptionKey: "Active target project not found."])
+        }
+
+        // 3. Scheme
+        guard let _ = XcodeBuildAPI.shared.determineActiveScheme() else {
+            throw NSError(domain: "PreviewBuild", code: 403, userInfo: [NSLocalizedDescriptionKey: "No active scheme selected for the target project."])
+        }
+
+        // 4. Bundle Identifier
+        let bundleID = XcodeBuildAPI.shared.determineBundleIdentifier()
+        if bundleID.isEmpty {
+            throw NSError(domain: "PreviewBuild", code: 404, userInfo: [NSLocalizedDescriptionKey: "Bundle identifier is invalid or empty."])
+        }
+
+        // 5. Swift Version Check (checks swiftc executable)
+        let fm = FileManager.default
+        let hasSwiftc = fm.fileExists(atPath: "/usr/bin/swiftc") || fm.fileExists(atPath: "/usr/bin/swift")
+        if !hasSwiftc {
+            throw NSError(domain: "PreviewBuild", code: 405, userInfo: [NSLocalizedDescriptionKey: "Swift compiler tools (swiftc) are missing in the current system."])
+        }
+
+        // 6. SDK Environment validation
+        let validation = await XcodeBuildAPI.shared.validateBuildEnvironment()
+        if !validation.isValid {
+            throw NSError(domain: "PreviewBuild", code: 406, userInfo: [NSLocalizedDescriptionKey: validation.errorDescription ?? "Build environment SDK validation failed."])
+        }
+
+        // 7. Dependencies check
+        if metadata.isSwiftPackage {
+            guard let packageURL = metadata.packageSwiftURL, fm.fileExists(atPath: packageURL.path) else {
+                throw NSError(domain: "PreviewBuild", code: 407, userInfo: [NSLocalizedDescriptionKey: "Package.swift is missing in active package dependencies."])
+            }
+        }
+
+        // 8. Generated Project (Generate if workspace or xcodeproj doesn't exist)
+        if !XcodeBuildAPI.shared.hasWorkspaceOrXcodeproj() {
+            let projectName = metadata.projectName
+            let schemeName = XcodeBuildAPI.shared.determineActiveScheme()?.name ?? projectName
+            let success = await XcodeBuildAPI.shared.generateProjectWithXcodeGen(
+                projectName: projectName,
+                scheme: schemeName,
+                bundleIdentifier: bundleID
+            )
+            if !success {
+                throw NSError(domain: "PreviewBuild", code: 408, userInfo: [NSLocalizedDescriptionKey: "Failed to generate Xcode project via project generation pass."])
+            }
+        }
+    }
+
+    /// Automatically sets up a fresh live preview session by validating and building via XcodeBuildAPI.
+    public func startFreshLivePreviewSession(
+        sourcePath: String,
+        sourceCode: String,
+        targetViewName: String? = nil
+    ) async {
         let requestID = UUID()
         self.currentSessionRequestID = requestID
 
-        // 1. Transition to INIT
+        isCompiling = true
+        buildLogs = ["Preview Session Started"]
+        PreviewDiagnostics.shared.clearLogs()
+
+        // 1. Clear previous runtime state, caches, and logs
+        await stopActiveSession()
+        PreviewCache.shared.clearCache()
+        DocumentCoordinator.shared.compiledArtboardViews.removeAll()
+        DocumentCoordinator.shared.compiledArtboardErrors.removeAll()
+
+        // 2. Resolve Active metadata
+        var activeProjName = "None"
+        var activeSchemeName = "None"
+        var buildConfigStr = "Debug"
+        var isXcodeProj = false
+
+        do {
+            let metadata = try ProjectResolver.shared.resolveActiveProject()
+            activeProjName = metadata.projectName
+            isXcodeProj = metadata.isXcodeProject || metadata.isXcodeWorkspace || metadata.isSwiftPackage
+            activeSchemeName = XcodeBuildAPI.shared.determineActiveScheme()?.name ?? metadata.projectName
+            buildConfigStr = XcodeBuildAPI.shared.determineActiveBuildConfiguration().rawValue
+        } catch {}
+
+        // Discover modern #Preview targets
+        let parsedTargets = PreviewBlockParser.parsePreviewTargets(in: sourceCode)
+        let resolvedTarget = targetViewName ?? parsedTargets.first?.title ?? "ContentView"
+
+        // 3. Create a brand-new session
         var session = PreviewSession(
             sessionID: UUID().uuidString,
-            sourceFilePath: path,
-            targetViewName: "",
+            sourceFilePath: sourcePath,
+            targetViewName: resolvedTarget,
+            lastCompiledAt: Date(),
             status: "Initializing",
-            state: .init_state
+            state: .init_state,
+            activeNodeHashes: [:]
         )
+        session.activeProject = activeProjName
+        session.activeScheme = activeSchemeName
+        session.buildConfig = buildConfigStr
+        session.previewTargets = parsedTargets
+
         self.activeSession = session
-        PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to INIT")
+        self.availablePreviews = parsedTargets.isEmpty ? [resolvedTarget] : parsedTargets.map { $0.title }
+        self.selectedPreviewName = resolvedTarget
+
+        PreviewDiagnostics.shared.addLog(category: "state", message: "Preview Session Started")
+        PreviewDiagnostics.shared.addLog(category: "engine", message: "Active Project Resolved: \(activeProjName)")
+        PreviewDiagnostics.shared.addLog(category: "engine", message: "Scheme Resolved: \(activeSchemeName)")
+        PreviewDiagnostics.shared.addLog(category: "engine", message: "Preview Target: \(resolvedTarget)")
 
         guard self.currentSessionRequestID == requestID else { return }
 
-        // 2. Transition to SOURCE_RECEIVED
-        session.state = .sourceReceived
-        session.status = "Source received"
-        self.activeSession = session
-        PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to SOURCE_RECEIVED for \(path)")
+        // Synchronize parsed previews with artboards automatically
+        synchronizeArtboardsForPreviews(sourcePath: sourcePath, sourceCode: sourceCode)
 
-        guard self.currentSessionRequestID == requestID else { return }
-
-        // 3. Transition to DISCOVERING
-        session.state = .discovering
-        session.status = "Discovering"
-        self.activeSession = session
-        PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to DISCOVERING")
-
-        let discovered = await discoveryService.discoverPreviewTargets(inSourceCode: content, filename: path)
-
-        guard self.currentSessionRequestID == requestID else { return }
-
-        var allTargets = discovered
-
-        self.availablePreviews = allTargets
-
-        if let first = allTargets.first {
-            selectedPreviewName = first
-            await startPreviewSession(sourcePath: path, sourceCode: content, targetView: first, requestID: requestID)
-        } else {
-            // 4. Transition to NO_CANDIDATES
-            session.state = .noCandidates
-            session.status = "No candidates found"
+        // 4. Validation Pipeline
+        do {
+            session.state = .compiling
+            session.status = "Validating..."
             self.activeSession = session
-            PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to NO_CANDIDATES")
+            PreviewDiagnostics.shared.addLog(category: "engine", message: "Validating build pipeline...")
 
-            selectedPreviewName = nil
+            try await validatePreviewBuildPipeline()
+            PreviewDiagnostics.shared.addLog(category: "engine", message: "Validation Succeeded.")
+
+            guard self.currentSessionRequestID == requestID else { return }
+
+            // 5. Build Project via XcodeBuildAPI if a real project is present
+            if isXcodeProj {
+                session.status = "Building via XcodeBuildAPI..."
+                self.activeSession = session
+                PreviewDiagnostics.shared.addLog(category: "compile", message: "Build Started via XcodeBuildAPI")
+
+                let buildResult = await XcodeBuildAPI.shared.buildProject()
+                session.buildResult = buildResult.status.rawValue
+                self.activeSession = session
+
+                guard self.currentSessionRequestID == requestID else { return }
+
+                if buildResult.status != .succeeded {
+                    // Extract structured diagnostics from compiler failures
+                    var diagList: [PreviewDiagnosticModel] = []
+                    for diag in buildResult.diagnostics {
+                        diagList.append(PreviewDiagnosticModel(
+                            stage: "XcodeBuild",
+                            subsystem: "Compiler",
+                            file: diag.filePath,
+                            line: diag.line,
+                            severity: diag.severity.rawValue,
+                            description: diag.message,
+                            suggestedFix: "Resolve the compiler warning or target error to proceed.",
+                            rawCompilerOutput: buildResult.logs.lines.joined(separator: "\n")
+                        ))
+                    }
+
+                    session.state = .failedNoPrior
+                    session.status = "Build Failed"
+                    session.diagnostics = diagList
+                    self.activeSession = session
+
+                    PreviewDiagnostics.shared.addLog(category: "error", message: "Project build failed.")
+                    self.buildLogs = buildResult.logs.lines
+                    self.hostedView = nil
+                    isCompiling = false
+                    return
+                }
+
+                // Compile succeeded
+                PreviewDiagnostics.shared.addLog(category: "compile", message: "Build Finished Successfully.")
+                session.compiledProduct = buildResult.appBundleURL
+                self.activeSession = session
+            }
+
+            guard self.currentSessionRequestID == requestID else { return }
+
+            // 6. Instantiating Preview & Rendering
+            session.state = .rendering
+            session.status = "Rendering..."
+            self.activeSession = session
+            PreviewDiagnostics.shared.addLog(category: "render", message: "Loading Dynamic Library...")
+
+            let view = try await runtime.updateRuntimeSession(
+                sourcePath: sourcePath,
+                sourceCode: sourceCode,
+                targetView: resolvedTarget
+            ) { [weak self] message in
+                guard let self = self else { return }
+                Task { @MainActor in
+                    self.buildLogs.append(message)
+                }
+            }
+
+            guard self.currentSessionRequestID == requestID else { return }
+
+            session.state = .rendered
+            session.status = "Ready"
+            self.activeSession = session
+            self.hostedView = view
+
+            PreviewDiagnostics.shared.addLog(category: "render", message: "Creating Hosting View")
+            PreviewDiagnostics.shared.addLog(category: "render", message: "Rendering Artboard")
+            PreviewDiagnostics.shared.addLog(category: "state", message: "Preview Complete")
+
+        } catch {
+            guard self.currentSessionRequestID == requestID else { return }
+
+            let diagnostic = PreviewDiagnosticModel(
+                stage: "Pipeline Validation",
+                subsystem: "PreviewEngine",
+                file: sourcePath,
+                line: nil,
+                severity: "error",
+                description: error.localizedDescription,
+                suggestedFix: "Ensure workspace configuration matches build guidelines.",
+                rawCompilerOutput: error.localizedDescription
+            )
+
+            session.state = .failedNoPrior
+            session.status = "Validation Failed"
+            session.diagnostics = [diagnostic]
+            self.activeSession = session
             self.hostedView = nil
-            buildLogs.append("No SwiftUI Previews or PreviewProvider targets were found in this file.")
+            self.buildLogs = [error.localizedDescription]
+
+            PreviewDiagnostics.shared.addLog(category: "error", message: error.localizedDescription)
+            logger.error("Preview setup failed: \(error.localizedDescription)")
         }
+
         isCompiling = false
+    }
+
+    public func loadPreviews(forFileAt path: String, content: String) async {
+        await startFreshLivePreviewSession(sourcePath: path, sourceCode: content)
     }
 
     @MainActor
@@ -117,166 +305,15 @@ public final class PreviewManager {
     }
 
     public func startPreviewSession(sourcePath: String, sourceCode: String, targetView: String, requestID: UUID? = nil) async {
-        let actualRequestID = requestID ?? UUID()
-        if requestID == nil {
-            self.currentSessionRequestID = actualRequestID
-        }
-
-        isCompiling = true
-        buildLogs = ["Initializing persistent runtime session..."]
-
-        // ALWAYS create a brand new PreviewSession and never reuse/continue an existing session
-        var session = PreviewSession(
-            sessionID: UUID().uuidString,
-            sourceFilePath: sourcePath,
-            targetViewName: targetView,
-            status: "Compiling",
-            state: .compiling
-        )
-
-        // 4. Transition to COMPILING
-        session.state = .compiling
-        session.status = "Compiling"
-        self.activeSession = session
-        PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to COMPILING for target '\(targetView)'")
-
-        guard self.currentSessionRequestID == actualRequestID else { return }
-
-        // Synchronize parsed previews with artboards automatically
-        synchronizeArtboardsForPreviews(sourcePath: sourcePath, sourceCode: sourceCode)
-
-        do {
-            // 5. Transition to RENDERING
-            session.state = .rendering
-            session.status = "Rendering"
-            self.activeSession = session
-            PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to RENDERING for target '\(targetView)'")
-
-            let view = try await runtime.updateRuntimeSession(
-                sourcePath: sourcePath,
-                sourceCode: sourceCode,
-                targetView: targetView
-            ) { [weak self] message in
-                guard let self = self else { return }
-                Task { @MainActor in
-                    self.buildLogs.append(message)
-                }
-            }
-
-            guard self.currentSessionRequestID == actualRequestID else { return }
-
-            // 6. Transition to RENDERED
-            let finalSessionID = runtime.activeSessionID ?? session.sessionID
-            let finalSession = PreviewSession(
-                sessionID: finalSessionID,
-                sourceFilePath: sourcePath,
-                targetViewName: targetView,
-                lastCompiledAt: runtime.lastCompiledAt ?? Date(),
-                status: "Ready",
-                state: .rendered
-            )
-
-            self.activeSession = finalSession
-            self.hostedView = view
-            PreviewCoordinator.shared.registerSession(finalSession)
-            PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to RENDERED successfully")
-            buildLogs.append("Persistent runtime session connected successfully.")
-        } catch {
-            guard self.currentSessionRequestID == actualRequestID else { return }
-
-            // 6. Transition to FAILED_KEEP_LAST or FAILED_NO_PRIOR
-            let hasPrior = self.hostedView != nil
-            let finalState: PreviewSessionState = hasPrior ? .failedKeepLast : .failedNoPrior
-
-            let finalSession = PreviewSession(
-                sessionID: session.sessionID,
-                sourceFilePath: sourcePath,
-                targetViewName: targetView,
-                lastCompiledAt: Date(),
-                status: "Failed",
-                state: finalState
-            )
-
-            self.activeSession = finalSession
-            if !hasPrior {
-                self.hostedView = nil
-            }
-            PreviewDiagnostics.shared.addLog(category: "error", message: "Runtime failed to load view '\(targetView)': \(error.localizedDescription)")
-            PreviewDiagnostics.shared.addLog(category: "state", message: "Transition to \(finalState.rawValue)")
-            buildLogs.append("Error loading preview: \(error.localizedDescription)")
-            logger.error("Preview runtime session failed: \(error.localizedDescription)")
-            PreviewErrorHandler.shared.handleError(error, message: "Runtime failed to load view '\(targetView)'")
-        }
-        isCompiling = false
+        await startFreshLivePreviewSession(sourcePath: sourcePath, sourceCode: sourceCode, targetViewName: targetView)
     }
 
     public func refreshActiveSession(sourcePath: String, sourceCode: String, targetView: String) async {
-        isCompiling = true
-        buildLogs = ["Recompiling currently active persistent session..."]
-
-        let sID = self.activeSession?.sessionID ?? UUID().uuidString
-        var session = PreviewSession(
-            sessionID: sID,
-            sourceFilePath: sourcePath,
-            targetViewName: targetView,
-            status: "Compiling",
-            state: .compiling
-        )
-        self.activeSession = session
-        PreviewDiagnostics.shared.addLog(category: "state", message: "Refreshing session '\(sID)' for '\(targetView)'")
-
-        synchronizeArtboardsForPreviews(sourcePath: sourcePath, sourceCode: sourceCode)
-
-        do {
-            session.state = .rendering
-            session.status = "Rendering"
-            self.activeSession = session
-
-            let view = try await runtime.updateRuntimeSession(
-                sourcePath: sourcePath,
-                sourceCode: sourceCode,
-                targetView: targetView
-            ) { [weak self] message in
-                guard let self = self else { return }
-                Task { @MainActor in
-                    self.buildLogs.append(message)
-                }
-            }
-
-            let finalSession = PreviewSession(
-                sessionID: sID,
-                sourceFilePath: sourcePath,
-                targetViewName: targetView,
-                lastCompiledAt: Date(),
-                status: "Ready",
-                state: .rendered
-            )
-            self.activeSession = finalSession
-            self.hostedView = view
-            PreviewDiagnostics.shared.addLog(category: "state", message: "Refreshed session '\(sID)' successfully")
-            buildLogs.append("Session refreshed successfully.")
-        } catch {
-            let hasPrior = self.hostedView != nil
-            let finalState: PreviewSessionState = hasPrior ? .failedKeepLast : .failedNoPrior
-
-            let finalSession = PreviewSession(
-                sessionID: sID,
-                sourceFilePath: sourcePath,
-                targetViewName: targetView,
-                lastCompiledAt: Date(),
-                status: "Failed",
-                state: finalState
-            )
-            self.activeSession = finalSession
-            buildLogs.append("Error during session refresh: \(error.localizedDescription)")
-            PreviewDiagnostics.shared.addLog(category: "state", message: "Session refresh failed, transitioning to \(finalState.rawValue)")
-        }
-        isCompiling = false
+        await startFreshLivePreviewSession(sourcePath: sourcePath, sourceCode: sourceCode, targetViewName: targetView)
     }
 
     public func startNewSession(sourcePath: String, sourceCode: String, targetView: String) async {
-        await stopActiveSession()
-        await startPreviewSession(sourcePath: sourcePath, sourceCode: sourceCode, targetView: targetView)
+        await startFreshLivePreviewSession(sourcePath: sourcePath, sourceCode: sourceCode, targetViewName: targetView)
     }
 
     public func stopActiveSession() async {

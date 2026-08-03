@@ -14,6 +14,7 @@ public struct XcodeProjModel: Sendable, Identifiable {
     public let fileReferences: [PBXFileReference]
     public let buildConfigurations: [PBXBuildConfiguration]
     public let buildPhases: [PBXBuildPhase]
+    public let buildFiles: [String: String] // buildFileUUID -> fileRefUUID
 }
 
 public struct PBXTarget: Sendable, Identifiable {
@@ -103,6 +104,7 @@ public final class XcodeProjParse: Sendable {
         var fileReferences: [PBXFileReference] = []
         var buildConfigurations: [PBXBuildConfiguration] = []
         var buildPhases: [PBXBuildPhase] = []
+        var buildFiles: [String: String] = [:]
 
         for (uuid, dict) in objects {
             guard let isa = dict["isa"] as? String else { continue }
@@ -160,6 +162,10 @@ public final class XcodeProjParse: Sendable {
                     buildSettings: settings
                 ))
 
+            case "PBXBuildFile":
+                let fileRef = dict["fileRef"] as? String ?? ""
+                buildFiles[uuid] = fileRef
+
             case "PBXSourcesBuildPhase", "PBXFrameworksBuildPhase", "PBXResourcesBuildPhase", "PBXCopyFilesBuildPhase", "PBXShellScriptBuildPhase":
                 let files = dict["files"] as? [String] ?? []
                 buildPhases.append(PBXBuildPhase(
@@ -182,7 +188,8 @@ public final class XcodeProjParse: Sendable {
             groups: groups,
             fileReferences: fileReferences,
             buildConfigurations: buildConfigurations,
-            buildPhases: buildPhases
+            buildPhases: buildPhases,
+            buildFiles: buildFiles
         )
     }
 
@@ -261,7 +268,8 @@ public final class XcodeProjParse: Sendable {
             groups: groups,
             fileReferences: fileReferences,
             buildConfigurations: buildConfigurations,
-            buildPhases: buildPhases
+            buildPhases: buildPhases,
+            buildFiles: [:]
         )
     }
 }

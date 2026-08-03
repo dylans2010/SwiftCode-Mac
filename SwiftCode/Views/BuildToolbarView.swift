@@ -101,18 +101,11 @@ struct BuildToolbarView: View {
                                 }
                             }
 
-                            // 4. Resolve the target preview dynamically and start a fresh PreviewSession
-                            let parsed = PreviewBlockParser.parsePreviews(in: activeDoc.content)
-                            let detected = parsed.isEmpty ? SwiftViewDetector.detectViews(in: activeDoc.content) : parsed.map { $0.title }
-                            PreviewManager.shared.availablePreviews = detected.isEmpty ? ["ContentView"] : detected
-
-                            let resolvedTarget = PreviewManager.shared.selectedPreviewName ?? PreviewManager.shared.availablePreviews.first ?? "ContentView"
+                            // 4. Start a brand-new preview session
                             let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
-
-                            await PreviewManager.shared.startPreviewSession(
+                            await PreviewManager.shared.startFreshLivePreviewSession(
                                 sourcePath: activeDoc.url.path,
-                                sourceCode: preparedCode,
-                                targetView: resolvedTarget
+                                sourceCode: preparedCode
                             )
                         }
                     } label: {

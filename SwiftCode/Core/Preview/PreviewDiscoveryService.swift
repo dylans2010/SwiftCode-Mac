@@ -11,6 +11,22 @@ public struct ParsedPreview: Sendable, Codable, Hashable {
     }
 }
 
+/// Structured Preview target model representing a parsed `#Preview` declaration.
+public struct PreviewTarget: Sendable, Codable, Hashable, Identifiable {
+    public var id: String { title }
+    public let title: String
+    public let rootView: String
+    public let device: String?
+    public let traits: String?
+
+    public init(title: String, rootView: String, device: String?, traits: String?) {
+        self.title = title
+        self.rootView = rootView
+        self.device = device
+        self.traits = traits
+    }
+}
+
 public struct PreviewBlockParser {
     public static func parsePreviews(in sourceCode: String) -> [ParsedPreview] {
         var previews: [ParsedPreview] = []
@@ -20,23 +36,25 @@ public struct PreviewBlockParser {
             let start = previewRange.lowerBound
             let rest = sourceCode[previewRange.upperBound...]
 
-            // 1. Extract optional title
             var title: String? = nil
 
-            // Check if there is an opening parenthesis before the first brace
             if let firstBraceRange = rest.range(of: "{") {
                 let firstBraceIndex = firstBraceRange.lowerBound
                 let candidate = rest[..<firstBraceIndex]
                 if let openP = candidate.range(of: "(")?.lowerBound,
                    let closeP = candidate.range(of: ")")?.lowerBound {
                     let insideP = candidate[candidate.index(after: openP)..<closeP]
-                    // Clean up quotes
-                    title = insideP.trimmingCharacters(in: .whitespacesAndNewlines)
-                        .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+
+                    let args = insideP.components(separatedBy: ",")
+                    for arg in args {
+                        let trimmed = arg.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmed.contains(":") && trimmed.hasPrefix("\"") && trimmed.hasSuffix("\"") {
+                            title = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                        }
+                    }
                 }
             }
 
-            // 2. Find the first '{' after '#Preview'
             guard let openBraceRange = sourceCode[start...].range(of: "{") else {
                 index = previewRange.upperBound
                 continue
@@ -61,8 +79,8 @@ public struct PreviewBlockParser {
 
             if braceCount == 0 {
                 let bodyCode = String(sourceCode[blockStart..<current]).trimmingCharacters(in: .whitespacesAndNewlines)
-                // Use default title if not specified
-                let resolvedTitle = title ?? determineDefaultTitle(from: bodyCode)
+                let rootView = determineRootView(from: bodyCode)
+                let resolvedTitle = title ?? rootView
                 previews.append(ParsedPreview(title: resolvedTitle, body: bodyCode))
                 index = sourceCode.index(after: current)
             } else {
@@ -73,9 +91,89 @@ public struct PreviewBlockParser {
         return previews
     }
 
-    private static func determineDefaultTitle(from body: String) -> String {
-        // Try to find a capitalized word followed by ()
-        if let regex = try? NSRegularExpression(pattern: #"([A-Z][A-Za-z0-9_]*)\("#) {
+    public static func parsePreviewTargets(in sourceCode: String) -> [PreviewTarget] {
+        var targets: [PreviewTarget] = []
+        var index = sourceCode.startIndex
+
+        while let previewRange = sourceCode[index...].range(of: "#Preview") {
+            let start = previewRange.lowerBound
+            let rest = sourceCode[previewRange.upperBound...]
+
+            var title: String? = nil
+            var device: String? = nil
+            var traits: String? = nil
+
+            if let firstBraceRange = rest.range(of: "{") {
+                let firstBraceIndex = firstBraceRange.lowerBound
+                let candidate = rest[..<firstBraceIndex]
+                if let openP = candidate.range(of: "(")?.lowerBound,
+                   let closeP = candidate.range(of: ")")?.lowerBound {
+                    let insideP = candidate[candidate.index(after: openP)..<closeP]
+
+                    let args = insideP.components(separatedBy: ",")
+                    for arg in args {
+                        let trimmed = arg.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if trimmed.contains(":") {
+                            let parts = trimmed.components(separatedBy: ":")
+                            if parts.count >= 2 {
+                                let key = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                                let val = parts.dropFirst().joined(separator: ":").trimmingCharacters(in: .whitespacesAndNewlines)
+                                if key == "device" {
+                                    device = val
+                                } else if key == "traits" {
+                                    traits = val
+                                }
+                            }
+                        } else if trimmed.hasPrefix("\"") && trimmed.hasSuffix("\"") {
+                            title = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                        }
+                    }
+                }
+            }
+
+            guard let openBraceRange = sourceCode[start...].range(of: "{") else {
+                index = previewRange.upperBound
+                continue
+            }
+
+            let blockStart = openBraceRange.upperBound
+            var braceCount = 1
+            var current = blockStart
+            let end = sourceCode.endIndex
+
+            while current < end && braceCount > 0 {
+                let char = sourceCode[current]
+                if char == "{" {
+                    braceCount += 1
+                } else if char == "}" {
+                    braceCount -= 1
+                }
+                if braceCount > 0 {
+                    current = sourceCode.index(after: current)
+                }
+            }
+
+            if braceCount == 0 {
+                let bodyCode = String(sourceCode[blockStart..<current]).trimmingCharacters(in: .whitespacesAndNewlines)
+                let rootView = determineRootView(from: bodyCode)
+                let resolvedTitle = title ?? rootView
+                targets.append(PreviewTarget(
+                    title: resolvedTitle,
+                    rootView: rootView,
+                    device: device,
+                    traits: traits
+                ))
+                index = sourceCode.index(after: current)
+            } else {
+                index = previewRange.upperBound
+            }
+        }
+
+        return targets
+    }
+
+    private static func determineRootView(from body: String) -> String {
+        if let regex = try? NSRegularExpression(pattern: #"([A-Z][A-Za-z0-9_]*)\s*[\(\{]"#) {
             let nsStr = body as NSString
             if let match = regex.firstMatch(in: body, range: NSRange(location: 0, length: nsStr.length)) {
                 if match.numberOfRanges > 1, let range = Range(match.range(at: 1), in: body) {
@@ -83,7 +181,7 @@ public struct PreviewBlockParser {
                 }
             }
         }
-        return "SwiftUI Preview"
+        return "ContentView"
     }
 }
 
@@ -101,7 +199,7 @@ public actor PreviewDiscoveryService {
 
         // 1. Modern #Preview macro
         let parsed = PreviewBlockParser.parsePreviews(in: sourceCode)
-        var modernPreviews = parsed.map { $0.title }
+        let modernPreviews = parsed.map { $0.title }
 
         // 2. Legacy PreviewProvider protocol
         var legacyPreviews: [String] = []
@@ -124,7 +222,6 @@ public actor PreviewDiscoveryService {
             for m in matches {
                 if m.numberOfRanges > 1, let r = Range(m.range(at: 1), in: sourceCode) {
                     let viewName = String(sourceCode[r])
-                    // Filter out any PreviewProvider conforming structs or already matched targets
                     if !legacyPreviews.contains(viewName) {
                         bareViews.append(viewName)
                     }
@@ -132,7 +229,6 @@ public actor PreviewDiscoveryService {
             }
         }
 
-        // Log ambiguity if multiple bare views exist and there are no annotations (#Preview or PreviewProvider)
         if modernPreviews.isEmpty && legacyPreviews.isEmpty && bareViews.count > 1 {
             let firstSelected = bareViews.first ?? ""
             let message = "Ambiguity detected: multiple bare View types exist (\(bareViews.joined(separator: ", "))). Defaulting deterministically to '\(firstSelected)'."
@@ -142,7 +238,6 @@ public actor PreviewDiscoveryService {
             }
         }
 
-        // Assemble final priority order: #Preview first, PreviewProvider next, bare View last
         let result = modernPreviews + legacyPreviews + bareViews
         logger.info("[END] Discovered \(result.count) preview targets")
         return result
@@ -154,7 +249,6 @@ public actor PreviewDiscoveryService {
 public struct SwiftViewDetector {
     public static func detectViews(in sourceCode: String) -> [String] {
         var views: [String] = []
-        // Standard SwiftUI view declaration: struct ViewName: View
         let pattern = #"struct\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?:[^\{]*\s+)?View\b"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return [] }
         let nsString = sourceCode as NSString
@@ -193,7 +287,6 @@ public struct SwiftViewDetector {
             return (sourceCode, nil)
         }
 
-        // Check if there is already a preview macro or PreviewProvider
         let hasPreview = sourceCode.contains("#Preview") || sourceCode.contains("PreviewProvider")
         if hasPreview {
             return (sourceCode, primaryView)

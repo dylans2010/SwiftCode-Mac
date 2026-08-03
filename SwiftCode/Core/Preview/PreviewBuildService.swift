@@ -22,7 +22,7 @@ public actor PreviewBuildService {
         let projectDir = fileURL.deletingLastPathComponent()
 
         outputHandler("Scanning project hierarchy...")
-        let structure = try scanner.scan(projectDirectory: projectDir)
+        let structure = try scanner.scan(projectDirectory: projectDir, activeFilePath: sourcePath)
 
         outputHandler("Resolving SwiftUI entry targets...")
         let entry = try resolver.resolve(projectStructure: structure, preferredView: targetName)
