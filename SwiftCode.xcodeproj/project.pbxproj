@@ -7,6 +7,27 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8011D22065A4C22503627407 /* AppKit.swift.txt in Resources */ = {isa = PBXBuildFile; fileRef = 8904B3290F61326C40772016 /* AppKit.swift.txt */; };
+		A5428FFABC47203D23223068 /* CFile.c.txt in Resources */ = {isa = PBXBuildFile; fileRef = BF649BD482FC814BA60FAD20 /* CFile.c.txt */; };
+		6D94E1AD310954D4608755CC /* CSS.css.txt in Resources */ = {isa = PBXBuildFile; fileRef = B8A3457488C958FE2576E135 /* CSS.css.txt */; };
+		8017E2EF385AAF768E93733B /* Configuration.yml.txt in Resources */ = {isa = PBXBuildFile; fileRef = 189120741ED3C1443C97BC3A /* Configuration.yml.txt */; };
+		BAF244683820123C1E08045F /* Entitlements.entitlements.txt in Resources */ = {isa = PBXBuildFile; fileRef = F897423A2611CE002113628B /* Entitlements.entitlements.txt */; };
+		FB62122203D15A969AA60052 /* HTML.html.txt in Resources */ = {isa = PBXBuildFile; fileRef = F55174481A406BE19475FD91 /* HTML.html.txt */; };
+		2E2133821B894ACC39AEA97C /* InfoPlist.plist.txt in Resources */ = {isa = PBXBuildFile; fileRef = F9CF42A41C7EDB8E0BB43BD2 /* InfoPlist.plist.txt */; };
+		8E0D89B2DEE6321A0CA019C7 /* JSON.json.txt in Resources */ = {isa = PBXBuildFile; fileRef = EC54114DF303F1C8EB7D2269 /* JSON.json.txt */; };
+		3DC197DCD24235054EB2B0C9 /* JavaScript.js.txt in Resources */ = {isa = PBXBuildFile; fileRef = 71789ABF0EDC77F4355DC3E6 /* JavaScript.js.txt */; };
+		1C3E8B2C17FD280625E1852A /* Markdown.md.txt in Resources */ = {isa = PBXBuildFile; fileRef = D93D8372E36F094A1E352EE5 /* Markdown.md.txt */; };
+		7CC1A9610E244CE62FF4899C /* PackageSwift.swift.txt in Resources */ = {isa = PBXBuildFile; fileRef = C8BFE2D460EDD5EAC1053ECE /* PackageSwift.swift.txt */; };
+		984E8D57AA3D15FE678FA50A /* PythonScript.py.txt in Resources */ = {isa = PBXBuildFile; fileRef = 415D34630894F7FDB79346DF /* PythonScript.py.txt */; };
+		922EAF88070F54CCF9132259 /* README_Template.md.txt in Resources */ = {isa = PBXBuildFile; fileRef = CCC76BABF04B117927480CEC /* README_Template.md.txt */; };
+		4DA729FA3687B1695C21CC75 /* ShellScript.sh.txt in Resources */ = {isa = PBXBuildFile; fileRef = CE36C59E4BED58063F5ACA37 /* ShellScript.sh.txt */; };
+		EF37D5CCA672576FA5988226 /* Storyboard.storyboard.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5B08A7EE573F2A256663CC0B /* Storyboard.storyboard.txt */; };
+		D972D60E5221BE489DFD05F5 /* SwiftActor.swift.txt in Resources */ = {isa = PBXBuildFile; fileRef = 3164C097E027446A50B4AD58 /* SwiftActor.swift.txt */; };
+		BB8F121861E164387167C33F /* SwiftUI.swift.txt in Resources */ = {isa = PBXBuildFile; fileRef = 175A3FBF249AAA1CE8E99139 /* SwiftUI.swift.txt */; };
+		A86E05AE18E72DD58DDAB824 /* UIKit.swift.txt in Resources */ = {isa = PBXBuildFile; fileRef = B62D7CCA3D3D1D652AED495F /* UIKit.swift.txt */; };
+		0BE4D5FC56AAB92D76D71D4D /* UnitTest.swift.txt in Resources */ = {isa = PBXBuildFile; fileRef = 002E25246B4961D1FB5A6F16 /* UnitTest.swift.txt */; };
+		DF16B1833A6E85D380484DEF /* XCTestUnitTest.swift.txt in Resources */ = {isa = PBXBuildFile; fileRef = 77C1BCDBE502182615E05C8C /* XCTestUnitTest.swift.txt */; };
+
 		STK09CC4E845E901D0CB39FB /* StoreKitModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = STK56CCCDF5CF379A2BE0AD4 /* StoreKitModels.swift */; };
 		STKA0D9F67AE9BFE52182F64 /* StoreKitParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = STKCEA1571736A4ADED881CE /* StoreKitParser.swift */; };
 		STK256E2E1D9192F9EDFCF40 /* StoreKitEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = STKF84C9E25F9B0B0EDFF3E5 /* StoreKitEncoder.swift */; };
@@ -4743,6 +4764,34 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		9202E3117A117B2EA9BD82E4 /* File Templates */ = {
+			isa = PBXGroup;
+			children = (
+				8904B3290F61326C40772016 /* AppKit.swift.txt */,
+				BF649BD482FC814BA60FAD20 /* CFile.c.txt */,
+				B8A3457488C958FE2576E135 /* CSS.css.txt */,
+				189120741ED3C1443C97BC3A /* Configuration.yml.txt */,
+				F897423A2611CE002113628B /* Entitlements.entitlements.txt */,
+				F55174481A406BE19475FD91 /* HTML.html.txt */,
+				F9CF42A41C7EDB8E0BB43BD2 /* InfoPlist.plist.txt */,
+				EC54114DF303F1C8EB7D2269 /* JSON.json.txt */,
+				71789ABF0EDC77F4355DC3E6 /* JavaScript.js.txt */,
+				D93D8372E36F094A1E352EE5 /* Markdown.md.txt */,
+				C8BFE2D460EDD5EAC1053ECE /* PackageSwift.swift.txt */,
+				415D34630894F7FDB79346DF /* PythonScript.py.txt */,
+				CCC76BABF04B117927480CEC /* README_Template.md.txt */,
+				CE36C59E4BED58063F5ACA37 /* ShellScript.sh.txt */,
+				5B08A7EE573F2A256663CC0B /* Storyboard.storyboard.txt */,
+				3164C097E027446A50B4AD58 /* SwiftActor.swift.txt */,
+				175A3FBF249AAA1CE8E99139 /* SwiftUI.swift.txt */,
+				B62D7CCA3D3D1D652AED495F /* UIKit.swift.txt */,
+				002E25246B4961D1FB5A6F16 /* UnitTest.swift.txt */,
+				77C1BCDBE502182615E05C8C /* XCTestUnitTest.swift.txt */,
+			);
+			path = "File Templates";
+			sourceTree = "<group>";
+		};
+
 		B0020001B0020001B002E001 /* StoreKit */ = {
 			isa = PBXGroup;
 			children = (
@@ -6363,6 +6412,7 @@
 		7F06B6B1231F728421364FE3 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				9202E3117A117B2EA9BD82E4 /* File Templates */,
 				F60787477E14031160E05AAA /* DocSymbols.json */,
 				180ED1F5157DACBE8B1D139C /* Codex */,
 				ECAAA1260294B0DD15620104 /* Symbols/sfsymbol4.txt */,
@@ -8619,6 +8669,27 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8011D22065A4C22503627407 /* AppKit.swift.txt in Resources */,
+				A5428FFABC47203D23223068 /* CFile.c.txt in Resources */,
+				6D94E1AD310954D4608755CC /* CSS.css.txt in Resources */,
+				8017E2EF385AAF768E93733B /* Configuration.yml.txt in Resources */,
+				BAF244683820123C1E08045F /* Entitlements.entitlements.txt in Resources */,
+				FB62122203D15A969AA60052 /* HTML.html.txt in Resources */,
+				2E2133821B894ACC39AEA97C /* InfoPlist.plist.txt in Resources */,
+				8E0D89B2DEE6321A0CA019C7 /* JSON.json.txt in Resources */,
+				3DC197DCD24235054EB2B0C9 /* JavaScript.js.txt in Resources */,
+				1C3E8B2C17FD280625E1852A /* Markdown.md.txt in Resources */,
+				7CC1A9610E244CE62FF4899C /* PackageSwift.swift.txt in Resources */,
+				984E8D57AA3D15FE678FA50A /* PythonScript.py.txt in Resources */,
+				922EAF88070F54CCF9132259 /* README_Template.md.txt in Resources */,
+				4DA729FA3687B1695C21CC75 /* ShellScript.sh.txt in Resources */,
+				EF37D5CCA672576FA5988226 /* Storyboard.storyboard.txt in Resources */,
+				D972D60E5221BE489DFD05F5 /* SwiftActor.swift.txt in Resources */,
+				BB8F121861E164387167C33F /* SwiftUI.swift.txt in Resources */,
+				A86E05AE18E72DD58DDAB824 /* UIKit.swift.txt in Resources */,
+				0BE4D5FC56AAB92D76D71D4D /* UnitTest.swift.txt in Resources */,
+				DF16B1833A6E85D380484DEF /* XCTestUnitTest.swift.txt in Resources */,
+
 				9D36AEE3EDE977A669292F07 /* (null) in Resources */,
 				D48EB73DDC4EC7ADD58C1CAA /* DocSymbols.json in Resources */,
 				5A218C6921DA4803A19F8831 /* CodeReviewSystemAsset.md in Resources */,

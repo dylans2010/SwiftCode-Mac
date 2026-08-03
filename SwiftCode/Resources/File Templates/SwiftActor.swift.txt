@@ -1,0 +1,30 @@
+import Foundation
+
+/// A thread-safe Swift 6 Actor managing localized state and resource distribution.
+actor ResourceManager {
+    private var cache: [String: Data] = [:]
+    private var activeRequestsCount = 0
+
+    /// Retrieves cached data or executes the loading block safely.
+    func loadData(for key: String, loadBlock: () async throws -> Data) async rethrows -> Data {
+        if let existing = cache[key] {
+            return existing
+        }
+        activeRequestsCount += 1
+        defer { activeRequestsCount -= 1 }
+
+        let data = try await loadBlock()
+        cache[key] = data
+        return data
+    }
+
+    /// Safely clears all in-memory caching.
+    func clearCache() {
+        cache.removeAll()
+    }
+
+    /// Provides current loading load metrics.
+    func getRequestMetrics() -> Int {
+        return activeRequestsCount
+    }
+}

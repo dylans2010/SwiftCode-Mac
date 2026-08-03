@@ -1,0 +1,26 @@
+import XCTest
+@testable import SwiftCode
+
+final class ProjectManagerTests: XCTestCase {
+    var fileManager: FileManager!
+    var tempDirectory: URL!
+
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        fileManager = FileManager.default
+        tempDirectory = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fileManager.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        if fileManager.fileExists(atPath: tempDirectory.path) {
+            try fileManager.removeItem(at: tempDirectory)
+        }
+        try super.tearDownWithError()
+    }
+
+    func testDirectoryInitialization() throws {
+        XCTAssertTrue(fileManager.fileExists(atPath: tempDirectory.path))
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: tempDirectory.path).count, 0)
+    }
+}

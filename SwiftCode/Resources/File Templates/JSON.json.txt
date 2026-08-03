@@ -1,0 +1,16 @@
+{
+  "name": "SwiftCode Config",
+  "version": "1.0.0",
+  "description": "App settings and local environment parameters",
+  "debug": true,
+  "features": [
+    "live_preview",
+    "db_explorer",
+    "git_panel"
+  ],
+  "preferences": {
+    "theme": "SolarFlare",
+    "refreshInterval": 30.0,
+    "maxHistoryItems": 100
+  }
+}
