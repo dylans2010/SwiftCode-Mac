@@ -2,18 +2,32 @@ import SwiftUI
 
 struct StoreKitInspectorView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
+    @State private var simulationService = StoreKitSimulationService.shared
 
-    // To track selected product for inspection
+    // Track selected product for property inspection
     @State private var selectedProductID: String = ""
 
     var body: some View {
         VStack(spacing: 0) {
+            // Header Bar
             HStack {
                 Image(systemName: "info.circle")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.accentColor)
                 Text("Properties Inspector")
-                    .font(.headline)
+                    .font(.system(size: 11, weight: .bold))
                 Spacer()
+
+                if !selectedProductID.isEmpty {
+                    Button {
+                        simulationService.toggleFavoriteProduct(id: selectedProductID)
+                    } label: {
+                        Image(systemName: simulationService.favoriteProducts.contains(selectedProductID) ? "star.fill" : "star")
+                            .font(.system(size: 11))
+                            .foregroundColor(simulationService.favoriteProducts.contains(selectedProductID) ? .orange : .secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 4)
+                }
             }
             .padding(12)
             .background(Color(NSColor.controlBackgroundColor))
@@ -22,7 +36,6 @@ struct StoreKitInspectorView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    // Let user select which product they want to inspect
                     let allProducts = session.activeConfig.products +
                                       session.activeConfig.subscriptionGroups.flatMap { $0.subscriptions }.map { sub in SKProduct(productID: sub.productID, referenceName: sub.referenceName, type: sub.type, localizations: sub.localizations, price: sub.price, familySharing: sub.familySharing, index: sub.index, availability: sub.availability) } +
                                       session.activeConfig.nonRenewingSubscriptions.map { SKProduct(productID: $0.productID, referenceName: $0.referenceName, type: $0.type, localizations: $0.localizations, price: $0.price, familySharing: $0.familySharing, index: $0.index, availability: $0.availability) }
@@ -30,23 +43,23 @@ struct StoreKitInspectorView: View {
                     if allProducts.isEmpty {
                         VStack(spacing: 12) {
                             Image(systemName: "cart.badge.questionmark")
-                                .font(.largeTitle)
+                                .font(.system(size: 28))
                                 .foregroundColor(.secondary)
                             Text("No Products Available")
-                                .font(.subheadline)
+                                .font(.system(size: 11, weight: .semibold))
                                 .foregroundColor(.secondary)
-                            Text("Add products in the workspace editor first to inspect their attributes.")
-                                .font(.caption)
+                            Text("Create products first to inspect detailed App Store attributes.")
+                                .font(.system(size: 10))
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
                         }
                         .padding(.top, 40)
                         .padding(.horizontal, 16)
                     } else {
-                        // Product Picker
+                        // Product Selector Picker
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Select Active Product")
-                                .font(.caption.bold())
+                            Text("SELECT ACTIVE SELECTION")
+                                .font(.system(size: 9, weight: .bold))
                                 .foregroundColor(.secondary)
                             Picker("", selection: $selectedProductID) {
                                 Text("-- Choose Product --").tag("")
@@ -56,21 +69,22 @@ struct StoreKitInspectorView: View {
                             }
                             .labelsHidden()
                         }
-                        .padding(.horizontal, 14)
+                        .padding(.horizontal, 12)
                         .padding(.top, 10)
 
                         if selectedProductID.isEmpty {
                             VStack(spacing: 8) {
                                 Image(systemName: "arrow.up.circle")
-                                    .font(.title)
+                                    .font(.system(size: 24))
                                     .foregroundColor(.secondary)
-                                Text("Select a product to view and modify properties.")
-                                    .font(.caption)
+                                Text("Select a product to view and modify detailed properties.")
+                                    .font(.system(size: 10))
                                     .foregroundColor(.secondary)
                                     .multilineTextAlignment(.center)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 30)
+                            .padding(.horizontal, 12)
                         } else if let prod = findProduct(id: selectedProductID) {
                             productInspectorBody(prod)
                         }
@@ -152,7 +166,7 @@ struct StoreKitInspectorView: View {
 
     @ViewBuilder
     private func productInspectorBody(_ product: SKProduct) -> some View {
-        var bindingProduct = Binding<SKProduct>(
+        let bindingProduct = Binding<SKProduct>(
             get: { product },
             set: { updateProductOnWorkspace($0) }
         )
@@ -167,33 +181,33 @@ struct StoreKitInspectorView: View {
                 VStack(spacing: 8) {
                     HStack {
                         Text("Type")
-                            .font(.subheadline)
+                            .font(.system(size: 11))
                             .foregroundColor(.secondary)
                         Spacer()
                         Text(product.type)
-                            .font(.subheadline.bold())
+                            .font(.system(size: 11, weight: .bold))
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Product Identifier")
-                            .font(.caption)
+                            .font(.system(size: 10))
                             .foregroundColor(.secondary)
-                        TextField("e.g. com.app.premium", text: bindingProduct.productID)
+                        TextField("com.app.product", text: bindingProduct.productID)
                             .textFieldStyle(.roundedBorder)
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Reference Name")
-                            .font(.caption)
+                            .font(.system(size: 10))
                             .foregroundColor(.secondary)
-                        TextField("e.g. Premium Pro", text: bindingProduct.referenceName)
+                        TextField("Reference Name", text: bindingProduct.referenceName)
                             .textFieldStyle(.roundedBorder)
                     }
                 }
                 .padding(10)
                 .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 12)
 
             // Section: Pricing & Availability
             VStack(alignment: .leading, spacing: 6) {
@@ -203,8 +217,8 @@ struct StoreKitInspectorView: View {
 
                 VStack(spacing: 8) {
                     HStack {
-                        Text("Price")
-                            .font(.subheadline)
+                        Text("Price ($)")
+                            .font(.system(size: 11))
                             .foregroundColor(.secondary)
                         Spacer()
                         TextField("", value: bindingProduct.price, format: .number)
@@ -225,7 +239,7 @@ struct StoreKitInspectorView: View {
                 .padding(10)
                 .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 12)
 
             // Section: App Store Review Info
             VStack(alignment: .leading, spacing: 6) {
@@ -235,24 +249,24 @@ struct StoreKitInspectorView: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Review Notes")
-                        .font(.caption)
+                        .font(.system(size: 10))
                         .foregroundColor(.secondary)
 
                     TextEditor(text: .constant("This unlock gives lifetime access. Please purchase to verify view controllers are unlocked correctly."))
-                        .font(.system(size: 11, design: .monospaced))
-                        .frame(height: 70)
+                        .font(.system(size: 10, design: .monospaced))
+                        .frame(height: 60)
                         .cornerRadius(6)
                         .border(Color.secondary.opacity(0.3))
 
                     Text("Mock Images & Screenshots")
-                        .font(.caption.bold())
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.secondary)
 
                     HStack {
                         Image(systemName: "photo.on.rectangle")
-                            .font(.title2)
+                            .font(.system(size: 11))
                         Text("promotion_banner.png")
-                            .font(.caption)
+                            .font(.system(size: 10))
                             .foregroundColor(.secondary)
                     }
                     .padding(6)
@@ -261,7 +275,7 @@ struct StoreKitInspectorView: View {
                 .padding(10)
                 .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 12)
         }
     }
 }

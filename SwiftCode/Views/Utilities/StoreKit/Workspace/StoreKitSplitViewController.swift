@@ -162,12 +162,16 @@ struct StoreKitCenterWorkspaceView: View {
                 switch session.selectedSection {
                 case "Dashboard":
                     StoreKitDashboardView()
+                case "Explorer":
+                    StoreKitExplorerView()
                 case "Products":
                     StoreKitProductsView()
                 case "Consumables", "Non Consumables", "Auto Renewables", "Non Renewables":
                     StoreKitProductsView(filterType: session.selectedSection)
                 case "Subscription Groups":
                     StoreKitSubscriptionGroupEditorView()
+                case "Subscription Timeline":
+                    SubscriptionTimelineView()
                 case "Offers":
                     StoreKitOfferEditorView()
                 case "Storefronts":
@@ -184,6 +188,14 @@ struct StoreKitCenterWorkspaceView: View {
                     StoreKitDiagnosticsView()
                 case "Templates":
                     StoreKitTemplateGalleryView()
+                case "Compare View":
+                    StoreKitCompareView()
+                case "Version History":
+                    StoreKitVersionHistoryView()
+                case "Search Center":
+                    StoreKitSearchCenterView()
+                case "Command Palette":
+                    StoreKitCommandPaletteView()
                 case "Logs":
                     StoreKitLogsView()
                 case "Settings":
