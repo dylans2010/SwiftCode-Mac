@@ -237,7 +237,7 @@ public struct MainToolsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.background)
+        .background(VisualEffectView(material: .sidebar, blendingMode: .withinWindow))
     }
 
     private func iconForCategory(_ category: String) -> String {

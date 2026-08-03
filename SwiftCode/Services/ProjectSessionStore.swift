@@ -40,8 +40,20 @@ public final class ProjectSession: Codable, @unchecked Sendable {
     public var selectionRangeText: String? // Codable representation of NSRange
     public var foldingState: [String: Bool] = [:]
 
+    // Navigation State
+    public var expandedNodeIDs: Set<String> = []
+    public var selectedNodeID: String?
+    public var lastOpenedFile: String?
+    public var lastActiveTab: String?
+    public var sidebarSelection: String?
+    public var showFileNavigator: Bool = true
+    public var showArtboardSimulator: Bool = false
+    public var showAgentInspector: Bool = false
+    public var showAppDetailsSidebar: Bool = false
+
     enum CodingKeys: String, CodingKey {
-        case id, projectRootPath, activeFileNode, openFileTabs, modifiedFilePaths, cursorPosition, scrollPosition, selectionRangeText, foldingState
+        case id, projectRootPath, activeFileNode, openFileTabs, modifiedFilePaths, cursorPosition, scrollPosition, selectionRangeText, foldingState,
+             expandedNodeIDs, selectedNodeID, lastOpenedFile, lastActiveTab, sidebarSelection, showFileNavigator, showArtboardSimulator, showAgentInspector, showAppDetailsSidebar
     }
 
     public init(id: UUID, projectRootPath: String) {
@@ -61,6 +73,18 @@ public final class ProjectSession: Codable, @unchecked Sendable {
         scrollPosition = try container.decodeIfPresent(Double.self, forKey: .scrollPosition) ?? 0.0
         selectionRangeText = try container.decodeIfPresent(String.self, forKey: .selectionRangeText)
         foldingState = try container.decodeIfPresent([String: Bool].self, forKey: .foldingState) ?? [:]
+
+        // Decode navigation states with default fallbacks
+        let expandedArr = try container.decodeIfPresent([String].self, forKey: .expandedNodeIDs) ?? []
+        expandedNodeIDs = Set(expandedArr)
+        selectedNodeID = try container.decodeIfPresent(String.self, forKey: .selectedNodeID)
+        lastOpenedFile = try container.decodeIfPresent(String.self, forKey: .lastOpenedFile)
+        lastActiveTab = try container.decodeIfPresent(String.self, forKey: .lastActiveTab)
+        sidebarSelection = try container.decodeIfPresent(String.self, forKey: .sidebarSelection)
+        showFileNavigator = try container.decodeIfPresent(Bool.self, forKey: .showFileNavigator) ?? true
+        showArtboardSimulator = try container.decodeIfPresent(Bool.self, forKey: .showArtboardSimulator) ?? false
+        showAgentInspector = try container.decodeIfPresent(Bool.self, forKey: .showAgentInspector) ?? false
+        showAppDetailsSidebar = try container.decodeIfPresent(Bool.self, forKey: .showAppDetailsSidebar) ?? false
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -74,6 +98,17 @@ public final class ProjectSession: Codable, @unchecked Sendable {
         try container.encode(scrollPosition, forKey: .scrollPosition)
         try container.encode(selectionRangeText, forKey: .selectionRangeText)
         try container.encode(foldingState, forKey: .foldingState)
+
+        // Encode navigation states
+        try container.encode(Array(expandedNodeIDs), forKey: .expandedNodeIDs)
+        try container.encode(selectedNodeID, forKey: .selectedNodeID)
+        try container.encode(lastOpenedFile, forKey: .lastOpenedFile)
+        try container.encode(lastActiveTab, forKey: .lastActiveTab)
+        try container.encode(sidebarSelection, forKey: .sidebarSelection)
+        try container.encode(showFileNavigator, forKey: .showFileNavigator)
+        try container.encode(showArtboardSimulator, forKey: .showArtboardSimulator)
+        try container.encode(showAgentInspector, forKey: .showAgentInspector)
+        try container.encode(showAppDetailsSidebar, forKey: .showAppDetailsSidebar)
     }
 }
 

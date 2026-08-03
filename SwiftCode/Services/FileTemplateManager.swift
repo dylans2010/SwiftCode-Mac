@@ -108,22 +108,6 @@ public final class TemplateLoader: Sendable {
     public static func resolveTemplatesDirectory() -> URL? {
         let fm = FileManager.default
 
-        // 1. App Bundle subdirectory
-        if let bundleURL = Bundle.main.url(forResource: "File Templates", withExtension: nil) {
-            if fm.fileExists(atPath: bundleURL.path) {
-                return bundleURL
-            }
-        }
-
-        // 2. Sample file path anchor
-        if let sampleURL = Bundle.main.url(forResource: "CFile.c", withExtension: "txt", subdirectory: "File Templates") {
-            let bundleDir = sampleURL.deletingLastPathComponent()
-            if fm.fileExists(atPath: bundleDir.path) {
-                return bundleDir
-            }
-        }
-
-        // 3. Project disk paths
         let paths = [
             "SwiftCode/Resources/File Templates",
             "../SwiftCode/Resources/File Templates",
@@ -137,37 +121,75 @@ public final class TemplateLoader: Sendable {
             }
         }
 
-        return nil
+        return Bundle.main.bundleURL
     }
 
     public func loadTemplates(from directoryURL: URL) throws -> [FileTemplate] {
         let fm = FileManager.default
         var result: [FileTemplate] = []
 
-        let contents = try fm.contentsOfDirectory(at: directoryURL, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+        // Try Bundle resources first
+        var foundInBundle = false
+        let knownTemplateFiles = [
+            "SwiftActor.swift", "CFile.c", "AppKit.swift", "Entitlements.entitlements",
+            "InfoPlist.plist", "Storyboard.storyboard", "JSON.json", "Configuration.yml",
+            "ShellScript.sh", "PythonScript.py", "XCTestUnitTest.swift", "SwiftUI.swift",
+            "CSS.css", "HTML.html", "JavaScript.js", "UIKit.swift", "PackageSwift.swift",
+            "UnitTest.swift", "README_Template.md", "Markdown.md"
+        ]
 
-        for url in contents {
-            let lastComponent = url.lastPathComponent
-            guard lastComponent.hasSuffix(".txt") else { continue }
+        for baseName in knownTemplateFiles {
+            if let bundleURL = Bundle.main.url(forResource: baseName, withExtension: "txt") {
+                foundInBundle = true
+                let pathExtension = URL(fileURLWithPath: baseName).pathExtension
+                let cleanID = baseName.lowercased().replacingOccurrences(of: ".", with: "_")
+                let (name, icon, colorName, category) = getTemplateAttributes(filename: baseName, ext: pathExtension)
 
-            let baseName = url.deletingPathExtension().lastPathComponent // "CFile.c"
-            let pathExtension = URL(fileURLWithPath: baseName).pathExtension // "c"
-            let cleanID = baseName.lowercased().replacingOccurrences(of: ".", with: "_")
+                result.append(FileTemplate(
+                    id: cleanID,
+                    name: name,
+                    extensionName: pathExtension.isEmpty ? "txt" : pathExtension,
+                    icon: icon,
+                    colorName: colorName,
+                    resourceName: baseName,
+                    resourceExtension: "txt",
+                    isFolder: false,
+                    fileURL: bundleURL,
+                    category: category
+                ))
+            }
+        }
 
-            let (name, icon, colorName, category) = getTemplateAttributes(filename: baseName, ext: pathExtension)
+        if foundInBundle {
+            return result.sorted { $0.name < $1.name }
+        }
 
-            result.append(FileTemplate(
-                id: cleanID,
-                name: name,
-                extensionName: pathExtension.isEmpty ? "txt" : pathExtension,
-                icon: icon,
-                colorName: colorName,
-                resourceName: baseName,
-                resourceExtension: "txt",
-                isFolder: false,
-                fileURL: url,
-                category: category
-            ))
+        // Fallback to disk directory scanning
+        if fm.fileExists(atPath: directoryURL.path) {
+            let contents = try fm.contentsOfDirectory(at: directoryURL, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+            for url in contents {
+                let lastComponent = url.lastPathComponent
+                guard lastComponent.hasSuffix(".txt") else { continue }
+
+                let baseName = url.deletingPathExtension().lastPathComponent // "CFile.c"
+                let pathExtension = URL(fileURLWithPath: baseName).pathExtension // "c"
+                let cleanID = baseName.lowercased().replacingOccurrences(of: ".", with: "_")
+
+                let (name, icon, colorName, category) = getTemplateAttributes(filename: baseName, ext: pathExtension)
+
+                result.append(FileTemplate(
+                    id: cleanID,
+                    name: name,
+                    extensionName: pathExtension.isEmpty ? "txt" : pathExtension,
+                    icon: icon,
+                    colorName: colorName,
+                    resourceName: baseName,
+                    resourceExtension: "txt",
+                    isFolder: false,
+                    fileURL: url,
+                    category: category
+                ))
+            }
         }
 
         return result.sorted { $0.name < $1.name }

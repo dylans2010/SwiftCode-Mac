@@ -1,7 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct NewProjectSheetView: View {
+public struct NewProjectSheetView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
     var viewModel: WelcomeViewModel
     @Environment(\.dismiss) var dismiss
@@ -11,16 +11,16 @@ struct NewProjectSheetView: View {
     @State private var pendingImportURL: URL?
     @State private var pendingImportName = ""
 
-    enum SelectionMode: String, CaseIterable, Identifiable {
-        case create = "New"
-        case importFolder = "Import"
-        case clone = "Clone"
-        case xcodeproj = "Xcode"
-        case scproj = ".scproj"
+    public enum SelectionMode: String, CaseIterable, Identifiable {
+        case create = "New Project"
+        case importFolder = "Import Folder"
+        case clone = "Clone Repo"
+        case xcodeproj = "Xcode Proj"
+        case scproj = "SC Project"
 
-        var id: String { rawValue }
+        public var id: String { rawValue }
 
-        var icon: String {
+        public var icon: String {
             switch self {
             case .create: "plus.square.fill"
             case .importFolder: "folder.badge.plus"
@@ -30,17 +30,17 @@ struct NewProjectSheetView: View {
             }
         }
 
-        var subtitle: String {
+        public var subtitle: String {
             switch self {
-            case .create: "Start from a template"
-            case .importFolder: "Use an existing folder"
-            case .clone: "Pull from Git"
-            case .xcodeproj: "Open an Xcode workspace"
-            case .scproj: "Restore an archive"
+            case .create: "Start from a premium template"
+            case .importFolder: "Select directory on disk"
+            case .clone: "Pull remote Git URL"
+            case .xcodeproj: "Open Apple Workspace"
+            case .scproj: "Restore project archive"
             }
         }
 
-        var tint: Color {
+        public var tint: Color {
             switch self {
             case .create: .orange
             case .importFolder: .blue
@@ -51,26 +51,111 @@ struct NewProjectSheetView: View {
         }
     }
 
-    var body: some View {
+    public init(viewModel: WelcomeViewModel) {
+        self.viewModel = viewModel
+    }
+
+    public var body: some View {
         NavigationStack {
             HStack(spacing: 0) {
-                sidebar
+                // High-fidelity sidebar selector with native materials
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Create Workspace")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
+                        Text("Project launcher pipeline")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 8)
+
+                    ScrollView {
+                        VStack(spacing: 8) {
+                            ForEach(SelectionMode.allCases) { item in
+                                Button {
+                                    withAnimation(.snappy(duration: 0.18)) {
+                                        mode = item
+                                    }
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: item.icon)
+                                            .font(.headline)
+                                            .foregroundStyle(mode == item ? .white : item.tint)
+                                            .frame(width: 30, height: 32)
+                                            .background((mode == item ? Color.white.opacity(0.18) : item.tint.opacity(0.14)), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(item.rawValue)
+                                                .font(.subheadline.weight(.semibold))
+                                                .foregroundStyle(mode == item ? .white : .primary)
+                                            Text(item.subtitle)
+                                                .font(.system(size: 9))
+                                                .foregroundStyle(mode == item ? .white.opacity(0.82) : .secondary)
+                                                .lineLimit(1)
+                                        }
+
+                                        Spacer(minLength: 0)
+                                    }
+                                    .padding(8)
+                                    .background(mode == item ? item.tint.gradient : Color.clear.gradient, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    Spacer()
+
+                    Label("macOS native client", systemImage: "macbook")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                }
+                .padding(16)
+                .frame(width: 220)
+                .background(VisualEffectView(material: .sidebar, blendingMode: .withinWindow))
 
                 Divider()
 
                 VStack(spacing: 0) {
-                    header
+                    // Header Bar with dynamic material
+                    HStack(spacing: 16) {
+                        Image(systemName: mode.icon)
+                            .font(.system(size: 26, weight: .semibold))
+                            .foregroundStyle(mode.tint.gradient)
+                            .frame(width: 52, height: 52)
+                            .background(mode.tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                    ScrollView {
-                        contentView
-                            .padding(24)
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(title)
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                            Text(mode.subtitle)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
                     }
+                    .padding(20)
+                    .background(Color(NSColor.windowBackgroundColor))
 
                     Divider()
 
+                    // Scrollable dynamic content viewport
+                    ScrollView {
+                        contentView
+                            .padding(20)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                    }
+                    .background(Color(NSColor.windowBackgroundColor).opacity(0.4))
+
+                    Divider()
+
+                    // Action footer bar
                     HStack {
-                        Text("Choose how you want to bring code into SwiftCode.")
+                        Text("Select an option to import or scaffold native projects.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
@@ -78,16 +163,15 @@ struct NewProjectSheetView: View {
 
                         Button("Cancel") { dismiss() }
                             .keyboardShortcut(.cancelAction)
+                            .buttonStyle(.bordered)
                     }
                     .padding(.horizontal, 20)
-                    .padding(.vertical, 14)
-                    .background(.thinMaterial)
+                    .padding(.vertical, 12)
+                    .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
                 }
             }
-            .navigationTitle(title)
         }
         .frame(width: 760, height: 560)
-        .background(.ultraThinMaterial)
         .alert("Project Name", isPresented: $showingImportNameAlert) {
             TextField("Enter project name", text: $pendingImportName)
             Button("Import") {
@@ -109,146 +193,78 @@ struct NewProjectSheetView: View {
         }
     }
 
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Create")
-                    .font(.title2.bold())
-                Text("Project launcher")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 8)
-
-            VStack(spacing: 8) {
-                ForEach(SelectionMode.allCases) { item in
-                    Button {
-                        withAnimation(.snappy(duration: 0.18)) {
-                            mode = item
-                        }
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: item.icon)
-                                .font(.headline)
-                                .foregroundStyle(mode == item ? .white : item.tint)
-                                .frame(width: 32, height: 32)
-                                .background((mode == item ? Color.white.opacity(0.18) : item.tint.opacity(0.14)), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.rawValue)
-                                    .font(.headline)
-                                Text(item.subtitle)
-                                    .font(.caption2)
-                                    .foregroundStyle(mode == item ? .white.opacity(0.82) : .secondary)
-                            }
-
-                            Spacer()
-                        }
-                        .padding(10)
-                        .background(mode == item ? item.tint.gradient : Color.clear.gradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            Spacer()
-
-            Label("macOS optimized", systemImage: "macbook")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 8)
-        }
-        .padding(18)
-        .frame(width: 230)
-        .background(.regularMaterial)
-    }
-
-    private var header: some View {
-        HStack(spacing: 16) {
-            Image(systemName: mode.icon)
-                .font(.system(size: 30, weight: .semibold))
-                .foregroundStyle(mode.tint.gradient)
-                .frame(width: 58, height: 58)
-                .background(mode.tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(title)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                Text(mode.subtitle)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-        }
-        .padding(24)
-        .background(.thinMaterial)
-    }
-
     @ViewBuilder
     private var contentView: some View {
         switch mode {
         case .create:
             actionPanel(
                 icon: "sparkles",
-                title: "Build from a polished starter",
-                description: "Pick an app or package template with the right files, structure, and defaults already in place.",
+                title: "Scaffold from starter models",
+                description: "Choose an app, library, multiplatform, or command line tool template with full build structures, files, configurations, and sensible defaults automatically configured.",
                 tint: .orange,
-                actionTitle: "Choose Template",
+                actionTitle: "Choose Scaffold Template",
                 actionIcon: "square.grid.2x2.fill"
             ) {
                 NavigationLink(destination: TemplatePickerView(viewModel: viewModel)) {
                     Label("Choose Template", systemImage: "square.grid.2x2.fill")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding(.vertical, 10)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .tint(.orange)
             }
 
         case .clone:
             GitCloneSheetView(viewModel: viewModel)
-                .padding(18)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .padding(16)
+                .background(Color(NSColor.controlBackgroundColor).opacity(0.4), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
         case .importFolder:
             actionPanel(
                 icon: "folder.badge.plus",
-                title: "Import a folder",
-                description: "Select a folder from disk and SwiftCode will add it to your project library.",
+                title: "Import file directory",
+                description: "Map any file directory from your Mac's filesystem. SwiftCode will automatically scan, synchronize, and load it into your workspaces.",
                 tint: .blue,
-                actionTitle: "Select Folder",
+                actionTitle: "Select Directory",
                 actionIcon: "folder.fill"
             ) {
                 Button { importFolder() } label: {
-                    Label("Select Folder", systemImage: "folder.fill")
+                    Label("Select Directory", systemImage: "folder.fill")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding(.vertical, 10)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .tint(.blue)
             }
 
         case .xcodeproj:
             actionPanel(
                 icon: "hammer.circle.fill",
-                title: "Import an Xcode project",
-                description: "Open an existing .xcodeproj and continue working with it inside SwiftCode.",
+                title: "Open Xcode Target Project",
+                description: "Import any native Xcode target .xcodeproj or .xcworkspace. Perfect for seamless side-by-side transition and compilation within SwiftCode.",
                 tint: .pink,
-                actionTitle: "Select .xcodeproj",
+                actionTitle: "Select .xcodeproj File",
                 actionIcon: "app.badge"
             ) {
                 Button { importXcodeProject() } label: {
-                    Label("Select .xcodeproj", systemImage: "app.badge")
+                    Label("Select .xcodeproj File", systemImage: "app.badge")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding(.vertical, 10)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .tint(.pink)
             }
 
         case .scproj:
             ImportProjView()
-                .padding(18)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .padding(16)
+                .background(Color(NSColor.controlBackgroundColor).opacity(0.4), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
     }
 
@@ -261,17 +277,18 @@ struct NewProjectSheetView: View {
         actionIcon: String,
         @ViewBuilder actions: () -> Actions
     ) -> some View {
-        VStack(alignment: .leading, spacing: 22) {
-            HStack(alignment: .top, spacing: 18) {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .top, spacing: 16) {
                 Image(systemName: icon)
-                    .font(.system(size: 44, weight: .semibold))
+                    .font(.system(size: 38, weight: .semibold))
                     .foregroundStyle(tint.gradient)
-                    .frame(width: 86, height: 86)
-                    .background(tint.opacity(0.13), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    .frame(width: 72, height: 72)
+                    .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text(title)
-                        .font(.title.bold())
+                        .font(.title3.bold())
+                        .foregroundColor(.primary)
                     Text(description)
                         .font(.body)
                         .foregroundStyle(.secondary)
@@ -280,34 +297,34 @@ struct NewProjectSheetView: View {
             }
 
             HStack(spacing: 12) {
-                Label("Clean setup", systemImage: "checkmark.seal.fill")
-                Label("Ready for macOS", systemImage: "desktopcomputer")
-                Label("Saved to Library", systemImage: "tray.full.fill")
+                Label("Dynamic scaffolding", systemImage: "checkmark.seal.fill")
+                Label("Universal architecture", systemImage: "desktopcomputer")
+                Label("Integrated sessions", systemImage: "tray.full.fill")
             }
-            .font(.subheadline.weight(.medium))
+            .font(.caption.weight(.medium))
             .foregroundStyle(.secondary)
 
             actions()
-                .frame(maxWidth: 260)
+                .frame(maxWidth: 280)
                 .accessibilityLabel(actionTitle)
-                .accessibilityHint("Starts the \(actionTitle.lowercased()) flow using \(actionIcon).")
+                .accessibilityHint("Starts the \(actionTitle.lowercased()) flow.")
         }
-        .padding(28)
+        .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.25), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(tint.opacity(0.25), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(tint.opacity(0.2), lineWidth: 1)
         )
     }
 
     private var title: String {
         switch mode {
-        case .create: return "Create New Project"
+        case .create: return "Create Project"
         case .importFolder: return "Import Folder"
         case .clone: return "Clone Repository"
-        case .xcodeproj: return "Import Xcode Project"
-        case .scproj: return "Import .scproj File"
+        case .xcodeproj: return "Open Xcode Project"
+        case .scproj: return "Open SC Project"
         }
     }
 

@@ -95,12 +95,45 @@ public actor PreviewRuntimeCompiler {
 
         process.executableURL = resolvedSwiftc
         process.currentDirectoryURL = sandboxPolicy.projectDirectory
-        process.arguments = [
+
+        var sdkName = "iphonesimulator" // default fallback
+        if let project = ProjectSessionStore.shared.activeProject {
+            if let targetPlatform = project.ciBuildConfiguration?.targetPlatform {
+                if targetPlatform.lowercased().contains("macos") {
+                    sdkName = "macosx"
+                }
+            }
+        }
+
+        // Query the SDK path dynamically
+        let sdkPathResult = try? await ProcessRunnerTool.shared.run(
+            executableURL: URL(fileURLWithPath: "/usr/bin/xcrun"),
+            arguments: ["--show-sdk-path", "--sdk", sdkName]
+        )
+        let sdkPath = sdkPathResult?.stdout.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        var compilerArgs = [
             "-swift-version", "6",
             "-emit-library",
             "-module-name", uniqueModuleName,
             "-o", outputLibrary.path
-        ] + allInputs.map(\.path)
+        ]
+
+        if !sdkPath.isEmpty {
+            compilerArgs += ["-sdk", sdkPath]
+        }
+
+        if sdkName == "iphonesimulator" {
+            #if arch(arm64)
+            let targetArch = "arm64-apple-ios16.0-simulator"
+            #else
+            let targetArch = "x86_64-apple-ios16.0-simulator"
+            #endif
+            compilerArgs += ["-target", targetArch]
+        }
+
+        compilerArgs += allInputs.map(\.path)
+        process.arguments = compilerArgs
 
         let stderr = Pipe()
         process.standardError = stderr

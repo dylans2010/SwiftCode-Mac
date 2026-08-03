@@ -17,18 +17,18 @@ struct WorkspaceView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
 
     // Collapsible Agent Inspector
-    @AppStorage("com.swiftcode.workspace.showAgentInspector") private var showAgentInspector = false
-    @AppStorage("com.swiftcode.workspace.showFileNavigator") private var showFileNavigator = true
+    @State private var showAgentInspector = false
+    @State private var showFileNavigator = true
     @AppStorage("com.swiftcode.workspace.agentInspectorWidth") private var agentInspectorWidth = 320.0
     @State private var dragStartWidth: CGFloat? = nil
 
     // Collapsible Artboard Simulator Panel
-    @AppStorage("com.swiftcode.workspace.showArtboardSimulator") private var showArtboardSimulator = false
+    @State private var showArtboardSimulator = false
     @AppStorage("com.swiftcode.workspace.artboardSimulatorWidth") private var artboardSimulatorWidth = 360.0
     @State private var dragStartWidthSimulator: CGFloat? = nil
 
     // Collapsible App Details Sidebar Panel
-    @AppStorage("com.swiftcode.workspace.showAppDetailsSidebar") private var showAppDetailsSidebar = false
+    @State private var showAppDetailsSidebar = false
     @AppStorage("com.swiftcode.workspace.appDetailsSidebarWidth") private var appDetailsSidebarWidth = 320.0
     @State private var dragStartWidthAppDetails: CGFloat? = nil
 
@@ -190,7 +190,13 @@ struct WorkspaceView: View {
                 .help("Close current project")
 
                 Button {
-                    withAnimation(.spring()) { showFileNavigator.toggle() }
+                    withAnimation(.spring()) {
+                        showFileNavigator.toggle()
+                        if let session = sessionStore.activeSession {
+                            session.showFileNavigator = showFileNavigator
+                            sessionStore.saveSession(session)
+                        }
+                    }
                 } label: {
                     Label(showFileNavigator ? "Hide Files" : "Show Files", systemImage: "sidebar.left")
                 }
@@ -206,6 +212,10 @@ struct WorkspaceView: View {
                 Button {
                     withAnimation(.spring()) {
                         showArtboardSimulator.toggle()
+                        if let session = sessionStore.activeSession {
+                            session.showArtboardSimulator = showArtboardSimulator
+                            sessionStore.saveSession(session)
+                        }
                     }
                 } label: {
                     Image(systemName: "macwindow.on.rectangle")
@@ -238,11 +248,23 @@ struct WorkspaceView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowExportSheet"))) { _ in
             showingExportSheet = true
         }
+        .onAppear {
+            if let session = sessionStore.activeSession {
+                showFileNavigator = session.showFileNavigator
+                showArtboardSimulator = session.showArtboardSimulator
+                showAgentInspector = session.showAgentInspector
+                showAppDetailsSidebar = session.showAppDetailsSidebar
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .toolbarToolActivated)) { notification in
             if let toolId = notification.userInfo?["toolID"] as? String {
                 if toolId == "ai_code_gen" || toolId == "assist_view" || toolId == "runAgent" || toolId == "ai_agent" {
                     withAnimation(.spring()) {
                         showAgentInspector = true
+                        if let session = sessionStore.activeSession {
+                            session.showAgentInspector = true
+                            sessionStore.saveSession(session)
+                        }
                     }
                 } else if let destination = ToolbarActionManager.shared.destination(for: toolId) {
                     activeSheet = destination
@@ -260,6 +282,10 @@ struct WorkspaceView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("com.swiftcode.openArtboardSimulator"))) { notification in
             withAnimation(.spring()) {
                 showArtboardSimulator = true
+                if let session = sessionStore.activeSession {
+                    session.showArtboardSimulator = true
+                    sessionStore.saveSession(session)
+                }
             }
             if let artboardID = notification.userInfo?["artboardID"] as? UUID {
                 if let visDoc = DocumentCoordinator.shared.visualUIDocument {
@@ -270,6 +296,10 @@ struct WorkspaceView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("com.swiftcode.toggleAppDetailsSidebar"))) { _ in
             withAnimation(.spring()) {
                 showAppDetailsSidebar.toggle()
+                if let session = sessionStore.activeSession {
+                    session.showAppDetailsSidebar = showAppDetailsSidebar
+                    sessionStore.saveSession(session)
+                }
             }
         }
         .background(Color(hex: themeVM.currentTheme.background))

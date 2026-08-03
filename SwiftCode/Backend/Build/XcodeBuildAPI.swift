@@ -1158,12 +1158,44 @@ struct AppEntry: App {
         XcodeBuildManager.shared.discoverSchemes(at: project.url)
         let activeScheme = determineActiveScheme()?.name ?? project.name
 
+        // Validate scheme
+        guard project.schemes.contains(where: { $0.name == activeScheme }) else {
+            isExecuting = false
+            return BuildResult(
+                status: .failed,
+                appBundleURL: nil,
+                diagnostics: [BuildDiagnostics(message: "Scheme '\(activeScheme)' does not exist or is not shared in the project.", severity: .error)],
+                logs: BuildLogs(lines: ["Validation failed: Selected scheme '\(activeScheme)' is invalid."])
+            )
+        }
+
+        appendLog("[SYSTEM] Resolving dynamic build destination and SDK for scheme '\(activeScheme)'...")
+        let resolver = BuildDestinationResolver.shared
+
+        var resolvedSDK = "macosx"
+        var resolvedDestString = "platform=macOS"
+
+        do {
+            let settings = try await resolver.resolveSettings(for: project.url, scheme: activeScheme)
+            let dests = await resolver.resolveDestinations(for: project.url, scheme: activeScheme, settings: settings)
+            if let resolved = resolver.selectBestDestination(settings: settings, destinations: dests) {
+                resolvedSDK = resolved.sdk
+                resolvedDestString = resolved.destination.id
+            }
+        } catch {
+            appendLog("[WARNING] Failed to resolve build destination dynamically: \(error.localizedDescription). Falling back to macOS defaults.")
+        }
+
+        appendLog("[SYSTEM] Resolved Dynamic SDK: \(resolvedSDK)")
+        appendLog("[SYSTEM] Resolved Dynamic Destination: \(resolvedDestString)")
+
         // Run build using XcodeBuildManager to share real-time state and UI hooks
         await XcodeBuildManager.shared.runBuild(
             projectURL: project.url.deletingLastPathComponent(),
             scheme: activeScheme,
             configuration: determineActiveBuildConfiguration().rawValue,
-            destination: determineBuildDestination().destination
+            destination: resolvedDestString,
+            sdk: resolvedSDK
         )
 
         // Stream the logs from BuildManager to our current logs for consistency

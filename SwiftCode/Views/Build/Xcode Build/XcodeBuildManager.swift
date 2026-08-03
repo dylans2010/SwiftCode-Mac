@@ -49,7 +49,7 @@ public final class XcodeBuildManager: Sendable {
             UserDefaults.standard.set(selectedConfiguration, forKey: "com.swiftcode.build.selectedConfiguration")
         }
     }
-    public var selectedDestination: String = "generic/platform=iOS Simulator" {
+    public var selectedDestination: String = "platform=macOS" {
         didSet {
             UserDefaults.standard.set(selectedDestination, forKey: "com.swiftcode.build.selectedDestination")
         }
@@ -72,9 +72,11 @@ public final class XcodeBuildManager: Sendable {
 
     public let availableConfigurations = ["Debug", "Release"]
     public let availableDestinations = [
-        "generic/platform=iOS Simulator",
-        "generic/platform=iOS",
-        "generic/platform=macOS"
+        "platform=macOS",
+        "platform=iOS Simulator",
+        "platform=visionOS Simulator",
+        "platform=watchOS Simulator",
+        "platform=tvOS Simulator"
     ]
 
     // Dynamic SDK detection properties
@@ -148,7 +150,7 @@ public final class XcodeBuildManager: Sendable {
     private init() {
         self.selectedScheme = UserDefaults.standard.string(forKey: "com.swiftcode.build.selectedScheme")
         self.selectedConfiguration = UserDefaults.standard.string(forKey: "com.swiftcode.build.selectedConfiguration") ?? "Debug"
-        self.selectedDestination = UserDefaults.standard.string(forKey: "com.swiftcode.build.selectedDestination") ?? "generic/platform=iOS Simulator"
+        self.selectedDestination = UserDefaults.standard.string(forKey: "com.swiftcode.build.selectedDestination") ?? "platform=macOS"
         self.selectedSDKType = UserDefaults.standard.string(forKey: "com.swiftcode.build.selectedSDKType") ?? "Default"
         self.selectedSDKVersion = UserDefaults.standard.string(forKey: "com.swiftcode.build.selectedSDKVersion") ?? "Default"
     }
@@ -392,7 +394,7 @@ public final class XcodeBuildManager: Sendable {
         appendLog("[SYSTEM] Build cancelled by user.")
     }
 
-    public func runBuild(projectURL: URL, scheme: String? = nil, configuration: String? = nil, destination: String? = nil) async {
+    public func runBuild(projectURL: URL, scheme: String? = nil, configuration: String? = nil, destination: String? = nil, sdk: String? = nil) async {
         guard !isBuilding else {
             appendLog("[SYSTEM] Warning: A build is already in progress.")
             return
@@ -439,7 +441,8 @@ public final class XcodeBuildManager: Sendable {
         }
 
         // Add dynamically selected SDK identifier if resolved
-        if let sdkArg = currentSDKArgument {
+        let finalSDK = sdk ?? currentSDKArgument
+        if let sdkArg = finalSDK {
             arguments.append(contentsOf: ["-sdk", sdkArg])
             appendLog("[SYSTEM] Forcing dynamic target SDK: \(sdkArg)")
         }
