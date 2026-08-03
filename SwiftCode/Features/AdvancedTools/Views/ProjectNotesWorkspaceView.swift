@@ -1556,3 +1556,61 @@ public struct ProjectNotesWorkspaceView: View {
         )
     }
 }
+
+// MARK: - Native Window Manager & Controller
+
+@MainActor
+public final class ProjectNotesWindowManager: NSObject, NSWindowDelegate {
+    public static let shared = ProjectNotesWindowManager()
+    private var windowController: ProjectNotesWindowController?
+
+    private override init() {
+        super.init()
+    }
+
+    public func showWindow() {
+        if let existing = windowController {
+            existing.window?.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        let wc = ProjectNotesWindowController()
+        wc.window?.delegate = self
+        self.windowController = wc
+        wc.window?.makeKeyAndOrderFront(nil)
+    }
+
+    public func closeWindow() {
+        windowController?.close()
+        windowController = nil
+    }
+
+    // MARK: - NSWindowDelegate
+    public func windowWillClose(_ notification: Notification) {
+        windowController = nil
+    }
+}
+
+@MainActor
+public final class ProjectNotesWindowController: NSWindowController {
+    public init() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 100, y: 100, width: 1000, height: 700),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Project Notes"
+        window.minSize = NSSize(width: 800, height: 600)
+        window.setFrameAutosaveName("ProjectNotesMainWindow")
+
+        let hostedView = ProjectNotesWorkspaceView()
+        window.contentView = NSHostingView(rootView: hostedView)
+
+        super.init(window: window)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}

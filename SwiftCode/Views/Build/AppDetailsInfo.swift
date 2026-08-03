@@ -1,7 +1,8 @@
 import SwiftUI
+import AppKit
 
 public struct AppDetailsInfo: View {
-    // Legacy bindings maintained for compatibility with WorkspaceView if any other calls exist
+    // Legacy bindings maintained for compatibility with WorkspaceView
     @Binding var appName: String
     @Binding var bundleIdentifier: String
     @Binding var marketingVersion: String
@@ -50,8 +51,43 @@ public struct AppDetailsInfo: View {
 
             Divider()
 
-            XcodeProjectDetailsSheet()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            ScrollView {
+                XcodeProjectDetailsSheet()
+                    .padding()
+            }
+            .background(VisualEffectView(material: .sidebar, blendingMode: .withinWindow))
         }
+    }
+}
+
+// MARK: - VisualEffectView NSViewRepresentable
+
+public struct VisualEffectView: NSViewRepresentable {
+    public var material: NSVisualEffectView.Material = .hudWindow
+    public var blendingMode: NSVisualEffectView.BlendingMode = .withinWindow
+    public var state: NSVisualEffectView.State = .followsWindowActive
+
+    public init(
+        material: NSVisualEffectView.Material = .hudWindow,
+        blendingMode: NSVisualEffectView.BlendingMode = .withinWindow,
+        state: NSVisualEffectView.State = .followsWindowActive
+    ) {
+        self.material = material
+        self.blendingMode = blendingMode
+        self.state = state
+    }
+
+    public func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = state
+        return view
+    }
+
+    public func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+        nsView.state = state
     }
 }

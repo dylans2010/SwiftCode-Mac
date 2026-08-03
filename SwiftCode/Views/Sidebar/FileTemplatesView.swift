@@ -365,7 +365,7 @@ public struct FileTemplatesView: View {
                 }
 
                 viewModel.invalidateCache(at: targetDir)
-                await viewModel.refresh()
+                await viewModel.refresh(bypassDebounce: true)
                 viewModel.selectedNodeID = destinationURL.path
                 dismiss()
             } catch {

@@ -52,6 +52,136 @@ struct BuildToolbarView: View {
         }
     }
 
+    @ViewBuilder
+    private var swiftActionsMenu: some View {
+        Menu {
+            Section("Build & Run") {
+                Button {
+                    Task {
+                        NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "xcode_build_logs"])
+                        _ = await XcodeBuildAPI.shared.buildProject()
+                    }
+                } label: {
+                    Label("Build", systemImage: "play.fill")
+                }
+
+                Button {
+                    NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "xcode_build_logs"])
+                } label: {
+                    Label("Run Full App", systemImage: "play.desktopcomputer")
+                }
+
+                Button {
+                    Task {
+                        if let activeDoc = editorViewModel.activeDocument {
+                            await editorViewModel.saveActiveDocument()
+                            NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "visual_ui_builder"])
+                            let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
+                            await PreviewManager.shared.startFreshLivePreviewSession(sourcePath: activeDoc.url.path, sourceCode: preparedCode)
+                        }
+                    }
+                } label: {
+                    Label("Live Preview", systemImage: "play.rectangle.on.rectangle")
+                }
+
+                Button {
+                    NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "deviceConnect"])
+                } label: {
+                    Label("Device Connect", systemImage: "iphone.badge.play")
+                }
+            }
+
+            Section("Project Maintenance") {
+                Button {
+                    Task {
+                        _ = await XcodeBuildAPI.shared.cleanProject()
+                    }
+                } label: {
+                    Label("Clean Build Folder", systemImage: "trash")
+                }
+
+                Button {
+                    XcodeBuildAPI.shared.showProjectGenerationUI = true
+                } label: {
+                    Label("Generate Xcode Project", systemImage: "hammer.circle.fill")
+                }
+
+                Button {
+                    NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "dependency_manager"])
+                } label: {
+                    Label("Resolve Packages", systemImage: "shippingbox.fill")
+                }
+
+                Button {
+                    Task {
+                        if let activeProj = ProjectSessionStore.shared.activeProject {
+                            ProjectSessionStore.shared.refreshFileTree(for: activeProj)
+                        }
+                    }
+                } label: {
+                    Label("Refresh Workspace", systemImage: "arrow.clockwise")
+                }
+
+                Button {
+                    NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "project_inspector"])
+                } label: {
+                    Label("Validate Project", systemImage: "checkmark.shield")
+                }
+            }
+
+            Section("Diagnostics & Logs") {
+                Button {
+                    NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "xcode_build_logs"])
+                } label: {
+                    Label("Build Logs", systemImage: "doc.text.fill")
+                }
+
+                Button {
+                    NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "preview_logs"])
+                } label: {
+                    Label("Preview Logs", systemImage: "doc.text")
+                }
+
+                Button {
+                    NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "error_diagnostics"])
+                } label: {
+                    Label("Project Diagnostics", systemImage: "exclamationmark.triangle")
+                }
+            }
+
+            Section("Finder Actions") {
+                Button {
+                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: XcodeBuildAPI.shared.determineDerivedDataLocation().path)
+                } label: {
+                    Label("Open Derived Data", systemImage: "folder")
+                }
+
+                Button {
+                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: XcodeBuildAPI.shared.resolveOutputLocation().path)
+                } label: {
+                    Label("Reveal Build Folder", systemImage: "folder.badge.gearshape")
+                }
+
+                Button {
+                    NotificationCenter.default.post(name: NSNotification.Name("ShowExportSheet"), object: nil)
+                } label: {
+                    Label("Export Project...", systemImage: "square.and.arrow.up")
+                }
+
+                Button {
+                    NotificationCenter.default.post(name: NSNotification.Name("com.swiftcode.toggleAppDetailsSidebar"), object: nil)
+                } label: {
+                    Label("Project Information", systemImage: "info.circle")
+                }
+            }
+        } label: {
+            Label("Actions", systemImage: "swift")
+                .foregroundColor(.orange)
+        }
+        .menuStyle(.borderlessButton)
+        .help("Comprehensive Build and Development Actions")
+    }
+
     var body: some View {
         @Bindable var buildManager = self.buildManager
         HStack {
@@ -131,6 +261,7 @@ struct BuildToolbarView: View {
                 }
 
                 openSwiftFilesMenu
+                swiftActionsMenu
 
                 // Pinned & Optional Tools: Only show options that are explicitly pinned (enabled)
                 HStack(spacing: 8) {

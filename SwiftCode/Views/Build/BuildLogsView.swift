@@ -147,9 +147,129 @@ struct BuildLogsView: View {
         return f
     }()
 
+    private func exportBuildLogs() {
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.plainText]
+        savePanel.nameFieldStringValue = "build_logs.txt"
+
+        savePanel.begin { response in
+            if response == .OK, let url = savePanel.url {
+                let logsText = XcodeBuildManager.shared.buildLogs.joined(separator: "\n")
+                try? logsText.write(to: url, atomically: true, encoding: .utf8)
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // Detailed build diagnostics summary header card
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Label("Build Target Specifications", systemImage: "info.circle.fill")
+                                    .font(.headline)
+                                    .foregroundStyle(.orange)
+                                Spacer()
+                                Text(XcodeBuildManager.shared.currentStatus.rawValue)
+                                    .font(.caption2.weight(.bold))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(XcodeBuildManager.shared.currentStatus == .succeeded ? Color.green.opacity(0.2) : Color.red.opacity(0.2))
+                                    .foregroundColor(XcodeBuildManager.shared.currentStatus == .succeeded ? .green : .red)
+                                    .cornerRadius(6)
+                            }
+
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                                LabeledContent("Active SDK", value: XcodeBuildManager.shared.selectedSDKType)
+                                LabeledContent("Active Destination", value: XcodeBuildManager.shared.selectedDestination.replacingOccurrences(of: "generic/platform=", with: ""))
+                                LabeledContent("Active Scheme", value: XcodeBuildManager.shared.selectedScheme ?? "Default")
+                                LabeledContent("Active Platform", value: XcodeBuildManager.shared.selectedSDKType)
+                            }
+                            .font(.caption)
+
+                            Divider()
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Build Command")
+                                    .font(.caption2.bold())
+                                    .foregroundColor(.secondary)
+                                Text("xcodebuild -scheme \"\(XcodeBuildManager.shared.selectedScheme ?? "Default")\" -destination \"\(XcodeBuildManager.shared.selectedDestination)\"")
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .padding(6)
+                                    .background(Color.black.opacity(0.3))
+                                    .cornerRadius(6)
+                            }
+
+                            HStack {
+                                Text("Duration: \(String(format: "%.1f", XcodeBuildManager.shared.buildDuration))s")
+                                Spacer()
+                                Text("Warnings: \(XcodeBuildManager.shared.warningsCount)")
+                                Spacer()
+                                Text("Errors: \(XcodeBuildManager.shared.errorsCount)")
+                            }
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding()
+                    .background(Color.white.opacity(0.04))
+                    .cornerRadius(12)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+
+                    // Diagnostic Actions Bar
+                    HStack(spacing: 12) {
+                        Button {
+                            let cmd = "xcodebuild -scheme \"\(XcodeBuildManager.shared.selectedScheme ?? "Default")\" -destination \"\(XcodeBuildManager.shared.selectedDestination)\""
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(cmd, forType: .string)
+                        } label: {
+                            Label("Copy Command", systemImage: "doc.on.clipboard")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        Button {
+                            let logsText = XcodeBuildManager.shared.buildLogs.joined(separator: "\n")
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(logsText, forType: .string)
+                        } label: {
+                            Label("Copy Logs", systemImage: "doc.on.doc")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        Button {
+                            exportBuildLogs()
+                        } label: {
+                            Label("Export Logs", systemImage: "square.and.arrow.up")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        Spacer()
+
+                        Button {
+                            Task {
+                                guard let project = XcodeBuildAPI.shared.discoverActiveProject() else { return }
+                                await XcodeBuildManager.shared.runBuild(projectURL: project.url.deletingLastPathComponent())
+                            }
+                        } label: {
+                            Label("Retry Build", systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+                        .controlSize(.small)
+                        .disabled(XcodeBuildManager.shared.isBuilding)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
+                }
+
+                Divider()
+
                 // Filter bar
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {

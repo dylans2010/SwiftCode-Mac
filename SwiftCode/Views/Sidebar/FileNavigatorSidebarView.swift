@@ -488,17 +488,33 @@ struct FileNavigatorSidebarView: View {
         }
     }
 
+    private func activeDirectoryURL() -> URL {
+        if let selectedNodeID = viewModel.selectedNodeID {
+            let selectedURL = URL(fileURLWithPath: selectedNodeID)
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: selectedURL.path, isDirectory: &isDir) {
+                if isDir.boolValue {
+                    return selectedURL
+                } else {
+                    return selectedURL.deletingLastPathComponent()
+                }
+            }
+        }
+        return viewModel.projectURL ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    }
+
     private func createNewFileInActiveDir() {
         guard !isCreatingFile else { return }
         isCreatingFile = true
         Task {
             defer { isCreatingFile = false }
-            guard let projectURL = viewModel.projectURL else { return }
-            let newFileURL = nextAvailableURL(in: projectURL, baseName: "Untitled", extensionName: "swift")
+            let targetDir = activeDirectoryURL()
+            let newFileURL = nextAvailableURL(in: targetDir, baseName: "Untitled", extensionName: "swift")
             do {
                 try await FileSystemService.shared.createFile(at: newFileURL)
-                viewModel.invalidateCache(at: projectURL)
-                await viewModel.refresh()
+                viewModel.expandedNodeIDs.insert(targetDir.path)
+                viewModel.invalidateCache(at: targetDir)
+                await viewModel.refresh(bypassDebounce: true)
                 viewModel.selectedNodeID = newFileURL.path
             } catch {
                 LoggingTool.error("Create file failed: \(error.localizedDescription)")
@@ -511,12 +527,13 @@ struct FileNavigatorSidebarView: View {
         isCreatingFolder = true
         Task {
             defer { isCreatingFolder = false }
-            guard let projectURL = viewModel.projectURL else { return }
-            let newFolderURL = nextAvailableURL(in: projectURL, baseName: "New Folder")
+            let targetDir = activeDirectoryURL()
+            let newFolderURL = nextAvailableURL(in: targetDir, baseName: "New Folder")
             do {
                 try await FileSystemService.shared.createDirectory(at: newFolderURL)
-                viewModel.invalidateCache(at: projectURL)
-                await viewModel.refresh()
+                viewModel.expandedNodeIDs.insert(targetDir.path)
+                viewModel.invalidateCache(at: targetDir)
+                await viewModel.refresh(bypassDebounce: true)
                 viewModel.selectedNodeID = newFolderURL.path
             } catch {
                 LoggingTool.error("Create folder failed: \(error.localizedDescription)")

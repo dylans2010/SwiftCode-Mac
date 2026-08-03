@@ -230,16 +230,28 @@ struct SwiftCodeWelcomeView: View {
         }
         .onAppear {
             if let window = NSApplication.shared.windows.first(where: { $0.isVisible && !$0.title.isEmpty }) {
+                if window.styleMask.contains(.fullScreen) {
+                    window.toggleFullScreen(nil)
+                }
+
+                window.titleVisibility = .hidden
+                window.titlebarAppearsTransparent = true
+                if !window.styleMask.contains(.fullSizeContentView) {
+                    window.styleMask.insert(.fullSizeContentView)
+                }
+
                 window.styleMask.remove(.resizable)
                 window.styleMask.remove(.miniaturizable)
                 window.styleMask.remove(.closable)
                 window.standardWindowButton(.closeButton)?.isHidden = true
                 window.standardWindowButton(.miniaturizeButton)?.isHidden = true
                 window.standardWindowButton(.zoomButton)?.isHidden = true
+
                 window.setContentSize(NSSize(width: 950, height: 620))
                 window.minSize = NSSize(width: 950, height: 620)
                 window.maxSize = NSSize(width: 950, height: 620)
                 window.collectionBehavior = []
+                window.center()
             }
         }
         .onDisappear {

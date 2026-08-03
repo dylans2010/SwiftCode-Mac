@@ -58,6 +58,43 @@ struct AppCommands: Commands {
             .keyboardShortcut("0", modifiers: [.command, .shift])
         }
 
+        CommandMenu("Window") {
+            Button("Personal Documentation") {
+                if let project = ProjectSessionStore.shared.activeProject {
+                    PersonalDocWindowManager.shared.showWindow(for: project)
+                }
+            }
+            .keyboardShortcut("d", modifiers: [.command, .option])
+
+            Button("Settings") {
+                SettingsWindowManager.shared.showSettings()
+            }
+
+            Button("Source Control") {
+                if let project = ProjectSessionStore.shared.activeProject {
+                    let gitVM = GitViewModel()
+                    gitVM.repositoryURL = project.directoryURL
+                    SourceControlWindowManager.shared.showWindow(for: project, gitViewModel: gitVM)
+                }
+            }
+            .keyboardShortcut("g", modifiers: [.command, .option])
+
+            Button("Visual UI Builder") {
+                VisualUIBuilderWindowManager.shared.showWindow()
+            }
+            .keyboardShortcut("v", modifiers: [.command, .option])
+
+            Button("Database Explorer") {
+                DatabaseExplorerWindowManager.shared.showWindow()
+            }
+            .keyboardShortcut("e", modifiers: [.command, .option])
+
+            Button("Project Notes") {
+                ProjectNotesWindowManager.shared.showWindow()
+            }
+            .keyboardShortcut("n", modifiers: [.command, .option])
+        }
+
         CommandMenu("Git Operations") {
             Button("Commit...") {
                 NotificationCenter.default.post(name: NSNotification.Name("SelectMenuBarTab"), object: nil, userInfo: ["tab": "Commit"])

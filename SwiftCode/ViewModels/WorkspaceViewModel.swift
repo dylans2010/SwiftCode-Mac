@@ -31,11 +31,26 @@ public class WorkspaceViewModel: Sendable {
             await git.refreshStatus()
             await scanAndCacheXcodeProjects()
 
-            // Auto open the active file from session, or automatically discover the primary file
+            // Auto open the active file from session, and restore all open tabs from the session
             let sessionStore = ProjectSessionStore.shared
-            if let activeNode = sessionStore.activeFileNode {
-                let fileURL = projectURL.appendingPathComponent(activeNode.path)
-                await editor.openFile(url: fileURL)
+            if let session = sessionStore.activeSession {
+                // Restore navigation expanded nodes
+                projectTree.expandedNodeIDs = session.expandedNodeIDs
+                projectTree.selectedNodeID = session.selectedNodeID
+
+                // Restore open tabs
+                for node in session.openFileTabs {
+                    let tabURL = projectURL.appendingPathComponent(node.path)
+                    if tabURL != projectURL.appendingPathComponent(session.activeFileNode?.path ?? "") {
+                        await editor.openFile(url: tabURL)
+                    }
+                }
+
+                // Then open the active file (which will select it)
+                if let activeNode = session.activeFileNode {
+                    let fileURL = projectURL.appendingPathComponent(activeNode.path)
+                    await editor.openFile(url: fileURL)
+                }
             } else if let rootNode = projectTree.rootNode, let children = rootNode.children {
                 if let primaryURL = findPrimarySwiftFile(in: children) {
                     let relativePath = primaryURL.path.replacingOccurrences(of: projectURL.path + "/", with: "")

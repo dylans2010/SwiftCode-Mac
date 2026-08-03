@@ -49,35 +49,42 @@ public class ProjectTreeViewModel {
         isLoading = false
     }
 
-    public func refresh() async {
-        refreshTask?.cancel()
-        refreshTask = Task {
-            try? await Task.sleep(nanoseconds: 300_000_000) // 300ms debounce
-            if Task.isCancelled { return }
-
-            guard let projectURL else { return }
-
-            isLoading = true
-            loadError = nil
-
-            // Clear cache for fresh read on manual refresh
-            cachedChildren.removeAll()
-
-            let startTime = CFAbsoluteTimeGetCurrent()
-            do {
-                let children = try await fetchChildren(at: projectURL)
-                var root = ProjectNode(url: projectURL, kind: .folder, children: children)
-                root = await rebuildNodeRecursively(root)
-                self.rootNode = root
-                let duration = CFAbsoluteTimeGetCurrent() - startTime
-                logger.info("Refreshed project tree in \(duration, format: .fixed(precision: 4)) seconds.")
-            } catch {
-                loadError = "Failed to refresh project: \(error.localizedDescription)"
-                logger.error("Failed to refresh project tree: \(error.localizedDescription, privacy: .public)")
+    public func refresh(bypassDebounce: Bool = false) async {
+        if !bypassDebounce {
+            refreshTask?.cancel()
+            refreshTask = Task {
+                try? await Task.sleep(nanoseconds: 300_000_000) // 300ms debounce
+                if Task.isCancelled { return }
+                await performRefresh()
             }
-            isLoading = false
+            _ = await refreshTask?.result
+        } else {
+            await performRefresh()
         }
-        _ = await refreshTask?.result
+    }
+
+    private func performRefresh() async {
+        guard let projectURL else { return }
+
+        isLoading = true
+        loadError = nil
+
+        // Clear cache for fresh read on manual refresh
+        cachedChildren.removeAll()
+
+        let startTime = CFAbsoluteTimeGetCurrent()
+        do {
+            let children = try await fetchChildren(at: projectURL)
+            var root = ProjectNode(url: projectURL, kind: .folder, children: children)
+            root = await rebuildNodeRecursively(root)
+            self.rootNode = root
+            let duration = CFAbsoluteTimeGetCurrent() - startTime
+            logger.info("Refreshed project tree in \(duration, format: .fixed(precision: 4)) seconds.")
+        } catch {
+            loadError = "Failed to refresh project: \(error.localizedDescription)"
+            logger.error("Failed to refresh project tree: \(error.localizedDescription, privacy: .public)")
+        }
+        isLoading = false
     }
 
     public func toggleExpanded(_ node: ProjectNode) async {
