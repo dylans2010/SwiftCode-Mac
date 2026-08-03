@@ -2,75 +2,89 @@ import Foundation
 
 // MARK: - Manager Architectures
 
-public final class StoreKitDocumentManager: Sendable {
+@MainActor
+public final class StoreKitDocumentManager {
     public static let shared = StoreKitDocumentManager()
     private init() {}
     public func activeDocument() -> StoreKitConfig { StoreKitWorkspaceManager.shared.activeConfig }
 }
 
-public final class StoreKitProductManager: Sendable {
+@MainActor
+public final class StoreKitProductManager {
     public static let shared = StoreKitProductManager()
     private init() {}
     public func fetchProducts() -> [SKProduct] { StoreKitWorkspaceManager.shared.activeConfig.products }
 }
 
-public final class StoreKitSubscriptionManager: Sendable {
+@MainActor
+public final class StoreKitSubscriptionManager {
     public static let shared = StoreKitSubscriptionManager()
     private init() {}
     public func fetchGroups() -> [SKSubscriptionGroup] { StoreKitWorkspaceManager.shared.activeConfig.subscriptionGroups }
 }
 
-public final class StoreKitOfferManager: Sendable {
+@MainActor
+public final class StoreKitOfferManager {
     public static let shared = StoreKitOfferManager()
     private init() {}
 }
 
-public final class StoreKitSimulatorManager: Sendable {
+@MainActor
+public final class StoreKitSimulatorManager {
     public static let shared = StoreKitSimulatorManager()
     private init() {}
 }
 
-public final class StoreKitValidationManager: Sendable {
+@MainActor
+public final class StoreKitValidationManager {
     public static let shared = StoreKitValidationManager()
     private init() {}
 }
 
-public final class StoreKitTemplateManager: Sendable {
+@MainActor
+public final class StoreKitTemplateManager {
     public static let shared = StoreKitTemplateManager()
     private init() {}
 }
 
-public final class StoreKitImportManager: Sendable {
+@MainActor
+public final class StoreKitImportManager {
     public static let shared = StoreKitImportManager()
     private init() {}
 }
 
-public final class StoreKitExportManager: Sendable {
+@MainActor
+public final class StoreKitExportManager {
     public static let shared = StoreKitExportManager()
     private init() {}
 }
 
-public final class StoreKitLocalizationManager: Sendable {
+@MainActor
+public final class StoreKitLocalizationManager {
     public static let shared = StoreKitLocalizationManager()
     private init() {}
 }
 
-public final class StoreKitStorefrontManager: Sendable {
+@MainActor
+public final class StoreKitStorefrontManager {
     public static let shared = StoreKitStorefrontManager()
     private init() {}
 }
 
-public final class StoreKitAssetManager: Sendable {
+@MainActor
+public final class StoreKitAssetManager {
     public static let shared = StoreKitAssetManager()
     private init() {}
 }
 
-public final class StoreKitLogManager: Sendable {
+@MainActor
+public final class StoreKitLogManager {
     public static let shared = StoreKitLogManager()
     private init() {}
 }
 
-public final class StoreKitSearchManager: Sendable {
+@MainActor
+public final class StoreKitSearchManager {
     public static let shared = StoreKitSearchManager()
     private init() {}
 }
