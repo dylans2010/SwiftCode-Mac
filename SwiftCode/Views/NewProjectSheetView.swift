@@ -7,6 +7,9 @@ struct NewProjectSheetView: View {
     @Environment(\.dismiss) var dismiss
 
     @State private var mode: SelectionMode = .create
+    @State private var showingImportNameAlert = false
+    @State private var pendingImportURL: URL?
+    @State private var pendingImportName = ""
 
     enum SelectionMode: String, CaseIterable, Identifiable {
         case create = "New"
@@ -85,6 +88,25 @@ struct NewProjectSheetView: View {
         }
         .frame(width: 760, height: 560)
         .background(.ultraThinMaterial)
+        .alert("Project Name", isPresented: $showingImportNameAlert) {
+            TextField("Enter project name", text: $pendingImportName)
+            Button("Import") {
+                if let url = pendingImportURL {
+                    Task {
+                        do {
+                            let project = try await sessionStore.importProject(from: url, name: pendingImportName)
+                            await sessionStore.openProject(project)
+                            dismiss()
+                        } catch {
+                            LoggingTool.error("Failed to import project: \(error)")
+                        }
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Please enter a name for your imported project.")
+        }
     }
 
     private var sidebar: some View {
@@ -294,35 +316,23 @@ struct NewProjectSheetView: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         if panel.runModal() == .OK, let url = panel.url {
-            Task {
-                do {
-                    let project = try await sessionStore.importProject(from: url)
-                    await sessionStore.openProject(project)
-                    dismiss()
-                } catch {
-                    LoggingTool.error("Failed to import folder: \(error)")
-                }
-            }
+            pendingImportURL = url
+            pendingImportName = url.lastPathComponent
+            showingImportNameAlert = true
         }
     }
 
     private func importXcodeProject() {
         let panel = NSOpenPanel()
         let xcodeProjType = UTType("com.apple.dt.document.xcodeproj") ?? UTType(filenameExtension: "xcodeproj") ?? .directory
-        panel.allowedContentTypes = [xcodeProjType]
+        panel.allowedContentTypes = [xcodeProjType, .directory]
         panel.treatsFilePackagesAsDirectories = false
         panel.canChooseFiles = true
-        panel.canChooseDirectories = false
+        panel.canChooseDirectories = true
         if panel.runModal() == .OK, let url = panel.url {
-            Task {
-                do {
-                    let project = try await sessionStore.importProject(from: url.deletingLastPathComponent())
-                    await sessionStore.openProject(project)
-                    dismiss()
-                } catch {
-                    LoggingTool.error("Failed to import Xcode project: \(error)")
-                }
-            }
+            pendingImportURL = url
+            pendingImportName = url.deletingPathExtension().lastPathComponent
+            showingImportNameAlert = true
         }
     }
 }

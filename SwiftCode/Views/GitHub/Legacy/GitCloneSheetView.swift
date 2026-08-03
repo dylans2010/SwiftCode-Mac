@@ -9,6 +9,9 @@ struct GitCloneSheetView: View {
     @State private var repositories: [GitHubRepository] = []
     @State private var isLoadingRepos = false
     @State private var errorMessage: String?
+    @State private var showingCloneNameAlert = false
+    @State private var cloneProjectName = ""
+    @State private var pendingCloneParentURL: URL?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -144,6 +147,39 @@ struct GitCloneSheetView: View {
         .onAppear {
             fetchUserRepositories()
         }
+        .alert("Project Name", isPresented: $showingCloneNameAlert) {
+            TextField("Enter project name", text: $cloneProjectName)
+            Button("Clone") {
+                if let parentURL = pendingCloneParentURL {
+                    executeClone(to: parentURL)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Please enter a name for the cloned project folder.")
+        }
+    }
+
+    private func executeClone(to parentURL: URL) {
+        let destination = parentURL.appendingPathComponent(cloneProjectName)
+        isCloning = true
+        errorMessage = nil
+        Task {
+            do {
+                guard let remote = URL(string: remoteURL) else {
+                    throw AppError.validationError("Invalid Remote URL")
+                }
+                let token = try? await KeychainService.shared.get(account: "github-pat")
+                try await GitService.shared.clone(remoteURL: remote, destinationURL: destination, token: token)
+                let project = try await ProjectSessionStore.shared.importProject(from: destination, name: cloneProjectName)
+                await ProjectSessionStore.shared.openProject(project)
+                dismiss()
+            } catch {
+                errorMessage = "Clone failed: \(error.localizedDescription)"
+                LoggingTool.error("Clone failed: \(error)")
+            }
+            isCloning = false
+        }
     }
 
     private func fetchUserRepositories() {
@@ -168,26 +204,13 @@ struct GitCloneSheetView: View {
         panel.message = "Select clone destination"
 
         if panel.runModal() == .OK, let url = panel.url {
-            isCloning = true
-            Task {
-                do {
-                    guard let remote = URL(string: remoteURL) else {
-                        throw AppError.validationError("Invalid Remote URL")
-                    }
-                    let folderName = remote.deletingPathExtension().lastPathComponent
-                    let destination = url.appendingPathComponent(folderName)
-
-                    let token = try? await KeychainService.shared.get(account: "github-pat")
-                    try await GitService.shared.clone(remoteURL: remote, destinationURL: destination, token: token)
-                    let project = try await ProjectSessionStore.shared.importProject(from: destination)
-                    await ProjectSessionStore.shared.openProject(project)
-                    dismiss()
-                } catch {
-                    errorMessage = "Clone failed: \(error.localizedDescription)"
-                    LoggingTool.error("Clone failed: \(error)")
-                }
-                isCloning = false
+            pendingCloneParentURL = url
+            if let remote = URL(string: remoteURL) {
+                cloneProjectName = remote.deletingPathExtension().lastPathComponent
+            } else {
+                cloneProjectName = "ClonedProject"
             }
+            showingCloneNameAlert = true
         }
     }
 }

@@ -820,6 +820,9 @@ schemes:
             .replacingOccurrences(of: "__TARGET_SOURCES__", with: sourcesBlock)
 
         let projectYMLURL = rootURL.appendingPathComponent("project.yml")
+        defer {
+            try? FileManager.default.removeItem(at: projectYMLURL)
+        }
         do {
             try finalYML.write(to: projectYMLURL, atomically: true, encoding: .utf8)
             appendLog("[SYSTEM] Generated project.yml at \(projectYMLURL.path)")

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 public struct EntitlementsEditorView: View {
     private let fileURL: URL?
@@ -8,9 +9,9 @@ public struct EntitlementsEditorView: View {
     @State private var selectedCategory: EntitlementCategory? = nil
     @State private var selectedKey: String? = nil
     @State private var xmlEditorText = ""
-    @State private var showXMLSplit = true
-    @State private var favorites: Set<String> = []
-    @State private var showingAddPopover = false
+    @State private var showXMLSheet = false
+    @State private var showingAddSheet = false
+    @State private var showingInspectorSheet = false
     @Environment(WorkspaceViewModel.self) private var workspaceViewModel
     @State private var isCreating = false
     @State private var creationError: String? = nil
@@ -116,10 +117,8 @@ public struct EntitlementsEditorView: View {
             .background(.ultraThinMaterial)
             .macDesktopOptimized()
         } else {
-            HSplitView {
-                // Left Column: Main Entitlements Configurator & List
             VStack(spacing: 0) {
-                // Header / Toolbar
+                // Top Modern Action Bar
                 HStack(spacing: 12) {
                     HStack {
                         Image(systemName: "magnifyingglass")
@@ -134,22 +133,29 @@ public struct EntitlementsEditorView: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(6)
-                    .background(Color.white.opacity(0.06))
-                    .cornerRadius(8)
+                    .padding(8)
+                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
 
                     Spacer()
 
-                    // Add Cap Button
+                    // Category Filter Picker
+                    Picker("", selection: $selectedCategory) {
+                        Text("All Categories").tag(nil as EntitlementCategory?)
+                        ForEach(EntitlementCategory.allCases, id: \.self) { cat in
+                            Text(cat.rawValue).tag(cat as EntitlementCategory?)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 150)
+
+                    // View XML Sheet
                     Button {
-                        showingAddPopover = true
+                        syncXMLText()
+                        showXMLSheet = true
                     } label: {
-                        Label("Capability", systemImage: "plus")
+                        Label("Raw XML", systemImage: "chevron.left.forwardslash.chevron.right")
                     }
-                    .buttonStyle(.borderedProminent)
-                    .popover(isPresented: $showingAddPopover) {
-                        addCapabilityPopoverView
-                    }
+                    .buttonStyle(.bordered)
 
                     // Save Button
                     Button {
@@ -159,65 +165,49 @@ public struct EntitlementsEditorView: View {
                     }
                     .buttonStyle(.bordered)
 
-                    // Toggle Split XML Editor
+                    // Add Cap Button
                     Button {
-                        showXMLSplit.toggle()
+                        showingAddSheet = true
                     } label: {
-                        Image(systemName: "sidebar.trailing")
-                            .foregroundStyle(showXMLSplit ? .blue : .primary)
+                        Label("Capability", systemImage: "plus")
+                            .bold()
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
                 }
                 .padding()
-                .background(.ultraThinMaterial)
+                .background(.thinMaterial)
 
                 Divider()
 
-                // Validation Status Summary Banner
+                // Validation summary banner
                 validationBanner
 
                 // Entitlements list
                 List {
-                    // Category Filters
-                    Section("Categories") {
-                        HStack {
-                            Button("All") { selectedCategory = nil }
-                                .buttonStyle(.bordered)
-                                .tint(selectedCategory == nil ? .blue : nil)
-
-                            ForEach(EntitlementCategory.allCases, id: \.self) { cat in
-                                Button(cat.rawValue) { selectedCategory = cat }
-                                    .buttonStyle(.bordered)
-                                    .tint(selectedCategory == cat ? .blue : nil)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-
                     Section("Active App Capabilities") {
-                        if activeKeys.isEmpty {
-                            ContentUnavailableView("No Active Capabilities", systemImage: "lock.shield", description: Text("Click '+' or browse capabilities below to enable them."))
+                        let filtered = activeKeys.filter { key in
+                            if let cat = selectedCategory {
+                                let meta = EntitlementsCatalog.all.first(where: { $0.rawKey == key })
+                                return meta?.category == cat
+                            }
+                            return true
+                        }
+
+                        if filtered.isEmpty {
+                            ContentUnavailableView("No Active Capabilities", systemImage: "lock.shield", description: Text("Click 'Capability' or check categories to enable them."))
                                 .padding()
                         } else {
-                            ForEach(activeKeys.filter { key in
-                                if let cat = selectedCategory {
-                                    let meta = EntitlementsCatalog.all.first(where: { $0.rawKey == key })
-                                    return meta?.category == cat
-                                }
-                                return true
-                            }, id: \.self) { key in
+                            ForEach(filtered, id: \.self) { key in
                                 EntitlementRowView(
                                     key: key,
                                     value: entitlementsDict[key] ?? "",
-                                    isFavorite: favorites.contains(key),
-                                    onSelect: { selectedKey = key },
-                                    onToggleFavorite: {
-                                        if favorites.contains(key) {
-                                            favorites.remove(key)
-                                        } else {
-                                            favorites.insert(key)
-                                        }
+                                    isFavorite: false,
+                                    onSelect: {
+                                        selectedKey = key
+                                        showingInspectorSheet = true
                                     },
+                                    onToggleFavorite: {},
                                     onDelete: {
                                         entitlementsDict.removeValue(forKey: key)
                                         if selectedKey == key { selectedKey = nil }
@@ -228,70 +218,86 @@ public struct EntitlementsEditorView: View {
                                         syncXMLText()
                                     }
                                 )
+                                .padding(.vertical, 4)
+                                .background(Color.primary.opacity(0.02))
+                                .cornerRadius(10)
                             }
                         }
                     }
                 }
                 .listStyle(.inset)
             }
-            .frame(minWidth: 450, idealWidth: 650)
-
-            // Right Column: Live XML Editor & Inspector
-            if showXMLSplit {
-                HSplitView {
-                    // Inspector Panel
-                    VStack(spacing: 0) {
-                        Text("Inspector")
+            .sheet(isPresented: $showXMLSheet) {
+                // XML View Sheet
+                VStack(spacing: 0) {
+                    HStack {
+                        Label("Entitlements XML Editor", systemImage: "lock.shield")
                             .font(.headline)
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(.ultraThinMaterial)
-                        Divider()
-
-                        if let key = selectedKey {
-                            let metadata = EntitlementsCatalog.all.first(where: { $0.rawKey == key })
-                            EntitlementInspectorPanel(
-                                key: key,
-                                value: entitlementsDict[key] ?? "",
-                                metadata: metadata,
-                                onUpdateValue: { newVal in
-                                    entitlementsDict[key] = newVal
-                                    syncXMLText()
-                                }
-                            )
-                        } else {
-                            ContentUnavailableView("Select a Capability", systemImage: "info.circle", description: Text("Select any enabled capability to view technical documentation, platforms, and validation requirements."))
-                                .padding()
+                        Spacer()
+                        Button("Done") {
+                            showXMLSheet = false
                         }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
                     }
-                    .frame(minWidth: 250, idealWidth: 320)
+                    .padding()
+                    .background(.thinMaterial)
 
-                    // XML Code Editor
-                    VStack(spacing: 0) {
-                        Text("Raw Entitlements XML")
-                            .font(.headline)
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(.ultraThinMaterial)
-                        Divider()
+                    Divider()
 
-                        TextEditor(text: $xmlEditorText)
-                            .font(.system(.body, design: .monospaced))
-                            .onChange(of: xmlEditorText) { _, newValue in
-                                if let parsed = try? manager.parseRawXML(newValue) {
-                                    self.entitlementsDict = parsed
-                                }
+                    TextEditor(text: $xmlEditorText)
+                        .font(.system(.body, design: .monospaced))
+                        .padding()
+                        .onChange(of: xmlEditorText) { _, newValue in
+                            if let parsed = try? manager.parseRawXML(newValue) {
+                                self.entitlementsDict = parsed
                             }
+                        }
+                }
+                .frame(width: 650, height: 480)
+            }
+            .sheet(isPresented: $showingAddSheet) {
+                addCapabilitySheetView
+            }
+            .sheet(isPresented: $showingInspectorSheet) {
+                // Inspector Details Sheet
+                VStack(spacing: 0) {
+                    HStack {
+                        Label("Capability Inspector", systemImage: "info.circle")
+                            .font(.headline)
+                        Spacer()
+                        Button("Done") {
+                            showingInspectorSheet = false
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .frame(minWidth: 250, idealWidth: 350)
+                    .padding()
+                    .background(.thinMaterial)
+
+                    Divider()
+
+                    if let key = selectedKey {
+                        let metadata = EntitlementsCatalog.all.first(where: { $0.rawKey == key })
+                        EntitlementInspectorPanel(
+                            key: key,
+                            value: entitlementsDict[key] ?? "",
+                            metadata: metadata,
+                            onUpdateValue: { newVal in
+                                entitlementsDict[key] = newVal
+                                syncXMLText()
+                            }
+                        )
+                    } else {
+                        ContentUnavailableView("No Capability Selected", systemImage: "info.circle")
+                    }
+                }
+                .frame(width: 500, height: 450)
+            }
+            .onAppear {
+                if fileURL != nil {
+                    syncXMLText()
                 }
             }
-        }
-        .onAppear {
-            if fileURL != nil {
-                syncXMLText()
-            }
-        }
         }
     }
 
@@ -335,16 +341,24 @@ public struct EntitlementsEditorView: View {
         }
     }
 
-    private var addCapabilityPopoverView: some View {
+    private var addCapabilitySheetView: some View {
         let available = EntitlementsCatalog.all.filter { entitlementsDict[$0.rawKey] == nil }
         return VStack(alignment: .leading, spacing: 12) {
-            Text("Add Capability Entitlement")
-                .font(.headline)
+            HStack {
+                Text("Add Capability Entitlement")
+                    .font(.headline)
+                Spacer()
+                Button("Close") {
+                    showingAddSheet = false
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(.bottom, 6)
+
+            Divider()
 
             if available.isEmpty {
-                Text("All capabilities in catalog are already configured.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                ContentUnavailableView("All capabilities already added", systemImage: "checkmark.seal")
             } else {
                 List(available) { meta in
                     Button {
@@ -356,11 +370,12 @@ public struct EntitlementsEditorView: View {
                             entitlementsDict[meta.rawKey] = ""
                         }
                         syncXMLText()
-                        showingAddPopover = false
+                        showingAddSheet = false
                     } label: {
                         HStack {
                             Image(systemName: meta.sfSymbol)
                                 .foregroundStyle(.blue)
+                                .frame(width: 20)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(meta.displayName)
                                     .font(.body.bold())
@@ -373,203 +388,9 @@ public struct EntitlementsEditorView: View {
                     .buttonStyle(.plain)
                     .padding(.vertical, 4)
                 }
-                .frame(height: 250)
             }
-
-            Button("Close") {
-                showingAddPopover = false
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding()
-        .frame(width: 350, height: 360)
-    }
-}
-
-// MARK: - Row View
-
-struct EntitlementRowView: View {
-    let key: String
-    let value: Any
-    let isFavorite: Bool
-    let onSelect: () -> Void
-    let onToggleFavorite: () -> Void
-    let onDelete: () -> Void
-    let onValueChange: (Any) -> Void
-
-    var body: some View {
-        let metadata = EntitlementsCatalog.all.first(where: { $0.rawKey == key })
-        HStack(alignment: .top, spacing: 12) {
-            Button(action: onToggleFavorite) {
-                Image(systemName: isFavorite ? "star.fill" : "star")
-                    .foregroundColor(isFavorite ? .yellow : .secondary)
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 4)
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(metadata?.displayName ?? key)
-                        .font(.body.bold())
-                    Spacer()
-                    if let category = metadata?.category {
-                        Text(category.rawValue)
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.blue.opacity(0.12))
-                            .foregroundStyle(.blue)
-                            .cornerRadius(4)
-                    }
-                }
-
-                Text(key)
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(.secondary)
-
-                valueEditorView
-                    .padding(.top, 4)
-            }
-
-            Spacer()
-
-            Button(role: .destructive, action: onDelete) {
-                Image(systemName: "trash")
-                    .foregroundStyle(.red)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.vertical, 8)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onSelect()
-        }
-    }
-
-    @ViewBuilder
-    private var valueEditorView: some View {
-        if let boolVal = value as? Bool {
-            Toggle(isOn: Binding(
-                get: { boolVal },
-                set: { onValueChange($0) }
-            )) {
-                Text(boolVal ? "Enabled" : "Disabled")
-                    .font(.caption2.bold())
-            }
-        } else if let arrayVal = value as? [String] {
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(arrayVal.indices, id: \.self) { index in
-                    HStack {
-                        TextField("Group / Access Group Identifier", text: Binding(
-                            get: { arrayVal[index] },
-                            set: { newVal in
-                                var copy = arrayVal
-                                copy[index] = newVal
-                                onValueChange(copy)
-                            }
-                        ))
-                        .textFieldStyle(.roundedBorder)
-
-                        Button {
-                            var copy = arrayVal
-                            copy.remove(at: index)
-                            onValueChange(copy)
-                        } label: {
-                            Image(systemName: "minus.circle")
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                Button {
-                    var copy = arrayVal
-                    copy.append("")
-                    onValueChange(copy)
-                } label: {
-                    Label("Add Identifier", systemImage: "plus")
-                        .font(.caption)
-                }
-                .buttonStyle(.plain)
-            }
-        } else {
-            let strVal = String(describing: value)
-            TextField("Value", text: Binding(
-                get: { strVal },
-                set: { onValueChange($0) }
-            ))
-            .textFieldStyle(.roundedBorder)
-        }
-    }
-}
-
-// MARK: - Inspector Panel
-
-struct EntitlementInspectorPanel: View {
-    let key: String
-    let value: Any
-    let metadata: EntitlementMetadata?
-    let onUpdateValue: (Any) -> Void
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    if let symbol = metadata?.sfSymbol {
-                        Image(systemName: symbol)
-                            .font(.title)
-                            .foregroundStyle(.blue)
-                    }
-                    Text(metadata?.displayName ?? key)
-                        .font(.title3.bold())
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("RAW KEY")
-                        .font(.caption2.bold())
-                        .foregroundStyle(.secondary)
-                    Text(key)
-                        .font(.system(.body, design: .monospaced))
-                }
-
-                if let desc = metadata?.entitlementDescription {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("DESCRIPTION")
-                            .font(.caption2.bold())
-                            .foregroundStyle(.secondary)
-                        Text(desc)
-                    }
-                }
-
-                if let usage = metadata?.recommendedUsage {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("RECOMMENDED USAGE")
-                            .font(.caption2.bold())
-                            .foregroundStyle(.secondary)
-                        Text(usage)
-                            .font(.callout.italic())
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("SUPPORTED PLATFORMS")
-                        .font(.caption2.bold())
-                        .foregroundStyle(.secondary)
-                    if let platforms = metadata?.supportedPlatforms {
-                        HStack {
-                            ForEach(platforms, id: \.self) { plat in
-                                Text(plat.rawValue)
-                                    .font(.caption2)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.blue.opacity(0.1))
-                                    .cornerRadius(4)
-                            }
-                        }
-                    } else {
-                        Text("macOS, iOS, watchOS, tvOS")
-                    }
-                }
-            }
-            .padding()
-        }
+        .frame(width: 400, height: 420)
     }
 }

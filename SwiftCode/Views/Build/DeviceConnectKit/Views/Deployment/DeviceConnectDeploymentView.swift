@@ -182,20 +182,7 @@ public struct DeviceConnectDeploymentView: View {
 
     private func validateOrGenerateXcodeProject() {
         let api = XcodeBuildAPI.shared
-        if api.hasWorkspaceOrXcodeproj() {
-            // Already exists, run validation
-            Task {
-                let validation = await api.validateBuildEnvironment()
-                if validation.isValid {
-                    UnifiedLogger.shared.log("Xcode Project verified and valid.", severity: .system, subsystem: "DeviceConnect", operation: "Validation")
-                } else {
-                    api.showProjectGenerationUI = true
-                }
-            }
-        } else {
-            // Does not exist, begin generation UI
-            api.showProjectGenerationUI = true
-        }
+        api.showProjectGenerationUI = true
     }
 }
 
