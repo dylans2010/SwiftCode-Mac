@@ -424,7 +424,7 @@ final class ProjectSessionStore {
         try data.write(to: metaURL, options: .atomic)
     }
 
-    func importProject(from url: URL) async throws -> Project {
+    func importProject(from url: URL, name customName: String? = nil) async throws -> Project {
         let isAccessing = url.startAccessingSecurityScopedResource()
         defer { if isAccessing { url.stopAccessingSecurityScopedResource() } }
 
@@ -445,7 +445,7 @@ final class ProjectSessionStore {
         }
 
         // 2. Automatically determine and extract all metadata
-        let name = rootURL.lastPathComponent
+        let name = customName ?? rootURL.lastPathComponent
 
         // Scan schemes
         let schemes = XcodeBuildAPI.shared.discoverActiveProject()?.schemes.map { $0.name } ?? [name]

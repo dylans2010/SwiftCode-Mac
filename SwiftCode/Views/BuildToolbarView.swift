@@ -70,6 +70,17 @@ struct BuildToolbarView: View {
                 .buttonStyle(.bordered)
                 .help("Open Workspace Tools Hub")
 
+                Button {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("com.swiftcode.toggleAppDetailsSidebar"),
+                        object: nil
+                    )
+                } label: {
+                    Label("App Details", systemImage: "info.circle.fill")
+                }
+                .buttonStyle(.bordered)
+                .help("Toggle App Details Sidebar")
+
                 if let activeDoc = editorViewModel.activeDocument, activeDoc.url.pathExtension.lowercased() == "swift" {
                     Button {
                         Task {

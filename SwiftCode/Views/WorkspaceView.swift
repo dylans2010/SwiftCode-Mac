@@ -27,6 +27,11 @@ struct WorkspaceView: View {
     @AppStorage("com.swiftcode.workspace.artboardSimulatorWidth") private var artboardSimulatorWidth = 360.0
     @State private var dragStartWidthSimulator: CGFloat? = nil
 
+    // Collapsible App Details Sidebar Panel
+    @AppStorage("com.swiftcode.workspace.showAppDetailsSidebar") private var showAppDetailsSidebar = false
+    @AppStorage("com.swiftcode.workspace.appDetailsSidebarWidth") private var appDetailsSidebarWidth = 320.0
+    @State private var dragStartWidthAppDetails: CGFloat? = nil
+
     // Feature sheet states
     @State private var activeSheet: ToolbarActionManager.SheetDestination?
     @State private var showingExportSheet = false
@@ -139,6 +144,39 @@ struct WorkspaceView: View {
                         .frame(width: agentInspectorWidth)
                         .transition(.move(edge: .trailing))
                 }
+
+                if showAppDetailsSidebar {
+                    // Custom drag handle divider
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.2))
+                        .frame(width: 4)
+                        .contentShape(Rectangle())
+                        .onHover { isHovered in
+                            if isHovered {
+                                NSCursor.resizeLeftRight.push()
+                            } else {
+                                NSCursor.pop()
+                            }
+                        }
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    if dragStartWidthAppDetails == nil {
+                                        dragStartWidthAppDetails = appDetailsSidebarWidth
+                                    }
+                                    let delta = value.translation.width
+                                    let newWidth = (dragStartWidthAppDetails ?? 320.0) - delta
+                                    appDetailsSidebarWidth = max(280, min(600, newWidth))
+                                }
+                                .onEnded { _ in
+                                    dragStartWidthAppDetails = nil
+                                }
+                        )
+
+                    XcodeProjectDetailsSheet()
+                        .frame(width: appDetailsSidebarWidth)
+                        .transition(.move(edge: .trailing))
+                }
             }
         }
         .environment(viewModel)
@@ -227,6 +265,11 @@ struct WorkspaceView: View {
                 if let visDoc = DocumentCoordinator.shared.visualUIDocument {
                     visDoc.scene.activeArtboardID = artboardID
                 }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("com.swiftcode.toggleAppDetailsSidebar"))) { _ in
+            withAnimation(.spring()) {
+                showAppDetailsSidebar.toggle()
             }
         }
         .background(Color(hex: themeVM.currentTheme.background))

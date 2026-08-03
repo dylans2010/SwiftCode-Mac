@@ -6,6 +6,7 @@ public struct CodeDictionarySearch: View {
     @Bindable var manager = DictionaryManager.shared
     @State private var query = ""
     @FocusState private var isFieldFocused: Bool
+    @State private var hoveredItem: String? = nil
 
     // List of common search suggestions
     private let suggestions = [
@@ -22,13 +23,13 @@ public struct CodeDictionarySearch: View {
     public var body: some View {
         VStack(spacing: 0) {
             // Spotlight-style Search Input Header
-            HStack(spacing: 12) {
-                Image(systemName: "magnifyingglass")
+            HStack(spacing: 14) {
+                Image(systemName: "sparkles")
                     .font(.title2)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.orange.gradient)
 
                 TextField("Search terminology, concepts, APIs...", text: $query)
-                    .font(.title2)
+                    .font(.system(.title3, design: .rounded))
                     .textFieldStyle(.plain)
                     .focused($isFieldFocused)
                     .onSubmit {
@@ -51,38 +52,44 @@ public struct CodeDictionarySearch: View {
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
-                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
             }
-            .padding(16)
-            .background(.ultraThinMaterial)
+            .padding(18)
+            .background(Color(NSColor.windowBackgroundColor).opacity(0.85))
 
             Divider()
 
             // Spotlight Results & Suggestions List
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 18) {
                     if query.isEmpty {
                         // Recent Searches section
                         let recents = manager.history.prefix(5)
                         if !recents.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("RECENTS")
-                                    .font(.caption2.weight(.bold))
-                                    .foregroundColor(.secondary)
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Image(systemName: "clock")
+                                    Text("RECENTS")
+                                        .font(.system(size: 10, weight: .bold))
+                                }
+                                .foregroundColor(.secondary)
 
                                 ForEach(recents) { item in
                                     suggestionRow(item.query, isRecent: true)
                                 }
                             }
                             .padding(.horizontal, 16)
-                            .padding(.top, 12)
+                            .padding(.top, 14)
                         }
 
                         // Static suggestions section
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("SUGGESTED TOPICS")
-                                .font(.caption2.weight(.bold))
-                                .foregroundColor(.secondary)
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Image(systemName: "sparkles")
+                                Text("SUGGESTED TOPICS")
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+                            .foregroundColor(.secondary)
 
                             ForEach(suggestions.prefix(8), id: \.self) { sug in
                                 suggestionRow(symLabel(sug), actualQuery: sug, isRecent: false)
@@ -92,10 +99,13 @@ public struct CodeDictionarySearch: View {
                         .padding(.top, 8)
                     } else {
                         // Instant filtering section
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("MATCHING SUGGESTIONS")
-                                .font(.caption2.weight(.bold))
-                                .foregroundColor(.secondary)
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Image(systemName: "magnifyingglass")
+                                Text("MATCHING SUGGESTIONS")
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+                            .foregroundColor(.secondary)
 
                             ForEach(filteredSuggestions, id: \.self) { sug in
                                 suggestionRow(sug, isRecent: false)
@@ -105,21 +115,21 @@ public struct CodeDictionarySearch: View {
                             suggestionRow("Search for \"\(query)\"...", actualQuery: query, isRecent: false, isCustomQuery: true)
                         }
                         .padding(.horizontal, 16)
-                        .padding(.top, 12)
+                        .padding(.top, 14)
                     }
                 }
-                .padding(.bottom, 16)
+                .padding(.bottom, 20)
             }
-            .frame(maxHeight: 280)
+            .frame(maxHeight: 320)
             .background(Color(NSColor.windowBackgroundColor).opacity(0.95))
         }
-        .frame(width: 500)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .frame(width: 520)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.25), radius: 25, x: 0, y: 15)
+        .shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 10)
         .onAppear {
             isFieldFocused = true
         }
@@ -132,30 +142,43 @@ public struct CodeDictionarySearch: View {
     @ViewBuilder
     private func suggestionRow(_ label: String, actualQuery: String? = nil, isRecent: Bool, isCustomQuery: Bool = false) -> some View {
         let q = actualQuery ?? label
+        let isHovered = hoveredItem == label
+
         Button {
             performSearch(q)
         } label: {
             HStack(spacing: 12) {
-                Image(systemName: isCustomQuery ? "sparkles" : (isRecent ? "clock" : "doc.text.magnifyingglass"))
-                    .foregroundColor(isCustomQuery ? .purple : .secondary)
+                Image(systemName: isCustomQuery ? "sparkle" : (isRecent ? "clock.fill" : "doc.text.magnifyingglass"))
+                    .font(.system(size: 14))
+                    .foregroundColor(isCustomQuery ? .orange : (isHovered ? .orange : .secondary))
+                    .frame(width: 20)
 
                 Text(label)
-                    .font(.body)
-                    .foregroundColor(.primary)
+                    .font(.system(.body, design: .rounded))
+                    .foregroundColor(isHovered ? .orange : .primary)
 
                 Spacer()
 
                 Image(systemName: "return")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .opacity(0.5)
+                    .opacity(isHovered ? 0.8 : 0.3)
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 12)
+            .background(isHovered ? Color.orange.opacity(0.08) : Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+        .onHover { hover in
+            withAnimation(.snappy(duration: 0.15)) {
+                if hover {
+                    hoveredItem = label
+                } else if hoveredItem == label {
+                    hoveredItem = nil
+                }
+            }
+        }
     }
 
     private func performSearch(_ targetQuery: String) {

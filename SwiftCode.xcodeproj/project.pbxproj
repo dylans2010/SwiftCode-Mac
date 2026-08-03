@@ -1305,6 +1305,7 @@
 		DA3257D6569A572BAE8869D8 /* WorkspaceProfilesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 881DC2B16F0A3C9B2627B8D4 /* WorkspaceProfilesView.swift */; };
 		DB10A20E8375412C9FB6D9C6 /* BrowserAutomation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20217373D23643F896DAB821 /* BrowserAutomation.swift */; };
 		DBEEF4307EC44BE79FB9F936 /* FileNavigatorSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADAAF6DF41EA4C90B2E4FD78 /* FileNavigatorSidebarView.swift */; };
+		FE18E54E76741F54A82CD5A2 /* FileTemplatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE18E54E76741F54A82CD5A1 /* FileTemplatesView.swift */; };
 		DC1300DB95DE6D4EB06405B0 /* Models/DatabaseTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65D9CAB62B0FB1C6D4705EB7 /* Models/DatabaseTemplate.swift */; };
 		DC3C25F24336B5D99F1EA668 /* Core/DatabaseSchemaManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2C201EB83983B4B1A4AB466 /* Core/DatabaseSchemaManager.swift */; };
 		DC623BDC71884028E4E1A155 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D67E975E211C60FD52031F /* PaywallView.swift */; };
@@ -3348,6 +3349,7 @@
 		AD54992631331BB681BE7A7C /* AssistContextSnapshotTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistContextSnapshotTool.swift; sourceTree = "<group>"; };
 		AD69C80910306FD97E80CE82 /* CSVParserDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVParserDevToolView.swift; sourceTree = "<group>"; };
 		ADAAF6DF41EA4C90B2E4FD78 /* FileNavigatorSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileNavigatorSidebarView.swift; sourceTree = "<group>"; };
+		FE18E54E76741F54A82CD5A1 /* FileTemplatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTemplatesView.swift; sourceTree = "<group>"; };
 		ADE520BB1F7B2FFE83D5819E /* SimulatorCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorCommand.swift; sourceTree = "<group>"; };
 		ADEDECBD65DFB15F70622786 /* AssistOptimizationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistOptimizationEngine.swift; sourceTree = "<group>"; };
 		ADFCB86A4E56A1291BADE584 /* AssistUndoTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistUndoTool.swift; sourceTree = "<group>"; };
@@ -4923,6 +4925,7 @@
 				239F1E9D2E1945E1868B6780 /* SwiftCode/Views/Agent/Skills/SkillsLibraryView.swift */,
 				A320B54C3619417094B21029 /* SidebarMainView.swift */,
 				ADAAF6DF41EA4C90B2E4FD78 /* FileNavigatorSidebarView.swift */,
+				FE18E54E76741F54A82CD5A1 /* FileTemplatesView.swift */,
 				B4172AFB1A36483CBFFABEF1 /* GitSidebarView.swift */,
 				215CD2DE35D64BE386AD6E1E /* DebugInspectorSidebarView.swift */,
 				12ED13433802457F9338945B /* SearchSidebarView.swift */,
@@ -10663,6 +10666,7 @@
 				B0020001B0020001B0020027 /* AdaptiveSplitLayout.swift in Sources */,
 				C822BBE49EB84E8B85C22375 /* SidebarMainView.swift in Sources */,
 				DBEEF4307EC44BE79FB9F936 /* FileNavigatorSidebarView.swift in Sources */,
+				FE18E54E76741F54A82CD5A2 /* FileTemplatesView.swift in Sources */,
 				E3BCC043098948CAA2CD3039 /* GitSidebarView.swift in Sources */,
 				10C2A915376A4270ADF3247A /* DebugInspectorSidebarView.swift in Sources */,
 				FA16774CE0D848459C8A17FE /* SearchSidebarView.swift in Sources */,

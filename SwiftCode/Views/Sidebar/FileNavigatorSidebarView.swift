@@ -110,6 +110,7 @@ struct FileNavigatorSidebarView: View {
     @State private var recents: [String] = []
     @State private var isCreatingFile = false
     @State private var isCreatingFolder = false
+    @State private var showingFileTemplates = false
 
     // Inline Rename State
     @State private var renamingNodeID: String? = nil
@@ -174,13 +175,13 @@ struct FileNavigatorSidebarView: View {
 
             // Dynamic Action Bar Header
             HStack(spacing: 12) {
-                Button(action: createNewFileInActiveDir) {
+                Button(action: { showingFileTemplates = true }) {
                     Image(systemName: "plus")
                         .font(.subheadline.bold())
                 }
                 .buttonStyle(.plain)
-                .help("New File")
-                .disabled(viewModel.projectURL == nil || isCreatingFile)
+                .help("New File / Folder Template")
+                .disabled(viewModel.projectURL == nil)
 
                 Button(action: createNewFolderInActiveDir) {
                     Image(systemName: "folder.badge.plus")
@@ -220,22 +221,9 @@ struct FileNavigatorSidebarView: View {
                         .padding()
                 }
 
-                // 1. Favorites Section (if non-empty)
-                if !favorites.isEmpty && searchText.isEmpty {
-                    Section(header: Text("FAVORITES")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.secondary)) {
-                            ForEach(favorites, id: \.self) { path in
-                                let url = URL(fileURLWithPath: path)
-                                let fakeNode = ProjectNode(url: url, kind: .file)
-                                fileRow(for: fakeNode, indent: 0)
-                            }
-                        }
-                }
-
-                // 2. Recents Section (if non-empty)
+                // Recent Files Section (if non-empty)
                 if !recents.isEmpty && searchText.isEmpty {
-                    Section(header: Text("RECENTS")
+                    Section(header: Text("Recent Files")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)) {
                             ForEach(recents, id: \.self) { path in
@@ -246,7 +234,7 @@ struct FileNavigatorSidebarView: View {
                         }
                 }
 
-                // 3. Project Tree Section
+                // Project Tree Section
                 if let rootNode = viewModel.rootNode {
                     Section(header: Text("PROJECT FILES")
                         .font(.system(size: 9, weight: .bold))
@@ -296,6 +284,9 @@ struct FileNavigatorSidebarView: View {
             }
             .listStyle(.sidebar)
             .animation(activeAnimation, value: viewModel.expandedNodeIDs)
+        }
+        .sheet(isPresented: $showingFileTemplates) {
+            FileTemplatesView(viewModel: viewModel)
         }
         .onAppear {
             loadFavoritesAndRecents()

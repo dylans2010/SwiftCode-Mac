@@ -180,6 +180,11 @@ public struct BuildingXcodeProject: View {
                                 .font(.headline)
                             Spacer()
                             CopyLogsButton(logs: api.currentLogs.joined(separator: "\n"))
+                            Button("Close") {
+                                api.completeProjectGeneration(success: false)
+                                dismiss()
+                            }
+                            .buttonStyle(.bordered)
                         }
 
                         ScrollView {
@@ -260,6 +265,230 @@ public struct BuildingXcodeProject: View {
         case .missing: return .yellow
         case .installing: return .purple
         case .failed: return .red
+        }
+    }
+}
+
+// MARK: - XcodeProjectDetailsSheet
+
+public struct XcodeProjectDetailsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var appName = "My App"
+    @State private var bundleIdentifier = "com.example.myapp"
+    @State private var minOSVersion = "16.0"
+    @State private var targetPlatform = "iOS"
+    @State private var appCategory = "Developer Tools"
+    @State private var appVersion = "1.0"
+    @State private var buildNumber = "1"
+    @State private var destinations = ["iphonesimulator", "iphoneos", "macosx"]
+    @State private var newDestination = ""
+    @State private var isUpdating = false
+
+    public init() {}
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            // Header Info
+            HStack {
+                Label("Xcode Project Details", systemImage: "hammer.circle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.orange)
+                Spacer()
+                if isUpdating {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            .padding()
+            .background(.thinMaterial)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    // App Name
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("App Name")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                        TextField("App Name", text: $appName)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    // Bundle ID
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Bundle Identifier")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                        TextField("Bundle ID", text: $bundleIdentifier)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    // Version & Build
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Version")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                            TextField("1.0", text: $appVersion)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Build Number")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                            TextField("1", text: $buildNumber)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                    }
+
+                    // Platform & Min OS
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Platform")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                            Picker("", selection: $targetPlatform) {
+                                Text("iOS").tag("iOS")
+                                Text("macOS").tag("macOS")
+                                Text("tvOS").tag("tvOS")
+                                Text("watchOS").tag("watchOS")
+                                Text("visionOS").tag("visionOS")
+                            }
+                            .pickerStyle(.menu)
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Minimum OS")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                            TextField("16.0", text: $minOSVersion)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                    }
+
+                    // Category
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Category")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                        Picker("", selection: $appCategory) {
+                            Text("Developer Tools").tag("Developer Tools")
+                            Text("Utilities").tag("Utilities")
+                            Text("Productivity").tag("Productivity")
+                            Text("Education").tag("Education")
+                        }
+                        .pickerStyle(.menu)
+                    }
+
+                    // Destinations List
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Destinations / SDKs")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+
+                        ForEach(destinations, id: \.self) { dest in
+                            HStack {
+                                Image(systemName: "iphone.badge.play")
+                                    .foregroundStyle(.blue)
+                                Text(dest)
+                                    .font(.subheadline)
+                                Spacer()
+                                Button {
+                                    destinations.removeAll { $0 == dest }
+                                } label: {
+                                    Image(systemName: "minus.circle")
+                                        .foregroundColor(.red)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.vertical, 2)
+                        }
+
+                        HStack {
+                            TextField("Add Destination/SDK...", text: $newDestination)
+                                .textFieldStyle(.roundedBorder)
+                            Button {
+                                let trimmed = newDestination.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !trimmed.isEmpty && !destinations.contains(trimmed) {
+                                    destinations.append(trimmed)
+                                    newDestination = ""
+                                }
+                            } label: {
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundStyle(.green)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    Divider()
+                        .padding(.vertical, 4)
+
+                    Button(action: saveSettings) {
+                        HStack {
+                            Image(systemName: "arrow.clockwise.circle.fill")
+                            Text("Update .xcodeproj")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .disabled(isUpdating)
+                }
+                .padding()
+            }
+        }
+        .onAppear {
+            loadProjectSettings()
+        }
+    }
+
+    private func loadProjectSettings() {
+        guard let proj = XcodeBuildAPI.shared.determineActiveProject() else { return }
+        let fm = FileManager.default
+        let contents = try? fm.contentsOfDirectory(at: proj.url, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+        if let xcodeproj = proj.url.pathExtension == "xcodeproj" ? proj.url : contents?.first(where: { $0.pathExtension == "xcodeproj" }) {
+            if let parsed = try? XcodeProjParse.shared.parse(projectURL: xcodeproj) {
+                if let config = parsed.buildConfigurations.first(where: { $0.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] != nil }) {
+                    let settings = config.buildSettings
+                    if let bid = settings["PRODUCT_BUNDLE_IDENTIFIER"] {
+                        bundleIdentifier = bid
+                    }
+                    if let ver = settings["MARKETING_VERSION"] {
+                        appVersion = ver
+                    }
+                    if let build = settings["CURRENT_PROJECT_VERSION"] {
+                        buildNumber = build
+                    }
+                    if let name = settings["PRODUCT_NAME"] {
+                        appName = name
+                    }
+                    if let target = settings["IPHONEOS_DEPLOYMENT_TARGET"] {
+                        minOSVersion = target
+                    } else if let target = settings["MACOSX_DEPLOYMENT_TARGET"] {
+                        minOSVersion = target
+                    }
+                }
+            }
+        }
+    }
+
+    private func saveSettings() {
+        isUpdating = true
+        Task {
+            _ = await XcodeBuildAPI.shared.generateProjectWithXcodeGen(
+                projectName: appName,
+                scheme: appName,
+                bundleIdentifier: bundleIdentifier,
+                organizationIdentifier: "com.example",
+                deploymentTarget: minOSVersion,
+                targetPlatform: targetPlatform
+            )
+            if let activeProj = ProjectSessionStore.shared.activeProject {
+                ProjectSessionStore.shared.refreshFileTree(for: activeProj)
+            }
+            isUpdating = false
         }
     }
 }

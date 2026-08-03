@@ -1,0 +1,4 @@
+# Welcome to SwiftCode
+
+This is a clean markdown file template.
+You can start documenting your project here.

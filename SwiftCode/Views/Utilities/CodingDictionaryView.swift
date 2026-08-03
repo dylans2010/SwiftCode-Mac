@@ -263,6 +263,7 @@ struct CodingDictionarySidebarWrapper: View {
         DictionarySidebarView(searchText: $coord.searchText)
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("CodingDictionaryNewSearch"))) { _ in
                 coordinator.performNewSearch()
+                showingSpotlight = true
             }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("CodingDictionaryClearHistory"))) { _ in
                 coordinator.performClearHistory()
@@ -927,7 +928,7 @@ private struct DictionaryDetailView: View {
                         .frame(maxWidth: 400)
 
                     Button("Focus Search") {
-                        CodingDictionaryCoordinator.shared.isSearchFocused = true
+                        NotificationCenter.default.post(name: NSNotification.Name("com.swiftcode.dictionary.showSpotlight"), object: nil)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.regular)

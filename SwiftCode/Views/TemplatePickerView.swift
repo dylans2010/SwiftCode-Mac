@@ -8,6 +8,7 @@ struct TemplatePickerView: View {
     @State private var projectName = "MyProject"
     @State private var selectedTemplate: any ProjectScaffoldTemplate = MacOSAppTemplate()
     @State private var searchText = ""
+    @State private var showingNameAlert = false
 
     let templates: [any ProjectScaffoldTemplate] = [
         IntroductionTemplate(),
@@ -210,7 +211,7 @@ struct TemplatePickerView: View {
 
                 Spacer()
 
-                Button(action: createProject) {
+                Button(action: { showingNameAlert = true }) {
                     Label("Create Project", systemImage: "sparkles")
                         .bold()
                         .padding(.horizontal, 8)
@@ -225,6 +226,15 @@ struct TemplatePickerView: View {
         }
         .frame(width: 760, height: 560)
         .background(.ultraThinMaterial)
+        .alert("Project Name", isPresented: $showingNameAlert) {
+            TextField("Enter project name", text: $projectName)
+            Button("Create") {
+                createProject()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Please enter a name for your new project.")
+        }
     }
 
     private func createProject() {

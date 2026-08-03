@@ -102,6 +102,9 @@ public struct DeviceConnectView: View {
             }
             .navigationTitle("DeviceConnect")
         }
+        .sheet(isPresented: Bindable(XcodeBuildAPI.shared).showProjectGenerationUI) {
+            BuildingXcodeProject()
+        }
         .onAppear {
             Task {
                 await deviceManager.startDiscovery()
