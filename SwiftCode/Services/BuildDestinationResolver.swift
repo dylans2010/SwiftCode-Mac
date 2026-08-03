@@ -117,7 +117,7 @@ public final class BuildDestinationResolver {
         var deploymentTarget = "15.0"
 
         if let project = ProjectSessionStore.shared.activeProject {
-            if let targetPlatform = project.ciBuildConfiguration?.targetPlatform {
+            if let targetPlatform = project.ciBuildConfiguration?.platform.rawValue {
                 if targetPlatform.lowercased().contains("ios") {
                     supportedPlatforms = ["iphonesimulator", "iphoneos"]
                     baseSDK = "iphonesimulator"

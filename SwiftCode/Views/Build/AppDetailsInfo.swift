@@ -65,12 +65,12 @@ public struct AppDetailsInfo: View {
 public struct VisualEffectView: NSViewRepresentable {
     public var material: NSVisualEffectView.Material = .hudWindow
     public var blendingMode: NSVisualEffectView.BlendingMode = .withinWindow
-    public var state: NSVisualEffectView.State = .followsWindowActive
+    public var state: NSVisualEffectView.State = .followsWindowActiveState
 
     public init(
         material: NSVisualEffectView.Material = .hudWindow,
         blendingMode: NSVisualEffectView.BlendingMode = .withinWindow,
-        state: NSVisualEffectView.State = .followsWindowActive
+        state: NSVisualEffectView.State = .followsWindowActiveState
     ) {
         self.material = material
         self.blendingMode = blendingMode
