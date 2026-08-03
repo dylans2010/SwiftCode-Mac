@@ -1,0 +1,9 @@
+---
+Name: Markdown
+Category: General
+Description: Standard blank lightweight markdown file.
+Extension: md
+---
+# __FILENAME__
+
+Standard lightweight markdown notes.

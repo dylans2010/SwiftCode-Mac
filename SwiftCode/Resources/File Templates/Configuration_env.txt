@@ -1,0 +1,9 @@
+---
+Name: .env
+Category: Configuration
+Description: Local development environment secrets file.
+Extension: env
+---
+API_KEY=your_development_api_key_here
+DATABASE_URL=sqlite://local_development.db
+PORT=8080

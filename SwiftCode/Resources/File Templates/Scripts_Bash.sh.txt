@@ -1,0 +1,14 @@
+---
+Name: Bash
+Category: Scripts
+Description: Executable POSIX shell script with structured logging helper methods.
+Extension: sh
+---
+#!/bin/bash
+
+# Safe scripting flags
+set -euo pipefail
+
+echo "Running __FILENAME__ automation script..."
+
+# Insert operations here

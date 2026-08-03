@@ -1,0 +1,13 @@
+---
+Name: Release Notes
+Category: Documentation
+Description: Summary of latest features and major upgrades.
+Extension: md
+---
+# __FILENAME__ Release Notes - v1.0.0
+
+A massive performance-focused update delivering native AppKit controls, optimized SQLite databases, and dynamic search lookups.
+
+## Key Changes
+- Swift 6 strict concurrency compliance.
+- Ultra responsive directory scanner.

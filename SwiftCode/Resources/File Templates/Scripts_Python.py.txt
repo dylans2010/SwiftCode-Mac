@@ -1,0 +1,17 @@
+---
+Name: Python
+Category: Scripts
+Description: Executable python automation containing command-line argument structures.
+Extension: py
+---
+#!/usr/bin/env python3
+import sys
+import os
+
+def main():
+    print("Welcome to __FILENAME__ CLI Tool!")
+    args = sys.argv[1:]
+    print(f"Active arguments: {args}")
+
+if __name__ == "__main__":
+    main()

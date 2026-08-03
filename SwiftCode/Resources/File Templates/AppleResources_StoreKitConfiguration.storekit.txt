@@ -1,0 +1,33 @@
+---
+Name: StoreKit Configuration
+Category: Apple Resources
+Description: Local StoreKit configuration defining products, price tiers, and subscription tiers.
+Extension: storekit
+---
+{
+  "identifier" : "StoreKitConfiguration",
+  "nonRenewingSubscriptions" : [ ],
+  "products" : [
+    {
+      "displayVersion" : "1.0",
+      "familyShareable" : false,
+      "internalID" : "SK_PRO_PROD",
+      "localizations" : [
+        {
+          "description" : "Unlock all premium templates",
+          "displayName" : "SwiftCode Premium",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.swiftcode.premium",
+      "referenceName" : "Premium Tier",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : { },
+  "subscriptionGroups" : [ ],
+  "version" : {
+    "major" : 2,
+    "minor" : 0
+  }
+}

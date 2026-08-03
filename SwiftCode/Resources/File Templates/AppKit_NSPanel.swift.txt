@@ -1,0 +1,20 @@
+---
+Name: NSPanel
+Category: AppKit
+Description: A lightweight NSPanel popup HUD overlay view controller subclass.
+Extension: swift
+---
+import AppKit
+
+class __FILENAME__: NSPanel {
+    init() {
+        super.init(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
+            styleMask: [.titled, .closable, .utilityWindow, .hudWindow],
+            backing: .buffered,
+            defer: false
+        )
+        self.title = "Overlay HUD"
+        self.isFloatingPanel = true
+    }
+}

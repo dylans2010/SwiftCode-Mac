@@ -1,0 +1,23 @@
+---
+Name: UIView
+Category: UIKit
+Description: A native iOS UIView container subclass.
+Extension: swift
+---
+import UIKit
+
+class __FILENAME__: UIView {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        setupView()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupView()
+    }
+
+    private func setupView() {
+        backgroundColor = .systemBackground
+    }
+}

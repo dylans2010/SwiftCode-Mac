@@ -1,0 +1,20 @@
+---
+Name: Command Line Tool
+Category: Swift
+Description: A modern CLI tool template using Apple's Swift Argument Parser pattern or a robust main structure.
+Extension: swift
+---
+import Foundation
+
+@main
+struct __FILENAME__ {
+    static func main() {
+        print("Welcome to __FILENAME__ CLI!")
+        let args = CommandLine.arguments
+        if args.count > 1 {
+            print("Running with arguments: \(args[1...])")
+        } else {
+            print("Usage: __FILENAME__ [options]")
+        }
+    }
+}

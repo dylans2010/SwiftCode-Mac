@@ -1,0 +1,20 @@
+---
+Name: App Intent
+Category: SwiftUI
+Description: An AppIntents declaration allowing shortcuts and Siri integrations.
+Extension: swift
+---
+import AppIntents
+
+struct __FILENAME__: AppIntent {
+    static var title: LocalizedStringResource = "Perform Action"
+    static var description = IntentDescription("Triggers custom behaviors inside the app.")
+
+    @Parameter(title: "Target Parameter")
+    var parameter: String
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        let resultString = "Processed parameter: \(parameter)"
+        return .result(value: resultString)
+    }
+}

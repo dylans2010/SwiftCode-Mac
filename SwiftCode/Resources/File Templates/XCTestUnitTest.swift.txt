@@ -1,7 +1,0 @@
-import XCTest
-
-final class MyTests: XCTestCase {
-    func testExample() throws {
-        XCTAssertTrue(true)
-    }
-}

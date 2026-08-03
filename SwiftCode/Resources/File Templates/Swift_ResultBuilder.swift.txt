@@ -1,0 +1,26 @@
+---
+Name: Result Builder
+Category: Swift
+Description: A custom result builder used to define clean domain-specific language structures.
+Extension: swift
+---
+import Foundation
+
+@resultBuilder
+struct __FILENAME__ {
+    static func buildBlock(_ components: String...) -> String {
+        return components.joined(separator: "\n")
+    }
+
+    static func buildOptional(_ component: String?) -> String {
+        return component ?? ""
+    }
+
+    static func buildEither(first component: String) -> String {
+        return component
+    }
+
+    static func buildEither(second component: String) -> String {
+        return component
+    }
+}

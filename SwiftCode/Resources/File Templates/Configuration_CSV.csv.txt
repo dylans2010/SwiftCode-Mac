@@ -1,0 +1,10 @@
+---
+Name: CSV
+Category: Configuration
+Description: Standard tabular comma-separated columns table data document.
+Extension: csv
+---
+ID,Name,Type,Status
+1,Task Alpha,Feature,Active
+2,Task Beta,Bug,In-Progress
+3,Task Gamma,Documentation,Completed

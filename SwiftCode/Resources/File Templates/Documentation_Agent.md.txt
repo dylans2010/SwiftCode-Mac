@@ -1,0 +1,13 @@
+---
+Name: Agent.md
+Category: Documentation
+Description: Agent guideline markdown instructing LLMs on workflow patterns and schemas.
+Extension: md
+---
+# Developer Agent Guidelines
+
+These directives help AI Developer Agents quickly understand how to build within this project scope.
+
+## Architecture Patterns
+- Keep views completely declarative and split up into modular subcomponents.
+- Use the unified project services for filesystem operations.

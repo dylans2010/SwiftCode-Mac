@@ -1,0 +1,16 @@
+---
+Name: Next.js Page
+Category: Web
+Description: Server-rendered React routing page for NextJS routing bundles.
+Extension: tsx
+---
+import React from 'react';
+
+export default async function __FILENAME__Page() {
+    return (
+        <main style={{ maxWidth: '800px', margin: '0 auto', padding: '40px' }}>
+            <h1>__FILENAME__ Dashboard</h1>
+            <p>Welcome to your server-side rendered dashboard workspace.</p>
+        </main>
+    );
+}

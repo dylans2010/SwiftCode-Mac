@@ -1,0 +1,30 @@
+---
+Name: Macro
+Category: Swift
+Description: A modern Swift compiler macro definition template.
+Extension: swift
+---
+import SwiftCompilerPlugin
+import SwiftSyntax
+import SwiftSyntaxBuilder
+import SwiftSyntaxMacros
+
+/// A macro that simplifies adding standard properties to types.
+public struct __FILENAME__: MemberMacro {
+    public static func expansion(
+        of node: AttributeSyntax,
+        providingMembersOf declaration: some DeclGroupSyntax,
+        in context: some MacroExpansionContext
+    ) throws -> [DeclSyntax] {
+        return [
+            "var creationDate: Date { Date() }"
+        ]
+    }
+}
+
+@main
+struct __FILENAME__Plugin: CompilerPlugin {
+    let providingMacros: [Macro.Type] = [
+        __FILENAME__.self
+    ]
+}

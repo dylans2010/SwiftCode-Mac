@@ -1,0 +1,14 @@
+---
+Name: Swift Testing
+Category: Testing
+Description: A modern Swift-Testing Suite featuring @Suite and @Test annotations.
+Extension: swift
+---
+import Testing
+
+@Suite struct __FILENAME__ {
+    @Test func exampleTest() async throws {
+        let status = true
+        #expect(status == true)
+    }
+}

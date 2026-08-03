@@ -1,0 +1,16 @@
+---
+Name: Main.swift
+Category: Swift
+Description: The entry point for a Swift-based command-line tool.
+Extension: swift
+---
+import Foundation
+
+print("Starting __FILENAME__ application...")
+
+func main() {
+    let arguments = CommandLine.arguments
+    print("Command line arguments: \(arguments)")
+}
+
+main()

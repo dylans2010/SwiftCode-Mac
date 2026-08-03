@@ -1,0 +1,23 @@
+---
+Name: Enum
+Category: Swift
+Description: A type-safe Enumeration containing raw values, associated values, and helper computed variables.
+Extension: swift
+---
+import Foundation
+
+enum __FILENAME__ {
+    case idle
+    case loading(progress: Double)
+    case success(data: Data)
+    case failure(Error)
+
+    var isTerminal: Bool {
+        switch self {
+        case .success, .failure:
+            return true
+        default:
+            return false
+        }
+    }
+}

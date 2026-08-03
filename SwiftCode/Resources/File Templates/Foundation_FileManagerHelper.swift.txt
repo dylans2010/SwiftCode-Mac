@@ -1,0 +1,23 @@
+---
+Name: File Manager Helper
+Category: Foundation
+Description: A native local document management layer to safely read and write items under App Sandboxes.
+Extension: swift
+---
+import Foundation
+
+struct __FILENAME__ {
+    static func getDocumentsDirectory() -> URL {
+        return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
+
+    static func write(text: String, toFileName name: String) throws {
+        let url = getDocumentsDirectory().appendingPathComponent(name)
+        try text.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    static func read(fileName: String) throws -> String {
+        let url = getDocumentsDirectory().appendingPathComponent(fileName)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+}

@@ -1,0 +1,13 @@
+---
+Name: TOML
+Category: Configuration
+Description: Modern readable TOML configuration format.
+Extension: toml
+---
+[project]
+name = "SwiftCode App"
+version = "1.0.0"
+
+[database]
+driver = "sqlite"
+path = "db/storage.db"

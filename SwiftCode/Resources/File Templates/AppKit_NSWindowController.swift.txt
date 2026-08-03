@@ -1,0 +1,25 @@
+---
+Name: NSWindowController
+Category: AppKit
+Description: A native AppKit NSWindowController subclass with custom window management.
+Extension: swift
+---
+import AppKit
+
+class __FILENAME__: NSWindowController {
+    convenience init() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.center()
+        window.title = "AppKit Managed Window"
+        self.init(window: window)
+    }
+
+    override func windowDidLoad() {
+        super.windowDidLoad()
+    }
+}

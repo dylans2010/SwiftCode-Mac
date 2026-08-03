@@ -1,0 +1,21 @@
+---
+Name: Scene
+Category: SwiftUI
+Description: A custom SwiftUI Scene implementation managing system windows.
+Extension: swift
+---
+import SwiftUI
+
+struct __FILENAME__: Scene {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Scene {
+        WindowGroup {
+            Text("Main Dashboard")
+                .frame(minWidth: 600, minHeight: 400)
+        }
+        .commands {
+            SidebarCommands()
+        }
+    }
+}

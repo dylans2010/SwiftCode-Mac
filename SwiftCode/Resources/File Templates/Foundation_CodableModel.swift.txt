@@ -1,0 +1,23 @@
+---
+Name: Codable Model
+Category: Foundation
+Description: A Codable model template using customized CodingKeys mapping and nested container decoders.
+Extension: swift
+---
+import Foundation
+
+struct __FILENAME__: Codable {
+    var title: String
+    var index: Int
+
+    enum CodingKeys: String, CodingKey {
+        case title = "headline_text"
+        case index = "sequence_id"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.title = try container.decode(String.self, forKey: .title)
+        self.index = try container.decode(Int.self, forKey: .index)
+    }
+}

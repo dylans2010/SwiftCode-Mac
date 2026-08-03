@@ -1,0 +1,36 @@
+---
+Name: Toolbar Controller
+Category: AppKit
+Description: AppKit NSToolbar helper class to easily manage custom window toolbar items.
+Extension: swift
+---
+import AppKit
+
+class __FILENAME__: NSObject, NSToolbarDelegate {
+    let toolbarIdentifier = "com.swiftcode.customToolbar"
+
+    func makeToolbar() -> NSToolbar {
+        let toolbar = NSToolbar(identifier: toolbarIdentifier)
+        toolbar.delegate = self
+        toolbar.displayMode = .iconOnly
+        return toolbar
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        return [.space, .flexibleSpace, NSToolbarItem.Identifier("AddAction")]
+    }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        return [.flexibleSpace, NSToolbarItem.Identifier("AddAction")]
+    }
+
+    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        if itemIdentifier == NSToolbarItem.Identifier("AddAction") {
+            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+            item.label = "Add"
+            item.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "Add File")
+            return item
+        }
+        return nil
+    }
+}

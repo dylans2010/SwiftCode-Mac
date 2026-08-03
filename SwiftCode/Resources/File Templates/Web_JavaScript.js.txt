@@ -1,0 +1,21 @@
+---
+Name: JavaScript
+Category: Web
+Description: Modular vanilla ES6 helper containing async fetching functions.
+Extension: js
+---
+/**
+ * Async client fetch helper.
+ */
+async function fetchPayload(endpoint) {
+    try {
+        const response = await fetch(endpoint);
+        if (!response.ok) {
+            throw new Error(`Error: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error("Fetch failed: ", error);
+        throw error;
+    }
+}

@@ -1,0 +1,23 @@
+---
+Name: Protocol
+Category: Swift
+Description: A protocol definition with an extension containing default implementations.
+Extension: swift
+---
+import Foundation
+
+protocol __FILENAME__ {
+    var identifier: String { get }
+    func performAction() throws -> Bool
+}
+
+extension __FILENAME__ {
+    var identifier: String {
+        return String(describing: Self.self)
+    }
+
+    func performAction() throws -> Bool {
+        print("Default implementation called for \(identifier)")
+        return true
+    }
+}

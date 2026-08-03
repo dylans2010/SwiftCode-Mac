@@ -1,0 +1,23 @@
+---
+Name: Actor
+Category: Swift
+Description: A thread-safe Swift actor isolating local state to prevent data races.
+Extension: swift
+---
+import Foundation
+
+actor __FILENAME__ {
+    private var state: [String: Any] = [:]
+
+    func getValue(for key: String) -> Any? {
+        return state[key]
+    }
+
+    func setValue(_ value: Any, for key: String) {
+        state[key] = value
+    }
+
+    func clearState() {
+        state.removeAll()
+    }
+}

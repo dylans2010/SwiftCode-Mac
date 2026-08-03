@@ -1,0 +1,19 @@
+---
+Name: Struct
+Category: Swift
+Description: An immutable value-type structure conforming to Codable and Identifiable.
+Extension: swift
+---
+import Foundation
+
+struct __FILENAME__: Identifiable, Codable, Hashable {
+    let id: UUID
+    let title: String
+    let createdAt: Date
+
+    init(title: String) {
+        self.id = UUID()
+        self.title = title
+        self.createdAt = Date()
+    }
+}

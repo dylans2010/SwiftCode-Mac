@@ -1,0 +1,36 @@
+---
+Name: Timeline Provider
+Category: SwiftUI
+Description: Timeline Provider to update WidgetKit views on a periodic basis.
+Extension: swift
+---
+import WidgetKit
+import SwiftUI
+
+struct __FILENAME__: TimelineProvider {
+    typealias Entry = TimelineEntryItem
+
+    func placeholder(in context: Context) -> TimelineEntryItem {
+        TimelineEntryItem(date: Date(), status: "Idle")
+    }
+
+    func getSnapshot(in context: Context, completion: @escaping (TimelineEntryItem) -> Void) {
+        let entry = TimelineEntryItem(date: Date(), status: "Active")
+        completion(entry)
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<TimelineEntryItem>) -> Void) {
+        let currentDate = Date()
+        let refreshDate = Calendar.current.date(byAdding: .minute, value: 15, to: currentDate)!
+        let entries = [
+            TimelineEntryItem(date: currentDate, status: "Normal Operation")
+        ]
+        let timeline = Timeline(entries: entries, policy: .after(refreshDate))
+        completion(timeline)
+    }
+}
+
+struct TimelineEntryItem: TimelineEntry {
+    let date: Date
+    let status: String
+}

@@ -1,0 +1,6 @@
+---
+Name: Empty File
+Category: General
+Description: A blank empty file without any default contents.
+Extension: txt
+---

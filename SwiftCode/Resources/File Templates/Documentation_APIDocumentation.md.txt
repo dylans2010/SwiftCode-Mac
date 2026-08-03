@@ -1,0 +1,16 @@
+---
+Name: API Documentation
+Category: Documentation
+Description: Structured guidelines explaining public interfaces, protocols, and data models.
+Extension: md
+---
+# __FILENAME__ Public API Reference
+
+## Services
+
+### `NetworkService`
+Handles async requests with type-safe payloads.
+
+```swift
+func fetchData<T: Codable>(from urlString: String) async throws -> T
+```

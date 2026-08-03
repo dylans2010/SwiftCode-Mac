@@ -1,0 +1,21 @@
+---
+Name: UI Test
+Category: Testing
+Description: XCTest UI Automation test template using XCUIApplication for workflow scripting.
+Extension: swift
+---
+import XCTest
+
+final class __FILENAME__: XCTestCase {
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+    }
+
+    func testUIInteraction() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        // Assert view loads
+        XCTAssertTrue(app.staticTexts["Welcome"].exists)
+    }
+}

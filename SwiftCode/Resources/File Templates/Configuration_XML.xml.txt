@@ -1,0 +1,12 @@
+---
+Name: XML
+Category: Configuration
+Description: Standard Extensible Markup XML declaration boilerplate.
+Extension: xml
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <project name="__FILENAME__" version="1.0.0">
+        <settings sync="true" debug="false"/>
+    </project>
+</configuration>

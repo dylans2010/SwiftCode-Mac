@@ -1,0 +1,45 @@
+---
+Name: NSOutlineView
+Category: AppKit
+Description: NSOutlineView tree node structure and datasource hierarchy.
+Extension: swift
+---
+import AppKit
+
+class __FILENAME__: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
+    class Node {
+        var name: String
+        var children: [Node] = []
+        init(name: String) { self.name = name }
+    }
+
+    private var outlineView: NSOutlineView!
+    private var rootNodes: [Node] = [Node(name: "Parent")]
+
+    override func loadView() {
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 500))
+        outlineView = NSOutlineView()
+        outlineView.dataSource = self
+        outlineView.delegate = self
+        scrollView.documentView = outlineView
+        self.view = scrollView
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
+        if item == nil { return rootNodes.count }
+        return (item as! Node).children.count
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+        return !(item as! Node).children.isEmpty
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
+        if item == nil { return rootNodes[index] }
+        return (item as! Node).children[index]
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, objectValueFor tableColumn: NSTableColumn?, byItem item: Any?) -> Any? {
+        return (item as? Node)?.name
+    }
+}

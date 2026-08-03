@@ -1,0 +1,45 @@
+---
+Name: NSTableView
+Category: AppKit
+Description: A standard NSTableView controller conforming to delegate and data source protocols.
+Extension: swift
+---
+import AppKit
+
+class __FILENAME__: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
+    private var tableView: NSTableView!
+    private var data: [String] = ["Record Alpha", "Record Beta", "Record Gamma"]
+
+    override func loadView() {
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
+        tableView = NSTableView()
+
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("MainColumn"))
+        column.title = "Items"
+        tableView.addTableColumn(column)
+
+        tableView.dataSource = self
+        tableView.delegate = self
+
+        scrollView.documentView = tableView
+        self.view = scrollView
+    }
+
+    func numberOfRows(in tableView: NSTableView) -> Int {
+        return data.count
+    }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        let id = NSUserInterfaceItemIdentifier("Cell")
+        var cell = tableView.makeView(withIdentifier: id, owner: self) as? NSTableCellView
+        if cell == nil {
+            cell = NSTableCellView()
+            let textField = NSTextField(labelWithString: "")
+            textField.identifier = id
+            cell?.addSubview(textField)
+            cell?.textField = textField
+        }
+        cell?.textField?.stringValue = data[row]
+        return cell
+    }
+}

@@ -1,0 +1,39 @@
+---
+Name: View
+Category: SwiftUI
+Description: A standard SwiftUI View template with Layout, State, and Preview support.
+Extension: swift
+---
+import SwiftUI
+
+struct __FILENAME__: View {
+    @State private var counter = 0
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "swift")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 80, height: 80)
+                .foregroundColor(.orange)
+
+            Text("Welcome to __FILENAME__")
+                .font(.title)
+                .fontWeight(.bold)
+
+            Text("Counter: \(counter)")
+                .font(.headline)
+
+            Button("Increment") {
+                counter += 1
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.orange)
+        }
+        .padding()
+    }
+}
+
+#Preview {
+    __FILENAME__()
+}

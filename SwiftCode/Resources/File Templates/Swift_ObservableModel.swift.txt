@@ -1,0 +1,27 @@
+---
+Name: Observable Model
+Category: Swift
+Description: A modern @Observable model for state and view management in SwiftUI.
+Extension: swift
+---
+import Foundation
+import Observation
+
+@Observable
+class __FILENAME__ {
+    var items: [String] = []
+    var isLoading = false
+    var errorMessage: String?
+
+    func fetchItems() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            try await Task.sleep(nanoseconds: 1_000_000_000)
+            items = ["Item A", "Item B", "Item C"]
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
+}

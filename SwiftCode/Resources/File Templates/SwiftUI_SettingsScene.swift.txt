@@ -1,0 +1,28 @@
+---
+Name: Settings Scene
+Category: SwiftUI
+Description: A settings pane structure integrating preference forms and configuration sliders.
+Extension: swift
+---
+import SwiftUI
+
+struct __FILENAME__: View {
+    @AppStorage("useCloudSync") private var useCloudSync = true
+    @AppStorage("fontSize") private var fontSize = 13.0
+
+    var body: some View {
+        TabView {
+            Form {
+                Toggle("Cloud Synchronization", isOn: $useCloudSync)
+                Slider(value: $fontSize, in: 9...24, step: 1) {
+                    Text("Editor Font Size")
+                }
+            }
+            .tabItem {
+                Label("General", systemImage: "gearshape")
+            }
+            .padding()
+        }
+        .frame(width: 450, height: 250)
+    }
+}

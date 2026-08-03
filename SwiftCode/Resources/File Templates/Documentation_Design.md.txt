@@ -1,0 +1,14 @@
+---
+Name: Design.md
+Category: Documentation
+Description: UI Design tokens, palettes, layouts, and system theme specifications.
+Extension: md
+---
+# Design Tokens & Style System
+
+## Palette Colors
+- Orange: `#FF8000`
+- Slate Background: `#121214`
+
+## Typography
+- System San Francisco body, bold, light variations.

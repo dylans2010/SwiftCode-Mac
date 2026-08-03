@@ -107,7 +107,6 @@ struct FileNavigatorSidebarView: View {
 
     @State private var searchText = ""
     @State private var favorites: [String] = []
-    @State private var recents: [String] = []
     @State private var isCreatingFile = false
     @State private var isCreatingFolder = false
     @State private var showingFileTemplates = false
@@ -128,7 +127,6 @@ struct FileNavigatorSidebarView: View {
     @State private var showingWorkflowPopover = false
 
     private static let favoritesKey = "com.swiftcode.sidebar.favorites"
-    private static let recentsKey = "com.swiftcode.sidebar.recents"
 
     private var activeAnimation: Animation {
         let speed = settings.fileNavigatorAnimationSpeed
@@ -196,7 +194,7 @@ struct FileNavigatorSidebarView: View {
                 Button(action: {
                     Task {
                         await viewModel.refresh()
-                        loadFavoritesAndRecents()
+                        loadFavorites()
                     }
                 }) {
                     Image(systemName: "arrow.clockwise")
@@ -221,19 +219,6 @@ struct FileNavigatorSidebarView: View {
                         .padding()
                 }
 
-                // Recent Files Section (if non-empty)
-                if !recents.isEmpty && searchText.isEmpty {
-                    Section(header: Text("Recent Files")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.secondary)) {
-                            ForEach(recents, id: \.self) { path in
-                                let url = URL(fileURLWithPath: path)
-                                let fakeNode = ProjectNode(url: url, kind: .file)
-                                fileRow(for: fakeNode, indent: 0)
-                            }
-                        }
-                }
-
                 // Project Tree Section
                 if let rootNode = viewModel.rootNode {
                     Section(header: Text("PROJECT FILES")
@@ -251,7 +236,6 @@ struct FileNavigatorSidebarView: View {
                                     viewModel: viewModel,
                                     gitViewModel: workspaceViewModel.git,
                                     favorites: $favorites,
-                                    recents: $recents,
                                     renamingNodeID: $renamingNodeID,
                                     inlineRenameText: $inlineRenameText,
                                     onRename: { node in
@@ -309,12 +293,11 @@ struct FileNavigatorSidebarView: View {
             FileTemplatesView(viewModel: viewModel)
         }
         .onAppear {
-            loadFavoritesAndRecents()
+            loadFavorites()
         }
         .onChange(of: viewModel.selectedNodeID) { oldValue, newValue in
             if let id = newValue {
                 workspaceViewModel.handleFileSelectionChange(nodeID: id)
-                appendToRecents(path: id)
             }
         }
         // Delete Confirmation Dialog
@@ -565,16 +548,8 @@ struct FileNavigatorSidebarView: View {
         UserDefaults.standard.set(favorites, forKey: Self.favoritesKey)
     }
 
-    private func appendToRecents(path: String) {
-        recents.removeAll { $0 == path }
-        recents.insert(path, at: 0)
-        recents = Array(recents.prefix(8))
-        UserDefaults.standard.set(recents, forKey: Self.recentsKey)
-    }
-
-    private func loadFavoritesAndRecents() {
+    private func loadFavorites() {
         favorites = UserDefaults.standard.stringArray(forKey: Self.favoritesKey) ?? []
-        recents = UserDefaults.standard.stringArray(forKey: Self.recentsKey) ?? []
     }
 
     private func flattenedAndFilteredNodes(root: ProjectNode) -> [ProjectNode] {
@@ -601,7 +576,6 @@ struct ProjectTreeNodeView: View {
     @Bindable var viewModel: ProjectTreeViewModel
     let gitViewModel: GitViewModel
     @Binding var favorites: [String]
-    @Binding var recents: [String]
     @Binding var renamingNodeID: String?
     @Binding var inlineRenameText: String
     let onRename: (ProjectNode) -> Void
@@ -637,7 +611,6 @@ struct ProjectTreeNodeView: View {
                             viewModel: viewModel,
                             gitViewModel: gitViewModel,
                             favorites: $favorites,
-                            recents: $recents,
                             renamingNodeID: $renamingNodeID,
                             inlineRenameText: $inlineRenameText,
                             onRename: onRename,

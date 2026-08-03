@@ -1,0 +1,21 @@
+---
+Name: AI Agent
+Category: AI
+Description: Core Agent loop integrating prompt orchestrations with local tools.
+Extension: swift
+---
+import Foundation
+
+class __FILENAME__ {
+    let systemPrompt: String
+
+    init(systemPrompt: String) {
+        self.systemPrompt = systemPrompt
+    }
+
+    func executeStep(inputQuery: String) async -> String {
+        print("Agent processing input: \(inputQuery)")
+        // AI execution orchestration step
+        return "Step successfully processed."
+    }
+}

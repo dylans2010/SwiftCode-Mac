@@ -1,0 +1,29 @@
+---
+Name: Async Utility
+Category: Swift
+Description: Concurrent programming utility showing async/await, TaskGroups, and structured concurrency.
+Extension: swift
+---
+import Foundation
+
+struct __FILENAME__ {
+    /// Performs concurrent background processing on a list of items.
+    static func processConcurrently<T, U>(
+        items: [T],
+        transform: @escaping (T) async throws -> U
+    ) async throws -> [U] {
+        try await withThrowingTaskGroup(of: U.self) { group in
+            for item in items {
+                group.addTask {
+                    try await transform(item)
+                }
+            }
+
+            var results: [U] = []
+            for try await result in group {
+                results.append(result)
+            }
+            return results
+        }
+    }
+}

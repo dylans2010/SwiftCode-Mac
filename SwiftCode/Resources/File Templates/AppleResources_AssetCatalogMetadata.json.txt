@@ -1,0 +1,12 @@
+---
+Name: Asset Catalog Metadata
+Category: Apple Resources
+Description: Standard Contents.json structure inside Asset Catalogs declaring rendering targets.
+Extension: json
+---
+{
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

@@ -1,0 +1,22 @@
+---
+Name: Extension
+Category: Swift
+Description: A Swift extension file template to extend functionality of an existing type.
+Extension: swift
+---
+import Foundation
+
+extension String {
+    /// Returns a new string with the first letter capitalized.
+    var capitalizingFirstLetter: String {
+        guard !isEmpty else { return "" }
+        return prefix(1).uppercased() + dropFirst()
+    }
+
+    /// Checks if the string contains a valid email format.
+    var isValidEmail: Bool {
+        let emailRegEx = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
+        let emailPred = NSPredicate(format:"SELF MATCHES %@", emailRegEx)
+        return emailPred.evaluate(with: self)
+    }
+}

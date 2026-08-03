@@ -1,0 +1,22 @@
+---
+Name: NSView
+Category: AppKit
+Description: A native AppKit NSView subclass with custom drawing override capabilities.
+Extension: swift
+---
+import AppKit
+
+class __FILENAME__: NSView {
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        // Custom Drawing Example
+        NSColor.windowBackgroundColor.setFill()
+        dirtyRect.fill()
+
+        let path = NSBezierPath(roundedRect: dirtyRect.insetBy(dx: 10, dy: 10), xRadius: 8, yRadius: 8)
+        NSColor.systemOrange.setStroke()
+        path.lineWidth = 2.0
+        path.stroke()
+    }
+}

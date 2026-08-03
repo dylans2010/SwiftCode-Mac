@@ -1,0 +1,20 @@
+---
+Name: Tool Definition
+Category: AI
+Description: JSON definition describing tool interface methods for LLM function calling.
+Extension: json
+---
+{
+  "name": "fetch_directory_files",
+  "description": "Lists the files recursively under a project directory path.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "directory": {
+        "type": "string",
+        "description": "Target absolute folder path."
+      }
+    },
+    "required": ["directory"]
+  }
+}

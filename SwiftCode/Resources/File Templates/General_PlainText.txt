@@ -1,0 +1,7 @@
+---
+Name: Plain Text
+Category: General
+Description: Generic blank flat plain-text file.
+Extension: txt
+---
+This is standard flat plain text.

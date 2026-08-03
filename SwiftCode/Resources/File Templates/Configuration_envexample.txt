@@ -1,0 +1,9 @@
+---
+Name: .env.example
+Category: Configuration
+Description: Template environment mock detailing expected API fields and structures.
+Extension: env
+---
+API_KEY=your_api_key_here
+DATABASE_URL=sqlite://active_project.db
+PORT=8080

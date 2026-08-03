@@ -1,0 +1,27 @@
+---
+Name: Error Type
+Category: Swift
+Description: A custom enum conforming to LocalizedError for type-safe error handling.
+Extension: swift
+---
+import Foundation
+
+enum __FILENAME__: LocalizedError {
+    case invalidResponse
+    case accessDenied
+    case rateLimited(retryAfter: Int)
+    case custom(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidResponse:
+            return "The server returned an invalid or unparseable response."
+        case .accessDenied:
+            return "You do not have permission to access this resource."
+        case .rateLimited(let retryAfter):
+            return "Too many requests. Please try again in \(retryAfter) seconds."
+        case .custom(let message):
+            return message
+        }
+    }
+}

@@ -1,0 +1,17 @@
+---
+Name: MCP Configuration
+Category: AI
+Description: Model Context Protocol settings file declaring available development servers.
+Extension: json
+---
+{
+  "mcpServers": {
+    "swiftcode-filesystem": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "env": {
+        "WORKSPACE_ROOT": "/app/workspace"
+      }
+    }
+  }
+}

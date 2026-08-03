@@ -1,0 +1,11 @@
+---
+Name: .swiftformat
+Category: Configuration
+Description: Custom rules directing SwiftFormat auto-layout corrections.
+Extension: swiftformat
+---
+--indent 4
+--allman false
+--stripunusedargs closures
+--self insert
+--commas always

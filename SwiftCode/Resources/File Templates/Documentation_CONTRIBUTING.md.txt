@@ -1,0 +1,17 @@
+---
+Name: CONTRIBUTING.md
+Category: Documentation
+Description: Contributing standards outlining PR requirements and style guidelines.
+Extension: md
+---
+# Contributing to __FILENAME__
+
+We welcome and appreciate all code contributions.
+
+## Code of Conduct
+Please maintain professional respect across discussion channels.
+
+## Pull Request Guidelines
+1. Fork the repo and create your branch.
+2. Ensure your changes compile without warnings.
+3. Write proper unit tests verifying behavior.

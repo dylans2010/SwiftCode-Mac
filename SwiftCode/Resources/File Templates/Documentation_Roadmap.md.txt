@@ -1,0 +1,14 @@
+---
+Name: Roadmap.md
+Category: Documentation
+Description: Future developmental milestones, releases, and feature tracking logs.
+Extension: md
+---
+# Project Roadmap
+
+## Phase 1: Setup & Initialization
+- [x] Initial Repository bootstrapping.
+- [ ] Core Workspace integrations.
+
+## Phase 2: Feature Expansion
+- [ ] Cloud-sync services integration.

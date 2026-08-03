@@ -1,0 +1,21 @@
+---
+Name: Property Wrapper
+Category: Swift
+Description: A custom property wrapper template to encapsulate variable formatting or observation.
+Extension: swift
+---
+import Foundation
+
+@propertyWrapper
+struct __FILENAME__ {
+    private var value: String = ""
+
+    var wrappedValue: String {
+        get { value }
+        set { value = newValue.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
+    }
+
+    init(wrappedValue: String) {
+        self.wrappedValue = wrappedValue
+    }
+}

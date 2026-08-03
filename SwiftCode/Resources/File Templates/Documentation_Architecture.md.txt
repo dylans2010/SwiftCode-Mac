@@ -1,0 +1,12 @@
+---
+Name: Architecture.md
+Category: Documentation
+Description: Comprehensive architecture layout mapping modules, boundaries, and dependencies.
+Extension: md
+---
+# __FILENAME__ Project Architecture
+
+## Structural Overview
+- **App Core**: Houses main application orchestration delegates.
+- **Views / Canvas**: Dynamic declarative workspace interfaces.
+- **Services**: Local system resource adaptors (FileSystem, SQLite).

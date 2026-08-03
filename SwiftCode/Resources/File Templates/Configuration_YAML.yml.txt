@@ -1,0 +1,15 @@
+---
+Name: YAML
+Category: Configuration
+Description: Structured, readable YAML configuration.
+Extension: yml
+---
+project:
+  name: "SwiftCode Configuration"
+  version: "1.0.0"
+database:
+  driver: "sqlite"
+  path: "db/project_store.db"
+server:
+  host: "127.0.0.1"
+  port: 8080

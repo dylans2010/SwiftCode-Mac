@@ -1,0 +1,11 @@
+---
+Name: Project Notes
+Category: Documentation
+Description: Custom developer workbook containing meeting notes and design brainstorm drafts.
+Extension: md
+---
+# Developer Brainstorm Logs
+
+## Current Ideas
+- Introduce persistent workspace workspaces across runs.
+- Integrate Model Context Protocol commands.

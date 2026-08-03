@@ -1,0 +1,18 @@
+---
+Name: WindowGroup
+Category: SwiftUI
+Description: A multi-window SwiftUI WindowGroup setup with menu and window customizer controls.
+Extension: swift
+---
+import SwiftUI
+
+struct __FILENAME__: Scene {
+    var body: some Scene {
+        WindowGroup(id: "document-editor") {
+            Text("Document Workspace")
+                .frame(minWidth: 800, minHeight: 600)
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowToolbarStyle(.unified)
+    }
+}

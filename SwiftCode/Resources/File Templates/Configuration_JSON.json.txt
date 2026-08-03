@@ -1,0 +1,15 @@
+---
+Name: JSON
+Category: Configuration
+Description: Standard key-value structured JSON configuration.
+Extension: json
+---
+{
+  "name": "SwiftCode App Config",
+  "version": "1.0.0",
+  "environment": "Development",
+  "settings": {
+    "enableSync": true,
+    "maxCacheSizeMB": 256
+  }
+}

@@ -1,0 +1,14 @@
+---
+Name: CHANGELOG.md
+Category: Documentation
+Description: Structured Release history logging using standard Keep-a-Changelog patterns.
+Extension: md
+---
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [1.0.0] - 2026-08-03
+### Added
+- Initial project template setup for __FILENAME__.
+- Complete dynamic resource asset catalog.

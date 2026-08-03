@@ -1,0 +1,16 @@
+---
+Name: App
+Category: SwiftUI
+Description: A SwiftUI app entry-point managing main scene window definitions.
+Extension: swift
+---
+import SwiftUI
+
+@main
+struct __FILENAME__: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}

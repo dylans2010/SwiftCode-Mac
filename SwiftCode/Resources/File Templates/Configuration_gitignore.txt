@@ -1,0 +1,22 @@
+---
+Name: .gitignore
+Category: Configuration
+Description: Standard Git exclusion mappings ignoring macOS metadata and Xcode builds.
+Extension: gitignore
+---
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode Build Output
+build/
+DerivedData/
+*.moved-aside
+*.xcuserstate
+xcuserdata/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+.package.resolved

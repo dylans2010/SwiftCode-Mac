@@ -1,0 +1,28 @@
+---
+Name: Configuration Manager
+Category: Foundation
+Description: A configuration parser mapping Plist files to clean type-safe Swift structures.
+Extension: swift
+---
+import Foundation
+
+class __FILENAME__ {
+    static let shared = __FILENAME__()
+
+    private var config: [String: Any] = [:]
+
+    private init() {
+        if let path = Bundle.main.path(forResource: "Config", ofType: "plist"),
+           let dict = NSDictionary(contentsOfFile: path) as? [String: Any] {
+            config = dict
+        }
+    }
+
+    func string(forKey key: String) -> String? {
+        return config[key] as? String
+    }
+
+    func bool(forKey key: String) -> Bool {
+        return config[key] as? Bool ?? false
+    }
+}

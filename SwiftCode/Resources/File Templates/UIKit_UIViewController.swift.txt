@@ -1,14 +1,22 @@
+---
+Name: UIViewController
+Category: UIKit
+Description: A complete UIKit UIViewController boilerplate covering layout margins and custom subviews.
+Extension: swift
+---
 import UIKit
 
-class ViewController: UIViewController {
+class __FILENAME__: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
+        setupUI()
+    }
 
+    private func setupUI() {
         let label = UILabel()
-        label.text = "Hello, UIKit!"
-        label.textAlignment = .center
-        label.font = .preferredFont(forTextStyle: .title1)
+        label.text = "Welcome to UIKit"
+        label.font = .systemFont(ofSize: 20, weight: .bold)
         label.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(label)
 

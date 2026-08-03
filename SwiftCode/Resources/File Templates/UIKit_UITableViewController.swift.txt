@@ -1,0 +1,26 @@
+---
+Name: UITableViewController
+Category: UIKit
+Description: Custom UITableViewController complete with custom cell identifier setup.
+Extension: swift
+---
+import UIKit
+
+class __FILENAME__: UITableViewController {
+    private var items = ["Item One", "Item Two", "Item Three"]
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "Cell")
+    }
+
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return items.count
+    }
+
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath)
+        cell.textLabel?.text = items[indexPath.row]
+        return cell
+    }
+}

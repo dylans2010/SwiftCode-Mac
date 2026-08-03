@@ -1,0 +1,17 @@
+---
+Name: Swift File
+Category: Swift
+Description: A simple Swift source file containing a standard type definition.
+Extension: swift
+---
+import Foundation
+
+struct __FILENAME__ {
+    let id: UUID
+    var name: String
+
+    init(name: String) {
+        self.id = UUID()
+        self.name = name
+    }
+}

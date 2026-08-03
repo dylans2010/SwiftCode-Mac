@@ -1,0 +1,16 @@
+---
+Name: .swiftlint.yml
+Category: Configuration
+Description: Custom SwiftLint configurations checking trailing whitespaces, line limits, and types.
+Extension: yml
+---
+disabled_rules:
+  - trailing_whitespace
+opt_in_rules:
+  - empty_count
+  - force_unwrapping
+
+line_length: 150
+type_name:
+  min_length: 3
+  max_length: 40

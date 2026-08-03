@@ -1,0 +1,20 @@
+---
+Name: React Component
+Category: Web
+Description: React functional component template using modern React Hooks.
+Extension: jsx
+---
+import React, { useState } from 'react';
+
+export default function __FILENAME__() {
+    const [active, setActive] = useState(false);
+
+    return (
+        <div style={{ padding: '20px', textAlign: 'center' }}>
+            <h2>__FILENAME__ Component</h2>
+            <button onClick={() => setActive(!active)} className="btn">
+                {active ? "Active" : "Inactive"}
+            </button>
+        </div>
+    );
+}

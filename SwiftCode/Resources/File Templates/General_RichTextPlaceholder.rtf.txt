@@ -1,0 +1,9 @@
+---
+Name: Rich Text Placeholder
+Category: General
+Description: Standard flat RTF placeholder.
+Extension: rtf
+---
+{\rtf1\ansi\deff0 {\fonttbl {\f0 Courier;}}
+\f0\fs20 Welcome to __FILENAME__ placeholder.
+}

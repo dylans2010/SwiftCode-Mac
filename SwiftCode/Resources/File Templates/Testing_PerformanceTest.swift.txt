@@ -1,0 +1,17 @@
+---
+Name: Performance Test
+Category: Testing
+Description: Standard XCTest performance profiling blocks targeting computational bounds.
+Extension: swift
+---
+import XCTest
+
+final class __FILENAME__: XCTestCase {
+    func testPerformance() throws {
+        measure {
+            // Put code here to measure the time of
+            let arr = Array(1...10000)
+            _ = arr.sorted(by: >)
+        }
+    }
+}

@@ -1,0 +1,26 @@
+---
+Name: MenuBarExtra
+Category: SwiftUI
+Description: A SwiftUI status bar / menu-bar companion panel showing dynamic actions.
+Extension: swift
+---
+import SwiftUI
+
+struct __FILENAME__: Scene {
+    var body: some Scene {
+        MenuBarExtra("SwiftCode Utility", systemImage: "chevron.left.forwardslash.chevron.right") {
+            VStack {
+                Text("Utility Companion Active")
+                    .font(.caption)
+                Button("Preferences...") {
+                    // Open settings
+                }
+                Divider()
+                Button("Quit") {
+                    NSApplication.shared.terminate(nil)
+                }
+            }
+            .padding(12)
+        }
+    }
+}

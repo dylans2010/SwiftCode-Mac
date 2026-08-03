@@ -1,0 +1,22 @@
+---
+Name: XCTest
+Category: Testing
+Description: A standard XCTestCase unit testing suite with setup and tear-down blocks.
+Extension: swift
+---
+import XCTest
+
+final class __FILENAME__: XCTestCase {
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+    }
+
+    override func tearDownWithError() throws {
+        try super.tearDownWithError()
+    }
+
+    func testExample() throws {
+        let value = 42
+        XCTAssertEqual(value, 42, "Value must equal 42")
+    }
+}

@@ -1,0 +1,15 @@
+---
+Name: Ruby
+Category: Scripts
+Description: Executable Ruby CLI script containing file operations and error handlers.
+Extension: rb
+---
+#!/usr/bin/env ruby
+
+puts "Running __FILENAME__ automation..."
+
+begin
+  # Process operations
+rescue => e
+  puts "Operation failed: #{e.message}"
+end

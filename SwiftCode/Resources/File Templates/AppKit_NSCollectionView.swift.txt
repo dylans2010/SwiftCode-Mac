@@ -1,0 +1,40 @@
+---
+Name: NSCollectionView
+Category: AppKit
+Description: NSCollectionView layout, flow layout, and datasource setup template.
+Extension: swift
+---
+import AppKit
+
+class __FILENAME__: NSViewController, NSCollectionViewDataSource, NSCollectionViewDelegate {
+    private var collectionView: NSCollectionView!
+    private var items: [String] = ["One", "Two", "Three"]
+
+    override func loadView() {
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 500, height: 400))
+        scrollView.hasVerticalScroller = true
+
+        let flowLayout = NSCollectionViewFlowLayout()
+        flowLayout.itemSize = NSSize(width: 120, height: 120)
+        flowLayout.minimumLineSpacing = 10
+        flowLayout.minimumInteritemSpacing = 10
+
+        collectionView = NSCollectionView()
+        collectionView.collectionViewLayout = flowLayout
+        collectionView.dataSource = self
+        collectionView.delegate = self
+
+        scrollView.documentView = collectionView
+        self.view = scrollView
+    }
+
+    func collectionView(_ collectionView: NSCollectionView, numberOfItemsInSection section: Int) -> Int {
+        return items.count
+    }
+
+    func collectionView(_ collectionView: NSCollectionView, itemForRepresentedObjectAt indexPath: IndexPath) -> NSCollectionViewItem {
+        let item = collectionView.makeItem(withIdentifier: NSUserInterfaceItemIdentifier(rawValue: "CellItem"), for: indexPath)
+        item.textField?.stringValue = items[indexPath.item]
+        return item
+    }
+}

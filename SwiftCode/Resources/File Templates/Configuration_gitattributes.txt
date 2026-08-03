@@ -1,0 +1,12 @@
+---
+Name: .gitattributes
+Category: Configuration
+Description: Git attribute definitions enforcing consistent line-endings and LFS mappings.
+Extension: gitattributes
+---
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Denote binary files to prevent merge conflict issues
+*.png binary
+*.jpg binary

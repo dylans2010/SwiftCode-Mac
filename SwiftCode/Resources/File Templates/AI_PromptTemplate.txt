@@ -1,0 +1,18 @@
+---
+Name: Prompt Template
+Category: AI
+Description: Well structured context layout for optimal LLM generation outputs.
+Extension: txt
+---
+### System Context
+You are a senior software architect specializing in Swift and native Apple UI frameworks.
+
+### Code / Objective
+Analyze the following Swift program snippet:
+```swift
+// insert code here
+```
+
+### Response Format
+- Clearly detail efficiency leaks.
+- Suggest modernized alternatives using async-await.

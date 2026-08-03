@@ -1,0 +1,30 @@
+---
+Name: Package.swift
+Category: Apple Resources
+Description: Complete Swift Package Manager Package manifest describing libraries and dependencies.
+Extension: swift
+---
+// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "__FILENAME__",
+    platforms: [
+        .macOS(.v15), .iOS(.v18)
+    ],
+    products: [
+        .library(name: "__FILENAME__", targets: ["__FILENAME__"])
+    ],
+    dependencies: [
+    ],
+    targets: [
+        .target(
+            name: "__FILENAME__",
+            dependencies: []
+        ),
+        .testTarget(
+            name: "__FILENAME__Tests",
+            dependencies: ["__FILENAME__"]
+        )
+    ]
+)

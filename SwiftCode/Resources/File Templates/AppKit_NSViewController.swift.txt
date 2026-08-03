@@ -1,0 +1,30 @@
+---
+Name: NSViewController
+Category: AppKit
+Description: A native macOS NSViewController template with standard lifecycle hooks.
+Extension: swift
+---
+import AppKit
+
+class __FILENAME__: NSViewController {
+    override func loadView() {
+        self.view = NSView(frame: NSRect(x: 0, y: 0, width: 480, height: 320))
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        setupUI()
+    }
+
+    private func setupUI() {
+        let textField = NSTextField(labelWithString: "Welcome to AppKit ViewController")
+        textField.font = NSFont.systemFont(ofSize: 18, weight: .semibold)
+        textField.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(textField)
+
+        NSLayoutConstraint.activate([
+            textField.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            textField.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+        ])
+    }
+}

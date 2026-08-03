@@ -1,0 +1,25 @@
+---
+Name: JSON Model
+Category: Foundation
+Description: Complex JSON structure parsing using custom Swift Codable properties.
+Extension: swift
+---
+import Foundation
+
+struct __FILENAME__: Codable, Hashable {
+    let statusCode: Int
+    let message: String
+    let payload: [PayloadDetail]
+
+    struct PayloadDetail: Codable, Hashable {
+        let uniqueID: UUID
+        let name: String
+        let isActive: Bool
+    }
+
+    static func parse(data: Data) throws -> __FILENAME__ {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode(__FILENAME__.self, from: data)
+    }
+}

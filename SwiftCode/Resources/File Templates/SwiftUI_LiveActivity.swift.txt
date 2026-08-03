@@ -1,0 +1,44 @@
+---
+Name: Live Activity
+Category: SwiftUI
+Description: A WidgetKit Live Activity configuration template showing Dynamic Island layouts.
+Extension: swift
+---
+import ActivityKit
+import WidgetKit
+import SwiftUI
+
+struct LiveActivityAttributes: ActivityAttributes {
+    public struct ContentState: Codable, Hashable {
+        var progress: Double
+    }
+    var title: String
+}
+
+struct __FILENAME__Widget: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: LiveActivityAttributes.self) { context in
+            // Lock Screen UI
+            VStack {
+                Text(context.attributes.title)
+                ProgressView(value: context.state.progress)
+            }
+            .padding()
+        } dynamicIsland: { context in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    Text("Progress")
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    Text("\(Int(context.state.progress * 100))%")
+                }
+            } compactLeading: {
+                Text("L")
+            } compactTrailing: {
+                Text("T")
+            } minimal: {
+                Text("M")
+            }
+        }
+    }
+}

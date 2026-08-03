@@ -1,0 +1,13 @@
+---
+Name: Zsh
+Category: Scripts
+Description: Specialized executable Zsh script leveraging advanced CLI scripting functions.
+Extension: zsh
+---
+#!/bin/zsh
+
+autoload -Uz colors && colors
+
+print -P "%F{green}Starting __FILENAME__ setup...%f"
+
+# Custom commands
