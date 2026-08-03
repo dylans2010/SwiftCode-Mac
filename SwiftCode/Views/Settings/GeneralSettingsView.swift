@@ -594,6 +594,62 @@ struct GeneralSettingsView: View {
                 VStack(spacing: 24) {
                     proSection
 
+                    // Save Location Configuration Section
+                    SettingsCardSection {
+                        Toggle(isOn: $settings.saveProjectsOnCustomFolder) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Use Custom Save Location")
+                                Text("If enabled, all future projects will automatically be saved to your custom directory.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        if settings.saveProjectsOnCustomFolder {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Custom Folder Path:")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+                                Text(settings.customProjectsFolder.isEmpty ? "No folder selected" : settings.customProjectsFolder)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .padding(8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color(NSColor.controlBackgroundColor))
+                                    .cornerRadius(6)
+                                    .lineLimit(1)
+
+                                Button("Choose Custom Directory...") {
+                                    let panel = NSOpenPanel()
+                                    panel.canChooseFiles = false
+                                    panel.canChooseDirectories = true
+                                    panel.canCreateDirectories = true
+                                    panel.message = "Select custom directory to save future projects"
+                                    if panel.runModal() == .OK, let url = panel.url {
+                                        settings.customProjectsFolder = url.path
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        } else {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Default Folder Path:")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+                                Text(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Projects").path)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .padding(8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color(NSColor.controlBackgroundColor))
+                                    .cornerRadius(6)
+                                    .lineLimit(1)
+                            }
+                        }
+                    } header: {
+                        Label("Save Projects On", systemImage: "shippingbox.fill")
+                    } footer: {
+                        Text("Configure whether newly created templates are saved in the default system sandboxed folder or a custom directory of your choice.")
+                    }
+
                     // THE FOLLOWING SECTIONS ARE PERMANENTLY HIDDEN FROM THE UI VIA #if false BLOCK AS REQUESTED
                     #if false
                     quickSetupSection

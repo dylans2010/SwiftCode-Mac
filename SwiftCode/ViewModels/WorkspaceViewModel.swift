@@ -30,7 +30,72 @@ public class WorkspaceViewModel: Sendable {
             if Task.isCancelled { return }
             await git.refreshStatus()
             await scanAndCacheXcodeProjects()
+
+            // Auto open the active file from session, or automatically discover the primary file
+            let sessionStore = ProjectSessionStore.shared
+            if let activeNode = sessionStore.activeFileNode {
+                let fileURL = projectURL.appendingPathComponent(activeNode.path)
+                await editor.openFile(url: fileURL)
+            } else if let rootNode = projectTree.rootNode, let children = rootNode.children {
+                if let primaryURL = findPrimarySwiftFile(in: children) {
+                    let relativePath = primaryURL.path.replacingOccurrences(of: projectURL.path + "/", with: "")
+                    let node = FileNode(name: primaryURL.lastPathComponent, path: relativePath, isDirectory: false)
+                    sessionStore.openFile(node)
+                    await editor.openFile(url: primaryURL)
+                }
+            }
         }
+    }
+
+    private func findPrimarySwiftFile(in nodes: [ProjectNode]) -> URL? {
+        // First look for important files in the current level
+        for node in nodes {
+            if node.kind == .file {
+                let name = node.url.lastPathComponent
+                if name == "ContentView.swift" || name == "main.swift" || name == "Package.swift" {
+                    return node.url
+                }
+            }
+        }
+
+        // Then search recursively for any .swift file
+        for node in nodes {
+            if node.kind == .file && node.url.pathExtension == "swift" {
+                return node.url
+            }
+            if let children = node.children {
+                if let childMatch = findPrimarySwiftFile(in: children) {
+                    return childMatch
+                }
+            }
+        }
+
+        // Fallback to any file
+        for node in nodes {
+            if node.kind == .file {
+                return node.url
+            }
+            if let children = node.children {
+                if let childMatch = findAnyFile(in: children) {
+                    return childMatch
+                }
+            }
+        }
+        return nil
+    }
+
+    private func findAnyFile(in nodes: [ProjectNode]) -> URL? {
+        for node in nodes {
+            if node.kind == .file {
+                return node.url
+            }
+            if let children = node.children {
+                if let childMatch = findAnyFile(in: children) {
+                    return childMatch
+                }
+            }
+        }
+        return nil
     }
 
     deinit {
