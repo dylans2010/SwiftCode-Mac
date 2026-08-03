@@ -7,6 +7,19 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		STK09CC4E845E901D0CB39FB /* StoreKitModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = STK56CCCDF5CF379A2BE0AD4 /* StoreKitModels.swift */; };
+		STKA0D9F67AE9BFE52182F64 /* StoreKitParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = STKCEA1571736A4ADED881CE /* StoreKitParser.swift */; };
+		STK256E2E1D9192F9EDFCF40 /* StoreKitEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = STKF84C9E25F9B0B0EDFF3E5 /* StoreKitEncoder.swift */; };
+		STK8F26ED8A874C03CA55008 /* StoreKitValidationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = STKBA55318A6BF255FBEDA9E /* StoreKitValidationService.swift */; };
+		STKB39BDF797DEEF277EF9F7 /* StoreKitSimulationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = STK348C666BC780CE6156B57 /* StoreKitSimulationService.swift */; };
+		STK721D45FCA69178DB0C7B7 /* StoreKitWorkspaceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = STK8D122D6BBE6037D0EE968 /* StoreKitWorkspaceManager.swift */; };
+		STK3699463DE7BDD9A0B8B2F /* StoreKitWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = STK44A22CA765B4C8E1D7238 /* StoreKitWindowManager.swift */; };
+		STKB3DDF9898897131B822D1 /* StoreKitWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = STK6F78FEE5D4C65C670D3CB /* StoreKitWindowController.swift */; };
+		STK3CBB81DB8F6140C65D0CF /* StoreKitSplitViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = STK91ADA65FC4AFF3F10602D /* StoreKitSplitViewController.swift */; };
+		STK5E6DF445423E32C7114E3 /* StoreKitSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = STKC7FE5547B2B26EF287740 /* StoreKitSidebarView.swift */; };
+		STK24C69F8C1354F9F781036 /* StoreKitInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = STKC6BC67020BDDE1C800BD4 /* StoreKitInspectorView.swift */; };
+		STKC518425E59449333E16AA /* StoreKitEditors.swift in Sources */ = {isa = PBXBuildFile; fileRef = STK91C0F0CACE52BD3F44A8A /* StoreKitEditors.swift */; };
+		STKF6C5B1330EA8ADAF571AB /* StoreKitProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = STK6135722D9A69DD08D3F7F /* StoreKitProtocols.swift */; };
 		004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = BBB818A276304EA881DBF6E6 /* MLXOptimizers */; };
 		016298C4F533D83B2A4FB1B0 /* ApplicationDeploymentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF38596E6CBBF00108C7D98 /* ApplicationDeploymentView.swift */; };
 		0166E43D0F249661F65BDD62 /* AssistLogCaptureTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C63871C9F424ED65E6604B87 /* AssistLogCaptureTool.swift */; };
@@ -2356,6 +2369,19 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		STK56CCCDF5CF379A2BE0AD4 /* StoreKitModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/StoreKitModels.swift; sourceTree = "<group>"; };
+		STKCEA1571736A4ADED881CE /* StoreKitParser.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Parsers/StoreKitParser.swift; sourceTree = "<group>"; };
+		STKF84C9E25F9B0B0EDFF3E5 /* StoreKitEncoder.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Encoders/StoreKitEncoder.swift; sourceTree = "<group>"; };
+		STKBA55318A6BF255FBEDA9E /* StoreKitValidationService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Services/StoreKitValidationService.swift; sourceTree = "<group>"; };
+		STK348C666BC780CE6156B57 /* StoreKitSimulationService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Services/StoreKitSimulationService.swift; sourceTree = "<group>"; };
+		STK8D122D6BBE6037D0EE968 /* StoreKitWorkspaceManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Managers/StoreKitWorkspaceManager.swift; sourceTree = "<group>"; };
+		STK44A22CA765B4C8E1D7238 /* StoreKitWindowManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Windows/StoreKitWindowManager.swift; sourceTree = "<group>"; };
+		STK6F78FEE5D4C65C670D3CB /* StoreKitWindowController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Windows/StoreKitWindowController.swift; sourceTree = "<group>"; };
+		STK91ADA65FC4AFF3F10602D /* StoreKitSplitViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Workspace/StoreKitSplitViewController.swift; sourceTree = "<group>"; };
+		STKC7FE5547B2B26EF287740 /* StoreKitSidebarView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Sidebar/StoreKitSidebarView.swift; sourceTree = "<group>"; };
+		STKC6BC67020BDDE1C800BD4 /* StoreKitInspectorView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Inspector/StoreKitInspectorView.swift; sourceTree = "<group>"; };
+		STK91C0F0CACE52BD3F44A8A /* StoreKitEditors.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Editors/StoreKitEditors.swift; sourceTree = "<group>"; };
+		STK6135722D9A69DD08D3F7F /* StoreKitProtocols.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Protocols/StoreKitProtocols.swift; sourceTree = "<group>"; };
 		00048987BBB25A712D49051C /* NordThemeExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NordThemeExtensionView.swift; sourceTree = "<group>"; };
 		00573C77C75B8076494A575A /* _AssistCriticalValidationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = _AssistCriticalValidationEngine.swift; sourceTree = "<group>"; };
 		0076F070FA7E4422B0FBAAB8 /* ParseMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseMarkdown.swift; sourceTree = "<group>"; };
@@ -4717,6 +4743,26 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		B0020001B0020001B002E001 /* StoreKit */ = {
+			isa = PBXGroup;
+			children = (
+				STK56CCCDF5CF379A2BE0AD4 /* StoreKitModels.swift */,
+				STKCEA1571736A4ADED881CE /* StoreKitParser.swift */,
+				STKF84C9E25F9B0B0EDFF3E5 /* StoreKitEncoder.swift */,
+				STKBA55318A6BF255FBEDA9E /* StoreKitValidationService.swift */,
+				STK348C666BC780CE6156B57 /* StoreKitSimulationService.swift */,
+				STK8D122D6BBE6037D0EE968 /* StoreKitWorkspaceManager.swift */,
+				STK44A22CA765B4C8E1D7238 /* StoreKitWindowManager.swift */,
+				STK6F78FEE5D4C65C670D3CB /* StoreKitWindowController.swift */,
+				STK91ADA65FC4AFF3F10602D /* StoreKitSplitViewController.swift */,
+				STKC7FE5547B2B26EF287740 /* StoreKitSidebarView.swift */,
+				STKC6BC67020BDDE1C800BD4 /* StoreKitInspectorView.swift */,
+				STK91C0F0CACE52BD3F44A8A /* StoreKitEditors.swift */,
+				STK6135722D9A69DD08D3F7F /* StoreKitProtocols.swift */,
+			);
+			path = StoreKit;
+			sourceTree = "<group>";
+		};
 		001BFD647D5F8303B39B8C64 /* Backend */ = {
 			isa = PBXGroup;
 			children = (
@@ -5743,6 +5789,7 @@
 		576E45E47FC5098A3A96ECB8 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				B0020001B0020001B002E001 /* StoreKit */,
 				DA9F6ADE169A8733ECDBA630 /* SwiftCode/Views/Utilities/CopyLogsButton.swift */,
 				BEADAB9179D503EFBDAB6705 /* DependencyManager/ProjectCompatibilityView.swift */,
 				8A7EC5AE379601C498231A42 /* DependencyManager/SecurityCenterView.swift */,
@@ -9462,6 +9509,19 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				STK09CC4E845E901D0CB39FB /* StoreKitModels.swift in Sources */,
+				STKA0D9F67AE9BFE52182F64 /* StoreKitParser.swift in Sources */,
+				STK256E2E1D9192F9EDFCF40 /* StoreKitEncoder.swift in Sources */,
+				STK8F26ED8A874C03CA55008 /* StoreKitValidationService.swift in Sources */,
+				STKB39BDF797DEEF277EF9F7 /* StoreKitSimulationService.swift in Sources */,
+				STK721D45FCA69178DB0C7B7 /* StoreKitWorkspaceManager.swift in Sources */,
+				STK3699463DE7BDD9A0B8B2F /* StoreKitWindowManager.swift in Sources */,
+				STKB3DDF9898897131B822D1 /* StoreKitWindowController.swift in Sources */,
+				STK3CBB81DB8F6140C65D0CF /* StoreKitSplitViewController.swift in Sources */,
+				STK5E6DF445423E32C7114E3 /* StoreKitSidebarView.swift in Sources */,
+				STK24C69F8C1354F9F781036 /* StoreKitInspectorView.swift in Sources */,
+				STKC518425E59449333E16AA /* StoreKitEditors.swift in Sources */,
+				STKF6C5B1330EA8ADAF571AB /* StoreKitProtocols.swift in Sources */,
 				403E47099A1AD4A273772012 /* SwiftCode/Services/FullAppRunManager.swift in Sources */,
 				8AA2D5714044741A85C1C887 /* SwiftCode/Services/ProjectResolver.swift in Sources */,
 				078FACB2E8BADEDA3F08C1A1 /* SwiftCode/Views/Utilities/CopyLogsButton.swift in Sources */,

@@ -284,6 +284,26 @@ struct FileNavigatorSidebarView: View {
             }
             .listStyle(.sidebar)
             .animation(activeAnimation, value: viewModel.expandedNodeIDs)
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button {
+                    StoreKitWindowManager.shared.showWindow()
+                } label: {
+                    Image(systemName: "receipt")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                        .padding(5)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Open StoreKit Configuration Workspace")
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(.ultraThinMaterial)
         }
         .sheet(isPresented: $showingFileTemplates) {
             FileTemplatesView(viewModel: viewModel)
