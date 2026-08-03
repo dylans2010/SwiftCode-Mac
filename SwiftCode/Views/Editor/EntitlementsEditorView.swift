@@ -394,3 +394,191 @@ public struct EntitlementsEditorView: View {
         .frame(width: 400, height: 420)
     }
 }
+
+// MARK: - Subviews for Entitlements List & Inspector
+
+struct EntitlementRowView: View {
+    let key: String
+    let value: Any
+    let isFavorite: Bool
+    let onSelect: () -> Void
+    let onToggleFavorite: () -> Void
+    let onDelete: () -> Void
+    let onValueChange: (Any) -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(key)
+                    .font(.headline)
+                    .lineLimit(1)
+
+                if let meta = EntitlementsCatalog.all.first(where: { $0.rawKey == key }) {
+                    Text(meta.displayName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            // Value Editor
+            if let boolVal = value as? Bool {
+                Toggle("", isOn: Binding(
+                    get: { boolVal },
+                    set: { onValueChange($0) }
+                ))
+                .toggleStyle(.switch)
+                .labelsHidden()
+            } else if let arrVal = value as? [String] {
+                Text("\(arrVal.count) items")
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+            } else {
+                TextField("", text: Binding(
+                    get: { String(describing: value) },
+                    set: { onValueChange($0) }
+                ))
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 180)
+            }
+
+            // Inspect
+            Button(action: onSelect) {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+
+            // Delete
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+}
+
+struct EntitlementInspectorPanel: View {
+    let key: String
+    let value: Any
+    let metadata: EntitlementMetadata?
+    let onUpdateValue: (Any) -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(metadata?.displayName ?? key)
+                        .font(.title3.bold())
+                    Text(key)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let meta = metadata {
+                    VStack(alignment: .leading, spacing: 12) {
+                        GroupBox(label: Label("Description", systemImage: "doc.text")) {
+                            Text(meta.entitlementDescription)
+                                .font(.body)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.top, 4)
+                        }
+
+                        GroupBox(label: Label("Recommended Usage", systemImage: "hand.thumbsup")) {
+                            Text(meta.recommendedUsage)
+                                .font(.body)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.top, 4)
+                        }
+
+                        GroupBox(label: Label("Metadata Info", systemImage: "info.circle")) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("Category:")
+                                        .bold()
+                                    Text(meta.category.rawValue)
+                                }
+                                HStack {
+                                    Text("Value Type:")
+                                        .bold()
+                                    Text(meta.valueType.rawValue)
+                                }
+                                HStack {
+                                    Text("Platforms:")
+                                        .bold()
+                                    Text(meta.supportedPlatforms.map { $0.rawValue }.joined(separator: ", "))
+                                }
+                            }
+                            .font(.caption)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 4)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Value Editor")
+                        .font(.headline)
+
+                    if let boolVal = value as? Bool {
+                        Toggle("Enabled", isOn: Binding(
+                            get: { boolVal },
+                            set: { onUpdateValue($0) }
+                        ))
+                        .toggleStyle(.checkbox)
+                    } else if let arrVal = value as? [String] {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(0..<arrVal.count, id: \.self) { idx in
+                                HStack {
+                                    TextField("Item \(idx + 1)", text: Binding(
+                                        get: { arrVal[idx] },
+                                        set: { newVal in
+                                            var copy = arrVal
+                                            copy[idx] = newVal
+                                            onUpdateValue(copy)
+                                        }
+                                    ))
+                                    .textFieldStyle(.roundedBorder)
+
+                                    Button {
+                                        var copy = arrVal
+                                        copy.remove(at: idx)
+                                        onUpdateValue(copy)
+                                    } label: {
+                                        Image(systemName: "minus.circle")
+                                            .foregroundStyle(.red)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+
+                            Button {
+                                var copy = arrVal
+                                copy.append("")
+                                onUpdateValue(copy)
+                            } label: {
+                                Label("Add Item", systemImage: "plus")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    } else {
+                        TextField("Value", text: Binding(
+                            get: { String(describing: value) },
+                            set: { onUpdateValue($0) }
+                        ))
+                        .textFieldStyle(.roundedBorder)
+                    }
+                }
+                .padding()
+                .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+            }
+            .padding()
+        }
+    }
+}

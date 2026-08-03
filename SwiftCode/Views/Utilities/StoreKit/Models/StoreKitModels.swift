@@ -354,3 +354,18 @@ public struct SKEntitlement: Codable, Sendable, Identifiable, Hashable, Equatabl
         self.isActive = isActive
     }
 }
+
+public struct SKAsset: Codable, Sendable, Identifiable, Hashable {
+    public var id: String { resolvedPath }
+    public let fileName: String
+    public let resolvedPath: String
+    public let size: String
+    public let type: String
+
+    public init(fileName: String, resolvedPath: String, size: String, type: String) {
+        self.fileName = fileName
+        self.resolvedPath = resolvedPath
+        self.size = size
+        self.type = type
+    }
+}

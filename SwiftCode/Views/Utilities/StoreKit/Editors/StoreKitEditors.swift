@@ -543,10 +543,16 @@ struct StoreKitProductsView: View {
 
 // Product Editing Sheet
 struct StoreKitProductEditingSheet: View, Identifiable {
-    var id: String { product.productID }
+    nonisolated public let id: String
     @Environment(\.dismiss) var dismiss
     @State var product: SKProduct
     let onSave: (SKProduct) -> Void
+
+    init(product: SKProduct, onSave: @escaping (SKProduct) -> Void) {
+        self.id = product.productID
+        self._product = State(initialValue: product)
+        self.onSave = onSave
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1328,6 +1334,14 @@ struct StoreKitDiagnosticsView: View {
 
 
 // MARK: - 11. StoreKitTemplateGalleryView
+
+struct TemplateCard: Identifiable, Sendable {
+    var id: String { name }
+    let name: String
+    let desc: String
+    let icon: String
+    let itemsCount: String
+}
 
 struct StoreKitTemplateGalleryView: View {
     @Environment(StoreKitWorkspaceSession.self) var session

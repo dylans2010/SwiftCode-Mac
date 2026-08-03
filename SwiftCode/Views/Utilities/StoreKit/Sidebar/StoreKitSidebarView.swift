@@ -5,34 +5,34 @@ struct StoreKitSidebarView: View {
     @State private var workspaceManager = StoreKitWorkspaceManager.shared
     @State private var hoverItem: String? = nil
 
-    private let categories: [SidebarSection] = [
-        SidebarSection(title: "WORKSPACE", items: [
-            SidebarItem(name: "Dashboard", icon: "square.dashboard", targetSection: "Dashboard"),
-            SidebarItem(name: "Templates", icon: "square.grid.3x1.below.line.grid.1x2", targetSection: "Templates")
+    private let categories: [StoreKitSidebarSection] = [
+        StoreKitSidebarSection(title: "WORKSPACE", items: [
+            StoreKitSidebarItem(name: "Dashboard", icon: "square.dashboard", targetSection: "Dashboard"),
+            StoreKitSidebarItem(name: "Templates", icon: "square.grid.3x1.below.line.grid.1x2", targetSection: "Templates")
         ]),
-        SidebarSection(title: "PRODUCTS", items: [
-            SidebarItem(name: "All Products", icon: "cart", targetSection: "Products"),
-            SidebarItem(name: "Consumables", icon: "flame", targetSection: "Consumables"),
-            SidebarItem(name: "Non Consumables", icon: "sparkles", targetSection: "Non Consumables"),
-            SidebarItem(name: "Auto Renewables", icon: "arrow.3.clockwise", targetSection: "Auto Renewables"),
-            SidebarItem(name: "Non Renewables", icon: "hourglass", targetSection: "Non Renewables")
+        StoreKitSidebarSection(title: "PRODUCTS", items: [
+            StoreKitSidebarItem(name: "All Products", icon: "cart", targetSection: "Products"),
+            StoreKitSidebarItem(name: "Consumables", icon: "flame", targetSection: "Consumables"),
+            StoreKitSidebarItem(name: "Non Consumables", icon: "sparkles", targetSection: "Non Consumables"),
+            StoreKitSidebarItem(name: "Auto Renewables", icon: "arrow.3.clockwise", targetSection: "Auto Renewables"),
+            StoreKitSidebarItem(name: "Non Renewables", icon: "hourglass", targetSection: "Non Renewables")
         ]),
-        SidebarSection(title: "MANAGEMENT", items: [
-            SidebarItem(name: "Subscription Groups", icon: "square.stack.3d.up", targetSection: "Subscription Groups"),
-            SidebarItem(name: "Offers & Codes", icon: "tag", targetSection: "Offers"),
-            SidebarItem(name: "Storefronts", icon: "globe", targetSection: "Storefronts"),
-            SidebarItem(name: "Localization", icon: "character.bubble", targetSection: "Localization"),
-            SidebarItem(name: "Assets & Media", icon: "photo", targetSection: "Assets")
+        StoreKitSidebarSection(title: "MANAGEMENT", items: [
+            StoreKitSidebarItem(name: "Subscription Groups", icon: "square.stack.3d.up", targetSection: "Subscription Groups"),
+            StoreKitSidebarItem(name: "Offers & Codes", icon: "tag", targetSection: "Offers"),
+            StoreKitSidebarItem(name: "Storefronts", icon: "globe", targetSection: "Storefronts"),
+            StoreKitSidebarItem(name: "Localization", icon: "character.bubble", targetSection: "Localization"),
+            StoreKitSidebarItem(name: "Assets & Media", icon: "photo", targetSection: "Assets")
         ]),
-        SidebarSection(title: "TESTING & SIMULATION", items: [
-            SidebarItem(name: "Purchase Simulator", icon: "play.circle", targetSection: "Purchase Simulator"),
-            SidebarItem(name: "Transactions", icon: "scroll", targetSection: "Transactions"),
-            SidebarItem(name: "Validation & Diagnostics", icon: "exclamationmark.shield", targetSection: "Validation")
+        StoreKitSidebarSection(title: "TESTING & SIMULATION", items: [
+            StoreKitSidebarItem(name: "Purchase Simulator", icon: "play.circle", targetSection: "Purchase Simulator"),
+            StoreKitSidebarItem(name: "Transactions", icon: "scroll", targetSection: "Transactions"),
+            StoreKitSidebarItem(name: "Validation & Diagnostics", icon: "exclamationmark.shield", targetSection: "Validation")
         ]),
-        SidebarSection(title: "UTILITIES", items: [
-            SidebarItem(name: "Workspace Logs", icon: "terminal", targetSection: "Logs"),
-            SidebarItem(name: "Raw Source Editor", icon: "chevron.left.forwardslash.chevron.right", targetSection: "Raw Source"),
-            SidebarItem(name: "Settings", icon: "gearshape", targetSection: "Settings")
+        StoreKitSidebarSection(title: "UTILITIES", items: [
+            StoreKitSidebarItem(name: "Workspace Logs", icon: "terminal", targetSection: "Logs"),
+            StoreKitSidebarItem(name: "Raw Source Editor", icon: "chevron.left.forwardslash.chevron.right", targetSection: "Raw Source"),
+            StoreKitSidebarItem(name: "Settings", icon: "gearshape", targetSection: "Settings")
         ])
     ]
 
@@ -100,7 +100,7 @@ struct StoreKitSidebarView: View {
     }
 
     @ViewBuilder
-    private func sidebarRow(_ item: SidebarItem) -> some View {
+    private func sidebarRow(_ item: StoreKitSidebarItem) -> some View {
         let isSelected = session.selectedSection == item.targetSection
         HStack(spacing: 8) {
             Image(systemName: item.icon)
@@ -131,13 +131,13 @@ struct StoreKitSidebarView: View {
 
 // Sidebar structural helpers
 
-struct SidebarSection: Identifiable {
+struct StoreKitSidebarSection: Identifiable {
     var id = UUID()
     var title: String
-    var items: [SidebarItem]
+    var items: [StoreKitSidebarItem]
 }
 
-struct SidebarItem: Identifiable {
+struct StoreKitSidebarItem: Identifiable {
     var id: String { name }
     var name: String
     var icon: String
