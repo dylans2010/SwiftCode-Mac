@@ -225,6 +225,7 @@ public final class CodingDictionaryCoordinator {
     public static let shared = CodingDictionaryCoordinator()
     public var searchText: String = ""
     public var isSearchFocused: Bool = false
+    public var showingSpotlight: Bool = false
 
     private init() {}
 
@@ -234,6 +235,7 @@ public final class CodingDictionaryCoordinator {
             DictionaryManager.shared.currentResult = nil
             DictionaryManager.shared.errorState = nil
             isSearchFocused = true
+            showingSpotlight = true
         }
     }
 
@@ -256,24 +258,21 @@ public final class CodingDictionaryCoordinator {
 // MARK: - Split View Wrappers
 struct CodingDictionarySidebarWrapper: View {
     @State private var coordinator = CodingDictionaryCoordinator.shared
-    @State private var showingSpotlight = false
 
     var body: some View {
-        @Bindable var coord = coordinator
-        DictionarySidebarView(searchText: $coord.searchText)
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("CodingDictionaryNewSearch"))) { _ in
-                coordinator.performNewSearch()
-                showingSpotlight = true
-            }
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("CodingDictionaryClearHistory"))) { _ in
-                coordinator.performClearHistory()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("com.swiftcode.dictionary.showSpotlight"))) { _ in
-                showingSpotlight = true
-            }
-            .sheet(isPresented: $showingSpotlight) {
-                CodeDictionarySearch()
-            }
+        DictionarySidebarView(searchText: Binding(
+            get: { coordinator.searchText },
+            set: { coordinator.searchText = $0 }
+        ))
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("CodingDictionaryNewSearch"))) { _ in
+            coordinator.performNewSearch()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("CodingDictionaryClearHistory"))) { _ in
+            coordinator.performClearHistory()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("com.swiftcode.dictionary.showSpotlight"))) { _ in
+            coordinator.showingSpotlight = true
+        }
     }
 }
 
@@ -281,11 +280,19 @@ struct CodingDictionaryDetailWrapper: View {
     @State private var coordinator = CodingDictionaryCoordinator.shared
 
     var body: some View {
-        @Bindable var coord = coordinator
-        DictionaryDetailView(searchText: $coord.searchText)
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("CodingDictionaryRefreshEntry"))) { _ in
-                coordinator.performRefreshEntry()
-            }
+        DictionaryDetailView(searchText: Binding(
+            get: { coordinator.searchText },
+            set: { coordinator.searchText = $0 }
+        ))
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("CodingDictionaryRefreshEntry"))) { _ in
+            coordinator.performRefreshEntry()
+        }
+        .sheet(isPresented: Binding(
+            get: { coordinator.showingSpotlight },
+            set: { coordinator.showingSpotlight = $0 }
+        )) {
+            CodeDictionarySearch()
+        }
     }
 }
 

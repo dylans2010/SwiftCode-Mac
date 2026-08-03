@@ -30,7 +30,28 @@ public struct AppDetailsInfo: View {
     }
 
     public var body: some View {
-        XcodeProjectDetailsSheet()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack(spacing: 0) {
+            // High fidelity statistics header for Sidebar panel
+            HStack(spacing: 12) {
+                Image(systemName: "info.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.blue)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("App Target Inspector")
+                        .font(.headline)
+                    Text("Active Configuration: \(appName)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding()
+            .background(Color.blue.opacity(0.06))
+
+            Divider()
+
+            XcodeProjectDetailsSheet()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
     }
 }

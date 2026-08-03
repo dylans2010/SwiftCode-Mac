@@ -3,10 +3,10 @@ import AppKit
 
 public struct CodeDictionarySearch: View {
     @Environment(\.dismiss) private var dismiss
-    @Bindable var manager = DictionaryManager.shared
     @State private var query = ""
     @FocusState private var isFieldFocused: Bool
     @State private var hoveredItem: String? = nil
+    @State private var selectedCategory = "All"
 
     // List of common search suggestions
     private let suggestions = [
@@ -15,9 +15,22 @@ public struct CodeDictionarySearch: View {
         "Swift Concurrency", "ARC", "Memory Leak"
     ]
 
+    private let categories = ["All", "UI", "Concurrency", "Git", "Tooling"]
+
     private var filteredSuggestions: [String] {
-        if query.isEmpty { return suggestions }
-        return suggestions.filter { $0.localizedCaseInsensitiveContains(query) }
+        let base = query.isEmpty ? suggestions : suggestions.filter { $0.localizedCaseInsensitiveContains(query) }
+        switch selectedCategory {
+        case "UI":
+            return base.filter { ["VStack", "HStack", "ZStack", "NavigationStack", "State", "Binding"].contains($0) }
+        case "Concurrency":
+            return base.filter { ["Task", "Actor", "Swift Concurrency"].contains($0) }
+        case "Git":
+            return base.filter { ["Git", "Clone", "Push", "Pull"].contains($0) }
+        case "Tooling":
+            return base.filter { ["URLSession", "JSONDecoder", "Environment", "ARC", "Memory Leak"].contains($0) }
+        default:
+            return base
+        }
     }
 
     public var body: some View {
@@ -59,12 +72,36 @@ public struct CodeDictionarySearch: View {
 
             Divider()
 
+            // Category filter pills
+            HStack(spacing: 8) {
+                ForEach(categories, id: \.self) { cat in
+                    Button {
+                        withAnimation {
+                            selectedCategory = cat
+                        }
+                    } label: {
+                        Text(cat)
+                            .font(.caption.bold())
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(selectedCategory == cat ? Color.orange.opacity(0.15) : Color.primary.opacity(0.05), in: Capsule())
+                            .foregroundColor(selectedCategory == cat ? .orange : .secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
+
+            Divider()
+
             // Spotlight Results & Suggestions List
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     if query.isEmpty {
                         // Recent Searches section
-                        let recents = manager.history.prefix(5)
+                        let recents = DictionaryManager.shared.history.prefix(5)
                         if !recents.isEmpty {
                             VStack(alignment: .leading, spacing: 10) {
                                 HStack {
@@ -91,7 +128,7 @@ public struct CodeDictionarySearch: View {
                             }
                             .foregroundColor(.secondary)
 
-                            ForEach(suggestions.prefix(8), id: \.self) { sug in
+                            ForEach(filteredSuggestions.prefix(8), id: \.self) { sug in
                                 suggestionRow(symLabel(sug), actualQuery: sug, isRecent: false)
                             }
                         }
@@ -187,6 +224,7 @@ public struct CodeDictionarySearch: View {
 
         // Update active text and execute search
         CodingDictionaryCoordinator.shared.searchText = trimmed
+        CodingDictionaryCoordinator.shared.showingSpotlight = false
         manager.search(query: trimmed)
         dismiss()
     }

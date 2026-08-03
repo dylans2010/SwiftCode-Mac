@@ -7,7 +7,7 @@ public struct XcodeProjViewer: View {
     // Modern Tab Selection
     @State private var selectedCategory = "overview"
     @State private var selectedTarget: PBXTarget? = nil
-    @State private var showingTargetDetail = false
+    @State private var selectedSubTab = "general"
     @State private var searchState = ""
 
     public init(model: XcodeProjModel) {
@@ -74,121 +74,142 @@ public struct XcodeProjViewer: View {
             Divider()
 
             // Main Detail Area
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    switch selectedCategory {
-                    case "overview":
+            VStack(spacing: 0) {
+                switch selectedCategory {
+                case "overview":
+                    ScrollView {
                         ProjectOverviewTabView(model: model)
                             .padding()
+                    }
 
-                    case "targets":
-                        VStack(alignment: .leading, spacing: 14) {
-                            Text("Project Targets")
-                                .font(.title3.bold())
-                                .padding(.horizontal)
+                case "targets":
+                    HStack(alignment: .top, spacing: 0) {
+                        // Left Panel: Targets List
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("TARGETS")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                                .padding([.top, .horizontal], 16)
 
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 16)], spacing: 16) {
-                                ForEach(model.targets) { target in
-                                    Button {
-                                        selectedTarget = target
-                                        showingTargetDetail = true
-                                    } label: {
-                                        VStack(alignment: .leading, spacing: 10) {
-                                            HStack {
-                                                Image(systemName: "target")
-                                                    .font(.title3)
-                                                    .foregroundStyle(.orange)
-                                                Spacer()
-                                                Image(systemName: "chevron.right")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                            }
-
-                                            Text(target.name)
-                                                .font(.headline)
-                                                .foregroundStyle(.primary)
-
-                                            if let pType = target.productType {
-                                                Text(pType.replacingOccurrences(of: "com.apple.product-type.", with: ""))
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                                    .lineLimit(1)
-                                            }
+                            List(model.targets, id: \.uuid, selection: $selectedTarget) { target in
+                                HStack {
+                                    Image(systemName: "target")
+                                        .font(.title3)
+                                        .foregroundStyle(selectedTarget?.uuid == target.uuid ? Color.orange : Color.secondary)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(target.name)
+                                            .font(.headline)
+                                            .foregroundStyle(selectedTarget?.uuid == target.uuid ? .primary : .primary.opacity(0.8))
+                                        if let pType = target.productType {
+                                            Text(pType.replacingOccurrences(of: "com.apple.product-type.", with: ""))
+                                                .font(.system(size: 10))
+                                                .foregroundStyle(.secondary)
                                         }
-                                        .padding()
-                                        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12)
-                                                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                                        )
                                     }
-                                    .buttonStyle(.plain)
+                                }
+                                .padding(.vertical, 4)
+                                .tag(target)
+                            }
+                            .listStyle(.sidebar)
+                        }
+                        .frame(width: 240)
+
+                        Divider()
+
+                        // Right Panel: Inline Target Details & Interactive Settings Editor
+                        if let target = selectedTarget {
+                            VStack(alignment: .leading, spacing: 0) {
+                                // Sub-tabs for Config editing (General, Identity, Deployment, Signing, Info.plist, Entitlements)
+                                Picker("", selection: $selectedSubTab) {
+                                    Text("General").tag("general")
+                                    Text("Identity").tag("identity")
+                                    Text("Deployment").tag("deployment")
+                                    Text("Signing").tag("signing")
+                                    Text("Info.plist").tag("infoplist")
+                                    Text("Entitlements").tag("entitlements")
+                                }
+                                .pickerStyle(.segmented)
+                                .padding()
+                                .background(Color.secondary.opacity(0.04))
+
+                                Divider()
+
+                                switch selectedSubTab {
+                                case "general":
+                                    ScrollView {
+                                        GeneralTabView(model: model, selectedTargetID: target.uuid)
+                                            .padding()
+                                    }
+                                case "identity":
+                                    ScrollView {
+                                        IdentityTabView(model: model, selectedTargetID: target.uuid)
+                                            .padding()
+                                    }
+                                case "deployment":
+                                    ScrollView {
+                                        DeploymentTabView(model: model, selectedTargetID: target.uuid)
+                                            .padding()
+                                    }
+                                case "signing":
+                                    ScrollView {
+                                        SigningCapabilitiesTabView(model: model)
+                                            .padding()
+                                    }
+                                case "infoplist":
+                                    InfoPlistTabView(model: model)
+                                case "entitlements":
+                                    EntitlementsTabView(model: model)
+                                default:
+                                    ScrollView {
+                                        GeneralTabView(model: model, selectedTargetID: target.uuid)
+                                            .padding()
+                                    }
                                 }
                             }
-                            .padding(.horizontal)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else {
+                            ContentUnavailableView("No Target Selected", systemImage: "target", description: Text("Select a target from the list to view and edit its properties inline."))
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
-                        .padding(.vertical)
+                    }
 
-                    case "settings":
+                case "settings":
+                    ScrollView {
                         BuildSettingsTabView(model: model, searchQuery: searchState)
                             .padding()
+                    }
 
-                    case "packages":
+                case "packages":
+                    ScrollView {
                         PackagesTabView(model: model)
                             .padding()
+                    }
 
-                    case "configs":
+                case "configs":
+                    ScrollView {
                         BuildConfigurationsTabView(model: model)
                             .padding()
+                    }
 
-                    case "metadata":
+                case "metadata":
+                    ScrollView {
                         MetadataTabView(model: model)
                             .padding()
+                    }
 
-                    default:
+                default:
+                    ScrollView {
                         ProjectOverviewTabView(model: model)
                             .padding()
                     }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(minWidth: 800, minHeight: 600)
-        .sheet(isPresented: $showingTargetDetail) {
-            if let target = selectedTarget {
-                VStack(spacing: 0) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(target.name)
-                                .font(.headline)
-                            Text("Target Configuration Details")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Button("Close") {
-                            showingTargetDetail = false
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.orange)
-                    }
-                    .padding()
-                    .background(.thinMaterial)
-
-                    Divider()
-
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 20) {
-                            GeneralTabView(model: model, selectedTargetID: target.uuid)
-                            IdentityTabView(model: model, selectedTargetID: target.uuid)
-                            DeploymentTabView(model: model, selectedTargetID: target.uuid)
-                            SigningCapabilitiesTabView(model: model)
-                            EntitlementsTabView(model: model)
-                            InfoPlistTabView(model: model)
-                        }
-                        .padding()
-                    }
-                }
-                .frame(width: 650, height: 500)
+        .frame(minWidth: 950, minHeight: 650)
+        .onAppear {
+            if selectedTarget == nil {
+                selectedTarget = model.targets.first
             }
         }
     }

@@ -118,6 +118,43 @@ public struct EntitlementsEditorView: View {
             .macDesktopOptimized()
         } else {
             VStack(spacing: 0) {
+                // Interactive Statistics and Validation Banner
+                HStack(spacing: 16) {
+                    Label {
+                        Text("\(entitlementsDict.count) Capabilities Configured")
+                            .font(.subheadline.bold())
+                    } icon: {
+                        Image(systemName: "lock.shield.fill")
+                            .foregroundColor(.orange)
+                    }
+
+                    Spacer()
+
+                    let validation = validationResult
+                    if validation.errors.isEmpty && validation.warnings.isEmpty {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.seal.fill")
+                                .foregroundStyle(.green)
+                            Text("Sandbox Validated")
+                                .font(.caption.bold())
+                                .foregroundColor(.green)
+                        }
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.yellow)
+                            Text("Validation Issues Found")
+                                .font(.caption.bold())
+                                .foregroundColor(.orange)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.orange.opacity(0.05))
+
+                Divider()
+
                 // Top Modern Action Bar
                 HStack(spacing: 12) {
                     HStack {
