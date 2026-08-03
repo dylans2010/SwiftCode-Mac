@@ -103,7 +103,7 @@ public final class PreviewManager {
 
         // 1. Clear previous runtime state, caches, and logs
         await stopActiveSession()
-        PreviewCache.shared.clearCache()
+        await PreviewCache.shared.clearAll()
         DocumentCoordinator.shared.compiledArtboardViews.removeAll()
         DocumentCoordinator.shared.compiledArtboardErrors.removeAll()
 

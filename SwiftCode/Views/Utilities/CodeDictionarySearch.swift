@@ -225,7 +225,7 @@ public struct CodeDictionarySearch: View {
         // Update active text and execute search
         CodingDictionaryCoordinator.shared.searchText = trimmed
         CodingDictionaryCoordinator.shared.showingSpotlight = false
-        manager.search(query: trimmed)
+        DictionaryManager.shared.search(query: trimmed)
         dismiss()
     }
 }

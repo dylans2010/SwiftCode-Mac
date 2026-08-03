@@ -17,7 +17,7 @@ public struct XcodeProjModel: Sendable, Identifiable {
     public let buildFiles: [String: String] // buildFileUUID -> fileRefUUID
 }
 
-public struct PBXTarget: Sendable, Identifiable {
+public struct PBXTarget: Sendable, Identifiable, Hashable {
     public var id: String { uuid }
     public let uuid: String
     public let name: String

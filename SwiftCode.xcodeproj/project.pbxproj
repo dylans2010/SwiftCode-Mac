@@ -10801,6 +10801,7 @@
 				C822BBE49EB84E8B85C22375 /* SidebarMainView.swift in Sources */,
 				DBEEF4307EC44BE79FB9F936 /* FileNavigatorSidebarView.swift in Sources */,
 				FE18E54E76741F54A82CD5A2 /* FileTemplatesView.swift in Sources */,
+				DE5ECE0000000000000002 /* FileTemplateManager.swift in Sources */,
 				E3BCC043098948CAA2CD3039 /* GitSidebarView.swift in Sources */,
 				10C2A915376A4270ADF3247A /* DebugInspectorSidebarView.swift in Sources */,
 				FA16774CE0D848459C8A17FE /* SearchSidebarView.swift in Sources */,

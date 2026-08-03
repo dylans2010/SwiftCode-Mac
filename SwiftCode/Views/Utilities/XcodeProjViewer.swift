@@ -99,7 +99,7 @@ public struct XcodeProjViewer: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(target.name)
                                             .font(.headline)
-                                            .foregroundStyle(selectedTarget?.uuid == target.uuid ? .primary : .primary.opacity(0.8))
+                                            .foregroundStyle(selectedTarget?.uuid == target.uuid ? Color.primary : Color.primary.opacity(0.8))
                                         if let pType = target.productType {
                                             Text(pType.replacingOccurrences(of: "com.apple.product-type.", with: ""))
                                                 .font(.system(size: 10))

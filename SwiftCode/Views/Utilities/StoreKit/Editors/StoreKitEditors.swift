@@ -11,6 +11,12 @@ struct StoreKitDashboardView: View {
     @State private var simulationService = StoreKitSimulationService.shared
     @State private var validationService = StoreKitValidationService.shared
 
+    private func formatTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f.string(from: date)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -110,9 +116,7 @@ struct StoreKitDashboardView: View {
 
                                             Spacer()
 
-                                            let f = DateFormatter()
-                                            f.dateFormat = "HH:mm:ss"
-                                            Text(f.string(from: event.timestamp))
+                                            Text(formatTime(event.timestamp))
                                                 .font(.system(size: 9))
                                                 .foregroundColor(.secondary)
                                         }
@@ -1327,6 +1331,12 @@ struct StoreKitVersionHistoryView: View {
     @Environment(StoreKitWorkspaceSession.self) var session
     @State private var revisions: [SKVersionRevision] = []
 
+    private func formatDateTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return f.string(from: date)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -1355,9 +1365,7 @@ struct StoreKitVersionHistoryView: View {
                         ForEach(revisions) { revision in
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    let f = DateFormatter()
-                                    f.dateFormat = "yyyy-MM-dd HH:mm:ss"
-                                    Text(f.string(from: revision.timestamp))
+                                    Text(formatDateTime(revision.timestamp))
                                         .font(.system(size: 11, weight: .bold))
                                     Text(revision.reason)
                                         .font(.system(size: 10))
