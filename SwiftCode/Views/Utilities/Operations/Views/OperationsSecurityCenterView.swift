@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct SecurityCenterView: View {
+struct OperationsSecurityCenterView: View {
     @State private var sec = SecurityManager.shared
     @State private var signing = SigningManager.shared
 

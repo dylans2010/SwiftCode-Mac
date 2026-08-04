@@ -15,7 +15,7 @@
 		BFAB2A1EF0D13252336B9569 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A45DDD75394CC5077E68B4F4 /* DiagnosticsView.swift */; };
 		B44D23E90206AC6E5B3EA056 /* InfrastructureAndVirtualizationManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD5FC3C7C3A2F1A879A9D4FA /* InfrastructureAndVirtualizationManagers.swift */; };
 		B754B5EC0EA17E41165D1E4E /* LoggingAndAnalyticsManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA20981CFE1A00F95BBA3604 /* LoggingAndAnalyticsManagers.swift */; };
-		B51D3577FAA77265110996B0 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC6DB63F57DC2AC8C3476650 /* NotificationsView.swift */; };
+		B51D3577FAA77265110996B0 /* OperationsNotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC6DB63F57DC2AC8C3476650 /* OperationsNotificationsView.swift */; };
 		B828FDFCBA6DEA88FA224318 /* OperationQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F96D4FCCC5EF772D9872F7 /* OperationQueueView.swift */; };
 		B509A2209DB2095EDF1330E2 /* OperationsCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A348BE33AD4872CE4E2C7E6E /* OperationsCoordinator.swift */; };
 		BF96CD9167FBD917933C3275 /* OperationsDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABA5790DABB56A1177695310 /* OperationsDashboardView.swift */; };
@@ -29,7 +29,7 @@
 		B57BDCB660220896F8ADACDC /* SCInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0CE5B5B2AB8B24CB544F28B /* SCInspectorView.swift */; };
 		B21A219F8650F05AF0C0747D /* SCLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A347309489E17678F75BF02C /* SCLogsView.swift */; };
 		B0089B9AE18509F845BDBFA2 /* SCTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80E1D6381257BDCE2375EF6 /* SCTimelineView.swift */; };
-		BAF717825B359E2734352887 /* SecurityCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6D6183F17DDC592C03423C0 /* SecurityCenterView.swift */; };
+		BAF717825B359E2734352887 /* OperationsSecurityCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6D6183F17DDC592C03423C0 /* OperationsSecurityCenterView.swift */; };
 		BE82F430DEF1FADD97AED14C /* StorageManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACB6E3E9B9E708BE160A4FB5 /* StorageManagerView.swift */; };
 		B481AFAB2FA71661B7E42094 /* WorkspaceAnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A39C6046D684B38D2C278A4C /* WorkspaceAnalyticsView.swift */; };
 		B5EB378462515348F0EBD346 /* WorkspaceHealthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A461B9A75DBA74996A393E09 /* WorkspaceHealthView.swift */; };
@@ -2469,7 +2469,7 @@
 		A45DDD75394CC5077E68B4F4 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/DiagnosticsView.swift"; sourceTree = "<group>"; };
 		AD5FC3C7C3A2F1A879A9D4FA /* InfrastructureAndVirtualizationManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Storage/InfrastructureAndVirtualizationManagers.swift"; sourceTree = "<group>"; };
 		AA20981CFE1A00F95BBA3604 /* LoggingAndAnalyticsManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Logs/LoggingAndAnalyticsManagers.swift"; sourceTree = "<group>"; };
-		AC6DB63F57DC2AC8C3476650 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/NotificationsView.swift"; sourceTree = "<group>"; };
+		AC6DB63F57DC2AC8C3476650 /* OperationsNotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/OperationsNotificationsView.swift"; sourceTree = "<group>"; };
 		A3F96D4FCCC5EF772D9872F7 /* OperationQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/OperationQueueView.swift"; sourceTree = "<group>"; };
 		A348BE33AD4872CE4E2C7E6E /* OperationsCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/OperationsCoordinator.swift"; sourceTree = "<group>"; };
 		ABA5790DABB56A1177695310 /* OperationsDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/OperationsDashboardView.swift"; sourceTree = "<group>"; };
@@ -2483,7 +2483,7 @@
 		A0CE5B5B2AB8B24CB544F28B /* SCInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/SCInspectorView.swift"; sourceTree = "<group>"; };
 		A347309489E17678F75BF02C /* SCLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/SCLogsView.swift"; sourceTree = "<group>"; };
 		A80E1D6381257BDCE2375EF6 /* SCTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/SCTimelineView.swift"; sourceTree = "<group>"; };
-		A6D6183F17DDC592C03423C0 /* SecurityCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/SecurityCenterView.swift"; sourceTree = "<group>"; };
+		A6D6183F17DDC592C03423C0 /* OperationsSecurityCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/OperationsSecurityCenterView.swift"; sourceTree = "<group>"; };
 		ACB6E3E9B9E708BE160A4FB5 /* StorageManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/StorageManagerView.swift"; sourceTree = "<group>"; };
 		A39C6046D684B38D2C278A4C /* WorkspaceAnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/WorkspaceAnalyticsView.swift"; sourceTree = "<group>"; };
 		A461B9A75DBA74996A393E09 /* WorkspaceHealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/WorkspaceHealthView.swift"; sourceTree = "<group>"; };
@@ -4917,7 +4917,7 @@
 				A45DDD75394CC5077E68B4F4 /* DiagnosticsView.swift */,
 				AD5FC3C7C3A2F1A879A9D4FA /* InfrastructureAndVirtualizationManagers.swift */,
 				AA20981CFE1A00F95BBA3604 /* LoggingAndAnalyticsManagers.swift */,
-				AC6DB63F57DC2AC8C3476650 /* NotificationsView.swift */,
+				AC6DB63F57DC2AC8C3476650 /* OperationsNotificationsView.swift */,
 				A3F96D4FCCC5EF772D9872F7 /* OperationQueueView.swift */,
 				A348BE33AD4872CE4E2C7E6E /* OperationsCoordinator.swift */,
 				ABA5790DABB56A1177695310 /* OperationsDashboardView.swift */,
@@ -4931,7 +4931,7 @@
 				A0CE5B5B2AB8B24CB544F28B /* SCInspectorView.swift */,
 				A347309489E17678F75BF02C /* SCLogsView.swift */,
 				A80E1D6381257BDCE2375EF6 /* SCTimelineView.swift */,
-				A6D6183F17DDC592C03423C0 /* SecurityCenterView.swift */,
+				A6D6183F17DDC592C03423C0 /* OperationsSecurityCenterView.swift */,
 				ACB6E3E9B9E708BE160A4FB5 /* StorageManagerView.swift */,
 				A39C6046D684B38D2C278A4C /* WorkspaceAnalyticsView.swift */,
 				A461B9A75DBA74996A393E09 /* WorkspaceHealthView.swift */,
@@ -9817,7 +9817,7 @@
 				BFAB2A1EF0D13252336B9569 /* DiagnosticsView.swift in Sources */,
 				B44D23E90206AC6E5B3EA056 /* InfrastructureAndVirtualizationManagers.swift in Sources */,
 				B754B5EC0EA17E41165D1E4E /* LoggingAndAnalyticsManagers.swift in Sources */,
-				B51D3577FAA77265110996B0 /* NotificationsView.swift in Sources */,
+				B51D3577FAA77265110996B0 /* OperationsNotificationsView.swift in Sources */,
 				B828FDFCBA6DEA88FA224318 /* OperationQueueView.swift in Sources */,
 				B509A2209DB2095EDF1330E2 /* OperationsCoordinator.swift in Sources */,
 				BF96CD9167FBD917933C3275 /* OperationsDashboardView.swift in Sources */,
@@ -9831,7 +9831,7 @@
 				B57BDCB660220896F8ADACDC /* SCInspectorView.swift in Sources */,
 				B21A219F8650F05AF0C0747D /* SCLogsView.swift in Sources */,
 				B0089B9AE18509F845BDBFA2 /* SCTimelineView.swift in Sources */,
-				BAF717825B359E2734352887 /* SecurityCenterView.swift in Sources */,
+				BAF717825B359E2734352887 /* OperationsSecurityCenterView.swift in Sources */,
 				BE82F430DEF1FADD97AED14C /* StorageManagerView.swift in Sources */,
 				B481AFAB2FA71661B7E42094 /* WorkspaceAnalyticsView.swift in Sources */,
 				B5EB378462515348F0EBD346 /* WorkspaceHealthView.swift in Sources */,
