@@ -18,7 +18,7 @@ struct ExportProjView: View {
                     .font(.title2)
                     .bold()
 
-                Text("This will create a .scproj package containing all project data, files, and metadata. The package includes integrity verification.")
+                Text("This will create a SwiftCode Project Archive containing all project data, files, and metadata. The package includes integrity verification.")
                     .multilineTextAlignment(.center)
                     .foregroundColor(.secondary)
                     .padding(.horizontal)

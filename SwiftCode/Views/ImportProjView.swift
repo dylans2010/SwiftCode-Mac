@@ -13,10 +13,10 @@ struct ImportProjView: View {
                 .foregroundColor(.accentColor)
 
             VStack(spacing: 8) {
-                Text("Import .scproj Project")
+                Text("Import SwiftCode Project Archive")
                     .font(.title2)
                     .bold()
-                Text("Select a SwiftCode project package to import it into your library. The project's integrity will be verified.")
+                Text("Select a SwiftCode Project Archive to import it into your library. The project's integrity will be verified.")
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             }
@@ -31,7 +31,7 @@ struct ImportProjView: View {
                 }
             } else {
                 Button(action: selectAndImportFile) {
-                    Label("Select .scproj Project...", systemImage: "folder.badge.plus")
+                    Label("Select SwiftCode Project Archive...", systemImage: "folder.badge.plus")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -67,7 +67,11 @@ struct ImportProjView: View {
 
     private func selectAndImportFile() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [UTType(exportedAs: "com.swiftcode.project")]
+        if let scprojType = UTType(filenameExtension: "scproj") {
+            panel.allowedContentTypes = [scprojType]
+        } else {
+            panel.allowedContentTypes = [UTType(exportedAs: "com.swiftcode.project")]
+        }
         panel.canChooseFiles = true
         panel.canChooseDirectories = false // It's a package, treated as a file in picker if UTI is correct
 

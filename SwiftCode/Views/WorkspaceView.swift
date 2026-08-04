@@ -29,6 +29,8 @@ struct WorkspaceView: View {
 
     // Collapsible App Details Sidebar Panel
     @State private var showAppDetailsSidebar = false
+    // Collapsible SwiftCode Project Archive Info Sidebar
+    @State private var showInfoProjSidebar = false
     @AppStorage("com.swiftcode.workspace.appDetailsSidebarWidth") private var appDetailsSidebarWidth = 320.0
     @State private var dragStartWidthAppDetails: CGFloat? = nil
 
@@ -177,6 +179,31 @@ struct WorkspaceView: View {
                         .frame(width: appDetailsSidebarWidth)
                         .transition(.move(edge: .trailing))
                 }
+
+                if showInfoProjSidebar, let project = sessionStore.activeProject {
+                    // Custom drag handle divider
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.2))
+                        .frame(width: 4)
+                        .contentShape(Rectangle())
+                        .onHover { isHovered in
+                            if isHovered {
+                                NSCursor.resizeLeftRight.push()
+                            } else {
+                                NSCursor.pop()
+                            }
+                        }
+                        .gesture(
+                            DragGesture()
+                                .onChanged { _ in }
+                        )
+
+                    InfoProjView(project: project)
+                        .frame(width: 320)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                        .padding(8)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
         }
         .environment(viewModel)
@@ -300,6 +327,11 @@ struct WorkspaceView: View {
                     session.showAppDetailsSidebar = showAppDetailsSidebar
                     sessionStore.saveSession(session)
                 }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("com.swiftcode.toggleInfoProjSidebar"))) { _ in
+            withAnimation(.spring()) {
+                showInfoProjSidebar.toggle()
             }
         }
         .background(Color(hex: themeVM.currentTheme.background))
