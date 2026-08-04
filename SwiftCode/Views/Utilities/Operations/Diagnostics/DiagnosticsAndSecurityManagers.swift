@@ -288,20 +288,55 @@ public final class WorkspaceHealth {
     public func recompute() {
         var score = 100
 
-        let issueCount = DiagnosticsManager.shared.issues.count
-        score -= (issueCount * 8)
-
-        let criticalCount = SecurityManager.shared.findings.filter { $0.severity == "Critical" }.count
-        score -= (criticalCount * 15)
-
+        // 1. Build Health & Stability (Weighted 25%)
         let buildRecords = BuildHistoryManager.shared.buildRecords
         if !buildRecords.isEmpty {
             let failedBuilds = buildRecords.filter { $0.status == "Failed" }.count
             let failRatio = Double(failedBuilds) / Double(buildRecords.count)
-            score -= Int(failRatio * 30.0)
+            score -= Int(failRatio * 25.0)
         }
 
-        if SCOperationsStorageManager.shared.cacheUsageGB > 20.0 {
+        // 2. Package Health (Weighted 10%)
+        let packageIssues = DependencyManager.shared.dependencies.filter { $0.status == "Update Available" }.count
+        score -= min(10, packageIssues * 3)
+
+        // 3. Storage (Weighted 10%)
+        let storageUsed = SCOperationsStorageManager.shared.totalAllocatedGB
+        if storageUsed > 30.0 {
+            score -= 10
+        } else if storageUsed > 10.0 {
+            score -= 5
+        }
+
+        // 4. Diagnostics (Weighted 15%)
+        let diagnosticCount = DiagnosticsManager.shared.issues.count
+        score -= min(15, diagnosticCount * 4)
+
+        // 5. Security (Weighted 10%)
+        let criticalSecurity = SecurityManager.shared.findings.filter { $0.severity == "Critical" }.count
+        score -= min(10, criticalSecurity * 10)
+
+        // 6. Signing (Weighted 10%)
+        let invalidCerts = SCOperationsSigningManager.shared.certificates.filter { !$0.isValid }.count
+        score -= min(10, invalidCerts * 10)
+
+        // 7. Documentation (Weighted 10%)
+        let docRatio = WorkspaceIntelligence.shared.docCoverageRatio
+        if docRatio < 0.4 {
+            score -= 10
+        } else if docRatio < 0.7 {
+            score -= 5
+        }
+
+        // 8. Testing (Weighted 5%)
+        let testRatio = WorkspaceIntelligence.shared.testCoverageRatio
+        if testRatio < 0.5 {
+            score -= 5
+        }
+
+        // 9. Performance (Weighted 5%)
+        let avgDuration = PerformanceManager.shared.averageBuildDuration
+        if avgDuration > 10.0 {
             score -= 5
         }
 

@@ -11,11 +11,14 @@ public struct CreateVirtualMachineWizardView: View {
         UbuntuProvider(), DebianProvider(), FedoraProvider(), AlpineProvider()
     ]
 
+    // Step 1.5: Template Selection
+    @State private var selectedTemplateID: String = "blank"
+
     // Step 2: Select Image
     @State private var selectedImageID: UUID? = nil
     @State private var customImagePath: String = ""
 
-    // Step 3: Configure Resources
+    // Step 3: Configure Resources (Calculated dynamically)
     @State private var cpuCores: Double = 4
     @State private var memoryGB: Double = 8
     @State private var storageGB: Double = 64
@@ -37,6 +40,10 @@ public struct CreateVirtualMachineWizardView: View {
         providers.first { $0.name == selectedProviderName } ?? UbuntuProvider()
     }
 
+    private var activeTemplate: VirtualizationStateStore.QuickStartTemplate {
+        stateStore.quickStartTemplates.first { $0.id == selectedTemplateID } ?? stateStore.quickStartTemplates.last!
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Wizard Title Banner
@@ -45,7 +52,7 @@ public struct CreateVirtualMachineWizardView: View {
                     Text("Virtual Machine Creation Wizard")
                         .font(.title2)
                         .fontWeight(.bold)
-                    Text("Step \(step) of 5 • \(stepName(step))")
+                    Text("Step \(step) of 6 • \(stepName(step))")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -70,12 +77,14 @@ public struct CreateVirtualMachineWizardView: View {
                     case 1:
                         stepOneView()
                     case 2:
-                        stepTwoView()
+                        stepOnePointFiveView()
                     case 3:
-                        stepThreeView()
+                        stepTwoView()
                     case 4:
-                        stepFourView()
+                        stepThreeView()
                     case 5:
+                        stepFourView()
+                    case 6:
                         stepFiveView()
                     default:
                         EmptyView()
@@ -101,16 +110,16 @@ public struct CreateVirtualMachineWizardView: View {
                 }
                 .controlSize(.large)
 
-                if step < 5 {
+                if step < 6 {
                     Button("Continue") {
                         if step == 1 {
-                            // Preset defaults based on recommended OS choices
-                            let recommended = activeProvider
-                            cpuCores = Double(recommended.recommendedCores)
-                            memoryGB = Double(recommended.recommendedMemoryMB) / 1024.0
-                            storageGB = Double(recommended.recommendedStorageGB)
+                            // Seed template recommendations early
+                            applySmartRecommendations()
+                        } else if step == 2 {
+                            // Seed template settings and auto-name
+                            applySmartRecommendations()
                             if vmName.isEmpty {
-                                vmName = "\(recommended.name) Server Development"
+                                vmName = "\(activeProvider.name) \(activeTemplate.name)"
                             }
                         }
                         step += 1
@@ -133,12 +142,20 @@ public struct CreateVirtualMachineWizardView: View {
     private func stepName(_ step: Int) -> String {
         switch step {
         case 1: return "Choose Operating System Provider"
-        case 2: return "Select Image File"
-        case 3: return "Configure CPU, RAM & Disk Storage"
-        case 4: return "Configure Development Features"
-        case 5: return "Review and Finalize"
+        case 2: return "Select Environment Template Preset (Quick Start)"
+        case 3: return "Select Image File"
+        case 4: return "Configure CPU, RAM & Disk Storage (Recommended)"
+        case 5: return "Configure Development Features"
+        case 6: return "Review and Finalize"
         default: return ""
         }
+    }
+
+    private func applySmartRecommendations() {
+        let recs = stateStore.getSmartRecommendation(osType: selectedProviderName, templateID: selectedTemplateID)
+        cpuCores = Double(recs.cores)
+        memoryGB = Double(recs.memoryMB) / 1024.0
+        storageGB = Double(recs.storageGB)
     }
 
     @ViewBuilder
@@ -178,6 +195,58 @@ public struct CreateVirtualMachineWizardView: View {
                     )
                 }
                 .buttonStyle(.plain)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func stepOnePointFiveView() -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Select a development preset template. This pre-configures hardware recommendations, required tools, and development settings.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            ScrollView {
+                VStack(spacing: 10) {
+                    ForEach(stateStore.quickStartTemplates) { template in
+                        Button {
+                            selectedTemplateID = template.id
+                        } label: {
+                            HStack(spacing: 16) {
+                                Image(systemName: selectedTemplateID == template.id ? "checkmark.circle.fill" : "circle")
+                                    .font(.title3)
+                                    .foregroundStyle(selectedTemplateID == template.id ? .blue : .secondary)
+
+                                Image(systemName: iconForTemplate(template.id))
+                                    .font(.title2)
+                                    .foregroundStyle(.orange)
+                                    .frame(width: 32, height: 32)
+                                    .background(Color.primary.opacity(0.04))
+                                    .cornerRadius(6)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(template.name)
+                                        .font(.headline)
+                                    Text(template.description)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                    Text("Pre-installed: \(template.installedPackages.joined(separator: ", "))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.blue)
+                                }
+                                Spacer()
+                            }
+                            .padding()
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(selectedTemplateID == template.id ? Color.blue : Color.primary.opacity(0.1), lineWidth: 1.5)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
         }
     }
@@ -255,9 +324,9 @@ public struct CreateVirtualMachineWizardView: View {
     @ViewBuilder
     private func stepThreeView() -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Hardware Resource Allocations")
+            Text("Hardware Resource Allocations (Smart Recommended)")
                 .font(.headline)
-            Text("Allocate host computer resources to the virtual environment. Ensure you leave enough resource capability for macOS.")
+            Text("Allocate host computer resources to the virtual environment. We recommended values optimized for the selected operating system and template.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -271,9 +340,9 @@ public struct CreateVirtualMachineWizardView: View {
                             .fontWeight(.bold)
                     }
                     Slider(value: $cpuCores, in: 1...16, step: 1)
-                    Text("Recommended for \(activeProvider.name): \(activeProvider.recommendedCores) Cores")
+                    Text("Smart recommended cores for template: \(activeTemplate.recommendedCPU) Cores")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.blue)
 
                     Divider()
                         .padding(.vertical, 4)
@@ -286,9 +355,9 @@ public struct CreateVirtualMachineWizardView: View {
                             .fontWeight(.bold)
                     }
                     Slider(value: $memoryGB, in: 1...64, step: 0.5)
-                    Text("Recommended for \(activeProvider.name): \(activeProvider.recommendedMemoryMB / 1024) GB")
+                    Text("Smart recommended RAM for template: \(String(format: "%.1f GB", Double(activeTemplate.recommendedRAM_MB) / 1024.0))")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.blue)
 
                     Divider()
                         .padding(.vertical, 4)
@@ -301,9 +370,9 @@ public struct CreateVirtualMachineWizardView: View {
                             .fontWeight(.bold)
                     }
                     Slider(value: $storageGB, in: 10...1000, step: 5)
-                    Text("Recommended for \(activeProvider.name): \(activeProvider.recommendedStorageGB) GB")
+                    Text("Smart recommended Storage: \(activeTemplate.recommendedStorage_GB) GB")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.blue)
                 }
                 .padding(.vertical, 4)
             }
@@ -365,7 +434,7 @@ public struct CreateVirtualMachineWizardView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Auto Port Forwarding")
                                 .fontWeight(.medium)
-                            Text("Automatically map standard developer web ports (e.g. 3000, 8080) to localhost.")
+                            Text("Automatically map standard developer web ports (e.g. \(activeTemplate.defaultPorts.map(String.init).joined(separator: ", "))) to localhost.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -408,6 +477,14 @@ public struct CreateVirtualMachineWizardView: View {
                     }
 
                     HStack {
+                        Text("Preset Template:")
+                        Spacer()
+                        Text(activeTemplate.name)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.blue)
+                    }
+
+                    HStack {
                         Text("Image Location:")
                         Spacer()
                         Text(customImagePath.isEmpty ? "None Selected (Use recommended OS download)" : customImagePath)
@@ -440,10 +517,25 @@ public struct CreateVirtualMachineWizardView: View {
         }
     }
 
+    private func iconForTemplate(_ id: String) -> String {
+        switch id {
+        case "swift-server": return "swift"
+        case "nodejs": return "curlybraces"
+        case "python": return "doc.plaintext"
+        case "rust": return "square.grid.3x3"
+        case "go": return "network"
+        case "docker": return "shippingbox"
+        case "postgresql": return "externaldrive"
+        case "redis": return "server.rack"
+        case "ai-development": return "sparkles"
+        default: return "terminal"
+        }
+    }
+
     private func createVM() {
         let ramMB = Int(memoryGB * 1024)
-        let _ = stateStore.createVM(
-            name: vmName.isEmpty ? "\(selectedProviderName) Environment" : vmName,
+        let newVM = stateStore.createVM(
+            name: vmName.isEmpty ? "\(selectedProviderName) \(activeTemplate.name)" : vmName,
             osType: selectedProviderName,
             version: activeProvider.versions.first ?? "Custom",
             cpu: Int(cpuCores),
@@ -451,6 +543,24 @@ public struct CreateVirtualMachineWizardView: View {
             diskGB: Int(storageGB),
             imagePath: customImagePath.isEmpty ? nil : customImagePath
         )
+
+        // Add template default ports if forwarding is checked
+        if portForwarding {
+            if let idx = stateStore.virtualMachines.firstIndex(where: { $0.id == newVM.id }) {
+                stateStore.virtualMachines[idx].portForwardings = activeTemplate.defaultPorts.map { port in
+                    VMPortForwarding(id: UUID(), name: "\(activeTemplate.name) Port", hostPort: port, guestPort: port)
+                }
+                try? VirtualMachineRegistry.shared.save(stateStore.virtualMachines)
+            }
+        }
+
+        // Dispatch a build/timeline event
+        WorkspaceTimelineManager.shared.addEvent(
+            title: "VM Provisioned",
+            detail: "Provisioned environment '\(newVM.name)' with \(newVM.cpuCores) cores and \(String(format: "%.1f GB", Double(newVM.memoryMB)/1024.0)) RAM.",
+            category: "VM Started"
+        )
+
         stateStore.showCreateWizard = false
     }
 }

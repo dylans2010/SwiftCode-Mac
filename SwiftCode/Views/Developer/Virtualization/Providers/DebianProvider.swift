@@ -17,6 +17,14 @@ public struct DebianProvider: OperatingSystemProvider {
 4. Launch the console window, select the standard graphical or text installer, and proceed with setup.
 """
 
+    // Expanded protocol metadata
+    public let releaseNotes = "Debian 12 'Bookworm' includes Linux Kernel 6.1, native systemd updates, and robust cryptographic libraries. Features packages such as LLVM/Clang, GCC 12.2, and system libraries ideal for low-level backend integration."
+    public let minimumRequirements = "CPU: 1 Core • Memory: 1 GB RAM • Storage: 10 GB free disk space."
+    public let packageManagerGuide = "APT (Advanced Package Tool). Install packages using: `sudo apt-get update && sudo apt-get install <package>`. Unpack local archives using `dpkg -i <file.deb>`."
+    public let gettingStartedGuide = "Log in under root or standard user. Configure non-free repositories if extra firmware drivers are needed. Enable system daemon logs via journalctl."
+    public let securityAdvisories = "Review official security bulletins at: https://www.debian.org/security/. Patches are maintained strictly by the Debian Security Team."
+    public let communityResources = "Debian User Forums: https://forums.debian.net/. Mailing lists: https://lists.debian.org/."
+
     // Backward compatibility fields
     public let recommendedCores = 2
     public let recommendedMemoryMB = 4096
