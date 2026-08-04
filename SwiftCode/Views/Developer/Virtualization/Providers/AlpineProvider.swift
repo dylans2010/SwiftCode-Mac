@@ -17,6 +17,14 @@ public struct AlpineProvider: OperatingSystemProvider {
 4. Enjoy your super-fast developer shell environment.
 """
 
+    // Expanded protocol metadata
+    public let releaseNotes = "Alpine 3.20.0 includes musl libc 1.2.5, OpenSSL 3.3, and Linux Kernel 6.6. It is designed to be run entirely inside RAM for unparalleled execution speeds."
+    public let minimumRequirements = "CPU: 1 Core • Memory: 128 MB RAM • Storage: 1 GB disk space."
+    public let packageManagerGuide = "APK (Alpine Package Keeper). Install dependencies with: `apk add <package>`. Search packages with: `apk search <query>`. Clean index directories with `apk cache clean`."
+    public let gettingStartedGuide = "Log in as root. Run `setup-alpine` to guide you through setting up networking, NTP, package repositories, and default users."
+    public let securityAdvisories = "Review current CVE listings and advisories at: https://seclists.org/alpine/."
+    public let communityResources = "Alpine Wiki: https://wiki.alpinelinux.org/. Chat channel: IRC #alpine-linux on OFTC."
+
     // Backward compatibility fields
     public let recommendedCores = 1
     public let recommendedMemoryMB = 1024

@@ -5,6 +5,8 @@ public struct VirtualMachineDetailView: View {
 
     @State private var stateStore = VirtualizationStateStore.shared
     @State private var selectedTab: DetailTab = .console
+    @State private var assistantQuery = ""
+    @State private var assistantResponse = ""
 
     public enum DetailTab: String, CaseIterable, Identifiable {
         case console = "Console"
@@ -106,6 +108,39 @@ public struct VirtualMachineDetailView: View {
 
                 Divider()
 
+                // Integrated Natural Language Assistant Row
+                GroupBox {
+                    HStack {
+                        Image(systemName: "sparkles")
+                            .font(.headline)
+                            .foregroundStyle(.orange)
+
+                        TextField("Type natural language instruction (e.g., 'Install Docker', 'Increase memory', 'Create snapshot', 'Attach project')...", text: $assistantQuery, onCommit: executeAssistantCommand)
+                            .textFieldStyle(.plain)
+                            .font(.subheadline)
+
+                        Button("Execute Instruction") {
+                            executeAssistantCommand()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(assistantQuery.isEmpty)
+                    }
+                    .padding(4)
+
+                    if !assistantResponse.isEmpty {
+                        HStack {
+                            Text(assistantResponse)
+                                .font(.caption2)
+                                .foregroundStyle(.blue)
+                                .padding(.top, 4)
+                            Spacer()
+                        }
+                    }
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+                .padding(.horizontal)
+                .padding(.top, 10)
+
                 // Tabs selection bar
                 Picker("", selection: $selectedTab) {
                     ForEach(DetailTab.allCases) { tab in
@@ -149,6 +184,26 @@ public struct VirtualMachineDetailView: View {
                     description: Text("This VM configuration is not available or has been deleted.")
                 )
                 .padding()
+            }
+        }
+    }
+
+    private func executeAssistantCommand() {
+        let q = assistantQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return }
+
+        let response = stateStore.processAssistantCommand(q, on: vmID)
+        assistantResponse = response
+        assistantQuery = ""
+
+        // Refresh local UI states
+        stateStore.refreshVM(vmID)
+
+        // Clear response after some time
+        Task {
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            if assistantResponse == response {
+                assistantResponse = ""
             }
         }
     }
