@@ -109,7 +109,7 @@ public struct VirtualizationSidebarView: View {
     private func statusColor(_ status: VMStatus) -> Color {
         switch status {
         case .running: return .green
-        case .starting, .resumed: return .blue
+        case .starting: return .blue
         case .stopped: return .secondary
         case .pausing, .paused: return .orange
         case .stopping: return .orange

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 public struct CreateVirtualMachineWizardView: View {
     @State private var stateStore = VirtualizationStateStore.shared
@@ -230,7 +231,11 @@ public struct CreateVirtualMachineWizardView: View {
                             openPanel.allowsMultipleSelection = false
                             openPanel.canChooseDirectories = false
                             openPanel.canChooseFiles = true
-                            openPanel.allowedContentTypes = [.iso, .diskImage]
+                            var types: [UTType] = [.diskImage]
+                            if let isoType = UTType(filenameExtension: "iso") {
+                                types.append(isoType)
+                            }
+                            openPanel.allowedContentTypes = types
                             if openPanel.runModal() == .OK, let url = openPanel.url {
                                 customImagePath = url.path
                             }

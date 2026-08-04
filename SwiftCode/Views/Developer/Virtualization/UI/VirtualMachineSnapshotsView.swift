@@ -124,7 +124,7 @@ public struct VirtualMachineSnapshotsView: View {
         let desc = newSnapshotDesc.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
 
-        try? SnapshotManager.shared.createSnapshot(for: vmID, name: name, description: desc.isEmpty ? "Saved state" : desc)
+        try? VMSnapshotManager.shared.createSnapshot(for: vmID, name: name, description: desc.isEmpty ? "Saved state" : desc)
         newSnapshotName = ""
         newSnapshotDesc = ""
         stateStore.refreshVM(vmID)
@@ -132,13 +132,13 @@ public struct VirtualMachineSnapshotsView: View {
     }
 
     private func revertSnapshot(_ vmID: UUID, snapID: UUID) {
-        try? SnapshotManager.shared.restoreSnapshot(vmID: vmID, snapshotID: snapID)
+        try? VMSnapshotManager.shared.restoreSnapshot(vmID: vmID, snapshotID: snapID)
         stateStore.refreshVM(vmID)
         stateStore.addLog("Reverted virtual machine to specified snapshot point.", type: .success)
     }
 
     private func deleteSnapshot(_ vmID: UUID, snapID: UUID) {
-        try? SnapshotManager.shared.deleteSnapshot(vmID: vmID, snapshotID: snapID)
+        try? VMSnapshotManager.shared.deleteSnapshot(vmID: vmID, snapshotID: snapID)
         stateStore.refreshVM(vmID)
         stateStore.addLog("Snapshot deleted from recovery index.", type: .warning)
     }

@@ -1,7 +1,7 @@
 import Foundation
 
-public final class SnapshotManager: Sendable {
-    public static let shared = SnapshotManager()
+public final class VMSnapshotManager: Sendable {
+    public static let shared = VMSnapshotManager()
 
     private init() {}
 

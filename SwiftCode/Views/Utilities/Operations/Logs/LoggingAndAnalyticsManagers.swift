@@ -85,7 +85,7 @@ public final class WorkspaceAnalytics {
                 var linesCount = 0
                 let fm = FileManager.default
                 if let enumerator = fm.enumerator(at: rootDir, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
-                    for case let fileURL as URL in enumerator {
+                    while let fileURL = enumerator.nextObject() as? URL {
                         if fileURL.pathExtension == "swift" {
                             if let text = try? String(contentsOf: fileURL, encoding: .utf8) {
                                 linesCount += text.components(separatedBy: .newlines).count

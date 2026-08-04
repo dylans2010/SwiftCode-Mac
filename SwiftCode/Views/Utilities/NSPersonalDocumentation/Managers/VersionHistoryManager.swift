@@ -25,7 +25,9 @@ public final class VersionHistoryManager {
     public func fetchVersions(for documentID: UUID) throws -> [DocumentVersion] {
         let descriptor = FetchDescriptor<DocumentVersion>()
         let all = try storage.context.fetch(descriptor)
-        return all.filter { $0.projectID == projectID && $0.documentID == documentID }
-            .sorted { $0.timestamp > $1.timestamp }
+        let filtered = all.filter { version in
+            return version.projectID == self.projectID && version.documentID == documentID
+        }
+        return filtered.sorted { $0.timestamp > $1.timestamp }
     }
 }

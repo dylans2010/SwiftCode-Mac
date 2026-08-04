@@ -25,7 +25,7 @@ public final class VirtualMachineRegistry: Sendable {
         do {
             let data = try Data(contentsOf: registryURL)
             let decoder = JSONDecoder()
-            return try decoder.decode([VirtualMachine].self)
+            return try decoder.decode([VirtualMachine].self, from: data)
         } catch {
             // Seed defaults on error or first launch
             let defaults = [

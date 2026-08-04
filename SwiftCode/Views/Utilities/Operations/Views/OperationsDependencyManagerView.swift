@@ -52,7 +52,7 @@ struct OperationsDependencyManagerView: View {
                                     Text(item.name)
                                         .font(.headline)
                                     Text(item.version)
-                                        .font(.subheadline, design: .monospaced)
+                                        .font(.system(.subheadline, design: .monospaced))
                                         .foregroundStyle(.secondary)
                                 }
 

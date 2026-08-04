@@ -301,7 +301,7 @@ public final class WorkspaceHealth {
             score -= Int(failRatio * 30.0)
         }
 
-        if StorageManager.shared.cacheUsageGB > 20.0 {
+        if SCOperationsStorageManager.shared.cacheUsageGB > 20.0 {
             score -= 5
         }
 

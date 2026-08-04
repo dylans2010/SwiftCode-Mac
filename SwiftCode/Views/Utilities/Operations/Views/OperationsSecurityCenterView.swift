@@ -2,7 +2,7 @@ import SwiftUI
 
 struct OperationsSecurityCenterView: View {
     @State private var sec = SecurityManager.shared
-    @State private var signing = SigningManager.shared
+    @State private var signing = SCOperationsSigningManager.shared
 
     var body: some View {
         ScrollView {

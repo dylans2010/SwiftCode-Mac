@@ -5,7 +5,7 @@ struct OperationsDashboardView: View {
     @State private var health = WorkspaceHealth.shared
     @State private var registry = ProjectRegistryManager.shared
     @State private var builds = BuildHistoryManager.shared
-    @State private var storage = StorageManager.shared
+    @State private var storage = SCOperationsStorageManager.shared
     @State private var security = SecurityManager.shared
     @State private var queue = OperationQueueManager.shared
 
@@ -259,7 +259,7 @@ struct OperationsDashboardView: View {
             await SecurityManager.shared.runAudit()
             await AIEngineeringReports.shared.generateReport()
             WorkspaceAnalytics.shared.refresh()
-            StorageManager.shared.recalculateSizes()
+            SCOperationsStorageManager.shared.recalculateSizes()
         }
     }
 }

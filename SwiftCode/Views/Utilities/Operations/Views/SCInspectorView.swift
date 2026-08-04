@@ -3,7 +3,7 @@ import SwiftUI
 struct SCInspectorView: View {
     @State private var coord = OperationsCoordinator.shared
     @State private var health = WorkspaceHealth.shared
-    @State private var storage = StorageManager.shared
+    @State private var storage = SCOperationsStorageManager.shared
 
     var body: some View {
         ScrollView {
