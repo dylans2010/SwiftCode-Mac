@@ -219,7 +219,7 @@
 		12BF2C55E38591BEF5E01446 /* AssistCreateFileTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D86E6B3C4F5CD5E93105C83 /* AssistCreateFileTool.swift */; };
 		13C8163D1E89A6B9B3C09EF4 /* CollaborationNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6B43F5BA635C0624CAC8D49 /* CollaborationNotificationManager.swift */; };
 		13F40BD7C3CC6042156B3321 /* Models/DatabaseConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FB97AB4E9D92529D9878DE2 /* Models/DatabaseConnection.swift */; };
-		141D05674E5129028B13B931 /* DependencyManager/SecurityCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7EC5AE379601C498231A42 /* DependencyManager/SecurityCenterView.swift */; };
+		141D05674E5129028B13B931 /* DependencySecurityCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7EC5AE379601C498231A42 /* DependencySecurityCenterView.swift */; };
 		14ABBCACC7FF7D5D6D5805BC /* MinimapSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9885707843193FBBAC3F657E /* MinimapSettingsView.swift */; };
 		14AD42F1A18242A3B7482CDB /* AIAssistantPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2CE463D02257ED17065693 /* AIAssistantPanelView.swift */; };
 		14D916168150C79DAC767EA0 /* GitHubAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = E39B6D840BBBB34A4DC7C466 /* GitHubAuth.swift */; };
@@ -3341,7 +3341,7 @@
 		89F158925057E585F0850BD5 /* ProjectNavigatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectNavigatorView.swift; sourceTree = "<group>"; };
 		8A1C8AAC2222FCF75442E67E /* PreviewWindowController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewWindowController.swift; sourceTree = "<group>"; };
 		8A2A38A7B98A87A68948B15E /* URLSlugGeneratorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLSlugGeneratorView.swift; sourceTree = "<group>"; };
-		8A7EC5AE379601C498231A42 /* DependencyManager/SecurityCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyManager/SecurityCenterView.swift; sourceTree = "<group>"; };
+		8A7EC5AE379601C498231A42 /* DependencySecurityCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyManager/DependencySecurityCenterView.swift; sourceTree = "<group>"; };
 		8AE57462B0B5E506FA9CC059 /* BuildTargetInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildTargetInfo.swift; sourceTree = "<group>"; };
 		8B46162981714016AC5A314A /* SwiftCode/Views/Build/DeviceConnectKit/Models/BuildStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Build/DeviceConnectKit/Models/BuildStatus.swift; sourceTree = SOURCE_ROOT; };
 		8B682BEC36660DF92B2FF5CF /* BuildingSystemAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildingSystemAPI.swift; sourceTree = "<group>"; };
@@ -6067,7 +6067,7 @@
 				B0020001B0020001B002E001 /* StoreKit */,
 				DA9F6ADE169A8733ECDBA630 /* SwiftCode/Views/Utilities/CopyLogsButton.swift */,
 				BEADAB9179D503EFBDAB6705 /* DependencyManager/ProjectCompatibilityView.swift */,
-				8A7EC5AE379601C498231A42 /* DependencyManager/SecurityCenterView.swift */,
+				8A7EC5AE379601C498231A42 /* DependencySecurityCenterView.swift */,
 				28591269D756C465F30283D5 /* DependencyManager/DependencyVisualizerView.swift */,
 				D9A462932029BEB938ABBB26 /* DependencyManager/PackageCollectionsView.swift */,
 				3711B95B126D501483E11F7A /* DependencyManager/PackageAIView.swift */,
@@ -9975,7 +9975,7 @@
 				DEC001DFB00C0DEB12345674 /* (null) in Sources */,
 				DEC001DFB00C0DEB12345676 /* (null) in Sources */,
 				60A73D1E8BE8B5E078E10AEF /* DependencyManager/ProjectCompatibilityView.swift in Sources */,
-				141D05674E5129028B13B931 /* DependencyManager/SecurityCenterView.swift in Sources */,
+				141D05674E5129028B13B931 /* DependencySecurityCenterView.swift in Sources */,
 				4F97C1A7F1889B690CC843F8 /* DependencyManager/DependencyVisualizerView.swift in Sources */,
 				78C4397D928ADD7645278698 /* DependencyManager/PackageCollectionsView.swift in Sources */,
 				26646E9A6E2FFEFA42B575FC /* DependencyManager/PackageAIView.swift in Sources */,
