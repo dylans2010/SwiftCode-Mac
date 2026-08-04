@@ -9,18 +9,7 @@ public final class VirtualMachineController: Sendable {
 
     public func start() async {
         VirtualizationEventBus.shared.post(.started(vmID))
-
-        // Start simulated stats update stream
-        let timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
-            let cpu = Double.random(in: 2.0...35.0)
-            let ram = Double.random(in: 15.0...40.0) // percentage
-            let net = Double.random(in: 0.1...15.5) // MB/s
-            let disk = Double.random(in: 0.0...2.2) // MB/s
-            VirtualizationEventBus.shared.post(.statUpdate(self.vmID, cpu, ram, net, disk))
-        }
-        RunLoop.main.add(timer, forMode: .common)
-
-        VirtualizationRuntime.shared.registerSession(id: vmID, statsTimer: timer)
+        VirtualizationRuntime.shared.registerSession(id: vmID)
     }
 
     public func stop() async {

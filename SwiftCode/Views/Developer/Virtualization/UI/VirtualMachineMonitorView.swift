@@ -5,7 +5,7 @@ public struct VirtualMachineMonitorView: View {
 
     @State private var stateStore = VirtualizationStateStore.shared
     @State private var timer: Timer? = nil
-    @State private var metrics: [VMMetrics] = []
+    @State private var uptimeString: String = "00:00:00"
 
     public init(vmID: UUID) {
         self.vmID = vmID
@@ -15,183 +15,186 @@ public struct VirtualMachineMonitorView: View {
         stateStore.virtualMachines.first { $0.id == vmID }
     }
 
-    private var currentMetrics: VMMetrics {
-        metrics.last ?? VMMetrics(
-            id: UUID(),
-            timestamp: Date(),
-            cpuUsage: 0,
-            memoryUsage: 0,
-            networkIn: 0,
-            networkOut: 0,
-            diskRead: 0,
-            diskWrite: 0,
-            runningProcessesCount: 0
-        )
-    }
-
     public var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Real-Time Resource Monitor")
                 .font(.headline)
-            Text("Track exact CPU, memory, virtual storage, and network throughput performance metrics.")
+            Text("Track allocated hardware capabilities, active session runtimes, and networking addresses.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            if activeVM?.status == .running {
+            if let vm = activeVM, vm.status == .running {
                 // Monitor Grid layout
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                    // CPU usage Card
+                    // CPU allocation Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Text("CPU UTILIZATION")
+                                Text("CPU ALLOCATION")
                                     .font(.caption)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.secondary)
                                 Spacer()
-                                Text(String(format: "%.1f %%", currentMetrics.cpuUsage))
+                                Text("\(vm.cpuCores) Cores")
                                     .font(.title2)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.green)
                             }
 
-                            // Visual line representation
-                            ProgressView(value: currentMetrics.cpuUsage, total: 100)
+                            ProgressView(value: Double(vm.cpuCores), total: 16)
                                 .accentColor(.green)
 
-                            // History sparks
-                            HStack(alignment: .bottom, spacing: 2) {
-                                ForEach(metrics) { met in
-                                    RoundedRectangle(cornerRadius: 1)
-                                        .fill(Color.green.opacity(0.7))
-                                        .frame(width: 4, height: CGFloat(met.cpuUsage * 0.4))
-                                }
-                            }
-                            .frame(height: 40)
+                            Text("Allocated CPU thread capacity assigned to guest scheduler.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 4)
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // RAM utilization Card
+                    // RAM allocation Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Text("MEMORY (RAM) USAGE")
+                                Text("MEMORY (RAM) ALLOCATED")
                                     .font(.caption)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.secondary)
                                 Spacer()
-                                Text(String(format: "%.1f %%", currentMetrics.memoryUsage))
+                                Text(String(format: "%.1f GB", Double(vm.memoryMB) / 1024.0))
                                     .font(.title2)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.purple)
                             }
 
-                            ProgressView(value: currentMetrics.memoryUsage, total: 100)
+                            ProgressView(value: Double(vm.memoryMB), total: 32768)
                                 .accentColor(.purple)
 
-                            HStack(alignment: .bottom, spacing: 2) {
-                                ForEach(metrics) { met in
-                                    RoundedRectangle(cornerRadius: 1)
-                                        .fill(Color.purple.opacity(0.7))
-                                        .frame(width: 4, height: CGFloat(met.memoryUsage * 0.4))
-                                }
-                            }
-                            .frame(height: 40)
+                            Text("Physical RAM reserved exclusively for guest kernel environment.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 4)
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Network Speed Card
+                    // IP Address Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Text("NETWORK THROUGHPUT")
+                                Text("NETWORK IP ADDRESS")
                                     .font(.caption)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.secondary)
                                 Spacer()
-                                VStack(alignment: .trailing) {
-                                    Text(String(format: "In: %.1f MB/s", currentMetrics.networkIn))
-                                        .font(.caption)
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(.blue)
-                                    Text(String(format: "Out: %.1f MB/s", currentMetrics.networkOut))
-                                        .font(.caption)
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(.cyan)
-                                }
+                                Text(vm.ipAddress)
+                                    .font(.title3)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.blue)
                             }
 
-                            HStack(alignment: .bottom, spacing: 2) {
-                                ForEach(metrics) { met in
-                                    RoundedRectangle(cornerRadius: 1)
-                                        .fill(Color.blue.opacity(0.7))
-                                        .frame(width: 4, height: CGFloat(min(40, met.networkIn * 2.5)))
-                                }
-                            }
-                            .frame(height: 40)
+                            Text("MAC: \(vm.macAddress)")
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+
+                            Text("Host bridged NAT gateway mapping for internal sockets.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 4)
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
 
-                    // Disk Speed Card
+                    // Disk Drive Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Text("VIRTUAL DISK I/O")
+                                Text("VIRTUAL DRIVE CAPACITY")
                                     .font(.caption)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.secondary)
                                 Spacer()
-                                VStack(alignment: .trailing) {
-                                    Text(String(format: "Read: %.1f MB/s", currentMetrics.diskRead))
-                                        .font(.caption)
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(.orange)
-                                    Text(String(format: "Write: %.1f MB/s", currentMetrics.diskWrite))
-                                        .font(.caption)
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(.yellow)
-                                }
+                                Text("\(vm.storageGB) GB")
+                                    .font(.title3)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.orange)
                             }
 
-                            HStack(alignment: .bottom, spacing: 2) {
-                                ForEach(metrics) { met in
-                                    RoundedRectangle(cornerRadius: 1)
-                                        .fill(Color.orange.opacity(0.7))
-                                        .frame(width: 4, height: CGFloat(min(40, met.diskRead * 15.0)))
-                                }
-                            }
-                            .frame(height: 40)
+                            ProgressView(value: Double(vm.storageGB), total: 1000)
+                                .accentColor(.orange)
+
+                            Text("Backed storage size allocation (/dev/vda root device).")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 4)
                     }
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
 
+                // Active Telemetry Status
                 GroupBox(label: Text("Active System Telemetry Summary").font(.headline)) {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            Text("Running Guest Processes:")
+                            Text("Active Session Duration:")
                             Spacer()
-                            Text("\(currentMetrics.runningProcessesCount) active tasks")
+                            Text(uptimeString)
+                                .font(.system(.subheadline, design: .monospaced))
                                 .fontWeight(.bold)
+                                .foregroundStyle(.green)
                         }
                         Divider()
                         HStack {
-                            Text("Active Session Duration:")
+                            Text("Virtualization Engine State:")
                             Spacer()
-                            Text("Simulated virtual time telemetry")
+                            Text("Hypervisor Session Active")
                                 .foregroundStyle(.secondary)
                         }
                     }
                     .padding(.vertical, 4)
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
+
+                // Advanced Live Resource Telemetry (Graceful Offline State)
+                GroupBox(label: Text("Advanced Diagnostics & Load Graphs").font(.headline)) {
+                    VStack(alignment: .center, spacing: 12) {
+                        HStack {
+                            Spacer()
+                            VStack(spacing: 8) {
+                                Image(systemName: "waveform.path.ecg.off")
+                                    .font(.system(size: 36))
+                                    .foregroundStyle(.orange)
+                                    .padding(.top, 8)
+
+                                Text("Live Guest Telemetry: Offline")
+                                    .font(.headline)
+
+                                Text("Real-time guest CPU core graphs, RAM curves, internal process lists, and network packet throughput charts require the SwiftCode Guest Agent daemon to be running inside your Linux guest OS.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+                                    .frame(maxWidth: 550)
+
+                                Divider()
+                                    .padding(.vertical, 8)
+
+                                Text("To install and run the guest agent, run this command in your guest shell:")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                Text("sudo apt-get install swiftcode-guest-agent && sudo systemctl enable --now swiftcode-agent")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .padding(8)
+                                    .background(Color.black.opacity(0.15))
+                                    .cornerRadius(4)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
             } else {
                 ContentUnavailableView(
                     "Monitoring Inactive",
@@ -202,9 +205,9 @@ public struct VirtualMachineMonitorView: View {
             }
         }
         .onAppear {
-            refreshMetrics()
-            timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
-                refreshMetrics()
+            updateUptime()
+            timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+                updateUptime()
             }
         }
         .onDisappear {
@@ -212,22 +215,15 @@ public struct VirtualMachineMonitorView: View {
         }
     }
 
-    private func refreshMetrics() {
-        let history = VMMonitoringManager.shared.getMetricsHistory(for: vmID)
-        if history.isEmpty && activeVM?.status == .running {
-            // Seed first mock data points if empty
-            for i in 0..<15 {
-                VMMonitoringManager.shared.appendMetrics(
-                    vmID: vmID,
-                    cpu: Double.random(in: 4.0...18.0),
-                    ram: Double.random(in: 25.0...35.0),
-                    diskRead: Double.random(in: 0.1...1.5),
-                    diskWrite: Double.random(in: 0.1...0.9)
-                )
-            }
-            metrics = VMMonitoringManager.shared.getMetricsHistory(for: vmID)
-        } else {
-            metrics = history
+    private func updateUptime() {
+        guard let session = VirtualizationRuntime.shared.getSession(vmID) else {
+            uptimeString = "00:00:00"
+            return
         }
+        let seconds = Int(Date().timeIntervalSince(session.startTime))
+        let hrs = seconds / 3600
+        let mins = (seconds % 3600) / 60
+        let secs = seconds % 60
+        uptimeString = String(format: "%02d:%02d:%02d", hrs, mins, secs)
     }
 }

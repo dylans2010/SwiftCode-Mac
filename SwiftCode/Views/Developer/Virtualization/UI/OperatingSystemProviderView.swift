@@ -19,32 +19,40 @@ public struct OperatingSystemProviderView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Recommended Resources:")
                         .fontWeight(.bold)
-                    Text("• CPU Cores: \(provider.recommendedCores) Cores")
-                    Text("• Memory: \(provider.recommendedMemoryMB / 1024) GB")
-                    Text("• Disk Storage: \(provider.recommendedStorageGB) GB")
+                    Text("• CPU: \(provider.recommendedCPU)")
+                    Text("• Memory (RAM): \(provider.recommendedRAM)")
+                    Text("• Storage: \(provider.recommendedStorage)")
+                    Text("• Supported Architectures: \(provider.supportedArchitectures)")
                 }
                 .font(.subheadline)
 
                 Divider()
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Installation Instructions:")
+                    Text("Installation Notes:")
                         .fontWeight(.bold)
-                    Text(provider.installationInstructions)
+                    Text(provider.installationNotes)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 HStack {
                     Button("Open Official Download Link") {
-                        if let url = URL(string: provider.downloadSource) {
+                        if let url = URL(string: provider.officialDownloadPage) {
                             NSWorkspace.shared.open(url)
                         }
                     }
                     .buttonStyle(.borderedProminent)
 
                     Button("Documentation") {
-                        if let url = URL(string: provider.documentationLink) {
+                        if let url = URL(string: provider.officialDocumentation) {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Website") {
+                        if let url = URL(string: provider.officialWebsite) {
                             NSWorkspace.shared.open(url)
                         }
                     }

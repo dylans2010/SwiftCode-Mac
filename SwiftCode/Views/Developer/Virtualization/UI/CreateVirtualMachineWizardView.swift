@@ -162,7 +162,7 @@ public struct CreateVirtualMachineWizardView: View {
                             Text(prov.description)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
-                            Text("Recommended specs: \(prov.recommendedCores) Cores, \(prov.recommendedMemoryMB / 1024)GB RAM, \(prov.recommendedStorageGB)GB Disk")
+                            Text("Recommended specs: CPU: \(prov.recommendedCPU) • RAM: \(prov.recommendedRAM) • Disk: \(prov.recommendedStorage)")
                                 .font(.caption)
                                 .foregroundStyle(.blue)
                         }
@@ -200,12 +200,12 @@ public struct CreateVirtualMachineWizardView: View {
                         .foregroundStyle(.secondary)
 
                     HStack {
-                        Text(activeProvider.downloadSource)
+                        Text(activeProvider.officialDownloadPage)
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.blue)
                         Spacer()
                         Button("Open Download Page") {
-                            if let url = URL(string: activeProvider.downloadSource) {
+                            if let url = URL(string: activeProvider.officialDownloadPage) {
                                 NSWorkspace.shared.open(url)
                             }
                         }
