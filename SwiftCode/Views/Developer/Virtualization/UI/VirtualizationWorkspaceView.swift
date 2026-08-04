@@ -9,8 +9,10 @@ public struct VirtualizationWorkspaceView: View {
         Group {
             if stateStore.showCreateWizard {
                 CreateVirtualMachineWizardView()
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if let selectedID = stateStore.selectedVMID {
                 VirtualMachineDetailView(vmID: selectedID)
+                    .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
             } else {
                 switch stateStore.selectedSidebarTab {
                 case .dashboard:
@@ -20,7 +22,6 @@ public struct VirtualizationWorkspaceView: View {
                 case .images:
                     VirtualizationImageBrowserView()
                 case .snapshots:
-                    // General snapshot list or settings
                     VirtualMachineSnapshotsView(vmID: stateStore.virtualMachines.first?.id)
                 case .storage:
                     VirtualMachineStorageView(vmID: stateStore.virtualMachines.first?.id)
@@ -31,6 +32,9 @@ public struct VirtualizationWorkspaceView: View {
                 }
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: stateStore.showCreateWizard)
+        .animation(.easeInOut(duration: 0.2), value: stateStore.selectedVMID)
+        .animation(.easeInOut(duration: 0.2), value: stateStore.selectedSidebarTab)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(NSColor.windowBackgroundColor))
     }

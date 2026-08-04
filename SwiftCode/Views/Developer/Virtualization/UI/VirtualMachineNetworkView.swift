@@ -19,38 +19,69 @@ public struct VirtualMachineNetworkView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("NAT Networking & Port Forwarding")
-                .font(.headline)
-            Text("Bridge connections between your macOS host and the guest container kernel. Port forwarding maps network ports so local macOS servers can connect directly to guest processes.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("NAT Ports & Local Port Forwarding")
+                    .font(.headline)
+                Text("Map network ports between your Mac and the guest sandbox so web servers and local clients can communicate securely.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
 
             if let vm = activeVM {
                 GroupBox(label: Text("Add Network Forwarding Rule").font(.headline)) {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 14) {
                         HStack(spacing: 12) {
-                            TextField("Rule Name (e.g. Node API)", text: $ruleName)
-                                .textFieldStyle(.roundedBorder)
-
-                            TextField("Host Port (e.g. 3000)", text: $hostPort)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 140)
-
-                            TextField("Guest Port (e.g. 3000)", text: $guestPort)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 140)
-
-                            Picker("", selection: $selectedProto) {
-                                Text("TCP").tag("TCP")
-                                Text("UDP").tag("UDP")
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Rule Label")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.secondary)
+                                TextField("e.g. Vapor server", text: $ruleName)
+                                    .textFieldStyle(.roundedBorder)
                             }
-                            .frame(width: 80)
 
-                            Button("Add Rule") {
-                                addRule(vm.id)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Host Port (Mac)")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.secondary)
+                                TextField("8080", text: $hostPort)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 110)
                             }
-                            .buttonStyle(.borderedProminent)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Guest Port (VM)")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.secondary)
+                                TextField("8080", text: $guestPort)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 110)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Protocol")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.secondary)
+                                Picker("", selection: $selectedProto) {
+                                    Text("TCP").tag("TCP")
+                                    Text("UDP").tag("UDP")
+                                }
+                                .frame(width: 75)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(" ") // Align with text fields
+                                    .font(.caption)
+                                Button("Add Rule") {
+                                    addRule(vm.id)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(ruleName.isEmpty || hostPort.isEmpty || guestPort.isEmpty)
+                            }
                         }
                     }
                     .padding(.vertical, 4)
@@ -58,39 +89,59 @@ public struct VirtualMachineNetworkView: View {
                 .groupBoxStyle(ModernGroupBoxStyle())
 
                 GroupBox(label: Text("Active Port Mappings").font(.headline)) {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
                         if vm.portForwardings.isEmpty {
-                            Text("No active port forwarding mappings. Map ports above to access guest servers from Safari or API clients.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .padding(.vertical, 10)
+                            VStack(spacing: 12) {
+                                Image(systemName: "network.badge.shield.half.filled")
+                                    .font(.system(size: 28))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.top, 4)
+
+                                Text("No Port Forwarding Rules Configured")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+
+                                Text("Forward ports above so you can access databases, web APIs, or SSH services running inside Linux directly from Safari or other Mac clients.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+                                    .frame(maxWidth: 420)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
                         } else {
-                            ForEach(vm.portForwardings) { rule in
-                                HStack {
-                                    Image(systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right")
-                                        .foregroundStyle(.blue)
+                            VStack(spacing: 0) {
+                                ForEach(vm.portForwardings) { rule in
+                                    HStack {
+                                        Image(systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right")
+                                            .foregroundStyle(.blue)
+                                            .frame(width: 24)
 
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(rule.name)
-                                            .fontWeight(.bold)
-                                        Text("\(rule.protocolType) • Localhost:\(rule.hostPort) ➔ Guest VM:\(rule.guestPort)")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(rule.name)
+                                                .font(.subheadline)
+                                                .fontWeight(.bold)
+                                            Text("\(rule.protocolType) • Localhost:\(rule.hostPort) ➔ Guest Workspace:\(rule.guestPort)")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+
+                                        Spacer()
+
+                                        Button(role: .destructive) {
+                                            removeRule(vm.id, ruleID: rule.id)
+                                        } label: {
+                                            Label("Remove", systemImage: "trash")
+                                        }
+                                        .buttonStyle(.plain)
+                                        .foregroundStyle(.red)
+                                        .font(.caption)
                                     }
+                                    .padding(.vertical, 8)
 
-                                    Spacer()
-
-                                    Button(role: .destructive) {
-                                        removeRule(vm.id, ruleID: rule.id)
-                                    } label: {
-                                        Text("Remove Mapping")
-                                            .foregroundStyle(.red)
+                                    if rule.id != vm.portForwardings.last?.id {
+                                        Divider()
                                     }
-                                    .controlSize(.small)
-                                }
-                                .padding(.vertical, 4)
-                                if rule.id != vm.portForwardings.last?.id {
-                                    Divider()
                                 }
                             }
                         }
@@ -98,11 +149,29 @@ public struct VirtualMachineNetworkView: View {
                     .padding(.top, 4)
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
+
+                // Networking Inline Help Info
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.blue)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Understanding NAT Mode Port Mappings")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                        Text("NAT (Network Address Translation) isolates your guest operating system from local external LAN snooping. To connect from Safari or other local clients, mapping host ports to guest ports acts as a secure local tunnel.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(12)
+                .background(Color.blue.opacity(0.06))
+                .cornerRadius(8)
+
             } else {
                 ContentUnavailableView(
-                    "No Virtual Machine",
+                    "No Environment Selected",
                     systemImage: "network",
-                    description: Text("Select a VM from the sidebar to inspect networks.")
+                    description: Text("Select an active environment from the sidebar to configure port maps.")
                 )
             }
         }
@@ -125,12 +194,12 @@ public struct VirtualMachineNetworkView: View {
         hostPort = ""
         guestPort = ""
         stateStore.refreshVM(vmID)
-        stateStore.addLog("Configured port mapping '\(name)' (Host:\(hPort) ➔ Guest:\(gPort)).", type: .success)
+        stateStore.addLog("Configured network tunnel mapping '\(name)' (Port \(hPort) ➔ \(gPort)).", type: .success)
     }
 
     private func removeRule(_ vmID: UUID, ruleID: UUID) {
         try? VMNetworkManager.shared.removePortForwarding(vmID: vmID, ruleID: ruleID)
         stateStore.refreshVM(vmID)
-        stateStore.addLog("Removed network port mapping rule.", type: .warning)
+        stateStore.addLog("Removed network port mapping rule from NAT stack.", type: .warning)
     }
 }

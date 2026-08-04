@@ -19,54 +19,94 @@ public struct VirtualMachineConsoleView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Virtual Machine Live GPU / Serial Console Screen")
-                .font(.headline)
-            Text("Observe kernel boot sequences, device diagnostics, and display output.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Live Serial Console (ttyS0)")
+                        .font(.headline)
+                    Text("Observe kernel boot sequences, driver logs, and low-level system diagnostic outputs.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+
+                HStack(spacing: 8) {
+                    Image(systemName: "circle.fill")
+                        .foregroundStyle(vm?.status == .running ? .green : .secondary)
+                        .font(.caption2)
+                    Text(vm?.status == .running ? "Streaming Live" : "Offline")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color.primary.opacity(0.04))
+                .cornerRadius(6)
+            }
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Title/Header bar
+                    // Title/Header bar (Terminal style)
                     HStack {
-                        Image(systemName: "circle.fill")
-                            .foregroundStyle(vm?.status == .running ? .green : .secondary)
-                        Text(vm?.name ?? "Console")
-                            .fontWeight(.semibold)
+                        HStack(spacing: 6) {
+                            Circle().fill(Color.red).frame(width: 8, height: 8)
+                            Circle().fill(Color.yellow).frame(width: 8, height: 8)
+                            Circle().fill(Color.green).frame(width: 8, height: 8)
+                        }
                         Spacer()
-                        Text("ttyS0 (115200 baud)")
-                            .font(.caption2)
+                        Text("serial-console — ttyS0 (115200 baud)")
+                            .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.secondary)
+                        Spacer()
                     }
-                    .padding(8)
-                    .background(Color.secondary.opacity(0.1))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.secondary.opacity(0.12))
 
                     // Console output panel
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 6) {
                             ForEach(consoleLines, id: \.self) { line in
                                 Text(line)
-                                    .font(.system(.subheadline, design: .monospaced))
+                                    .font(.system(.caption2, design: .monospaced))
                                     .foregroundStyle(.green)
                             }
                         }
-                        .padding()
+                        .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .frame(height: 320)
                     .background(Color.black)
                 }
-                .cornerRadius(6)
+                .cornerRadius(8)
             }
             .groupBoxStyle(ModernGroupBoxStyle())
+
+            // Inline help
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.blue)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("What is the serial console?")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                    Text("The serial console streams output directly from the Linux kernel virtual serial port. It is active even before network adapters load, making it perfect for troubleshooting startup script issues or monitoring low-level panic states.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(12)
+            .background(Color.blue.opacity(0.06))
+            .cornerRadius(8)
         }
         .onAppear {
             if vm?.status == .running {
                 consoleLines.append(contentsOf: [
-                    "[    0.000000] Booting Linux kernel on physical CPU 0x0",
-                    "[    0.051204] CPU: ARMv8 Processor [410fd083] revision 3",
-                    "[    0.158223] ACPI: Core revision 20230628",
+                    "[    0.000000] Booting Linux kernel on virtual CPU 0x0",
+                    "[    0.051204] CPU: Apple Virtualization Core [410fd083] revision 3",
+                    "[    0.158223] ACPI: Core revision 20260215",
                     "[    0.503921] SCSI subsystem initialized",
                     "[    0.803401] libata version 3.00 loaded.",
                     "[    1.109382] EXT4-fs (vda2): mounted filesystem with ordered data mode. Opts: (null)",
@@ -80,7 +120,7 @@ public struct VirtualMachineConsoleView: View {
                     "ubuntu login: "
                 ])
             } else {
-                consoleLines.append("Machine is currently powered off. Start the VM to stream serial boot logs.")
+                consoleLines.append("[Info] Development environment is powered off. Power on to stream virtual kernel console boot logs.")
             }
         }
     }

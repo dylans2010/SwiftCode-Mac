@@ -11,51 +11,66 @@ public struct VirtualizationPreferencesView: View {
 
     public var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Virtualization Preferences")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                Text("Configure global settings for the internal hypervisor and developer console workspace.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Virtualization Preferences")
+                        .font(.system(size: 24, weight: .bold))
+                    Text("Configure global service parameters for the internal hypervisor daemon and telemetry monitor.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
 
-                GroupBox(label: Text("Workspace Console Behavior").font(.headline)) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Toggle("Auto-start virtualization background agent on system boot", isOn: $autoStart)
+                // Section 1: Console background behavior
+                GroupBox(label:
+                    Label("Console Behavior", systemImage: "macwindow")
+                        .font(.headline)
+                        .foregroundStyle(.blue)
+                ) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Toggle("Auto-start hypervisor background agent on system startup", isOn: $autoStart)
                             .toggleStyle(.checkbox)
-                        Text("Launches a lightweight VM daemon task to handle active container services in the background.")
+                        Text("Launches a lightweight background service task to handle sandbox container connections.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .padding(.leading, 18)
 
                         Divider()
-                            .padding(.vertical, 4)
 
-                        Toggle("Stream live GPU & process telemetry updates", isOn: $advancedStats)
+                        Toggle("Stream live GPU & processor memory updates", isOn: $advancedStats)
                             .toggleStyle(.checkbox)
-                        Text("Gathers background statistics of host CPU and memory impact of active virtual machines.")
+                        Text("Actively gathers background telemetry statistics of host impact from running sandboxes.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .padding(.leading, 18)
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                GroupBox(label: Text("Network & Port Mapping Protocols").font(.headline)) {
+                // Section 2: Network options
+                GroupBox(label:
+                    Label("Network Connections", systemImage: "network")
+                        .font(.headline)
+                        .foregroundStyle(.purple)
+                ) {
                     VStack(alignment: .leading, spacing: 12) {
-                        Picker("Default Connection Protocol:", selection: $defaultNetMode) {
+                        Text("Default Socket Connection Protocol:")
+                            .fontWeight(.medium)
+                            .font(.subheadline)
+
+                        Picker("", selection: $defaultNetMode) {
                             Text("NAT (Network Address Translation)").tag("NAT")
-                            Text("Bridged Network Device").tag("Bridge")
-                            Text("Host-Only Isolated Subnet").tag("HostOnly")
+                            Text("Bridged Network Device Interface").tag("Bridge")
+                            Text("Host-Only Isolated Private Subnet").tag("HostOnly")
                         }
                         .pickerStyle(.radioGroup)
 
-                        Text("NAT (recommended) allows guest environments to share your macOS connection without exposing ports directly to local networks.")
-                            .font(.caption)
+                        Text("NAT is highly recommended; it allows guest environments to share your Mac's internet connection securely without exposing open ports to external networks.")
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
+                            .padding(.top, 4)
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
@@ -65,10 +80,12 @@ public struct VirtualizationPreferencesView: View {
                         savePrefs()
                     }
                     .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
                 }
             }
-            .padding()
+            .padding(24)
         }
+        .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
             autoStart = stateStore.preferenceAutoStartAgent
             advancedStats = stateStore.preferenceShowAdvancedStats
@@ -80,6 +97,6 @@ public struct VirtualizationPreferencesView: View {
         stateStore.preferenceAutoStartAgent = autoStart
         stateStore.preferenceShowAdvancedStats = advancedStats
         stateStore.preferenceDefaultNetworkMode = defaultNetMode
-        stateStore.addLog("Saved global virtualization preferences.", type: .success)
+        stateStore.addLog("Successfully saved global virtualization preferences.", type: .success)
     }
 }

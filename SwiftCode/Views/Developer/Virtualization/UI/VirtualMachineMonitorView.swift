@@ -16,10 +16,10 @@ public struct VirtualMachineMonitorView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Real-Time Resource Monitor")
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Resource Performance Monitor")
                 .font(.headline)
-            Text("Track allocated hardware capabilities, active session runtimes, and networking addresses.")
+            Text("Track allocated hardware limits, active duration runtimes, and local network mapping addresses.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -30,22 +30,21 @@ public struct VirtualMachineMonitorView: View {
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Text("CPU ALLOCATION")
+                                Label("CPU THREADS", systemImage: "cpu")
                                     .font(.caption)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.secondary)
                                 Spacer()
                                 Text("\(vm.cpuCores) Cores")
-                                    .font(.title2)
-                                    .fontWeight(.bold)
+                                    .font(.headline)
                                     .foregroundStyle(.green)
                             }
 
                             ProgressView(value: Double(vm.cpuCores), total: 16)
                                 .accentColor(.green)
 
-                            Text("Allocated CPU thread capacity assigned to guest scheduler.")
-                                .font(.caption)
+                            Text("Core scheduling threads allocated for computing tasks.")
+                                .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 4)
@@ -56,22 +55,21 @@ public struct VirtualMachineMonitorView: View {
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Text("MEMORY (RAM) ALLOCATED")
+                                Label("MEMORY LIMIT", systemImage: "memorychip")
                                     .font(.caption)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.secondary)
                                 Spacer()
                                 Text(String(format: "%.1f GB", Double(vm.memoryMB) / 1024.0))
-                                    .font(.title2)
-                                    .fontWeight(.bold)
+                                    .font(.headline)
                                     .foregroundStyle(.purple)
                             }
 
                             ProgressView(value: Double(vm.memoryMB), total: 32768)
                                 .accentColor(.purple)
 
-                            Text("Physical RAM reserved exclusively for guest kernel environment.")
-                                .font(.caption)
+                            Text("Reserved physical memory exclusive to the sandbox.")
+                                .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 4)
@@ -82,23 +80,22 @@ public struct VirtualMachineMonitorView: View {
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Text("NETWORK IP ADDRESS")
+                                Label("IP ADDRESS", systemImage: "network")
                                     .font(.caption)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.secondary)
                                 Spacer()
                                 Text(vm.ipAddress)
-                                    .font(.title3)
-                                    .fontWeight(.bold)
+                                    .font(.headline)
                                     .foregroundStyle(.blue)
                             }
 
-                            Text("MAC: \(vm.macAddress)")
-                                .font(.system(.caption, design: .monospaced))
+                            Text("MAC Address: \(vm.macAddress)")
+                                .font(.system(.caption2, design: .monospaced))
                                 .foregroundStyle(.secondary)
 
-                            Text("Host bridged NAT gateway mapping for internal sockets.")
-                                .font(.caption)
+                            Text("Bridged NAT adapter address mapped by host hypervisor.")
+                                .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 4)
@@ -109,22 +106,21 @@ public struct VirtualMachineMonitorView: View {
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Text("VIRTUAL DRIVE CAPACITY")
+                                Label("STORAGE CAPACITY", systemImage: "externaldrive")
                                     .font(.caption)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.secondary)
                                 Spacer()
                                 Text("\(vm.storageGB) GB")
-                                    .font(.title3)
-                                    .fontWeight(.bold)
+                                    .font(.headline)
                                     .foregroundStyle(.orange)
                             }
 
                             ProgressView(value: Double(vm.storageGB), total: 1000)
                                 .accentColor(.orange)
 
-                            Text("Backed storage size allocation (/dev/vda root device).")
-                                .font(.caption)
+                            Text("Maximum size of the backing root disk storage drive.")
+                                .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 4)
@@ -132,22 +128,28 @@ public struct VirtualMachineMonitorView: View {
                     .groupBoxStyle(ModernGroupBoxStyle())
                 }
 
-                // Active Telemetry Status
-                GroupBox(label: Text("Active System Telemetry Summary").font(.headline)) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            Text("Active Session Duration:")
-                            Spacer()
+                // Active Session duration HUD
+                GroupBox {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("ACTIVE SESSION TIME")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.secondary)
                             Text(uptimeString)
-                                .font(.system(.subheadline, design: .monospaced))
+                                .font(.system(.title2, design: .monospaced))
                                 .fontWeight(.bold)
                                 .foregroundStyle(.green)
                         }
-                        Divider()
-                        HStack {
-                            Text("Virtualization Engine State:")
-                            Spacer()
-                            Text("Hypervisor Session Active")
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("HYPERVISOR STATE")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.secondary)
+                            Text("Active Session Secure")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -155,43 +157,37 @@ public struct VirtualMachineMonitorView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Advanced Live Resource Telemetry (Graceful Offline State)
-                GroupBox(label: Text("Advanced Diagnostics & Load Graphs").font(.headline)) {
+                // Guest Agent offline state panel
+                GroupBox {
                     VStack(alignment: .center, spacing: 12) {
-                        HStack {
-                            Spacer()
-                            VStack(spacing: 8) {
-                                Image(systemName: "waveform.path.ecg.off")
-                                    .font(.system(size: 36))
-                                    .foregroundStyle(.orange)
-                                    .padding(.top, 8)
+                        Image(systemName: "waveform.path.ecg.off")
+                            .font(.system(size: 32))
+                            .foregroundStyle(.orange)
+                            .padding(.top, 4)
 
-                                Text("Live Guest Telemetry: Offline")
-                                    .font(.headline)
+                        Text("Live Telemetry Diagnostics: Offline")
+                            .font(.headline)
 
-                                Text("Real-time guest CPU core graphs, RAM curves, internal process lists, and network packet throughput charts require the SwiftCode Guest Agent daemon to be running inside your Linux guest OS.")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.center)
-                                    .frame(maxWidth: 550)
+                        Text("Detailed CPU core loading graphs, RAM eviction charts, active internal guest process lists, and network bandwidth diagnostics require the SwiftCode Guest Agent daemon.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 500)
 
-                                Divider()
-                                    .padding(.vertical, 8)
+                        Divider()
+                            .padding(.vertical, 4)
 
-                                Text("To install and run the guest agent, run this command in your guest shell:")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                        Text("To install and run the guest agent, execute inside the environment:")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
 
-                                Text("sudo apt-get install swiftcode-guest-agent && sudo systemctl enable --now swiftcode-agent")
-                                    .font(.system(.caption, design: .monospaced))
-                                    .padding(8)
-                                    .background(Color.black.opacity(0.15))
-                                    .cornerRadius(4)
-                            }
-                            Spacer()
-                        }
+                        Text("sudo apt-get install swiftcode-guest-agent && sudo systemctl enable --now swiftcode-agent")
+                            .font(.system(.caption2, design: .monospaced))
+                            .padding(8)
+                            .background(Color.black.opacity(0.12))
+                            .cornerRadius(6)
                     }
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 6)
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
@@ -199,9 +195,9 @@ public struct VirtualMachineMonitorView: View {
                 ContentUnavailableView(
                     "Monitoring Inactive",
                     systemImage: "waveform.path.ecg.off",
-                    description: Text("Machine is currently powered off. Launch the VM to start receiving live system telemetry.")
+                    description: Text("The development sandbox is currently powered off. Launch the environment to stream live telemetry metrics.")
                 )
-                .frame(height: 200)
+                .frame(height: 220)
             }
         }
         .onAppear {
