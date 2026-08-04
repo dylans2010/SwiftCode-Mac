@@ -75,7 +75,7 @@ public final class SCOperationsStorageManager {
         }
     }
 
-    private static func getDirectorySize(at url: URL) -> Int64 {
+    nonisolated private static func getDirectorySize(at url: URL) -> Int64 {
         let fm = FileManager.default
         var size: Int64 = 0
         guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey], options: []) else { return 0 }

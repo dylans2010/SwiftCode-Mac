@@ -96,7 +96,7 @@ struct OperationsSecurityCenterView: View {
                                             Spacer()
                                             if let p = finding.filePath {
                                                 Text(p)
-                                                    .font(.caption2, design: .monospaced)
+                                                    .font(.system(.caption2, design: .monospaced))
                                                     .foregroundStyle(.secondary)
                                             }
                                         }
