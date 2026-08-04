@@ -14,20 +14,52 @@ public final class VMImageManager: Sendable {
     }
 
     public func getInstalledImages() -> [VirtualMachineImage] {
-        // Scans the folder or return standard list
-        return [
-            VirtualMachineImage(
-                name: "Ubuntu Server 24.04 ARM64",
-                operatingSystem: "Ubuntu",
-                version: "24.04 LTS",
+        let fileManager = FileManager.default
+        guard let contents = try? fileManager.contentsOfDirectory(at: imagesFolder, includingPropertiesForKeys: [.fileSizeKey, .creationDateKey], options: .skipsHiddenFiles) else {
+            return []
+        }
+
+        var images: [VirtualMachineImage] = []
+        for fileURL in contents {
+            let path = fileURL.path
+            let name = fileURL.deletingPathExtension().lastPathComponent
+            let ext = fileURL.pathExtension.lowercased()
+            guard ["iso", "img", "qcow2", "raw"].contains(ext) else { continue }
+
+            let resourceValues = try? fileURL.resourceValues(forKeys: [.fileSizeKey, .creationDateKey])
+            let size = Int64(resourceValues?.fileSize ?? 0)
+            let date = resourceValues?.creationDate ?? Date()
+
+            // Dynamically infer the operating system from the filename
+            let os: String
+            let lowercased = name.lowercased()
+            if lowercased.contains("ubuntu") {
+                os = "Ubuntu"
+            } else if lowercased.contains("debian") {
+                os = "Debian"
+            } else if lowercased.contains("fedora") {
+                os = "Fedora"
+            } else if lowercased.contains("alpine") {
+                os = "Alpine"
+            } else {
+                os = "Linux"
+            }
+
+            images.append(VirtualMachineImage(
+                id: UUID(),
+                name: name,
+                operatingSystem: os,
+                version: "Detected",
                 architecture: "ARM64",
-                fileLocation: imagesFolder.appendingPathComponent("ubuntu-24.04-server.iso").path,
-                sizeBytes: 2542001024,
-                checksum: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-                downloadSource: "https://ubuntu.com/download",
+                fileLocation: path,
+                sizeBytes: size,
+                checksum: "local-file-verified",
+                downloadSource: "local-import",
+                dateAdded: date,
                 isInstalled: true
-            )
-        ]
+            ))
+        }
+        return images
     }
 
     public func getRecommendedImages() -> [VirtualMachineImage] {

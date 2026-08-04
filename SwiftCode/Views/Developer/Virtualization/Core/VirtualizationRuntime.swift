@@ -12,16 +12,14 @@ public final class VirtualizationRuntime: @unchecked Sendable {
         public let vmID: UUID
         public let startTime: Date
         public let consoleHistory: [String]
-        public let statsTimer: Timer?
     }
 
-    public func registerSession(id: UUID, statsTimer: Timer? = nil) {
+    public func registerSession(id: UUID) {
         queue.async(flags: .barrier) {
             let session = ActiveVMSession(
                 vmID: id,
                 startTime: Date(),
-                consoleHistory: ["Booting Kernel...", "Mounting /dev...", "Starting systemd services..."],
-                statsTimer: statsTimer
+                consoleHistory: ["Booting Kernel...", "Mounting /dev...", "Starting systemd services..."]
             )
             self.activeSessions[id] = session
         }
@@ -29,10 +27,7 @@ public final class VirtualizationRuntime: @unchecked Sendable {
 
     public func removeSession(id: UUID) {
         queue.async(flags: .barrier) {
-            if let session = self.activeSessions[id] {
-                session.statsTimer?.invalidate()
-                self.activeSessions.removeValue(forKey: id)
-            }
+            self.activeSessions.removeValue(forKey: id)
         }
     }
 

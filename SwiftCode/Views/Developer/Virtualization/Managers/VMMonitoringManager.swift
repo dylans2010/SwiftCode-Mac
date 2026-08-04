@@ -39,34 +39,16 @@ public final class VMMonitoringManager: @unchecked Sendable {
 
     public func appendMetrics(vmID: UUID, cpu: Double, ram: Double, netIn: Double, netOut: Double, diskRead: Double, diskWrite: Double) {
         queue.async(flags: .barrier) {
-            var finalCpu = cpu
-            var finalRam = ram
-
-            #if canImport(Virtualization)
-            // If we have an active real hypervisor running in background, attempt to sample real telemetry
-            if #available(macOS 12.0, *) {
-                // If real hypervisor is active, we can extract real virtual host system diagnostics where possible
-                // We keep it as a fallback-supported calculation block
-                if let activeSession = VirtualizationRuntime.shared.getSession(vmID) {
-                    let uptime = Date().timeIntervalSince(activeSession.startTime)
-                    // Real metrics calculation based on actual system resources or VZVirtualMachine active state
-                    if uptime > 0 {
-                        // Sample actual system usage or adjust calculations based on real host impact
-                    }
-                }
-            }
-            #endif
-
             let metrics = VMMetrics(
                 id: UUID(),
                 timestamp: Date(),
-                cpuUsage: finalCpu,
-                memoryUsage: finalRam,
+                cpuUsage: cpu,
+                memoryUsage: ram,
                 networkIn: netIn,
                 networkOut: netOut,
                 diskRead: diskRead,
                 diskWrite: diskWrite,
-                runningProcessesCount: Int.random(in: 45...110)
+                runningProcessesCount: 0 // Avoid random generated process counts
             )
 
             var list = self.metricsHistory[vmID] ?? []
