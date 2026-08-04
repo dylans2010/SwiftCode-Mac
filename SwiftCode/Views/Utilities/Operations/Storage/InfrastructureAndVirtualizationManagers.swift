@@ -23,8 +23,8 @@ public struct SCDependencyItem: Identifiable, Codable, Sendable, Hashable {
 
 @Observable
 @MainActor
-public final class StorageManager {
-    public static let shared = StorageManager()
+public final class SCOperationsStorageManager {
+    public static let shared = SCOperationsStorageManager()
 
     public var projectUsageGB: Double = 0.4
     public var cacheUsageGB: Double = 1.2
@@ -36,6 +36,10 @@ public final class StorageManager {
 
     public var totalSystemFreeGB: Double = 42.0
 
+    public var totalAllocatedGB: Double {
+        projectUsageGB + cacheUsageGB + derivedDataGB + vmUsageGB + archiveUsageGB + logUsageGB + backupUsageGB
+    }
+
     private init() {
         recalculateSizes()
     }
@@ -45,13 +49,13 @@ public final class StorageManager {
         let activeProjectDir = ProjectSessionStore.shared.activeProject?.directoryURL
 
         Task.detached(priority: .background) {
-            let projectsBytes = self.getDirectorySize(at: projectsDir)
+            let projectsBytes = SCOperationsStorageManager.getDirectorySize(at: projectsDir)
             let projectUsage = Double(projectsBytes) / (1024 * 1024 * 1024)
 
             var derivedUsage = 0.0
             if let activeDir = activeProjectDir {
                 let derivedURL = activeDir.appendingPathComponent("build")
-                let derivedBytes = self.getDirectorySize(at: derivedURL)
+                let derivedBytes = SCOperationsStorageManager.getDirectorySize(at: derivedURL)
                 derivedUsage = Double(derivedBytes) / (1024 * 1024 * 1024)
             }
 
@@ -71,7 +75,7 @@ public final class StorageManager {
         }
     }
 
-    private func getDirectorySize(at url: URL) -> Int64 {
+    private static func getDirectorySize(at url: URL) -> Int64 {
         let fm = FileManager.default
         var size: Int64 = 0
         guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey], options: []) else { return 0 }
@@ -185,8 +189,8 @@ public struct SCDevice: Identifiable, Codable, Sendable, Hashable {
 
 @Observable
 @MainActor
-public final class DeviceManager {
-    public static let shared = DeviceManager()
+public final class SCOperationsDeviceManager {
+    public static let shared = SCOperationsDeviceManager()
 
     public var devices: [SCDevice] = []
 
@@ -221,8 +225,8 @@ public struct SCSigningCertificate: Identifiable, Codable, Sendable, Hashable {
 
 @Observable
 @MainActor
-public final class SigningManager {
-    public static let shared = SigningManager()
+public final class SCOperationsSigningManager {
+    public static let shared = SCOperationsSigningManager()
 
     public var certificates: [SCSigningCertificate] = []
 
@@ -327,7 +331,7 @@ public final class BackupIntegration {
         try? zipContent.write(to: backupURL, atomically: true, encoding: .utf8)
 
         refreshBackups()
-        StorageManager.shared.recalculateSizes()
+        SCOperationsStorageManager.shared.recalculateSizes()
     }
 }
 
@@ -349,7 +353,7 @@ public final class CloudIntegration {
         // Bridge with AuthManager and CloudManager
         if AuthManager.shared.isAuthenticated {
             self.isConnected = true
-            self.cloudUser = AuthManager.shared.currentUserEmail ?? "Developer"
+            self.cloudUser = AuthManager.shared.currentUser?.email ?? "Developer"
             self.storageQuotaUsedGB = 0.4
         } else {
             self.isConnected = false

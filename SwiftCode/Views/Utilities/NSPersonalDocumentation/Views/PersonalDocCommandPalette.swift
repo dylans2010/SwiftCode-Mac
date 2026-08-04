@@ -4,7 +4,7 @@ import Observation
 
 @MainActor
 public struct PersonalDocCommandPalette: View {
-    @Bindable var coordinator: PersonalDocumentationCoordinator
+    var coordinator: PersonalDocumentationCoordinator
     let onDismiss: () -> Void
 
     @State private var searchText = ""

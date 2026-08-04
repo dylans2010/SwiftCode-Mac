@@ -69,7 +69,7 @@ struct DiagnosticsView: View {
                                     Spacer()
                                     if let path = issue.filePath {
                                         Text(path)
-                                            .font(.caption2, design: .monospaced)
+                                            .font(.system(.caption2, design: .monospaced))
                                             .foregroundStyle(.secondary)
                                             .lineLimit(1)
                                     }

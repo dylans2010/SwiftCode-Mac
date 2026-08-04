@@ -15,7 +15,7 @@ public final class VMBackupManager: Sendable {
     public func importConfiguration(from url: URL) throws -> VirtualMachine {
         let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
-        var importedVM = try decoder.decode(VirtualMachine.self)
+        var importedVM = try decoder.decode(VirtualMachine.self, from: data)
 
         // Ensure imported VM gets added cleanly with a new unique identity if needed, or keeping it
         let cleanVM = VirtualMachine(

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct StorageManagerView: View {
-    @State private var sm = StorageManager.shared
+    @State private var sm = SCOperationsStorageManager.shared
     @State private var isCleaningDerived = false
     @State private var isCleaningCaches = false
 
@@ -25,7 +25,7 @@ struct StorageManagerView: View {
                         Text("Workspace Disk Footprint")
                             .font(.headline)
 
-                        let totalAllocated = sm.projectUsageGB + sm.derivedDataGB + sm.cacheUsageGB + sm.vmUsageGB + sm.archiveUsageGB + sm.logUsageGB + sm.backupUsageGB
+                        let totalAllocated = sm.totalAllocatedGB
 
                         HStack {
                             Text(String(format: "Total Allocated: %.2f GB", totalAllocated))
@@ -40,11 +40,11 @@ struct StorageManagerView: View {
                         // visual multi-color bar chart
                         GeometryReader { geo in
                             HStack(spacing: 0) {
-                                Color.blue.frame(width: max(0, CGFloat(sm.projectUsageGB / totalAllocated) * geo.size.width))
-                                Color.orange.frame(width: max(0, CGFloat(sm.derivedDataGB / totalAllocated) * geo.size.width))
-                                Color.green.frame(width: max(0, CGFloat(sm.cacheUsageGB / totalAllocated) * geo.size.width))
-                                Color.purple.frame(width: max(0, CGFloat(sm.archiveUsageGB / totalAllocated) * geo.size.width))
-                                Color.gray.frame(width: max(0, CGFloat((sm.logUsageGB + sm.backupUsageGB) / totalAllocated) * geo.size.width))
+                                Color.blue.frame(width: max(0, CGFloat(totalAllocated > 0 ? (sm.projectUsageGB / totalAllocated) : 0) * geo.size.width))
+                                Color.orange.frame(width: max(0, CGFloat(totalAllocated > 0 ? (sm.derivedDataGB / totalAllocated) : 0) * geo.size.width))
+                                Color.green.frame(width: max(0, CGFloat(totalAllocated > 0 ? (sm.cacheUsageGB / totalAllocated) : 0) * geo.size.width))
+                                Color.purple.frame(width: max(0, CGFloat(totalAllocated > 0 ? (sm.archiveUsageGB / totalAllocated) : 0) * geo.size.width))
+                                Color.gray.frame(width: max(0, CGFloat(totalAllocated > 0 ? ((sm.logUsageGB + sm.backupUsageGB) / totalAllocated) : 0) * geo.size.width))
                             }
                             .cornerRadius(6)
                         }
