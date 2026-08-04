@@ -16,7 +16,7 @@ public struct NewProjectSheetView: View {
         case importFolder = "Import Folder"
         case clone = "Clone Repo"
         case xcodeproj = "Xcode Proj"
-        case scproj = "SC Project"
+        case scproj = "SwiftCode Project Archive"
 
         public var id: String { rawValue }
 
@@ -324,7 +324,7 @@ public struct NewProjectSheetView: View {
         case .importFolder: return "Import Folder"
         case .clone: return "Clone Repository"
         case .xcodeproj: return "Open Xcode Project"
-        case .scproj: return "Open SC Project"
+        case .scproj: return "Open SwiftCode Project Archive"
         }
     }
 

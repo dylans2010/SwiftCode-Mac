@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Sidebar code viewing workspace displaying real-time standard Swift code generated from active canvas configurations.
+/// Sidebar code viewing workspace displaying real-time standard Swift code of the active user-authored document.
 public struct VisualUICodePanel: View {
     let document: VisualUIDocument
 
@@ -9,7 +9,7 @@ public struct VisualUICodePanel: View {
     public var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("GENERATED SOURCE CODE")
+                Text("DOCUMENT SOURCE CODE")
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
 
@@ -40,8 +40,13 @@ public struct VisualUICodePanel: View {
     }
 
     private var generatedCode: String {
-        let generator = VisualUICodeGenerator()
-        return generator.generateCode(for: document.scene, targetFramework: document.scene.currentFramework)
+        if let path = document.filePath, let content = try? String(contentsOfFile: path) {
+            return content
+        }
+        if let activeDoc = DocumentCoordinator.shared.activeDocument {
+            return activeDoc.content
+        }
+        return "// @SwiftCodeVisualUIBuilderDocument\n// Author your premium SwiftUI view here."
     }
 
     private func copyCodeToClipboard() {

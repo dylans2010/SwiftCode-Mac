@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Export view displaying generated code side-by-side with quick integration buttons, clipboard copying, and PNG/PDF canvas exporter.
+/// Export view displaying the active user-authored code side-by-side with quick integration buttons, clipboard copying, and PNG/PDF canvas exporter.
 public struct VisualUIExportView: View {
     @Environment(\.dismiss) private var dismiss
     let document: VisualUIDocument
@@ -62,15 +62,6 @@ public struct VisualUIExportView: View {
                     .controlSize(.regular)
 
                     Spacer()
-
-                    // Export into existing project folder as a physical Swift file
-                    Button {
-                        saveSwiftFileToProject()
-                    } label: {
-                        Label("Integrate into Project", systemImage: "arrow.down.doc.fill")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
                 }
                 .padding(16)
                 .background(Color(NSColor.controlBackgroundColor))
@@ -96,8 +87,13 @@ public struct VisualUIExportView: View {
     }
 
     private func updateGeneratedCode(for framework: VisualUIFramework) {
-        let generator = VisualUICodeGenerator()
-        generatedCode = generator.generateCode(for: document.scene, targetFramework: framework)
+        if let activeDoc = DocumentCoordinator.shared.activeDocument {
+            generatedCode = activeDoc.content
+        } else if let path = document.filePath, let content = try? String(contentsOfFile: path) {
+            generatedCode = content
+        } else {
+            generatedCode = "// @SwiftCodeVisualUIBuilderDocument\n// Author your premium SwiftUI view here."
+        }
     }
 
     private func copyToClipboard() {
@@ -110,18 +106,5 @@ public struct VisualUIExportView: View {
 
     private func exportPreview(asFormat format: String) {
         VisualUISettings.shared.addLog("Successfully exported layout artboards as high-quality \(format) preview file.")
-    }
-
-    private func saveSwiftFileToProject() {
-        // Integrate into current project folder
-        let tempDir = FileManager.default.temporaryDirectory
-        let fileURL = tempDir.appendingPathComponent("VisualUIExportView.swift")
-        do {
-            try generatedCode.write(to: fileURL, atomically: true, encoding: .utf8)
-            VisualUISettings.shared.addLog("Integrated and saved new VisualUIExportView.swift into workspace structure.")
-        } catch {
-            VisualUISettings.shared.addLog("Integration failed: \(error.localizedDescription)")
-        }
-        dismiss()
     }
 }

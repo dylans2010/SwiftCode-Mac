@@ -503,10 +503,20 @@ public struct SavedArtboardsWorkspaceView: View {
     }
 
     private func generateCode(for artboard: VisualUIArtboard) -> String {
-        // Generate clean code for a single artboard
-        let scene = VisualUIScene(artboards: [artboard], activeArtboardID: artboard.id)
-        let generator = VisualUICodeGenerator()
-        return generator.generateCode(for: scene, targetFramework: .swiftUI)
+        if let custom = artboard.customSwiftUISource, !custom.isEmpty {
+            return custom
+        }
+        return """
+import SwiftUI
+
+struct \(artboard.name): View {
+    var body: some View {
+        VStack {
+            Text("\(artboard.name)")
+        }
+    }
+}
+"""
     }
 
     private func reopenInDesigner(_ saved: SavedArtboard) {

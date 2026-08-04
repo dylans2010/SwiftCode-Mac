@@ -32,6 +32,12 @@ public final class ProjectSerializer: Sendable {
         let versionData = try ProjectJSONManager.shared.encode(["schemaVersion": ProjectVersionManager.shared.currentSchemaVersion])
         try ProjectFileManager.shared.writeFile(data: versionData, to: packageURL.appendingPathComponent("version.json"))
 
+        // 7b. Copy session.json if it exists to preserve navigator state, active tabs, and preview configuration
+        let sessionURL = project.directoryURL.appendingPathComponent("session.json")
+        if FileManager.default.fileExists(atPath: sessionURL.path) {
+            try? FileManager.default.copyItem(at: sessionURL, to: packageURL.appendingPathComponent("session.json"))
+        }
+
         // 8. Sources/ Assets/ Resources/ (Copy files)
         try await copyFiles(from: project, to: packageURL)
 

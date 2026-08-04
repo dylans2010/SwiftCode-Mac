@@ -1282,6 +1282,29 @@ struct AppEntry: App {
         }
     }
 
+    // MARK: - Visual UI Document Discovery
+
+    /// Scans the entire active project to locate Swift files containing `@SwiftCodeVisualUIBuilderDocument`.
+    public func scanForVisualUIDocuments() async -> [URL] {
+        guard let project = discoverActiveProject() else { return [] }
+        let projectDir = project.url.deletingLastPathComponent()
+
+        let fm = FileManager.default
+        guard let enumerator = fm.enumerator(at: projectDir, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else {
+            return []
+        }
+
+        var documents: [URL] = []
+        while let fileURL = enumerator.nextObject() as? URL {
+            guard fileURL.pathExtension == "swift" else { continue }
+            guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else { continue }
+            if content.contains("@SwiftCodeVisualUIBuilderDocument") {
+                documents.append(fileURL)
+            }
+        }
+        return documents.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
     // MARK: - Cancel Execution
 
     public func cancelBuild() {
