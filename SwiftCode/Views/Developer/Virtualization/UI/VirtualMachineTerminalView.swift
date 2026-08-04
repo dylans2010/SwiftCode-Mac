@@ -19,64 +19,122 @@ public struct VirtualMachineTerminalView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Interactive Guest Terminal")
-                .font(.headline)
-            Text("Open standard SSH or serial shell sessions inside the guest operating system environment.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Interactive Command Shell")
+                        .font(.headline)
+                    Text("Open secure shell (SSH) sessions inside the guest workspace.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+
+                Button(action: clearTerminal) {
+                    Label("Clear Terminal", systemImage: "trash")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Header controls
+                    // Header controls (Terminal style)
                     HStack {
-                        Image(systemName: "terminal")
-                            .foregroundStyle(.blue)
-                        Text("bash — ubuntu@dev-workspace")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                        Spacer()
-                        Button("Clear Terminal") {
-                            terminalHistory = ["ubuntu@dev-workspace:~$ "]
+                        HStack(spacing: 6) {
+                            Circle().fill(Color.red).frame(width: 8, height: 8)
+                            Circle().fill(Color.yellow).frame(width: 8, height: 8)
+                            Circle().fill(Color.green).frame(width: 8, height: 8)
                         }
-                        .controlSize(.small)
+                        Spacer()
+                        Text("bash — ubuntu@dev-workspace — SSH")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                        Spacer()
                     }
-                    .padding(8)
-                    .background(Color.secondary.opacity(0.1))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.secondary.opacity(0.12))
 
                     // Display list
                     ScrollView {
                         VStack(alignment: .leading, spacing: 4) {
                             ForEach(terminalHistory, id: \.self) { line in
                                 Text(line)
-                                    .font(.system(.subheadline, design: .monospaced))
+                                    .font(.system(.caption2, design: .monospaced))
                                     .foregroundStyle(.white)
                             }
                         }
-                        .padding()
+                        .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(height: 300)
+                    .frame(height: 260)
                     .background(Color.black)
 
                     // Terminal Input Row
-                    HStack(spacing: 8) {
+                    HStack(spacing: 6) {
                         Text("ubuntu@dev-workspace:~$")
-                            .font(.system(.subheadline, design: .monospaced))
+                            .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.green)
 
                         TextField("", text: $terminalInput, onCommit: executeCommand)
                             .textFieldStyle(.plain)
-                            .font(.system(.subheadline, design: .monospaced))
+                            .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.white)
                     }
                     .padding(8)
                     .background(Color.black.opacity(0.95))
                 }
-                .cornerRadius(6)
+                .cornerRadius(8)
             }
             .groupBoxStyle(ModernGroupBoxStyle())
+
+            // Quick helper commands
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Suggested Commands:")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 8) {
+                    suggestedButton("help", desc: "Show active helpers")
+                    suggestedButton("uname -a", desc: "Print kernel core details")
+                    suggestedButton("swift --version", desc: "Check compiler tools")
+                    suggestedButton("df -h", desc: "Check disk sectors")
+                }
+            }
         }
+    }
+
+    @ViewBuilder
+    private func suggestedButton(_ command: String, desc: String) -> some View {
+        Button {
+            terminalInput = command
+            executeCommand()
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(command)
+                    .font(.system(.caption2, design: .monospaced))
+                    .fontWeight(.bold)
+                    .foregroundStyle(.blue)
+                Text(desc)
+                    .font(.system(size: 8))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(Color.primary.opacity(0.04))
+            .cornerRadius(6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func clearTerminal() {
+        terminalHistory = ["ubuntu@dev-workspace:~$ "]
     }
 
     private func executeCommand() {
@@ -85,7 +143,6 @@ public struct VirtualMachineTerminalView: View {
 
         terminalHistory.append("ubuntu@dev-workspace:~$ \(cmd)")
 
-        // Simulating standard shell inputs
         if vm?.status != .running {
             terminalHistory.append("Error: Virtual machine is stopped. Cannot send commands.")
         } else {

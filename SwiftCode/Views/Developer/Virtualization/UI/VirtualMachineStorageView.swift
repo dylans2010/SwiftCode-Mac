@@ -16,109 +16,111 @@ public struct VirtualMachineStorageView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Virtual Storage & Disk Drives")
-                .font(.headline)
-            Text("Manage backing virtual disk image sizes, allocations, and raw backup directories.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Virtual Storage & Disk Volumes")
+                        .font(.headline)
+                    Text("Inspect allocation metrics, resize primary disk files, and export secure environment bundles.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
 
             if let vm = activeVM {
-                GroupBox(label: Text("Backing Storage Allocations").font(.headline)) {
-                    VStack(alignment: .leading, spacing: 12) {
+                GroupBox(label: Text("Disk Space Allocation").font(.headline)) {
+                    VStack(alignment: .leading, spacing: 14) {
                         HStack {
-                            Text("Active Storage Drive:")
+                            Label("Primary Boot Drive Volume", systemImage: "internaldrive.fill")
+                                .fontWeight(.medium)
                             Spacer()
-                            Text("Primary Root Volume (/dev/vda)")
-                                .fontWeight(.bold)
+                            Text("/dev/vda1 (Pristine)")
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
                         }
 
                         HStack {
-                            Text("Allocated Capacity:")
+                            Text("Current Assigned Disk Capacity:")
                             Spacer()
                             Text("\(vm.storageGB) GB")
-                                .fontWeight(.bold)
+                                .font(.headline)
+                                .foregroundStyle(.blue)
                         }
 
                         HStack {
                             Text("Estimated Free Space:")
                             Spacer()
                             Text("88% Available")
+                                .fontWeight(.semibold)
                                 .foregroundStyle(.green)
                         }
 
                         Divider()
-                            .padding(.vertical, 4)
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Resize Virtual Disk Volume:")
+                        // Resize volume section
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Resize Primary Storage Drive:")
                                 .fontWeight(.medium)
 
-                            HStack {
-                                Slider(value: $diskResizeGB, in: Double(vm.storageGB)...2000, step: 5)
+                            HStack(spacing: 12) {
+                                Slider(value: $diskResizeGB, in: Double(vm.storageGB)...500, step: 5)
+                                    .accentColor(.orange)
+
                                 Text("\(Int(diskResizeGB)) GB")
-                                    .fontWeight(.bold)
-                                    .frame(width: 80, alignment: .trailing)
+                                    .font(.headline)
+                                    .frame(width: 70, alignment: .trailing)
                             }
 
-                            Text("Note: Virtual volumes can only be resized upwards. Decreasing disk capacity is unsupported to prevent data corruption.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            // Dynamic Warning message
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .foregroundStyle(.orange)
+                                Text("Virtual drives can only be resized upwards. Decreasing capacity is disabled to prevent file system corruption.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
 
                         HStack {
                             Spacer()
-                            Button("Apply Resize") {
+                            Button("Apply Disk Expansion") {
                                 applyStorageResize(vm.id)
                             }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.borderedProminent)
                         }
                     }
                     .padding(.vertical, 4)
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                GroupBox(label: Text("Backup & Portability Suite").font(.headline)) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Export this virtual environment configuration to a portable file package to share with team members or deploy on other development setups.")
+                GroupBox(label: Text("Bundle Portability & Backups").font(.headline)) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Export this entire development sandbox structure into a portable JSON setup configuration file to share with team members or import on another Mac running SwiftCode.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        HStack {
-                            Button("Export VM Bundle...") {
-                                let savePanel = NSSavePanel()
-                                savePanel.allowedContentTypes = [.json]
-                                savePanel.nameFieldStringValue = "\(vm.name.lowercased().replacingOccurrences(of: " ", with: "_"))_config.json"
-                                if savePanel.runModal() == .OK, let url = savePanel.url {
-                                    try? VMBackupManager.shared.exportConfiguration(for: vm, to: url)
-                                    stateStore.addLog("Exported virtual environment bundle successfully.", type: .success)
-                                }
+                        HStack(spacing: 12) {
+                            Button(action: exportBundle) {
+                                Label("Export Environment Bundle...", systemImage: "square.and.arrow.up")
                             }
+                            .buttonStyle(.bordered)
 
-                            Button("Import External Environment...") {
-                                let openPanel = NSOpenPanel()
-                                openPanel.allowsMultipleSelection = false
-                                openPanel.canChooseDirectories = false
-                                openPanel.canChooseFiles = true
-                                openPanel.allowedContentTypes = [.json]
-                                if openPanel.runModal() == .OK, let url = openPanel.url {
-                                    if let imported = try? VMBackupManager.shared.importConfiguration(from: url) {
-                                        stateStore.refreshVM(imported.id)
-                                        stateStore.selectedVMID = imported.id
-                                        stateStore.addLog("Imported virtual environment from backup bundle.", type: .success)
-                                    }
-                                }
+                            Button(action: importBundle) {
+                                Label("Import External Bundle...", systemImage: "square.and.arrow.down")
                             }
+                            .buttonStyle(.bordered)
                         }
+                        .padding(.top, 4)
                     }
                     .padding(.vertical, 4)
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
             } else {
                 ContentUnavailableView(
-                    "No Virtual Machine Selected",
+                    "No Environment Selected",
                     systemImage: "externaldrive",
-                    description: Text("Select a virtual machine to inspect storage allocations.")
+                    description: Text("Select an active environment from the list to manage its backing disk drives.")
                 )
             }
         }
@@ -135,7 +137,33 @@ public struct VirtualMachineStorageView: View {
             vms[idx].storageGB = Int(diskResizeGB)
             try? VirtualMachineRegistry.shared.save(vms)
             stateStore.refreshVM(vmID)
-            stateStore.addLog("Resized primary volume capacity to \(Int(diskResizeGB)) GB.", type: .success)
+            stateStore.addLog("Expanded primary storage volume drive to \(Int(diskResizeGB)) GB.", type: .success)
+        }
+    }
+
+    private func exportBundle() {
+        guard let vm = activeVM else { return }
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.json]
+        savePanel.nameFieldStringValue = "\(vm.name.lowercased().replacingOccurrences(of: " ", with: "_"))_config.json"
+        if savePanel.runModal() == .OK, let url = savePanel.url {
+            try? VMBackupManager.shared.exportConfiguration(for: vm, to: url)
+            stateStore.addLog("Exported environment bundle to \(url.lastPathComponent) successfully.", type: .success)
+        }
+    }
+
+    private func importBundle() {
+        let openPanel = NSOpenPanel()
+        openPanel.allowsMultipleSelection = false
+        openPanel.canChooseDirectories = false
+        openPanel.canChooseFiles = true
+        openPanel.allowedContentTypes = [.json]
+        if openPanel.runModal() == .OK, let url = openPanel.url {
+            if let imported = try? VMBackupManager.shared.importConfiguration(from: url) {
+                stateStore.refreshVM(imported.id)
+                stateStore.selectedVMID = imported.id
+                stateStore.addLog("Successfully imported external environment bundle from \(url.lastPathComponent).", type: .success)
+            }
         }
     }
 }

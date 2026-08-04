@@ -32,7 +32,7 @@ public struct EnvironmentProfilesView: View {
     @State private var showingRecipeExport = false
     @State private var recipeExportJSON = ""
 
-    // Package Dashboard mock metadata linked to VM configurations
+    // Package Dashboard mock metadata
     public struct VMPackage: Identifiable, Sendable {
         public let id: String
         public let name: String
@@ -67,45 +67,71 @@ public struct EnvironmentProfilesView: View {
 
     public var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 24) {
                 // Header
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Development Profiles & Packages")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    Text("Attach projects to VM configurations, manage environment variables, export recipes, and review installed packages.")
+                    Text("Service Profiles & Recipes")
+                        .font(.system(size: 24, weight: .bold))
+                    Text("Attach repositories to sandbox environments, map custom environment variables, export setup recipes, and review active package lists.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
 
-                // Split sections for profiles and packages
+                // Main split panes
                 HStack(alignment: .top, spacing: 16) {
-                    // Profile Management Card (Left)
-                    GroupBox(label: Text("Workspace Active Profile").font(.headline)) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Picker("Select Profile:", selection: $selectedProfileID) {
-                                ForEach(profiles) { prof in
-                                    Text("\(prof.name) (\(prof.targetOS))").tag(Optional(prof.id))
+                    // Profile Management Card (Left Column)
+                    GroupBox(label:
+                        Label("Active Service Recipe", systemImage: "doc.text.image.fill")
+                            .font(.headline)
+                            .foregroundStyle(.orange)
+                    ) {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Text("Selected Profile:")
+                                    .fontWeight(.medium)
+                                Spacer()
+                                Picker("", selection: $selectedProfileID) {
+                                    ForEach(profiles) { prof in
+                                        Text("\(prof.name) (\(prof.targetOS))").tag(Optional(prof.id))
+                                    }
                                 }
+                                .pickerStyle(.menu)
+                                .frame(width: 220)
                             }
-                            .pickerStyle(.menu)
 
                             if let prof = activeProfile {
                                 Divider()
-                                    .padding(.vertical, 4)
 
-                                VStack(alignment: .leading, spacing: 6) {
+                                // Env variables list
+                                VStack(alignment: .leading, spacing: 8) {
                                     Text("Environment Variables:")
                                         .fontWeight(.bold)
                                         .font(.caption)
+                                        .foregroundStyle(.secondary)
+
                                     if prof.environmentVariables.isEmpty {
-                                        Text("None configured.")
+                                        Text("No variables configured.")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     } else {
-                                        ForEach(Array(prof.environmentVariables.keys), id: \.self) { key in
-                                            Text("• \(key) = \(prof.environmentVariables[key] ?? "")")
-                                                .font(.system(.caption2, design: .monospaced))
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            ForEach(Array(prof.environmentVariables.keys), id: \.self) { key in
+                                                HStack {
+                                                    Text(key)
+                                                        .font(.system(.caption, design: .monospaced))
+                                                        .foregroundStyle(.secondary)
+                                                    Text("=")
+                                                        .font(.caption)
+                                                        .foregroundStyle(.secondary)
+                                                    Text(prof.environmentVariables[key] ?? "")
+                                                        .font(.system(.caption2, design: .monospaced))
+                                                        .fontWeight(.semibold)
+                                                }
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 4)
+                                                .background(Color.primary.opacity(0.03))
+                                                .cornerRadius(4)
+                                            }
                                         }
                                     }
                                 }
@@ -113,37 +139,43 @@ public struct EnvironmentProfilesView: View {
                                 Divider()
 
                                 VStack(alignment: .leading, spacing: 6) {
-                                    Text("Container Packages:")
+                                    Text("Required System Packages:")
                                         .fontWeight(.bold)
                                         .font(.caption)
-                                    Text(prof.installedPackages.joined(separator: ", "))
-                                        .font(.caption)
                                         .foregroundStyle(.secondary)
+                                    Text(prof.installedPackages.joined(separator: ", "))
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
                                 }
 
                                 Divider()
 
                                 VStack(alignment: .leading, spacing: 6) {
-                                    Text("Auto Startup Commands:")
+                                    Text("Auto-run Startup Commands:")
                                         .fontWeight(.bold)
                                         .font(.caption)
+                                        .foregroundStyle(.secondary)
+
                                     ForEach(prof.startupCommands, id: \.self) { cmd in
                                         Text("$ \(cmd)")
-                                            .font(.system(.caption2, design: .monospaced))
+                                            .font(.system(.caption, design: .monospaced))
                                             .foregroundStyle(.blue)
+                                            .padding(4)
+                                            .background(Color.blue.opacity(0.06))
+                                            .cornerRadius(4)
                                     }
                                 }
 
                                 Divider()
 
-                                // Recipe Export Action
                                 Button {
                                     exportRecipe(prof)
                                 } label: {
-                                    Label("Export Recipe JSON", systemImage: "square.and.arrow.up")
+                                    Label("Export Recipe Manifest JSON", systemImage: "square.and.arrow.up.fill")
                                         .frame(maxWidth: .infinity)
                                 }
                                 .buttonStyle(.borderedProminent)
+                                .controlSize(.regular)
                             }
                         }
                         .padding(.top, 4)
@@ -151,10 +183,14 @@ public struct EnvironmentProfilesView: View {
                     .groupBoxStyle(ModernGroupBoxStyle())
                     .frame(maxWidth: .infinity)
 
-                    // Packages Dashboard Card (Right)
-                    GroupBox(label: Text("VM Guest Package Dashboard").font(.headline)) {
+                    // Packages Inventory dashboard (Right Column)
+                    GroupBox(label:
+                        Label("Sandbox Package Inventory", systemImage: "shippingbox.fill")
+                            .font(.headline)
+                            .foregroundStyle(.blue)
+                    ) {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Package inventory active inside this virtual development stack.")
+                            Text("Real-time package status and versions currently indexed inside this environment stack.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
 
@@ -162,17 +198,18 @@ public struct EnvironmentProfilesView: View {
 
                             if let prof = activeProfile,
                                let pkgs = packageDashboardData[prof.name] {
-                                VStack(alignment: .leading, spacing: 8) {
+                                VStack(spacing: 0) {
                                     ForEach(pkgs) { pkg in
                                         HStack {
-                                            Image(systemName: "shippingbox.fill")
-                                                .foregroundStyle(pkg.status == "Update Available" ? .orange : .blue)
-                                                .frame(width: 20)
+                                            Image(systemName: pkg.status == "Update Available" ? "arrow.up.circle.fill" : "checkmark.circle.fill")
+                                                .foregroundStyle(pkg.status == "Update Available" ? .orange : .green)
+                                                .font(.headline)
+                                                .frame(width: 24)
 
-                                            VStack(alignment: .leading) {
+                                            VStack(alignment: .leading, spacing: 2) {
                                                 Text(pkg.name)
                                                     .font(.subheadline)
-                                                    .fontWeight(.semibold)
+                                                    .fontWeight(.bold)
                                                 Text("Installed: \(pkg.installDate) • Status: \(pkg.status)")
                                                     .font(.caption2)
                                                     .foregroundStyle(.secondary)
@@ -182,18 +219,22 @@ public struct EnvironmentProfilesView: View {
                                             Text(pkg.version)
                                                 .font(.system(.caption, design: .monospaced))
                                                 .padding(.horizontal, 6)
-                                                .padding(.vertical, 2)
-                                                .background(Color.primary.opacity(0.06))
+                                                .padding(.vertical, 3)
+                                                .background(Color.primary.opacity(0.05))
                                                 .cornerRadius(4)
                                         }
-                                        Divider()
+                                        .padding(.vertical, 8)
+
+                                        if pkg.id != pkgs.last?.id {
+                                            Divider()
+                                        }
                                     }
                                 }
                             } else {
-                                Text("No pre-packaged templates registered for this custom configuration.")
-                                    .font(.caption)
+                                Text("No pre-built package manifests indexed for this custom configuration.")
+                                    .font(.subheadline)
                                     .foregroundStyle(.secondary)
-                                    .padding(.vertical, 10)
+                                    .padding(.vertical, 16)
                             }
                         }
                         .padding(.top, 4)
@@ -203,10 +244,10 @@ public struct EnvironmentProfilesView: View {
                 }
 
                 // Add Profile Form
-                GroupBox(label: Text("Create Development Profile & Recipe").font(.headline)) {
-                    VStack(alignment: .leading, spacing: 10) {
+                GroupBox(label: Text("Create Custom Service Profile Recipe").font(.headline)) {
+                    VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 12) {
-                            TextField("Recipe Name (e.g. Django Server Stack)", text: $newProfileName)
+                            TextField("Recipe Title Name (e.g. FastAPI Backplane)", text: $newProfileName)
                                 .textFieldStyle(.roundedBorder)
 
                             Picker("", selection: $newProfileOS) {
@@ -217,33 +258,49 @@ public struct EnvironmentProfilesView: View {
                             }
                             .frame(width: 140)
 
-                            Button("Create Recipe") {
+                            Button("Create Recipe Profile") {
                                 createProfile()
                             }
                             .buttonStyle(.borderedProminent)
+                            .disabled(newProfileName.isEmpty)
                         }
                     }
                     .padding(.vertical, 4)
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
             }
-            .padding()
+            .padding(24)
         }
+        .background(Color(NSColor.windowBackgroundColor))
         .sheet(isPresented: $showingRecipeExport) {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Export Development Recipe")
-                    .font(.headline)
-                Text("This recipe represents standard provisioning code ready for containers, Docker or local VMs.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Image(systemName: "curlybraces")
+                        .font(.title)
+                        .foregroundStyle(.blue)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Export Provisioning Recipe")
+                            .font(.headline)
+                        Text("Manifest ready for git synchronization and deployment.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Close") {
+                        showingRecipeExport = false
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                Divider()
 
                 TextEditor(text: .constant(recipeExportJSON))
                     .font(.system(.caption, design: .monospaced))
                     .frame(height: 250)
-                    .border(Color.secondary.opacity(0.3))
+                    .border(Color.secondary.opacity(0.2))
 
                 HStack {
-                    Button("Copy Recipe") {
+                    Button("Copy Manifest to Clipboard") {
                         let pasteboard = NSPasteboard.general
                         pasteboard.clearContents()
                         pasteboard.setString(recipeExportJSON, forType: .string)
@@ -251,15 +308,10 @@ public struct EnvironmentProfilesView: View {
                     .buttonStyle(.borderedProminent)
 
                     Spacer()
-
-                    Button("Close") {
-                        showingRecipeExport = false
-                    }
-                    .buttonStyle(.bordered)
                 }
             }
-            .padding()
-            .frame(width: 480, height: 400)
+            .padding(20)
+            .frame(width: 500, height: 420)
         }
     }
 
@@ -270,14 +322,14 @@ public struct EnvironmentProfilesView: View {
         let prof = EnvironmentProfile(
             name: name,
             targetOS: newProfileOS,
-            environmentVariables: ["ENV": "production"],
-            startupCommands: ["echo 'Running server recipe...'"],
-            installedPackages: ["git", "curl"]
+            environmentVariables: ["ENV": "development", "PORT": "8000"],
+            startupCommands: ["echo 'Deploying python stack...'"],
+            installedPackages: ["git", "curl", "python3"]
         )
         profiles.append(prof)
         selectedProfileID = prof.id
         newProfileName = ""
-        stateStore.addLog("Created development recipe '\(name)'.", type: .success)
+        stateStore.addLog("Created service profile recipe '\(name)'.", type: .success)
     }
 
     private func exportRecipe(_ prof: EnvironmentProfile) {

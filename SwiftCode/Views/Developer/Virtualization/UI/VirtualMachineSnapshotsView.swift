@@ -31,25 +31,27 @@ public struct VirtualMachineSnapshotsView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Snapshot State Timeline")
-                .font(.headline)
-            Text("Create, compare, and revert to historical state snapshots of the environment.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Snapshot State Timeline")
+                    .font(.headline)
+                Text("Create, compare, and restore historical recovery points of the environment. Snapshots capture memory and disk configurations.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
 
             if let vm = activeVM {
                 // Creation card
-                GroupBox(label: Text("Create Snapshot").font(.headline)) {
+                GroupBox(label: Text("Create New Recovery Snapshot").font(.headline)) {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 12) {
-                            TextField("Snapshot Title (e.g. Pre-upgrade)", text: $newSnapshotName)
+                            TextField("Snapshot Title (e.g. Pre-npm upgrade)", text: $newSnapshotName)
                                 .textFieldStyle(.roundedBorder)
 
-                            TextField("Brief Description / Reason", text: $newSnapshotDesc)
+                            TextField("Optional description / notes...", text: $newSnapshotDesc)
                                 .textFieldStyle(.roundedBorder)
 
-                            Button("Save Point") {
+                            Button("Save Snapshot") {
                                 saveSnapshot(vm.id)
                             }
                             .buttonStyle(.borderedProminent)
@@ -60,28 +62,40 @@ public struct VirtualMachineSnapshotsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Search Box
+                // Search Filter Box
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
                     TextField("Search snapshots by title or description...", text: $searchQuery)
                         .textFieldStyle(.roundedBorder)
                 }
-                .padding(.vertical, 4)
 
                 // Timeline List & Compare Columns
                 HStack(alignment: .top, spacing: 16) {
                     // Left: Timeline list
-                    GroupBox(label: Text("Restoration Timeline").font(.headline)) {
-                        VStack(alignment: .leading, spacing: 14) {
+                    GroupBox(label: Text("Timeline Recovery Points").font(.headline)) {
+                        VStack(alignment: .leading, spacing: 10) {
                             if filteredSnapshots.isEmpty {
-                                Text("No matching recovery points found. Create one above.")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.vertical, 10)
+                                VStack(spacing: 12) {
+                                    Image(systemName: "clock.arrow.2.circlepath")
+                                        .font(.system(size: 28))
+                                        .foregroundStyle(.secondary)
+                                        .padding(.top, 8)
+
+                                    Text("No Snapshots Recorded")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+
+                                    Text("Create a snapshot recovery point above to secure your configuration before installing major updates.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal)
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 180)
                             } else {
                                 ScrollView {
-                                    VStack(alignment: .leading, spacing: 10) {
+                                    VStack(alignment: .leading, spacing: 8) {
                                         ForEach(filteredSnapshots) { snap in
                                             Button {
                                                 selectedSnapshotID = snap.id
@@ -89,11 +103,13 @@ public struct VirtualMachineSnapshotsView: View {
                                                 HStack(alignment: .top, spacing: 12) {
                                                     VStack(spacing: 4) {
                                                         Image(systemName: selectedSnapshotID == snap.id ? "checkmark.circle.fill" : "circle.circle")
-                                                            .font(.headline)
+                                                            .font(.subheadline)
                                                             .foregroundStyle(selectedSnapshotID == snap.id ? .green : .blue)
+
+                                                        // Vertical timeline connector
                                                         Rectangle()
-                                                            .fill(Color.secondary.opacity(0.3))
-                                                            .frame(width: 2, height: 25)
+                                                            .fill(Color.secondary.opacity(0.2))
+                                                            .frame(width: 2, height: 28)
                                                     }
 
                                                     VStack(alignment: .leading, spacing: 2) {
@@ -103,8 +119,8 @@ public struct VirtualMachineSnapshotsView: View {
                                                                 .fontWeight(.bold)
                                                                 .foregroundStyle(.primary)
                                                             Spacer()
-                                                            Text(snap.timestamp, style: .date)
-                                                                .font(.caption2)
+                                                            Text(formatDate(snap.timestamp))
+                                                                .font(.system(size: 10, design: .monospaced))
                                                                 .foregroundStyle(.secondary)
                                                         }
 
@@ -115,9 +131,9 @@ public struct VirtualMachineSnapshotsView: View {
                                                     }
                                                     Spacer()
                                                 }
-                                                .padding(6)
+                                                .padding(8)
                                                 .background(selectedSnapshotID == snap.id ? Color.blue.opacity(0.08) : Color.clear)
-                                                .cornerRadius(6)
+                                                .cornerRadius(8)
                                             }
                                             .buttonStyle(.plain)
                                             Divider()
@@ -135,14 +151,15 @@ public struct VirtualMachineSnapshotsView: View {
                     // Right: Detailed Compare Inspector
                     if let selectedID = selectedSnapshotID,
                        let selectedSnap = vm.snapshots.first(where: { $0.id == selectedID }) {
-                        GroupBox(label: Text("Snapshot Comparison Inspector").font(.headline)) {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("Snapshot Details:")
+                        GroupBox(label: Text("State Comparison").font(.headline)) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Selected Recovery Snapshot:")
                                     .fontWeight(.bold)
                                     .font(.caption)
+                                    .foregroundStyle(.secondary)
 
-                                SCDetailRow(label: "Snapshot Name", value: selectedSnap.name)
-                                SCDetailRow(label: "Reason/Notes", value: selectedSnap.description)
+                                SCDetailRow(label: "Title Name", value: selectedSnap.name)
+                                SCDetailRow(label: "Description", value: selectedSnap.description)
                                 SCDetailRow(label: "Timestamp", value: formatDate(selectedSnap.timestamp))
 
                                 Divider()
@@ -150,14 +167,40 @@ public struct VirtualMachineSnapshotsView: View {
                                 Text("Comparison with Active VM:")
                                     .fontWeight(.bold)
                                     .font(.caption)
+                                    .foregroundStyle(.secondary)
 
-                                SCDetailRow(label: "Active VM Cores", value: "\(vm.cpuCores) Cores")
-                                SCDetailRow(label: "Active VM Memory", value: "\(vm.memoryMB) MB")
-                                SCDetailRow(label: "Active VM Disk", value: "\(vm.storageGB) GB")
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text("Attribute").font(.caption2).foregroundStyle(.secondary)
+                                        Text("Cores").font(.subheadline)
+                                        Text("RAM").font(.subheadline)
+                                        Text("Disk Size").font(.subheadline)
+                                    }
+                                    Spacer()
+                                    VStack(alignment: .trailing, spacing: 6) {
+                                        Text("Snapshot").font(.caption2).foregroundStyle(.secondary)
+                                        Text("\(vm.cpuCores) Cores")
+                                        Text("\(vm.memoryMB) MB")
+                                        Text("\(vm.storageGB) GB")
+                                    }
+                                    Spacer()
+                                    VStack(alignment: .trailing, spacing: 6) {
+                                        Text("Active").font(.caption2).foregroundStyle(.secondary)
+                                        Text("\(vm.cpuCores) Cores")
+                                            .foregroundStyle(.blue)
+                                        Text("\(vm.memoryMB) MB")
+                                            .foregroundStyle(.blue)
+                                        Text("\(vm.storageGB) GB")
+                                            .foregroundStyle(.blue)
+                                    }
+                                }
+                                .padding(8)
+                                .background(Color.primary.opacity(0.04))
+                                .cornerRadius(8)
 
                                 Divider()
 
-                                HStack {
+                                HStack(spacing: 8) {
                                     Button("Revert VM to this State") {
                                         revertSnapshot(vm.id, snapID: selectedSnap.id)
                                     }
@@ -171,6 +214,7 @@ public struct VirtualMachineSnapshotsView: View {
                                         Text("Delete")
                                             .foregroundStyle(.red)
                                     }
+                                    .buttonStyle(.bordered)
                                     .controlSize(.small)
                                 }
                             }
@@ -180,19 +224,18 @@ public struct VirtualMachineSnapshotsView: View {
                         .frame(width: 320)
                     } else {
                         GroupBox {
-                            VStack {
+                            VStack(spacing: 12) {
                                 Spacer()
-                                Image(systemName: "clock.arrow.2.circlepath")
+                                Image(systemName: "arrow.right.and.left.magnifyingglass")
                                     .font(.largeTitle)
                                     .foregroundStyle(.secondary)
-                                Text("Select a snapshot point to inspect historical specifications.")
+                                Text("Select a recovery snapshot point to run side-by-side spec comparison.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .multilineTextAlignment(.center)
-                                    .padding()
                                 Spacer()
                             }
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: .infinity, minHeight: 250)
                         }
                         .groupBoxStyle(ModernGroupBoxStyle())
                         .frame(width: 320)
@@ -200,9 +243,9 @@ public struct VirtualMachineSnapshotsView: View {
                 }
             } else {
                 ContentUnavailableView(
-                    "No Virtual Machine",
+                    "No Environment Selected",
                     systemImage: "clock.arrow.2.circlepath",
-                    description: Text("Select an active VM from the sidebar to inspect and restore state snapshots.")
+                    description: Text("Select an active environment from the sidebar to inspect and restore state snapshots.")
                 )
             }
         }
@@ -217,19 +260,19 @@ public struct VirtualMachineSnapshotsView: View {
         newSnapshotName = ""
         newSnapshotDesc = ""
         stateStore.refreshVM(vmID)
-        stateStore.addLog("Snapshot '\(name)' recorded successfully.", type: .success)
+        stateStore.addLog("Created snapshot recovery point '\(name)'.", type: .success)
     }
 
     private func revertSnapshot(_ vmID: UUID, snapID: UUID) {
         try? VMSnapshotManager.shared.restoreSnapshot(vmID: vmID, snapshotID: snapID)
         stateStore.refreshVM(vmID)
-        stateStore.addLog("Reverted virtual machine to specified snapshot point.", type: .success)
+        stateStore.addLog("Successfully rolled back environment state to selected snapshot.", type: .success)
     }
 
     private func deleteSnapshot(_ vmID: UUID, snapID: UUID) {
         try? VMSnapshotManager.shared.deleteSnapshot(vmID: vmID, snapshotID: snapID)
         stateStore.refreshVM(vmID)
-        stateStore.addLog("Snapshot deleted from recovery index.", type: .warning)
+        stateStore.addLog("Deleted snapshot point from local recovery index.", type: .warning)
     }
 
     private func formatDate(_ date: Date) -> String {
