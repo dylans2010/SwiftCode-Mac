@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct NotificationsView: View {
+struct OperationsNotificationsView: View {
     @State private var nm = NotificationCenterManager.shared
 
     var body: some View {

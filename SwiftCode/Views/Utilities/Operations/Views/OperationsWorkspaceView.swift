@@ -22,7 +22,7 @@ struct OperationsWorkspaceView: View {
             case .storage:
                 StorageManagerView()
             case .security:
-                SecurityCenterView()
+                OperationsSecurityCenterView()
             case .aiReports:
                 AIReportsView()
             case .health:
@@ -36,7 +36,7 @@ struct OperationsWorkspaceView: View {
             case .queue:
                 OperationQueueView()
             case .notifications:
-                NotificationsView()
+                OperationsNotificationsView()
             case .preferences:
                 PreferencesView()
             }
