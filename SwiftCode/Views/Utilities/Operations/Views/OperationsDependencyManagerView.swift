@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct DependencyManagerView: View {
+struct OperationsDependencyManagerView: View {
     @State private var dm = DependencyManager.shared
     @State private var showAddingSheet = false
 

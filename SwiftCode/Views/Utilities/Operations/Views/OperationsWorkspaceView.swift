@@ -18,7 +18,7 @@ struct OperationsWorkspaceView: View {
             case .diagnostics:
                 DiagnosticsView()
             case .dependencies:
-                DependencyManagerView()
+                OperationsDependencyManagerView()
             case .storage:
                 StorageManagerView()
             case .security:

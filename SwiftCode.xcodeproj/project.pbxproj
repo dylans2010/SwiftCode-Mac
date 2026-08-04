@@ -10,7 +10,7 @@
 		BA908212F9D1F9C5B565BB57 /* AIReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A528DB7ABFCD9E8ACBA6D34E /* AIReportsView.swift */; };
 		B41962E8FF85C015547C2C7D /* ArchiveManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF4EB2C2BC247D594587044F /* ArchiveManagerView.swift */; };
 		BE75CCFB240452641ABAB6F4 /* BuildHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABD5CF8E106757EC9A9C59E /* BuildHistoryView.swift */; };
-		BC4FA07CDC9A052173DA3FA8 /* DependencyManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF5C3702A18D37543A30C691 /* DependencyManagerView.swift */; };
+		BC4FA07CDC9A052173DA3FA8 /* OperationsDependencyManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF5C3702A18D37543A30C691 /* OperationsDependencyManagerView.swift */; };
 		B8C42ABF5B7BE12955C3D144 /* DiagnosticsAndSecurityManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5281FC54DA62CD5535949 /* DiagnosticsAndSecurityManagers.swift */; };
 		BFAB2A1EF0D13252336B9569 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A45DDD75394CC5077E68B4F4 /* DiagnosticsView.swift */; };
 		B44D23E90206AC6E5B3EA056 /* InfrastructureAndVirtualizationManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD5FC3C7C3A2F1A879A9D4FA /* InfrastructureAndVirtualizationManagers.swift */; };
@@ -2464,7 +2464,7 @@
 		A528DB7ABFCD9E8ACBA6D34E /* AIReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/AIReportsView.swift"; sourceTree = "<group>"; };
 		AF4EB2C2BC247D594587044F /* ArchiveManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/ArchiveManagerView.swift"; sourceTree = "<group>"; };
 		AABD5CF8E106757EC9A9C59E /* BuildHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/BuildHistoryView.swift"; sourceTree = "<group>"; };
-		AF5C3702A18D37543A30C691 /* DependencyManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/DependencyManagerView.swift"; sourceTree = "<group>"; };
+		AF5C3702A18D37543A30C691 /* OperationsDependencyManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/OperationsDependencyManagerView.swift"; sourceTree = "<group>"; };
 		A1E5281FC54DA62CD5535949 /* DiagnosticsAndSecurityManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Diagnostics/DiagnosticsAndSecurityManagers.swift"; sourceTree = "<group>"; };
 		A45DDD75394CC5077E68B4F4 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/DiagnosticsView.swift"; sourceTree = "<group>"; };
 		AD5FC3C7C3A2F1A879A9D4FA /* InfrastructureAndVirtualizationManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Storage/InfrastructureAndVirtualizationManagers.swift"; sourceTree = "<group>"; };
@@ -4912,7 +4912,7 @@
 				A528DB7ABFCD9E8ACBA6D34E /* AIReportsView.swift */,
 				AF4EB2C2BC247D594587044F /* ArchiveManagerView.swift */,
 				AABD5CF8E106757EC9A9C59E /* BuildHistoryView.swift */,
-				AF5C3702A18D37543A30C691 /* DependencyManagerView.swift */,
+				AF5C3702A18D37543A30C691 /* OperationsDependencyManagerView.swift */,
 				A1E5281FC54DA62CD5535949 /* DiagnosticsAndSecurityManagers.swift */,
 				A45DDD75394CC5077E68B4F4 /* DiagnosticsView.swift */,
 				AD5FC3C7C3A2F1A879A9D4FA /* InfrastructureAndVirtualizationManagers.swift */,
@@ -9812,7 +9812,7 @@
 				BA908212F9D1F9C5B565BB57 /* AIReportsView.swift in Sources */,
 				B41962E8FF85C015547C2C7D /* ArchiveManagerView.swift in Sources */,
 				BE75CCFB240452641ABAB6F4 /* BuildHistoryView.swift in Sources */,
-				BC4FA07CDC9A052173DA3FA8 /* DependencyManagerView.swift in Sources */,
+				BC4FA07CDC9A052173DA3FA8 /* OperationsDependencyManagerView.swift in Sources */,
 				B8C42ABF5B7BE12955C3D144 /* DiagnosticsAndSecurityManagers.swift in Sources */,
 				BFAB2A1EF0D13252336B9569 /* DiagnosticsView.swift in Sources */,
 				B44D23E90206AC6E5B3EA056 /* InfrastructureAndVirtualizationManagers.swift in Sources */,
