@@ -65,7 +65,8 @@ public struct MainToolsView: View {
         WorkspaceHubTool(id: "localization_manager", name: "Localization Manager", description: "Multi-pane string catalogs and .xcstrings editor with layout previews & validation checks.", iconName: "text.book.closed.fill", colorHex: "#007AFF", category: "Utilities", destination: "localizationManager"),
         WorkspaceHubTool(id: "licenses_add", name: "Licenses", description: "Quickly add open source license templates directly to your project codebase.", iconName: "doc.text.fill", colorHex: "#FF9500", category: "Utilities", destination: "licensesAdd"),
         WorkspaceHubTool(id: "coding_dictionary", name: "Coding Dictionary", description: "AI-powered coding dictionary & reference companion that searches terminology, concepts, APIs, syntax, and patterns.", iconName: "book.pages.fill", colorHex: "#AF52DE", category: "Utilities", destination: "codingDictionary"),
-        WorkspaceHubTool(id: "device_connect", name: "Device Connect", description: "Native Apple device deployment, runtime, monitoring, diagnostics, and device management platform.", iconName: "play.circle.fill", colorHex: "#34C759", category: "Build & Deploy", destination: "deviceConnect")
+        WorkspaceHubTool(id: "device_connect", name: "Device Connect", description: "Native Apple device deployment, runtime, monitoring, diagnostics, and device management platform.", iconName: "play.circle.fill", colorHex: "#34C759", category: "Build & Deploy", destination: "deviceConnect"),
+        WorkspaceHubTool(id: "virtualization", name: "Virtualization", description: "Create development environments, run Linux machines, restore snapshots, and manage isolated workspaces with real telemetry.", iconName: "cpu.fill", colorHex: "#007AFF", category: "Utilities", destination: "virtualization")
     ]
 
     private var filteredCategories: [String] {
