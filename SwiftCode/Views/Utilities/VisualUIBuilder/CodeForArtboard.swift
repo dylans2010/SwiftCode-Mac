@@ -40,8 +40,6 @@ public struct CodeForArtboard: View {
             // Native SwiftUI TextEditor
             TextEditor(text: $draftSource)
                 .font(.system(.body, design: .monospaced))
-                .autocorrectionDisabled(true)
-                .textSpellChecking(.disabled)
                 .scrollContentBackground(.hidden)
                 .background(Color(NSColor.windowBackgroundColor))
                 .padding(8)

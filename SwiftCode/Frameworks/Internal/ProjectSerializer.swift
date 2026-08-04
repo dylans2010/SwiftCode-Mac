@@ -33,7 +33,7 @@ public final class ProjectSerializer: Sendable {
         try ProjectFileManager.shared.writeFile(data: versionData, to: packageURL.appendingPathComponent("version.json"))
 
         // 7b. Copy session.json if it exists to preserve navigator state, active tabs, and preview configuration
-        let sessionURL = project.directoryURL.appendingPathComponent("session.json")
+        let sessionURL = await project.directoryURL.appendingPathComponent("session.json")
         if FileManager.default.fileExists(atPath: sessionURL.path) {
             try? FileManager.default.copyItem(at: sessionURL, to: packageURL.appendingPathComponent("session.json"))
         }

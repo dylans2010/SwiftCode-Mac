@@ -376,6 +376,7 @@ public struct SavedArtboardsWorkspaceView: View {
     @Bindable var document: VisualUIDocument
     @State private var viewMode = 0 // 0 = Visual Mode, 1 = Code Mode
     @State private var manager = SavedArtboardManager.shared
+    @State private var selectedDocumentURL: URL? = nil
 
     public init(document: VisualUIDocument) {
         self.document = document
@@ -452,7 +453,7 @@ public struct SavedArtboardsWorkspaceView: View {
                             // Visual Mode
                             ScrollView([.horizontal, .vertical]) {
                                 VStack {
-                                    ArtboardView(artboard: saved.layout, document: document, settings: VisualUISettings.shared)
+                                    ArtboardView(artboard: saved.layout, document: document, settings: VisualUISettings.shared, eligibleDocuments: [], selectedDocumentURL: $selectedDocumentURL)
                                 }
                                 .padding(40)
                             }
@@ -545,3 +546,4 @@ struct \(artboard.name): View {
         }
     }
 }
+
