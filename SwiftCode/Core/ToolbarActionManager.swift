@@ -66,6 +66,7 @@ final class ToolbarActionManager {
         case projectInspector
         case localizationManager
         case deviceConnect
+        case virtualization
 
         // Sidebar & Inspector additions
         case debugSessions
@@ -219,6 +220,8 @@ final class ToolbarActionManager {
             return .localizationManager
         case "device_connect", "deviceConnect", "device_connect_kit":
             return .deviceConnect
+        case "virtualization":
+            return .virtualization
 
         case "debug_sessions":
             return .debugSessions

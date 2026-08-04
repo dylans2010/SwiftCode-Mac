@@ -7,6 +7,49 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B0F274C510AE0CA5FB79FBD1 /* VirtualizationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F174C510AE0CA5FB79FBD1 /* VirtualizationCoordinator.swift */; };
+		B0F29BE1A9DFA49B0546D9D7 /* VirtualizationSplitViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F19BE1A9DFA49B0546D9D7 /* VirtualizationSplitViewController.swift */; };
+		B0F2ACF5CB50AFE491A6D30F /* VirtualizationWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1ACF5CB50AFE491A6D30F /* VirtualizationWindowController.swift */; };
+		B0F2FD305E21860882673D0F /* SCVirtualizationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1FD305E21860882673D0F /* SCVirtualizationEngine.swift */; };
+		B0F2F327BC68319ED1BA6651 /* VirtualMachineController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1F327BC68319ED1BA6651 /* VirtualMachineController.swift */; };
+		B0F2283EFD8AFAAD6A287420 /* VirtualMachineRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1283EFD8AFAAD6A287420 /* VirtualMachineRegistry.swift */; };
+		B0F237D6B0E14E6BABC43349 /* VirtualizationEventBus.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F137D6B0E14E6BABC43349 /* VirtualizationEventBus.swift */; };
+		B0F236E49A8786B04E99CA7D /* VirtualizationRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F136E49A8786B04E99CA7D /* VirtualizationRuntime.swift */; };
+		B0F2D21CFB3C905924AA5E78 /* VirtualizationStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1D21CFB3C905924AA5E78 /* VirtualizationStateStore.swift */; };
+		B0F26DB0BDF9A4418E40D812 /* SnapshotManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F16DB0BDF9A4418E40D812 /* SnapshotManager.swift */; };
+		B0F2F6076F8B5A0F0782DBDB /* VMBackupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1F6076F8B5A0F0782DBDB /* VMBackupManager.swift */; };
+		B0F2AB421325CB2C52A4A15B /* VMImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1AB421325CB2C52A4A15B /* VMImageManager.swift */; };
+		B0F2FBCAB1A690486567E9B5 /* VMMonitoringManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1FBCAB1A690486567E9B5 /* VMMonitoringManager.swift */; };
+		B0F27F78C93021741B42D2C7 /* VMNetworkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F17F78C93021741B42D2C7 /* VMNetworkManager.swift */; };
+		B0F2BAED9448F2F9C48F6AD1 /* VMSharedFolderManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1BAED9448F2F9C48F6AD1 /* VMSharedFolderManager.swift */; };
+		B0F2411B29487DFC2FF1E8F5 /* EnvironmentProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1411B29487DFC2FF1E8F5 /* EnvironmentProfile.swift */; };
+		B0F20F14075ADDE8CA1FFD57 /* VirtualMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F10F14075ADDE8CA1FFD57 /* VirtualMachine.swift */; };
+		B0F20F39F985FDF7F393A64C /* VirtualMachineImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F10F39F985FDF7F393A64C /* VirtualMachineImage.swift */; };
+		B0F2F239F0C704420DA03586 /* AlpineProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1F239F0C704420DA03586 /* AlpineProvider.swift */; };
+		B0F28F136768618FC75611E5 /* DebianProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F18F136768618FC75611E5 /* DebianProvider.swift */; };
+		B0F283C812F4C875F94CE7BC /* FedoraProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F183C812F4C875F94CE7BC /* FedoraProvider.swift */; };
+		B0F23436C2535424FCD08017 /* OperatingSystemProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F13436C2535424FCD08017 /* OperatingSystemProvider.swift */; };
+		B0F2CF9A894BFFB43623AD8E /* UbuntuProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1CF9A894BFFB43623AD8E /* UbuntuProvider.swift */; };
+		B0F22C55EC16BF8E6C505056 /* VirtualizationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F12C55EC16BF8E6C505056 /* VirtualizationService.swift */; };
+		B0F2DB40288825F1886F8F4D /* CreateVirtualMachineWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1DB40288825F1886F8F4D /* CreateVirtualMachineWizardView.swift */; };
+		B0F26A954C4B4A69EF2699A8 /* EnvironmentProfilesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F16A954C4B4A69EF2699A8 /* EnvironmentProfilesView.swift */; };
+		B0F24D9368761AFFB63EC933 /* OperatingSystemProviderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F14D9368761AFFB63EC933 /* OperatingSystemProviderView.swift */; };
+		B0F2FE6837ABC8B391706BDF /* SCVirtualizationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1FE6837ABC8B391706BDF /* SCVirtualizationView.swift */; };
+		B0F2868706886ACD2A3344FD /* VirtualMachineConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1868706886ACD2A3344FD /* VirtualMachineConsoleView.swift */; };
+		B0F243B5C2FD36C71616E0E9 /* VirtualMachineDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F143B5C2FD36C71616E0E9 /* VirtualMachineDetailView.swift */; };
+		B0F20EC03FA6CCB8BF0ED768 /* VirtualMachineListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F10EC03FA6CCB8BF0ED768 /* VirtualMachineListView.swift */; };
+		B0F2C1A3A15FC3D82D6D7B4E /* VirtualMachineMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1C1A3A15FC3D82D6D7B4E /* VirtualMachineMonitorView.swift */; };
+		B0F2E91EAF1483DF28932CAF /* VirtualMachineNetworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1E91EAF1483DF28932CAF /* VirtualMachineNetworkView.swift */; };
+		B0F2598552D947806F94572A /* VirtualMachineSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1598552D947806F94572A /* VirtualMachineSettingsView.swift */; };
+		B0F24151CBD3B34F0FC8CC5C /* VirtualMachineSharedFoldersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F14151CBD3B34F0FC8CC5C /* VirtualMachineSharedFoldersView.swift */; };
+		B0F254DD8FFAA35E80F818D1 /* VirtualMachineSnapshotsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F154DD8FFAA35E80F818D1 /* VirtualMachineSnapshotsView.swift */; };
+		B0F25E61BDF8A03DC18E544A /* VirtualMachineStorageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F15E61BDF8A03DC18E544A /* VirtualMachineStorageView.swift */; };
+		B0F277D5AE4F8129F45FC71A /* VirtualMachineTerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F177D5AE4F8129F45FC71A /* VirtualMachineTerminalView.swift */; };
+		B0F2CD912E8AA003CFC902EB /* VirtualizationDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1CD912E8AA003CFC902EB /* VirtualizationDashboardView.swift */; };
+		B0F23C5B31151E898179AA92 /* VirtualizationImageBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F13C5B31151E898179AA92 /* VirtualizationImageBrowserView.swift */; };
+		B0F25AF73A7B7459C54BAEFD /* VirtualizationPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F15AF73A7B7459C54BAEFD /* VirtualizationPreferencesView.swift */; };
+		B0F22550E3F8EAB6C1E5639E /* VirtualizationSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F12550E3F8EAB6C1E5639E /* VirtualizationSidebarView.swift */; };
+		B0F2C6FA596C28D3F81B5965 /* VirtualizationWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F1C6FA596C28D3F81B5965 /* VirtualizationWorkspaceView.swift */; };
 		DE5ECE000000000000000002 /* FileTemplateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE5ECE000000000000000001 /* FileTemplateManager.swift */; };
 		DE5ECE000000000000000012 /* BuildDestinationResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE5ECE000000000000000011 /* BuildDestinationResolver.swift */; };
 		8011D22065A4C22503627407 /* AppKit.swift.txt in Resources */ = {isa = PBXBuildFile; fileRef = 8904B3290F61326C40772016 /* AppKit.swift.txt */; };
@@ -2391,6 +2434,49 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A0F174C510AE0CA5FB79FBD1 /* VirtualizationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/AppKit/VirtualizationCoordinator.swift; sourceTree = SOURCE_ROOT; };
+		A0F19BE1A9DFA49B0546D9D7 /* VirtualizationSplitViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/AppKit/VirtualizationSplitViewController.swift; sourceTree = SOURCE_ROOT; };
+		A0F1ACF5CB50AFE491A6D30F /* VirtualizationWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/AppKit/VirtualizationWindowController.swift; sourceTree = SOURCE_ROOT; };
+		A0F1FD305E21860882673D0F /* SCVirtualizationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Core/SCVirtualizationEngine.swift; sourceTree = SOURCE_ROOT; };
+		A0F1F327BC68319ED1BA6651 /* VirtualMachineController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Core/VirtualMachineController.swift; sourceTree = SOURCE_ROOT; };
+		A0F1283EFD8AFAAD6A287420 /* VirtualMachineRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Core/VirtualMachineRegistry.swift; sourceTree = SOURCE_ROOT; };
+		A0F137D6B0E14E6BABC43349 /* VirtualizationEventBus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Core/VirtualizationEventBus.swift; sourceTree = SOURCE_ROOT; };
+		A0F136E49A8786B04E99CA7D /* VirtualizationRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Core/VirtualizationRuntime.swift; sourceTree = SOURCE_ROOT; };
+		A0F1D21CFB3C905924AA5E78 /* VirtualizationStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Core/VirtualizationStateStore.swift; sourceTree = SOURCE_ROOT; };
+		A0F16DB0BDF9A4418E40D812 /* SnapshotManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Managers/SnapshotManager.swift; sourceTree = SOURCE_ROOT; };
+		A0F1F6076F8B5A0F0782DBDB /* VMBackupManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Managers/VMBackupManager.swift; sourceTree = SOURCE_ROOT; };
+		A0F1AB421325CB2C52A4A15B /* VMImageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Managers/VMImageManager.swift; sourceTree = SOURCE_ROOT; };
+		A0F1FBCAB1A690486567E9B5 /* VMMonitoringManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Managers/VMMonitoringManager.swift; sourceTree = SOURCE_ROOT; };
+		A0F17F78C93021741B42D2C7 /* VMNetworkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Managers/VMNetworkManager.swift; sourceTree = SOURCE_ROOT; };
+		A0F1BAED9448F2F9C48F6AD1 /* VMSharedFolderManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Managers/VMSharedFolderManager.swift; sourceTree = SOURCE_ROOT; };
+		A0F1411B29487DFC2FF1E8F5 /* EnvironmentProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Models/EnvironmentProfile.swift; sourceTree = SOURCE_ROOT; };
+		A0F10F14075ADDE8CA1FFD57 /* VirtualMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Models/VirtualMachine.swift; sourceTree = SOURCE_ROOT; };
+		A0F10F39F985FDF7F393A64C /* VirtualMachineImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Models/VirtualMachineImage.swift; sourceTree = SOURCE_ROOT; };
+		A0F1F239F0C704420DA03586 /* AlpineProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Providers/AlpineProvider.swift; sourceTree = SOURCE_ROOT; };
+		A0F18F136768618FC75611E5 /* DebianProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Providers/DebianProvider.swift; sourceTree = SOURCE_ROOT; };
+		A0F183C812F4C875F94CE7BC /* FedoraProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Providers/FedoraProvider.swift; sourceTree = SOURCE_ROOT; };
+		A0F13436C2535424FCD08017 /* OperatingSystemProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Providers/OperatingSystemProvider.swift; sourceTree = SOURCE_ROOT; };
+		A0F1CF9A894BFFB43623AD8E /* UbuntuProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Providers/UbuntuProvider.swift; sourceTree = SOURCE_ROOT; };
+		A0F12C55EC16BF8E6C505056 /* VirtualizationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Services/VirtualizationService.swift; sourceTree = SOURCE_ROOT; };
+		A0F1DB40288825F1886F8F4D /* CreateVirtualMachineWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/CreateVirtualMachineWizardView.swift; sourceTree = SOURCE_ROOT; };
+		A0F16A954C4B4A69EF2699A8 /* EnvironmentProfilesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/EnvironmentProfilesView.swift; sourceTree = SOURCE_ROOT; };
+		A0F14D9368761AFFB63EC933 /* OperatingSystemProviderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/OperatingSystemProviderView.swift; sourceTree = SOURCE_ROOT; };
+		A0F1FE6837ABC8B391706BDF /* SCVirtualizationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/SCVirtualizationView.swift; sourceTree = SOURCE_ROOT; };
+		A0F1868706886ACD2A3344FD /* VirtualMachineConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineConsoleView.swift; sourceTree = SOURCE_ROOT; };
+		A0F143B5C2FD36C71616E0E9 /* VirtualMachineDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineDetailView.swift; sourceTree = SOURCE_ROOT; };
+		A0F10EC03FA6CCB8BF0ED768 /* VirtualMachineListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineListView.swift; sourceTree = SOURCE_ROOT; };
+		A0F1C1A3A15FC3D82D6D7B4E /* VirtualMachineMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineMonitorView.swift; sourceTree = SOURCE_ROOT; };
+		A0F1E91EAF1483DF28932CAF /* VirtualMachineNetworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineNetworkView.swift; sourceTree = SOURCE_ROOT; };
+		A0F1598552D947806F94572A /* VirtualMachineSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineSettingsView.swift; sourceTree = SOURCE_ROOT; };
+		A0F14151CBD3B34F0FC8CC5C /* VirtualMachineSharedFoldersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineSharedFoldersView.swift; sourceTree = SOURCE_ROOT; };
+		A0F154DD8FFAA35E80F818D1 /* VirtualMachineSnapshotsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineSnapshotsView.swift; sourceTree = SOURCE_ROOT; };
+		A0F15E61BDF8A03DC18E544A /* VirtualMachineStorageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineStorageView.swift; sourceTree = SOURCE_ROOT; };
+		A0F177D5AE4F8129F45FC71A /* VirtualMachineTerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineTerminalView.swift; sourceTree = SOURCE_ROOT; };
+		A0F1CD912E8AA003CFC902EB /* VirtualizationDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/VirtualizationDashboardView.swift; sourceTree = SOURCE_ROOT; };
+		A0F13C5B31151E898179AA92 /* VirtualizationImageBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/VirtualizationImageBrowserView.swift; sourceTree = SOURCE_ROOT; };
+		A0F15AF73A7B7459C54BAEFD /* VirtualizationPreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/VirtualizationPreferencesView.swift; sourceTree = SOURCE_ROOT; };
+		A0F12550E3F8EAB6C1E5639E /* VirtualizationSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/VirtualizationSidebarView.swift; sourceTree = SOURCE_ROOT; };
+		A0F1C6FA596C28D3F81B5965 /* VirtualizationWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/VirtualizationWorkspaceView.swift; sourceTree = SOURCE_ROOT; };
 		DE5ECE000000000000000001 /* FileTemplateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTemplateManager.swift; sourceTree = "<group>"; };
 		DE5ECE000000000000000011 /* BuildDestinationResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildDestinationResolver.swift; sourceTree = "<group>"; };
 		STK56CCCDF5CF379A2BE0AD4 /* StoreKitModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/StoreKitModels.swift; sourceTree = "<group>"; };
@@ -4766,6 +4852,56 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		C0F300000000000000000001 /* Virtualization */ = {
+			isa = PBXGroup;
+			children = (
+				A0F174C510AE0CA5FB79FBD1 /* VirtualizationCoordinator.swift */,
+				A0F19BE1A9DFA49B0546D9D7 /* VirtualizationSplitViewController.swift */,
+				A0F1ACF5CB50AFE491A6D30F /* VirtualizationWindowController.swift */,
+				A0F1FD305E21860882673D0F /* SCVirtualizationEngine.swift */,
+				A0F1F327BC68319ED1BA6651 /* VirtualMachineController.swift */,
+				A0F1283EFD8AFAAD6A287420 /* VirtualMachineRegistry.swift */,
+				A0F137D6B0E14E6BABC43349 /* VirtualizationEventBus.swift */,
+				A0F136E49A8786B04E99CA7D /* VirtualizationRuntime.swift */,
+				A0F1D21CFB3C905924AA5E78 /* VirtualizationStateStore.swift */,
+				A0F16DB0BDF9A4418E40D812 /* SnapshotManager.swift */,
+				A0F1F6076F8B5A0F0782DBDB /* VMBackupManager.swift */,
+				A0F1AB421325CB2C52A4A15B /* VMImageManager.swift */,
+				A0F1FBCAB1A690486567E9B5 /* VMMonitoringManager.swift */,
+				A0F17F78C93021741B42D2C7 /* VMNetworkManager.swift */,
+				A0F1BAED9448F2F9C48F6AD1 /* VMSharedFolderManager.swift */,
+				A0F1411B29487DFC2FF1E8F5 /* EnvironmentProfile.swift */,
+				A0F10F14075ADDE8CA1FFD57 /* VirtualMachine.swift */,
+				A0F10F39F985FDF7F393A64C /* VirtualMachineImage.swift */,
+				A0F1F239F0C704420DA03586 /* AlpineProvider.swift */,
+				A0F18F136768618FC75611E5 /* DebianProvider.swift */,
+				A0F183C812F4C875F94CE7BC /* FedoraProvider.swift */,
+				A0F13436C2535424FCD08017 /* OperatingSystemProvider.swift */,
+				A0F1CF9A894BFFB43623AD8E /* UbuntuProvider.swift */,
+				A0F12C55EC16BF8E6C505056 /* VirtualizationService.swift */,
+				A0F1DB40288825F1886F8F4D /* CreateVirtualMachineWizardView.swift */,
+				A0F16A954C4B4A69EF2699A8 /* EnvironmentProfilesView.swift */,
+				A0F14D9368761AFFB63EC933 /* OperatingSystemProviderView.swift */,
+				A0F1FE6837ABC8B391706BDF /* SCVirtualizationView.swift */,
+				A0F1868706886ACD2A3344FD /* VirtualMachineConsoleView.swift */,
+				A0F143B5C2FD36C71616E0E9 /* VirtualMachineDetailView.swift */,
+				A0F10EC03FA6CCB8BF0ED768 /* VirtualMachineListView.swift */,
+				A0F1C1A3A15FC3D82D6D7B4E /* VirtualMachineMonitorView.swift */,
+				A0F1E91EAF1483DF28932CAF /* VirtualMachineNetworkView.swift */,
+				A0F1598552D947806F94572A /* VirtualMachineSettingsView.swift */,
+				A0F14151CBD3B34F0FC8CC5C /* VirtualMachineSharedFoldersView.swift */,
+				A0F154DD8FFAA35E80F818D1 /* VirtualMachineSnapshotsView.swift */,
+				A0F15E61BDF8A03DC18E544A /* VirtualMachineStorageView.swift */,
+				A0F177D5AE4F8129F45FC71A /* VirtualMachineTerminalView.swift */,
+				A0F1CD912E8AA003CFC902EB /* VirtualizationDashboardView.swift */,
+				A0F13C5B31151E898179AA92 /* VirtualizationImageBrowserView.swift */,
+				A0F15AF73A7B7459C54BAEFD /* VirtualizationPreferencesView.swift */,
+				A0F12550E3F8EAB6C1E5639E /* VirtualizationSidebarView.swift */,
+				A0F1C6FA596C28D3F81B5965 /* VirtualizationWorkspaceView.swift */,
+			);
+			path = Virtualization;
+			sourceTree = "<group>";
+		};
 		9202E3117A117B2EA9BD82E4 /* File Templates */ = {
 			isa = PBXGroup;
 			children = (
@@ -8393,6 +8529,7 @@
 		F584F6103978748E3DD5217D /* Developer */ = {
 			isa = PBXGroup;
 			children = (
+				C0F300000000000000000001 /* Virtualization */,
 				040DEBA1FC7BDFB9DE2A733F /* MemoryInspector */,
 				048FFEA44DE3C634761BD5C6 /* CoreMLInspector */,
 				0D5CD3BDE45A1C516CCA10FC /* DatabaseInspector */,
@@ -9583,6 +9720,49 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B0F274C510AE0CA5FB79FBD1 /* VirtualizationCoordinator.swift in Sources */,
+				B0F29BE1A9DFA49B0546D9D7 /* VirtualizationSplitViewController.swift in Sources */,
+				B0F2ACF5CB50AFE491A6D30F /* VirtualizationWindowController.swift in Sources */,
+				B0F2FD305E21860882673D0F /* SCVirtualizationEngine.swift in Sources */,
+				B0F2F327BC68319ED1BA6651 /* VirtualMachineController.swift in Sources */,
+				B0F2283EFD8AFAAD6A287420 /* VirtualMachineRegistry.swift in Sources */,
+				B0F237D6B0E14E6BABC43349 /* VirtualizationEventBus.swift in Sources */,
+				B0F236E49A8786B04E99CA7D /* VirtualizationRuntime.swift in Sources */,
+				B0F2D21CFB3C905924AA5E78 /* VirtualizationStateStore.swift in Sources */,
+				B0F26DB0BDF9A4418E40D812 /* SnapshotManager.swift in Sources */,
+				B0F2F6076F8B5A0F0782DBDB /* VMBackupManager.swift in Sources */,
+				B0F2AB421325CB2C52A4A15B /* VMImageManager.swift in Sources */,
+				B0F2FBCAB1A690486567E9B5 /* VMMonitoringManager.swift in Sources */,
+				B0F27F78C93021741B42D2C7 /* VMNetworkManager.swift in Sources */,
+				B0F2BAED9448F2F9C48F6AD1 /* VMSharedFolderManager.swift in Sources */,
+				B0F2411B29487DFC2FF1E8F5 /* EnvironmentProfile.swift in Sources */,
+				B0F20F14075ADDE8CA1FFD57 /* VirtualMachine.swift in Sources */,
+				B0F20F39F985FDF7F393A64C /* VirtualMachineImage.swift in Sources */,
+				B0F2F239F0C704420DA03586 /* AlpineProvider.swift in Sources */,
+				B0F28F136768618FC75611E5 /* DebianProvider.swift in Sources */,
+				B0F283C812F4C875F94CE7BC /* FedoraProvider.swift in Sources */,
+				B0F23436C2535424FCD08017 /* OperatingSystemProvider.swift in Sources */,
+				B0F2CF9A894BFFB43623AD8E /* UbuntuProvider.swift in Sources */,
+				B0F22C55EC16BF8E6C505056 /* VirtualizationService.swift in Sources */,
+				B0F2DB40288825F1886F8F4D /* CreateVirtualMachineWizardView.swift in Sources */,
+				B0F26A954C4B4A69EF2699A8 /* EnvironmentProfilesView.swift in Sources */,
+				B0F24D9368761AFFB63EC933 /* OperatingSystemProviderView.swift in Sources */,
+				B0F2FE6837ABC8B391706BDF /* SCVirtualizationView.swift in Sources */,
+				B0F2868706886ACD2A3344FD /* VirtualMachineConsoleView.swift in Sources */,
+				B0F243B5C2FD36C71616E0E9 /* VirtualMachineDetailView.swift in Sources */,
+				B0F20EC03FA6CCB8BF0ED768 /* VirtualMachineListView.swift in Sources */,
+				B0F2C1A3A15FC3D82D6D7B4E /* VirtualMachineMonitorView.swift in Sources */,
+				B0F2E91EAF1483DF28932CAF /* VirtualMachineNetworkView.swift in Sources */,
+				B0F2598552D947806F94572A /* VirtualMachineSettingsView.swift in Sources */,
+				B0F24151CBD3B34F0FC8CC5C /* VirtualMachineSharedFoldersView.swift in Sources */,
+				B0F254DD8FFAA35E80F818D1 /* VirtualMachineSnapshotsView.swift in Sources */,
+				B0F25E61BDF8A03DC18E544A /* VirtualMachineStorageView.swift in Sources */,
+				B0F277D5AE4F8129F45FC71A /* VirtualMachineTerminalView.swift in Sources */,
+				B0F2CD912E8AA003CFC902EB /* VirtualizationDashboardView.swift in Sources */,
+				B0F23C5B31151E898179AA92 /* VirtualizationImageBrowserView.swift in Sources */,
+				B0F25AF73A7B7459C54BAEFD /* VirtualizationPreferencesView.swift in Sources */,
+				B0F22550E3F8EAB6C1E5639E /* VirtualizationSidebarView.swift in Sources */,
+				B0F2C6FA596C28D3F81B5965 /* VirtualizationWorkspaceView.swift in Sources */,
 				STK09CC4E845E901D0CB39FB /* StoreKitModels.swift in Sources */,
 				STKA0D9F67AE9BFE52182F64 /* StoreKitParser.swift in Sources */,
 				STK256E2E1D9192F9EDFCF40 /* StoreKitEncoder.swift in Sources */,

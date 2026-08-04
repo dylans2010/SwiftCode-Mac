@@ -532,6 +532,9 @@ struct WorkspaceView: View {
                 case .deviceConnect:
                     DeviceConnectView()
 
+                case .virtualization:
+                    SCVirtualizationView()
+
                 case .settings:
                     SettingsView()
                         .environmentObject(AppSettings.shared)
