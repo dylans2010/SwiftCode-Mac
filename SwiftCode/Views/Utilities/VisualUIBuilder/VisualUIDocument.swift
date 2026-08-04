@@ -31,13 +31,22 @@ public final class VisualUIDocument: Identifiable {
         let rootNode = VisualComponentNode(type: .vStack)
         let defaultArtboard = VisualUIArtboard(name: "Default", deviceFrame: "iPhone 16 Pro", rootNode: rootNode)
 
+        let simNode = VisualComponentNode(type: .vStack)
+        let simulatorArtboard = VisualUIArtboard(name: "Simulator", deviceFrame: "iPhone 16 Pro", rootNode: simNode)
+
         if scene.artboards.isEmpty {
             scene.artboards.append(defaultArtboard)
+            scene.artboards.append(simulatorArtboard)
             scene.activeArtboardID = defaultArtboard.id
         } else {
             // Ensure "Default" artboard is always present and first
             if !scene.artboards.contains(where: { $0.name == "Default" }) {
                 scene.artboards.insert(defaultArtboard, at: 0)
+            }
+            // Ensure "Simulator" artboard is always present and second
+            if !scene.artboards.contains(where: { $0.name == "Simulator" }) {
+                let idx = scene.artboards.firstIndex(where: { $0.name == "Default" }) ?? 0
+                scene.artboards.insert(simulatorArtboard, at: idx + 1)
             }
         }
         startListeningToCodeSync()
@@ -55,13 +64,7 @@ public final class VisualUIDocument: Identifiable {
     }
 
     public func propagateToEditor() {
-        let generator = VisualUICodeGenerator()
-        let code = generator.generateCode(for: scene, targetFramework: .swiftUI)
-        NotificationCenter.default.post(
-            name: NSNotification.Name("com.swiftcode.visualUIEditorUpdate"),
-            object: nil,
-            userInfo: ["code": code]
-        )
+        // No-op. The Preview Engine and Visual UI Builder do not automatically generate or propagate SwiftUI source code.
     }
 
     public func synchronizeFromCode(_ code: String) {
@@ -349,8 +352,8 @@ public final class SavedArtboardManager {
 
     public func duplicateArtboard(id: UUID) {
         if let original = savedArtboards.first(where: { $0.id == id }) {
-            // Prevent duplicate of Default artboard
-            if original.name == "Default" || original.layout.name == "Default" { return }
+            // Prevent duplicate of Default or Simulator artboards
+            if original.name == "Default" || original.name == "Simulator" || original.layout.name == "Default" || original.layout.name == "Simulator" { return }
             let dupLayout = VisualUIArtboard(
                 name: "\(original.layout.name) Copy",
                 deviceFrame: original.layout.deviceFrame,

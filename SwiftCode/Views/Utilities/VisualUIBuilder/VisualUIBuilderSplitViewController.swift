@@ -277,7 +277,7 @@ struct VisualUIBuilderInspectorWrapper: View {
                         ContentUnavailableView {
                             Label("No Active Preview Host", systemImage: "eye.slash")
                         } description: {
-                            Text("Enable 'Show Compiled View' or open a Swift file to run dynamic live preview hosts.")
+                            Text("Open a Swift file to run dynamic live preview hosts.")
                         }
                     }
                 }

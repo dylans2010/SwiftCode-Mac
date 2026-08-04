@@ -15,27 +15,15 @@ public struct VisualUIToolbar: View {
 
     public var body: some View {
         HStack(spacing: 16) {
-            // Group 1: Workspace Mode & Framework
+            // Group 1: Design Framework selector
             HStack(spacing: 12) {
-                Toggle(isOn: Binding(
-                    get: { settings.showCompiledView },
-                    set: { settings.showCompiledView = $0 }
-                )) {
-                    Label("Compiled View", systemImage: "play.desktopcomputer")
-                        .font(.subheadline.bold())
-                }
-                .toggleStyle(.button)
-                .help("Toggle between Canvas design mode and live compiled editor document")
-
-                if !settings.showCompiledView {
-                    Picker("Framework", selection: $document.scene.currentFramework) {
-                        ForEach(VisualUIFramework.allCases) { framework in
-                            Text(framework.rawValue).tag(framework)
-                        }
+                Picker("Framework", selection: $document.scene.currentFramework) {
+                    ForEach(VisualUIFramework.allCases) { framework in
+                        Text(framework.rawValue).tag(framework)
                     }
-                    .frame(width: 110)
-                    .controlSize(.small)
                 }
+                .frame(width: 130)
+                .controlSize(.small)
             }
 
             Spacer()
@@ -131,25 +119,14 @@ public struct VisualUIToolbar: View {
                 .controlSize(.small)
                 .help("Ask Codex AI Assistant")
 
-                // Overflow Menu for Exporting / Code actions
-                Menu {
-                    Button {
-                        openInSwiftCodeEditor()
-                    } label: {
-                        Label("Open in Editor", systemImage: "chevron.left.forwardslash.chevron.right")
-                    }
-
-                    Button {
-                        showingExportSheet = true
-                    } label: {
-                        Label("Export Code...", systemImage: "square.and.arrow.up")
-                    }
+                // Export actions
+                Button {
+                    showingExportSheet = true
                 } label: {
-                    Label("Export", systemImage: "square.and.arrow.up")
+                    Label("Export Code...", systemImage: "square.and.arrow.up")
                 }
-                .menuStyle(.borderlessButton)
+                .buttonStyle(.bordered)
                 .controlSize(.small)
-                .frame(width: 80)
             }
         }
         .padding(.horizontal, 16)
@@ -163,54 +140,7 @@ public struct VisualUIToolbar: View {
         }
     }
 
-    private func openInSwiftCodeEditor() {
-        let code: String
 
-        // Find if we are rendering a custom artboard with custom SwiftUI source code!
-        if let activeID = document.scene.activeArtboardID,
-           let activeArtboard = document.scene.artboards.first(where: { $0.id == activeID }),
-           let customSource = activeArtboard.customSwiftUISource, !customSource.isEmpty {
-            code = customSource
-        } else if settings.showCompiledView, let activeDoc = DocumentCoordinator.shared.activeDocument {
-            code = activeDoc.content
-        } else {
-            let generator = VisualUICodeGenerator()
-            code = generator.generateCode(for: document.scene, targetFramework: .swiftUI)
-        }
-
-        let fileURL: URL
-        if let activeDoc = DocumentCoordinator.shared.activeDocument {
-            fileURL = activeDoc.url
-        } else {
-            let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL ?? FileManager.default.temporaryDirectory
-            fileURL = projectURL.appendingPathComponent("VisualUIExportView.swift")
-        }
-
-        do {
-            try code.write(to: fileURL, atomically: true, encoding: .utf8)
-            document.filePath = fileURL.path
-            document.isDirty = false
-
-            if let activeProject = ProjectSessionStore.shared.activeProject {
-                ProjectSessionStore.shared.refreshFileTree(for: activeProject)
-            }
-
-            settings.addLog("Saved latest generated SwiftUI code to \(fileURL.lastPathComponent)")
-
-            NotificationCenter.default.post(
-                name: NSNotification.Name("com.swiftcode.openFileInWorkspace"),
-                object: nil,
-                userInfo: ["filePath": fileURL.path]
-            )
-
-            // Close the Visual UI Builder window to bring editor back to the foreground
-            VisualUIBuilderWindowManager.shared.closeWindow()
-
-            settings.addLog("Dispatched notification to open \(fileURL.lastPathComponent) in editor.")
-        } catch {
-            settings.addLog("Error opening in editor: \(error.localizedDescription)")
-        }
-    }
 
     private func updateSelectedDeviceFrames(to device: String) {
         document.checkpoint()

@@ -37,14 +37,15 @@ public struct CodeForArtboard: View {
 
             Divider()
 
-            // Reusing TextEditorRepresentable for premium experience
-            TextEditorRepresentable(
-                text: $draftSource,
-                wordWrap: true,
-                searchQuery: "",
-                fileExtension: "swift"
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Native SwiftUI TextEditor
+            TextEditor(text: $draftSource)
+                .font(.system(.body, design: .monospaced))
+                .autocorrectionDisabled(true)
+                .textSpellChecking(.disabled)
+                .scrollContentBackground(.hidden)
+                .background(Color(NSColor.windowBackgroundColor))
+                .padding(8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Divider()
 

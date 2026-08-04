@@ -16,26 +16,52 @@ public struct AddArtboardSheet: View {
 import SwiftUI
 
 struct MyCustomView: View {
+    @State private var count = 0
+    @State private var isSparkling = false
+
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 60))
-                .foregroundColor(.purple)
+        NavigationStack {
+            VStack(spacing: 20) {
+                Spacer()
 
-            Text("Custom Compiled Artboard")
-                .font(.title)
-                .bold()
+                Image(systemName: isSparkling ? "sparkles" : "sparkle")
+                    .font(.system(size: 70))
+                    .foregroundColor(.purple)
+                    .symbolEffect(.bounce, value: isSparkling)
+                    .onTapGesture {
+                        isSparkling.toggle()
+                    }
 
-            Text("This view is rendered dynamically from your source code using the Preview Engine!")
-                .multilineTextAlignment(.center)
-                .font(.body)
-                .foregroundColor(.secondary)
-                .padding(.horizontal)
+                Text("Custom Compiled Artboard")
+                    .font(.title)
+                    .bold()
 
-            Spacer()
+                Text("This view is rendered dynamically from your source code using the Preview Engine!")
+                    .multilineTextAlignment(.center)
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal)
+
+                HStack {
+                    Button(action: {
+                        count += 1
+                    }) {
+                        Text("Tapped \\(count) Times")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding(.top, 10)
+
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Custom View")
         }
-        .padding()
     }
+}
+
+#Preview("MyCustomView Preview") {
+    MyCustomView()
 }
 """
 

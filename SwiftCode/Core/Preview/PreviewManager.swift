@@ -325,17 +325,47 @@ public final class PreviewManager {
     }
 
     public func stopAndRestartSession() async {
-        await stopActiveSession()
+        // 1. Immediately terminate all compiler, build, and helper tasks
+        XcodeBuildAPI.shared.cancelBuild()
+        FullAppRunManager.shared.stopApplication()
+        runtime.stopRuntime()
 
+        #if os(macOS)
+        do {
+            _ = try await ProcessRunnerTool.shared.run(
+                executableURL: URL(fileURLWithPath: "/usr/bin/killall"),
+                arguments: ["-9", "swiftc"]
+            )
+        } catch {}
+        do {
+            _ = try await ProcessRunnerTool.shared.run(
+                executableURL: URL(fileURLWithPath: "/usr/bin/killall"),
+                arguments: ["-9", "xcodebuild"]
+            )
+        } catch {}
+        #endif
+
+        // 2. Destroy active Preview Session and clear logs
+        self.activeSession = nil
+        self.hostedView = nil
+        self.secondarySessions.removeAll()
+        self.buildLogs.removeAll()
+
+        // 3. Invalidate caches
+        await PreviewCache.shared.clearAll()
+        DocumentCoordinator.shared.compiledArtboardViews.removeAll()
+        DocumentCoordinator.shared.compiledArtboardErrors.removeAll()
+
+        // 4. Restart rendering from the beginning with a completely brand-new session
         if let doc = DocumentCoordinator.shared.activeDocument {
             let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(doc.content, filename: doc.url.path)
             await startFreshLivePreviewSession(sourcePath: doc.url.path, sourceCode: preparedCode)
-        } else if let session = self.activeSession {
-            let url = URL(fileURLWithPath: session.sourceFilePath)
-            if let content = try? String(contentsOf: url, encoding: .utf8) {
-                let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(content, filename: url.path)
-                await startFreshLivePreviewSession(sourcePath: url.path, sourceCode: preparedCode)
-            }
+        } else if let visDoc = DocumentCoordinator.shared.visualUIDocument,
+                  let activeID = visDoc.scene.activeArtboardID,
+                  let activeArtboard = visDoc.scene.artboards.first(where: { $0.id == activeID }),
+                  let customSource = activeArtboard.customSwiftUISource, !customSource.isEmpty {
+            let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(customSource, filename: "Artboard_\(activeArtboard.id).swift")
+            await startFreshLivePreviewSession(sourcePath: "Artboard_\(activeArtboard.id).swift", sourceCode: preparedCode)
         }
     }
 

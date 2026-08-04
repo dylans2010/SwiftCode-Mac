@@ -163,10 +163,7 @@ public struct VisualUIPreviewPanel: View {
         }
     }
 
-    private func generateCurrentSwiftUISource() -> String {
-        let generator = VisualUICodeGenerator()
-        return generator.generateCode(for: document.scene, targetFramework: .swiftUI)
-    }
+
 
     private func compileArtboardSource(_ artboard: VisualUIArtboard) async {
         guard let customSource = artboard.customSwiftUISource, !customSource.isEmpty else { return }
@@ -189,24 +186,13 @@ public struct VisualUIPreviewPanel: View {
     }
 
     private func refreshPreviewSession() async {
-        if settings.showCompiledView {
-            // Use active editor document
-            if let activeDoc = DocumentCoordinator.shared.activeDocument {
-                let resolvedTarget = PreviewManager.shared.selectedPreviewName ?? "ContentView"
-                let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
-                await PreviewManager.shared.startFreshLivePreviewSession(
-                    sourcePath: activeDoc.url.path,
-                    sourceCode: preparedCode,
-                    targetViewName: resolvedTarget
-                )
-            }
-        } else {
-            // Use placeholder project code
-            let code = generateCurrentSwiftUISource()
+        if let activeDoc = DocumentCoordinator.shared.activeDocument {
+            let resolvedTarget = PreviewManager.shared.selectedPreviewName ?? "ContentView"
+            let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
             await PreviewManager.shared.startFreshLivePreviewSession(
-                sourcePath: "VisualUIExportView.swift",
-                sourceCode: code,
-                targetViewName: "VisualUIExportView"
+                sourcePath: activeDoc.url.path,
+                sourceCode: preparedCode,
+                targetViewName: resolvedTarget
             )
         }
     }

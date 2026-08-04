@@ -66,51 +66,52 @@ struct BuildToolbarView: View {
                 }
 
                 Button {
-                    NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "xcode_build_logs"])
+                    NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "deviceConnect"])
                 } label: {
-                    Label("Run Full App", systemImage: "play.desktopcomputer")
+                    Label("Device Connect", systemImage: "iphone.badge.play")
                 }
+            }
 
-                if let activeDoc = editorViewModel.activeDocument, hasLivePreviewComment(content: activeDoc.content) {
-                    Button {
-                        Task {
+            Section("Preview & Simulation") {
+                Button {
+                    Task {
+                        if let activeDoc = editorViewModel.activeDocument {
                             await editorViewModel.saveActiveDocument()
                             NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "visual_ui_builder"])
                             let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
                             await PreviewManager.shared.startFreshLivePreviewSession(sourcePath: activeDoc.url.path, sourceCode: preparedCode)
                         }
-                    } label: {
-                        Label("Live Preview", systemImage: "play.rectangle.on.rectangle")
                     }
+                } label: {
+                    Label("Live Preview", systemImage: "play.rectangle.on.rectangle")
                 }
 
                 Button {
                     Task {
-                        if let activeDoc = editorViewModel.activeDocument {
-                            let comment = "// @SwiftCodeVisualUIBuilderDocument\n"
-                            editorViewModel.updateContent(comment + activeDoc.content)
-                            await editorViewModel.saveActiveDocument()
-
-                            NotificationCenter.default.post(
-                                name: .toolbarToolActivated,
-                                object: nil,
-                                userInfo: ["toolID": "visual_ui_builder"]
-                            )
-                            let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
-                            await PreviewManager.shared.startFreshLivePreviewSession(
-                                sourcePath: activeDoc.url.path,
-                                sourceCode: preparedCode
-                            )
+                        NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "visual_ui_builder"])
+                        if let visDoc = DocumentCoordinator.shared.visualUIDocument {
+                            if let simArtboard = visDoc.scene.artboards.first(where: { $0.name == "Simulator" }) {
+                                visDoc.scene.activeArtboardID = simArtboard.id
+                            }
                         }
+                        await FullAppRunManager.shared.runFullApp()
                     }
                 } label: {
-                    Label("Supports Live Preview", systemImage: "plus.bubble.fill")
+                    Label("Compile Project on Artboard", systemImage: "play.desktopcomputer")
                 }
 
                 Button {
-                    NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "deviceConnect"])
+                    Task {
+                        await PreviewManager.shared.stopAndRestartSession()
+                    }
                 } label: {
-                    Label("Device Connect", systemImage: "iphone.badge.play")
+                    Label("Restart Preview Session", systemImage: "arrow.clockwise.circle")
+                }
+
+                Button {
+                    FullAppRunManager.shared.stopApplication()
+                } label: {
+                    Label("Stop Runtime", systemImage: "stop.circle")
                 }
             }
 
@@ -156,7 +157,7 @@ struct BuildToolbarView: View {
                 Button {
                     NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "xcode_build_logs"])
                 } label: {
-                    Label("Build Logs", systemImage: "doc.text.fill")
+                    Label("Build Logs & Runtime Logs", systemImage: "doc.text.fill")
                 }
 
                 Button {
@@ -168,7 +169,13 @@ struct BuildToolbarView: View {
                 Button {
                     NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "error_diagnostics"])
                 } label: {
-                    Label("Project Diagnostics", systemImage: "exclamationmark.triangle")
+                    Label("Build Diagnostics", systemImage: "exclamationmark.triangle")
+                }
+
+                Button {
+                    NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "visual_ui_builder"])
+                } label: {
+                    Label("Open Preview Inspector", systemImage: "sidebar.right")
                 }
             }
 
@@ -233,6 +240,20 @@ struct BuildToolbarView: View {
                 }
                 .buttonStyle(.bordered)
                 .help("Toggle App Details Sidebar")
+
+                if isProjectArchiveImported() {
+                    Button {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("com.swiftcode.toggleInfoProjSidebar"),
+                            object: nil
+                        )
+                    } label: {
+                        Label("Archive Info", systemImage: "archivebox.circle.fill")
+                            .foregroundColor(.pink)
+                    }
+                    .buttonStyle(.bordered)
+                    .help("View SwiftCode Project Archive metadata")
+                }
 
                 if let activeDoc = editorViewModel.activeDocument, activeDoc.url.pathExtension.lowercased() == "swift", hasLivePreviewComment(content: activeDoc.content) {
                     Button {
@@ -344,6 +365,12 @@ struct BuildToolbarView: View {
         .onChange(of: projectURL) { _, newURL in
             buildManager.discoverSchemes(at: newURL)
         }
+    }
+
+    private func isProjectArchiveImported() -> Bool {
+        guard let project = ProjectSessionStore.shared.activeProject else { return false }
+        let manifestURL = project.directoryURL.appendingPathComponent("manifest.json")
+        return FileManager.default.fileExists(atPath: manifestURL.path)
     }
 
     private func hasLivePreviewComment(content: String) -> Bool {
