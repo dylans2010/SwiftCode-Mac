@@ -93,6 +93,22 @@ struct AppCommands: Commands {
                 ProjectNotesWindowManager.shared.showWindow()
             }
             .keyboardShortcut("n", modifiers: [.command, .option])
+
+            Divider()
+
+            Button("Operations") {
+                OperationsWindowManager.shared.showWindow()
+            }
+            .keyboardShortcut("o", modifiers: [.command, .option])
+
+            Button("Virtualization") {
+                if let project = ProjectSessionStore.shared.activeProject {
+                    VirtualizationWindowManager.shared.showWindow(for: project)
+                } else if let fallbackProject = ProjectSessionStore.shared.projects.first {
+                    VirtualizationWindowManager.shared.showWindow(for: fallbackProject)
+                }
+            }
+            .keyboardShortcut("r", modifiers: [.command, .option])
         }
 
         CommandMenu("Git Operations") {
