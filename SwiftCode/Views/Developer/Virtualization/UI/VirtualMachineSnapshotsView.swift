@@ -6,8 +6,16 @@ public struct VirtualMachineSnapshotsView: View {
     @State private var stateStore = VirtualizationStateStore.shared
     @State private var newSnapshotName: String = ""
     @State private var newSnapshotDesc: String = ""
+    @State private var newSnapshotNotes: String = ""
+    @State private var newSnapshotTagSelected: String = "Backup"
     @State private var searchQuery: String = ""
     @State private var selectedSnapshotID: UUID? = nil
+
+    // Scheduled Snapshots States
+    @State private var enableAutoSnapshots: Bool = false
+    @State private var snapshotScheduleInterval: String = "Daily"
+
+    private let availableTags = ["Initial", "Pre-Update", "Milestone", "Backup", "Stable"]
 
     public init(vmID: UUID?) {
         self.vmID = vmID
@@ -25,7 +33,9 @@ public struct VirtualMachineSnapshotsView: View {
         } else {
             return vm.snapshots.filter {
                 $0.name.lowercased().contains(searchQuery.lowercased()) ||
-                $0.description.lowercased().contains(searchQuery.lowercased())
+                $0.description.lowercased().contains(searchQuery.lowercased()) ||
+                ($0.notes?.lowercased().contains(searchQuery.lowercased()) ?? false) ||
+                ($0.tags?.contains(where: { $0.lowercased().contains(searchQuery.lowercased()) }) ?? false)
             }
         }
     }
@@ -48,8 +58,20 @@ public struct VirtualMachineSnapshotsView: View {
                             TextField("Snapshot Title (e.g. Pre-npm upgrade)", text: $newSnapshotName)
                                 .textFieldStyle(.roundedBorder)
 
-                            TextField("Optional description / notes...", text: $newSnapshotDesc)
+                            TextField("Optional description / short summary...", text: $newSnapshotDesc)
                                 .textFieldStyle(.roundedBorder)
+                        }
+
+                        HStack(spacing: 12) {
+                            TextField("Detailed snapshot notes / checklist details...", text: $newSnapshotNotes)
+                                .textFieldStyle(.roundedBorder)
+
+                            Picker("Snapshot Tag:", selection: $newSnapshotTagSelected) {
+                                ForEach(availableTags, id: \.self) { tag in
+                                    Text(tag).tag(tag)
+                                }
+                            }
+                            .frame(width: 180)
 
                             Button("Save Snapshot") {
                                 saveSnapshot(vm.id)
@@ -62,11 +84,38 @@ public struct VirtualMachineSnapshotsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
+                // AUTOMATIC / SCHEDULED SNAPSHOTS PANEL
+                GroupBox(label: Text("Scheduled Automated Snapshots").font(.subheadline)) {
+                    HStack(spacing: 24) {
+                        Toggle("Enable Automatic Background Snapshots", isOn: $enableAutoSnapshots)
+                            .toggleStyle(.checkbox)
+                            .fontWeight(.medium)
+
+                        if enableAutoSnapshots {
+                            HStack {
+                                Text("Interval Schedule:")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Picker("", selection: $snapshotScheduleInterval) {
+                                    Text("Hourly").tag("Hourly")
+                                    Text("Daily (Recommended)").tag("Daily")
+                                    Text("Weekly").tag("Weekly")
+                                }
+                                .frame(width: 180)
+                            }
+                            .transition(.opacity)
+                        }
+                        Spacer()
+                    }
+                    .padding(.vertical, 4)
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
                 // Search Filter Box
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
-                    TextField("Search snapshots by title or description...", text: $searchQuery)
+                    TextField("Search snapshots by title, description, notes or tags...", text: $searchQuery)
                         .textFieldStyle(.roundedBorder)
                 }
 
@@ -113,11 +162,24 @@ public struct VirtualMachineSnapshotsView: View {
                                                     }
 
                                                     VStack(alignment: .leading, spacing: 2) {
-                                                        HStack {
+                                                        HStack(alignment: .center) {
                                                             Text(snap.name)
                                                                 .font(.subheadline)
                                                                 .fontWeight(.bold)
                                                                 .foregroundStyle(.primary)
+
+                                                            if let tags = snap.tags {
+                                                                ForEach(tags, id: \.self) { tag in
+                                                                    Text(tag.uppercased())
+                                                                        .font(.system(size: 7, weight: .bold))
+                                                                        .padding(.horizontal, 4)
+                                                                        .padding(.vertical, 1)
+                                                                        .background(Color.blue.opacity(0.12))
+                                                                        .foregroundStyle(.blue)
+                                                                        .cornerRadius(3)
+                                                                }
+                                                            }
+
                                                             Spacer()
                                                             Text(formatDate(snap.timestamp))
                                                                 .font(.system(size: 10, design: .monospaced))
@@ -161,6 +223,21 @@ public struct VirtualMachineSnapshotsView: View {
                                 SCDetailRow(label: "Title Name", value: selectedSnap.name)
                                 SCDetailRow(label: "Description", value: selectedSnap.description)
                                 SCDetailRow(label: "Timestamp", value: formatDate(selectedSnap.timestamp))
+
+                                if let notes = selectedSnap.notes, !notes.isEmpty {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Snapshot Notes:")
+                                            .font(.caption2)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(.secondary)
+                                        Text(notes)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .padding(6)
+                                            .background(Color.primary.opacity(0.04))
+                                            .cornerRadius(4)
+                                    }
+                                }
 
                                 Divider()
 
@@ -254,13 +331,29 @@ public struct VirtualMachineSnapshotsView: View {
     private func saveSnapshot(_ vmID: UUID) {
         let name = newSnapshotName.trimmingCharacters(in: .whitespacesAndNewlines)
         let desc = newSnapshotDesc.trimmingCharacters(in: .whitespacesAndNewlines)
+        let notes = newSnapshotNotes.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
 
-        try? VMSnapshotManager.shared.createSnapshot(for: vmID, name: name, description: desc.isEmpty ? "Saved state" : desc)
+        var vms = VirtualMachineRegistry.shared.load()
+        if let idx = vms.firstIndex(where: { $0.id == vmID }) {
+            let snapshot = VMSnapshot(
+                id: UUID(),
+                name: name,
+                description: desc.isEmpty ? "Saved state" : desc,
+                timestamp: Date(),
+                notes: notes.isEmpty ? nil : notes,
+                tags: [newSnapshotTagSelected]
+            )
+            vms[idx].snapshots.insert(snapshot, at: 0)
+            try? VirtualMachineRegistry.shared.save(vms)
+            VirtualizationEventBus.shared.post(.metadataUpdated(vmID))
+        }
+
         newSnapshotName = ""
         newSnapshotDesc = ""
+        newSnapshotNotes = ""
         stateStore.refreshVM(vmID)
-        stateStore.addLog("Created snapshot recovery point '\(name)'.", type: .success)
+        stateStore.addLog("Created snapshot recovery point '\(name)' with tag [\(newSnapshotTagSelected)].", type: .success)
     }
 
     private func revertSnapshot(_ vmID: UUID, snapID: UUID) {

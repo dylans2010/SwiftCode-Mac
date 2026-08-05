@@ -12,6 +12,14 @@ public struct ActivityLog: Identifiable, Sendable, Codable, Hashable {
     }
 }
 
+public struct SearchEverywhereItem: Identifiable, Sendable, Hashable {
+    public let id: UUID
+    public let title: String
+    public let subtitle: String
+    public let category: String // "Environment", "Template", "Image", "Snapshot", "Package", "Log", "Activity"
+    public let icon: String
+}
+
 @Observable
 @MainActor
 public final class VirtualizationStateStore {
@@ -27,6 +35,9 @@ public final class VirtualizationStateStore {
     public var activeProjectID: UUID? = nil
 
     public var searchVMQuery: String = ""
+    public var searchEverywhereQuery: String = ""
+    public var autoOptimizeResources: Bool = true
+
     public var preferenceShowAdvancedStats: Bool = true
     public var preferenceAutoStartAgent: Bool = false
     public var preferenceDefaultNetworkMode: String = "NAT"
@@ -57,13 +68,17 @@ public final class VirtualizationStateStore {
         QuickStartTemplate(id: "blank", name: "Blank Linux Environment", icon: "terminal", description: "Minimal server deploy with raw network adapters.", recommendedCPU: 2, recommendedRAM_MB: 2048, recommendedStorage_GB: 20, installedPackages: ["git"], defaultPorts: [])
     ]
 
-    // Smart Recommendations Helper
+    // Smart Recommendations & Auto-Optimization Helper
     public func getSmartRecommendation(osType: String, templateID: String) -> (cores: Int, memoryMB: Int, storageGB: Int) {
+        let hostCores = ProcessInfo.processInfo.activeProcessorCount
+        let hostMemoryBytes = ProcessInfo.processInfo.physicalMemory
+        let hostMemoryGB = Int(hostMemoryBytes / (1024 * 1024 * 1024))
+
         // Gather hardware recommendation based on os and template
         let template = quickStartTemplates.first { $0.id == templateID }
-        let baseCores = template?.recommendedCPU ?? 2
-        let baseMemory = template?.recommendedRAM_MB ?? 4096
-        let baseStorage = template?.recommendedStorage_GB ?? 40
+        var baseCores = template?.recommendedCPU ?? 2
+        var baseMemory = template?.recommendedRAM_MB ?? 4096
+        var baseStorage = template?.recommendedStorage_GB ?? 40
 
         // Adjusted multiplier for heavier OS (e.g. Fedora/Ubuntu) vs lightweight (Alpine)
         var multiplierCores = 1
@@ -71,18 +86,34 @@ public final class VirtualizationStateStore {
         var multiplierStorage = 10
 
         if osType == "Alpine" {
-            return (1, 1024, 10)
+            multiplierCores = 1
+            multiplierMemory = 1024
+            multiplierStorage = 10
         } else if osType == "Fedora" || osType == "Ubuntu" {
-            multiplierCores = 2
-            multiplierMemory = 2048
-            multiplierStorage = 20
+            multiplierCores = 4
+            multiplierMemory = 8192
+            multiplierStorage = 60
         }
 
-        return (
-            max(baseCores, multiplierCores),
-            max(baseMemory, multiplierMemory),
-            max(baseStorage, multiplierStorage)
-        )
+        var recommendedCores = max(baseCores, multiplierCores)
+        var recommendedMemory = max(baseMemory, multiplierMemory)
+        var recommendedStorage = max(baseStorage, multiplierStorage)
+
+        // Resource Auto-Optimization (if enabled)
+        if autoOptimizeResources {
+            // Never allocate more than 50% of host cores or 50% of host RAM
+            let safeCoresLimit = max(1, hostCores / 2)
+            let safeMemoryLimitMB = max(1024, (hostMemoryGB / 2) * 1024)
+
+            if recommendedCores > safeCoresLimit {
+                recommendedCores = safeCoresLimit
+            }
+            if recommendedMemory > safeMemoryLimitMB {
+                recommendedMemory = safeMemoryLimitMB
+            }
+        }
+
+        return (recommendedCores, recommendedMemory, recommendedStorage)
     }
 
     // Natural Language Virtualization Assistant translation
@@ -153,6 +184,83 @@ public final class VirtualizationStateStore {
         return "Command received: '\(query)'. Dispatched command securely to virtual machine shell agent."
     }
 
+    // Search Everywhere results calculator
+    public var searchEverywhereResults: [SearchEverywhereItem] {
+        let q = searchEverywhereQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return [] }
+
+        var results: [SearchEverywhereItem] = []
+
+        // 1. Environments
+        for vm in virtualMachines {
+            if vm.name.lowercased().contains(q) || vm.osType.lowercased().contains(q) || vm.labels.contains(where: { $0.lowercased().contains(q) }) {
+                results.append(SearchEverywhereItem(
+                    id: vm.id,
+                    title: vm.name,
+                    subtitle: "\(vm.osType) • Status: \(vm.status.rawValue) • \(vm.cpuCores) Cores • \(vm.memoryMB) MB RAM",
+                    category: "Environment",
+                    icon: "cube.fill"
+                ))
+            }
+        }
+
+        // 2. Templates
+        for tmpl in quickStartTemplates {
+            if tmpl.name.lowercased().contains(q) || tmpl.description.lowercased().contains(q) {
+                results.append(SearchEverywhereItem(
+                    id: UUID(),
+                    title: tmpl.name,
+                    subtitle: "Preset: \(tmpl.description)",
+                    category: "Template",
+                    icon: "doc.text.image.fill"
+                ))
+            }
+        }
+
+        // 3. Images
+        for img in VMImageManager.shared.getInstalledImages() {
+            if img.name.lowercased().contains(q) || img.operatingSystem.lowercased().contains(q) {
+                results.append(SearchEverywhereItem(
+                    id: img.id,
+                    title: img.name,
+                    subtitle: "Local Image: \(img.operatingSystem) \(img.version)",
+                    category: "Image",
+                    icon: "opticaldisc.fill"
+                ))
+            }
+        }
+
+        // 4. Snapshots
+        for vm in virtualMachines {
+            for snap in vm.snapshots {
+                if snap.name.lowercased().contains(q) || snap.description.lowercased().contains(q) {
+                    results.append(SearchEverywhereItem(
+                        id: snap.id,
+                        title: "\(vm.name) ➔ \(snap.name)",
+                        subtitle: "Recovery Snapshot: \(snap.description)",
+                        category: "Snapshot",
+                        icon: "clock.arrow.2.circlepath"
+                    ))
+                }
+            }
+        }
+
+        // 5. Activity Logs
+        for log in activityLogs {
+            if log.message.lowercased().contains(q) {
+                results.append(SearchEverywhereItem(
+                    id: log.id,
+                    title: "Log Entry",
+                    subtitle: log.message,
+                    category: "Log",
+                    icon: "info.circle"
+                ))
+            }
+        }
+
+        return results
+    }
+
     public enum SidebarTab: String, CaseIterable, Identifiable {
         case dashboard = "Dashboard"
         case environments = "Environments"
@@ -210,7 +318,6 @@ public final class VirtualizationStateStore {
             updateVMStatus(id, to: .error)
             addLog("VM \(id) error: \(msg)", type: .error)
         case .log(let id, let text):
-            // Can be used for live streams
             break
         case .statUpdate:
             break
