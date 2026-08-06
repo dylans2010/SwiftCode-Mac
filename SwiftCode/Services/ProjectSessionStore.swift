@@ -280,6 +280,19 @@ final class ProjectSessionStore {
         }
     }
 
+    func updateProjectDestinations(_ destinations: [String], for project: Project) {
+        if let idx = projects.firstIndex(where: { $0.id == project.id }) {
+            projects[idx].destinations = destinations
+            saveMetadata(projects[idx])
+        }
+        if activeProject?.id == project.id {
+            if case .ready(var p) = state {
+                p.destinations = destinations
+                state = .ready(p)
+            }
+        }
+    }
+
     func updateProjectSettings(description: String, githubRepo: String?, for project: Project) {
         if let idx = projects.firstIndex(where: { $0.id == project.id }) {
             projects[idx].description = description

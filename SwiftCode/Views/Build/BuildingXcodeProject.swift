@@ -282,8 +282,23 @@ public struct XcodeProjectDetailsSheet: View {
     @State private var appVersion = "1.0"
     @State private var buildNumber = "1"
     @State private var destinations = ["iphonesimulator", "iphoneos", "macosx"]
-    @State private var newDestination = ""
+    @State private var selectedSDKToAdd = ""
     @State private var isUpdating = false
+
+    private var availableSDKsForSelection: [DetectedSDK] {
+        if XcodeBuildManager.shared.detectedSDKs.isEmpty {
+            return [
+                DetectedSDK(identifier: "macosx", platform: "macOS", displayName: "macOS", version: ""),
+                DetectedSDK(identifier: "iphoneos", platform: "iOS", displayName: "iOS", version: ""),
+                DetectedSDK(identifier: "iphonesimulator", platform: "iOS Simulator", displayName: "iOS Simulator", version: ""),
+                DetectedSDK(identifier: "watchos", platform: "watchOS", displayName: "watchOS", version: ""),
+                DetectedSDK(identifier: "watchsimulator", platform: "watchOS Simulator", displayName: "watchOS Simulator", version: ""),
+                DetectedSDK(identifier: "appletvos", platform: "tvOS", displayName: "tvOS", version: ""),
+                DetectedSDK(identifier: "appletvsimulator", platform: "tvOS Simulator", displayName: "tvOS Simulator", version: "")
+            ]
+        }
+        return XcodeBuildManager.shared.detectedSDKs
+    }
 
     // Advanced Metrics & Diagnostics
     @State private var numberOfTargets = 0
@@ -513,19 +528,26 @@ public struct XcodeProjectDetailsSheet: View {
                             }
 
                             HStack {
-                                TextField("Add Destination/SDK...", text: $newDestination)
-                                    .textFieldStyle(.roundedBorder)
+                                Picker("Select SDK", selection: $selectedSDKToAdd) {
+                                    Text("Select SDK...").tag("")
+                                    ForEach(availableSDKsForSelection) { sdk in
+                                        Text("\(sdk.displayName) (\(sdk.identifier))").tag(sdk.identifier)
+                                    }
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+
                                 Button {
-                                    let trimmed = newDestination.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    if !trimmed.isEmpty && !destinations.contains(trimmed) {
-                                        destinations.append(trimmed)
-                                        newDestination = ""
+                                    if !selectedSDKToAdd.isEmpty && !destinations.contains(selectedSDKToAdd) {
+                                        destinations.append(selectedSDKToAdd)
+                                        selectedSDKToAdd = ""
                                     }
                                 } label: {
                                     Image(systemName: "plus.circle.fill")
-                                        .foregroundStyle(.green)
+                                        .foregroundStyle(selectedSDKToAdd.isEmpty ? .secondary : .green)
                                 }
                                 .buttonStyle(.plain)
+                                .disabled(selectedSDKToAdd.isEmpty)
                             }
                         }
                         .padding(.vertical, 4)
@@ -551,6 +573,9 @@ public struct XcodeProjectDetailsSheet: View {
             loadProjectSettings()
             checkXcodeGen()
             loadAdvancedMetrics()
+            Task {
+                await XcodeBuildManager.shared.detectAvailableSDKs()
+            }
         }
     }
 
@@ -631,6 +656,11 @@ public struct XcodeProjectDetailsSheet: View {
 
     private func loadProjectSettings() {
         guard let proj = XcodeBuildAPI.shared.determineActiveProject() else { return }
+        if let savedDests = ProjectSessionStore.shared.activeProject?.destinations {
+            self.destinations = savedDests
+        } else {
+            self.destinations = ["iphonesimulator", "iphoneos", "macosx"]
+        }
         let fm = FileManager.default
         let contents = try? fm.contentsOfDirectory(at: proj.url, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
         if let xcodeproj = proj.url.pathExtension == "xcodeproj" ? proj.url : contents?.first(where: { $0.pathExtension == "xcodeproj" }) {
@@ -665,13 +695,17 @@ public struct XcodeProjectDetailsSheet: View {
     private func saveSettings() {
         isUpdating = true
         Task {
+            if let activeProj = ProjectSessionStore.shared.activeProject {
+                ProjectSessionStore.shared.updateProjectDestinations(destinations, for: activeProj)
+            }
             _ = await XcodeBuildAPI.shared.generateProjectWithXcodeGen(
                 projectName: appName,
                 scheme: appName,
                 bundleIdentifier: bundleIdentifier,
                 organizationIdentifier: "com.example",
                 deploymentTarget: minOSVersion,
-                targetPlatform: targetPlatform
+                targetPlatform: targetPlatform,
+                destinations: destinations
             )
             if let activeProj = ProjectSessionStore.shared.activeProject {
                 ProjectSessionStore.shared.refreshFileTree(for: activeProj)

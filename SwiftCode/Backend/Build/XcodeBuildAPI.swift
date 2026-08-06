@@ -694,7 +694,8 @@ public final class XcodeBuildAPI: Sendable {
         bundleIdentifier: String,
         organizationIdentifier: String = "com.example",
         deploymentTarget: String = "16.0",
-        targetPlatform: String = "iOS"
+        targetPlatform: String = "iOS",
+        destinations: [String]? = nil
     ) async -> Bool {
         activeGenerationError = nil
 
@@ -809,6 +810,15 @@ schemes:
         let targetPaths = resolveTargetPaths()
         let sourcesBlock = targetPaths.map { "      - \($0)" }.joined(separator: "\n")
 
+        var settingsBlock = "        INFOPLIST_FILE: Info.plist"
+        let resolvedDests = destinations ?? ProjectSessionStore.shared.activeProject?.destinations
+        if let dests = resolvedDests, !dests.isEmpty {
+            let supportedPlatforms = dests.joined(separator: " ")
+            let sdkRoot = dests.first ?? "iphoneos"
+            settingsBlock += "\n        SUPPORTED_PLATFORMS: \(supportedPlatforms)"
+            settingsBlock += "\n        SDKROOT: \(sdkRoot)"
+        }
+
         let finalYML = templateContent
             .replacingOccurrences(of: "__PROJECT_NAME__", with: projectName)
             .replacingOccurrences(of: "__SCHEME_NAME__", with: scheme)
@@ -818,6 +828,7 @@ schemes:
             .replacingOccurrences(of: "__DEPLOYMENT_TARGET__", with: deploymentTarget)
             .replacingOccurrences(of: "__TARGET_PLATFORM__", with: targetPlatform)
             .replacingOccurrences(of: "__TARGET_SOURCES__", with: sourcesBlock)
+            .replacingOccurrences(of: "        INFOPLIST_FILE: Info.plist", with: settingsBlock)
 
         let projectYMLURL = rootURL.appendingPathComponent("project.yml")
         defer {
@@ -1169,25 +1180,50 @@ struct AppEntry: App {
             )
         }
 
-        appendLog("[SYSTEM] Resolving dynamic build destination and SDK for scheme '\(activeScheme)'...")
+        appendLog("[SYSTEM] Resolving build destination and SDK for scheme '\(activeScheme)'...")
         let resolver = BuildDestinationResolver.shared
 
         var resolvedSDK = "macosx"
         var resolvedDestString = "platform=macOS"
 
-        do {
-            let settings = try await resolver.resolveSettings(for: project.url, scheme: activeScheme)
-            let dests = await resolver.resolveDestinations(for: project.url, scheme: activeScheme, settings: settings)
-            if let resolved = resolver.selectBestDestination(settings: settings, destinations: dests) {
-                resolvedSDK = resolved.sdk
-                resolvedDestString = resolved.destination.id
+        if let activeProj = ProjectSessionStore.shared.activeProject,
+           let savedDests = activeProj.destinations,
+           let firstSavedSDK = savedDests.first {
+            resolvedSDK = firstSavedSDK
+            // Match destination to first saved SDK platform
+            let sdkLower = firstSavedSDK.lowercased()
+            if sdkLower.contains("simulator") {
+                if sdkLower.contains("iphone") || sdkLower.contains("ios") {
+                    resolvedDestString = "platform=iOS Simulator"
+                } else if sdkLower.contains("watch") {
+                    resolvedDestString = "platform=watchOS Simulator"
+                } else if sdkLower.contains("appletv") || sdkLower.contains("tv") {
+                    resolvedDestString = "platform=tvOS Simulator"
+                } else if sdkLower.contains("xr") || sdkLower.contains("vision") {
+                    resolvedDestString = "platform=visionOS Simulator"
+                }
+            } else {
+                if sdkLower.contains("iphone") || sdkLower.contains("ios") {
+                    resolvedDestString = "platform=iOS"
+                } else if sdkLower.contains("macos") || sdkLower.contains("darwin") {
+                    resolvedDestString = "platform=macOS"
+                }
             }
-        } catch {
-            appendLog("[WARNING] Failed to resolve build destination dynamically: \(error.localizedDescription). Falling back to macOS defaults.")
+            appendLog("[SYSTEM] Using project saved SDK: \(resolvedSDK) and matched destination: \(resolvedDestString)")
+        } else {
+            do {
+                let settings = try await resolver.resolveSettings(for: project.url, scheme: activeScheme)
+                let dests = await resolver.resolveDestinations(for: project.url, scheme: activeScheme, settings: settings)
+                if let resolved = resolver.selectBestDestination(settings: settings, destinations: dests) {
+                    resolvedSDK = resolved.sdk
+                    resolvedDestString = resolved.destination.id
+                }
+            } catch {
+                appendLog("[WARNING] Failed to resolve build destination dynamically: \(error.localizedDescription). Falling back to macOS defaults.")
+            }
+            appendLog("[SYSTEM] Resolved Dynamic SDK: \(resolvedSDK)")
+            appendLog("[SYSTEM] Resolved Dynamic Destination: \(resolvedDestString)")
         }
-
-        appendLog("[SYSTEM] Resolved Dynamic SDK: \(resolvedSDK)")
-        appendLog("[SYSTEM] Resolved Dynamic Destination: \(resolvedDestString)")
 
         // Run build using XcodeBuildManager to share real-time state and UI hooks
         await XcodeBuildManager.shared.runBuild(

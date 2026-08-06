@@ -53,9 +53,10 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
     public var ciBuildConfiguration: CIBuildConfiguration?
     public var transferConfiguration: ProjectTransferConfiguration?
     public var customDirectoryPath: String?
+    public var destinations: [String]?
 
     public enum CodingKeys: String, CodingKey {
-        case id, name, createdAt, lastOpened, files, fileCount, githubRepo, description, ciBuildConfiguration, transferConfiguration, customDirectoryPath
+        case id, name, createdAt, lastOpened, files, fileCount, githubRepo, description, ciBuildConfiguration, transferConfiguration, customDirectoryPath, destinations
     }
 
     public init(from decoder: Decoder) throws {
@@ -71,6 +72,7 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
         ciBuildConfiguration = try container.decodeIfPresent(CIBuildConfiguration.self, forKey: .ciBuildConfiguration)
         transferConfiguration = try container.decodeIfPresent(ProjectTransferConfiguration.self, forKey: .transferConfiguration)
         customDirectoryPath = try container.decodeIfPresent(String.self, forKey: .customDirectoryPath)
+        destinations = try container.decodeIfPresent([String].self, forKey: .destinations)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -86,6 +88,7 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
         try container.encode(ciBuildConfiguration, forKey: .ciBuildConfiguration)
         try container.encode(transferConfiguration, forKey: .transferConfiguration)
         try container.encode(customDirectoryPath, forKey: .customDirectoryPath)
+        try container.encodeIfPresent(destinations, forKey: .destinations)
     }
 
     public init(name: String) {
@@ -101,6 +104,7 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
         self.ciBuildConfiguration = CIBuildConfiguration()
         self.transferConfiguration = .owner
         self.customDirectoryPath = nil
+        self.destinations = ["iphonesimulator", "iphoneos", "macosx"]
     }
 
     @MainActor
