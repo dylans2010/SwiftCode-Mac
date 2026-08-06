@@ -24,6 +24,7 @@ public final class SCVirtualizationEngine: Sendable {
         #endif
     }
 
+    @MainActor
     public func createController(for vmID: UUID) -> VirtualMachineController {
         return VirtualMachineController(vmID: vmID)
     }
@@ -32,7 +33,10 @@ public final class SCVirtualizationEngine: Sendable {
     public func instantiateRealVirtualMachine(cpuCores: Int, memoryMB: Int, imagePath: String?) -> Any? {
         #if canImport(Virtualization)
         if #available(macOS 12.0, *), isVirtualizationSupported() {
-            return VirtualizationService.shared.createVirtualMachine(cpuCores: cpuCores, memoryMB: memoryMB, imagePath: imagePath)
+            let tempID = UUID()
+            if let config = try? VirtualizationService.shared.createRealVMConfiguration(cpuCores: cpuCores, memoryMB: memoryMB, imagePath: imagePath, vmID: tempID) {
+                return VZVirtualMachine(configuration: config)
+            }
         }
         #endif
         return nil

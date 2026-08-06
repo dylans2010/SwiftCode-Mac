@@ -63,7 +63,7 @@ public final class VirtualizationService: @unchecked Sendable {
                 // Create blank EFI variable store
                 _ = try? VZEFIVariableStore(creatingVariableStoreAt: varStoreURL)
             }
-            if let varStore = try? VZEFIVariableStore(urlurl: varStoreURL) {
+            if let varStore = try? VZEFIVariableStore(url: varStoreURL) {
                 bootloader.variableStore = varStore
             }
         }
@@ -101,8 +101,8 @@ public final class VirtualizationService: @unchecked Sendable {
 
         // Graphics Devices Configuration (Virtio GPU for display output)
         let graphicsConfig = VZVirtioGraphicsDeviceConfiguration()
-        let displayConfig = VZVirtioGraphicsDisplayConfiguration(widthInPixels: 1024, heightInPixels: 768)
-        graphicsConfig.displays = [displayConfig]
+        let displayConfig = VZVirtioGraphicsScanoutConfiguration(widthInPixels: 1024, heightInPixels: 768)
+        graphicsConfig.scanouts = [displayConfig]
         config.graphicsDevices = [graphicsConfig]
 
         // Control Devices Configuration (USB Keyboard/Mouse capture)
@@ -144,11 +144,12 @@ public final class VirtualizationService: @unchecked Sendable {
         let vm = VZVirtualMachine(configuration: config)
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            vm.start { error in
-                if let error = error {
-                    continuation.resume(throwing: error as! Error)
-                } else {
+            vm.start { result in
+                switch result {
+                case .success:
                     continuation.resume()
+                case .failure(let error):
+                    continuation.resume(throwing: error)
                 }
             }
         }
@@ -173,15 +174,7 @@ public final class VirtualizationService: @unchecked Sendable {
                 }
             }
         } else {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                vm.requestStop { error in
-                    if let error = error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume()
-                    }
-                }
-            }
+            try vm.requestStop()
         }
         activeVMs.removeValue(forKey: id)
         Self.logger.info("Real Virtualization.framework VM stopped successfully.")
