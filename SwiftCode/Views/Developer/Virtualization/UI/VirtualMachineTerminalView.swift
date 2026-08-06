@@ -1,14 +1,24 @@
 import SwiftUI
+#if canImport(Virtualization)
+import Virtualization
+#endif
 
 public struct VirtualMachineTerminalView: View {
     public let vmID: UUID
 
     @State private var stateStore = VirtualizationStateStore.shared
     @State private var terminalInput: String = ""
+    @State private var capturesKeyboard = true
+    @State private var isFullscreen = false
+    @State private var scale: CGFloat = 1.0
     @State private var terminalHistory: [String] = [
-        "Welcome to SwiftCode VM Embedded Shell.",
+        "Welcome to SwiftCode Virtualization Command Console.",
         "ubuntu@dev-workspace:~$ "
     ]
+
+    #if canImport(Virtualization)
+    @State private var realVM: VZVirtualMachine? = nil
+    #endif
 
     public init(vmID: UUID) {
         self.vmID = vmID
@@ -18,28 +28,92 @@ public struct VirtualMachineTerminalView: View {
         stateStore.virtualMachines.first { $0.id == vmID }
     }
 
+    private var controller: VirtualMachineController {
+        VirtualMachineController(vmID: vmID)
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .center) {
+            // High-fidelity Virtual Machine Interactive Toolbar
+            HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Interactive Command Shell")
+                    Text(vm?.name ?? "Virtual Machine Console")
                         .font(.headline)
-                    Text("Open secure shell (SSH) sessions inside the guest workspace.")
+                    Text("Direct Hardware Display Stream")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
 
-                Button(action: clearTerminal) {
-                    Label("Clear Terminal", systemImage: "trash")
+                // Active Session VM Lifecycle Controllers
+                HStack(spacing: 8) {
+                    if vm?.status != .running {
+                        Button {
+                            Task {
+                                await controller.start()
+                                refreshRealVM()
+                            }
+                        } label: {
+                            Label("Start", systemImage: "play.fill")
+                        }
+                        .tint(.green)
+                        .buttonStyle(.borderedProminent)
+                    } else {
+                        Button {
+                            Task {
+                                await controller.pause()
+                            }
+                        } label: {
+                            Label("Pause", systemImage: "pause.fill")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button {
+                            Task {
+                                await controller.stop()
+                                refreshRealVM()
+                            }
+                        } label: {
+                            Label("Stop", systemImage: "stop.fill")
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.red)
+                    }
+
+                    Menu {
+                        Button("Restart Guest OS") {
+                            Task {
+                                await controller.restart()
+                                refreshRealVM()
+                            }
+                        }
+                        Button("Graceful Shutdown") {
+                            Task {
+                                await controller.shutdown()
+                                refreshRealVM()
+                            }
+                        }
+                        Button("Force Shutdown", role: .destructive) {
+                            Task {
+                                #if canImport(Virtualization)
+                                try? await VirtualizationService.shared.stopVM(id: vmID, force: true)
+                                #endif
+                                stateStore.updateVMStatus(vmID, to: .stopped)
+                                refreshRealVM()
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                    .menuStyle(.borderlessButton)
                 }
-                .buttonStyle(.bordered)
                 .controlSize(.small)
             }
 
+            // Real Virtualization Graphics View / Shell Wrapper
             GroupBox {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Header controls (Terminal style)
+                    // Title/Header (Terminal Style)
                     HStack {
                         HStack(spacing: 6) {
                             Circle().fill(Color.red).frame(width: 8, height: 8)
@@ -47,94 +121,142 @@ public struct VirtualMachineTerminalView: View {
                             Circle().fill(Color.green).frame(width: 8, height: 8)
                         }
                         Spacer()
-                        Text("bash — ubuntu@dev-workspace — SSH")
+                        Text(vm?.status == .running ? "macOS Virtualization.framework display (Active)" : "Offline Display Terminal")
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.secondary)
                         Spacer()
+
+                        // Fullscreen / Scale Controls
+                        HStack(spacing: 12) {
+                            Button {
+                                capturesKeyboard.toggle()
+                            } label: {
+                                Label("Capture Keys", systemImage: capturesKeyboard ? "keyboard.fill" : "keyboard")
+                                    .font(.caption2)
+                            }
+                            .buttonStyle(.plain)
+
+                            Button {
+                                isFullscreen.toggle()
+                            } label: {
+                                Image(systemName: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                            }
+                            .buttonStyle(.plain)
+                            .help("Toggle Fullscreen")
+                        }
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(Color.secondary.opacity(0.12))
 
-                    // Display list
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(terminalHistory, id: \.self) { line in
-                                Text(line)
-                                    .font(.system(.caption2, design: .monospaced))
-                                    .foregroundStyle(.white)
-                            }
+                    // Rendering Area: Real Apple Virtualization Graphics View if running, else Fallback Mock Shell
+                    ZStack {
+                        #if canImport(Virtualization)
+                        if let activeVM = realVM, vm?.status == .running {
+                            VZVirtualMachineViewRepresentable(virtualMachine: activeVM, capturesKeyboard: capturesKeyboard)
+                                .scaleEffect(scale)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: isFullscreen ? 500 : 300)
+                                .background(Color.black)
+                        } else {
+                            fallbackShellView
                         }
-                        .padding(12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        #else
+                        fallbackShellView
+                        #endif
                     }
-                    .frame(height: 260)
-                    .background(Color.black)
-
-                    // Terminal Input Row
-                    HStack(spacing: 6) {
-                        Text("ubuntu@dev-workspace:~$")
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.green)
-
-                        TextField("", text: $terminalInput, onCommit: executeCommand)
-                            .textFieldStyle(.plain)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.white)
-                    }
-                    .padding(8)
-                    .background(Color.black.opacity(0.95))
                 }
                 .cornerRadius(8)
             }
             .groupBoxStyle(ModernGroupBoxStyle())
 
-            // Quick helper commands
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Suggested Commands:")
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.secondary)
+            // Hardware Telemetry HUD Bar
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("STATUS")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(statusColor(vm?.status ?? .stopped))
+                            .frame(width: 8, height: 8)
+                        Text(vm?.status.rawValue.uppercased() ?? "OFFLINE")
+                            .font(.caption.bold())
+                    }
+                }
+                Divider().frame(height: 24)
 
-                HStack(spacing: 8) {
-                    suggestedButton("help", desc: "Show active helpers")
-                    suggestedButton("uname -a", desc: "Print kernel core details")
-                    suggestedButton("swift --version", desc: "Check compiler tools")
-                    suggestedButton("df -h", desc: "Check disk sectors")
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("CPU CORES")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("\(vm?.cpuCores ?? 2) Cores")
+                        .font(.caption.bold())
+                }
+                Divider().frame(height: 24)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("MEMORY ALLOCATED")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(String(format: "%.1f GB", Double(vm?.memoryMB ?? 2048) / 1024.0))
+                        .font(.caption.bold())
+                }
+
+                Spacer()
+
+                HStack {
+                    Text("Zoom:")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Slider(value: $scale, in: 0.5...2.0)
+                        .frame(width: 80)
                 }
             }
+            .padding(.horizontal, 8)
+        }
+        .onAppear {
+            refreshRealVM()
         }
     }
 
     @ViewBuilder
-    private func suggestedButton(_ command: String, desc: String) -> some View {
-        Button {
-            terminalInput = command
-            executeCommand()
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(command)
-                    .font(.system(.caption2, design: .monospaced))
-                    .fontWeight(.bold)
-                    .foregroundStyle(.blue)
-                Text(desc)
-                    .font(.system(size: 8))
-                    .foregroundStyle(.secondary)
+    private var fallbackShellView: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(terminalHistory, id: \.self) { line in
+                        Text(line)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(Color.primary.opacity(0.04))
-            .cornerRadius(6)
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-            )
+            .frame(height: isFullscreen ? 500 : 300)
+            .background(Color.black)
+
+            // Terminal Input Row
+            HStack(spacing: 6) {
+                Text("ubuntu@dev-workspace:~$")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.green)
+
+                TextField("", text: $terminalInput, onCommit: executeCommand)
+                    .textFieldStyle(.plain)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.white)
+            }
+            .padding(8)
+            .background(Color.black.opacity(0.95))
         }
-        .buttonStyle(.plain)
     }
 
-    private func clearTerminal() {
-        terminalHistory = ["ubuntu@dev-workspace:~$ "]
+    private func refreshRealVM() {
+        #if canImport(Virtualization)
+        self.realVM = VirtualizationService.shared.getActiveVM(for: vmID)
+        #endif
     }
 
     private func executeCommand() {
@@ -154,7 +276,6 @@ Available commands:
   uname -a       Print kernel information
   swift --version Show Swift compiler version
   df -h          Display storage utilization
-  top            Render active processes
 """)
             case "uname -a":
                 terminalHistory.append("Linux dev-workspace 6.6.21-linuxkit #1 SMP PREEMPT_DYNAMIC ARM64 GNU/Linux")
@@ -164,14 +285,6 @@ Available commands:
                 terminalHistory.append("""
 Filesystem      Size  Used Avail Use% Mounted on
 /dev/vda2        64G  4.2G   57G   7% /
-tmpfs           4.0G     0  4.0G   0% /dev/shm
-""")
-            case "top":
-                terminalHistory.append("""
-PID   USER     PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
- 154  root     20   0   14.2g  88.4m  14.2m S   1.2   1.1   0:04.12 swiftc
- 302  ubuntu   20   0   40560   4.2m   2.1m R   0.5   0.1   0:00.41 top
-   1  root     20   0    2311   1.1m   0.8m S   0.0   0.0   0:01.04 systemd
 """)
             default:
                 terminalHistory.append("bash: command not found: \(cmd)")
@@ -181,4 +294,36 @@ PID   USER     PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
         terminalHistory.append("ubuntu@dev-workspace:~$ ")
         terminalInput = ""
     }
+
+    private func statusColor(_ status: VMStatus) -> Color {
+        switch status {
+        case .running: return .green
+        case .starting: return .blue
+        case .stopped: return .secondary
+        case .pausing, .paused: return .orange
+        case .stopping: return .orange
+        case .error: return .red
+        }
+    }
 }
+
+// MARK: - Native NSViewRepresentable for VZVirtualMachineView
+
+#if canImport(Virtualization)
+public struct VZVirtualMachineViewRepresentable: NSViewRepresentable {
+    public let virtualMachine: VZVirtualMachine?
+    public var capturesKeyboard: Bool
+
+    public func makeNSView(context: Context) -> VZVirtualMachineView {
+        let view = VZVirtualMachineView()
+        view.virtualMachine = virtualMachine
+        view.capturesSystemKeys = capturesKeyboard
+        return view
+    }
+
+    public func updateNSView(_ nsView: VZVirtualMachineView, context: Context) {
+        nsView.virtualMachine = virtualMachine
+        nsView.capturesSystemKeys = capturesKeyboard
+    }
+}
+#endif

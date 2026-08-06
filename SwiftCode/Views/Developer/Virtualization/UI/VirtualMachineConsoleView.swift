@@ -5,7 +5,7 @@ public struct VirtualMachineConsoleView: View {
 
     @State private var stateStore = VirtualizationStateStore.shared
     @State private var consoleLines: [String] = [
-        "Welcome to SCVirtualizationKit Serial Console.",
+        "Welcome to SwiftCode Virtualization Serial Console.",
         "Connecting to serial port ttyS0...",
         "Virtual graphic engine ready."
     ]

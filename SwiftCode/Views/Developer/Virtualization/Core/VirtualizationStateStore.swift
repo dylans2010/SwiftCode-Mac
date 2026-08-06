@@ -263,11 +263,17 @@ public final class VirtualizationStateStore {
 
     public enum SidebarTab: String, CaseIterable, Identifiable {
         case dashboard = "Dashboard"
-        case environments = "Environments"
-        case images = "Images"
-        case snapshots = "Snapshots"
+        case vmLibrary = "VM Library"
+        case activeSessions = "Active Sessions"
         case storage = "Storage"
         case networking = "Networking"
+        case snapshots = "Snapshots"
+        case sharedFolders = "Shared Folders"
+        case displays = "Displays"
+        case devices = "Devices"
+        case console = "Console"
+        case logs = "Logs"
+        case performance = "Performance"
         case settings = "Settings"
 
         public var id: String { rawValue }
@@ -275,11 +281,17 @@ public final class VirtualizationStateStore {
         public var icon: String {
             switch self {
             case .dashboard: return "square.grid.2x2"
-            case .environments: return "cube.transparent"
-            case .images: return "doc.image"
-            case .snapshots: return "clock.arrow.2.circlepath"
+            case .vmLibrary: return "cube.transparent"
+            case .activeSessions: return "play.circle"
             case .storage: return "externaldrive"
             case .networking: return "network"
+            case .snapshots: return "clock.arrow.2.circlepath"
+            case .sharedFolders: return "folder.badge.person.crop"
+            case .displays: return "monitor"
+            case .devices: return "ipad.and.iphone"
+            case .console: return "terminal"
+            case .logs: return "doc.text"
+            case .performance: return "chart.bar"
             case .settings: return "slider.horizontal.3"
             }
         }

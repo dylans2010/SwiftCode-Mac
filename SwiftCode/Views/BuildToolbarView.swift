@@ -90,11 +90,13 @@ struct BuildToolbarView: View {
                     Task {
                         NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "visual_ui_builder"])
                         if let visDoc = DocumentCoordinator.shared.visualUIDocument {
-                            if let simArtboard = visDoc.scene.artboards.first(where: { $0.name == "Simulator" }) {
-                                visDoc.scene.activeArtboardID = simArtboard.id
+                            let artboard = visDoc.scene.artboards.first(where: { $0.name == "Simulator" }) ?? visDoc.scene.artboards.first
+                            if let targetArt = artboard {
+                                visDoc.scene.activeArtboardID = targetArt.id
+                                let session = PreviewManager.shared.getOrCreateRuntimeSession(for: targetArt.id)
+                                await session.startBuildPipeline()
                             }
                         }
-                        await FullAppRunManager.shared.runFullApp()
                     }
                 } label: {
                     Label("Compile Project on Artboard", systemImage: "play.desktopcomputer")

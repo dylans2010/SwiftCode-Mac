@@ -423,7 +423,7 @@ public struct ArtboardView: View {
                         .background(Color.red.opacity(0.05))
                     }
                 } else if artboard.name == "Simulator" {
-                    SimulatorArtboardView(size: size, settings: settings)
+                    SimulatorArtboardView(artboardID: artboard.id, size: size, settings: settings)
                         .frame(width: size.width, height: size.height)
                 } else {
                     if let customSource = artboard.customSwiftUISource, !customSource.isEmpty {
@@ -538,15 +538,18 @@ public struct SmartGuidesOverlay: View {
 }
 
 
-// MARK: - Simulator Artboard View
+// MARK: - Redesigned Simulator Artboard View
 
 struct SimulatorArtboardView: View {
+    let artboardID: UUID
     let size: CGSize
     let settings: VisualUISettings
 
-    @State private var runManager = FullAppRunManager.shared
-    @State private var api = XcodeBuildAPI.shared
     @State private var selectedLogsTab = 0 // 0: Runtime Logs, 1: Build Logs, 2: Diagnostics, 3: Session Info
+
+    private var session: RuntimeSession {
+        PreviewManager.shared.getOrCreateRuntimeSession(for: artboardID)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -555,18 +558,18 @@ struct SimulatorArtboardView: View {
                 HStack(spacing: 8) {
                     Button(action: {
                         Task {
-                            await runManager.runFullApp()
+                            await session.startBuildPipeline()
                         }
                     }) {
-                        Label("Restart", systemImage: "arrow.clockwise")
+                        Label(session.isRunning ? "Relaunch" : "Rebuild", systemImage: "arrow.clockwise")
                             .font(.caption.bold())
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(runManager.isRunning || api.isExecuting)
+                    .disabled(session.isExecuting)
 
                     Button(action: {
-                        runManager.stopApplication()
+                        session.stop()
                     }) {
                         Label("Stop", systemImage: "stop.fill")
                             .font(.caption.bold())
@@ -574,18 +577,29 @@ struct SimulatorArtboardView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(!runManager.isRunning && !api.isExecuting)
+                    .disabled(!session.isRunning && !session.isExecuting)
 
                     Spacer()
 
-                    // Mini Status Indicator
-                    HStack(spacing: 4) {
+                    // Mini Status Indicator & Timer
+                    HStack(spacing: 6) {
                         Circle()
-                            .fill(runManager.isRunning ? Color.green : (api.isExecuting ? Color.orange : Color.secondary))
+                            .fill(session.isRunning ? Color.green : (session.isExecuting ? Color.orange : Color.secondary))
                             .frame(width: 8, height: 8)
-                        Text(runManager.isRunning ? "RUNNING" : (api.isExecuting ? "BUILDING" : "IDLE"))
+
+                        Text(session.status.uppercased())
                             .font(.system(size: 9, weight: .bold))
                             .foregroundColor(.secondary)
+
+                        if session.isRunning {
+                            Text(String(format: "%02d:%02d", Int(session.elapsedRuntime) / 60, Int(session.elapsedRuntime) % 60))
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundColor(.green)
+                        } else if session.isExecuting {
+                            Text(String(format: "%.1fs", session.buildDuration))
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
                 .padding(.horizontal, 10)
@@ -596,10 +610,10 @@ struct SimulatorArtboardView: View {
 
                 // Tabs selector inside the simulator artboard
                 Picker("", selection: $selectedLogsTab) {
-                    Text("Runtime").tag(0)
-                    Text("Build").tag(1)
-                    Text("Diag").tag(2)
-                    Text("Session").tag(3)
+                    Text("Runtime Logs").tag(0)
+                    Text("Build Output").tag(1)
+                    Text("Diagnostics").tag(2)
+                    Text("Session Info").tag(3)
                 }
                 .pickerStyle(.segmented)
                 .controlSize(.small)
@@ -616,29 +630,60 @@ struct SimulatorArtboardView: View {
 
                 if selectedLogsTab == 0 {
                     // Runtime Logs Tab
-                    logsScrollView(logs: runManager.runLogs, placeholder: "No runtime logs available. Press Run App or Restart to run.")
+                    logsScrollView(logs: session.logs, placeholder: "No runtime logs. Press 'Rebuild' or 'Compile Project on Artboard' to launch.")
                 } else if selectedLogsTab == 1 {
                     // Build Logs Tab
-                    logsScrollView(logs: api.currentLogs, placeholder: "No build logs available.")
+                    logsScrollView(logs: XcodeBuildAPI.shared.currentLogs, placeholder: "No build logs available.")
                 } else if selectedLogsTab == 2 {
                     // Diagnostics Tab
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if let error = api.activeGenerationError {
-                                Text("Project Generation / Build Error")
+                        VStack(alignment: .leading, spacing: 12) {
+                            if !session.diagnostics.isEmpty {
+                                Text("Compilation Diagnostics (\(session.diagnostics.count) Errors)")
                                     .font(.headline)
                                     .foregroundColor(.red)
-                                Text(error.message)
-                                    .font(.body)
-                                    .foregroundColor(.white)
-                                if let recovery = error.suggestedRecovery {
-                                    Text("Suggested Recovery:")
-                                        .font(.subheadline.bold())
-                                        .foregroundColor(.green)
-                                    Text(recovery)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+
+                                ForEach(session.diagnostics) { diag in
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        HStack {
+                                            Image(systemName: "exclamationmark.triangle.fill")
+                                                .foregroundColor(.red)
+                                            Text("\(diag.stage) Error (Subsystem: \(diag.subsystem))")
+                                                .font(.caption2.bold())
+                                                .foregroundColor(.red)
+                                        }
+
+                                        Text(diag.description)
+                                            .font(.body)
+                                            .foregroundColor(.white)
+
+                                        if let file = diag.file {
+                                            Text("File: \(file)")
+                                                .font(.caption2.monospaced())
+                                                .foregroundColor(.secondary)
+                                        }
+
+                                        if let fix = diag.suggestedFix {
+                                            Text("Suggested Fix: \(fix)")
+                                                .font(.caption)
+                                                .foregroundColor(.green)
+                                        }
+
+                                        Divider().background(Color.white.opacity(0.1))
+                                    }
+                                    .padding(8)
+                                    .background(Color.white.opacity(0.05))
+                                    .cornerRadius(6)
                                 }
+
+                                Button(action: {
+                                    // Quick Navigation Back to Editor
+                                    NotificationCenter.default.post(name: NSNotification.Name("com.swiftcode.focusEditor"), object: nil)
+                                }) {
+                                    Label("Return to Source Editor", systemImage: "arrow.left.circle")
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
                             } else {
                                 Text("No Active Diagnostics Errors.")
                                     .font(.headline)
@@ -655,18 +700,19 @@ struct SimulatorArtboardView: View {
                     // Session Info Tab
                     ScrollView {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("Active Simulator Session")
+                            Text("Active Isolated Session")
                                 .font(.headline)
                                 .foregroundColor(.accentColor)
                                 .padding(.bottom, 4)
 
                             Group {
-                                LabeledInfoRow(label: "Product Name", value: api.determineProductName())
-                                LabeledInfoRow(label: "Bundle ID", value: api.determineBundleIdentifier())
-                                LabeledInfoRow(label: "Active Scheme", value: api.determineActiveScheme()?.name ?? "Default")
-                                LabeledInfoRow(label: "Active SDK", value: "iphonesimulator")
-                                LabeledInfoRow(label: "Destination", value: api.determineBuildDestination().destination)
-                                LabeledInfoRow(label: "Configuration", value: api.determineActiveBuildConfiguration().rawValue)
+                                LabeledInfoRow(label: "Product Name", value: session.projectName)
+                                LabeledInfoRow(label: "Bundle ID", value: XcodeBuildAPI.shared.determineBundleIdentifier())
+                                LabeledInfoRow(label: "Active Scheme", value: session.schemeName)
+                                LabeledInfoRow(label: "Active SDK", value: session.sdk)
+                                LabeledInfoRow(label: "Destination", value: session.destination)
+                                LabeledInfoRow(label: "Configuration", value: session.buildConfig)
+                                LabeledInfoRow(label: "Health Status", value: session.healthStatus)
                             }
                         }
                         .padding()
@@ -694,7 +740,7 @@ struct SimulatorArtboardView: View {
                     ForEach(logs.indices, id: \.self) { idx in
                         Text(logs[idx])
                             .font(.system(size: 10, design: .monospaced))
-                            .foregroundColor(.green)
+                            .foregroundColor(logs[idx].contains("[ERROR]") || logs[idx].contains("[COMPILER ERROR]") ? .red : (logs[idx].contains("[PIPELINE]") ? .cyan : .green))
                     }
                 }
                 .padding(6)

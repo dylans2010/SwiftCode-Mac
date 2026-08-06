@@ -55,14 +55,11 @@ struct SwiftCodeApp: App {
             .onAppear {
                 DispatchQueue.main.async {
                     if let window = NSApplication.shared.windows.first(where: { $0.isVisible }) {
-                        window.titleVisibility = .hidden
-                        window.titlebarAppearsTransparent = true
-                        window.standardWindowButton(.closeButton)?.isHidden = true
-                        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
-                        window.standardWindowButton(.zoomButton)?.isHidden = true
-                        if !window.styleMask.contains(.fullSizeContentView) {
-                            window.styleMask.insert(.fullSizeContentView)
-                        }
+                        window.titleVisibility = .visible
+                        window.titlebarAppearsTransparent = false
+                        window.standardWindowButton(.closeButton)?.isHidden = false
+                        window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+                        window.standardWindowButton(.zoomButton)?.isHidden = false
                     }
                 }
             }
