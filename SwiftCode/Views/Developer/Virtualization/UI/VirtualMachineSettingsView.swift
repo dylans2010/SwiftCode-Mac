@@ -1,7 +1,7 @@
 import SwiftUI
 
 public struct VirtualMachineSettingsView: View {
-    public let vmID: UUID
+    public let vmID: UUID?
 
     @State private var stateStore = VirtualizationStateStore.shared
     @State private var cpuCores: Double = 2
@@ -10,12 +10,13 @@ public struct VirtualMachineSettingsView: View {
     @State private var name: String = ""
     @State private var showingAdvancedConfig = false
 
-    public init(vmID: UUID) {
+    public init(vmID: UUID?) {
         self.vmID = vmID
     }
 
     private var vm: VirtualMachine? {
-        stateStore.virtualMachines.first { $0.id == vmID }
+        guard let id = vmID else { return stateStore.virtualMachines.first }
+        return stateStore.virtualMachines.first { $0.id == id }
     }
 
     public var body: some View {
@@ -148,13 +149,14 @@ public struct VirtualMachineSettingsView: View {
 
     private func saveSettings() {
         var vms = VirtualMachineRegistry.shared.load()
-        if let idx = vms.firstIndex(where: { $0.id == vmID }) {
+        guard let targetID = vmID ?? vms.first?.id else { return }
+        if let idx = vms.firstIndex(where: { $0.id == targetID }) {
             vms[idx].name = name
             vms[idx].cpuCores = Int(cpuCores)
             vms[idx].memoryMB = Int(memoryGB * 1024)
             vms[idx].storageGB = Int(storageGB)
             try? VirtualMachineRegistry.shared.save(vms)
-            stateStore.refreshVM(vmID)
+            stateStore.refreshVM(targetID)
             stateStore.addLog("Applied resource configurations for environment '\(name)'.", type: .success)
         }
     }

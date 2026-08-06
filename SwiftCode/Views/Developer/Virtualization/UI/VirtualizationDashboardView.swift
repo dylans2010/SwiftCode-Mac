@@ -154,7 +154,7 @@ public struct VirtualizationDashboardView: View {
 
                             // Card 3: Browse Templates
                             Button {
-                                stateStore.selectedSidebarTab = .environments
+                                stateStore.selectedSidebarTab = .vmLibrary
                             } label: {
                                 HStack(spacing: 16) {
                                     Image(systemName: "doc.text.image.fill")
@@ -599,7 +599,7 @@ public struct VirtualizationDashboardView: View {
         } else if item.category == "Template" {
             stateStore.showCreateWizard = true
         } else if item.category == "Image" {
-            stateStore.selectedSidebarTab = .images
+            stateStore.selectedSidebarTab = .vmLibrary
         } else if item.category == "Snapshot" {
             stateStore.selectedSidebarTab = .snapshots
         }

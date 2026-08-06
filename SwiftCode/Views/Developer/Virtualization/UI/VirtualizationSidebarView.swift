@@ -150,7 +150,8 @@ public struct VirtualizationSidebarView: View {
                 .buttonStyle(.plain)
                 .padding()
             }
-            .frame(width: sidebarWidth, maxHeight: .infinity)
+            .frame(width: sidebarWidth)
+            .frame(maxHeight: .infinity)
             .background(VisualEffectView(material: .sidebar, blendingMode: .behindWindow))
         }
     }
