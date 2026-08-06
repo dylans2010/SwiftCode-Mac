@@ -474,56 +474,7 @@ public struct VirtualMachineDetailView: View {
             let tools = getCatalogTools(vm: vm)
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                 ForEach(tools) { tool in
-                    GroupBox {
-                        HStack(spacing: 12) {
-                            Image(systemName: "shippingbox.fill")
-                                .font(.title2)
-                                .foregroundStyle(tool.isInstalled ? .green : .secondary)
-                                .frame(width: 36, height: 36)
-                                .background(tool.isInstalled ? Color.green.opacity(0.1) : Color.primary.opacity(0.04))
-                                .cornerRadius(8)
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(tool.name)
-                                    .font(.headline)
-                                Text(tool.isInstalled ? "Installed • \(tool.version)" : "Not Installed")
-                                    .font(.caption2)
-                                    .foregroundStyle(tool.isInstalled ? .secondary : .orange)
-
-                                Text(tool.healthStatus)
-                                    .font(.caption2)
-                                    .foregroundStyle(tool.healthStatus == "Version Conflict" ? .red : (tool.healthStatus == "Update Available" ? .orange : .green))
-                                    .fontWeight(.semibold)
-                            }
-
-                            Spacer()
-
-                            if tool.isInstalled {
-                                if tool.healthStatus == "Update Available" {
-                                    Button("Update") {
-                                        dispatchToolInstall(name: tool.name)
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .tint(.orange)
-                                    .controlSize(.small)
-                                } else {
-                                    Button("Reinstall") {
-                                        dispatchToolInstall(name: tool.name)
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                }
-                            } else {
-                                Button("Install") {
-                                    dispatchToolInstall(name: tool.name)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.small)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                    CatalogToolRow(tool: tool, onInstall: dispatchToolInstall)
                 }
             }
         }
@@ -535,6 +486,22 @@ public struct VirtualMachineDetailView: View {
         let version: String
         let isInstalled: Bool
         let healthStatus: String // "Healthy", "Update Available", "Version Conflict", "Missing"
+
+        var iconColor: Color {
+            isInstalled ? .green : .secondary
+        }
+
+        var statusColor: Color {
+            isInstalled ? .secondary : .orange
+        }
+
+        var healthColor: Color {
+            switch healthStatus {
+            case "Version Conflict": return .red
+            case "Update Available": return .orange
+            default: return .green
+            }
+        }
     }
 
     private func getCatalogTools(vm: VirtualMachine) -> [CatalogTool] {
@@ -734,5 +701,63 @@ public struct VirtualMachineDetailView: View {
             let ctrl = SCVirtualizationEngine.shared.createController(for: vmID)
             await ctrl.restart()
         }
+    }
+}
+
+struct CatalogToolRow: View {
+    let tool: VirtualMachineDetailView.CatalogTool
+    let onInstall: (String) -> Void
+
+    var body: some View {
+        GroupBox {
+            HStack(spacing: 12) {
+                Image(systemName: "shippingbox.fill")
+                    .font(.title2)
+                    .foregroundStyle(tool.iconColor)
+                    .frame(width: 36, height: 36)
+                    .background(tool.isInstalled ? Color.green.opacity(0.1) : Color.primary.opacity(0.04))
+                    .cornerRadius(8)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(tool.name)
+                        .font(.headline)
+                    Text(tool.isInstalled ? "Installed • \(tool.version)" : "Not Installed")
+                        .font(.caption2)
+                        .foregroundStyle(tool.statusColor)
+
+                    Text(tool.healthStatus)
+                        .font(.caption2)
+                        .foregroundStyle(tool.healthColor)
+                        .fontWeight(.semibold)
+                }
+
+                Spacer()
+
+                if tool.isInstalled {
+                    if tool.healthStatus == "Update Available" {
+                        Button("Update") {
+                            onInstall(tool.name)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+                        .controlSize(.small)
+                    } else {
+                        Button("Reinstall") {
+                            onInstall(tool.name)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                } else {
+                    Button("Install") {
+                        onInstall(tool.name)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
     }
 }
