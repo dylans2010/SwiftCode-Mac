@@ -63,7 +63,7 @@ public final class VirtualizationService: @unchecked Sendable {
                 // Create blank EFI variable store
                 _ = try? VZEFIVariableStore(creatingVariableStoreAt: varStoreURL)
             }
-            if let varStore = try? VZEFIVariableStore(contentsOf: varStoreURL) {
+            if let varStore = try? VZEFIVariableStore(urlurl: varStoreURL) {
                 bootloader.variableStore = varStore
             }
         }
@@ -146,7 +146,7 @@ public final class VirtualizationService: @unchecked Sendable {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             vm.start { error in
                 if let error = error {
-                    continuation.resume(throwing: error)
+                    continuation.resume(throwing: error as! Error)
                 } else {
                     continuation.resume()
                 }
