@@ -34,6 +34,8 @@ Packages/
 .cache/
 logs/
 *.log
+.store-shm
+.store-wal
 
 # Environment & Config
 .env
