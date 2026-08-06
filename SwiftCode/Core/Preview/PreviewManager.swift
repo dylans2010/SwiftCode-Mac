@@ -17,6 +17,18 @@ public final class PreviewManager {
     public var isCompiling = false
     public var hostedView: NSView?
 
+    // Isolated Artboard Runtime Sessions
+    public var runtimeSessions: [UUID: RuntimeSession] = [:]
+
+    public func getOrCreateRuntimeSession(for artboardID: UUID) -> RuntimeSession {
+        if let session = runtimeSessions[artboardID] {
+            return session
+        }
+        let session = RuntimeSession(artboardID: artboardID)
+        runtimeSessions[artboardID] = session
+        return session
+    }
+
     // Sequence tracking for newest-request-wins concurrency safety
     private var currentSessionRequestID: UUID?
 

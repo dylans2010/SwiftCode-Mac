@@ -91,7 +91,7 @@ public struct VirtualMachine: Codable, Sendable, Identifiable, Hashable {
     public var snapshots: [VMSnapshot]
     public var attachedProjects: [UUID] // Attached project IDs
 
-    // Expanded SCVirtualizationKit Subsystems
+    // Expanded SwiftCode Virtualization Subsystems
     public var isPinned: Bool
     public var isFavorite: Bool
     public var isBookmarked: Bool

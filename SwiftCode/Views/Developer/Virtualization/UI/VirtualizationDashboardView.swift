@@ -292,7 +292,7 @@ public struct VirtualizationDashboardView: View {
                                 let hostCores = ProcessInfo.processInfo.activeProcessorCount
                                 let hostMemoryGB = Int(ProcessInfo.processInfo.physicalMemory / (1024 * 1024 * 1024))
 
-                                Text("SCVirtualizationKit has audited your Mac hardware: **\(hostCores) CPU Cores** and **\(hostMemoryGB) GB Physical RAM** are available.")
+                                Text("SwiftCode Virtualization Engine has audited your Mac hardware: **\(hostCores) CPU Cores** and **\(hostMemoryGB) GB Physical RAM** are available.")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
 
@@ -678,7 +678,7 @@ public struct VirtualizationDashboardView: View {
 
                     faqItem(q: "Why use Shared Folders?", a: "Shared folders mount active macOS project directories directly into the guest VM filesystem (at `/mnt/workspace`). This enables you to write code in Xcode on your Mac while the guest environment handles compiles and runs instantly.")
 
-                    faqItem(q: "How much RAM should I allocate?", a: "We recommend allocating about 4GB of RAM for lightweight boxes (such as node or database hosts), and 8GB or more for compile-heavy toolchains (like Swift backend and Vapor servers). Check Auto-Optimization to let SCVirtualizationKit balance sizing safely!")
+                    faqItem(q: "How much RAM should I allocate?", a: "We recommend allocating about 4GB of RAM for lightweight boxes (such as node or database hosts), and 8GB or more for compile-heavy toolchains (like Swift backend and Vapor servers). Check Auto-Optimization to let SwiftCode Virtualization balance sizing safely!")
                 }
             }
 

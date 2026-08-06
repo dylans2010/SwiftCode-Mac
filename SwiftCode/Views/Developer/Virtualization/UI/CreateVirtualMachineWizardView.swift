@@ -957,7 +957,7 @@ public struct CreateVirtualMachineWizardView: View {
                         throw ProvisioningError(title: "Missing OS Image", message: "No installer ISO file exists at the specified path: \(targetImagePath)", suggestion: "Please double check the file location, browse for a valid .iso file, or leave the field blank to use a default cloud-init profile.")
                     }
                 } else {
-                    provisioningWarning = "No custom ISO image specified. SCVirtualizationKit will boot a pre-configured thin guest cloud image."
+                    provisioningWarning = "No custom ISO image specified. SwiftCode Virtualization will boot a pre-configured thin guest cloud image."
                 }
 
                 // 3. Validate available disk space
@@ -1017,7 +1017,7 @@ public struct CreateVirtualMachineWizardView: View {
                 try await sleep()
 
                 // 12. Register environment
-                updateProgress(step: 12, name: "Registering Environment", op: "Adding registration entry to local SCVirtualizationKit store...")
+                updateProgress(step: 12, name: "Registering Environment", op: "Adding registration entry to local SwiftCode Virtualization store...")
                 try await sleep()
 
                 // 13. Create runtime metadata
@@ -1036,8 +1036,8 @@ public struct CreateVirtualMachineWizardView: View {
                 updateProgress(step: 16, name: "Creating Virtual Machine", op: "Allocating host memory blocks and CPU virtual registers...")
                 try await sleep()
 
-                // 17. Register with SCVirtualizationKit
-                updateProgress(step: 17, name: "Registering with SCVirtualizationKit", op: "Synchronizing state variables...")
+                // 17. Register with SwiftCode Virtualization
+                updateProgress(step: 17, name: "Registering with SwiftCode Virtualization", op: "Synchronizing state variables...")
                 try await sleep()
 
                 // Real creation in stateStore

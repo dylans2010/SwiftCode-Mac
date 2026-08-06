@@ -230,38 +230,25 @@ struct SwiftCodeWelcomeView: View {
         }
         .onAppear {
             if let window = NSApplication.shared.windows.first(where: { $0.isVisible && !$0.title.isEmpty }) {
-                if window.styleMask.contains(.fullScreen) {
-                    window.toggleFullScreen(nil)
-                }
-
-                window.titleVisibility = .hidden
-                window.titlebarAppearsTransparent = true
-                if !window.styleMask.contains(.fullSizeContentView) {
-                    window.styleMask.insert(.fullSizeContentView)
-                }
-
-                window.styleMask.remove(.resizable)
-                window.styleMask.remove(.miniaturizable)
-                window.styleMask.remove(.closable)
-                window.standardWindowButton(.closeButton)?.isHidden = true
-                window.standardWindowButton(.miniaturizeButton)?.isHidden = true
-                window.standardWindowButton(.zoomButton)?.isHidden = true
-
-                window.setContentSize(NSSize(width: 950, height: 620))
+                window.titleVisibility = .visible
+                window.titlebarAppearsTransparent = false
+                window.styleMask.insert([.resizable, .miniaturizable, .closable])
+                window.standardWindowButton(.closeButton)?.isHidden = false
+                window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+                window.standardWindowButton(.zoomButton)?.isHidden = false
                 window.minSize = NSSize(width: 950, height: 620)
-                window.maxSize = NSSize(width: 950, height: 620)
-                window.collectionBehavior = []
+                window.collectionBehavior = [.fullScreenPrimary]
                 window.center()
             }
         }
         .onDisappear {
             if let window = NSApplication.shared.windows.first(where: { $0.isVisible && !$0.title.isEmpty }) {
                 window.styleMask.insert([.resizable, .miniaturizable, .closable])
-                window.titleVisibility = .hidden
-                window.titlebarAppearsTransparent = true
-                window.standardWindowButton(.closeButton)?.isHidden = true
-                window.standardWindowButton(.miniaturizeButton)?.isHidden = true
-                window.standardWindowButton(.zoomButton)?.isHidden = true
+                window.titleVisibility = .visible
+                window.titlebarAppearsTransparent = false
+                window.standardWindowButton(.closeButton)?.isHidden = false
+                window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+                window.standardWindowButton(.zoomButton)?.isHidden = false
                 window.minSize = NSSize(width: 800, height: 600)
                 window.maxSize = NSSize(width: 10000, height: 10000)
                 window.collectionBehavior = [.fullScreenPrimary]
@@ -300,39 +287,6 @@ struct SwiftCodeWelcomeView: View {
 
     private var leftPanel: some View {
         VStack(spacing: 0) {
-            // Premium custom-styled window title buttons
-            HStack(spacing: 8) {
-                Button {
-                    NSApplication.shared.terminate(nil)
-                } label: {
-                    Circle()
-                        .fill(Color.red)
-                        .frame(width: 12, height: 12)
-                }
-                .buttonStyle(.plain)
-                .help("Close Window / Quit App")
-
-                Button {
-                    if let window = NSApplication.shared.windows.first(where: { $0.isKeyWindow }) {
-                        window.miniaturize(nil)
-                    }
-                } label: {
-                    Circle()
-                        .fill(Color.yellow)
-                        .frame(width: 12, height: 12)
-                }
-                .buttonStyle(.plain)
-                .help("Minimize Window")
-
-                Circle()
-                    .fill(Color.secondary.opacity(0.4))
-                    .frame(width: 12, height: 12)
-                    .help("Zoom Disabled")
-            }
-            .padding(.leading, 24)
-            .padding(.top, 20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-
             ScrollView {
                 VStack(spacing: 32) {
                     // Modern Stylized Icon

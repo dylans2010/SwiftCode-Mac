@@ -2,135 +2,157 @@ import SwiftUI
 
 public struct VirtualizationSidebarView: View {
     @State private var stateStore = VirtualizationStateStore.shared
-    @State private var showingAdvancedResources: Bool = false
+    @AppStorage("com.swiftcode.virtualization.sidebarWidth") private var sidebarWidth: Double = 240
+    @AppStorage("com.swiftcode.virtualization.sidebarCollapsed") private var isSidebarCollapsed: Bool = false
 
     public init() {}
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header
-            HStack(spacing: 12) {
-                Image(systemName: "cpu.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(.blue)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Developer Environments")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                    Text("SCVirtualizationKit")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+        if isSidebarCollapsed {
+            VStack {
+                Button {
+                    isSidebarCollapsed = false
+                } label: {
+                    Image(systemName: "sidebar.left")
+                        .font(.title3)
+                        .padding(8)
                 }
+                .buttonStyle(.plain)
                 Spacer()
             }
-            .padding()
+            .frame(width: 44)
+            .background(VisualEffectView(material: .sidebar, blendingMode: .behindWindow))
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                // Polished Header (native-styled title bar inspector block)
+                HStack(spacing: 10) {
+                    Image(systemName: "macwindow.on.rectangle")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.blue)
 
-            Divider()
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Virtualization Panel")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.primary)
+                        Text("SwiftCode Hypervisor Engine")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
 
-            // Sidebar Navigation Sections
-            List {
-                Section(header: Text("Workspace").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)) {
-                    sidebarRow(tab: .dashboard, title: "Dashboard", icon: "square.grid.2x2.fill")
-                    sidebarRow(tab: .environments, title: "Profiles & Templates", icon: "doc.text.image.fill")
-                }
-
-                Section(header: Text("Library").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)) {
-                    sidebarRow(tab: .images, title: "OS Image Catalog", icon: "opticaldisc.fill")
-                }
-
-                Section(header: Text("Resources").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)) {
-                    DisclosureGroup(isExpanded: $showingAdvancedResources) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            sidebarRow(tab: .storage, title: "Storage Volumes", icon: "externaldrive.fill")
-                            sidebarRow(tab: .networking, title: "Network NAT", icon: "network")
-                            sidebarRow(tab: .snapshots, title: "Recovery Snapshots", icon: "clock.arrow.2.circlepath")
-                        }
-                        .padding(.leading, 8)
+                    Button {
+                        isSidebarCollapsed = true
                     } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "slider.horizontal.3")
-                                .frame(width: 18, height: 18)
-                                .foregroundStyle(.secondary)
-                            Text("Advanced Tools")
-                                .font(.subheadline)
-                        }
+                        Image(systemName: "sidebar.left")
+                            .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .help("Collapse Sidebar")
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(Color(NSColor.controlBackgroundColor))
 
-                Section(header: Text("Application").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)) {
-                    sidebarRow(tab: .settings, title: "Preferences", icon: "gearshape.fill")
-                }
+                Divider()
 
-                Section(header: Text("Development Environments").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)) {
-                    if stateStore.virtualMachines.isEmpty {
-                        Text("No Environments")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.leading, 8)
-                            .padding(.vertical, 4)
-                    } else {
-                        ForEach(stateStore.virtualMachines) { vm in
-                            Button {
-                                stateStore.selectedVMID = vm.id
-                            } label: {
-                                HStack {
-                                    Circle()
-                                        .fill(statusColor(vm.status))
-                                        .frame(width: 8, height: 8)
-                                        .padding(.trailing, 4)
+                // Main Sidebar List
+                List {
+                    Section(header: Text("DASHBOARD").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)) {
+                        sidebarRow(tab: .dashboard, title: "Dashboard", icon: "square.grid.2x2.fill")
+                        sidebarRow(tab: .vmLibrary, title: "VM Library", icon: "cube.transparent.fill")
+                        sidebarRow(tab: .activeSessions, title: "Active Sessions", icon: "play.circle.fill")
+                    }
 
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(vm.name)
-                                            .font(.subheadline)
-                                            .fontWeight(.medium)
-                                            .lineLimit(1)
-                                        Text("\(vm.osType) • \(vm.status.rawValue)")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
+                    Section(header: Text("RESOURCES").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)) {
+                        sidebarRow(tab: .storage, title: "Storage", icon: "externaldrive.fill")
+                        sidebarRow(tab: .networking, title: "Networking", icon: "network")
+                        sidebarRow(tab: .snapshots, title: "Snapshots", icon: "clock.arrow.2.circlepath")
+                        sidebarRow(tab: .sharedFolders, title: "Shared Folders", icon: "folder.badge.person.crop")
+                    }
+
+                    Section(header: Text("HARDWARE").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)) {
+                        sidebarRow(tab: .displays, title: "Displays", icon: "monitor")
+                        sidebarRow(tab: .devices, title: "Devices", icon: "ipad.and.iphone")
+                    }
+
+                    Section(header: Text("DIAGNOSTICS").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)) {
+                        sidebarRow(tab: .console, title: "Console", icon: "terminal.fill")
+                        sidebarRow(tab: .logs, title: "Logs", icon: "doc.text.fill")
+                        sidebarRow(tab: .performance, title: "Performance", icon: "chart.bar.fill")
+                    }
+
+                    Section(header: Text("SYSTEM").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)) {
+                        sidebarRow(tab: .settings, title: "Settings", icon: "gearshape.fill")
+                    }
+
+                    Section(header: Text("ENVIRONMENTS").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)) {
+                        if stateStore.virtualMachines.isEmpty {
+                            Text("No Environments")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .padding(.leading, 8)
+                        } else {
+                            ForEach(stateStore.virtualMachines) { vm in
+                                Button {
+                                    stateStore.selectedVMID = vm.id
+                                } label: {
+                                    HStack {
+                                        Circle()
+                                            .fill(statusColor(vm.status))
+                                            .frame(width: 8, height: 8)
+                                            .padding(.trailing, 4)
+
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(vm.name)
+                                                .font(.subheadline)
+                                                .fontWeight(.medium)
+                                                .lineLimit(1)
+                                            Text("\(vm.osType) • \(vm.status.rawValue)")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+
+                                        if vm.status == .running {
+                                            Image(systemName: "play.fill")
+                                                .font(.system(size: 8))
+                                                .foregroundStyle(.green)
+                                        }
                                     }
-                                    Spacer()
-
-                                    if vm.status == .running {
-                                        Image(systemName: "play.fill")
-                                            .font(.system(size: 8))
-                                            .foregroundStyle(.green)
-                                    }
+                                    .padding(.vertical, 4)
+                                    .contentShape(Rectangle())
                                 }
-                                .padding(.vertical, 4)
-                                .contentShape(Rectangle())
+                                .buttonStyle(.plain)
+                                .listRowBackground(stateStore.selectedVMID == vm.id ? Color(NSColor.selectedContentBackgroundColor).opacity(0.15) : Color.clear)
                             }
-                            .buttonStyle(.plain)
-                            .listRowBackground(stateStore.selectedVMID == vm.id ? Color(NSColor.selectedContentBackgroundColor).opacity(0.15) : Color.clear)
                         }
                     }
                 }
-            }
-            .listStyle(.sidebar)
+                .listStyle(.sidebar)
 
-            Spacer()
+                Spacer()
 
-            // Bottom Action
-            Button {
-                stateStore.showCreateWizard = true
-            } label: {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                    Text("New Environment")
-                        .fontWeight(.semibold)
+                // Bottom Action
+                Button {
+                    stateStore.showCreateWizard = true
+                } label: {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("New Environment")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color.blue)
+                    .foregroundStyle(.white)
+                    .cornerRadius(8)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(Color.blue)
-                .foregroundStyle(.white)
-                .cornerRadius(8)
+                .buttonStyle(.plain)
+                .padding()
             }
-            .buttonStyle(.plain)
-            .padding()
+            .frame(width: sidebarWidth, maxHeight: .infinity)
+            .background(VisualEffectView(material: .sidebar, blendingMode: .behindWindow))
         }
-        .frame(minWidth: 240, maxHeight: .infinity)
-        .background(VisualEffectView(material: .sidebar, blendingMode: .behindWindow))
     }
 
     @ViewBuilder

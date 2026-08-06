@@ -17,16 +17,28 @@ public struct VirtualizationWorkspaceView: View {
                 switch stateStore.selectedSidebarTab {
                 case .dashboard:
                     VirtualizationDashboardView()
-                case .environments:
+                case .vmLibrary:
                     EnvironmentProfilesView()
-                case .images:
-                    VirtualizationImageBrowserView()
-                case .snapshots:
-                    VirtualMachineSnapshotsView(vmID: stateStore.virtualMachines.first?.id)
+                case .activeSessions:
+                    VirtualizationDashboardView()
                 case .storage:
                     VirtualMachineStorageView(vmID: stateStore.virtualMachines.first?.id)
                 case .networking:
                     VirtualMachineNetworkView(vmID: stateStore.virtualMachines.first?.id)
+                case .snapshots:
+                    VirtualMachineSnapshotsView(vmID: stateStore.virtualMachines.first?.id)
+                case .sharedFolders:
+                    VirtualMachineSharedFoldersView(vmID: stateStore.virtualMachines.first?.id)
+                case .displays:
+                    VirtualMachineSettingsView(vmID: stateStore.virtualMachines.first?.id)
+                case .devices:
+                    VirtualMachineSettingsView(vmID: stateStore.virtualMachines.first?.id)
+                case .console:
+                    VirtualMachineConsoleView(vmID: stateStore.virtualMachines.first?.id ?? UUID())
+                case .logs:
+                    VirtualMachineTerminalView(vmID: stateStore.virtualMachines.first?.id ?? UUID())
+                case .performance:
+                    VirtualMachineMonitorView(vmID: stateStore.virtualMachines.first?.id ?? UUID())
                 case .settings:
                     VirtualizationPreferencesView()
                 }

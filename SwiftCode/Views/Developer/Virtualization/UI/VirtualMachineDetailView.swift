@@ -555,7 +555,7 @@ public struct VirtualMachineDetailView: View {
             }
         ) {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Access official, pristine, and secure technical documentation for \(vm.osType) directly within SCVirtualizationKit:")
+                Text("Access official, pristine, and secure technical documentation for \(vm.osType) directly within SwiftCode Virtualization:")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
