@@ -544,7 +544,7 @@ public struct XcodeProjectDetailsSheet: View {
                                     }
                                 } label: {
                                     Image(systemName: "plus.circle.fill")
-                                        .foregroundStyle(selectedSDKToAdd.isEmpty ? .secondary : .green)
+                                        .foregroundColor(selectedSDKToAdd.isEmpty ? Color.secondary : Color.green)
                                 }
                                 .buttonStyle(.plain)
                                 .disabled(selectedSDKToAdd.isEmpty)

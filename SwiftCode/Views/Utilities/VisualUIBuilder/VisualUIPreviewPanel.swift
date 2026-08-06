@@ -16,7 +16,7 @@ public struct VisualUIPreviewPanel: View {
                 VStack(spacing: 16) {
                     Image(systemName: "play.circle.fill")
                         .font(.system(size: 64))
-                        .foregroundStyle(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                     Text("Visual UI Builder")
                         .font(.title2.bold())
                     Text("Compiler tasks and simulator preview runtimes are stopped. Press 'Start Process' to build your SwiftUI canvas on-demand.")

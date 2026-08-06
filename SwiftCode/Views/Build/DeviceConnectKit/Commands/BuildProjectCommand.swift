@@ -23,7 +23,7 @@ public struct BuildProjectCommand {
             "build"
         ]
 
-        if let activeProj = ProjectSessionStore.shared.activeProject,
+        if let activeProj = await ProjectSessionStore.shared.activeProject,
            let savedDests = activeProj.destinations,
            let firstSDK = savedDests.first {
             args.append(contentsOf: ["-sdk", firstSDK])

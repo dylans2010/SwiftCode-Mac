@@ -132,21 +132,23 @@ struct CodeSearchView: View {
                     Divider().frame(height: 20)
 
                     ForEach(fileExtensions, id: \.self) { ext in
-                        let isSelected = (ext == "All" && selectedFileExtension == nil) ||
-                                         (ext != "All" && selectedFileExtension == ext)
+                        let isAll = (ext == "All")
+                        let labelText: String = isAll ? "All Files" : ".\(ext)"
+                        let selected = isAll ? (selectedFileExtension == nil) : (selectedFileExtension == ext)
 
-                        Button {
-                            selectedFileExtension = (ext == "All") ? nil : ext
-                            if !searchQuery.isEmpty { performSearch() }
-                        } label: {
-                            Text(ext == "All" ? "All Files" : ".\(ext)")
+                        Button(action: {
+                            selectedFileExtension = isAll ? nil : ext
+                            if !searchQuery.isEmpty {
+                                performSearch()
+                            }
+                        }) {
+                            Text(labelText)
                                 .font(.system(.caption, design: .monospaced))
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 4)
                         }
-                        .buttonStyle(isSelected ? .borderedProminent : .bordered)
-                        .tint(isSelected ? .orange : .secondary)
                         .controlSize(.small)
+                        .applyBorderedStyle(selected: selected)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -454,5 +456,20 @@ struct CustomToggleStyle: ToggleStyle {
         .padding(.vertical, 6)
         .background(Color(NSColor.controlBackgroundColor).opacity(0.8))
         .cornerRadius(8)
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func applyBorderedStyle(selected: Bool) -> some View {
+        if selected {
+            self
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+        } else {
+            self
+                .buttonStyle(.bordered)
+                .tint(.secondary)
+        }
     }
 }
