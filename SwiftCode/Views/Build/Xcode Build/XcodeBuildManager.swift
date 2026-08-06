@@ -92,17 +92,21 @@ public final class XcodeBuildManager: Sendable {
         if detectedSDKs.isEmpty {
             return ["Default"]
         }
-        return ["Default"] + Array(Set(detectedSDKs.map { $0.platform })).sorted()
+        let platforms = detectedSDKs.map { $0.platform }
+        let uniquePlatforms = Set(platforms)
+        let sortedPlatforms = Array(uniquePlatforms).sorted()
+        return ["Default"] + sortedPlatforms
     }
 
     public var availableSDKVersions: [String] {
         if selectedSDKType == "Default" {
             return ["Default"]
         }
-        let versions = detectedSDKs
-            .filter { $0.platform == selectedSDKType }
-            .map { $0.version }
-        return ["Default"] + Array(Set(versions)).sorted()
+        let platformFiltered = detectedSDKs.filter { $0.platform == selectedSDKType }
+        let versions = platformFiltered.map { $0.version }
+        let uniqueVersions = Set(versions)
+        let sortedVersions = Array(uniqueVersions).sorted()
+        return ["Default"] + sortedVersions
     }
 
     public var currentSDKArgument: String? {
@@ -204,7 +208,11 @@ public final class XcodeBuildManager: Sendable {
         }
 
         self.discoveredSchemes = Array(schemes).sorted()
-        if self.selectedScheme == nil || !self.discoveredSchemes.contains(self.selectedScheme!) {
+        if let selected = self.selectedScheme {
+            if !self.discoveredSchemes.contains(selected) {
+                self.selectedScheme = self.discoveredSchemes.first
+            }
+        } else {
             self.selectedScheme = self.discoveredSchemes.first
         }
     }
