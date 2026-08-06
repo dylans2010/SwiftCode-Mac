@@ -8,16 +8,51 @@ public struct VisualUIPreviewPanel: View {
 
     @State private var showingDiagnostics = false
     @State private var previewState = PreviewManager.shared.state
+    @State private var isProcessStarted = false
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Preview sub-toolbar
-            HStack {
-                Text("LIVE VIEWPORT")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
+            if !isProcessStarted {
+                VStack(spacing: 16) {
+                    Image(systemName: "play.circle.fill")
+                        .font(.system(size: 64))
+                        .foregroundStyle(.accentColor)
+                    Text("Visual UI Builder")
+                        .font(.title2.bold())
+                    Text("Compiler tasks and simulator preview runtimes are stopped. Press 'Start Process' to build your SwiftUI canvas on-demand.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
 
-                Spacer()
+                    Button {
+                        isProcessStarted = true
+                        Task {
+                            await refreshPreviewSession()
+                            if let activeID = document.scene.activeArtboardID,
+                               let activeArtboard = document.scene.artboards.first(where: { $0.id == activeID }) {
+                                await compileArtboardSource(activeArtboard)
+                            }
+                        }
+                    } label: {
+                        Label("Start Process", systemImage: "play.fill")
+                            .font(.headline)
+                            .padding(.horizontal, 8)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .tint(.green)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(NSColor.windowBackgroundColor))
+            } else {
+                // Preview sub-toolbar
+                HStack {
+                    Text("LIVE VIEWPORT")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
 
                 if settings.showCompiledView && PreviewManager.shared.availablePreviews.count > 1 {
                     Picker("Target", selection: Binding(
@@ -160,12 +195,14 @@ public struct VisualUIPreviewPanel: View {
                 }
             }
             .background(Color.secondary.opacity(0.02))
+            }
         }
     }
 
 
 
     private func compileArtboardSource(_ artboard: VisualUIArtboard) async {
+        guard isProcessStarted else { return }
         guard let customSource = artboard.customSwiftUISource, !customSource.isEmpty else { return }
 
         let targetView = SwiftViewDetector.determinePrimaryView(in: customSource, filename: "Artboard_\(artboard.id).swift") ?? "ContentView"
@@ -186,6 +223,7 @@ public struct VisualUIPreviewPanel: View {
     }
 
     private func refreshPreviewSession() async {
+        guard isProcessStarted else { return }
         if let activeDoc = DocumentCoordinator.shared.activeDocument {
             let resolvedTarget = PreviewManager.shared.selectedPreviewName ?? "ContentView"
             let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)

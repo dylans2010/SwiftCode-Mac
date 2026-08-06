@@ -39,6 +39,16 @@ public struct SKSettings: Codable, Sendable, Equatable {
     public var _storefront: String
     public var _timeRate: String // e.g., "Monthly" or "Weekly"
 
+    enum CodingKeys: String, CodingKey {
+        case _billingGracePeriodEnabled = "billingGracePeriodEnabled"
+        case _billingRetryEnabled = "billingRetryEnabled"
+        case _failTransactionsEnabled = "failTransactionsEnabled"
+        case _storeKitError = "storeKitError"
+        case _locale = "locale"
+        case _storefront = "storefront"
+        case _timeRate = "timeRate"
+    }
+
     public init(
         billingGracePeriodEnabled: Bool = false,
         billingRetryEnabled: Bool = false,
@@ -87,6 +97,15 @@ public struct SKProduct: Codable, Sendable, Identifiable, Hashable, Equatable {
     public var availability: String // "all", "none"
     public var images: [String] // Local asset image names
 
+    enum CodingKeys: String, CodingKey {
+        case productID
+        case referenceName
+        case type
+        case localizations
+        case price
+        case familySharing
+    }
+
     public init(
         productID: String,
         referenceName: String,
@@ -108,6 +127,19 @@ public struct SKProduct: Codable, Sendable, Identifiable, Hashable, Equatable {
         self.availability = availability
         self.images = images
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        productID = try container.decode(String.self, forKey: .productID)
+        referenceName = try container.decode(String.self, forKey: .referenceName)
+        type = try container.decode(String.self, forKey: .type)
+        localizations = try container.decode([SKLocalization].self, forKey: .localizations)
+        price = try container.decode(Double.self, forKey: .price)
+        familySharing = try container.decode(Bool.self, forKey: .familySharing)
+        index = nil
+        availability = "all"
+        images = []
+    }
 }
 
 // MARK: - Non-Renewing Subscription
@@ -116,12 +148,21 @@ public struct SKNonRenewingSubscription: Codable, Sendable, Identifiable, Hashab
     public var id: String { productID }
     public var productID: String
     public var referenceName: String
-    public var type: String { "NonRenewingSubscription" }
+    public var type: String = "NonRenewingSubscription"
     public var localizations: [SKLocalization]
     public var price: Double
     public var familySharing: Bool
     public var index: Int?
     public var availability: String
+
+    enum CodingKeys: String, CodingKey {
+        case productID
+        case referenceName
+        case type
+        case localizations
+        case price
+        case familySharing
+    }
 
     public init(
         productID: String,
@@ -140,17 +181,51 @@ public struct SKNonRenewingSubscription: Codable, Sendable, Identifiable, Hashab
         self.index = index
         self.availability = availability
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        productID = try container.decode(String.self, forKey: .productID)
+        referenceName = try container.decode(String.self, forKey: .referenceName)
+        type = try container.decodeIfPresent(String.self, forKey: .type) ?? "NonRenewingSubscription"
+        localizations = try container.decode([SKLocalization].self, forKey: .localizations)
+        price = try container.decode(Double.self, forKey: .price)
+        familySharing = try container.decode(Bool.self, forKey: .familySharing)
+        index = nil
+        availability = "all"
+    }
 }
 
 // MARK: - Subscription Group
 
 public struct SKSubscriptionGroup: Codable, Sendable, Identifiable, Hashable, Equatable {
-    public var id: String { groupName } // Or unique group ID
-    public var groupName: String
+    public var id: String
+    public var referenceName: String
+    public var localizations: [SKLocalization]
     public var subscriptions: [SKSubscription]
 
+    public var groupName: String {
+        get { referenceName }
+        set { referenceName = newValue }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case referenceName
+        case localizations
+        case subscriptions
+    }
+
+    public init(id: String = UUID().uuidString, referenceName: String, localizations: [SKLocalization] = [], subscriptions: [SKSubscription] = []) {
+        self.id = id
+        self.referenceName = referenceName
+        self.localizations = localizations
+        self.subscriptions = subscriptions
+    }
+
     public init(groupName: String, subscriptions: [SKSubscription] = []) {
-        self.groupName = groupName
+        self.id = UUID().uuidString
+        self.referenceName = groupName
+        self.localizations = []
         self.subscriptions = subscriptions
     }
 }
@@ -161,7 +236,7 @@ public struct SKSubscription: Codable, Sendable, Identifiable, Hashable, Equatab
     public var id: String { productID }
     public var productID: String
     public var referenceName: String
-    public var type: String { "AutoRenewableSubscription" }
+    public var type: String = "AutoRenewableSubscription"
     public var localizations: [SKLocalization]
     public var price: Double
     public var familySharing: Bool
@@ -175,6 +250,21 @@ public struct SKSubscription: Codable, Sendable, Identifiable, Hashable, Equatab
     public var promotionalOffers: [SKPromotionalOffer]
     public var winBackOffers: [SKWinBackOffer]
     public var offerCodes: [SKOfferCode]
+
+    enum CodingKeys: String, CodingKey {
+        case productID
+        case referenceName
+        case type
+        case localizations
+        case price
+        case familySharing
+        case subscriptionGroupID
+        case subscriptionPeriod
+        case introductoryOffers
+        case promotionalOffers
+        case winBackOffers
+        case offerCodes
+    }
 
     public init(
         productID: String,
@@ -204,6 +294,24 @@ public struct SKSubscription: Codable, Sendable, Identifiable, Hashable, Equatab
         self.promotionalOffers = promotionalOffers
         self.winBackOffers = winBackOffers
         self.offerCodes = offerCodes
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        productID = try container.decode(String.self, forKey: .productID)
+        referenceName = try container.decode(String.self, forKey: .referenceName)
+        type = try container.decodeIfPresent(String.self, forKey: .type) ?? "AutoRenewableSubscription"
+        localizations = try container.decode([SKLocalization].self, forKey: .localizations)
+        price = try container.decode(Double.self, forKey: .price)
+        familySharing = try container.decode(Bool.self, forKey: .familySharing)
+        subscriptionGroupID = try container.decode(String.self, forKey: .subscriptionGroupID)
+        subscriptionPeriod = try container.decode(String.self, forKey: .subscriptionPeriod)
+        introductoryOffers = try container.decodeIfPresent([SKIntroductoryOffer].self, forKey: .introductoryOffers) ?? []
+        promotionalOffers = try container.decodeIfPresent([SKPromotionalOffer].self, forKey: .promotionalOffers) ?? []
+        winBackOffers = try container.decodeIfPresent([SKWinBackOffer].self, forKey: .winBackOffers) ?? []
+        offerCodes = try container.decodeIfPresent([SKOfferCode].self, forKey: .offerCodes) ?? []
+        index = nil
+        availability = "all"
     }
 }
 

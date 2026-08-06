@@ -52,6 +52,7 @@ public struct VirtualMachineTerminalView: View {
                             Task {
                                 await controller.start()
                                 refreshRealVM()
+                                VirtualizationMachineRunWindowManager.shared.showWindow(for: vmID)
                             }
                         } label: {
                             Label("Start", systemImage: "play.fill")
@@ -59,6 +60,14 @@ public struct VirtualMachineTerminalView: View {
                         .tint(.green)
                         .buttonStyle(.borderedProminent)
                     } else {
+                        Button {
+                            VirtualizationMachineRunWindowManager.shared.showWindow(for: vmID)
+                        } label: {
+                            Label("Open VM Window", systemImage: "macwindow.badge.plus")
+                        }
+                        .tint(.blue)
+                        .buttonStyle(.borderedProminent)
+
                         Button {
                             Task {
                                 await controller.pause()
@@ -327,3 +336,226 @@ public struct VZVirtualMachineViewRepresentable: NSViewRepresentable {
     }
 }
 #endif
+
+// MARK: - VirtualizationMachineRunView Window Management
+
+@MainActor
+public final class VirtualizationMachineRunWindowManager: NSObject, NSWindowDelegate {
+    public static let shared = VirtualizationMachineRunWindowManager()
+    private var windowControllers: [UUID: VirtualizationMachineRunWindowController] = [:]
+
+    public func showWindow(for vmID: UUID) {
+        if let existing = windowControllers[vmID] {
+            existing.window?.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        let wc = VirtualizationMachineRunWindowController(vmID: vmID)
+        wc.window?.delegate = self
+        self.windowControllers[vmID] = wc
+        wc.window?.makeKeyAndOrderFront(nil)
+    }
+
+    public func closeWindow(for vmID: UUID) {
+        windowControllers[vmID]?.close()
+        windowControllers.removeValue(forKey: vmID)
+    }
+
+    // MARK: - NSWindowDelegate
+    public func windowWillClose(_ notification: Notification) {
+        if let window = notification.object as? NSWindow,
+           let wc = window.windowController as? VirtualizationMachineRunWindowController {
+            windowControllers.removeValue(forKey: wc.vmID)
+        }
+    }
+}
+
+@MainActor
+public final class VirtualizationMachineRunWindowController: NSWindowController {
+    public let vmID: UUID
+
+    public init(vmID: UUID) {
+        self.vmID = vmID
+        let window = NSWindow(
+            contentRect: NSRect(x: 150, y: 150, width: 900, height: 650),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        // Title MUST be "VirtualizationMachineRunView" as requested
+        window.title = "VirtualizationMachineRunView"
+        window.minSize = NSSize(width: 800, height: 550)
+        window.setFrameAutosaveName("VirtualizationMachineRunWindow_\(vmID.uuidString)")
+        window.collectionBehavior = [.fullScreenPrimary, .managed]
+
+        super.init(window: window)
+
+        let runView = VirtualizationMachineRunView(vmID: vmID)
+        let hostingController = NSHostingController(rootView: runView)
+        window.contentViewController = hostingController
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+public struct VirtualizationMachineRunView: View {
+    public let vmID: UUID
+
+    @State private var stateStore = VirtualizationStateStore.shared
+    @State private var capturesKeyboard = true
+    @State private var scale: CGFloat = 1.0
+
+    #if canImport(Virtualization)
+    @State private var realVM: VZVirtualMachine? = nil
+    #endif
+
+    public init(vmID: UUID) {
+        self.vmID = vmID
+    }
+
+    private var vm: VirtualMachine? {
+        stateStore.virtualMachines.first { $0.id == vmID }
+    }
+
+    private var controller: VirtualMachineController {
+        VirtualMachineController(vmID: vmID)
+    }
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            // Header Info and Status Controls
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(vm?.name ?? "Guest Operating System")
+                        .font(.headline)
+                    Text("Virtualization.framework Interactive Screen")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+
+                HStack(spacing: 8) {
+                    Button {
+                        capturesKeyboard.toggle()
+                    } label: {
+                        Label(capturesKeyboard ? "Capturing Keys" : "No Key Capture", systemImage: capturesKeyboard ? "keyboard.fill" : "keyboard")
+                    }
+                    .controlSize(.small)
+
+                    if vm?.status != .running {
+                        Button {
+                            Task {
+                                await controller.start()
+                                #if canImport(Virtualization)
+                                realVM = VirtualizationService.shared.getActiveVM(for: vmID)
+                                #endif
+                            }
+                        } label: {
+                            Label("Power On", systemImage: "play.fill")
+                        }
+                        .tint(.green)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    } else {
+                        Button {
+                            Task {
+                                await controller.stop()
+                                #if canImport(Virtualization)
+                                realVM = nil
+                                #endif
+                            }
+                        } label: {
+                            Label("Power Off", systemImage: "stop.fill")
+                        }
+                        .tint(.red)
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        Button {
+                            Task {
+                                await controller.restart()
+                                #if canImport(Virtualization)
+                                realVM = VirtualizationService.shared.getActiveVM(for: vmID)
+                                #endif
+                            }
+                        } label: {
+                            Label("Restart", systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+            }
+            .padding(12)
+            .background(Color(NSColor.windowBackgroundColor))
+
+            Divider()
+
+            // VM Screen Display Area
+            ZStack {
+                Color.black.ignoresSafeArea()
+
+                #if canImport(Virtualization)
+                if let activeVM = realVM, vm?.status == .running {
+                    VZVirtualMachineViewRepresentable(virtualMachine: activeVM, capturesKeyboard: capturesKeyboard)
+                        .scaleEffect(scale)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    fallbackDisplayView
+                }
+                #else
+                fallbackDisplayView
+                #endif
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Divider()
+
+            // Uptime & Specs Status Bar
+            HStack {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(vm?.status == .running ? Color.green : Color.red)
+                        .frame(width: 8, height: 8)
+                    Text(vm?.status.rawValue.uppercased() ?? "STOPPED")
+                        .font(.system(.caption, design: .monospaced).bold())
+                }
+
+                Spacer()
+
+                Text("CPU: \(vm?.cpuCores ?? 2) Cores  |  RAM: \(String(format: "%.1f GB", Double(vm?.memoryMB ?? 2048) / 1024.0))")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color(NSColor.windowBackgroundColor))
+        }
+        .frame(minWidth: 700, minHeight: 500)
+        .onAppear {
+            #if canImport(Virtualization)
+            realVM = VirtualizationService.shared.getActiveVM(for: vmID)
+            #endif
+        }
+    }
+
+    @ViewBuilder
+    private var fallbackDisplayView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "tv.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+
+            Text(vm?.status == .running ? "Display Stream Active" : "VM is Offline")
+                .font(.headline)
+
+            Text(vm?.status == .running ? "The guest system is booting and running successfully in the background." : "Click Power On above to boot the guest operating system.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+        }
+    }
+}

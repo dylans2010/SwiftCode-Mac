@@ -3,6 +3,7 @@ import AppKit
 
 public struct RunFullAppView: View {
     @State private var runManager = FullAppRunManager.shared
+    @State private var showLogs = true
 
     @MainActor
     private var api: XcodeBuildAPI {
@@ -47,6 +48,19 @@ public struct RunFullAppView: View {
                 .buttonStyle(.plain)
                 .font(.caption)
                 .help("Clear execution console logs")
+
+                if runManager.currentStep == "Running application..." || PreviewManager.shared.hostedView != nil {
+                    Button {
+                        withAnimation(.spring()) {
+                            showLogs.toggle()
+                        }
+                    } label: {
+                        Label(showLogs ? "Show App Preview" : "Show Console Logs", systemImage: showLogs ? "iphone" : "terminal")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .transition(.opacity)
+                }
 
                 Spacer()
 
@@ -101,48 +115,85 @@ public struct RunFullAppView: View {
                 Divider()
             }
 
-            // Real-time Console Log Stream View
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 4) {
-                        if runManager.runLogs.isEmpty {
-                            VStack(spacing: 12) {
-                                Image(systemName: "terminal")
-                                    .font(.system(size: 32))
-                                    .foregroundColor(.secondary)
-                                Text("Console Stream Idle")
-                                    .font(.headline)
-                                    .foregroundColor(.secondary)
-                                Text("Press 'Run App' to automatically save, build, and launch your project.")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .multilineTextAlignment(.center)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .padding(.top, 40)
-                        } else {
-                            ForEach(runManager.runLogs.indices, id: \.self) { idx in
-                                let log = runManager.runLogs[idx]
-                                Text(log)
-                                    .font(.system(.body, design: .monospaced))
-                                    .foregroundColor(logColor(for: log))
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .id(idx)
-                            }
-                        }
+            // Real-time Console Log Stream or Actual App Preview View
+            if !showLogs, let hostedView = PreviewManager.shared.hostedView {
+                VStack(spacing: 12) {
+                    HStack {
+                        Text("Active Sandbox Application Preview")
+                            .font(.system(.subheadline, design: .rounded).bold())
+                            .foregroundStyle(.secondary)
+                        Spacer()
                     }
-                    .padding(12)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+
+                    GroupBox {
+                        NativePreviewHost(hostedView: hostedView)
+                            .frame(width: 320, height: 568)
+                            .background(Color.black)
+                            .cornerRadius(24)
+                            .shadow(color: Color.black.opacity(0.35), radius: 12)
+                    }
+                    .padding(.bottom, 24)
                 }
-                .onChange(of: runManager.runLogs.count) { _, newCount in
-                    if newCount > 0 {
-                        withAnimation {
-                            proxy.scrollTo(newCount - 1, anchor: .bottom)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(NSColor.windowBackgroundColor))
+                .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 4) {
+                            if runManager.runLogs.isEmpty {
+                                VStack(spacing: 12) {
+                                    Image(systemName: "terminal")
+                                        .font(.system(size: 32))
+                                        .foregroundColor(.secondary)
+                                    Text("Console Stream Idle")
+                                        .font(.headline)
+                                        .foregroundColor(.secondary)
+                                    Text("Press 'Run App' to automatically save, build, and launch your project.")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .padding(.top, 40)
+                            } else {
+                                ForEach(runManager.runLogs.indices, id: \.self) { idx in
+                                    let log = runManager.runLogs[idx]
+                                    Text(log)
+                                        .font(.system(.body, design: .monospaced))
+                                        .foregroundColor(logColor(for: log))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .id(idx)
+                                }
+                            }
+                        }
+                        .padding(12)
+                    }
+                    .onChange(of: runManager.runLogs.count) { _, newCount in
+                        if newCount > 0 {
+                            withAnimation {
+                                proxy.scrollTo(newCount - 1, anchor: .bottom)
+                            }
                         }
                     }
+                }
+                .background(Color.black.opacity(0.95))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.asymmetric(insertion: .move(edge: .leading), removal: .move(edge: .trailing)))
+            }
+        }
+        .onChange(of: runManager.currentStep) { _, newStep in
+            if newStep == "Running application..." {
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    showLogs = false
+                }
+            } else if newStep == "Saving workspace state..." || newStep == "Compiling application project..." {
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    showLogs = true
                 }
             }
-            .background(Color.black.opacity(0.95))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 

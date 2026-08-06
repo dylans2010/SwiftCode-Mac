@@ -261,20 +261,38 @@ struct SwiftCodeWelcomeView: View {
             // Modern, rich background gradient with neon accents
             LinearGradient(
                 colors: [
-                    Color(hex: themeVM.currentTheme.background).opacity(0.98),
-                    Color.accentColor.opacity(0.08),
-                    Color.orange.opacity(0.05)
+                    Color(hex: themeVM.currentTheme.background).opacity(0.95),
+                    Color.accentColor.opacity(0.12),
+                    Color.orange.opacity(0.08)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
 
+            // Glowing glassmorphic ambient circles
+            GeometryReader { geo in
+                ZStack {
+                    Circle()
+                        .fill(Color.accentColor.opacity(0.15))
+                        .frame(width: 350, height: 350)
+                        .blur(radius: 60)
+                        .position(x: 100, y: 150)
+
+                    Circle()
+                        .fill(Color.orange.opacity(0.12))
+                        .frame(width: 300, height: 300)
+                        .blur(radius: 50)
+                        .position(x: geo.size.width - 100, y: geo.size.height - 150)
+                }
+            }
+            .allowsHitTesting(false)
+
             HStack(spacing: 0) {
                 // Left Column: Modern Welcoming Hero & Quick Actions
                 leftPanel
                     .frame(width: 360)
-                    .background(.ultraThinMaterial.opacity(0.5))
+                    .background(.ultraThinMaterial)
 
                 Divider()
 
@@ -811,7 +829,7 @@ struct ModernActionCard: View {
             HStack(spacing: 16) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(color.opacity(isHovering ? 0.25 : 0.12).gradient)
+                        .fill(color.opacity(isHovering ? 0.35 : 0.12).gradient)
                     Image(systemName: iconName)
                         .font(.title2)
                         .foregroundColor(color)
@@ -832,12 +850,13 @@ struct ModernActionCard: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(.regularMaterial)
-                    .shadow(color: Color.black.opacity(isHovering ? 0.12 : 0.04), radius: isHovering ? 8 : 3, x: 0, y: isHovering ? 3 : 1)
+                    .fill(Color(NSColor.controlBackgroundColor).opacity(0.6))
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .shadow(color: color.opacity(isHovering ? 0.35 : 0.05), radius: isHovering ? 10 : 3, x: 0, y: isHovering ? 4 : 1)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(isHovering ? color.opacity(0.3) : Color.primary.opacity(0.05), lineWidth: 1)
+                    .stroke(isHovering ? color.opacity(0.4) : Color.primary.opacity(0.08), lineWidth: 1)
             )
             .scaleEffect(isHovering ? 1.02 : 1.0)
             .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.82), value: isHovering)

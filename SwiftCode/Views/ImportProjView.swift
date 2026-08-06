@@ -79,8 +79,21 @@ struct ImportProjView: View {
             Task {
                 do {
                     let project = try await importManager.importProject(from: url)
-                    // Update sessionStore library (assuming it's already on disk)
-                    sessionStore.projects.insert(project, at: 0)
+
+                    // Save metadata on disk inside the project folder
+                    try? sessionStore.saveMetadataInPlace(project)
+
+                    // Force state update by re-assigning projects array to trigger observers
+                    var currentProjects = sessionStore.projects
+                    if !currentProjects.contains(where: { $0.id == project.id }) {
+                        currentProjects.insert(project, at: 0)
+                    }
+                    sessionStore.projects = currentProjects
+
+                    // Explicitly load/synchronize the project list in sessionStore
+                    sessionStore.loadProjects()
+
+                    // Automatically open the project immediately
                     await sessionStore.openProject(project)
                     dismiss()
                 } catch {
