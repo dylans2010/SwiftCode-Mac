@@ -473,7 +473,7 @@ public struct VirtualMachineDetailView: View {
 
             let tools = getCatalogTools(vm: vm)
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                ForEach(tools, id: \.name) { tool in
+                ForEach(tools) { tool in
                     GroupBox {
                         HStack(spacing: 12) {
                             Image(systemName: "shippingbox.fill")
@@ -529,7 +529,8 @@ public struct VirtualMachineDetailView: View {
         }
     }
 
-    struct CatalogTool {
+    struct CatalogTool: Identifiable {
+        var id: String { name }
         let name: String
         let version: String
         let isInstalled: Bool

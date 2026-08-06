@@ -48,7 +48,7 @@ public struct CreateVirtualMachineWizardView: View {
     // Save Configuration options
     @State private var showingSaveConfigPopover = false
 
-    struct ProvisioningError: Identifiable, Sendable {
+    struct ProvisioningError: Error, Identifiable, Sendable {
         let id = UUID()
         let title: String
         let message: String

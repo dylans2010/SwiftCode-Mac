@@ -714,7 +714,7 @@ public final class WorkspaceIntelligence {
             let rootURL = project.directoryURL
             let projectName = project.name
 
-            swiftVersions[projectName] = project.swiftVersion ?? "6.0"
+            swiftVersions[projectName] = ProjectRegistryManager.shared.registryEntries.first(where: { $0.id == project.id })?.swiftVersion ?? "6.0"
             sdkCompatibility[projectName] = project.ciBuildConfiguration?.platform.rawValue ?? "macOS"
             deploymentTargets[projectName] = project.ciBuildConfiguration?.deploymentTarget ?? "15.0"
 
