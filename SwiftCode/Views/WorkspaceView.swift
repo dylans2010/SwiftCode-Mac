@@ -206,6 +206,15 @@ struct WorkspaceView: View {
                 }
             }
         }
+        .background(
+            Button("") {
+                activeSheet = .codeSearch
+            }
+            .keyboardShortcut("p", modifiers: [.option])
+            .buttonStyle(.plain)
+            .opacity(0)
+            .frame(width: 0, height: 0)
+        )
         .environment(viewModel)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {

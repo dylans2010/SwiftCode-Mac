@@ -83,6 +83,16 @@ public final class FullAppRunManager: Sendable {
             // Log build completion
             appendLog("[SYSTEM] Build completed successfully!")
 
+            // Populate the PreviewManager hostedView with the successfully built SwiftUI code
+            if let activeDoc = DocumentCoordinator.shared.activeDocument {
+                let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
+                await PreviewManager.shared.startFreshLivePreviewSession(
+                    sourcePath: activeDoc.url.path,
+                    sourceCode: preparedCode,
+                    targetViewName: PreviewManager.shared.selectedPreviewName
+                )
+            }
+
             // 5. DEPLOY & LAUNCH: Simulator alignment
             currentStep = "Deploying and executing bundle on simulator..."
             appendLog("[SYSTEM] Aligning simulator application package...")

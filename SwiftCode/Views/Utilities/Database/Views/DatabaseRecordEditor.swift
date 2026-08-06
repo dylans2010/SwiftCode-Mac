@@ -13,24 +13,25 @@ struct DatabaseRecordEditor: View {
                     .font(.headline)
                 Spacer()
                 Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
             }
             .padding()
-            .background(Color.secondary.opacity(0.08))
+            .background(Color(NSColor.controlBackgroundColor))
 
             Form {
                 ForEach(table.columns) { col in
-                    HStack {
-                        Text(col.name)
-                            .frame(width: 120, alignment: .leading)
-                        TextField("Value", text: Binding(
+                    LabeledContent(col.name) {
+                        TextField("", text: Binding(
                             get: { rowData[col.name] ?? "" },
                             set: { rowData[col.name] = $0 }
                         ))
                         .disabled(col.isPrimaryKey && col.isAutoIncrement)
+                        .textFieldStyle(.roundedBorder)
                     }
                 }
             }
-            .formStyle(.grouped)
+            .padding()
+            .formStyle(.automatic)
 
             Divider()
 
@@ -44,5 +45,6 @@ struct DatabaseRecordEditor: View {
             }
             .padding()
         }
+        .frame(width: 400)
     }
 }

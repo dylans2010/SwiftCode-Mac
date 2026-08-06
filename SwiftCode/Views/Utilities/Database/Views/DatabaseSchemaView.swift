@@ -29,7 +29,7 @@ struct DatabaseSchemaView: View {
                     Text("Constraint & Relationship Designer").tag(1)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 450)
+                .frame(width: 420)
 
                 Spacer()
 
@@ -51,30 +51,11 @@ struct DatabaseSchemaView: View {
             Divider()
 
             if selectedTab == 0 {
-                // Interactive ER Diagram Canvas
+                // Interactive ER Diagram Canvas with simplified lightweight background grid
                 ZStack {
-                    // Background grid pattern
-                    GeometryReader { _ in
-                        Canvas { context, size in
-                            let gridWidth: CGFloat = 40
-                            var x: CGFloat = 0
-                            while x < size.width {
-                                var path = Path()
-                                path.move(to: CGPoint(x: x, y: 0))
-                                path.addLine(to: CGPoint(x: x, y: size.height))
-                                context.stroke(path, with: .color(Color.secondary.opacity(0.04)), lineWidth: 1)
-                                x += gridWidth
-                            }
-                            var y: CGFloat = 0
-                            while y < size.height {
-                                var path = Path()
-                                path.move(to: CGPoint(x: 0, y: y))
-                                path.addLine(to: CGPoint(x: size.width, y: y))
-                                context.stroke(path, with: .color(Color.secondary.opacity(0.04)), lineWidth: 1)
-                                y += gridWidth
-                            }
-                        }
-                    }
+                    Color(NSColor.controlBackgroundColor)
+                        .opacity(0.3)
+                        .ignoresSafeArea()
 
                     ScrollView([.horizontal, .vertical]) {
                         ZStack {
@@ -105,7 +86,7 @@ struct DatabaseSchemaView: View {
                             }
                         }
                         .scaleEffect(scale)
-                        .frame(width: 2000, height: 2000)
+                        .frame(width: 1500, height: 1500)
                     }
                 }
             } else {
