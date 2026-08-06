@@ -19,13 +19,19 @@ public struct AssistBuildProjectTool: AssistTool {
             let fullProjectPath = context.workspaceRoot.appendingPathComponent(projectPath).path
             let destinationPlatform = "platform=iOS Simulator,name=iPhone 15,OS=latest"
 
-            let arguments = [
+            var arguments = [
                 "-project", fullProjectPath,
                 "-scheme", scheme,
                 "-configuration", configuration,
                 "-destination", destinationPlatform,
                 "clean", "build"
             ]
+
+            if let proj = context.project,
+               let savedDests = proj.destinations,
+               let firstSDK = savedDests.first {
+                arguments.append(contentsOf: ["-sdk", firstSDK])
+            }
 
             await context.logger.info("Executing: xcodebuild \(arguments.joined(separator: " "))", toolId: id)
 

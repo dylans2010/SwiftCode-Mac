@@ -441,7 +441,18 @@ public final class XcodeBuildManager: Sendable {
         }
 
         // Add dynamically selected SDK identifier if resolved
-        let finalSDK = sdk ?? currentSDKArgument
+        var finalSDK = sdk
+        if finalSDK == nil {
+            if let activeProj = ProjectSessionStore.shared.activeProject,
+               let savedDests = activeProj.destinations,
+               let firstSDK = savedDests.first {
+                finalSDK = firstSDK
+            }
+        }
+        if finalSDK == nil {
+            finalSDK = currentSDKArgument
+        }
+
         if let sdkArg = finalSDK {
             arguments.append(contentsOf: ["-sdk", sdkArg])
             appendLog("[SYSTEM] Forcing dynamic target SDK: \(sdkArg)")

@@ -15,13 +15,19 @@ public struct BuildProjectCommand {
     ) async throws -> Bool {
         let xcodebuildURL = URL(fileURLWithPath: "/usr/bin/xcodebuild")
 
-        let args = [
+        var args = [
             "-project", projectPath,
             "-scheme", scheme,
             "-configuration", configuration,
             "-destination", destination,
             "build"
         ]
+
+        if let activeProj = ProjectSessionStore.shared.activeProject,
+           let savedDests = activeProj.destinations,
+           let firstSDK = savedDests.first {
+            args.append(contentsOf: ["-sdk", firstSDK])
+        }
 
         Self.logger.info("Starting xcodebuild with arguments: \(args.joined(separator: " "))")
 
