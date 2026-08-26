@@ -30,7 +30,7 @@ public final class ConnectProjectService: @unchecked Sendable {
                 activeScheme: p.ciBuildConfiguration?.schemeName ?? p.name,
                 activeTarget: p.name,
                 destinations: p.destinations ?? ["macOS"],
-                swiftVersion: ProjectRegistryManager.shared.registryEntries[p.id.uuidString]?.swiftVersion ?? "5.9"
+                swiftVersion: ProjectRegistryManager.shared.registryEntries.first(where: { $0.id == p.id })?.swiftVersion ?? "6.0"
             )
         } else {
             activeProjectInfo = nil
@@ -44,7 +44,7 @@ public final class ConnectProjectService: @unchecked Sendable {
                 activeScheme: p.ciBuildConfiguration?.schemeName ?? p.name,
                 activeTarget: p.name,
                 destinations: p.destinations ?? ["macOS"],
-                swiftVersion: ProjectRegistryManager.shared.registryEntries[p.id.uuidString]?.swiftVersion ?? "5.9"
+                swiftVersion: ProjectRegistryManager.shared.registryEntries.first(where: { $0.id == p.id })?.swiftVersion ?? "6.0"
             )
         }
 

@@ -32,7 +32,14 @@ public final class ConnectTerminalService: @unchecked Sendable {
         let isDangerous = payload.command.contains("rm ") || payload.command.contains("sudo ") || payload.command.contains("git reset --hard")
 
         let termTool = UseTermFunction()
-        let context = AssistContext(workspaceRoot: project.directoryURL, logger: AssistLogger(category: "ConnectTerminalService"))
+        let builder = AssistContextBuilder(
+            logger: AssistLogger(),
+            permissions: AssistPermissionsManager(),
+            memory: AssistMemoryGraph(),
+            fileSystem: AssistFileSystem(workspaceRoot: project.directoryURL),
+            git: AssistGitManager(project: project)
+        )
+        let context = builder.buildContext(sessionId: UUID())
 
         let input: [String: Any] = [
             "command": payload.command,
@@ -45,11 +52,11 @@ public final class ConnectTerminalService: @unchecked Sendable {
         do {
             let result = try await termTool.execute(input: input, context: context)
 
-            let outputPayload = ConnectTerminalOutputPayload(output: result.message, isError: !result.isSuccess)
+            let outputPayload = ConnectTerminalOutputPayload(output: result.output, isError: !result.success)
             if let respEnv = try? MessageEnvelope.encode(payload: outputPayload, type: .terminalOutput, correlationID: envelope.messageID) {
                 try? session.send(envelope: respEnv)
             }
-            if let exitEnv = try? MessageEnvelope.encode(payload: ["exitCode": result.isSuccess ? 0 : 1], type: .terminalExit, correlationID: envelope.messageID) {
+            if let exitEnv = try? MessageEnvelope.encode(payload: ["exitCode": result.success ? "0" : "1"], type: .terminalExit, correlationID: envelope.messageID) {
                 try? session.send(envelope: exitEnv)
             }
         } catch {
@@ -57,7 +64,7 @@ public final class ConnectTerminalService: @unchecked Sendable {
             if let respEnv = try? MessageEnvelope.encode(payload: outputPayload, type: .terminalOutput, correlationID: envelope.messageID) {
                 try? session.send(envelope: respEnv)
             }
-            if let exitEnv = try? MessageEnvelope.encode(payload: ["exitCode": 1], type: .terminalExit, correlationID: envelope.messageID) {
+            if let exitEnv = try? MessageEnvelope.encode(payload: ["exitCode": "1"], type: .terminalExit, correlationID: envelope.messageID) {
                 try? session.send(envelope: exitEnv)
             }
         }

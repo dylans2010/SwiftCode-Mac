@@ -35,13 +35,13 @@ public final class ConnectGitService: @unchecked Sendable {
         do {
             let status = try await GitService.shared.getStatus(for: project.directoryURL)
             let payload = ConnectGitStatusResponsePayload(
-                branch: status.branch,
-                isClean: status.isClean,
+                branch: status.branchName,
+                isClean: status.files.isEmpty,
                 ahead: status.ahead,
                 behind: status.behind,
-                modifiedFiles: status.modifiedFiles.map { $0.path.path },
+                modifiedFiles: status.files.filter { $0.status == .modified }.map { $0.path.path },
                 stagedFiles: status.stagedFiles.map { $0.path.path },
-                untrackedFiles: status.untrackedFiles.map { $0.path.path }
+                untrackedFiles: status.files.filter { $0.status == .untracked }.map { $0.path.path }
             )
             if let respEnv = try? MessageEnvelope.encode(payload: payload, type: .gitStatusResponse, correlationID: envelope.messageID) {
                 try? session.send(envelope: respEnv)

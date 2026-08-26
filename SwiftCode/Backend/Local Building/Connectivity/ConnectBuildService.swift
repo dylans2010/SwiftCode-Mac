@@ -72,12 +72,8 @@ public final class ConnectBuildService: @unchecked Sendable {
             }
 
             do {
-                let sdk = requestPayload.destinationSDK ?? project.destinations?.first ?? "macOS"
-                let success = try await XcodeBuildAPI.shared.buildProject(
-                    projectPath: project.directoryURL.path,
-                    scheme: scheme,
-                    sdk: sdk
-                )
+                let result = await XcodeBuildAPI.shared.buildProject()
+                let success = (result.status == .succeeded)
 
                 let duration = Date().timeIntervalSince(startTime)
 

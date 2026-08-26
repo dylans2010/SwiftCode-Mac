@@ -686,8 +686,6 @@
 		B1001016A1001016A1001016 /* ConnectDeviceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001016A1001016A1001016 /* ConnectDeviceService.swift */; };
 		B1001017A1001017A1001017 /* ConnectSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001017A1001017A1001017 /* ConnectSettingsView.swift */; };
 		B1001020A1001020A1001020 /* ConnectPairingApprovalSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001020A1001020A1001020 /* ConnectPairingApprovalSheet.swift */; };
-		B1001018A1001018A1001018 /* ConnectProtocolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001018A1001018A1001018 /* ConnectProtocolTests.swift */; };
-		B1001019A1001019A1001019 /* ConnectSecurityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001019A1001019A1001019 /* ConnectSecurityTests.swift */; };
 		68F23386D698EF54912C2161 /* SwiftLanguageReferenceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F9F78AC4664768CE5FAE63 /* SwiftLanguageReferenceView.swift */; };
 		690F25F62F1344E7BD3AE725 /* Models/CloudUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C227FCD245B09C22931F806C /* Models/CloudUser.swift */; };
 		69362696D7C24638945E679F /* VisualUIBindingsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36335245CF464D0EA774360E /* VisualUIBindingsPanel.swift */; };
@@ -10690,8 +10688,6 @@
 				B1001016A1001016A1001016 /* ConnectDeviceService.swift in Sources */,
 				B1001017A1001017A1001017 /* ConnectSettingsView.swift in Sources */,
 				B1001020A1001020A1001020 /* ConnectPairingApprovalSheet.swift in Sources */,
-				B1001018A1001018A1001018 /* ConnectProtocolTests.swift in Sources */,
-				B1001019A1001019A1001019 /* ConnectSecurityTests.swift in Sources */,
 				ADD023864338E7C555FAC1B3 /* CodexResponseParser.swift in Sources */,
 				02AFF64381F5BE083ABC5CD7 /* CodexErrorHandler.swift in Sources */,
 				E9BBC392DB3CE88EDE5168B5 /* CodexRequestBuilder.swift in Sources */,

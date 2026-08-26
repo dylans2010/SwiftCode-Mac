@@ -11,7 +11,7 @@ public final class ConnectServer: @unchecked Sendable {
     public private(set) var isRunning: Bool = false
 
     private let logger = Logger(subsystem: "com.swiftcode.connect", category: "ConnectServer")
-    private var messageHandlers: [ConnectMessageType: @Sendable (MessageEnvelope, ConnectionSession) async -> Void] = [:]
+    private var messageHandlers: [ConnectMessageType: @MainActor @Sendable (MessageEnvelope, ConnectionSession) async -> Void] = [:]
 
     private init() {
         registerDefaultHandlers()
@@ -52,7 +52,7 @@ public final class ConnectServer: @unchecked Sendable {
         logger.info("SwiftCode Connect Server stopped")
     }
 
-    public func registerHandler(for type: ConnectMessageType, handler: @escaping @Sendable (MessageEnvelope, ConnectionSession) async -> Void) {
+    public func registerHandler(for type: ConnectMessageType, handler: @escaping @MainActor @Sendable (MessageEnvelope, ConnectionSession) async -> Void) {
         messageHandlers[type] = handler
     }
 

@@ -30,23 +30,30 @@ public final class ConnectTestService: @unchecked Sendable {
         }
 
         let testTool = AssistTestRunnerTool()
-        let context = AssistContext(workspaceRoot: project.directoryURL, logger: AssistLogger(category: "ConnectTestService"))
+        let builder = AssistContextBuilder(
+            logger: AssistLogger(),
+            permissions: AssistPermissionsManager(),
+            memory: AssistMemoryGraph(),
+            fileSystem: AssistFileSystem(workspaceRoot: project.directoryURL),
+            git: AssistGitManager(project: project)
+        )
+        let context = builder.buildContext(sessionId: UUID())
 
         do {
             let result = try await testTool.execute(input: [:], context: context)
-            let completedPayload = [
-                "success": result.isSuccess,
-                "message": result.message
-            ] as [String : Any]
+            let completedPayload = ConnectTestCompletedPayload(
+                success: result.success,
+                message: result.output
+            )
 
             if let env = try? MessageEnvelope.encode(payload: completedPayload, type: .testCompleted, correlationID: envelope.messageID) {
                 ConnectServer.shared.broadcast(envelope: env, requiringPermission: .testsExecute)
             }
         } catch {
-            let completedPayload: [String: Any] = [
-                "success": false,
-                "message": error.localizedDescription
-            ]
+            let completedPayload = ConnectTestCompletedPayload(
+                success: false,
+                message: error.localizedDescription
+            )
             if let env = try? MessageEnvelope.encode(payload: completedPayload, type: .testCompleted, correlationID: envelope.messageID) {
                 ConnectServer.shared.broadcast(envelope: env, requiringPermission: .testsExecute)
             }

@@ -303,3 +303,41 @@ public struct ConnectFileListResponsePayload: Codable, Sendable {
         self.files = files
     }
 }
+
+// Devices & Testing
+public struct ConnectDeviceItem: Codable, Sendable {
+    public let id: String
+    public let name: String
+    public let model: String
+    public let platform: String
+    public let osVersion: String
+    public let isConnected: Bool
+
+    public init(id: String, name: String, model: String, platform: String, osVersion: String, isConnected: Bool) {
+        self.id = id
+        self.name = name
+        self.model = model
+        self.platform = platform
+        self.osVersion = osVersion
+        self.isConnected = isConnected
+    }
+}
+
+public struct ConnectDeviceListResponsePayload: Codable, Sendable {
+    public let devices: [ConnectDeviceItem]
+
+    public init(devices: [ConnectDeviceItem]) {
+        self.devices = devices
+    }
+}
+
+public struct ConnectTestCompletedPayload: Codable, Sendable {
+    public let success: Bool
+    public let message: String
+
+    public init(success: Bool, message: String) {
+        self.success = success
+        self.message = message
+    }
+}
+

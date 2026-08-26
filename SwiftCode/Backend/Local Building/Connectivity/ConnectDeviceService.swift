@@ -20,18 +20,18 @@ public final class ConnectDeviceService: @unchecked Sendable {
 
     private func handleDeviceListRequest(envelope: MessageEnvelope, session: ConnectionSession) async {
         let devices = DeviceManager.shared.devices.map { device in
-            [
-                "id": device.id,
-                "name": device.name,
-                "model": device.model,
-                "platform": device.platform.rawValue,
-                "osVersion": device.osVersion,
-                "isSimulated": "\(device.isSimulated)",
-                "state": device.state.rawValue
-            ]
+            ConnectDeviceItem(
+                id: device.id,
+                name: device.name,
+                model: device.model,
+                platform: device.platform,
+                osVersion: device.osVersion,
+                isConnected: device.isConnected
+            )
         }
 
-        if let respEnv = try? MessageEnvelope.encode(payload: ["devices": devices], type: .deviceListResponse, correlationID: envelope.messageID) {
+        let payload = ConnectDeviceListResponsePayload(devices: devices)
+        if let respEnv = try? MessageEnvelope.encode(payload: payload, type: .deviceListResponse, correlationID: envelope.messageID) {
             try? session.send(envelope: respEnv)
         }
     }
