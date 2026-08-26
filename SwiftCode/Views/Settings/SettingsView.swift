@@ -639,6 +639,16 @@ private let settingsRegistryList: [SettingsItem] = [
         helpDoc: "Create and apply point-in-time snapshot archives of all settings, templates, project files, and user histories."
     ),
     SettingsItem(
+        id: "connect_host",
+        title: "SwiftCode Connect",
+        icon: "iphone.radiowaves.left.and.right",
+        iconBgColor: .blue,
+        category: "System",
+        sortOrder: 19,
+        keywords: "connect host remote pairing ios mac pairing server bonjour trust security bluetooth network discovery permissions",
+        helpDoc: "Manage remote SwiftCode Connect iOS paired devices, network advertising, trust store credentials, and granular server execution permissions."
+    ),
+    SettingsItem(
         id: "ai_assist",
         title: "AI & Assist",
         icon: "sparkles",
@@ -815,6 +825,8 @@ struct SettingsMainWrapper: View {
             CloudManagementView()
         case "backups":
             BackupsView()
+        case "connect_host":
+            ConnectSettingsView()
         case "ai_assist":
             AssistSettingsView()
         case "offline_models":
