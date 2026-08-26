@@ -151,10 +151,17 @@ public enum ConnectErrorCode: String, Codable, Sendable {
 }
 
 /// Structured Error Payload returned in `errorResponse`.
-public struct ConnectErrorPayload: Codable, Sendable, Equatable {
+public struct ConnectErrorPayload: Codable, Sendable, Equatable, LocalizedError {
     public let code: String
     public let message: String
     public let details: String?
+
+    public var errorDescription: String? {
+        if let details = details {
+            return "\(message) (\(details))"
+        }
+        return message
+    }
 
     public init(code: String, message: String, details: String? = nil) {
         self.code = code

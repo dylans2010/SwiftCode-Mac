@@ -99,7 +99,25 @@ public final class BonjourAdvertiser: @unchecked Sendable {
 
         // Await socket binding state confirmation
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            var hasResumed = false
+            final class ResumeState: @unchecked Sendable {
+                var hasResumed = false
+                let continuation: CheckedContinuation<Void, Error>
+                init(continuation: CheckedContinuation<Void, Error>) {
+                    self.continuation = continuation
+                }
+                func resume() {
+                    guard !hasResumed else { return }
+                    hasResumed = true
+                    continuation.resume()
+                }
+                func resume(throwing error: Error) {
+                    guard !hasResumed else { return }
+                    hasResumed = true
+                    continuation.resume(throwing: error)
+                }
+            }
+
+            let resumeState = ResumeState(continuation: continuation)
 
             newListener.stateUpdateHandler = { [weak self] listenerState in
                 Task { @MainActor in
@@ -111,26 +129,18 @@ public final class BonjourAdvertiser: @unchecked Sendable {
                         self.isAdvertising = true
                         self.state = .advertising(port: boundPort)
                         self.logger.info("SwiftCode Connect Bonjour advertiser successfully ready on port \(boundPort)")
-
-                        if !hasResumed {
-                            hasResumed = true
-                            continuation.resume()
-                        }
+                        resumeState.resume()
 
                     case .failed(let error):
                         let errorMsg = "SwiftCode could not listen on port \(port). The port may already be in use."
                         self.logger.error("NWListener failed on port \(port): \(error.localizedDescription)")
                         self.stopAdvertising()
                         self.state = .failed(errorMsg)
-
-                        if !hasResumed {
-                            hasResumed = true
-                            continuation.resume(throwing: ConnectErrorPayload(
-                                errorCode: .portUnavailable,
-                                message: errorMsg,
-                                details: error.localizedDescription
-                            ))
-                        }
+                        resumeState.resume(throwing: ConnectErrorPayload(
+                            errorCode: .portUnavailable,
+                            message: errorMsg,
+                            details: error.localizedDescription
+                        ))
 
                     case .cancelled:
                         self.isAdvertising = false
@@ -145,7 +155,9 @@ public final class BonjourAdvertiser: @unchecked Sendable {
             }
 
             newListener.newConnectionHandler = { [weak self] connection in
-                self?.connectionHandler?(connection)
+                Task { @MainActor [weak self] in
+                    self?.connectionHandler?(connection)
+                }
             }
 
             newListener.start(queue: .global(qos: .userInitiated))

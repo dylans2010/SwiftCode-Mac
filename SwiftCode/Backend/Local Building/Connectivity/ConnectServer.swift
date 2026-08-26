@@ -162,8 +162,26 @@ public final class ConnectServer: @unchecked Sendable {
 
         activeSessions.append(session)
 
-        return try await withCheckedThrowingContinuation { continuation in
-            var hasResumed = false
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ConnectionSession, Error>) in
+            final class ResumeState: @unchecked Sendable {
+                var hasResumed = false
+                let continuation: CheckedContinuation<ConnectionSession, Error>
+                init(continuation: CheckedContinuation<ConnectionSession, Error>) {
+                    self.continuation = continuation
+                }
+                func resume(returning session: ConnectionSession) {
+                    guard !hasResumed else { return }
+                    hasResumed = true
+                    continuation.resume(returning: session)
+                }
+                func resume(throwing error: Error) {
+                    guard !hasResumed else { return }
+                    hasResumed = true
+                    continuation.resume(throwing: error)
+                }
+            }
+
+            let resumeState = ResumeState(continuation: continuation)
 
             session.start { [weak self] envelope, activeSession in
                 Task { @MainActor in
@@ -194,24 +212,18 @@ public final class ConnectServer: @unchecked Sendable {
                             try? session.send(envelope: env)
                         }
 
-                        if !hasResumed {
-                            hasResumed = true
-                            continuation.resume(returning: session)
-                        }
+                        resumeState.resume(returning: session)
 
                     case .failed(let error):
                         self.logger.error("Outbound connection to \(host):\(port) failed: \(error.localizedDescription)")
                         session.state = .failed
                         self.activeSessions.removeAll(where: { $0.id == session.id })
 
-                        if !hasResumed {
-                            hasResumed = true
-                            continuation.resume(throwing: ConnectErrorPayload(
-                                errorCode: .connectionRefused,
-                                message: "The iOS device was reached, but no SwiftCode Connect listener accepted the connection.",
-                                details: error.localizedDescription
-                            ))
-                        }
+                        resumeState.resume(throwing: ConnectErrorPayload(
+                            errorCode: .connectionRefused,
+                            message: "The iOS device was reached, but no SwiftCode Connect listener accepted the connection.",
+                            details: error.localizedDescription
+                        ))
 
                     default:
                         break
@@ -268,11 +280,15 @@ public final class ConnectServer: @unchecked Sendable {
         }
     }
 
-    public func sendError(errorCode: ConnectErrorCode, message: String, details: String? = nil, correlationID: String?, on session: ConnectionSession) {
-        let errorPayload = ConnectErrorPayload(errorCode: errorCode, message: message, details: details)
+    public func sendError(code: String, message: String, details: String? = nil, correlationID: String?, on session: ConnectionSession) {
+        let errorPayload = ConnectErrorPayload(code: code, message: message, details: details)
         if let envelope = try? MessageEnvelope.encode(payload: errorPayload, type: .errorResponse, correlationID: correlationID) {
             try? session.send(envelope: envelope)
         }
+    }
+
+    public func sendError(errorCode: ConnectErrorCode, message: String, details: String? = nil, correlationID: String?, on session: ConnectionSession) {
+        sendError(code: errorCode.rawValue, message: message, details: details, correlationID: correlationID, on: session)
     }
 
     public func broadcast(envelope: MessageEnvelope, requiringPermission permission: ConnectPermission? = nil) {
