@@ -15,10 +15,9 @@ public final class ConnectServer: @unchecked Sendable {
 
     private init() {
         registerDefaultHandlers()
-        registerAllServices()
     }
 
-    private func registerAllServices() {
+    private func ensureServicesRegistered() {
         ConnectProjectService.shared.registerHandlers()
         ConnectGitService.shared.registerHandlers()
         ConnectBuildService.shared.registerHandlers()
@@ -32,6 +31,7 @@ public final class ConnectServer: @unchecked Sendable {
 
     public func startServer(port: UInt16 = 8088) {
         guard !isRunning else { return }
+        ensureServicesRegistered()
         isRunning = true
 
         BonjourAdvertiser.shared.startAdvertising(port: port) { [weak self] connection in
