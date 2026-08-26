@@ -36,4 +36,33 @@ final class ConnectProtocolTests: XCTestCase {
         XCTAssertEqual(decoded.sessionToken, "token-abc")
         XCTAssertEqual(decoded.capabilities.count, ConnectCapability.allCases.count)
     }
+
+    func testSyncStatePayloadEncodingAndDecoding() throws {
+        let project = ConnectProjectInfo(
+            id: "proj-123",
+            name: "SwiftCode",
+            path: "/path/to/project",
+            activeScheme: "SwiftCode",
+            activeTarget: "SwiftCode",
+            destinations: ["macOS"],
+            swiftVersion: "6.0"
+        )
+
+        let syncPayload = ConnectSyncStatePayload(
+            activeProject: project,
+            availableProjects: [project],
+            gitStatus: nil,
+            currentBuildState: "idle",
+            capabilities: ConnectCapability.allCases,
+            permissions: ConnectPermission.allCases
+        )
+
+        let envelope = try MessageEnvelope.encode(payload: syncPayload, type: .syncStateResponse)
+        let decoded = try envelope.decodePayload(ConnectSyncStatePayload.self)
+
+        XCTAssertEqual(decoded.activeProject?.name, "SwiftCode")
+        XCTAssertEqual(decoded.availableProjects.count, 1)
+        XCTAssertEqual(decoded.currentBuildState, "idle")
+        XCTAssertEqual(decoded.capabilities.count, ConnectCapability.allCases.count)
+    }
 }

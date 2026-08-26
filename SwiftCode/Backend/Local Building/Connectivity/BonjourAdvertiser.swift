@@ -2,6 +2,13 @@ import Foundation
 import Network
 import os.log
 
+public enum AdvertiserState: Equatable, Sendable {
+    case stopped
+    case starting
+    case advertising(port: UInt16)
+    case failed(String)
+}
+
 @Observable
 @MainActor
 public final class BonjourAdvertiser: @unchecked Sendable {
@@ -9,78 +16,177 @@ public final class BonjourAdvertiser: @unchecked Sendable {
 
     public private(set) var isAdvertising: Bool = false
     public private(set) var advertisedPort: UInt16?
-    public private(set) var macName: String = Host.current().localizedName ?? "Mac"
+    public private(set) var state: AdvertiserState = .stopped
+    public private(set) var macName: String = Host.current().localizedName ?? "SwiftCode Mac"
+    public private(set) var deviceID: String = {
+        let key = "com.swiftcode.connect.mac_device_id"
+        if let existing = UserDefaults.standard.string(forKey: key) {
+            return existing
+        }
+        let newID = UUID().uuidString
+        UserDefaults.standard.set(newID, forKey: key)
+        return newID
+    }()
 
     private let logger = Logger(subsystem: "com.swiftcode.connect", category: "BonjourAdvertiser")
     private var listener: NWListener?
+    private var connectionHandler: (@Sendable (NWConnection) -> Void)?
 
     private init() {}
 
-    public func startAdvertising(port: UInt16 = 8088, onConnectionHandler: (@Sendable (NWConnection) -> Void)? = nil) {
-        guard !isAdvertising else { return }
+    public func startAdvertising(
+        port: UInt16 = ConnectProtocol.defaultPort,
+        onConnectionHandler: (@Sendable (NWConnection) -> Void)? = nil
+    ) async throws {
+        if let onConnectionHandler = onConnectionHandler {
+            self.connectionHandler = onConnectionHandler
+        }
 
+        // If already advertising on this exact port, no need to restart
+        if isAdvertising && advertisedPort == port {
+            return
+        }
+
+        // Stop existing listener before binding to new port
+        stopAdvertising()
+
+        guard ConnectProtocol.validPortRange.contains(port) else {
+            let errorMsg = "Port \(port) is outside the valid range (\(ConnectProtocol.validPortRange.lowerBound)-\(ConnectProtocol.validPortRange.upperBound))."
+            self.state = .failed(errorMsg)
+            logger.error("\(errorMsg)")
+            throw ConnectErrorPayload(errorCode: .invalidPort, message: errorMsg)
+        }
+
+        state = .starting
+        let currentMacName = Host.current().localizedName ?? "SwiftCode Mac"
+        self.macName = currentMacName
+
+        let nwPort = NWEndpoint.Port(rawValue: port) ?? NWEndpoint.Port.any
+        let parameters = NWParameters.tcp
+        parameters.allowLocalEndpointReuse = true
+        parameters.includePeerToPeer = true
+
+        let newListener: NWListener
         do {
-            let nwPort = NWEndpoint.Port(rawValue: port) ?? NWEndpoint.Port.any
-            let parameters = NWParameters.tcp
+            newListener = try NWListener(using: parameters, on: nwPort)
+        } catch {
+            let errorMsg = "SwiftCode could not listen on port \(port). The port may already be in use."
+            self.state = .failed(errorMsg)
+            logger.error("Failed to initialize NWListener on port \(port): \(error.localizedDescription)")
+            throw ConnectErrorPayload(errorCode: .portUnavailable, message: errorMsg, details: error.localizedDescription)
+        }
 
-            let listener = try NWListener(using: parameters, on: nwPort)
+        let capsString = ConnectCapability.allCases.map { $0.rawValue }.joined(separator: ",")
+        let txtRecord = NWTXTRecord([
+            "txtvers": "1",
+            "proto": "\(ConnectProtocolVersion.current)",
+            "deviceName": currentMacName,
+            "deviceID": deviceID,
+            "deviceType": ConnectDeviceType.macOS.rawValue,
+            "port": "\(port)",
+            "caps": capsString,
+            "appVers": ConnectProtocol.currentAppVersion
+        ])
 
-            // Configure Bonjour Service Discovery Metadata
-            let macName = Host.current().localizedName ?? "SwiftCode Mac"
-            self.macName = macName
+        newListener.service = NWListener.Service(
+            name: currentMacName,
+            type: ConnectProtocol.serviceType,
+            domain: nil,
+            txtRecord: txtRecord
+        )
 
-            let txtRecord = NWTXTRecord([
-                "txtvers": "1",
-                "proto": "\(ConnectProtocolVersion.current)",
-                "macName": macName,
-                "appVers": "1.0"
-            ])
+        self.listener = newListener
 
-            listener.service = NWListener.Service(
-                name: macName,
-                type: "_swiftcodeconnect._tcp",
-                domain: nil,
-                txtRecord: txtRecord
-            )
+        // Await socket binding state confirmation
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            var hasResumed = false
 
-            listener.stateUpdateHandler = { [weak self] state in
+            newListener.stateUpdateHandler = { [weak self] listenerState in
                 Task { @MainActor in
-                    switch state {
+                    guard let self = self else { return }
+                    switch listenerState {
                     case .ready:
-                        if let assignedPort = listener.port?.rawValue {
-                            self?.advertisedPort = assignedPort
-                            self?.isAdvertising = true
-                            self?.logger.info("Bonjour service successfully advertising on port \(assignedPort)")
+                        let boundPort = newListener.port?.rawValue ?? port
+                        self.advertisedPort = boundPort
+                        self.isAdvertising = true
+                        self.state = .advertising(port: boundPort)
+                        self.logger.info("SwiftCode Connect Bonjour advertiser successfully ready on port \(boundPort)")
+
+                        if !hasResumed {
+                            hasResumed = true
+                            continuation.resume()
                         }
+
                     case .failed(let error):
-                        self?.logger.error("Bonjour listener failed: \(error.localizedDescription)")
-                        self?.stopAdvertising()
+                        let errorMsg = "SwiftCode could not listen on port \(port). The port may already be in use."
+                        self.logger.error("NWListener failed on port \(port): \(error.localizedDescription)")
+                        self.stopAdvertising()
+                        self.state = .failed(errorMsg)
+
+                        if !hasResumed {
+                            hasResumed = true
+                            continuation.resume(throwing: ConnectErrorPayload(
+                                errorCode: .portUnavailable,
+                                message: errorMsg,
+                                details: error.localizedDescription
+                            ))
+                        }
+
                     case .cancelled:
-                        self?.isAdvertising = false
-                        self?.advertisedPort = nil
+                        self.isAdvertising = false
+                        self.advertisedPort = nil
+                        self.state = .stopped
+                        self.logger.info("NWListener cancelled on port \(port)")
+
                     default:
                         break
                     }
                 }
             }
 
-            listener.newConnectionHandler = { connection in
-                onConnectionHandler?(connection)
+            newListener.newConnectionHandler = { [weak self] connection in
+                self?.connectionHandler?(connection)
             }
 
-            self.listener = listener
-            listener.start(queue: .global(qos: .userInitiated))
-
-        } catch {
-            logger.error("Failed to initialize NWListener: \(error.localizedDescription)")
+            newListener.start(queue: .global(qos: .userInitiated))
         }
     }
 
     public func stopAdvertising() {
+        listener?.stateUpdateHandler = nil
+        listener?.newConnectionHandler = nil
         listener?.cancel()
         listener = nil
         isAdvertising = false
         advertisedPort = nil
-        logger.info("Bonjour service stopped advertising")
+        state = .stopped
+        logger.info("SwiftCode Connect Bonjour advertiser stopped")
+    }
+
+    public func updateAdvertisedMetadata() {
+        guard let listener = listener, isAdvertising, let port = advertisedPort else { return }
+
+        let currentMacName = Host.current().localizedName ?? "SwiftCode Mac"
+        self.macName = currentMacName
+
+        let capsString = ConnectCapability.allCases.map { $0.rawValue }.joined(separator: ",")
+        let txtRecord = NWTXTRecord([
+            "txtvers": "1",
+            "proto": "\(ConnectProtocolVersion.current)",
+            "deviceName": currentMacName,
+            "deviceID": deviceID,
+            "deviceType": ConnectDeviceType.macOS.rawValue,
+            "port": "\(port)",
+            "caps": capsString,
+            "appVers": ConnectProtocol.currentAppVersion
+        ])
+
+        listener.service = NWListener.Service(
+            name: currentMacName,
+            type: ConnectProtocol.serviceType,
+            domain: nil,
+            txtRecord: txtRecord
+        )
+        logger.info("Updated Bonjour TXT metadata for port \(port)")
     }
 }

@@ -51,6 +51,122 @@ public struct MessageEnvelope: Codable, Sendable {
     }
 }
 
+// MARK: - Handshake & Port Payloads
+
+public struct ConnectHandshakePayload: Codable, Sendable {
+    public let deviceID: String
+    public let deviceType: ConnectDeviceType
+    public let deviceName: String
+    public let protocolVersion: Int
+    public let appVersion: String
+    public let supportedCapabilities: [ConnectCapability]
+    public let listeningPort: UInt16?
+
+    public init(
+        deviceID: String,
+        deviceType: ConnectDeviceType,
+        deviceName: String,
+        protocolVersion: Int = ConnectProtocolVersion.current,
+        appVersion: String = ConnectProtocol.currentAppVersion,
+        supportedCapabilities: [ConnectCapability] = ConnectCapability.allCases,
+        listeningPort: UInt16? = nil
+    ) {
+        self.deviceID = deviceID
+        self.deviceType = deviceType
+        self.deviceName = deviceName
+        self.protocolVersion = protocolVersion
+        self.appVersion = appVersion
+        self.supportedCapabilities = supportedCapabilities
+        self.listeningPort = listeningPort
+    }
+}
+
+public struct ConnectHandshakeResponsePayload: Codable, Sendable {
+    public let accepted: Bool
+    public let deviceID: String
+    public let deviceType: ConnectDeviceType
+    public let deviceName: String
+    public let protocolVersion: Int
+    public let appVersion: String
+    public let supportedCapabilities: [ConnectCapability]
+    public let listeningPort: UInt16?
+    public let errorMessage: String?
+
+    public init(
+        accepted: Bool,
+        deviceID: String,
+        deviceType: ConnectDeviceType,
+        deviceName: String,
+        protocolVersion: Int = ConnectProtocolVersion.current,
+        appVersion: String = ConnectProtocol.currentAppVersion,
+        supportedCapabilities: [ConnectCapability] = ConnectCapability.allCases,
+        listeningPort: UInt16? = nil,
+        errorMessage: String? = nil
+    ) {
+        self.accepted = accepted
+        self.deviceID = deviceID
+        self.deviceType = deviceType
+        self.deviceName = deviceName
+        self.protocolVersion = protocolVersion
+        self.appVersion = appVersion
+        self.supportedCapabilities = supportedCapabilities
+        self.listeningPort = listeningPort
+        self.errorMessage = errorMessage
+    }
+}
+
+public struct ConnectPortUpdateNoticePayload: Codable, Sendable {
+    public let deviceID: String
+    public let newPort: UInt16
+    public let timestamp: Date
+
+    public init(deviceID: String, newPort: UInt16, timestamp: Date = Date()) {
+        self.deviceID = deviceID
+        self.newPort = newPort
+        self.timestamp = timestamp
+    }
+}
+
+public struct ConnectDisconnectNoticePayload: Codable, Sendable {
+    public let deviceID: String
+    public let reason: String
+
+    public init(deviceID: String, reason: String) {
+        self.deviceID = deviceID
+        self.reason = reason
+    }
+}
+
+// MARK: - State Synchronization Payloads
+
+public struct ConnectSyncStatePayload: Codable, Sendable {
+    public let activeProject: ConnectProjectInfo?
+    public let availableProjects: [ConnectProjectInfo]
+    public let gitStatus: ConnectGitStatusResponsePayload?
+    public let currentBuildState: String
+    public let capabilities: [ConnectCapability]
+    public let permissions: [ConnectPermission]
+    public let serverTime: Date
+
+    public init(
+        activeProject: ConnectProjectInfo?,
+        availableProjects: [ConnectProjectInfo],
+        gitStatus: ConnectGitStatusResponsePayload?,
+        currentBuildState: String,
+        capabilities: [ConnectCapability],
+        permissions: [ConnectPermission],
+        serverTime: Date = Date()
+    ) {
+        self.activeProject = activeProject
+        self.availableProjects = availableProjects
+        self.gitStatus = gitStatus
+        self.currentBuildState = currentBuildState
+        self.capabilities = capabilities
+        self.permissions = permissions
+        self.serverTime = serverTime
+    }
+}
+
 // MARK: - Specific Payload Structures
 
 // Handshake & Auth
@@ -117,7 +233,7 @@ public struct ConnectAuthResponsePayload: Codable, Sendable {
 }
 
 // Project & Git
-public struct ConnectProjectInfo: Codable, Sendable {
+public struct ConnectProjectInfo: Codable, Sendable, Equatable {
     public let id: String
     public let name: String
     public let path: String
@@ -147,7 +263,7 @@ public struct ConnectProjectResponsePayload: Codable, Sendable {
     }
 }
 
-public struct ConnectGitStatusResponsePayload: Codable, Sendable {
+public struct ConnectGitStatusResponsePayload: Codable, Sendable, Equatable {
     public let branch: String
     public let isClean: Bool
     public let ahead: Int
@@ -340,4 +456,3 @@ public struct ConnectTestCompletedPayload: Codable, Sendable {
         self.message = message
     }
 }
-

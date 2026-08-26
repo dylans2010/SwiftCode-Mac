@@ -19,31 +19,42 @@ struct ConnectPairingApprovalSheet: View {
                     .font(.title2)
                     .bold()
 
-                VStack(spacing: 4) {
+                VStack(spacing: 6) {
                     Text(request.deviceName)
                         .font(.headline)
-                    Text("\(request.deviceModel) • Code: \(request.verificationCode)")
+                    Text("\(request.deviceModel) • SwiftCode iOS")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+
+                    Divider()
+                        .padding(.vertical, 4)
+
+                    Text("Pairing Code")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text(request.verificationCode)
+                        .font(.system(size: 28, weight: .bold, design: .monospaced))
+                        .foregroundColor(.primary)
                 }
                 .padding()
                 .frame(maxWidth: .infinity)
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(8)
 
-                Text("Wants to connect to SwiftCode macOS as an authoritative controller.")
-                    .font(.caption)
+                Text("Does this code match the iPhone?")
+                    .font(.subheadline)
                     .multilineTextAlignment(.center)
                     .foregroundColor(.secondary)
 
                 HStack(spacing: 12) {
-                    Button("Decline") {
+                    Button("Reject") {
                         pairingManager.declinePairing()
                     }
                     .keyboardShortcut(.cancelAction)
                     .buttonStyle(.bordered)
 
-                    Button("Allow & Trust") {
+                    Button("Approve") {
                         pairingManager.approvePairing()
                     }
                     .keyboardShortcut(.defaultAction)

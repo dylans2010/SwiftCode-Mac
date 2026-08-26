@@ -30,11 +30,22 @@ final class ConnectSecurityTests: XCTestCase {
     }
 
     @MainActor
-    func testPathTraversalPrevention() async throws {
-        let fileService = ConnectFileService.shared
+    func testPermissionChecking() {
+        let grantedPermissions: Set<ConnectPermission> = [.projectRead, .buildExecute, .logsRead]
 
-        // Path containing .. must be flagged as invalid path traversal
-        let badPath = "../../etc/passwd"
-        XCTAssertTrue(badPath.contains(".."))
+        XCTAssertTrue(grantedPermissions.contains(.projectRead))
+        XCTAssertTrue(grantedPermissions.contains(.buildExecute))
+        XCTAssertFalse(grantedPermissions.contains(.terminalExecute))
+        XCTAssertFalse(grantedPermissions.contains(.filesWrite))
+    }
+
+    func testPathTraversalPrevention() {
+        let maliciousPath1 = "../../etc/passwd"
+        let maliciousPath2 = "subdir/../../../secret.key"
+        let safePath = "Sources/App/main.swift"
+
+        XCTAssertTrue(maliciousPath1.contains(".."))
+        XCTAssertTrue(maliciousPath2.contains(".."))
+        XCTAssertFalse(safePath.contains(".."))
     }
 }

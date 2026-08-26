@@ -686,6 +686,11 @@
 		B1001016A1001016A1001016 /* ConnectDeviceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001016A1001016A1001016 /* ConnectDeviceService.swift */; };
 		B1001017A1001017A1001017 /* ConnectSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001017A1001017A1001017 /* ConnectSettingsView.swift */; };
 		B1001020A1001020A1001020 /* ConnectPairingApprovalSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001020A1001020A1001020 /* ConnectPairingApprovalSheet.swift */; };
+		B1001021A1001021A1001021 /* DiscoveredIOSDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001021A1001021A1001021 /* DiscoveredIOSDevice.swift */; };
+		B1001022A1001022A1001022 /* IOSDiscoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001022A1001022A1001022 /* IOSDiscoveryService.swift */; };
+		B1001023A1001023A1001023 /* ConnectDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001023A1001023A1001023 /* ConnectDiagnostics.swift */; };
+		B1001024A1001024A1001024 /* ConnectDiscoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001024A1001024A1001024 /* ConnectDiscoveryTests.swift */; };
+		B1001025A1001025A1001025 /* ConnectPortTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001025A1001025A1001025 /* ConnectPortTests.swift */; };
 		68F23386D698EF54912C2161 /* SwiftLanguageReferenceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F9F78AC4664768CE5FAE63 /* SwiftLanguageReferenceView.swift */; };
 		690F25F62F1344E7BD3AE725 /* Models/CloudUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C227FCD245B09C22931F806C /* Models/CloudUser.swift */; };
 		69362696D7C24638945E679F /* VisualUIBindingsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36335245CF464D0EA774360E /* VisualUIBindingsPanel.swift */; };
@@ -3753,6 +3758,11 @@
 		C1001020A1001020A1001020 /* ConnectPairingApprovalSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Settings/ConnectPairingApprovalSheet.swift; sourceTree = SOURCE_ROOT; };
 		C1001018A1001018A1001018 /* ConnectProtocolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectProtocolTests.swift; sourceTree = "<group>"; };
 		C1001019A1001019A1001019 /* ConnectSecurityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectSecurityTests.swift; sourceTree = "<group>"; };
+		C1001021A1001021A1001021 /* DiscoveredIOSDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveredIOSDevice.swift; sourceTree = "<group>"; };
+		C1001022A1001022A1001022 /* IOSDiscoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSDiscoveryService.swift; sourceTree = "<group>"; };
+		C1001023A1001023A1001023 /* ConnectDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectDiagnostics.swift; sourceTree = "<group>"; };
+		C1001024A1001024A1001024 /* ConnectDiscoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectDiscoveryTests.swift; sourceTree = "<group>"; };
+		C1001025A1001025A1001025 /* ConnectPortTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectPortTests.swift; sourceTree = "<group>"; };
 		C678B8B475054AEAB5EA204F /* ReleasesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleasesView.swift; sourceTree = "<group>"; };
 		C6E31F24089DAC97BEE9EBFA /* ProjectTreeRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectTreeRowView.swift; sourceTree = "<group>"; };
 		C7370D2FC4DD8416F197DFA5 /* CharacterEscaperDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterEscaperDevToolView.swift; sourceTree = "<group>"; };
@@ -8388,6 +8398,11 @@
 				C1001016A1001016A1001016 /* ConnectDeviceService.swift */,
 				C1001018A1001018A1001018 /* ConnectProtocolTests.swift */,
 				C1001019A1001019A1001019 /* ConnectSecurityTests.swift */,
+				C1001021A1001021A1001021 /* DiscoveredIOSDevice.swift */,
+				C1001022A1001022A1001022 /* IOSDiscoveryService.swift */,
+				C1001023A1001023A1001023 /* ConnectDiagnostics.swift */,
+				C1001024A1001024A1001024 /* ConnectDiscoveryTests.swift */,
+				C1001025A1001025A1001025 /* ConnectPortTests.swift */,
 			);
 			path = Connectivity;
 			sourceTree = "<group>";
@@ -10688,6 +10703,11 @@
 				B1001016A1001016A1001016 /* ConnectDeviceService.swift in Sources */,
 				B1001017A1001017A1001017 /* ConnectSettingsView.swift in Sources */,
 				B1001020A1001020A1001020 /* ConnectPairingApprovalSheet.swift in Sources */,
+				B1001021A1001021A1001021 /* DiscoveredIOSDevice.swift in Sources */,
+				B1001022A1001022A1001022 /* IOSDiscoveryService.swift in Sources */,
+				B1001023A1001023A1001023 /* ConnectDiagnostics.swift in Sources */,
+				B1001024A1001024A1001024 /* ConnectDiscoveryTests.swift in Sources */,
+				B1001025A1001025A1001025 /* ConnectPortTests.swift in Sources */,
 				ADD023864338E7C555FAC1B3 /* CodexResponseParser.swift in Sources */,
 				02AFF64381F5BE083ABC5CD7 /* CodexErrorHandler.swift in Sources */,
 				E9BBC392DB3CE88EDE5168B5 /* CodexRequestBuilder.swift in Sources */,

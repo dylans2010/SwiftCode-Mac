@@ -5,6 +5,21 @@ public enum ConnectProtocolVersion {
     public static let current: Int = 1
 }
 
+/// Constants and defaults for SwiftCode Connect.
+public enum ConnectProtocol {
+    public static let defaultPort: UInt16 = 47123
+    public static let serviceType: String = "_swiftcodeconnect._tcp"
+    public static let validPortRange: ClosedRange<UInt16> = 1024...65535
+    public static let protocolName: String = "SwiftCode Connect"
+    public static let currentAppVersion: String = "1.0"
+}
+
+/// Device classification types participating in SwiftCode Connect.
+public enum ConnectDeviceType: String, Codable, CaseIterable, Sendable {
+    case macOS = "macOS"
+    case iOS = "iOS"
+}
+
 /// Strongly-typed permission string constants for SwiftCode Connect.
 public enum ConnectPermission: String, Codable, CaseIterable, Sendable {
     case projectRead = "project.read"
@@ -38,14 +53,22 @@ public enum ConnectCapability: String, Codable, CaseIterable, Sendable {
 /// Message categories and types supported by SwiftCode Connect V1.
 public enum ConnectMessageType: String, Codable, Sendable {
     // Handshake & Authentication
+    case handshake = "handshake"
+    case handshakeResponse = "handshake_response"
     case pairingRequest = "pairing_request"
     case pairingResponse = "pairing_response"
     case authRequest = "auth_request"
     case authResponse = "auth_response"
     case ping = "ping"
     case pong = "pong"
+    case disconnectNotice = "disconnect_notice"
 
-    // Project & Workspace
+    // Port & Endpoint Synchronization
+    case portUpdateNotice = "port_update_notice"
+
+    // Project & Workspace State Synchronization
+    case syncStateRequest = "sync_state_request"
+    case syncStateResponse = "sync_state_response"
     case projectRequest = "project_request"
     case projectResponse = "project_response"
 
@@ -110,14 +133,37 @@ public enum ConnectMessageType: String, Codable, Sendable {
     case errorResponse = "error_response"
 }
 
+/// Standardized error codes for SwiftCode Connect.
+public enum ConnectErrorCode: String, Codable, Sendable {
+    case portUnavailable = "PORT_UNAVAILABLE"
+    case connectionRefused = "CONNECTION_REFUSED"
+    case timeout = "TIMEOUT"
+    case authenticationFailed = "AUTH_FAILED"
+    case protocolMismatch = "PROTOCOL_MISMATCH"
+    case permissionDenied = "PERMISSION_DENIED"
+    case deviceUnavailable = "DEVICE_UNAVAILABLE"
+    case invalidPort = "INVALID_PORT"
+    case invalidDeviceType = "INVALID_DEVICE_TYPE"
+    case badRequest = "BAD_REQUEST"
+    case unauthorized = "UNAUTHORIZED"
+    case notSupported = "NOT_SUPPORTED"
+    case internalError = "INTERNAL_ERROR"
+}
+
 /// Structured Error Payload returned in `errorResponse`.
-public struct ConnectErrorPayload: Codable, Sendable {
+public struct ConnectErrorPayload: Codable, Sendable, Equatable {
     public let code: String
     public let message: String
     public let details: String?
 
     public init(code: String, message: String, details: String? = nil) {
         self.code = code
+        self.message = message
+        self.details = details
+    }
+
+    public init(errorCode: ConnectErrorCode, message: String, details: String? = nil) {
+        self.code = errorCode.rawValue
         self.message = message
         self.details = details
     }
