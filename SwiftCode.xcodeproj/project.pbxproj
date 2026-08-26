@@ -1137,7 +1137,6 @@
 		B1001021A1001021A1001021 /* DiscoveredIOSDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001021A1001021A1001021 /* DiscoveredIOSDevice.swift */; };
 		B1001022A1001022A1001022 /* IOSDiscoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001022A1001022A1001022 /* IOSDiscoveryService.swift */; };
 		B1001023A1001023A1001023 /* ConnectDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001023A1001023A1001023 /* ConnectDiagnostics.swift */; };
-		B1001025A1001025A1001025 /* ConnectPortTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001025A1001025A1001025 /* ConnectPortTests.swift */; };
 		B11D5AFA1EB930DB9525EE82 /* Views/DatabaseSchemaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 278075581878437A92D16FBE /* Views/DatabaseSchemaView.swift */; };
 		B1234426F607F7AF6FFF09D1 /* StringLengthCounterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FFAA4B4EA227078FB7812B3 /* StringLengthCounterView.swift */; };
 		B133EC68FC34405B066F0AE9 /* AppKit/OperationsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15A05021CCED090788DED3C /* AppKit/OperationsWindowController.swift */; };
@@ -3702,14 +3701,10 @@
 		C1001015A1001015A1001015 /* ConnectAssistService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAssistService.swift; sourceTree = "<group>"; };
 		C1001016A1001016A1001016 /* ConnectDeviceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectDeviceService.swift; sourceTree = "<group>"; };
 		C1001017A1001017A1001017 /* SwiftCode/Views/Settings/ConnectSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Settings/ConnectSettingsView.swift; sourceTree = SOURCE_ROOT; };
-		C1001018A1001018A1001018 /* ConnectProtocolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectProtocolTests.swift; sourceTree = "<group>"; };
-		C1001019A1001019A1001019 /* ConnectSecurityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectSecurityTests.swift; sourceTree = "<group>"; };
 		C1001020A1001020A1001020 /* SwiftCode/Views/Settings/ConnectPairingApprovalSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Settings/ConnectPairingApprovalSheet.swift; sourceTree = SOURCE_ROOT; };
 		C1001021A1001021A1001021 /* DiscoveredIOSDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveredIOSDevice.swift; sourceTree = "<group>"; };
 		C1001022A1001022A1001022 /* IOSDiscoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSDiscoveryService.swift; sourceTree = "<group>"; };
 		C1001023A1001023A1001023 /* ConnectDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectDiagnostics.swift; sourceTree = "<group>"; };
-		C1001024A1001024A1001024 /* ConnectDiscoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectDiscoveryTests.swift; sourceTree = "<group>"; };
-		C1001025A1001025A1001025 /* ConnectPortTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectPortTests.swift; sourceTree = "<group>"; };
 		C100FEBD125B4D01819AB6C9 /* PullRequestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PullRequestsView.swift; sourceTree = "<group>"; };
 		C105593F130D4A9590E3C2EB /* Base64ConverterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Base64ConverterView.swift; sourceTree = "<group>"; };
 		C10A62EFACEB434185598840 /* SwiftCode.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SwiftCode.entitlements; sourceTree = "<group>"; };
@@ -8374,13 +8369,9 @@
 				C1001014A1001014A1001014 /* ConnectFileService.swift */,
 				C1001015A1001015A1001015 /* ConnectAssistService.swift */,
 				C1001016A1001016A1001016 /* ConnectDeviceService.swift */,
-				C1001018A1001018A1001018 /* ConnectProtocolTests.swift */,
-				C1001019A1001019A1001019 /* ConnectSecurityTests.swift */,
 				C1001021A1001021A1001021 /* DiscoveredIOSDevice.swift */,
 				C1001022A1001022A1001022 /* IOSDiscoveryService.swift */,
 				C1001023A1001023A1001023 /* ConnectDiagnostics.swift */,
-				C1001024A1001024A1001024 /* ConnectDiscoveryTests.swift */,
-				C1001025A1001025A1001025 /* ConnectPortTests.swift */,
 			);
 			path = Connectivity;
 			sourceTree = "<group>";
@@ -10692,7 +10683,6 @@
 				B1001021A1001021A1001021 /* DiscoveredIOSDevice.swift in Sources */,
 				B1001022A1001022A1001022 /* IOSDiscoveryService.swift in Sources */,
 				B1001023A1001023A1001023 /* ConnectDiagnostics.swift in Sources */,
-				B1001025A1001025A1001025 /* ConnectPortTests.swift in Sources */,
 				ADD023864338E7C555FAC1B3 /* CodexResponseParser.swift in Sources */,
 				02AFF64381F5BE083ABC5CD7 /* CodexErrorHandler.swift in Sources */,
 				E9BBC392DB3CE88EDE5168B5 /* CodexRequestBuilder.swift in Sources */,
