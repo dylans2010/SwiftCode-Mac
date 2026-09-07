@@ -7,6 +7,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Setup native Git Controls Menu Bar Status Item
         MenuBarManager.shared.setupMenuBar()
+
+        // Apply registered app icon variant to Dock
+        _ = AppIconManager.shared
     }
 
     private func setupDefaultPreferences() {

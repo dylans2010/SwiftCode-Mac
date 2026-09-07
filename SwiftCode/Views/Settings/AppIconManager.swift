@@ -90,11 +90,18 @@ public final class AppIconManager: ObservableObject {
     private func applyIcon(variant: AppIconVariant) {
         #if os(macOS)
         if variant == .light {
-            // Setting nil restores the default bundle icon
+            // Reverting to default bundle icon
             NSApplication.shared.applicationIconImage = nil
+            // If Dock doesn't populate default image (e.g. running from build directory), fallback to explicit light icon image
+            if NSApplication.shared.applicationIconImage == nil,
+               let image = NSImage(named: variant.previewImageName) {
+                NSApplication.shared.applicationIconImage = image
+            }
         } else if let image = NSImage(named: variant.previewImageName) {
             NSApplication.shared.applicationIconImage = image
         }
+        // Force the macOS Dock tile to immediately redraw
+        NSApp.dockTile.display()
         #elseif os(iOS)
         guard UIApplication.shared.supportsAlternateIcons else { return }
         UIApplication.shared.setAlternateIconName(variant.assetCatalogName) { error in
@@ -142,12 +149,24 @@ private struct AppIconCard: View {
         Button(action: onSelect) {
             VStack(spacing: 10) {
                 ZStack(alignment: .topTrailing) {
-                    Image(variant.previewImageName)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 80, height: 80)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .shadow(color: Color.black.opacity(isHovering ? 0.25 : 0.15), radius: isHovering ? 8 : 4, y: isHovering ? 5 : 2)
+                    Group {
+                        #if os(macOS)
+                        if let nsImg = NSImage(named: variant.previewImageName) {
+                            Image(nsImage: nsImg)
+                                .resizable()
+                        } else {
+                            Image(variant.previewImageName)
+                                .resizable()
+                        }
+                        #else
+                        Image(variant.previewImageName)
+                            .resizable()
+                        #endif
+                    }
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 80, height: 80)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .shadow(color: Color.black.opacity(isHovering ? 0.25 : 0.15), radius: isHovering ? 8 : 4, y: isHovering ? 5 : 2)
                     
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
