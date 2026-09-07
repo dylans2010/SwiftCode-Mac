@@ -37,10 +37,12 @@ public enum AppIconVariant: String, CaseIterable, Identifiable {
     case dark = "Dark"
     case glass = "Glass"
     case tinted = "Tinted"
+    case prismGlass = "PrismGlass"
     
     // Nostalgia & Heritage
     case retroMac = "RetroMac"
     case aqua2001 = "Aqua2001"
+    case bondiDesktop = "BondiDesktop"
     case nextstep = "NeXTSTEP"
     case crtGreen = "CRTGreen"
     case crtAmber = "CRTAmber"
@@ -49,6 +51,7 @@ public enum AppIconVariant: String, CaseIterable, Identifiable {
     case floppyRetro = "FloppyRetro"
     
     // Developer & Coding Symbols
+    case swiftSource = "SwiftSource"
     case codeBraces = "CodeBraces"
     case terminalCli = "TerminalCli"
     case markupTag = "MarkupTag"
@@ -76,11 +79,11 @@ public enum AppIconVariant: String, CaseIterable, Identifiable {
     
     public var category: AppIconCategory {
         switch self {
-        case .light, .dark, .glass, .tinted:
+        case .light, .dark, .glass, .tinted, .prismGlass:
             return .official
-        case .retroMac, .aqua2001, .nextstep, .crtGreen, .crtAmber, .synthwave, .blueprint, .floppyRetro:
+        case .retroMac, .aqua2001, .bondiDesktop, .nextstep, .crtGreen, .crtAmber, .synthwave, .blueprint, .floppyRetro:
             return .nostalgia
-        case .codeBraces, .terminalCli, .markupTag, .lambdaClosure, .siliconChip, .bugHunter, .gitBranch, .compilerTurbo:
+        case .swiftSource, .codeBraces, .terminalCli, .markupTag, .lambdaClosure, .siliconChip, .bugHunter, .gitBranch, .compilerTurbo:
             return .codeSymbols
         case .cyberpunk, .matrixRain, .dracula, .monokai, .solarized, .midnightPurple:
             return .themes
@@ -95,14 +98,17 @@ public enum AppIconVariant: String, CaseIterable, Identifiable {
         case .dark: return "Obsidian Dark"
         case .glass: return "Pure Liquid Glass"
         case .tinted: return "Tinted Slate"
+        case .prismGlass: return "Prismatic Fluid Glass"
         case .retroMac: return "System 7 (1991)"
         case .aqua2001: return "Aqua Cheetah (2001)"
+        case .bondiDesktop: return "Bondi iMac G3 (1998)"
         case .nextstep: return "NeXTSTEP (1989)"
         case .crtGreen: return "Phosphor Green CRT"
         case .crtAmber: return "Amber VT220 Terminal"
         case .synthwave: return "Synthwave 80s"
         case .blueprint: return "Xcode Blueprint"
         case .floppyRetro: return "Floppy Disk 1.44MB"
+        case .swiftSource: return "Swift Code Editor"
         case .codeBraces: return "Curly Braces { }"
         case .terminalCli: return "Terminal >_"
         case .markupTag: return "Markup Tag </>"
@@ -134,10 +140,14 @@ public enum AppIconVariant: String, CaseIterable, Identifiable {
             return "Ultra-clear fluid glass with caustics, bubbles, and floating emblem"
         case .tinted:
             return "Monochrome liquid glass silhouette optimized for tinted appearance"
+        case .prismGlass:
+            return "Translucent faceted glass with multi-spectral rainbow caustics & refractive dispersion"
         case .retroMac:
             return "Classic 1-bit Macintosh with smiling Happy Mac face and floppy slot"
         case .aqua2001:
             return "Early Mac OS X candy gel pill button with brushed metal pinstripes"
+        case .bondiDesktop:
+            return "Iconic Cupertino translucent teal CRT desktop computer with display & puck mouse"
         case .nextstep:
             return "Steve Jobs' iconic 1989 black cube with 4-quadrant color accents"
         case .crtGreen:
@@ -150,6 +160,8 @@ public enum AppIconVariant: String, CaseIterable, Identifiable {
             return "Architectural drafting blueprint grid with white chalk braces"
         case .floppyRetro:
             return "Classic 3.5\" HD diskette with aluminum shutter & handwritten label"
+        case .swiftSource:
+            return "Syntax-highlighted Swift code lines with line numbers, gutter & ambient orange watermark"
         case .codeBraces:
             return "Electric purple & neon cyan glowing curly braces with syntax dots"
         case .terminalCli:
@@ -191,6 +203,9 @@ public enum AppIconVariant: String, CaseIterable, Identifiable {
     
     public var badgeSymbol: String? {
         switch self {
+        case .swiftSource: return "swift"
+        case .bondiDesktop: return "desktop"
+        case .prismGlass: return "✦"
         case .codeBraces: return "{ }"
         case .terminalCli, .crtGreen: return ">_"
         case .markupTag: return "</>"
@@ -215,6 +230,59 @@ public enum AppIconVariant: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - DefaultIconAppearance (macOS 26+ Appearance Adaptation)
+
+public enum DefaultIconAppearance: String, CaseIterable, Identifiable {
+    case automatic = "System (Adaptive)"
+    case light = "Light"
+    case dark = "Dark"
+    case tinted = "Tinted"
+    case clear = "Clear Glass"
+    
+    public var id: String { rawValue }
+    
+    public var iconSymbol: String {
+        switch self {
+        case .automatic: return "circle.lefthalf.filled"
+        case .light: return "sun.max.fill"
+        case .dark: return "moon.fill"
+        case .tinted: return "slider.horizontal.2.square"
+        case .clear: return "drop.fill"
+        }
+    }
+    
+    public var description: String {
+        switch self {
+        case .automatic:
+            return "Automatically adapts between Light and Dark based on macOS system appearance"
+        case .light:
+            return "Frosted glass base with glowing warm amber Swift bird"
+        case .dark:
+            return "Deep space obsidian tile with molten electric orange luminescence"
+        case .tinted:
+            return "Monochrome liquid glass silhouette optimized for tinted appearance"
+        case .clear:
+            return "Ultra-clear fluid glass with caustics, bubbles, and floating emblem"
+        }
+    }
+    
+    public var effectiveVariant: AppIconVariant {
+        switch self {
+        case .automatic:
+            #if os(macOS)
+            let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            return isDark ? .dark : .light
+            #else
+            return .light
+            #endif
+        case .light: return .light
+        case .dark: return .dark
+        case .tinted: return .tinted
+        case .clear: return .glass
+        }
+    }
+}
+
 // MARK: - AppIconManager
 
 @MainActor
@@ -222,8 +290,10 @@ public final class AppIconManager: ObservableObject {
     public static let shared = AppIconManager()
     
     private let userDefaultsKey = "selectedAppIconVariant"
+    private let appearanceDefaultsKey = "defaultAppIconAppearance"
     
     @Published public private(set) var currentVariant: AppIconVariant
+    @Published public private(set) var defaultAppearance: DefaultIconAppearance
     
     private init() {
         if let saved = UserDefaults.standard.string(forKey: userDefaultsKey),
@@ -232,6 +302,26 @@ public final class AppIconManager: ObservableObject {
         } else {
             self.currentVariant = .light
         }
+        
+        if let savedAppearance = UserDefaults.standard.string(forKey: appearanceDefaultsKey),
+           let appearance = DefaultIconAppearance(rawValue: savedAppearance) {
+            self.defaultAppearance = appearance
+        } else {
+            self.defaultAppearance = .automatic
+        }
+        
+        // Listen for macOS system appearance changes (e.g. Light/Dark mode switch)
+        #if os(macOS)
+        DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.handleSystemAppearanceChanged()
+            }
+        }
+        #endif
         
         // Apply on launch
         applyIcon(variant: self.currentVariant)
@@ -243,15 +333,45 @@ public final class AppIconManager: ObservableObject {
         applyIcon(variant: variant)
     }
     
+    public func setDefaultAppearance(_ appearance: DefaultIconAppearance) {
+        defaultAppearance = appearance
+        UserDefaults.standard.set(appearance.rawValue, forKey: appearanceDefaultsKey)
+        if currentVariant == .light {
+            applyIcon(variant: .light)
+        }
+    }
+    
+    public func handleSystemAppearanceChanged() {
+        if currentVariant == .light && defaultAppearance == .automatic {
+            applyIcon(variant: .light)
+        }
+    }
+    
+    public var currentIconImage: NSImage? {
+        #if os(macOS)
+        let name = resolvedPreviewImageName(for: currentVariant)
+        return NSImage(named: name)
+        #else
+        return nil
+        #endif
+    }
+    
+    public func resolvedPreviewImageName(for variant: AppIconVariant) -> String {
+        if variant == .light {
+            return defaultAppearance.effectiveVariant.previewImageName
+        }
+        return variant.previewImageName
+    }
+    
     private func applyIcon(variant: AppIconVariant) {
         #if os(macOS)
         if variant == .light {
-            // Reverting to default bundle icon
-            NSApplication.shared.applicationIconImage = nil
-            // If Dock doesn't populate default image (e.g. running from build directory), fallback to explicit light icon image
-            if NSApplication.shared.applicationIconImage == nil,
-               let image = NSImage(named: variant.previewImageName) {
+            // Adaptive default icon
+            let targetVariant = defaultAppearance.effectiveVariant
+            if let image = NSImage(named: targetVariant.previewImageName) {
                 NSApplication.shared.applicationIconImage = image
+            } else {
+                NSApplication.shared.applicationIconImage = nil
             }
         } else if let image = NSImage(named: variant.previewImageName) {
             NSApplication.shared.applicationIconImage = image

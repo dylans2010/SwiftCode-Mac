@@ -1132,6 +1132,226 @@ func drawOceanAbyss(ctx: CGContext, rect: CGRect) {
     ctx.restoreGState()
 }
 
+// 31. Swift Code Editor (Code Written in Swift)
+func drawSwiftSource(ctx: CGContext, rect: CGRect) {
+    // Dark modern Catppuccin Mocha / Xcode Pro IDE background
+    drawLinearGradient(
+        in: ctx, rect: rect,
+        colors: [hexColor(0x1E1E2E), hexColor(0x11111B)],
+        startPoint: CGPoint(x: rect.midX, y: rect.maxY),
+        endPoint: CGPoint(x: rect.midX, y: rect.minY)
+    )
+    
+    // Subtle background glowing swift watermark
+    ctx.saveGState()
+    let waterRect = CGRect(x: rect.maxX - 420, y: rect.minY + 40, width: 380, height: 380)
+    drawSFSymbol(name: "swift", in: ctx, rect: waterRect, tintColor: hexColor(0xF97316, alpha: 0.16), pointSize: 320, weight: .black)
+    ctx.restoreGState()
+    
+    // Editor Window Header Bar
+    let headerRect = CGRect(x: rect.minX + 40, y: rect.maxY - 110, width: rect.width - 80, height: 60)
+    let headerPath = CGPath(roundedRect: headerRect, cornerWidth: 12, cornerHeight: 12, transform: nil)
+    ctx.setFillColor(hexColor(0x252538))
+    ctx.addPath(headerPath)
+    ctx.fillPath()
+    
+    // Window Traffic Lights
+    let dotY = headerRect.midY
+    let redDot = CGRect(x: headerRect.minX + 24, y: dotY - 7, width: 14, height: 14)
+    let yellowDot = CGRect(x: headerRect.minX + 48, y: dotY - 7, width: 14, height: 14)
+    let greenDot = CGRect(x: headerRect.minX + 72, y: dotY - 7, width: 14, height: 14)
+    ctx.setFillColor(hexColor(0xED6A5E)); ctx.fillEllipse(in: redDot)
+    ctx.setFillColor(hexColor(0xF4BF4F)); ctx.fillEllipse(in: yellowDot)
+    ctx.setFillColor(hexColor(0x61C554)); ctx.fillEllipse(in: greenDot)
+    
+    // File Tab: App.swift
+    drawText("App.swift", in: ctx, rect: CGRect(x: headerRect.midX - 70, y: dotY - 10, width: 140, height: 20), fontName: "Menlo-Bold", fontSize: 18, color: hexColor(0xCDD6F4))
+    
+    // Editor Code Lines
+    let codeStartY = rect.maxY - 160
+    let lineSpacing: CGFloat = 58
+    
+    struct CodeLine {
+        let num: String
+        let tokens: [(text: String, color: UInt32)]
+    }
+    
+    let lines: [CodeLine] = [
+        CodeLine(num: "1", tokens: [("import ", 0xCBA6F7), ("SwiftUI", 0x89B4FA)]),
+        CodeLine(num: "2", tokens: [("struct ", 0xF38BA8), ("App: ", 0xF9E2AF), ("View ", 0xA6E3A1), ("{", 0x94E2D5)]),
+        CodeLine(num: "3", tokens: [("  var ", 0xCBA6F7), ("body: ", 0xCDD6F4), ("some ", 0xCBA6F7), ("View ", 0xA6E3A1), ("{", 0x94E2D5)]),
+        CodeLine(num: "4", tokens: [("    Text(", 0x89DCEB), ("\"SwiftCode\"", 0xF9E2AF), (")", 0x89DCEB)]),
+        CodeLine(num: "5", tokens: [("      .font(.title)", 0x89B4FA)]),
+        CodeLine(num: "6", tokens: [("  }", 0x94E2D5)]),
+        CodeLine(num: "7", tokens: [("}", 0x94E2D5)])
+    ]
+    
+    for (index, line) in lines.enumerated() {
+        let y = codeStartY - CGFloat(index) * lineSpacing
+        // Gutter line number
+        drawText(line.num, in: ctx, rect: CGRect(x: rect.minX + 50, y: y, width: 30, height: 26), fontName: "Menlo-Regular", fontSize: 24, color: hexColor(0x6C7086), alignment: .right)
+        
+        // Code Tokens
+        var curX = rect.minX + 110
+        for token in line.tokens {
+            let font = NSFont(name: "Menlo-Bold", size: 24) ?? NSFont.monospacedSystemFont(ofSize: 24, weight: .bold)
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: NSColor(cgColor: hexColor(token.color)) ?? .white
+            ]
+            let str = NSAttributedString(string: token.text, attributes: attrs)
+            let ctLine = CTLineCreateWithAttributedString(str)
+            let bounds = CTLineGetBoundsWithOptions(ctLine, .useOpticalBounds)
+            
+            ctx.saveGState()
+            ctx.textPosition = CGPoint(x: curX, y: y)
+            CTLineDraw(ctLine, ctx)
+            ctx.restoreGState()
+            curX += bounds.width
+        }
+    }
+    
+    // Gutter Separator Line
+    ctx.setLineWidth(2)
+    ctx.setStrokeColor(hexColor(0x313244))
+    ctx.move(to: CGPoint(x: rect.minX + 96, y: rect.minY + 60))
+    ctx.addLine(to: CGPoint(x: rect.minX + 96, y: rect.maxY - 120))
+    ctx.strokePath()
+}
+
+// 32. Bondi iMac G3 Desktop (Classic Desktop Computer)
+func drawBondiDesktop(ctx: CGContext, rect: CGRect) {
+    // 1998 Cupertino gradient
+    drawLinearGradient(
+        in: ctx, rect: rect,
+        colors: [hexColor(0x008080), hexColor(0x004D40)],
+        startPoint: CGPoint(x: rect.midX, y: rect.maxY),
+        endPoint: CGPoint(x: rect.midX, y: rect.minY)
+    )
+    
+    // Radial ambient light
+    drawRadialGradient(
+        in: ctx, center: CGPoint(x: rect.midX, y: rect.midY + 30),
+        startRadius: 50, endRadius: 380,
+        colors: [hexColor(0x4DD0E1, alpha: 0.35), hexColor(0x004D40, alpha: 0.0)]
+    )
+    
+    // Translucent Bondi Blue CRT Chassis
+    let chassisRect = CGRect(x: rect.midX - 250, y: rect.midY - 160, width: 500, height: 440)
+    let chassisPath = CGPath(roundedRect: chassisRect, cornerWidth: 54, cornerHeight: 54, transform: nil)
+    
+    ctx.saveGState()
+    ctx.setShadow(offset: CGSize(width: 0, height: -12), blur: 24, color: hexColor(0x001A16, alpha: 0.6))
+    ctx.addPath(chassisPath)
+    ctx.clip()
+    drawLinearGradient(
+        in: ctx, rect: chassisRect,
+        colors: [hexColor(0x26C6DA), hexColor(0x00838F)],
+        startPoint: CGPoint(x: chassisRect.midX, y: chassisRect.maxY),
+        endPoint: CGPoint(x: chassisRect.midX, y: chassisRect.minY)
+    )
+    ctx.restoreGState()
+    
+    // Inner CRT Bezel
+    let bezelRect = chassisRect.insetBy(dx: 45, dy: 50).offsetBy(dx: 0, dy: 24)
+    let bezelPath = CGPath(roundedRect: bezelRect, cornerWidth: 32, cornerHeight: 32, transform: nil)
+    ctx.setFillColor(hexColor(0x1E293B))
+    ctx.addPath(bezelPath)
+    ctx.fillPath()
+    
+    // Glowing Screen Content: Hello Mac with Swift Bird
+    let screenRect = bezelRect.insetBy(dx: 16, dy: 16)
+    let screenPath = CGPath(roundedRect: screenRect, cornerWidth: 18, cornerHeight: 18, transform: nil)
+    ctx.saveGState()
+    ctx.addPath(screenPath)
+    ctx.clip()
+    drawLinearGradient(
+        in: ctx, rect: screenRect,
+        colors: [hexColor(0x0F172A), hexColor(0x0284C7)],
+        startPoint: CGPoint(x: screenRect.midX, y: screenRect.minY),
+        endPoint: CGPoint(x: screenRect.midX, y: screenRect.maxY)
+    )
+    
+    // Swift Bird on CRT Screen
+    drawSFSymbol(name: "swift", in: ctx, rect: screenRect, tintColor: hexColor(0xF97316), pointSize: 170, weight: .bold)
+    drawText("hello (again)", in: ctx, rect: CGRect(x: screenRect.midX - 100, y: screenRect.minY + 24, width: 200, height: 30), fontName: "Courier-Bold", fontSize: 26, color: hexColor(0x38BDF8))
+    ctx.restoreGState()
+    
+    // Translucent Handle on top
+    let handleRect = CGRect(x: rect.midX - 70, y: chassisRect.maxY - 14, width: 140, height: 26)
+    let handlePath = CGPath(roundedRect: handleRect, cornerWidth: 10, cornerHeight: 10, transform: nil)
+    ctx.setFillColor(hexColor(0xE0F7FA, alpha: 0.6))
+    ctx.addPath(handlePath)
+    ctx.fillPath()
+    
+    // Bondi Puck Mouse & Keyboard below
+    let kbRect = CGRect(x: rect.midX - 160, y: rect.minY + 44, width: 250, height: 40)
+    let kbPath = CGPath(roundedRect: kbRect, cornerWidth: 8, cornerHeight: 8, transform: nil)
+    ctx.setFillColor(hexColor(0xCFD8DC))
+    ctx.addPath(kbPath)
+    ctx.fillPath()
+    
+    let mouseRect = CGRect(x: rect.midX + 115, y: rect.minY + 44, width: 44, height: 44)
+    ctx.setFillColor(hexColor(0x00838F))
+    ctx.fillEllipse(in: mouseRect)
+    let mouseInner = mouseRect.insetBy(dx: 8, dy: 8)
+    ctx.setFillColor(hexColor(0xE0F7FA))
+    ctx.fillEllipse(in: mouseInner)
+}
+
+// 33. Prism Liquid Glass (Glass Effects & Spectral Dispersion)
+func drawPrismGlass(ctx: CGContext, rect: CGRect) {
+    // Ultra-dark background with subtle prism rainbow flare
+    drawLinearGradient(
+        in: ctx, rect: rect,
+        colors: [hexColor(0x0F172A), hexColor(0x020617)],
+        startPoint: CGPoint(x: rect.midX, y: rect.maxY),
+        endPoint: CGPoint(x: rect.midX, y: rect.minY)
+    )
+    
+    // Spectral Rainbow Dispersion Caustics
+    let rainbowColors = [
+        hexColor(0xEF4444, alpha: 0.5), // Red
+        hexColor(0xF97316, alpha: 0.5), // Orange
+        hexColor(0xEAB308, alpha: 0.5), // Yellow
+        hexColor(0x22C55E, alpha: 0.5), // Green
+        hexColor(0x06B6D4, alpha: 0.5), // Cyan
+        hexColor(0x3B82F6, alpha: 0.5), // Blue
+        hexColor(0xA855F7, alpha: 0.5)  // Purple
+    ]
+    drawLinearGradient(
+        in: ctx, rect: rect.insetBy(dx: 80, dy: 80),
+        colors: rainbowColors,
+        startPoint: CGPoint(x: rect.minX, y: rect.maxY),
+        endPoint: CGPoint(x: rect.maxX, y: rect.minY)
+    )
+    
+    // Liquid Glass Translucent Facet Shield
+    let facetRect = rect.insetBy(dx: 110, dy: 110)
+    let facetPath = CGPath(roundedRect: facetRect, cornerWidth: 80, cornerHeight: 80, transform: nil)
+    
+    ctx.saveGState()
+    ctx.setShadow(offset: CGSize(width: 0, height: -12), blur: 32, color: hexColor(0x000000, alpha: 0.6))
+    ctx.setFillColor(hexColor(0xFFFFFF, alpha: 0.14))
+    ctx.addPath(facetPath)
+    ctx.fillPath()
+    ctx.restoreGState()
+    
+    // Bevel Glass Highlight Stroke
+    ctx.saveGState()
+    ctx.setLineWidth(4.0)
+    ctx.setStrokeColor(hexColor(0xFFFFFF, alpha: 0.45))
+    ctx.addPath(facetPath)
+    ctx.strokePath()
+    ctx.restoreGState()
+    
+    // Prismatic Glowing Swift Bird in Center
+    ctx.saveGState()
+    ctx.setShadow(offset: .zero, blur: 28, color: hexColor(0x38BDF8, alpha: 0.9))
+    drawSFSymbol(name: "swift", in: ctx, rect: rect, tintColor: hexColor(0xF8FAFC), pointSize: 310, weight: .bold)
+    ctx.restoreGState()
+}
+
 // MARK: - Asset Catalog Generation Engine
 
 func savePNG(image: CGImage, to path: String) {
@@ -1256,7 +1476,7 @@ for spec in existingSpecs {
     exportIconSet(name: spec.name, macMaster: macMaster, universalMaster: universalMaster)
 }
 
-// MARK: - Process 26 Vector Icons
+// MARK: - Process 29 Vector Icons
 
 struct VectorIconSpec {
     let name: String
@@ -1264,9 +1484,13 @@ struct VectorIconSpec {
 }
 
 let vectorSpecs: [VectorIconSpec] = [
+    // Official & Glass
+    VectorIconSpec(name: "PrismGlass", draw: drawPrismGlass),
+    
     // Nostalgia & Heritage
     VectorIconSpec(name: "RetroMac", draw: drawRetroMac),
     VectorIconSpec(name: "Aqua2001", draw: drawAqua2001),
+    VectorIconSpec(name: "BondiDesktop", draw: drawBondiDesktop),
     VectorIconSpec(name: "NeXTSTEP", draw: drawNeXTSTEP),
     VectorIconSpec(name: "CRTGreen", draw: drawPhosphorCRT),
     VectorIconSpec(name: "CRTAmber", draw: drawAmberCRT),
@@ -1275,6 +1499,7 @@ let vectorSpecs: [VectorIconSpec] = [
     VectorIconSpec(name: "FloppyRetro", draw: drawFloppyRetro),
     
     // Developer & Coding Symbols
+    VectorIconSpec(name: "SwiftSource", draw: drawSwiftSource),
     VectorIconSpec(name: "CodeBraces", draw: drawCodeBraces),
     VectorIconSpec(name: "TerminalCli", draw: drawTerminalCli),
     VectorIconSpec(name: "MarkupTag", draw: drawMarkupTag),
@@ -1308,4 +1533,5 @@ for spec in vectorSpecs {
     exportIconSet(name: spec.name, macMaster: macMaster, universalMaster: universalMaster)
 }
 
-print("\nSuccessfully generated all 30 app icons, multi-scale iconsets, and preview imagesets!")
+print("\nSuccessfully generated all 33 app icons, multi-scale iconsets, and preview imagesets!")
+

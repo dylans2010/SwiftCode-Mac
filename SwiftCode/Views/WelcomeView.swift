@@ -9,6 +9,8 @@ struct SwiftCodeWelcomeView: View {
 
     @State private var showingNewProject = false
     @State private var showingSettings = false
+    @State private var showingAppIconSelect = false
+    @ObservedObject private var iconManager = AppIconManager.shared
     @State private var searchText = ""
 
     // Sorting and view mode
@@ -216,6 +218,9 @@ struct SwiftCodeWelcomeView: View {
                 ShareSheet(activityItems: [url])
             }
         }
+        .sheet(isPresented: $showingAppIconSelect) {
+            AppIconSelectView()
+        }
         .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
             Button("OK") {}
         } message: { msg in Text(msg) }
@@ -307,22 +312,33 @@ struct SwiftCodeWelcomeView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(spacing: 32) {
-                    // Modern Stylized Icon
-                    ZStack {
-                        Circle()
-                            .fill(Color.accentColor.opacity(0.12).gradient)
-                            .frame(width: 110, height: 110)
-                            .blur(radius: 6)
+                    // Active Handcrafted App Icon (customizable by user)
+                    Button {
+                        showingAppIconSelect = true
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color.orange.opacity(0.14).gradient)
+                                .frame(width: 116, height: 116)
+                                .blur(radius: 12)
 
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(Color.accentColor.gradient)
-                            .frame(width: 80, height: 80)
-                            .shadow(color: .accentColor.opacity(0.4), radius: 12, x: 0, y: 6)
-
-                        Image(systemName: "swift")
-                            .font(.system(size: 44, weight: .semibold))
-                            .foregroundStyle(.white)
+                            Group {
+                                if let nsImg = NSImage(named: iconManager.resolvedPreviewImageName(for: iconManager.currentVariant)) {
+                                    Image(nsImage: nsImg)
+                                        .resizable()
+                                } else {
+                                    Image(iconManager.currentVariant.previewImageName)
+                                        .resizable()
+                                }
+                            }
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 88, height: 88)
+                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .shadow(color: Color.black.opacity(0.35), radius: 12, x: 0, y: 6)
+                        }
                     }
+                    .buttonStyle(.plain)
+                    .help("Customize App Icon (\(iconManager.currentVariant.displayName))")
                     .padding(.top, 24)
 
                     // Modernised "Welcome to SwiftCode" Header Text - only Accent Color

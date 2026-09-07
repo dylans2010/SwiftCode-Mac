@@ -576,6 +576,8 @@ struct GeneralSettingsView: View {
     @State private var showPaywall = false
     @State private var showDeveloperDashboard = false
     @State private var showDeveloperModeEnabledAlert = false
+    @State private var showAppIconSelectSheet = false
+    @ObservedObject private var iconManager = AppIconManager.shared
     @State private var versionTapCount = 0
 
     // Quick Setup section state
@@ -680,11 +682,119 @@ struct GeneralSettingsView: View {
 
                     // App Icon Customization Section
                     SettingsCardSection {
-                        AppIconPickerView()
+                        VStack(alignment: .leading, spacing: 14) {
+                            // Active Icon Hero Summary Card
+                            Button {
+                                showAppIconSelectSheet = true
+                            } label: {
+                                HStack(spacing: 16) {
+                                    // High-res icon thumbnail
+                                    Group {
+                                        if let nsImg = NSImage(named: iconManager.resolvedPreviewImageName(for: iconManager.currentVariant)) {
+                                            Image(nsImage: nsImg)
+                                                .resizable()
+                                        } else {
+                                            Image(iconManager.currentVariant.previewImageName)
+                                                .resizable()
+                                        }
+                                    }
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 68, height: 68)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                    .shadow(color: Color.black.opacity(0.3), radius: 8, y: 4)
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        HStack(spacing: 8) {
+                                            Text(iconManager.currentVariant.displayName)
+                                                .font(.headline)
+                                                .foregroundStyle(Color.primary)
+                                            
+                                            Text(iconManager.currentVariant.category.rawValue)
+                                                .font(.caption2.bold())
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 3)
+                                                .background(Capsule().fill(Color.orange.opacity(0.15)))
+                                                .foregroundStyle(Color.orange)
+                                        }
+                                        
+                                        Text(iconManager.currentVariant.subtitle)
+                                            .font(.caption)
+                                            .foregroundStyle(Color.secondary)
+                                            .lineLimit(2)
+                                        
+                                        HStack(spacing: 6) {
+                                            Circle()
+                                                .fill(Color.green)
+                                                .frame(width: 7, height: 7)
+                                            Text("Active on macOS Dock")
+                                                .font(.caption2.bold())
+                                                .foregroundStyle(Color.secondary)
+                                        }
+                                        .padding(.top, 2)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .padding(12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(Color.primary.opacity(0.03))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            
+                            // macOS 26+ Appearance Adaptation for Default Icon
+                            if iconManager.currentVariant == .light {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Default Icon Appearance Adaptation (macOS 26+):")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.secondary)
+                                    
+                                    Picker("", selection: Binding(
+                                        get: { iconManager.defaultAppearance },
+                                        set: { iconManager.setDefaultAppearance($0) }
+                                    )) {
+                                        ForEach(DefaultIconAppearance.allCases) { appearance in
+                                            Text(appearance.rawValue).tag(appearance)
+                                        }
+                                    }
+                                    .pickerStyle(.segmented)
+                                }
+                            }
+                            
+                            // Customize Button
+                            HStack {
+                                Button {
+                                    showAppIconSelectSheet = true
+                                } label: {
+                                    Label("Customize & Browse All Icons...", systemImage: "sparkles.rectangle.stack")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.regular)
+                                
+                                if iconManager.currentVariant != .light {
+                                    Button("Reset to Default") {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                            iconManager.setVariant(.light)
+                                        }
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            }
+                        }
                     } header: {
                         Label("App Icon", systemImage: "app.gift.fill")
                     } footer: {
-                        Text("Choose from 30 handcrafted app icons across nostalgic retro eras (System 7, Aqua Cheetah, NeXTSTEP, CRT terminals, Synthwave), coding symbols ({ }, >_, </>, λ, Silicon, Bug Hunter), popular syntax themes (Dracula, Monokai, Matrix, Cyberpunk), and luxury materials (24K Gold, Titanium, Emerald, Abyss). Changes are immediately reflected on the macOS Dock.")
+                        Text("Choose from 33 handcrafted app icons across nostalgic retro eras (System 7, Aqua Cheetah, Bondi iMac G3, NeXTSTEP, CRT terminals, Synthwave), coding symbols (Swift Code Editor, { }, >_, </>, λ, Silicon, Bug Hunter), popular syntax themes (Dracula, Monokai, Matrix, Cyberpunk), and luxury materials (24K Gold, Titanium, Emerald, Abyss). Changes are immediately reflected on the macOS Dock with live Dock and Welcome View previews.")
                     }
 
                     // THE FOLLOWING SECTIONS ARE PERMANENTLY HIDDEN FROM THE UI VIA #if false BLOCK AS REQUESTED
@@ -751,6 +861,9 @@ struct GeneralSettingsView: View {
         }
         .sheet(isPresented: $showSkillsSheet) {
             SkillsView()
+        }
+        .sheet(isPresented: $showAppIconSelectSheet) {
+            AppIconSelectView()
         }
         .sheet(isPresented: $showUpdatesSheet) {
             UpdatesView()
