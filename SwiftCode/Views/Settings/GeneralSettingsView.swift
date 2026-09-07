@@ -684,7 +684,7 @@ struct GeneralSettingsView: View {
                     } header: {
                         Label("App Icon", systemImage: "app.gift.fill")
                     } footer: {
-                        Text("Personalize your app icon with Liquid Glass effects. Choose between Liquid Light, Obsidian Dark, Tinted Slate, and pure Liquid Glass.")
+                        Text("Choose from 30 handcrafted app icons across nostalgic retro eras (System 7, Aqua Cheetah, NeXTSTEP, CRT terminals, Synthwave), coding symbols ({ }, >_, </>, λ, Silicon, Bug Hunter), popular syntax themes (Dracula, Monokai, Matrix, Cyberpunk), and luxury materials (24K Gold, Titanium, Emerald, Abyss). Changes are immediately reflected on the macOS Dock.")
                     }
 
                     // THE FOLLOWING SECTIONS ARE PERMANENTLY HIDDEN FROM THE UI VIA #if false BLOCK AS REQUESTED
