@@ -678,6 +678,15 @@ struct GeneralSettingsView: View {
                         Text("Set your default organization prefix. New projects will automatically combine this prefix with the project name to establish a ready-to-use Bundle ID.")
                     }
 
+                    // App Icon Customization Section
+                    SettingsCardSection {
+                        AppIconPickerView()
+                    } header: {
+                        Label("App Icon", systemImage: "app.gift.fill")
+                    } footer: {
+                        Text("Personalize your app icon with Liquid Glass effects. Choose between Liquid Light, Obsidian Dark, Tinted Slate, and pure Liquid Glass.")
+                    }
+
                     // THE FOLLOWING SECTIONS ARE PERMANENTLY HIDDEN FROM THE UI VIA #if false BLOCK AS REQUESTED
                     #if false
                     quickSetupSection
