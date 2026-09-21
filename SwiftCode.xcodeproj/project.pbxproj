@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C7AEAE25727E423B9CE45920 /* AlertTone.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE06445031945EAB673D2C5 /* AlertTone.swift */; };
+		0CF39455D3434725B1A992CA /* ToneSynthesizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03792B8A9C1E4D8E8C0BE002 /* ToneSynthesizer.swift */; };
+		F5969CD6E8FA4068BB086678 /* SoundLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D74D5E4FEC241FA907C64F6 /* SoundLibrary.swift */; };
+		753307037FE041348FAD1678 /* AlertSoundPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6038D8112D044B36BFE41C78 /* AlertSoundPlayer.swift */; };
+		FD1457B5195140D3B3BA8B67 /* SoundPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96FD4605BB1845F7A9771771 /* SoundPreviewView.swift */; };
 		SNDBLD000000000000000001 /* SwiftCode_Notification_A.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000001 /* SwiftCode_Notification_A.aiff */; };
 		SNDBLD000000000000000002 /* SwiftCode_Notification_B.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000002 /* SwiftCode_Notification_B.aiff */; };
 		SNDBLD000000000000000003 /* SwiftCode_Message_A.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000003 /* SwiftCode_Message_A.aiff */; };
@@ -2544,6 +2549,11 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		4AE06445031945EAB673D2C5 /* AlertTone.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlertTone.swift; sourceTree = "<group>"; };
+		03792B8A9C1E4D8E8C0BE002 /* ToneSynthesizer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ToneSynthesizer.swift; sourceTree = "<group>"; };
+		0D74D5E4FEC241FA907C64F6 /* SoundLibrary.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SoundLibrary.swift; sourceTree = "<group>"; };
+		6038D8112D044B36BFE41C78 /* AlertSoundPlayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlertSoundPlayer.swift; sourceTree = "<group>"; };
+		96FD4605BB1845F7A9771771 /* SoundPreviewView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SoundPreviewView.swift; sourceTree = "<group>"; };
 		SNDREF000000000000000001 /* SwiftCode_Notification_A.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Notification_A.aiff; sourceTree = "<group>"; };
 		SNDREF000000000000000002 /* SwiftCode_Notification_B.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Notification_B.aiff; sourceTree = "<group>"; };
 		SNDREF000000000000000003 /* SwiftCode_Message_A.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Message_A.aiff; sourceTree = "<group>"; };
@@ -5072,6 +5082,17 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		8F634A921B5F4A988D4E1A2B /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				4AE06445031945EAB673D2C5 /* AlertTone.swift */,
+				03792B8A9C1E4D8E8C0BE002 /* ToneSynthesizer.swift */,
+				0D74D5E4FEC241FA907C64F6 /* SoundLibrary.swift */,
+				6038D8112D044B36BFE41C78 /* AlertSoundPlayer.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
 		SNDGRP000000000000000001 /* Sounds */ = {
 			isa = PBXGroup;
 			children = (
@@ -8002,6 +8023,7 @@
 		A83491FC57C3309ECF4AD0DD /* SwiftCode */ = {
 			isa = PBXGroup;
 			children = (
+				8F634A921B5F4A988D4E1A2B /* Audio */,
 				A83491FC57C3309ECF4AD12 /* Config */,
 				B6D3DE9CCA0AEA43F76382B4 /* Features */,
 				57AFC04E569B8BDE2658ECD4 /* Services */,
@@ -8084,6 +8106,7 @@
 				08968ED253EE45E40E03838E /* Custom Tools */,
 				089B1CE7F469330E3B904175 /* GeneralSettingsView.swift */,
 				SPKREF000000000000000001 /* SoundPickerView.swift */,
+				96FD4605BB1845F7A9771771 /* SoundPreviewView.swift */,
 				A1C0100229F01A0100000002 /* AppIconManager.swift */,
 				A1C0100429F01A0100000004 /* AppIconSelectView.swift */,
 				2EC799EB285661299D07765D /* InstalledOfflineModelsView.swift */,
@@ -10956,6 +10979,11 @@
 				A8FD9A8F81B051310C62E986 /* CustomToolBuilderView.swift in Sources */,
 				ECB20424C641963C04DC73C1 /* GeneralSettingsView.swift in Sources */,
 				SPKBLD000000000000000001 /* SoundPickerView.swift in Sources */,
+				C7AEAE25727E423B9CE45920 /* AlertTone.swift in Sources */,
+				0CF39455D3434725B1A992CA /* ToneSynthesizer.swift in Sources */,
+				F5969CD6E8FA4068BB086678 /* SoundLibrary.swift in Sources */,
+				753307037FE041348FAD1678 /* AlertSoundPlayer.swift in Sources */,
+				FD1457B5195140D3B3BA8B67 /* SoundPreviewView.swift in Sources */,
 				A1C0100129F01A0100000001 /* AppIconManager.swift in Sources */,
 				A1C0100329F01A0100000003 /* AppIconSelectView.swift in Sources */,
 				18B5036936848C2E882E3AB4 /* KotlinSupportExtensionView.swift in Sources */,

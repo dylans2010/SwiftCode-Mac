@@ -82,7 +82,7 @@ public final class FullAppRunManager: Sendable {
 
             // Log build completion
             appendLog("[SYSTEM] Build completed successfully!")
-            SoundManager.shared.play(for: .complete)
+            AlertSoundPlayer.shared.play(.buildSuccess)
 
             // Populate the PreviewManager hostedView with the successfully built SwiftUI code
             if let activeDoc = DocumentCoordinator.shared.activeDocument {
@@ -137,7 +137,7 @@ public final class FullAppRunManager: Sendable {
 
         } catch {
             appendLog("[ERROR] Run pipeline failed: \(error.localizedDescription)")
-            SoundManager.shared.play(for: .error)
+            AlertSoundPlayer.shared.play(.buildFailure)
             UnifiedLogger.shared.log("Pipeline execution error: \(error.localizedDescription)", severity: .error, subsystem: "FullAppRun", operation: "Pipeline")
             stopPipeline()
         }

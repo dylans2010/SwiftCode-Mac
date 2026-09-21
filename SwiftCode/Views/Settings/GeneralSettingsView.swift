@@ -894,8 +894,17 @@ struct GeneralSettingsView: View {
             AddEditAPIKeyView(entry: entry)
         }
         .sheet(isPresented: $showSoundLibrarySheet) {
-            SoundLibraryBrowserView()
-                .environmentObject(settings)
+            NavigationStack {
+                SoundPreviewView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") {
+                                showSoundLibrarySheet = false
+                            }
+                        }
+                    }
+            }
+            .environmentObject(settings)
         }
         .alert("Developer Mode Enabled", isPresented: $showDeveloperModeEnabledAlert) {
             Button("OK", role: .cancel) { }
@@ -1377,7 +1386,7 @@ struct GeneralSettingsView: View {
                         Button {
                             showSoundLibrarySheet = true
                         } label: {
-                            Label("Browse & Search Library (\(SoundCatalog.allSounds.count))...", systemImage: "music.note.list")
+                            Label("Audition Synthesized Alert Library (22 Tones)...", systemImage: "waveform.circle.fill")
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.regular)

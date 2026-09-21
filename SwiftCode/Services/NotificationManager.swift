@@ -74,9 +74,18 @@ final class NotificationManager: ObservableObject {
             content.sound = .default
         }
 
-        // If the application is active in the foreground, also play immediately through SoundManager
+        // If the application is active in the foreground, also play immediately through AlertSoundPlayer
         if NSApplication.shared.isActive {
-            SoundManager.shared.play(for: category)
+            let tone: AlertTone
+            switch category {
+            case .notification: tone = .mention
+            case .message:      tone = .messageReceived
+            case .success:      tone = .buildSuccess
+            case .error:        tone = .error
+            case .complete:     tone = .taskComplete
+            case .chill, .vibe, .satisfying: tone = .syncComplete
+            }
+            AlertSoundPlayer.shared.play(tone)
         }
 
         let request = UNNotificationRequest(

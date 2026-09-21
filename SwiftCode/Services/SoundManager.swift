@@ -1,6 +1,4 @@
 import Foundation
-import AppKit
-import AudioToolbox
 import OSLog
 
 // MARK: - Sound Playing Protocol
@@ -16,10 +14,12 @@ public protocol SoundPlaying: AnyObject {
     func stopAll()
 }
 
-// MARK: - Unified Sound Manager
+// MARK: - Unified Sound Manager (AED-016 Synthesized Audio Router)
 
+/// Backward-compatibility facade routing legacy sound play calls directly to AlertSoundPlayer.
+/// Fully synthesized via AVAudioEngine and AVAudioPCMBuffer; zero NSSound, zero AudioServices, zero bundled audio assets.
 @MainActor
-public final class SoundManager: NSObject, ObservableObject, SoundPlaying, NSSoundDelegate {
+public final class SoundManager: ObservableObject, SoundPlaying {
     public static let shared = SoundManager()
 
     private let logger = Logger(subsystem: "com.dylans2010.SwiftCode-Mac", category: "SoundManager")
@@ -27,20 +27,9 @@ public final class SoundManager: NSObject, ObservableObject, SoundPlaying, NSSou
     /// The sound ID currently playing (nil when idle). Observable for UI "Now Playing" indicators.
     @Published public private(set) var currentlyPlayingSoundID: String? = nil
 
-    // Active NSSound instances
-    private var activeSounds: [NSSound] = []
-
-    // Token uniquely identifying the active playback session, preventing race conditions from stopped sounds
-    private var currentPlaybackToken = UUID()
-
-    // Hover task for smooth debounced hover-to-play previews
     private var hoverPreviewTask: Task<Void, Never>? = nil
 
-    private override init() {
-        super.init()
-        // Ensure custom sounds are installed and available immediately
-        _ = SoundInstaller.shared.installSoundsIfNeeded()
-    }
+    private init() {}
 
     // MARK: - Public Playback API
 
@@ -51,12 +40,10 @@ public final class SoundManager: NSObject, ObservableObject, SoundPlaying, NSSou
             logger.debug("[SoundManager] 'None' sound selected; skipping playback.")
             return false
         }
-
-        return executePlayback(for: sound)
+        return play(soundID: sound.id)
     }
 
-    /// Play a sound by its stable identifier (e.g. "custom.chill.soft_bloom", "system_glass").
-    /// If identifier is "none", skips playback cleanly.
+    /// Play a sound by its identifier, mapping seamlessly to the synthesized AlertTone library
     @discardableResult
     public func play(soundID: String) -> Bool {
         guard soundID != SoundCatalog.noneSoundID else {
@@ -64,46 +51,46 @@ public final class SoundManager: NSObject, ObservableObject, SoundPlaying, NSSou
             return false
         }
 
-        guard let sound = SoundCatalog.sound(for: soundID) else {
-            logger.warning("[SoundManager] Unrecognized sound ID: \(soundID)")
-            return false
-        }
+        let tone = resolveTone(for: soundID)
+        self.currentlyPlayingSoundID = soundID
 
-        return play(sound)
+        AlertSoundPlayer.shared.play(tone)
+
+        // Clear currentlyPlayingSoundID after playback finishes
+        let durationMs = tone.spec.totalDurationMs
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64((durationMs + 60) * 1_000_000))
+            if self.currentlyPlayingSoundID == soundID {
+                self.currentlyPlayingSoundID = nil
+            }
+        }
+        return true
     }
 
-    /// Play the user-configured sound for a category from AppSettings
+    /// Play the configured sound for an AppSoundCategory
     @discardableResult
     public func play(for category: AppSoundCategory) -> Bool {
-        let settings = AppSettings.shared
-        let soundID: String
+        let tone: AlertTone
         switch category {
-        case .notification:
-            soundID = settings.notificationSoundID
-        case .message:
-            soundID = settings.messageSoundID
-        case .success:
-            soundID = settings.successSoundID
-        case .error:
-            soundID = settings.errorSoundID
-        case .complete:
-            soundID = settings.completionSoundID
-        case .chill:
-            soundID = SoundCatalog.chillSoftBloom.id
-        case .vibe:
-            soundID = SoundCatalog.vibePulse.id
-        case .satisfying:
-            soundID = SoundCatalog.satisfyingPerfect.id
+        case .notification: tone = .mention
+        case .message:      tone = .messageReceived
+        case .success:      tone = .buildSuccess
+        case .error:        tone = .error
+        case .complete:     tone = .taskComplete
+        case .chill:        tone = .fileSaved
+        case .vibe:         tone = .syncStarted
+        case .satisfying:   tone = .syncComplete
         }
 
-        return play(soundID: soundID)
+        self.currentlyPlayingSoundID = tone.rawValue
+        AlertSoundPlayer.shared.play(tone)
+        return true
     }
 
-    /// Preview a sound in the Settings UI (toggles playback if clicked again)
+    /// Preview a sound in Settings UI
     public func preview(soundID: String) {
         hoverPreviewTask?.cancel()
 
-        // If clicking the sound that is already playing, toggle it off
         if currentlyPlayingSoundID == soundID {
             stopAll()
             return
@@ -115,15 +102,7 @@ public final class SoundManager: NSObject, ObservableObject, SoundPlaying, NSSou
 
     /// Preview a specific AppSound directly
     public func preview(_ sound: AppSound) {
-        hoverPreviewTask?.cancel()
-
-        if currentlyPlayingSoundID == sound.id {
-            stopAll()
-            return
-        }
-
-        stopAll()
-        _ = play(sound)
+        preview(soundID: sound.id)
     }
 
     /// Preview a sound triggered by mouse hover with an intentional debounce
@@ -131,7 +110,6 @@ public final class SoundManager: NSObject, ObservableObject, SoundPlaying, NSSou
         hoverPreviewTask?.cancel()
         guard soundID != SoundCatalog.noneSoundID else { return }
 
-        // If this sound is already actively playing, let it continue
         if currentlyPlayingSoundID == soundID { return }
 
         hoverPreviewTask = Task { @MainActor in
@@ -144,93 +122,43 @@ public final class SoundManager: NSObject, ObservableObject, SoundPlaying, NSSou
         }
     }
 
-    /// Stop all currently playing audio initiated by SoundManager
+    /// Stop all active alert sound playback
     public func stopAll() {
         hoverPreviewTask?.cancel()
-        currentPlaybackToken = UUID()
-
-        for sound in activeSounds {
-            sound.delegate = nil
-            sound.stop()
-        }
-        activeSounds.removeAll()
         currentlyPlayingSoundID = nil
+        AlertSoundPlayer.shared.stop()
     }
 
-    // MARK: - Unified Resilient Audio Playback Pipeline
+    // MARK: - Tone Resolution Helper
 
-    private func executePlayback(for sound: AppSound) -> Bool {
-        cleanupFinishedSounds()
-        let playbackToken = UUID()
-        self.currentPlaybackToken = playbackToken
-
-        // 1. Primary Strategy: In-memory NSSound from resolved URL (loads data without file lock)
-        if let url = sound.resolvedURL, FileManager.default.fileExists(atPath: url.path) {
-            if let nsSound = NSSound(contentsOf: url, byReference: false) {
-                nsSound.delegate = self
-                activeSounds.append(nsSound)
-                self.currentlyPlayingSoundID = sound.id
-                let success = nsSound.play()
-                if success {
-                    logger.debug("[SoundManager] Playing '\(sound.displayName)' via URL (\(url.lastPathComponent))")
-                    return true
-                }
-                logger.warning("[SoundManager] NSSound.play() returned false for URL: \(url.path)")
-            }
+    private func resolveTone(for soundID: String) -> AlertTone {
+        // Direct AlertTone case match
+        if let direct = AlertTone(rawValue: soundID) {
+            return direct
         }
 
-        // 2. Secondary Strategy: Named sound lookup in AppKit search paths
-        let soundName = (sound.filename as NSString).deletingPathExtension
-        if let namedSound = NSSound(named: NSSound.Name(soundName)) {
-            namedSound.delegate = self
-            activeSounds.append(namedSound)
-            self.currentlyPlayingSoundID = sound.id
-            let success = namedSound.play()
-            if success {
-                logger.debug("[SoundManager] Playing '\(sound.displayName)' via NSSound(named: \(soundName))")
-                return true
-            }
-        }
-
-        // 3. Tertiary Strategy: AudioServices alert channel (AudioServicesPlayAlertSound)
-        if let url = sound.resolvedURL ?? (sound.source == .system ? URL(fileURLWithPath: "/System/Library/Sounds/\(sound.filename)") : nil),
-           FileManager.default.fileExists(atPath: url.path) {
-            var systemID: SystemSoundID = 0
-            let status = AudioServicesCreateSystemSoundID(url as CFURL, &systemID)
-            if status == noErr {
-                self.currentlyPlayingSoundID = sound.id
-                AudioServicesPlayAlertSoundWithCompletion(systemID) { [weak self, playbackToken] in
-                    AudioServicesDisposeSystemSoundID(systemID)
-                    Task { @MainActor in
-                        if self?.currentPlaybackToken == playbackToken {
-                            self?.currentlyPlayingSoundID = nil
-                        }
-                    }
-                }
-                logger.debug("[SoundManager] Playing '\(sound.displayName)' via AudioServicesPlayAlertSound")
-                return true
-            }
-        }
-
-        logger.error("[SoundManager] All audio strategies failed for sound: \(sound.displayName) (\(sound.filename))")
-        if self.currentPlaybackToken == playbackToken {
-            self.currentlyPlayingSoundID = nil
-        }
-        return false
-    }
-
-    private func cleanupFinishedSounds() {
-        activeSounds.removeAll(where: { !$0.isPlaying })
-    }
-
-    // MARK: - NSSoundDelegate
-
-    nonisolated public func sound(_ sound: NSSound, didFinishPlaying flag: Bool) {
-        Task { @MainActor in
-            self.activeSounds.removeAll(where: { $0 === sound })
-            if self.activeSounds.isEmpty {
-                self.currentlyPlayingSoundID = nil
-            }
+        // Semantic mapping for legacy catalog identifiers
+        let lower = soundID.lowercased()
+        if lower.contains("success") || lower.contains("done") || lower.contains("ready") || lower.contains("complete") {
+            return .buildSuccess
+        } else if lower.contains("error") || lower.contains("fail") || lower.contains("caution") || lower.contains("attention") {
+            return .error
+        } else if lower.contains("message") || lower.contains("whisper") {
+            return .messageReceived
+        } else if lower.contains("ping") || lower.contains("notify") || lower.contains("signal") {
+            return .mention
+        } else if lower.contains("save") {
+            return .fileSaved
+        } else if lower.contains("sync") {
+            return .syncComplete
+        } else if lower.contains("git") {
+            return .gitCommit
+        } else if lower.contains("project") {
+            return .projectOpened
+        } else if lower.contains("chill") || lower.contains("vibe") || lower.contains("bloom") {
+            return .taskComplete
+        } else {
+            return .mention
         }
     }
 }

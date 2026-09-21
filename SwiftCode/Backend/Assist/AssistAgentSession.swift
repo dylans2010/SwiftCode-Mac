@@ -183,6 +183,7 @@ public final class AssistAgentSession: Sendable {
         var codeReviewAttempts = 0
 
         while !isCancelled && !Task.isCancelled {
+            AlertSoundPlayer.shared.play(.agentThinking)
 
             // PHASE 4: Planning
             transition(to: .planning, reason: "Constructing system-level repository plan and formulating strategy...")
@@ -354,6 +355,7 @@ public final class AssistAgentSession: Sendable {
                             transition(to: .completing, reason: "Finalizing task details...")
                             transition(to: .terminated, reason: "Code Review Approved! Task completed: \(finalResponse)\nReviewer Notes: \(reviewState.userSee)")
                             NotificationManager.shared.sendAgentTaskFinishedNotification()
+                            AlertSoundPlayer.shared.play(.agentResponseReady)
                             return
                         } else {
                             // --- STEP 6: ADAPTIVE CODE REVIEW CONTINUATION (NO PROTOTYPE ITERATION CAPS) ---
