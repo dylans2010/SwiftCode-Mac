@@ -1,7 +1,33 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Interactive Sound Picker with Hover-to-Play
+// MARK: - Animated Equalizer Wave Visualizer
+
+@MainActor
+private struct AudioEqualizerBars: View {
+    @State private var animating = false
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 2) {
+            RoundedRectangle(cornerRadius: 1)
+                .fill(Color.accentColor)
+                .frame(width: 2.5, height: animating ? 13 : 4)
+                .animation(.easeInOut(duration: 0.32).repeatForever(autoreverses: true), value: animating)
+            RoundedRectangle(cornerRadius: 1)
+                .fill(Color.accentColor)
+                .frame(width: 2.5, height: animating ? 5 : 15)
+                .animation(.easeInOut(duration: 0.24).repeatForever(autoreverses: true).delay(0.08), value: animating)
+            RoundedRectangle(cornerRadius: 1)
+                .fill(Color.accentColor)
+                .frame(width: 2.5, height: animating ? 11 : 3)
+                .animation(.easeInOut(duration: 0.36).repeatForever(autoreverses: true).delay(0.04), value: animating)
+        }
+        .frame(width: 14, height: 16)
+        .onAppear { animating = true }
+    }
+}
+
+// MARK: - Interactive Sound Picker with Modern UI & Hover-to-Play
 
 @MainActor
 public struct SoundPickerView: View {
@@ -12,17 +38,7 @@ public struct SoundPickerView: View {
     @ObservedObject private var soundManager = SoundManager.shared
     @State private var isPopoverPresented = false
     @State private var searchText = ""
-    @State private var selectedFilter: FilterTab = .recommended
     @State private var hoveredSoundID: String? = nil
-
-    private enum FilterTab: String, CaseIterable, Identifiable {
-        case recommended = "Recommended"
-        case cinematic   = "Cinematic"
-        case system      = "System"
-        case all         = "All"
-
-        var id: String { rawValue }
-    }
 
     public init(
         title: String,
@@ -44,48 +60,69 @@ public struct SoundPickerView: View {
         } label: {
             HStack(spacing: 8) {
                 if let sound = currentSound {
-                    Image(systemName: sound.source == .system ? "apple.logo" : (sound.source == .custom ? "sparkles" : "person.crop.circle"))
-                        .font(.caption2.bold())
-                        .foregroundStyle(Color(hex: sound.source.badgeColorHex))
+                    Circle()
+                        .fill(Color(hex: sound.source.badgeColorHex).opacity(0.16))
+                        .frame(width: 22, height: 22)
+                        .overlay(
+                            Image(systemName: sound.source == .system ? "apple.logo" : (sound.category?.iconName ?? "sparkles"))
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Color(hex: sound.source.badgeColorHex))
+                        )
 
-                    Text(sound.displayName)
-                        .font(.body)
-                        .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(sound.displayName)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
 
-                    Text(sound.source.rawValue)
-                        .font(.system(size: 9, weight: .bold))
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1.5)
-                        .background(Capsule().fill(Color(hex: sound.source.badgeColorHex).opacity(0.15)))
-                        .foregroundStyle(Color(hex: sound.source.badgeColorHex))
+                        HStack(spacing: 4) {
+                            Text(sound.source.rawValue)
+                                .font(.system(size: 9.5, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            if let cat = sound.category {
+                                Text("·")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.tertiary)
+                                Text(cat.rawValue)
+                                    .font(.system(size: 9.5))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 } else if selection == SoundCatalog.noneSoundID {
-                    Image(systemName: "speaker.slash.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    Circle()
+                        .fill(Color.secondary.opacity(0.12))
+                        .frame(width: 22, height: 22)
+                        .overlay(
+                            Image(systemName: "speaker.slash.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        )
+
                     Text("None (Silent)")
-                        .font(.body)
+                        .font(.system(size: 13, weight: .regular))
                         .foregroundStyle(.secondary)
                 } else {
-                    Text(selection)
-                        .font(.body)
+                    Text(SoundCatalog.displayName(for: selection))
+                        .font(.system(size: 13, weight: .medium))
                 }
 
-                Spacer()
+                Spacer(minLength: 8)
 
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary.opacity(0.7))
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .frame(minWidth: 200, maxWidth: 260)
+            .padding(.vertical, 6)
+            .frame(minWidth: 210, maxWidth: 260)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color(NSColor.controlBackgroundColor))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(Color(NSColor.separatorColor), lineWidth: 0.8)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color(NSColor.separatorColor).opacity(0.6), lineWidth: 0.8)
             )
         }
         .buttonStyle(.plain)
@@ -94,118 +131,105 @@ public struct SoundPickerView: View {
         }
     }
 
-    // MARK: - Popover Content
+    // MARK: - Popover Content (Modern Unified Non-Tabbed Layout)
 
     private var popoverContent: some View {
         VStack(spacing: 0) {
-            // Header: Search & Filter Tabs
-            VStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                    TextField("Search sounds...", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.subheadline)
-                    if !searchText.isEmpty {
-                        Button {
-                            searchText = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                                .font(.caption)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(7)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color(NSColor.controlBackgroundColor))
-                )
+            // Header: Modern Glassmorphic Search Bar
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
 
-                // Filter Pills
-                if searchText.isEmpty {
-                    Picker("", selection: $selectedFilter) {
-                        ForEach(FilterTab.allCases) { tab in
-                            Text(tab.rawValue).tag(tab)
-                        }
+                TextField("Search sounds...", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
                     }
-                    .pickerStyle(.segmented)
-                    .controlSize(.small)
+                    .buttonStyle(.plain)
                 }
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(NSColor.controlBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color(NSColor.separatorColor).opacity(0.4), lineWidth: 0.8)
+            )
             .padding(10)
             .background(Color(NSColor.windowBackgroundColor))
 
             Divider()
 
-            // Sound Items List
+            // Sound Items ScrollView
             ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     if !searchText.isEmpty {
                         let matching = SoundCatalog.filteredSounds(query: searchText)
                         if matching.isEmpty {
-                            VStack(spacing: 6) {
+                            VStack(spacing: 8) {
                                 Image(systemName: "speaker.slash")
-                                    .font(.title2)
+                                    .font(.system(size: 26))
+                                    .foregroundStyle(.tertiary)
+                                Text("No matching sounds found")
+                                    .font(.system(size: 13, weight: .medium))
                                     .foregroundStyle(.secondary)
-                                Text("No matching sounds")
+                                Text("Try searching with a different term")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.tertiary)
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 30)
+                            .padding(.vertical, 36)
                         } else {
+                            sectionHeader("Matching Sounds (\(matching.count))")
                             ForEach(matching) { sound in
                                 soundPopoverRow(sound)
                             }
                         }
                     } else {
-                        switch selectedFilter {
-                        case .recommended:
-                            let recs = SoundCatalog.sounds(for: category)
-                            if !recs.isEmpty {
-                                sectionHeader("Recommended for \(category.rawValue)")
-                                ForEach(recs) { sound in
-                                    soundPopoverRow(sound)
-                                }
+                        // Section 1: Recommended for this event category
+                        let recs = SoundCatalog.sounds(for: category)
+                        if !recs.isEmpty {
+                            sectionHeader("Recommended for \(category.rawValue)")
+                            ForEach(recs) { sound in
+                                soundPopoverRow(sound)
                             }
-                            let others = SoundCatalog.customSounds.filter { !recs.contains($0) }
-                            if !others.isEmpty {
-                                sectionHeader("Other Cinematic App Sounds")
-                                ForEach(others) { sound in
-                                    soundPopoverRow(sound)
-                                }
-                            }
+                        }
 
-                        case .cinematic:
-                            sectionHeader("All 32 Cinematic App Sounds")
-                            ForEach(SoundCatalog.customSounds) { sound in
+                        // Section 2: Other Cinematic App Micro-Sounds
+                        let others = SoundCatalog.customSounds.filter { !recs.contains($0) }
+                        if !others.isEmpty {
+                            sectionHeader("Cinematic App Sounds (\(others.count))")
+                            ForEach(others) { sound in
                                 soundPopoverRow(sound)
                             }
+                        }
 
-                        case .system:
-                            sectionHeader("Native macOS System Sounds (\(SoundCatalog.systemSounds.count))")
-                            ForEach(SoundCatalog.systemSounds) { sound in
+                        // Section 3: Native macOS System Sounds
+                        let systemSounds = SoundCatalog.systemSounds
+                        if !systemSounds.isEmpty {
+                            sectionHeader("Native System Sounds (\(systemSounds.count))")
+                            ForEach(systemSounds) { sound in
                                 soundPopoverRow(sound)
                             }
+                        }
 
-                        case .all:
-                            let userSounds = SoundCatalog.discoverUserSounds()
-                            sectionHeader("Cinematic App Sounds (\(SoundCatalog.customSounds.count))")
-                            ForEach(SoundCatalog.customSounds) { sound in
+                        // Section 4: User-Installed Sounds
+                        let userSounds = SoundCatalog.discoverUserSounds()
+                        if !userSounds.isEmpty {
+                            sectionHeader("User Sounds (\(userSounds.count))")
+                            ForEach(userSounds) { sound in
                                 soundPopoverRow(sound)
-                            }
-                            sectionHeader("Native System Sounds (\(SoundCatalog.systemSounds.count))")
-                            ForEach(SoundCatalog.systemSounds) { sound in
-                                soundPopoverRow(sound)
-                            }
-                            if !userSounds.isEmpty {
-                                sectionHeader("User Installed Sounds (\(userSounds.count))")
-                                ForEach(userSounds) { sound in
-                                    soundPopoverRow(sound)
-                                }
                             }
                         }
                     }
@@ -218,38 +242,41 @@ public struct SoundPickerView: View {
                 }
                 .padding(6)
             }
-            .frame(maxHeight: 320)
+            .frame(maxHeight: 340)
 
             Divider()
 
-            // Footer info
-            HStack {
+            // Footer hint
+            HStack(spacing: 6) {
                 Image(systemName: "cursorarrow.rays")
-                    .font(.caption2)
+                    .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                 Text("Hover over any sound to preview instantly")
-                    .font(.caption2)
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                 Spacer()
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
             .background(Color(NSColor.windowBackgroundColor))
         }
-        .frame(width: 330)
+        .frame(width: 340)
         .onDisappear {
             hoveredSoundID = nil
         }
     }
 
     private func sectionHeader(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 10, weight: .bold))
-            .foregroundStyle(.secondary)
-            .textCase(.uppercase)
-            .padding(.horizontal, 8)
-            .padding(.top, 6)
-            .padding(.bottom, 2)
+        HStack {
+            Text(text)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            Spacer()
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 2)
     }
 
     @ViewBuilder
@@ -263,46 +290,47 @@ public struct SoundPickerView: View {
             isPopoverPresented = false
         } label: {
             HStack(spacing: 8) {
-                // Source icon
-                Image(systemName: sound.source == .system ? "apple.logo" : (sound.source == .custom ? "sparkles" : "person.crop.circle"))
-                    .font(.caption2)
-                    .foregroundStyle(Color(hex: sound.source.badgeColorHex))
-                    .frame(width: 14)
+                // Source / Category badge icon
+                Circle()
+                    .fill(Color(hex: sound.source.badgeColorHex).opacity(isPlaying ? 0.25 : 0.12))
+                    .frame(width: 20, height: 20)
+                    .overlay(
+                        Image(systemName: sound.source == .system ? "apple.logo" : (sound.category?.iconName ?? "sparkles"))
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color(hex: sound.source.badgeColorHex))
+                    )
 
                 // Sound display name
                 Text(sound.displayName)
-                    .font(.subheadline)
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
                     .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
                     .lineLimit(1)
 
                 if let cat = sound.category {
                     Text(cat.rawValue)
-                        .font(.caption2)
+                        .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
-                // Playing animation indicator
+                // Playing wave animation indicator
                 if isPlaying {
-                    HStack(spacing: 2) {
-                        Image(systemName: "speaker.wave.2.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                    }
+                    AudioEqualizerBars()
+                        .padding(.trailing, 2)
                 }
 
-                // Selected Checkmark
+                // Selected checkmark
                 if isSelected {
                     Image(systemName: "checkmark")
-                        .font(.caption.bold())
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(Color.accentColor)
                 }
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.vertical, 5.5)
             .background(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(isHovered ? Color.accentColor.opacity(0.12) : (isSelected ? Color.accentColor.opacity(0.06) : Color.clear))
             )
         }
@@ -310,8 +338,7 @@ public struct SoundPickerView: View {
         .onHover { hovering in
             if hovering {
                 hoveredSoundID = sound.id
-                // Instant hover-to-play with 80ms debounce
-                soundManager.previewOnHover(soundID: sound.id, delay: 0.08)
+                soundManager.previewOnHover(soundID: sound.id, delay: 0.05)
             } else if hoveredSoundID == sound.id {
                 hoveredSoundID = nil
             }
@@ -328,27 +355,31 @@ public struct SoundPickerView: View {
             isPopoverPresented = false
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: "speaker.slash.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 14)
+                Circle()
+                    .fill(Color.secondary.opacity(0.12))
+                    .frame(width: 20, height: 20)
+                    .overlay(
+                        Image(systemName: "speaker.slash.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    )
 
                 Text("None (Silent)")
-                    .font(.subheadline)
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
 
                 Spacer()
 
                 if isSelected {
                     Image(systemName: "checkmark")
-                        .font(.caption.bold())
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(Color.accentColor)
                 }
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.vertical, 5.5)
             .background(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(isHovered ? Color.accentColor.opacity(0.12) : Color.clear)
             )
         }

@@ -55,6 +55,7 @@ public struct AppSound: Identifiable, Hashable, Sendable {
     public let id: String
     public let displayName: String
     public let filename: String
+    public let legacyFilename: String?
     public let category: AppSoundCategory?
     public let source: SoundSource
     public let explicitURL: URL?
@@ -63,6 +64,7 @@ public struct AppSound: Identifiable, Hashable, Sendable {
         id: String,
         displayName: String,
         filename: String,
+        legacyFilename: String? = nil,
         category: AppSoundCategory? = nil,
         source: SoundSource = .custom,
         explicitURL: URL? = nil
@@ -70,6 +72,7 @@ public struct AppSound: Identifiable, Hashable, Sendable {
         self.id = id
         self.displayName = displayName
         self.filename = filename
+        self.legacyFilename = legacyFilename
         self.category = category
         self.source = source
         self.explicitURL = explicitURL
@@ -83,15 +86,24 @@ public struct AppSound: Identifiable, Hashable, Sendable {
 
         switch source {
         case .custom:
-            // 1. Check bundle URL
-            if let bundle = bundleURL, FileManager.default.fileExists(atPath: bundle.path) {
-                return bundle
-            }
-            // 2. Check ~/Library/Sounds/
+            // 1. Check ~/Library/Sounds/ for clean normal filename
             if FileManager.default.fileExists(atPath: installedURL.path) {
                 return installedURL
             }
-            // 3. Check development source repo
+            // 2. Check ~/Library/Sounds/ for legacy prefixed filename
+            if let legacy = legacyFilename {
+                let legInstalled = FileManager.default.homeDirectoryForCurrentUser
+                    .appendingPathComponent("Library/Sounds", isDirectory: true)
+                    .appendingPathComponent(legacy)
+                if FileManager.default.fileExists(atPath: legInstalled.path) {
+                    return legInstalled
+                }
+            }
+            // 3. Check bundle URL (clean or legacy)
+            if let bundle = bundleURL, FileManager.default.fileExists(atPath: bundle.path) {
+                return bundle
+            }
+            // 4. Check development source repo
             if let repoURL = devRepoURL, FileManager.default.fileExists(atPath: repoURL.path) {
                 return repoURL
             }
@@ -119,22 +131,24 @@ public struct AppSound: Identifiable, Hashable, Sendable {
         if let explicit = explicitURL, FileManager.default.fileExists(atPath: explicit.path) {
             return explicit
         }
-        let soundName = (filename as NSString).deletingPathExtension
-        let soundExt = (filename as NSString).pathExtension
-        if let url = Bundle.main.url(forResource: soundName, withExtension: soundExt) {
-            return url
-        }
-        if let url = Bundle.main.url(forResource: soundName, withExtension: soundExt, subdirectory: "Sounds") {
-            return url
-        }
-        if let resourceURL = Bundle.main.resourceURL?.appendingPathComponent(filename),
-           FileManager.default.fileExists(atPath: resourceURL.path) {
-            return resourceURL
-        }
-        // Fallback for development / test environments
-        for bundle in Bundle.allBundles {
-            if let url = bundle.url(forResource: soundName, withExtension: soundExt) {
+        let candidates = [filename, legacyFilename].compactMap { $0 }
+        for name in candidates {
+            let soundName = (name as NSString).deletingPathExtension
+            let soundExt = (name as NSString).pathExtension
+            if let url = Bundle.main.url(forResource: soundName, withExtension: soundExt) {
                 return url
+            }
+            if let url = Bundle.main.url(forResource: soundName, withExtension: soundExt, subdirectory: "Sounds") {
+                return url
+            }
+            if let resourceURL = Bundle.main.resourceURL?.appendingPathComponent(name),
+               FileManager.default.fileExists(atPath: resourceURL.path) {
+                return resourceURL
+            }
+            for bundle in Bundle.allBundles {
+                if let url = bundle.url(forResource: soundName, withExtension: soundExt) {
+                    return url
+                }
             }
         }
         return nil
@@ -142,12 +156,17 @@ public struct AppSound: Identifiable, Hashable, Sendable {
 
     /// URL to the sound in the project development source directory (for Xcode debug/previews)
     public var devRepoURL: URL? {
-        let repoSound = URL(fileURLWithPath: #filePath)
+        let basePath = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Services
             .deletingLastPathComponent() // SwiftCode
-            .appendingPathComponent("Resources/Sounds/\(filename)")
-        if FileManager.default.fileExists(atPath: repoSound.path) {
-            return repoSound
+            .appendingPathComponent("Resources/Sounds")
+
+        let candidates = [filename, legacyFilename].compactMap { $0 }
+        for cand in candidates {
+            let url = basePath.appendingPathComponent(cand)
+            if FileManager.default.fileExists(atPath: url.path) {
+                return url
+            }
         }
         return nil
     }
@@ -183,42 +202,48 @@ public enum SoundCatalog {
     public static let chillSoftBloom = AppSound(
         id: "custom.chill.soft_bloom",
         displayName: "Soft Bloom",
-        filename: "SwiftCode_Chill_SoftBloom.aiff",
+        filename: "Soft Bloom.aiff",
+        legacyFilename: "SwiftCode_Chill_SoftBloom.aiff",
         category: .chill,
         source: .custom
     )
     public static let chillCloud = AppSound(
         id: "custom.chill.cloud",
         displayName: "Cloud",
-        filename: "SwiftCode_Chill_Cloud.aiff",
+        filename: "Cloud.aiff",
+        legacyFilename: "SwiftCode_Chill_Cloud.aiff",
         category: .chill,
         source: .custom
     )
     public static let chillDrift = AppSound(
         id: "custom.chill.drift",
         displayName: "Drift",
-        filename: "SwiftCode_Chill_Drift.aiff",
+        filename: "Drift.aiff",
+        legacyFilename: "SwiftCode_Chill_Drift.aiff",
         category: .chill,
         source: .custom
     )
     public static let chillVelvet = AppSound(
         id: "custom.chill.velvet",
         displayName: "Velvet",
-        filename: "SwiftCode_Chill_Velvet.aiff",
+        filename: "Velvet.aiff",
+        legacyFilename: "SwiftCode_Chill_Velvet.aiff",
         category: .chill,
         source: .custom
     )
     public static let chillAmbientRise = AppSound(
         id: "custom.chill.ambient_rise",
         displayName: "Ambient Rise",
-        filename: "SwiftCode_Chill_AmbientRise.aiff",
+        filename: "Ambient Rise.aiff",
+        legacyFilename: "SwiftCode_Chill_AmbientRise.aiff",
         category: .chill,
         source: .custom
     )
     public static let chillCalmBell = AppSound(
         id: "custom.chill.calm_bell",
         displayName: "Calm Bell",
-        filename: "SwiftCode_Chill_CalmBell.aiff",
+        filename: "Calm Bell.aiff",
+        legacyFilename: "SwiftCode_Chill_CalmBell.aiff",
         category: .chill,
         source: .custom
     )
@@ -227,42 +252,48 @@ public enum SoundCatalog {
     public static let vibePulse = AppSound(
         id: "custom.vibe.pulse",
         displayName: "Pulse",
-        filename: "SwiftCode_Vibe_Pulse.aiff",
+        filename: "Pulse.aiff",
+        legacyFilename: "SwiftCode_Vibe_Pulse.aiff",
         category: .vibe,
         source: .custom
     )
     public static let vibeGlow = AppSound(
         id: "custom.vibe.glow",
         displayName: "Glow",
-        filename: "SwiftCode_Vibe_Glow.aiff",
+        filename: "Glow.aiff",
+        legacyFilename: "SwiftCode_Vibe_Glow.aiff",
         category: .vibe,
         source: .custom
     )
     public static let vibeWave = AppSound(
         id: "custom.vibe.wave",
         displayName: "Wave",
-        filename: "SwiftCode_Vibe_Wave.aiff",
+        filename: "Wave.aiff",
+        legacyFilename: "SwiftCode_Vibe_Wave.aiff",
         category: .vibe,
         source: .custom
     )
     public static let vibeNeon = AppSound(
         id: "custom.vibe.neon",
         displayName: "Neon",
-        filename: "SwiftCode_Vibe_Neon.aiff",
+        filename: "Neon.aiff",
+        legacyFilename: "SwiftCode_Vibe_Neon.aiff",
         category: .vibe,
         source: .custom
     )
     public static let vibeFlux = AppSound(
         id: "custom.vibe.flux",
         displayName: "Flux",
-        filename: "SwiftCode_Vibe_Flux.aiff",
+        filename: "Flux.aiff",
+        legacyFilename: "SwiftCode_Vibe_Flux.aiff",
         category: .vibe,
         source: .custom
     )
     public static let vibeEcho = AppSound(
         id: "custom.vibe.echo",
         displayName: "Echo",
-        filename: "SwiftCode_Vibe_Echo.aiff",
+        filename: "Echo.aiff",
+        legacyFilename: "SwiftCode_Vibe_Echo.aiff",
         category: .vibe,
         source: .custom
     )
@@ -271,42 +302,48 @@ public enum SoundCatalog {
     public static let satisfyingPerfect = AppSound(
         id: "custom.satisfying.perfect",
         displayName: "Perfect",
-        filename: "SwiftCode_Satisfying_Perfect.aiff",
+        filename: "Perfect.aiff",
+        legacyFilename: "SwiftCode_Satisfying_Perfect.aiff",
         category: .satisfying,
         source: .custom
     )
     public static let satisfyingSpark = AppSound(
         id: "custom.satisfying.spark",
         displayName: "Spark",
-        filename: "SwiftCode_Satisfying_Spark.aiff",
+        filename: "Spark.aiff",
+        legacyFilename: "SwiftCode_Satisfying_Spark.aiff",
         category: .satisfying,
         source: .custom
     )
     public static let satisfyingResolve = AppSound(
         id: "custom.satisfying.resolve",
         displayName: "Resolve",
-        filename: "SwiftCode_Satisfying_Resolve.aiff",
+        filename: "Resolve.aiff",
+        legacyFilename: "SwiftCode_Satisfying_Resolve.aiff",
         category: .satisfying,
         source: .custom
     )
     public static let satisfyingClickBloom = AppSound(
         id: "custom.satisfying.click_bloom",
         displayName: "Click Bloom",
-        filename: "SwiftCode_Satisfying_ClickBloom.aiff",
+        filename: "Click Bloom.aiff",
+        legacyFilename: "SwiftCode_Satisfying_ClickBloom.aiff",
         category: .satisfying,
         source: .custom
     )
     public static let satisfyingVelvetPop = AppSound(
         id: "custom.satisfying.velvet_pop",
         displayName: "Velvet Pop",
-        filename: "SwiftCode_Satisfying_VelvetPop.aiff",
+        filename: "Velvet Pop.aiff",
+        legacyFilename: "SwiftCode_Satisfying_VelvetPop.aiff",
         category: .satisfying,
         source: .custom
     )
     public static let satisfyingSoftChime = AppSound(
         id: "custom.satisfying.soft_chime",
         displayName: "Soft Chime",
-        filename: "SwiftCode_Satisfying_SoftChime.aiff",
+        filename: "Soft Chime.aiff",
+        legacyFilename: "SwiftCode_Satisfying_SoftChime.aiff",
         category: .satisfying,
         source: .custom
     )
@@ -315,28 +352,32 @@ public enum SoundCatalog {
     public static let successComplete = AppSound(
         id: "custom.success.complete",
         displayName: "Complete",
-        filename: "SwiftCode_Success_Complete.aiff",
+        filename: "Complete.aiff",
+        legacyFilename: "SwiftCode_Success_Complete.aiff",
         category: .success,
         source: .custom
     )
     public static let successConfirmed = AppSound(
         id: "custom.success.confirmed",
         displayName: "Confirmed",
-        filename: "SwiftCode_Success_Confirmed.aiff",
+        filename: "Confirmed.aiff",
+        legacyFilename: "SwiftCode_Success_Confirmed.aiff",
         category: .success,
         source: .custom
     )
     public static let successReady = AppSound(
         id: "custom.success.ready",
         displayName: "Ready",
-        filename: "SwiftCode_Success_Ready.aiff",
+        filename: "Ready.aiff",
+        legacyFilename: "SwiftCode_Success_Ready.aiff",
         category: .success,
         source: .custom
     )
     public static let successDone = AppSound(
         id: "custom.success.done",
         displayName: "Done",
-        filename: "SwiftCode_Success_Done.aiff",
+        filename: "Done.aiff",
+        legacyFilename: "SwiftCode_Success_Done.aiff",
         category: .success,
         source: .custom
     )
@@ -345,28 +386,32 @@ public enum SoundCatalog {
     public static let messageMessage = AppSound(
         id: "custom.message.message",
         displayName: "Message",
-        filename: "SwiftCode_Message_Message.aiff",
+        filename: "Message.aiff",
+        legacyFilename: "SwiftCode_Message_Message.aiff",
         category: .message,
         source: .custom
     )
     public static let messageWhisper = AppSound(
         id: "custom.message.whisper",
         displayName: "Whisper",
-        filename: "SwiftCode_Message_Whisper.aiff",
+        filename: "Whisper.aiff",
+        legacyFilename: "SwiftCode_Message_Whisper.aiff",
         category: .message,
         source: .custom
     )
     public static let messagePresence = AppSound(
         id: "custom.message.presence",
         displayName: "Presence",
-        filename: "SwiftCode_Message_Presence.aiff",
+        filename: "Presence.aiff",
+        legacyFilename: "SwiftCode_Message_Presence.aiff",
         category: .message,
         source: .custom
     )
     public static let messagePing = AppSound(
         id: "custom.message.ping",
         displayName: "Ping",
-        filename: "SwiftCode_Message_Ping.aiff",
+        filename: "Ping.aiff",
+        legacyFilename: "SwiftCode_Message_Ping.aiff",
         category: .message,
         source: .custom
     )
@@ -375,28 +420,32 @@ public enum SoundCatalog {
     public static let notificationSoftNotify = AppSound(
         id: "custom.notification.soft_notify",
         displayName: "Soft Notify",
-        filename: "SwiftCode_Notification_SoftNotify.aiff",
+        filename: "Soft Notify.aiff",
+        legacyFilename: "SwiftCode_Notification_SoftNotify.aiff",
         category: .notification,
         source: .custom
     )
     public static let notificationSignal = AppSound(
         id: "custom.notification.signal",
         displayName: "Signal",
-        filename: "SwiftCode_Notification_Signal.aiff",
+        filename: "Signal.aiff",
+        legacyFilename: "SwiftCode_Notification_Signal.aiff",
         category: .notification,
         source: .custom
     )
     public static let notificationRipple = AppSound(
         id: "custom.notification.ripple",
         displayName: "Ripple",
-        filename: "SwiftCode_Notification_Ripple.aiff",
+        filename: "Ripple.aiff",
+        legacyFilename: "SwiftCode_Notification_Ripple.aiff",
         category: .notification,
         source: .custom
     )
     public static let notificationArrival = AppSound(
         id: "custom.notification.arrival",
         displayName: "Arrival",
-        filename: "SwiftCode_Notification_Arrival.aiff",
+        filename: "Arrival.aiff",
+        legacyFilename: "SwiftCode_Notification_Arrival.aiff",
         category: .notification,
         source: .custom
     )
@@ -405,14 +454,16 @@ public enum SoundCatalog {
     public static let warningCaution = AppSound(
         id: "custom.warning.caution",
         displayName: "Caution",
-        filename: "SwiftCode_Warning_Caution.aiff",
+        filename: "Caution.aiff",
+        legacyFilename: "SwiftCode_Warning_Caution.aiff",
         category: .error,
         source: .custom
     )
     public static let errorAttention = AppSound(
         id: "custom.error.attention",
         displayName: "Attention",
-        filename: "SwiftCode_Error_Attention.aiff",
+        filename: "Attention.aiff",
+        legacyFilename: "SwiftCode_Error_Attention.aiff",
         category: .error,
         source: .custom
     )
@@ -555,10 +606,16 @@ public enum SoundCatalog {
             options: [.skipsHiddenFiles]
         ) else { return [] }
 
+        let customFilenames = Set(customSounds.map { $0.filename.lowercased() })
+        let legacyCustomFilenames = Set(customSounds.compactMap { $0.legacyFilename?.lowercased() })
+
         for url in files {
             let filename = url.lastPathComponent
-            // Filter out SwiftCode's own installed sounds
-            if filename.hasPrefix("SwiftCode_") { continue }
+            let lower = filename.lowercased()
+            // Filter out SwiftCode's own installed sounds (legacy and clean)
+            if filename.hasPrefix("SwiftCode_") || customFilenames.contains(lower) || legacyCustomFilenames.contains(lower) {
+                continue
+            }
 
             let rawName = url.deletingPathExtension().lastPathComponent
             let stableID = "user_\(rawName.lowercased().replacingOccurrences(of: " ", with: "_"))"
@@ -588,19 +645,28 @@ public enum SoundCatalog {
     public static func sound(for id: String) -> AppSound? {
         if id == noneSoundID { return nil }
 
-        // 1. Direct match in custom sounds
-        if let custom = customSounds.first(where: { $0.id == id }) {
+        // 1. Direct match in custom sounds by id, filename, legacyFilename, or displayName
+        if let custom = customSounds.first(where: {
+            $0.id == id || $0.filename == id || $0.legacyFilename == id ||
+            $0.displayName.localizedCaseInsensitiveCompare(id) == .orderedSame
+        }) {
             return custom
         }
 
         // 2. Direct match in system sounds
-        if let sys = systemSounds.first(where: { $0.id == id }) {
+        if let sys = systemSounds.first(where: {
+            $0.id == id || $0.filename == id ||
+            $0.displayName.localizedCaseInsensitiveCompare(id) == .orderedSame
+        }) {
             return sys
         }
 
         // 3. Match in dynamically discovered user sounds
         let userSounds = discoverUserSounds()
-        if let user = userSounds.first(where: { $0.id == id }) {
+        if let user = userSounds.first(where: {
+            $0.id == id || $0.filename == id ||
+            $0.displayName.localizedCaseInsensitiveCompare(id) == .orderedSame
+        }) {
             return user
         }
 
@@ -635,14 +701,59 @@ public enum SoundCatalog {
             break
         }
 
-        // 5. Match by exact filename or stripped ID
+        // 5. Normalized fuzzy match (stripping SwiftCode_, custom., system_, extensions, underscores)
+        let normalized = id.lowercased()
+            .replacingOccurrences(of: "swiftcode_", with: "")
+            .replacingOccurrences(of: "custom.", with: "")
+            .replacingOccurrences(of: "system_", with: "")
+            .replacingOccurrences(of: ".aiff", with: "")
+            .replacingOccurrences(of: ".wav", with: "")
+            .replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: " ", with: "")
+
         for sound in allSounds {
-            if sound.filename == id || sound.id.replacingOccurrences(of: "custom.", with: "") == id {
+            let soundNorm = sound.displayName.lowercased().replacingOccurrences(of: " ", with: "")
+            let soundIdNorm = sound.id.lowercased().replacingOccurrences(of: ".", with: "").replacingOccurrences(of: "_", with: "")
+            if soundNorm == normalized || soundIdNorm.contains(normalized) || normalized.contains(soundNorm) {
                 return sound
             }
         }
 
         return nil
+    }
+
+    /// Formats any sound identifier or raw string into a clean, human-readable normal sound name
+    public static func displayName(for soundID: String) -> String {
+        if soundID == noneSoundID {
+            return "None (Silent)"
+        }
+        if let sound = sound(for: soundID) {
+            return sound.displayName
+        }
+        if let tone = AlertTone(rawValue: soundID) {
+            return tone.displayName
+        }
+
+        // Clean up raw strings like "SwiftCode_Chill_Velvet", "custom.chill.velvet", "Velvet.aiff"
+        var clean = soundID
+        if clean.hasPrefix("SwiftCode_") {
+            clean = String(clean.dropFirst("SwiftCode_".count))
+        }
+        if clean.hasPrefix("custom.") {
+            clean = String(clean.dropFirst("custom.".count))
+        }
+        if clean.hasPrefix("system_") {
+            clean = String(clean.dropFirst("system_".count))
+        }
+        if clean.hasSuffix(".aiff") || clean.hasSuffix(".wav") || clean.hasSuffix(".caf") {
+            clean = (clean as NSString).deletingPathExtension
+        }
+
+        let pieces = clean.components(separatedBy: CharacterSet(charactersIn: "._"))
+        if pieces.count > 1, let last = pieces.last, !last.isEmpty {
+            return last.capitalized
+        }
+        return clean.replacingOccurrences(of: "_", with: " ").capitalized
     }
 
     /// Retrieve custom sounds by category

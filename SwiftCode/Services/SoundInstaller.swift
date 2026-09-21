@@ -43,8 +43,8 @@ public final class SoundInstaller: Sendable {
         )
     }
 
-    /// Installs SwiftCode's custom alert sounds into ~/Library/Sounds/ safely and idempotently.
-    /// Does not touch or modify any third-party or system sound files.
+    /// Installs custom alert sounds into ~/Library/Sounds/ safely with clean, normal sound names.
+    /// Also cleans up any legacy "SwiftCode_" prefixed files from ~/Library/Sounds/.
     @discardableResult
     public func installSoundsIfNeeded() -> [String: Bool] {
         var results: [String: Bool] = [:]
@@ -67,7 +67,10 @@ public final class SoundInstaller: Sendable {
             return results
         }
 
-        // 2. Iterate through all custom application sounds
+        // 2. Clean up any legacy "SwiftCode_*" files so macOS System Settings shows clean, normal sound names
+        cleanupLegacyPrefixedSounds()
+
+        // 3. Iterate through all custom application sounds and install with clean normal filenames
         for sound in SoundCatalog.customSounds {
             let success = installSound(sound, in: destinationDir)
             results[sound.filename] = success
@@ -76,12 +79,37 @@ public final class SoundInstaller: Sendable {
         return results
     }
 
-    /// Safely uninstalls only SwiftCode custom sounds from ~/Library/Sounds/.
+    /// Automatically removes any legacy files beginning with "SwiftCode_" from ~/Library/Sounds/
+    public func cleanupLegacyPrefixedSounds() {
+        let destinationDir = userSoundsDirectory
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: destinationDir,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else { return }
+
+        for file in files {
+            let name = file.lastPathComponent
+            if name.hasPrefix("SwiftCode_") {
+                do {
+                    try FileManager.default.removeItem(at: file)
+                    logger.info("[SoundInstaller] Cleaned up legacy sound file: \(name)")
+                } catch {
+                    logger.warning("[SoundInstaller] Failed to remove legacy file \(name): \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    /// Safely uninstalls only custom application sounds from ~/Library/Sounds/.
     /// Leaves all other sounds in ~/Library/Sounds/ completely untouched.
     @discardableResult
     public func uninstallSounds() -> [String: Bool] {
         var results: [String: Bool] = [:]
         let destinationDir = userSoundsDirectory
+
+        // Clean up legacy prefixed sounds as well
+        cleanupLegacyPrefixedSounds()
 
         for sound in SoundCatalog.customSounds {
             let targetURL = destinationDir.appendingPathComponent(sound.filename)
@@ -97,6 +125,13 @@ public final class SoundInstaller: Sendable {
             } else {
                 results[sound.filename] = true
             }
+
+            if let legacy = sound.legacyFilename {
+                let legURL = destinationDir.appendingPathComponent(legacy)
+                if FileManager.default.fileExists(atPath: legURL.path) {
+                    try? FileManager.default.removeItem(at: legURL)
+                }
+            }
         }
 
         return results
@@ -111,11 +146,13 @@ public final class SoundInstaller: Sendable {
             sourceURL = bundleURL
         } else if let devURL = sound.devRepoURL, FileManager.default.fileExists(atPath: devURL.path) {
             sourceURL = devURL
+        } else if let resolved = sound.resolvedURL, FileManager.default.fileExists(atPath: resolved.path) {
+            sourceURL = resolved
         } else {
             let repoSound = URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
-                .appendingPathComponent("Resources/Sounds/\(sound.filename)")
+                .appendingPathComponent("Resources/Sounds/\(sound.legacyFilename ?? sound.filename)")
             if FileManager.default.fileExists(atPath: repoSound.path) {
                 sourceURL = repoSound
             } else {

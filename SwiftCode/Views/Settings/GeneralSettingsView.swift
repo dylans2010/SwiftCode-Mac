@@ -1675,7 +1675,7 @@ struct SoundLibraryBrowserView: View {
         }
         .onHover { hovering in
             if hovering {
-                SoundManager.shared.previewOnHover(soundID: sound.id, delay: 0.1)
+                SoundManager.shared.previewOnHover(soundID: sound.id, delay: 0.05)
             }
         }
     }
