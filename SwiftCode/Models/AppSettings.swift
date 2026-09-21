@@ -244,6 +244,9 @@ class AppSettings: ObservableObject {
     @Published var errorSoundID: String {
         didSet { debouncedSave("errorSoundID", errorSoundID) }
     }
+    @Published var completionSoundID: String {
+        didSet { debouncedSave("completionSoundID", completionSoundID) }
+    }
 
     // MARK: - Debounced Save
 
@@ -327,6 +330,9 @@ class AppSettings: ObservableObject {
 
         let rawError = UserDefaults.standard.string(forKey: "errorSoundID") ?? SoundCatalog.errorA.id
         errorSoundID = (rawError == SoundCatalog.noneSoundID || SoundCatalog.sound(for: rawError) != nil) ? rawError : SoundCatalog.errorA.id
+
+        let rawComplete = UserDefaults.standard.string(forKey: "completionSoundID") ?? SoundCatalog.completeA.id
+        completionSoundID = (rawComplete == SoundCatalog.noneSoundID || SoundCatalog.sound(for: rawComplete) != nil) ? rawComplete : SoundCatalog.completeA.id
 
         // Load saved repositories
         loadSavedRepositories()

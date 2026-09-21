@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import UserNotifications
 
 @MainActor
@@ -56,7 +57,13 @@ final class NotificationManager: ObservableObject {
         case .error:
             soundID = AppSettings.shared.errorSoundID
         case .complete:
-            soundID = AppSettings.shared.notificationSoundID
+            soundID = AppSettings.shared.completionSoundID
+        case .chill:
+            soundID = SoundCatalog.chillSoftBloom.id
+        case .vibe:
+            soundID = SoundCatalog.vibePulse.id
+        case .satisfying:
+            soundID = SoundCatalog.satisfyingPerfect.id
         }
 
         if soundID == SoundCatalog.noneSoundID {
@@ -65,6 +72,11 @@ final class NotificationManager: ObservableObject {
             content.sound = UNNotificationSound(named: UNNotificationSoundName(appSound.filename))
         } else {
             content.sound = .default
+        }
+
+        // If the application is active in the foreground, also play immediately through SoundManager
+        if NSApplication.shared.isActive {
+            SoundManager.shared.play(for: category)
         }
 
         let request = UNNotificationRequest(

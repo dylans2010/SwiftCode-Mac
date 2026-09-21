@@ -18,6 +18,31 @@ public final class SoundInstaller: Sendable {
 
     // MARK: - Public Installation API
 
+    public struct IntegrationStatus: Sendable {
+        public let installedCount: Int
+        public let totalCount: Int
+        public let isComplete: Bool
+        public let directoryURL: URL
+    }
+
+    /// Check how many of the custom application sounds are installed in ~/Library/Sounds/
+    public func systemSettingsStatus() -> IntegrationStatus {
+        let destinationDir = userSoundsDirectory
+        var installed = 0
+        for sound in SoundCatalog.customSounds {
+            let target = destinationDir.appendingPathComponent(sound.filename)
+            if FileManager.default.fileExists(atPath: target.path) {
+                installed += 1
+            }
+        }
+        return IntegrationStatus(
+            installedCount: installed,
+            totalCount: SoundCatalog.customSounds.count,
+            isComplete: installed >= SoundCatalog.customSounds.count,
+            directoryURL: destinationDir
+        )
+    }
+
     /// Installs SwiftCode's custom alert sounds into ~/Library/Sounds/ safely and idempotently.
     /// Does not touch or modify any third-party or system sound files.
     @discardableResult
@@ -25,11 +50,17 @@ public final class SoundInstaller: Sendable {
         var results: [String: Bool] = [:]
         let destinationDir = userSoundsDirectory
 
-        // 1. Ensure ~/Library/Sounds directory exists
+        // 1. Ensure ~/Library/Sounds directory exists with standard 0o755 permissions
         do {
             if !FileManager.default.fileExists(atPath: destinationDir.path) {
-                try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true, attributes: nil)
+                try FileManager.default.createDirectory(
+                    at: destinationDir,
+                    withIntermediateDirectories: true,
+                    attributes: [.posixPermissions: 0o755]
+                )
                 logger.info("[SoundInstaller] Created directory: \(destinationDir.path)")
+            } else {
+                try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: destinationDir.path)
             }
         } catch {
             logger.error("[SoundInstaller] Failed to create ~/Library/Sounds directory: \(error.localizedDescription)")
@@ -74,10 +105,12 @@ public final class SoundInstaller: Sendable {
     // MARK: - Internal Installation Logic
 
     private func installSound(_ sound: AppSound, in destinationDir: URL) -> Bool {
-        // 1. Locate source asset in bundle or source directory
+        // 1. Locate source asset in bundle, dev repo, or explicit URL
         let sourceURL: URL
-        if let bundleURL = sound.bundleURL {
+        if let bundleURL = sound.bundleURL, FileManager.default.fileExists(atPath: bundleURL.path) {
             sourceURL = bundleURL
+        } else if let devURL = sound.devRepoURL, FileManager.default.fileExists(atPath: devURL.path) {
+            sourceURL = devURL
         } else {
             let repoSound = URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()
@@ -93,16 +126,21 @@ public final class SoundInstaller: Sendable {
 
         let destinationURL = destinationDir.appendingPathComponent(sound.filename)
 
-        // 2. Check if already installed and identical
+        // 2. Check if already installed, identical, and permissions correct
         if FileManager.default.fileExists(atPath: destinationURL.path) {
             if isFileIdentical(sourceURL: sourceURL, destinationURL: destinationURL) {
+                try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: destinationURL.path)
                 logger.debug("[SoundInstaller] Sound already up-to-date: \(sound.filename)")
                 return true
             }
         }
 
         // 3. Perform atomic copy/replace
-        return copyAtomically(from: sourceURL, to: destinationURL)
+        let success = copyAtomically(from: sourceURL, to: destinationURL)
+        if success {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: destinationURL.path)
+        }
+        return success
     }
 
     private func isFileIdentical(sourceURL: URL, destinationURL: URL) -> Bool {

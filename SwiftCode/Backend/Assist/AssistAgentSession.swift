@@ -353,6 +353,7 @@ public final class AssistAgentSession: Sendable {
                             // Final successful termination
                             transition(to: .completing, reason: "Finalizing task details...")
                             transition(to: .terminated, reason: "Code Review Approved! Task completed: \(finalResponse)\nReviewer Notes: \(reviewState.userSee)")
+                            NotificationManager.shared.sendAgentTaskFinishedNotification()
                             return
                         } else {
                             // --- STEP 6: ADAPTIVE CODE REVIEW CONTINUATION (NO PROTOTYPE ITERATION CAPS) ---

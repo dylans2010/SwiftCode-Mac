@@ -13,30 +13,33 @@ public protocol SoundPlaying: AnyObject {
     func play(soundID: String) -> Bool
     @discardableResult
     func play(for category: AppSoundCategory) -> Bool
+    func stopAll()
 }
 
 // MARK: - Unified Sound Manager
 
 @MainActor
-public final class SoundManager: ObservableObject, SoundPlaying {
+public final class SoundManager: NSObject, ObservableObject, SoundPlaying, NSSoundDelegate {
     public static let shared = SoundManager()
 
     private let logger = Logger(subsystem: "com.dylans2010.SwiftCode-Mac", category: "SoundManager")
 
-    // Active NSSound instances for custom/user playback and previews
+    /// The sound ID currently playing (nil when idle). Observable for UI "Now Playing" indicators.
+    @Published public private(set) var currentlyPlayingSoundID: String? = nil
+
+    // Active NSSound instances
     private var activeSounds: [NSSound] = []
 
-    // AudioToolbox SystemSoundID cache for native system sounds
-    private var systemSoundCache: [String: SystemSoundID] = [:]
+    // Token uniquely identifying the active playback session, preventing race conditions from stopped sounds
+    private var currentPlaybackToken = UUID()
 
-    private init() {}
+    // Hover task for smooth debounced hover-to-play previews
+    private var hoverPreviewTask: Task<Void, Never>? = nil
 
-    deinit {
-        // Dispose all cached AudioToolbox SystemSoundID resources
-        for soundID in systemSoundCache.values {
-            AudioServicesDisposeSystemSoundID(soundID)
-        }
-        systemSoundCache.removeAll()
+    private override init() {
+        super.init()
+        // Ensure custom sounds are installed and available immediately
+        _ = SoundInstaller.shared.installSoundsIfNeeded()
     }
 
     // MARK: - Public Playback API
@@ -44,15 +47,15 @@ public final class SoundManager: ObservableObject, SoundPlaying {
     /// Play a sound directly via its AppSound specification
     @discardableResult
     public func play(_ sound: AppSound) -> Bool {
-        switch sound.source {
-        case .system:
-            return playSystemSound(sound)
-        case .custom, .user:
-            return playFileSound(sound)
+        guard sound.id != SoundCatalog.noneSoundID else {
+            logger.debug("[SoundManager] 'None' sound selected; skipping playback.")
+            return false
         }
+
+        return executePlayback(for: sound)
     }
 
-    /// Play a sound by its stable identifier (e.g. "system_glass", "swiftcode_notification_a").
+    /// Play a sound by its stable identifier (e.g. "custom.chill.soft_bloom", "system_glass").
     /// If identifier is "none", skips playback cleanly.
     @discardableResult
     public func play(soundID: String) -> Bool {
@@ -84,92 +87,150 @@ public final class SoundManager: ObservableObject, SoundPlaying {
         case .error:
             soundID = settings.errorSoundID
         case .complete:
-            soundID = settings.notificationSoundID
+            soundID = settings.completionSoundID
+        case .chill:
+            soundID = SoundCatalog.chillSoftBloom.id
+        case .vibe:
+            soundID = SoundCatalog.vibePulse.id
+        case .satisfying:
+            soundID = SoundCatalog.satisfyingPerfect.id
         }
 
         return play(soundID: soundID)
     }
 
-    /// Preview a sound in the Settings UI (stops any currently playing preview)
+    /// Preview a sound in the Settings UI (toggles playback if clicked again)
     public func preview(soundID: String) {
+        hoverPreviewTask?.cancel()
+
+        // If clicking the sound that is already playing, toggle it off
+        if currentlyPlayingSoundID == soundID {
+            stopAll()
+            return
+        }
+
         stopAll()
         _ = play(soundID: soundID)
     }
 
     /// Preview a specific AppSound directly
     public func preview(_ sound: AppSound) {
+        hoverPreviewTask?.cancel()
+
+        if currentlyPlayingSoundID == sound.id {
+            stopAll()
+            return
+        }
+
         stopAll()
         _ = play(sound)
     }
 
+    /// Preview a sound triggered by mouse hover with an intentional debounce
+    public func previewOnHover(soundID: String, delay: Double = 0.08) {
+        hoverPreviewTask?.cancel()
+        guard soundID != SoundCatalog.noneSoundID else { return }
+
+        // If this sound is already actively playing, let it continue
+        if currentlyPlayingSoundID == soundID { return }
+
+        hoverPreviewTask = Task { @MainActor in
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            }
+            guard !Task.isCancelled else { return }
+            self.stopAll()
+            _ = self.play(soundID: soundID)
+        }
+    }
+
     /// Stop all currently playing audio initiated by SoundManager
     public func stopAll() {
+        hoverPreviewTask?.cancel()
+        currentPlaybackToken = UUID()
+
         for sound in activeSounds {
+            sound.delegate = nil
             sound.stop()
         }
         activeSounds.removeAll()
+        currentlyPlayingSoundID = nil
     }
 
-    // MARK: - AudioToolbox Native System Sound Backend
+    // MARK: - Unified Resilient Audio Playback Pipeline
 
-    private func playSystemSound(_ sound: AppSound) -> Bool {
-        // 1. If explicit URL or path exists, use AudioServices with caching
-        if let url = sound.resolvedURL {
-            let key = url.path
-            if let cachedID = systemSoundCache[key] {
-                AudioServicesPlaySystemSound(cachedID)
+    private func executePlayback(for sound: AppSound) -> Bool {
+        cleanupFinishedSounds()
+        let playbackToken = UUID()
+        self.currentPlaybackToken = playbackToken
+
+        // 1. Primary Strategy: In-memory NSSound from resolved URL (loads data without file lock)
+        if let url = sound.resolvedURL, FileManager.default.fileExists(atPath: url.path) {
+            if let nsSound = NSSound(contentsOf: url, byReference: false) {
+                nsSound.delegate = self
+                activeSounds.append(nsSound)
+                self.currentlyPlayingSoundID = sound.id
+                let success = nsSound.play()
+                if success {
+                    logger.debug("[SoundManager] Playing '\(sound.displayName)' via URL (\(url.lastPathComponent))")
+                    return true
+                }
+                logger.warning("[SoundManager] NSSound.play() returned false for URL: \(url.path)")
+            }
+        }
+
+        // 2. Secondary Strategy: Named sound lookup in AppKit search paths
+        let soundName = (sound.filename as NSString).deletingPathExtension
+        if let namedSound = NSSound(named: NSSound.Name(soundName)) {
+            namedSound.delegate = self
+            activeSounds.append(namedSound)
+            self.currentlyPlayingSoundID = sound.id
+            let success = namedSound.play()
+            if success {
+                logger.debug("[SoundManager] Playing '\(sound.displayName)' via NSSound(named: \(soundName))")
                 return true
             }
+        }
 
-            var newID: SystemSoundID = 0
-            let status = AudioServicesCreateSystemSoundID(url as CFURL, &newID)
+        // 3. Tertiary Strategy: AudioServices alert channel (AudioServicesPlayAlertSound)
+        if let url = sound.resolvedURL ?? (sound.source == .system ? URL(fileURLWithPath: "/System/Library/Sounds/\(sound.filename)") : nil),
+           FileManager.default.fileExists(atPath: url.path) {
+            var systemID: SystemSoundID = 0
+            let status = AudioServicesCreateSystemSoundID(url as CFURL, &systemID)
             if status == noErr {
-                systemSoundCache[key] = newID
-                AudioServicesPlaySystemSound(newID)
+                self.currentlyPlayingSoundID = sound.id
+                AudioServicesPlayAlertSoundWithCompletion(systemID) { [weak self, playbackToken] in
+                    AudioServicesDisposeSystemSoundID(systemID)
+                    Task { @MainActor in
+                        if self?.currentPlaybackToken == playbackToken {
+                            self?.currentlyPlayingSoundID = nil
+                        }
+                    }
+                }
+                logger.debug("[SoundManager] Playing '\(sound.displayName)' via AudioServicesPlayAlertSound")
                 return true
-            } else {
-                logger.warning("[SoundManager] AudioServicesCreateSystemSoundID failed with status \(status) for \(url.path)")
             }
         }
 
-        // 2. Fallback to native NSSound(named:) for system sounds
-        let soundName = (sound.filename as NSString).deletingPathExtension
-        if let namedSound = NSSound(named: NSSound.Name(soundName)) {
-            cleanupFinishedSounds()
-            activeSounds.append(namedSound)
-            return namedSound.play()
+        logger.error("[SoundManager] All audio strategies failed for sound: \(sound.displayName) (\(sound.filename))")
+        if self.currentPlaybackToken == playbackToken {
+            self.currentlyPlayingSoundID = nil
         }
-
-        logger.error("[SoundManager] Failed to resolve native system sound: \(sound.displayName)")
-        return false
-    }
-
-    // MARK: - Custom & User File Playback Backend (NSSound)
-
-    private func playFileSound(_ sound: AppSound) -> Bool {
-        if let url = sound.resolvedURL, let nsSound = NSSound(contentsOf: url, byReference: true) {
-            cleanupFinishedSounds()
-            activeSounds.append(nsSound)
-            let success = nsSound.play()
-            if !success {
-                logger.warning("[SoundManager] NSSound.play() failed for URL: \(url.path)")
-            }
-            return success
-        }
-
-        // Fallback for custom sounds installed in ~/Library/Sounds/
-        let soundName = (sound.filename as NSString).deletingPathExtension
-        if let namedSound = NSSound(named: NSSound.Name(soundName)) {
-            cleanupFinishedSounds()
-            activeSounds.append(namedSound)
-            return namedSound.play()
-        }
-
-        logger.error("[SoundManager] Could not find or decode sound asset: \(sound.filename)")
         return false
     }
 
     private func cleanupFinishedSounds() {
         activeSounds.removeAll(where: { !$0.isPlaying })
+    }
+
+    // MARK: - NSSoundDelegate
+
+    nonisolated public func sound(_ sound: NSSound, didFinishPlaying flag: Bool) {
+        Task { @MainActor in
+            self.activeSounds.removeAll(where: { $0 === sound })
+            if self.activeSounds.isEmpty {
+                self.currentlyPlayingSoundID = nil
+            }
+        }
     }
 }

@@ -32,6 +32,38 @@
 		SNDBLD000000000000000023 /* SwiftCode_Complete_B.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000023 /* SwiftCode_Complete_B.aiff */; };
 		SNDBLD000000000000000024 /* SwiftCode_Complete_C.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000024 /* SwiftCode_Complete_C.aiff */; };
 		SNDBLD000000000000000025 /* SwiftCode_Complete_D.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000025 /* SwiftCode_Complete_D.aiff */; };
+		SNDBLD000000000000000026 /* SwiftCode_Chill_SoftBloom.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000026 /* SwiftCode_Chill_SoftBloom.aiff */; };
+		SNDBLD000000000000000027 /* SwiftCode_Chill_Cloud.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000027 /* SwiftCode_Chill_Cloud.aiff */; };
+		SNDBLD000000000000000028 /* SwiftCode_Chill_Drift.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000028 /* SwiftCode_Chill_Drift.aiff */; };
+		SNDBLD000000000000000029 /* SwiftCode_Chill_Velvet.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000029 /* SwiftCode_Chill_Velvet.aiff */; };
+		SNDBLD000000000000000030 /* SwiftCode_Chill_AmbientRise.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000030 /* SwiftCode_Chill_AmbientRise.aiff */; };
+		SNDBLD000000000000000031 /* SwiftCode_Chill_CalmBell.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000031 /* SwiftCode_Chill_CalmBell.aiff */; };
+		SNDBLD000000000000000032 /* SwiftCode_Vibe_Pulse.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000032 /* SwiftCode_Vibe_Pulse.aiff */; };
+		SNDBLD000000000000000033 /* SwiftCode_Vibe_Glow.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000033 /* SwiftCode_Vibe_Glow.aiff */; };
+		SNDBLD000000000000000034 /* SwiftCode_Vibe_Wave.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000034 /* SwiftCode_Vibe_Wave.aiff */; };
+		SNDBLD000000000000000035 /* SwiftCode_Vibe_Neon.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000035 /* SwiftCode_Vibe_Neon.aiff */; };
+		SNDBLD000000000000000036 /* SwiftCode_Vibe_Flux.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000036 /* SwiftCode_Vibe_Flux.aiff */; };
+		SNDBLD000000000000000037 /* SwiftCode_Vibe_Echo.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000037 /* SwiftCode_Vibe_Echo.aiff */; };
+		SNDBLD000000000000000038 /* SwiftCode_Satisfying_Perfect.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000038 /* SwiftCode_Satisfying_Perfect.aiff */; };
+		SNDBLD000000000000000039 /* SwiftCode_Satisfying_Spark.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000039 /* SwiftCode_Satisfying_Spark.aiff */; };
+		SNDBLD000000000000000040 /* SwiftCode_Satisfying_Resolve.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000040 /* SwiftCode_Satisfying_Resolve.aiff */; };
+		SNDBLD000000000000000041 /* SwiftCode_Satisfying_ClickBloom.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000041 /* SwiftCode_Satisfying_ClickBloom.aiff */; };
+		SNDBLD000000000000000042 /* SwiftCode_Satisfying_VelvetPop.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000042 /* SwiftCode_Satisfying_VelvetPop.aiff */; };
+		SNDBLD000000000000000043 /* SwiftCode_Satisfying_SoftChime.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000043 /* SwiftCode_Satisfying_SoftChime.aiff */; };
+		SNDBLD000000000000000044 /* SwiftCode_Success_Complete.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000044 /* SwiftCode_Success_Complete.aiff */; };
+		SNDBLD000000000000000045 /* SwiftCode_Success_Confirmed.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000045 /* SwiftCode_Success_Confirmed.aiff */; };
+		SNDBLD000000000000000046 /* SwiftCode_Success_Ready.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000046 /* SwiftCode_Success_Ready.aiff */; };
+		SNDBLD000000000000000047 /* SwiftCode_Success_Done.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000047 /* SwiftCode_Success_Done.aiff */; };
+		SNDBLD000000000000000048 /* SwiftCode_Message_Message.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000048 /* SwiftCode_Message_Message.aiff */; };
+		SNDBLD000000000000000049 /* SwiftCode_Message_Whisper.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000049 /* SwiftCode_Message_Whisper.aiff */; };
+		SNDBLD000000000000000050 /* SwiftCode_Message_Presence.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000050 /* SwiftCode_Message_Presence.aiff */; };
+		SNDBLD000000000000000051 /* SwiftCode_Message_Ping.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000051 /* SwiftCode_Message_Ping.aiff */; };
+		SNDBLD000000000000000052 /* SwiftCode_Notification_SoftNotify.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000052 /* SwiftCode_Notification_SoftNotify.aiff */; };
+		SNDBLD000000000000000053 /* SwiftCode_Notification_Signal.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000053 /* SwiftCode_Notification_Signal.aiff */; };
+		SNDBLD000000000000000054 /* SwiftCode_Notification_Ripple.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000054 /* SwiftCode_Notification_Ripple.aiff */; };
+		SNDBLD000000000000000055 /* SwiftCode_Notification_Arrival.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000055 /* SwiftCode_Notification_Arrival.aiff */; };
+		SNDBLD000000000000000056 /* SwiftCode_Warning_Caution.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000056 /* SwiftCode_Warning_Caution.aiff */; };
+		SNDBLD000000000000000057 /* SwiftCode_Error_Attention.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000057 /* SwiftCode_Error_Attention.aiff */; };
 		SWTBLD000000000000000001 /* SoundCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = SWTREF000000000000000001 /* SoundCatalog.swift */; };
 		SWTBLD000000000000000002 /* SoundManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = SWTREF000000000000000002 /* SoundManager.swift */; };
 		SWTBLD000000000000000003 /* SoundInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = SWTREF000000000000000003 /* SoundInstaller.swift */; };
@@ -1567,6 +1599,7 @@
 		ECAAA1260294B0DD15620205 /* Symbols/sfsymbol5.txt in Resources */ = {isa = PBXBuildFile; fileRef = ECAAA1260294B0DD15620105 /* Symbols/sfsymbol5.txt */; };
 		ECAAA1260294B0DD15620206 /* Symbols/sfsymbol6.txt in Resources */ = {isa = PBXBuildFile; fileRef = ECAAA1260294B0DD15620106 /* Symbols/sfsymbol6.txt */; };
 		ECB20424C641963C04DC73C1 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 089B1CE7F469330E3B904175 /* GeneralSettingsView.swift */; };
+		SPKBLD000000000000000001 /* SoundPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SPKREF000000000000000001 /* SoundPickerView.swift */; };
 		ECDB8F4B1422407E18814214 /* PermissionsCheckerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EDA931005139E6A1492943E /* PermissionsCheckerView.swift */; };
 		ED05F14191BE0987B76454C0 /* Core/DatabaseTemplateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD690FE999C6751A228E5DCE /* Core/DatabaseTemplateManager.swift */; };
 		ED281289A79A89E1ED8EBD1E /* SimulatorRuntimeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D4CE672BE7419F56DEF1964 /* SimulatorRuntimeView.swift */; };
@@ -2536,6 +2569,38 @@
 		SNDREF000000000000000023 /* SwiftCode_Complete_B.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Complete_B.aiff; sourceTree = "<group>"; };
 		SNDREF000000000000000024 /* SwiftCode_Complete_C.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Complete_C.aiff; sourceTree = "<group>"; };
 		SNDREF000000000000000025 /* SwiftCode_Complete_D.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Complete_D.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000026 /* SwiftCode_Chill_SoftBloom.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Chill_SoftBloom.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000027 /* SwiftCode_Chill_Cloud.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Chill_Cloud.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000028 /* SwiftCode_Chill_Drift.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Chill_Drift.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000029 /* SwiftCode_Chill_Velvet.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Chill_Velvet.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000030 /* SwiftCode_Chill_AmbientRise.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Chill_AmbientRise.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000031 /* SwiftCode_Chill_CalmBell.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Chill_CalmBell.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000032 /* SwiftCode_Vibe_Pulse.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Vibe_Pulse.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000033 /* SwiftCode_Vibe_Glow.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Vibe_Glow.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000034 /* SwiftCode_Vibe_Wave.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Vibe_Wave.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000035 /* SwiftCode_Vibe_Neon.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Vibe_Neon.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000036 /* SwiftCode_Vibe_Flux.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Vibe_Flux.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000037 /* SwiftCode_Vibe_Echo.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Vibe_Echo.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000038 /* SwiftCode_Satisfying_Perfect.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Satisfying_Perfect.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000039 /* SwiftCode_Satisfying_Spark.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Satisfying_Spark.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000040 /* SwiftCode_Satisfying_Resolve.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Satisfying_Resolve.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000041 /* SwiftCode_Satisfying_ClickBloom.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Satisfying_ClickBloom.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000042 /* SwiftCode_Satisfying_VelvetPop.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Satisfying_VelvetPop.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000043 /* SwiftCode_Satisfying_SoftChime.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Satisfying_SoftChime.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000044 /* SwiftCode_Success_Complete.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Success_Complete.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000045 /* SwiftCode_Success_Confirmed.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Success_Confirmed.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000046 /* SwiftCode_Success_Ready.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Success_Ready.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000047 /* SwiftCode_Success_Done.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Success_Done.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000048 /* SwiftCode_Message_Message.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Message_Message.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000049 /* SwiftCode_Message_Whisper.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Message_Whisper.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000050 /* SwiftCode_Message_Presence.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Message_Presence.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000051 /* SwiftCode_Message_Ping.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Message_Ping.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000052 /* SwiftCode_Notification_SoftNotify.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Notification_SoftNotify.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000053 /* SwiftCode_Notification_Signal.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Notification_Signal.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000054 /* SwiftCode_Notification_Ripple.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Notification_Ripple.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000055 /* SwiftCode_Notification_Arrival.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Notification_Arrival.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000056 /* SwiftCode_Warning_Caution.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Warning_Caution.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000057 /* SwiftCode_Error_Attention.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Error_Attention.aiff; sourceTree = "<group>"; };
 		SWTREF000000000000000001 /* SoundCatalog.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SoundCatalog.swift; sourceTree = "<group>"; };
 		SWTREF000000000000000002 /* SoundManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SoundManager.swift; sourceTree = "<group>"; };
 		SWTREF000000000000000003 /* SoundInstaller.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SoundInstaller.swift; sourceTree = "<group>"; };
@@ -2577,6 +2642,7 @@
 		07A8427AE9D75862E67726E3 /* AssistDiffTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDiffTool.swift; sourceTree = "<group>"; };
 		084278DC9B45E64C71F095A4 /* CodeReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeReviewView.swift; sourceTree = "<group>"; };
 		089B1CE7F469330E3B904175 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
+		SPKREF000000000000000001 /* SoundPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundPickerView.swift; sourceTree = "<group>"; };
 		08C0893DD6303723C51721E5 /* CollaborationConflictResolverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollaborationConflictResolverView.swift; sourceTree = "<group>"; };
 		08D883D1A78AA7F79D1CC1FE /* JSONStringEscaperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONStringEscaperView.swift; sourceTree = "<group>"; };
 		08F0EE23807C434695FC2142 /* SwiftCode/Views/Build/DeviceConnectKit/Services/InstallService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Build/DeviceConnectKit/Services/InstallService.swift; sourceTree = SOURCE_ROOT; };
@@ -5034,6 +5100,38 @@
 				SNDREF000000000000000023 /* SwiftCode_Complete_B.aiff */,
 				SNDREF000000000000000024 /* SwiftCode_Complete_C.aiff */,
 				SNDREF000000000000000025 /* SwiftCode_Complete_D.aiff */,
+				SNDREF000000000000000026 /* SwiftCode_Chill_SoftBloom.aiff */,
+				SNDREF000000000000000027 /* SwiftCode_Chill_Cloud.aiff */,
+				SNDREF000000000000000028 /* SwiftCode_Chill_Drift.aiff */,
+				SNDREF000000000000000029 /* SwiftCode_Chill_Velvet.aiff */,
+				SNDREF000000000000000030 /* SwiftCode_Chill_AmbientRise.aiff */,
+				SNDREF000000000000000031 /* SwiftCode_Chill_CalmBell.aiff */,
+				SNDREF000000000000000032 /* SwiftCode_Vibe_Pulse.aiff */,
+				SNDREF000000000000000033 /* SwiftCode_Vibe_Glow.aiff */,
+				SNDREF000000000000000034 /* SwiftCode_Vibe_Wave.aiff */,
+				SNDREF000000000000000035 /* SwiftCode_Vibe_Neon.aiff */,
+				SNDREF000000000000000036 /* SwiftCode_Vibe_Flux.aiff */,
+				SNDREF000000000000000037 /* SwiftCode_Vibe_Echo.aiff */,
+				SNDREF000000000000000038 /* SwiftCode_Satisfying_Perfect.aiff */,
+				SNDREF000000000000000039 /* SwiftCode_Satisfying_Spark.aiff */,
+				SNDREF000000000000000040 /* SwiftCode_Satisfying_Resolve.aiff */,
+				SNDREF000000000000000041 /* SwiftCode_Satisfying_ClickBloom.aiff */,
+				SNDREF000000000000000042 /* SwiftCode_Satisfying_VelvetPop.aiff */,
+				SNDREF000000000000000043 /* SwiftCode_Satisfying_SoftChime.aiff */,
+				SNDREF000000000000000044 /* SwiftCode_Success_Complete.aiff */,
+				SNDREF000000000000000045 /* SwiftCode_Success_Confirmed.aiff */,
+				SNDREF000000000000000046 /* SwiftCode_Success_Ready.aiff */,
+				SNDREF000000000000000047 /* SwiftCode_Success_Done.aiff */,
+				SNDREF000000000000000048 /* SwiftCode_Message_Message.aiff */,
+				SNDREF000000000000000049 /* SwiftCode_Message_Whisper.aiff */,
+				SNDREF000000000000000050 /* SwiftCode_Message_Presence.aiff */,
+				SNDREF000000000000000051 /* SwiftCode_Message_Ping.aiff */,
+				SNDREF000000000000000052 /* SwiftCode_Notification_SoftNotify.aiff */,
+				SNDREF000000000000000053 /* SwiftCode_Notification_Signal.aiff */,
+				SNDREF000000000000000054 /* SwiftCode_Notification_Ripple.aiff */,
+				SNDREF000000000000000055 /* SwiftCode_Notification_Arrival.aiff */,
+				SNDREF000000000000000056 /* SwiftCode_Warning_Caution.aiff */,
+				SNDREF000000000000000057 /* SwiftCode_Error_Attention.aiff */,
 			);
 			path = Sounds;
 			sourceTree = "<group>";
@@ -7985,6 +8083,7 @@
 				057EAE735A7C77DB1A01F4B0 /* PluginManagerView.swift */,
 				08968ED253EE45E40E03838E /* Custom Tools */,
 				089B1CE7F469330E3B904175 /* GeneralSettingsView.swift */,
+				SPKREF000000000000000001 /* SoundPickerView.swift */,
 				A1C0100229F01A0100000002 /* AppIconManager.swift */,
 				A1C0100429F01A0100000004 /* AppIconSelectView.swift */,
 				2EC799EB285661299D07765D /* InstalledOfflineModelsView.swift */,
@@ -9052,6 +9151,38 @@
 				SNDBLD000000000000000023 /* SwiftCode_Complete_B.aiff in Resources */,
 				SNDBLD000000000000000024 /* SwiftCode_Complete_C.aiff in Resources */,
 				SNDBLD000000000000000025 /* SwiftCode_Complete_D.aiff in Resources */,
+				SNDBLD000000000000000026 /* SwiftCode_Chill_SoftBloom.aiff in Resources */,
+				SNDBLD000000000000000027 /* SwiftCode_Chill_Cloud.aiff in Resources */,
+				SNDBLD000000000000000028 /* SwiftCode_Chill_Drift.aiff in Resources */,
+				SNDBLD000000000000000029 /* SwiftCode_Chill_Velvet.aiff in Resources */,
+				SNDBLD000000000000000030 /* SwiftCode_Chill_AmbientRise.aiff in Resources */,
+				SNDBLD000000000000000031 /* SwiftCode_Chill_CalmBell.aiff in Resources */,
+				SNDBLD000000000000000032 /* SwiftCode_Vibe_Pulse.aiff in Resources */,
+				SNDBLD000000000000000033 /* SwiftCode_Vibe_Glow.aiff in Resources */,
+				SNDBLD000000000000000034 /* SwiftCode_Vibe_Wave.aiff in Resources */,
+				SNDBLD000000000000000035 /* SwiftCode_Vibe_Neon.aiff in Resources */,
+				SNDBLD000000000000000036 /* SwiftCode_Vibe_Flux.aiff in Resources */,
+				SNDBLD000000000000000037 /* SwiftCode_Vibe_Echo.aiff in Resources */,
+				SNDBLD000000000000000038 /* SwiftCode_Satisfying_Perfect.aiff in Resources */,
+				SNDBLD000000000000000039 /* SwiftCode_Satisfying_Spark.aiff in Resources */,
+				SNDBLD000000000000000040 /* SwiftCode_Satisfying_Resolve.aiff in Resources */,
+				SNDBLD000000000000000041 /* SwiftCode_Satisfying_ClickBloom.aiff in Resources */,
+				SNDBLD000000000000000042 /* SwiftCode_Satisfying_VelvetPop.aiff in Resources */,
+				SNDBLD000000000000000043 /* SwiftCode_Satisfying_SoftChime.aiff in Resources */,
+				SNDBLD000000000000000044 /* SwiftCode_Success_Complete.aiff in Resources */,
+				SNDBLD000000000000000045 /* SwiftCode_Success_Confirmed.aiff in Resources */,
+				SNDBLD000000000000000046 /* SwiftCode_Success_Ready.aiff in Resources */,
+				SNDBLD000000000000000047 /* SwiftCode_Success_Done.aiff in Resources */,
+				SNDBLD000000000000000048 /* SwiftCode_Message_Message.aiff in Resources */,
+				SNDBLD000000000000000049 /* SwiftCode_Message_Whisper.aiff in Resources */,
+				SNDBLD000000000000000050 /* SwiftCode_Message_Presence.aiff in Resources */,
+				SNDBLD000000000000000051 /* SwiftCode_Message_Ping.aiff in Resources */,
+				SNDBLD000000000000000052 /* SwiftCode_Notification_SoftNotify.aiff in Resources */,
+				SNDBLD000000000000000053 /* SwiftCode_Notification_Signal.aiff in Resources */,
+				SNDBLD000000000000000054 /* SwiftCode_Notification_Ripple.aiff in Resources */,
+				SNDBLD000000000000000055 /* SwiftCode_Notification_Arrival.aiff in Resources */,
+				SNDBLD000000000000000056 /* SwiftCode_Warning_Caution.aiff in Resources */,
+				SNDBLD000000000000000057 /* SwiftCode_Error_Attention.aiff in Resources */,
 				8011D22065A4C22503627407 /* (null) in Resources */,
 				A5428FFABC47203D23223068 /* (null) in Resources */,
 				6D94E1AD310954D4608755CC /* (null) in Resources */,
@@ -10824,6 +10955,7 @@
 				028210A2C2DF33D15EF2B37A /* ProjectTemplateView.swift in Sources */,
 				A8FD9A8F81B051310C62E986 /* CustomToolBuilderView.swift in Sources */,
 				ECB20424C641963C04DC73C1 /* GeneralSettingsView.swift in Sources */,
+				SPKBLD000000000000000001 /* SoundPickerView.swift in Sources */,
 				A1C0100129F01A0100000001 /* AppIconManager.swift in Sources */,
 				A1C0100329F01A0100000003 /* AppIconSelectView.swift in Sources */,
 				18B5036936848C2E882E3AB4 /* KotlinSupportExtensionView.swift in Sources */,

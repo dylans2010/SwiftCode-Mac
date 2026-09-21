@@ -14,9 +14,9 @@ public enum SoundSource: String, CaseIterable, Identifiable, Codable, Sendable {
 
     public var badgeColorHex: String {
         switch self {
-        case .system: return "#007AFF" // Blue
-        case .custom: return "#FF9500" // Orange
-        case .user:   return "#34C759" // Green
+        case .system: return "#007AFF" // System Blue
+        case .custom: return "#FF9500" // Warm Amber / Orange
+        case .user:   return "#34C759" // Nature Green
         }
     }
 }
@@ -24,21 +24,27 @@ public enum SoundSource: String, CaseIterable, Identifiable, Codable, Sendable {
 // MARK: - App Sound Category
 
 public enum AppSoundCategory: String, CaseIterable, Identifiable, Codable, Sendable {
+    case chill        = "Chill"
+    case vibe         = "Vibe"
+    case satisfying   = "Satisfying"
+    case success      = "Success"
+    case complete     = "Completion"
+    case message      = "Message"
     case notification = "Notification"
-    case message = "Message"
-    case success = "Success"
-    case error = "Error"
-    case complete = "Complete"
+    case error        = "Error / Warning"
 
     public var id: String { rawValue }
 
     public var iconName: String {
         switch self {
-        case .notification: return "bell.badge"
-        case .message: return "bubble.left.and.bubble.right"
-        case .success: return "checkmark.circle"
-        case .error: return "exclamationmark.triangle"
-        case .complete: return "flag.checkered"
+        case .chill:        return "sparkles"
+        case .vibe:         return "waveform.path"
+        case .satisfying:   return "heart.circle.fill"
+        case .success:      return "checkmark.circle.fill"
+        case .complete:     return "flag.checkered"
+        case .message:      return "bubble.left.and.bubble.right.fill"
+        case .notification: return "bell.badge.fill"
+        case .error:        return "exclamationmark.triangle.fill"
         }
     }
 }
@@ -69,7 +75,7 @@ public struct AppSound: Identifiable, Hashable, Sendable {
         self.explicitURL = explicitURL
     }
 
-    /// Primary resolved URL for audio playback
+    /// Primary resolved URL for audio playback, guaranteed to point to an existing file if one is found
     public var resolvedURL: URL? {
         if let explicit = explicitURL, FileManager.default.fileExists(atPath: explicit.path) {
             return explicit
@@ -77,15 +83,34 @@ public struct AppSound: Identifiable, Hashable, Sendable {
 
         switch source {
         case .custom:
-            return bundleURL ?? installedURL
+            // 1. Check bundle URL
+            if let bundle = bundleURL, FileManager.default.fileExists(atPath: bundle.path) {
+                return bundle
+            }
+            // 2. Check ~/Library/Sounds/
+            if FileManager.default.fileExists(atPath: installedURL.path) {
+                return installedURL
+            }
+            // 3. Check development source repo
+            if let repoURL = devRepoURL, FileManager.default.fileExists(atPath: repoURL.path) {
+                return repoURL
+            }
+            return nil
+
         case .system:
-            if let explicit = explicitURL { return explicit }
+            if let explicit = explicitURL, FileManager.default.fileExists(atPath: explicit.path) {
+                return explicit
+            }
             let sysDir = URL(fileURLWithPath: "/System/Library/Sounds")
             let url = sysDir.appendingPathComponent(filename)
             if FileManager.default.fileExists(atPath: url.path) { return url }
             return nil
+
         case .user:
-            return installedURL
+            if FileManager.default.fileExists(atPath: installedURL.path) {
+                return installedURL
+            }
+            return nil
         }
     }
 
@@ -115,6 +140,18 @@ public struct AppSound: Identifiable, Hashable, Sendable {
         return nil
     }
 
+    /// URL to the sound in the project development source directory (for Xcode debug/previews)
+    public var devRepoURL: URL? {
+        let repoSound = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // Services
+            .deletingLastPathComponent() // SwiftCode
+            .appendingPathComponent("Resources/Sounds/\(filename)")
+        if FileManager.default.fileExists(atPath: repoSound.path) {
+            return repoSound
+        }
+        return nil
+    }
+
     /// URL to the sound installed in ~/Library/Sounds/
     public var installedURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -127,11 +164,8 @@ public struct AppSound: Identifiable, Hashable, Sendable {
         if let url = resolvedURL, FileManager.default.fileExists(atPath: url.path) {
             return true
         }
-        if source == .system {
-            let soundName = (filename as NSString).deletingPathExtension
-            return NSSound(named: NSSound.Name(soundName)) != nil
-        }
-        return false
+        let soundName = (filename as NSString).deletingPathExtension
+        return NSSound(named: NSSound.Name(soundName)) != nil
     }
 }
 
@@ -141,221 +175,321 @@ public enum SoundCatalog {
     public static let noneSoundID = "none"
     private static let logger = Logger(subsystem: "com.dylans2010.SwiftCode-Mac", category: "SoundCatalog")
 
-    // MARK: - Custom Application Sounds (25 Original Audio Assets)
+    // =========================================================================
+    // 32 Original Cinematic Micro-Sounds
+    // =========================================================================
 
-    // Notifications (8)
-    public static let notificationA = AppSound(
-        id: "swiftcode_notification_a",
-        displayName: "Notification A (Crystal Chime)",
-        filename: "SwiftCode_Notification_A.aiff",
-        category: .notification,
+    // MARK: - Category: Chill (6)
+    public static let chillSoftBloom = AppSound(
+        id: "custom.chill.soft_bloom",
+        displayName: "Soft Bloom",
+        filename: "SwiftCode_Chill_SoftBloom.aiff",
+        category: .chill,
         source: .custom
     )
-    public static let notificationB = AppSound(
-        id: "swiftcode_notification_b",
-        displayName: "Notification B (Warm Marimba)",
-        filename: "SwiftCode_Notification_B.aiff",
-        category: .notification,
+    public static let chillCloud = AppSound(
+        id: "custom.chill.cloud",
+        displayName: "Cloud",
+        filename: "SwiftCode_Chill_Cloud.aiff",
+        category: .chill,
         source: .custom
     )
-    public static let notificationC = AppSound(
-        id: "swiftcode_notification_c",
-        displayName: "Notification C (Digital Blip)",
-        filename: "SwiftCode_Notification_C.aiff",
-        category: .notification,
+    public static let chillDrift = AppSound(
+        id: "custom.chill.drift",
+        displayName: "Drift",
+        filename: "SwiftCode_Chill_Drift.aiff",
+        category: .chill,
         source: .custom
     )
-    public static let notificationD = AppSound(
-        id: "swiftcode_notification_d",
-        displayName: "Notification D (String Pluck)",
-        filename: "SwiftCode_Notification_D.aiff",
-        category: .notification,
+    public static let chillVelvet = AppSound(
+        id: "custom.chill.velvet",
+        displayName: "Velvet",
+        filename: "SwiftCode_Chill_Velvet.aiff",
+        category: .chill,
         source: .custom
     )
-    public static let notificationE = AppSound(
-        id: "swiftcode_notification_e",
-        displayName: "Notification E (Vibraphone)",
-        filename: "SwiftCode_Notification_E.aiff",
-        category: .notification,
+    public static let chillAmbientRise = AppSound(
+        id: "custom.chill.ambient_rise",
+        displayName: "Ambient Rise",
+        filename: "SwiftCode_Chill_AmbientRise.aiff",
+        category: .chill,
         source: .custom
     )
-    public static let notificationF = AppSound(
-        id: "swiftcode_notification_f",
-        displayName: "Notification F (Glissando)",
-        filename: "SwiftCode_Notification_F.aiff",
-        category: .notification,
-        source: .custom
-    )
-    public static let notificationG = AppSound(
-        id: "swiftcode_notification_g",
-        displayName: "Notification G (Celesta)",
-        filename: "SwiftCode_Notification_G.aiff",
-        category: .notification,
-        source: .custom
-    )
-    public static let notificationH = AppSound(
-        id: "swiftcode_notification_h",
-        displayName: "Notification H (AirDrop Pulse)",
-        filename: "SwiftCode_Notification_H.aiff",
-        category: .notification,
+    public static let chillCalmBell = AppSound(
+        id: "custom.chill.calm_bell",
+        displayName: "Calm Bell",
+        filename: "SwiftCode_Chill_CalmBell.aiff",
+        category: .chill,
         source: .custom
     )
 
-    // Messages (5)
-    public static let messageA = AppSound(
-        id: "swiftcode_message_a",
-        displayName: "Message A (Glass Ping)",
-        filename: "SwiftCode_Message_A.aiff",
-        category: .message,
+    // MARK: - Category: Vibe (6)
+    public static let vibePulse = AppSound(
+        id: "custom.vibe.pulse",
+        displayName: "Pulse",
+        filename: "SwiftCode_Vibe_Pulse.aiff",
+        category: .vibe,
         source: .custom
     )
-    public static let messageB = AppSound(
-        id: "swiftcode_message_b",
-        displayName: "Message B (Wood Tap)",
-        filename: "SwiftCode_Message_B.aiff",
-        category: .message,
+    public static let vibeGlow = AppSound(
+        id: "custom.vibe.glow",
+        displayName: "Glow",
+        filename: "SwiftCode_Vibe_Glow.aiff",
+        category: .vibe,
         source: .custom
     )
-    public static let messageC = AppSound(
-        id: "swiftcode_message_c",
-        displayName: "Message C (Subtle Bell)",
-        filename: "SwiftCode_Message_C.aiff",
-        category: .message,
+    public static let vibeWave = AppSound(
+        id: "custom.vibe.wave",
+        displayName: "Wave",
+        filename: "SwiftCode_Vibe_Wave.aiff",
+        category: .vibe,
         source: .custom
     )
-    public static let messageD = AppSound(
-        id: "swiftcode_message_d",
-        displayName: "Message D (Double Pop)",
-        filename: "SwiftCode_Message_D.aiff",
-        category: .message,
+    public static let vibeNeon = AppSound(
+        id: "custom.vibe.neon",
+        displayName: "Neon",
+        filename: "SwiftCode_Vibe_Neon.aiff",
+        category: .vibe,
         source: .custom
     )
-    public static let messageE = AppSound(
-        id: "swiftcode_message_e",
-        displayName: "Message E (Echo Droplet)",
-        filename: "SwiftCode_Message_E.aiff",
-        category: .message,
+    public static let vibeFlux = AppSound(
+        id: "custom.vibe.flux",
+        displayName: "Flux",
+        filename: "SwiftCode_Vibe_Flux.aiff",
+        category: .vibe,
+        source: .custom
+    )
+    public static let vibeEcho = AppSound(
+        id: "custom.vibe.echo",
+        displayName: "Echo",
+        filename: "SwiftCode_Vibe_Echo.aiff",
+        category: .vibe,
         source: .custom
     )
 
-    // Success (4)
-    public static let successA = AppSound(
-        id: "swiftcode_success_a",
-        displayName: "Success A (Major Triad)",
-        filename: "SwiftCode_Success_A.aiff",
+    // MARK: - Category: Satisfying (6)
+    public static let satisfyingPerfect = AppSound(
+        id: "custom.satisfying.perfect",
+        displayName: "Perfect",
+        filename: "SwiftCode_Satisfying_Perfect.aiff",
+        category: .satisfying,
+        source: .custom
+    )
+    public static let satisfyingSpark = AppSound(
+        id: "custom.satisfying.spark",
+        displayName: "Spark",
+        filename: "SwiftCode_Satisfying_Spark.aiff",
+        category: .satisfying,
+        source: .custom
+    )
+    public static let satisfyingResolve = AppSound(
+        id: "custom.satisfying.resolve",
+        displayName: "Resolve",
+        filename: "SwiftCode_Satisfying_Resolve.aiff",
+        category: .satisfying,
+        source: .custom
+    )
+    public static let satisfyingClickBloom = AppSound(
+        id: "custom.satisfying.click_bloom",
+        displayName: "Click Bloom",
+        filename: "SwiftCode_Satisfying_ClickBloom.aiff",
+        category: .satisfying,
+        source: .custom
+    )
+    public static let satisfyingVelvetPop = AppSound(
+        id: "custom.satisfying.velvet_pop",
+        displayName: "Velvet Pop",
+        filename: "SwiftCode_Satisfying_VelvetPop.aiff",
+        category: .satisfying,
+        source: .custom
+    )
+    public static let satisfyingSoftChime = AppSound(
+        id: "custom.satisfying.soft_chime",
+        displayName: "Soft Chime",
+        filename: "SwiftCode_Satisfying_SoftChime.aiff",
+        category: .satisfying,
+        source: .custom
+    )
+
+    // MARK: - Category: Success (4)
+    public static let successComplete = AppSound(
+        id: "custom.success.complete",
+        displayName: "Complete",
+        filename: "SwiftCode_Success_Complete.aiff",
         category: .success,
         source: .custom
     )
-    public static let successB = AppSound(
-        id: "swiftcode_success_b",
-        displayName: "Success B (Harmonic Rise)",
-        filename: "SwiftCode_Success_B.aiff",
+    public static let successConfirmed = AppSound(
+        id: "custom.success.confirmed",
+        displayName: "Confirmed",
+        filename: "SwiftCode_Success_Confirmed.aiff",
         category: .success,
         source: .custom
     )
-    public static let successC = AppSound(
-        id: "swiftcode_success_c",
-        displayName: "Success C (Fanfare Lift)",
-        filename: "SwiftCode_Success_C.aiff",
+    public static let successReady = AppSound(
+        id: "custom.success.ready",
+        displayName: "Ready",
+        filename: "SwiftCode_Success_Ready.aiff",
         category: .success,
         source: .custom
     )
-    public static let successD = AppSound(
-        id: "swiftcode_success_d",
-        displayName: "Success D (Cascading Shimmer)",
-        filename: "SwiftCode_Success_D.aiff",
+    public static let successDone = AppSound(
+        id: "custom.success.done",
+        displayName: "Done",
+        filename: "SwiftCode_Success_Done.aiff",
         category: .success,
         source: .custom
     )
 
-    // Error / Warning (4)
-    public static let errorA = AppSound(
-        id: "swiftcode_error_a",
-        displayName: "Error A (Warm Dissonance)",
-        filename: "SwiftCode_Error_A.aiff",
+    // MARK: - Category: Message (4)
+    public static let messageMessage = AppSound(
+        id: "custom.message.message",
+        displayName: "Message",
+        filename: "SwiftCode_Message_Message.aiff",
+        category: .message,
+        source: .custom
+    )
+    public static let messageWhisper = AppSound(
+        id: "custom.message.whisper",
+        displayName: "Whisper",
+        filename: "SwiftCode_Message_Whisper.aiff",
+        category: .message,
+        source: .custom
+    )
+    public static let messagePresence = AppSound(
+        id: "custom.message.presence",
+        displayName: "Presence",
+        filename: "SwiftCode_Message_Presence.aiff",
+        category: .message,
+        source: .custom
+    )
+    public static let messagePing = AppSound(
+        id: "custom.message.ping",
+        displayName: "Ping",
+        filename: "SwiftCode_Message_Ping.aiff",
+        category: .message,
+        source: .custom
+    )
+
+    // MARK: - Category: Notification (4)
+    public static let notificationSoftNotify = AppSound(
+        id: "custom.notification.soft_notify",
+        displayName: "Soft Notify",
+        filename: "SwiftCode_Notification_SoftNotify.aiff",
+        category: .notification,
+        source: .custom
+    )
+    public static let notificationSignal = AppSound(
+        id: "custom.notification.signal",
+        displayName: "Signal",
+        filename: "SwiftCode_Notification_Signal.aiff",
+        category: .notification,
+        source: .custom
+    )
+    public static let notificationRipple = AppSound(
+        id: "custom.notification.ripple",
+        displayName: "Ripple",
+        filename: "SwiftCode_Notification_Ripple.aiff",
+        category: .notification,
+        source: .custom
+    )
+    public static let notificationArrival = AppSound(
+        id: "custom.notification.arrival",
+        displayName: "Arrival",
+        filename: "SwiftCode_Notification_Arrival.aiff",
+        category: .notification,
+        source: .custom
+    )
+
+    // MARK: - Category: Error & Warning (2)
+    public static let warningCaution = AppSound(
+        id: "custom.warning.caution",
+        displayName: "Caution",
+        filename: "SwiftCode_Warning_Caution.aiff",
         category: .error,
         source: .custom
     )
-    public static let errorB = AppSound(
-        id: "swiftcode_error_b",
-        displayName: "Error B (Damped Drop)",
-        filename: "SwiftCode_Error_B.aiff",
-        category: .error,
-        source: .custom
-    )
-    public static let errorC = AppSound(
-        id: "swiftcode_error_c",
-        displayName: "Error C (Double Thud)",
-        filename: "SwiftCode_Error_C.aiff",
-        category: .error,
-        source: .custom
-    )
-    public static let warningA = AppSound(
-        id: "swiftcode_warning_a",
-        displayName: "Warning A (Caution Pulse)",
-        filename: "SwiftCode_Warning_A.aiff",
+    public static let errorAttention = AppSound(
+        id: "custom.error.attention",
+        displayName: "Attention",
+        filename: "SwiftCode_Error_Attention.aiff",
         category: .error,
         source: .custom
     )
 
-    // Completion (4)
-    public static let completeA = AppSound(
-        id: "swiftcode_complete_a",
-        displayName: "Complete A (Chime Resolve)",
-        filename: "SwiftCode_Complete_A.aiff",
-        category: .complete,
-        source: .custom
-    )
-    public static let completeB = AppSound(
-        id: "swiftcode_complete_b",
-        displayName: "Complete B (Arpeggio Finish)",
-        filename: "SwiftCode_Complete_B.aiff",
-        category: .complete,
-        source: .custom
-    )
-    public static let completeC = AppSound(
-        id: "swiftcode_complete_c",
-        displayName: "Complete C (Ambient Bloom)",
-        filename: "SwiftCode_Complete_C.aiff",
-        category: .complete,
-        source: .custom
-    )
-    public static let completeD = AppSound(
-        id: "swiftcode_complete_d",
-        displayName: "Complete D (Orchestral Chime)",
-        filename: "SwiftCode_Complete_D.aiff",
-        category: .complete,
-        source: .custom
-    )
+    // =========================================================================
+    // Backward Compatibility Aliases for Legacy Sound References
+    // =========================================================================
+    public static let notificationA = chillSoftBloom
+    public static let notificationB = chillCloud
+    public static let notificationC = vibePulse
+    public static let notificationD = satisfyingPerfect
+    public static let notificationE = notificationSoftNotify
+    public static let notificationF = notificationRipple
+    public static let notificationG = chillCalmBell
+    public static let notificationH = notificationSignal
 
-    /// All 25 original custom application sounds
+    public static let messageA = messageMessage
+    public static let messageB = satisfyingClickBloom
+    public static let messageC = messagePing
+    public static let messageD = satisfyingVelvetPop
+    public static let messageE = messageWhisper
+
+    public static let successA = successComplete
+    public static let successB = successConfirmed
+    public static let successC = successReady
+    public static let successD = successDone
+
+    public static let errorA = errorAttention
+    public static let errorB = warningCaution
+    public static let errorC = warningCaution
+    public static let warningA = warningCaution
+
+    public static let completeA = successComplete
+    public static let completeB = satisfyingResolve
+    public static let completeC = chillAmbientRise
+    public static let completeD = satisfyingSoftChime
+
+    /// All 32 original custom application sounds
     public static let customSounds: [AppSound] = [
-        notificationA, notificationB, notificationC, notificationD,
-        notificationE, notificationF, notificationG, notificationH,
-        messageA, messageB, messageC, messageD, messageE,
-        successA, successB, successC, successD,
-        errorA, errorB, errorC, warningA,
-        completeA, completeB, completeC, completeD
+        // Chill (6)
+        chillSoftBloom, chillCloud, chillDrift, chillVelvet, chillAmbientRise, chillCalmBell,
+        // Vibe (6)
+        vibePulse, vibeGlow, vibeWave, vibeNeon, vibeFlux, vibeEcho,
+        // Satisfying (6)
+        satisfyingPerfect, satisfyingSpark, satisfyingResolve, satisfyingClickBloom, satisfyingVelvetPop, satisfyingSoftChime,
+        // Success (4)
+        successComplete, successConfirmed, successReady, successDone,
+        // Message (4)
+        messageMessage, messageWhisper, messagePresence, messagePing,
+        // Notification (4)
+        notificationSoftNotify, notificationSignal, notificationRipple, notificationArrival,
+        // Warning / Error (2)
+        warningCaution, errorAttention
     ]
 
     // MARK: - Dynamic Discovery: Native macOS System Sounds
 
-    /// Dynamically queries all discoverable native macOS system sounds available through supported system APIs.
+    /// Dynamically discovered native macOS system sounds available on this Mac
     public static let systemSounds: [AppSound] = discoverSystemSounds()
 
-    /// Dynamically scans and discovers native macOS system sounds
+    /// Dynamically scans and discovers native macOS system sounds from /System/Library/Sounds
     public static func discoverSystemSounds() -> [AppSound] {
         var discovered: [AppSound] = []
         let supportedExtensions = Set(["aiff", "aif", "caf", "wav", "mp3", "m4a"])
 
-        // Query standard system library domains for sounds
         var searchURLs: [URL] = []
-        if let systemLib = FileManager.default.urls(for: .libraryDirectory, in: .systemDomainMask).first {
-            searchURLs.append(systemLib.appendingPathComponent("Sounds", isDirectory: true))
+        let sysSoundsDir = URL(fileURLWithPath: "/System/Library/Sounds")
+        if FileManager.default.fileExists(atPath: sysSoundsDir.path) {
+            searchURLs.append(sysSoundsDir)
         }
-        // Also check local domain /Library/Sounds
+        if let systemLib = FileManager.default.urls(for: .libraryDirectory, in: .systemDomainMask).first {
+            let sDir = systemLib.appendingPathComponent("Sounds", isDirectory: true)
+            if !searchURLs.contains(sDir) { searchURLs.append(sDir) }
+        }
         if let localLib = FileManager.default.urls(for: .libraryDirectory, in: .localDomainMask).first {
-            searchURLs.append(localLib.appendingPathComponent("Sounds", isDirectory: true))
+            let sDir = localLib.appendingPathComponent("Sounds", isDirectory: true)
+            if !searchURLs.contains(sDir) { searchURLs.append(sDir) }
         }
 
         for directory in searchURLs {
@@ -373,7 +507,6 @@ public enum SoundCatalog {
                 let rawName = url.deletingPathExtension().lastPathComponent
                 let stableID = "system_\(rawName.lowercased().replacingOccurrences(of: " ", with: "_"))"
 
-                // Verify file is readable and decodable via AudioServices or NSSound
                 let sound = AppSound(
                     id: stableID,
                     displayName: rawName,
@@ -388,7 +521,7 @@ public enum SoundCatalog {
             }
         }
 
-        // Fallback check: if system directory had restricted permissions, probe standard system named alerts via NSSound
+        // Fallback check: standard named system alert sounds via NSSound
         if discovered.isEmpty {
             let fallbackAlertNames = [
                 "Basso", "Blow", "Bottle", "Frog", "Funk", "Glass",
@@ -424,7 +557,7 @@ public enum SoundCatalog {
 
         for url in files {
             let filename = url.lastPathComponent
-            // Ignore SwiftCode's own installed sounds
+            // Filter out SwiftCode's own installed sounds
             if filename.hasPrefix("SwiftCode_") { continue }
 
             let rawName = url.deletingPathExtension().lastPathComponent
@@ -446,12 +579,12 @@ public enum SoundCatalog {
 
     // MARK: - Unified Sound Accessors
 
-    /// Complete unified library of all available sounds (System + Custom + User)
+    /// Complete unified library of all available sounds (Custom + System + User)
     public static var allSounds: [AppSound] {
         return customSounds + systemSounds + discoverUserSounds()
     }
 
-    /// Retrieve a sound by its stable identifier
+    /// Retrieve a sound by its stable identifier with full backward compatibility
     public static func sound(for id: String) -> AppSound? {
         if id == noneSoundID { return nil }
 
@@ -471,9 +604,40 @@ public enum SoundCatalog {
             return user
         }
 
-        // 4. Backward compatibility: match by filename or legacy ID without prefix
+        // 4. Backward compatibility: match legacy IDs
+        switch id {
+        case "swiftcode_notification_a": return notificationA
+        case "swiftcode_notification_b": return notificationB
+        case "swiftcode_notification_c": return notificationC
+        case "swiftcode_notification_d": return notificationD
+        case "swiftcode_notification_e": return notificationE
+        case "swiftcode_notification_f": return notificationF
+        case "swiftcode_notification_g": return notificationG
+        case "swiftcode_notification_h": return notificationH
+        case "swiftcode_message_a":      return messageA
+        case "swiftcode_message_b":      return messageB
+        case "swiftcode_message_c":      return messageC
+        case "swiftcode_message_d":      return messageD
+        case "swiftcode_message_e":      return messageE
+        case "swiftcode_success_a":      return successA
+        case "swiftcode_success_b":      return successB
+        case "swiftcode_success_c":      return successC
+        case "swiftcode_success_d":      return successD
+        case "swiftcode_error_a":        return errorA
+        case "swiftcode_error_b":        return errorB
+        case "swiftcode_error_c":        return errorC
+        case "swiftcode_warning_a":      return warningA
+        case "swiftcode_complete_a":     return completeA
+        case "swiftcode_complete_b":     return completeB
+        case "swiftcode_complete_c":     return completeC
+        case "swiftcode_complete_d":     return completeD
+        default:
+            break
+        }
+
+        // 5. Match by exact filename or stripped ID
         for sound in allSounds {
-            if sound.filename == id || sound.id.replacingOccurrences(of: "swiftcode_", with: "") == id {
+            if sound.filename == id || sound.id.replacingOccurrences(of: "custom.", with: "") == id {
                 return sound
             }
         }
@@ -481,7 +645,7 @@ public enum SoundCatalog {
         return nil
     }
 
-    /// Retrieve sounds by category
+    /// Retrieve custom sounds by category
     public static func sounds(for category: AppSoundCategory) -> [AppSound] {
         return customSounds.filter { $0.category == category }
     }
@@ -503,20 +667,24 @@ public enum SoundCatalog {
                 let matchesName = sound.displayName.localizedCaseInsensitiveContains(query)
                 let matchesCategory = sound.category?.rawValue.localizedCaseInsensitiveContains(query) ?? false
                 let matchesSource = sound.source.rawValue.localizedCaseInsensitiveContains(query)
-                return matchesName || matchesCategory || matchesSource
+                let matchesFile = sound.filename.localizedCaseInsensitiveContains(query)
+                return matchesName || matchesCategory || matchesSource || matchesFile
             }
             return true
         }
     }
 
-    /// Default sound for each category
+    /// Default sound for each event category
     public static func defaultSound(for category: AppSoundCategory) -> AppSound {
         switch category {
-        case .notification: return notificationA
-        case .message: return messageA
-        case .success: return successA
-        case .error: return errorA
-        case .complete: return completeA
+        case .chill:        return chillSoftBloom
+        case .vibe:         return vibePulse
+        case .satisfying:   return satisfyingPerfect
+        case .success:      return successComplete
+        case .complete:     return successComplete
+        case .message:      return messageMessage
+        case .notification: return notificationSoftNotify
+        case .error:        return errorAttention
         }
     }
 }

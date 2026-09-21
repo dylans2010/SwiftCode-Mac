@@ -579,6 +579,9 @@ struct GeneralSettingsView: View {
     @State private var showAppIconSelectSheet = false
     @State private var showSoundLibrarySheet = false
     @ObservedObject private var iconManager = AppIconManager.shared
+    @ObservedObject private var soundManager = SoundManager.shared
+    @State private var soundInstallStatus = SoundInstaller.shared.systemSettingsStatus()
+    @State private var isResyncingSounds = false
     @State private var versionTapCount = 0
 
     // Quick Setup section state
@@ -1298,6 +1301,15 @@ struct GeneralSettingsView: View {
                 Divider()
 
                 soundPickerRow(
+                    title: "Completion Sound",
+                    icon: "flag.checkered",
+                    selection: $settings.completionSoundID,
+                    category: .complete
+                )
+
+                Divider()
+
+                soundPickerRow(
                     title: "Error Sound",
                     icon: "exclamationmark.triangle.fill",
                     selection: $settings.errorSoundID,
@@ -1306,31 +1318,77 @@ struct GeneralSettingsView: View {
 
                 Divider()
 
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Unified macOS Sound Library")
-                            .font(.subheadline.weight(.semibold))
-                        Text("\(SoundCatalog.allSounds.count) sounds available (\(SoundCatalog.customSounds.count) App, \(SoundCatalog.systemSounds.count) Native System, \(SoundCatalog.discoverUserSounds().count) User)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .center) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("macOS System Alert Sounds Integration")
+                                .font(.subheadline.weight(.semibold))
+                            Text("All \(SoundCatalog.customSounds.count) custom sounds are installed in ~/Library/Sounds/ for system-wide use in macOS System Settings.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        HStack(spacing: 8) {
+                            Button {
+                                isResyncingSounds = true
+                                Task {
+                                    _ = SoundInstaller.shared.installSoundsIfNeeded()
+                                    await MainActor.run {
+                                        soundInstallStatus = SoundInstaller.shared.systemSettingsStatus()
+                                        isResyncingSounds = false
+                                    }
+                                }
+                            } label: {
+                                if isResyncingSounds {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Label("Re-sync to OS", systemImage: "arrow.triangle.2.circlepath")
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .help("Re-sync all 32 custom alert sounds into ~/Library/Sounds/")
+
+                            Button {
+                                if let url = URL(string: "x-apple.systempreferences:com.apple.Sound-Settings.extension") {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            } label: {
+                                Label("Open macOS Sound Settings...", systemImage: "apple.logo")
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .help("Open macOS System Settings to choose your alert sound")
+                        }
                     }
 
-                    Spacer()
+                    HStack(spacing: 12) {
+                        Label(
+                            "\(soundInstallStatus.installedCount)/\(soundInstallStatus.totalCount) Custom Sounds Active in macOS",
+                            systemImage: soundInstallStatus.isComplete ? "checkmark.seal.fill" : "exclamationmark.triangle.fill"
+                        )
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(soundInstallStatus.isComplete ? .green : .orange)
 
-                    Button {
-                        showSoundLibrarySheet = true
-                    } label: {
-                        Label("Browse & Search Library...", systemImage: "music.note.list")
+                        Spacer()
+
+                        Button {
+                            showSoundLibrarySheet = true
+                        } label: {
+                            Label("Browse & Search Library (\(SoundCatalog.allSounds.count))...", systemImage: "music.note.list")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.regular)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
                 }
                 .padding(.top, 4)
             }
         } header: {
             Label("Sounds", systemImage: "speaker.wave.2.fill")
         } footer: {
-            Text("Select from native macOS system sounds, 25 custom application sounds, or user-installed sounds. Choose 'None' to keep an alert silent.")
+            Text("Select alert sounds for application events with instant hover-to-play preview, or choose 'None' to keep an alert silent.")
         }
     }
 
@@ -1341,69 +1399,34 @@ struct GeneralSettingsView: View {
         selection: Binding<String>,
         category: AppSoundCategory
     ) -> some View {
+        let isPlaying = soundManager.currentlyPlayingSoundID == selection.wrappedValue
         HStack(alignment: .center, spacing: 12) {
             Label(title, systemImage: icon)
                 .frame(width: 170, alignment: .leading)
 
-            Picker("", selection: selection) {
-                // 1. Recommended Application Sounds
-                let recommended = SoundCatalog.sounds(for: category)
-                if !recommended.isEmpty {
-                    Section("Recommended (\(category.rawValue))") {
-                        ForEach(recommended) { sound in
-                            Text(sound.displayName).tag(sound.id)
-                        }
-                    }
-                }
-
-                // 2. All Other Application Sounds
-                let otherAppSounds = SoundCatalog.customSounds.filter { !recommended.contains($0) }
-                if !otherAppSounds.isEmpty {
-                    Section("Application Sounds") {
-                        ForEach(otherAppSounds) { sound in
-                            Text(sound.displayName).tag(sound.id)
-                        }
-                    }
-                }
-
-                // 3. System Sounds (All discovered native macOS system sounds)
-                let systemSounds = SoundCatalog.systemSounds
-                if !systemSounds.isEmpty {
-                    Section("System Sounds") {
-                        ForEach(systemSounds) { sound in
-                            Text(sound.displayName).tag(sound.id)
-                        }
-                    }
-                }
-
-                // 4. User Sounds (if any installed in ~/Library/Sounds)
-                let userSounds = SoundCatalog.discoverUserSounds()
-                if !userSounds.isEmpty {
-                    Section("User Sounds") {
-                        ForEach(userSounds) { sound in
-                            Text(sound.displayName).tag(sound.id)
-                        }
-                    }
-                }
-
-                Section {
-                    Text("None").tag(SoundCatalog.noneSoundID)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
+            SoundPickerView(
+                title: title,
+                category: category,
+                selection: selection
+            )
 
             Spacer()
 
             Button {
                 SoundManager.shared.preview(soundID: selection.wrappedValue)
             } label: {
-                Label("Play", systemImage: "play.fill")
+                if isPlaying {
+                    Label("Stop", systemImage: "stop.fill")
+                        .foregroundStyle(.red)
+                } else {
+                    Label("Play", systemImage: "play.fill")
+                }
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
             .disabled(selection.wrappedValue == SoundCatalog.noneSoundID)
-            .help("Preview selected sound")
+            .help(isPlaying ? "Stop preview" : "Preview selected sound")
+            .accessibilityLabel(isPlaying ? "Stop preview" : "Preview selected sound for \(title)")
         }
     }
 
@@ -1413,6 +1436,7 @@ struct GeneralSettingsView: View {
 struct SoundLibraryBrowserView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var settings: AppSettings
+    @ObservedObject private var soundManager = SoundManager.shared
     @State private var searchText = ""
     @State private var selectedSourceFilter: SoundSource? = nil
     @State private var selectedCategoryFilter: AppSoundCategory? = nil
@@ -1429,15 +1453,19 @@ struct SoundLibraryBrowserView: View {
         )
     }
 
+    private var hasActiveFilters: Bool {
+        !searchText.isEmpty || selectedSourceFilter != nil || selectedCategoryFilter != nil
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Filter bar
+                // Filter and search toolbar
                 VStack(spacing: 10) {
                     HStack {
                         Image(systemName: "magnifyingglass")
                             .foregroundStyle(.secondary)
-                        TextField("Search all sounds by name, category, or source...", text: $searchText)
+                        TextField("Search sounds by name, category, source, or filename...", text: $searchText)
                             .textFieldStyle(.plain)
                         if !searchText.isEmpty {
                             Button {
@@ -1453,15 +1481,16 @@ struct SoundLibraryBrowserView: View {
                     .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(8)
 
-                    HStack(spacing: 8) {
+                    HStack(spacing: 12) {
                         Text("Source:")
                             .font(.caption.bold())
                             .foregroundStyle(.secondary)
 
                         Picker("", selection: $selectedSourceFilter) {
-                            Text("All Sources").tag(Optional<SoundSource>.none)
+                            Text("All Sources (\(allSounds.count))").tag(Optional<SoundSource>.none)
                             ForEach(SoundSource.allCases) { src in
-                                Text(src.rawValue).tag(Optional(src))
+                                let count = allSounds.filter { $0.source == src }.count
+                                Text("\(src.rawValue) (\(count))").tag(Optional(src))
                             }
                         }
                         .pickerStyle(.segmented)
@@ -1492,10 +1521,60 @@ struct SoundLibraryBrowserView: View {
                 // Sounds List
                 List {
                     if filteredSounds.isEmpty {
-                        ContentUnavailableView("No Sounds Found", systemImage: "speaker.slash", description: Text("Try adjusting your search query or filters."))
+                        ContentUnavailableView(
+                            "No Sounds Found",
+                            systemImage: "speaker.slash",
+                            description: Text("Try adjusting your search query or filters.")
+                        )
+                        .padding(.vertical, 40)
+                    } else if hasActiveFilters {
+                        // Flat filtered view
+                        Section("Matching Sounds (\(filteredSounds.count))") {
+                            ForEach(filteredSounds) { sound in
+                                soundRow(sound)
+                            }
+                        }
                     } else {
-                        ForEach(filteredSounds) { sound in
-                            soundRow(sound)
+                        // Structured Category & Source Grouping
+                        // 1. App Categories
+                        let categoriesToShow: [AppSoundCategory] = [
+                            .chill, .vibe, .satisfying, .success, .complete, .message, .notification, .error
+                        ]
+                        ForEach(categoriesToShow) { cat in
+                            let catSounds = SoundCatalog.sounds(for: cat)
+                            if !catSounds.isEmpty {
+                                Section {
+                                    ForEach(catSounds) { sound in
+                                        soundRow(sound)
+                                    }
+                                } header: {
+                                    Label("\(cat.rawValue) (\(catSounds.count) Sounds)", systemImage: cat.iconName)
+                                }
+                            }
+                        }
+
+                        // 2. Native macOS System Sounds
+                        let systemSounds = SoundCatalog.systemSounds
+                        if !systemSounds.isEmpty {
+                            Section {
+                                ForEach(systemSounds) { sound in
+                                    soundRow(sound)
+                                }
+                            } header: {
+                                Label("Native macOS System Sounds (\(systemSounds.count))", systemImage: "apple.logo")
+                            }
+                        }
+
+                        // 3. User Sounds
+                        let userSounds = SoundCatalog.discoverUserSounds()
+                        if !userSounds.isEmpty {
+                            Section {
+                                ForEach(userSounds) { sound in
+                                    soundRow(sound)
+                                }
+                            } header: {
+                                Label("User Sounds in ~/Library/Sounds (\(userSounds.count))", systemImage: "person.crop.circle")
+                            }
                         }
                     }
                 }
@@ -1505,16 +1584,21 @@ struct SoundLibraryBrowserView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") {
+                        SoundManager.shared.stopAll()
                         dismiss()
                     }
                 }
             }
         }
-        .frame(minWidth: 650, minHeight: 520)
+        .frame(minWidth: 680, minHeight: 540)
+        .onDisappear {
+            SoundManager.shared.stopAll()
+        }
     }
 
     @ViewBuilder
     private func soundRow(_ sound: AppSound) -> some View {
+        let isPlaying = soundManager.currentlyPlayingSoundID == sound.id
         HStack(spacing: 12) {
             Image(systemName: sound.source == .system ? "apple.logo" : (sound.source == .custom ? "app.badge.fill" : "person.crop.circle"))
                 .font(.headline)
@@ -1540,9 +1624,18 @@ struct SoundLibraryBrowserView: View {
                     }
                 }
 
-                Text(sound.filename)
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(.tertiary)
+                HStack(spacing: 8) {
+                    Text(sound.filename)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+
+                    Text("·")
+                        .foregroundStyle(.tertiary)
+
+                    Text(sound.source == .custom ? "Stereo · 44.1 kHz AIFF" : (sound.source == .system ? "macOS Native System Audio" : "User Library Audio"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Spacer()
@@ -1550,13 +1643,32 @@ struct SoundLibraryBrowserView: View {
             Button {
                 SoundManager.shared.preview(sound)
             } label: {
-                Label("Play", systemImage: "play.fill")
+                if isPlaying {
+                    HStack(spacing: 4) {
+                        Image(systemName: "stop.fill")
+                            .foregroundStyle(.red)
+                        Image(systemName: "speaker.wave.2.fill")
+                            .foregroundStyle(.orange)
+                    }
+                } else {
+                    Label("Play", systemImage: "play.fill")
+                }
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .accessibilityLabel("Play sound \(sound.displayName)")
+            .help(isPlaying ? "Stop preview" : "Preview sound")
+            .accessibilityLabel(isPlaying ? "Stop preview for \(sound.displayName)" : "Play sound \(sound.displayName)")
         }
         .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            SoundManager.shared.preview(sound)
+        }
+        .onHover { hovering in
+            if hovering {
+                SoundManager.shared.previewOnHover(soundID: sound.id, delay: 0.1)
+            }
+        }
     }
 }
 
