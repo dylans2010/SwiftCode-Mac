@@ -26,7 +26,8 @@ final class NotificationManager: ObservableObject {
         scheduleNotification(
             identifier: "offline-model-downloaded-\(UUID().uuidString)",
             title: "Model Download Complete",
-            body: "\(modelName) has been downloaded and is ready to use."
+            body: "\(modelName) has been downloaded and is ready to use.",
+            category: .success
         )
     }
 
@@ -34,15 +35,37 @@ final class NotificationManager: ObservableObject {
         scheduleNotification(
             identifier: "agent-task-complete-\(UUID().uuidString)",
             title: "Task Complete",
-            body: "The agent has finished processing your request."
+            body: "The agent has finished processing your request.",
+            category: .complete
         )
     }
 
-    private func scheduleNotification(identifier: String, title: String, body: String) {
+    public func scheduleNotification(identifier: String, title: String, body: String, category: AppSoundCategory = .notification) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
-        content.sound = .default
+
+        let soundID: String
+        switch category {
+        case .notification:
+            soundID = AppSettings.shared.notificationSoundID
+        case .message:
+            soundID = AppSettings.shared.messageSoundID
+        case .success:
+            soundID = AppSettings.shared.successSoundID
+        case .error:
+            soundID = AppSettings.shared.errorSoundID
+        case .complete:
+            soundID = AppSettings.shared.notificationSoundID
+        }
+
+        if soundID == SoundCatalog.noneSoundID {
+            content.sound = nil
+        } else if let appSound = SoundCatalog.sound(for: soundID) {
+            content.sound = UNNotificationSound(named: UNNotificationSoundName(appSound.filename))
+        } else {
+            content.sound = .default
+        }
 
         let request = UNNotificationRequest(
             identifier: identifier,

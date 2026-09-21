@@ -231,6 +231,20 @@ class AppSettings: ObservableObject {
         didSet { debouncedSave("defaultOrganization", defaultOrganization) }
     }
 
+    // MARK: - Sounds Customization
+    @Published var notificationSoundID: String {
+        didSet { debouncedSave("notificationSoundID", notificationSoundID) }
+    }
+    @Published var messageSoundID: String {
+        didSet { debouncedSave("messageSoundID", messageSoundID) }
+    }
+    @Published var successSoundID: String {
+        didSet { debouncedSave("successSoundID", successSoundID) }
+    }
+    @Published var errorSoundID: String {
+        didSet { debouncedSave("errorSoundID", errorSoundID) }
+    }
+
     // MARK: - Debounced Save
 
     private func debouncedSave(_ key: String, _ value: Any) {
@@ -300,6 +314,19 @@ class AppSettings: ObservableObject {
         saveProjectsOnCustomFolder = UserDefaults.standard.object(forKey: "saveProjectsOnCustomFolder") as? Bool ?? false
         customProjectsFolder = UserDefaults.standard.string(forKey: "customProjectsFolder") ?? ""
         defaultOrganization = UserDefaults.standard.string(forKey: "defaultOrganization") ?? "com.SwiftCode"
+
+        // Initialize sound preferences with graceful migration
+        let rawNotif = UserDefaults.standard.string(forKey: "notificationSoundID") ?? SoundCatalog.notificationA.id
+        notificationSoundID = (rawNotif == SoundCatalog.noneSoundID || SoundCatalog.sound(for: rawNotif) != nil) ? rawNotif : SoundCatalog.notificationA.id
+
+        let rawMsg = UserDefaults.standard.string(forKey: "messageSoundID") ?? SoundCatalog.messageA.id
+        messageSoundID = (rawMsg == SoundCatalog.noneSoundID || SoundCatalog.sound(for: rawMsg) != nil) ? rawMsg : SoundCatalog.messageA.id
+
+        let rawSuccess = UserDefaults.standard.string(forKey: "successSoundID") ?? SoundCatalog.successA.id
+        successSoundID = (rawSuccess == SoundCatalog.noneSoundID || SoundCatalog.sound(for: rawSuccess) != nil) ? rawSuccess : SoundCatalog.successA.id
+
+        let rawError = UserDefaults.standard.string(forKey: "errorSoundID") ?? SoundCatalog.errorA.id
+        errorSoundID = (rawError == SoundCatalog.noneSoundID || SoundCatalog.sound(for: rawError) != nil) ? rawError : SoundCatalog.errorA.id
 
         // Load saved repositories
         loadSavedRepositories()

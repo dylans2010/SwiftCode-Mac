@@ -10,6 +10,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Apply registered app icon variant to Dock
         _ = AppIconManager.shared
+
+        // Install bundled custom alert sounds into ~/Library/Sounds/
+        _ = SoundInstaller.shared.installSoundsIfNeeded()
     }
 
     private func setupDefaultPreferences() {

@@ -7,6 +7,34 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		SNDBLD000000000000000001 /* SwiftCode_Notification_A.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000001 /* SwiftCode_Notification_A.aiff */; };
+		SNDBLD000000000000000002 /* SwiftCode_Notification_B.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000002 /* SwiftCode_Notification_B.aiff */; };
+		SNDBLD000000000000000003 /* SwiftCode_Message_A.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000003 /* SwiftCode_Message_A.aiff */; };
+		SNDBLD000000000000000004 /* SwiftCode_Success_A.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000004 /* SwiftCode_Success_A.aiff */; };
+		SNDBLD000000000000000005 /* SwiftCode_Error_A.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000005 /* SwiftCode_Error_A.aiff */; };
+		SNDBLD000000000000000006 /* SwiftCode_Complete_A.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000006 /* SwiftCode_Complete_A.aiff */; };
+		SNDBLD000000000000000007 /* SwiftCode_Notification_C.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000007 /* SwiftCode_Notification_C.aiff */; };
+		SNDBLD000000000000000008 /* SwiftCode_Notification_D.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000008 /* SwiftCode_Notification_D.aiff */; };
+		SNDBLD000000000000000009 /* SwiftCode_Notification_E.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000009 /* SwiftCode_Notification_E.aiff */; };
+		SNDBLD000000000000000010 /* SwiftCode_Notification_F.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000010 /* SwiftCode_Notification_F.aiff */; };
+		SNDBLD000000000000000011 /* SwiftCode_Notification_G.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000011 /* SwiftCode_Notification_G.aiff */; };
+		SNDBLD000000000000000012 /* SwiftCode_Notification_H.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000012 /* SwiftCode_Notification_H.aiff */; };
+		SNDBLD000000000000000013 /* SwiftCode_Message_B.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000013 /* SwiftCode_Message_B.aiff */; };
+		SNDBLD000000000000000014 /* SwiftCode_Message_C.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000014 /* SwiftCode_Message_C.aiff */; };
+		SNDBLD000000000000000015 /* SwiftCode_Message_D.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000015 /* SwiftCode_Message_D.aiff */; };
+		SNDBLD000000000000000016 /* SwiftCode_Message_E.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000016 /* SwiftCode_Message_E.aiff */; };
+		SNDBLD000000000000000017 /* SwiftCode_Success_B.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000017 /* SwiftCode_Success_B.aiff */; };
+		SNDBLD000000000000000018 /* SwiftCode_Success_C.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000018 /* SwiftCode_Success_C.aiff */; };
+		SNDBLD000000000000000019 /* SwiftCode_Success_D.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000019 /* SwiftCode_Success_D.aiff */; };
+		SNDBLD000000000000000020 /* SwiftCode_Error_B.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000020 /* SwiftCode_Error_B.aiff */; };
+		SNDBLD000000000000000021 /* SwiftCode_Error_C.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000021 /* SwiftCode_Error_C.aiff */; };
+		SNDBLD000000000000000022 /* SwiftCode_Warning_A.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000022 /* SwiftCode_Warning_A.aiff */; };
+		SNDBLD000000000000000023 /* SwiftCode_Complete_B.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000023 /* SwiftCode_Complete_B.aiff */; };
+		SNDBLD000000000000000024 /* SwiftCode_Complete_C.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000024 /* SwiftCode_Complete_C.aiff */; };
+		SNDBLD000000000000000025 /* SwiftCode_Complete_D.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000025 /* SwiftCode_Complete_D.aiff */; };
+		SWTBLD000000000000000001 /* SoundCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = SWTREF000000000000000001 /* SoundCatalog.swift */; };
+		SWTBLD000000000000000002 /* SoundManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = SWTREF000000000000000002 /* SoundManager.swift */; };
+		SWTBLD000000000000000003 /* SoundInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = SWTREF000000000000000003 /* SoundInstaller.swift */; };
 		004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = BBB818A276304EA881DBF6E6 /* MLXOptimizers */; };
 		016298C4F533D83B2A4FB1B0 /* ApplicationDeploymentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF38596E6CBBF00108C7D98 /* ApplicationDeploymentView.swift */; };
 		0166E43D0F249661F65BDD62 /* AssistLogCaptureTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C63871C9F424ED65E6604B87 /* AssistLogCaptureTool.swift */; };
@@ -2483,6 +2511,34 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		SNDREF000000000000000001 /* SwiftCode_Notification_A.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Notification_A.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000002 /* SwiftCode_Notification_B.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Notification_B.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000003 /* SwiftCode_Message_A.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Message_A.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000004 /* SwiftCode_Success_A.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Success_A.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000005 /* SwiftCode_Error_A.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Error_A.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000006 /* SwiftCode_Complete_A.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Complete_A.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000007 /* SwiftCode_Notification_C.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Notification_C.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000008 /* SwiftCode_Notification_D.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Notification_D.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000009 /* SwiftCode_Notification_E.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Notification_E.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000010 /* SwiftCode_Notification_F.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Notification_F.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000011 /* SwiftCode_Notification_G.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Notification_G.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000012 /* SwiftCode_Notification_H.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Notification_H.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000013 /* SwiftCode_Message_B.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Message_B.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000014 /* SwiftCode_Message_C.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Message_C.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000015 /* SwiftCode_Message_D.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Message_D.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000016 /* SwiftCode_Message_E.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Message_E.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000017 /* SwiftCode_Success_B.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Success_B.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000018 /* SwiftCode_Success_C.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Success_C.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000019 /* SwiftCode_Success_D.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Success_D.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000020 /* SwiftCode_Error_B.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Error_B.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000021 /* SwiftCode_Error_C.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Error_C.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000022 /* SwiftCode_Warning_A.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Warning_A.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000023 /* SwiftCode_Complete_B.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Complete_B.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000024 /* SwiftCode_Complete_C.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Complete_C.aiff; sourceTree = "<group>"; };
+		SNDREF000000000000000025 /* SwiftCode_Complete_D.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Complete_D.aiff; sourceTree = "<group>"; };
+		SWTREF000000000000000001 /* SoundCatalog.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SoundCatalog.swift; sourceTree = "<group>"; };
+		SWTREF000000000000000002 /* SoundManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SoundManager.swift; sourceTree = "<group>"; };
+		SWTREF000000000000000003 /* SoundInstaller.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SoundInstaller.swift; sourceTree = "<group>"; };
 		00048987BBB25A712D49051C /* NordThemeExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NordThemeExtensionView.swift; sourceTree = "<group>"; };
 		00573C77C75B8076494A575A /* _AssistCriticalValidationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = _AssistCriticalValidationEngine.swift; sourceTree = "<group>"; };
 		0076F070FA7E4422B0FBAAB8 /* ParseMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseMarkdown.swift; sourceTree = "<group>"; };
@@ -4950,6 +5006,38 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		SNDGRP000000000000000001 /* Sounds */ = {
+			isa = PBXGroup;
+			children = (
+				SNDREF000000000000000001 /* SwiftCode_Notification_A.aiff */,
+				SNDREF000000000000000002 /* SwiftCode_Notification_B.aiff */,
+				SNDREF000000000000000003 /* SwiftCode_Message_A.aiff */,
+				SNDREF000000000000000004 /* SwiftCode_Success_A.aiff */,
+				SNDREF000000000000000005 /* SwiftCode_Error_A.aiff */,
+				SNDREF000000000000000006 /* SwiftCode_Complete_A.aiff */,
+				SNDREF000000000000000007 /* SwiftCode_Notification_C.aiff */,
+				SNDREF000000000000000008 /* SwiftCode_Notification_D.aiff */,
+				SNDREF000000000000000009 /* SwiftCode_Notification_E.aiff */,
+				SNDREF000000000000000010 /* SwiftCode_Notification_F.aiff */,
+				SNDREF000000000000000011 /* SwiftCode_Notification_G.aiff */,
+				SNDREF000000000000000012 /* SwiftCode_Notification_H.aiff */,
+				SNDREF000000000000000013 /* SwiftCode_Message_B.aiff */,
+				SNDREF000000000000000014 /* SwiftCode_Message_C.aiff */,
+				SNDREF000000000000000015 /* SwiftCode_Message_D.aiff */,
+				SNDREF000000000000000016 /* SwiftCode_Message_E.aiff */,
+				SNDREF000000000000000017 /* SwiftCode_Success_B.aiff */,
+				SNDREF000000000000000018 /* SwiftCode_Success_C.aiff */,
+				SNDREF000000000000000019 /* SwiftCode_Success_D.aiff */,
+				SNDREF000000000000000020 /* SwiftCode_Error_B.aiff */,
+				SNDREF000000000000000021 /* SwiftCode_Error_C.aiff */,
+				SNDREF000000000000000022 /* SwiftCode_Warning_A.aiff */,
+				SNDREF000000000000000023 /* SwiftCode_Complete_B.aiff */,
+				SNDREF000000000000000024 /* SwiftCode_Complete_C.aiff */,
+				SNDREF000000000000000025 /* SwiftCode_Complete_D.aiff */,
+			);
+			path = Sounds;
+			sourceTree = "<group>";
+		};
 		001BFD647D5F8303B39B8C64 /* Backend */ = {
 			isa = PBXGroup;
 			children = (
@@ -6005,6 +6093,9 @@
 		57AFC04E569B8BDE2658ECD4 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				SWTREF000000000000000001 /* SoundCatalog.swift */,
+				SWTREF000000000000000002 /* SoundManager.swift */,
+				SWTREF000000000000000003 /* SoundInstaller.swift */,
 				DE5ECE000000000000000001 /* FileTemplateManager.swift */,
 				DE5ECE000000000000000011 /* BuildDestinationResolver.swift */,
 				B9D5212E8467AD31B9775EE2 /* SwiftCode/Services/FullAppRunManager.swift */,
@@ -6580,6 +6671,7 @@
 		7F06B6B1231F728421364FE3 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				SNDGRP000000000000000001 /* Sounds */,
 				9202E3117A117B2EA9BD82E4 /* File Templates */,
 				F60787477E14031160E05AAA /* DocSymbols.json */,
 				180ED1F5157DACBE8B1D139C /* Codex */,
@@ -8935,6 +9027,31 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				SNDBLD000000000000000001 /* SwiftCode_Notification_A.aiff in Resources */,
+				SNDBLD000000000000000002 /* SwiftCode_Notification_B.aiff in Resources */,
+				SNDBLD000000000000000003 /* SwiftCode_Message_A.aiff in Resources */,
+				SNDBLD000000000000000004 /* SwiftCode_Success_A.aiff in Resources */,
+				SNDBLD000000000000000005 /* SwiftCode_Error_A.aiff in Resources */,
+				SNDBLD000000000000000006 /* SwiftCode_Complete_A.aiff in Resources */,
+				SNDBLD000000000000000007 /* SwiftCode_Notification_C.aiff in Resources */,
+				SNDBLD000000000000000008 /* SwiftCode_Notification_D.aiff in Resources */,
+				SNDBLD000000000000000009 /* SwiftCode_Notification_E.aiff in Resources */,
+				SNDBLD000000000000000010 /* SwiftCode_Notification_F.aiff in Resources */,
+				SNDBLD000000000000000011 /* SwiftCode_Notification_G.aiff in Resources */,
+				SNDBLD000000000000000012 /* SwiftCode_Notification_H.aiff in Resources */,
+				SNDBLD000000000000000013 /* SwiftCode_Message_B.aiff in Resources */,
+				SNDBLD000000000000000014 /* SwiftCode_Message_C.aiff in Resources */,
+				SNDBLD000000000000000015 /* SwiftCode_Message_D.aiff in Resources */,
+				SNDBLD000000000000000016 /* SwiftCode_Message_E.aiff in Resources */,
+				SNDBLD000000000000000017 /* SwiftCode_Success_B.aiff in Resources */,
+				SNDBLD000000000000000018 /* SwiftCode_Success_C.aiff in Resources */,
+				SNDBLD000000000000000019 /* SwiftCode_Success_D.aiff in Resources */,
+				SNDBLD000000000000000020 /* SwiftCode_Error_B.aiff in Resources */,
+				SNDBLD000000000000000021 /* SwiftCode_Error_C.aiff in Resources */,
+				SNDBLD000000000000000022 /* SwiftCode_Warning_A.aiff in Resources */,
+				SNDBLD000000000000000023 /* SwiftCode_Complete_B.aiff in Resources */,
+				SNDBLD000000000000000024 /* SwiftCode_Complete_C.aiff in Resources */,
+				SNDBLD000000000000000025 /* SwiftCode_Complete_D.aiff in Resources */,
 				8011D22065A4C22503627407 /* (null) in Resources */,
 				A5428FFABC47203D23223068 /* (null) in Resources */,
 				6D94E1AD310954D4608755CC /* (null) in Resources */,
@@ -9845,6 +9962,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				SWTBLD000000000000000001 /* SoundCatalog.swift in Sources */,
+				SWTBLD000000000000000002 /* SoundManager.swift in Sources */,
+				SWTBLD000000000000000003 /* SoundInstaller.swift in Sources */,
 				BA908212F9D1F9C5B565BB57 /* Views/AIReportsView.swift in Sources */,
 				B41962E8FF85C015547C2C7D /* Views/ArchiveManagerView.swift in Sources */,
 				BE75CCFB240452641ABAB6F4 /* Views/BuildHistoryView.swift in Sources */,
