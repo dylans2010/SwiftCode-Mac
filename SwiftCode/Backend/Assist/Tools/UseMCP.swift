@@ -45,7 +45,7 @@ public struct MCPExecutionMetadata: Codable, Sendable, Identifiable {
 public final class UseMCP: AssistTool {
     public let id = "use_mcp"
     public let name = "Execute MCP Tool"
-    public let description = "Enumerate configured MCP servers, negotiate server capabilities, and execute a tool."
+    public let description = "Enumerate configured MCP servers, discover capabilities, and execute external tools (e.g. GitHub, databases, developer services). Pass toolName: 'list_tools' to discover available tools."
 
     public var parametersSchema: JSONSchema {
         JSONSchema(
@@ -54,15 +54,15 @@ public final class UseMCP: AssistTool {
             properties: [
                 "serverName": JSONSchema(
                     type: "string",
-                    description: "The display name of the connected MCP server."
+                    description: "The display name of the configured MCP server (or 'list' to enumerate all servers)."
                 ),
                 "toolName": JSONSchema(
                     type: "string",
-                    description: "The name of the tool to execute on the selected MCP server."
+                    description: "The name of the tool to execute on the selected MCP server (or 'list_tools' to inspect available tools)."
                 ),
                 "arguments": JSONSchema(
                     type: "string",
-                    description: "A JSON-serialized object string containing the arguments to pass to the MCP tool."
+                    description: "A JSON-serialized object string containing the arguments to pass to the MCP tool (pass '{}' for list_tools)."
                 )
             ],
             required: ["serverName", "toolName", "arguments"]
@@ -79,12 +79,55 @@ public final class UseMCP: AssistTool {
         }
 
         let manager = MCPServerManager.shared
-        guard let server = manager.servers.first(where: { $0.displayName.lowercased() == serverName.lowercased() || $0.id.uuidString == serverName }) else {
-            return .failure("MCP Server '\(serverName)' not found or not configured.")
+
+        // Allow discovery of all configured MCP servers and their tools
+        if serverName.lowercased() == "list" || toolName.lowercased() == "list_servers" {
+            if manager.servers.isEmpty {
+                return .success("No MCP servers are currently configured in SwiftCode Settings.")
+            }
+            var result = "### Configured Model Context Protocol (MCP) Servers:\n\n"
+            for s in manager.servers {
+                result += "#### Server: **\(s.displayName)** (\(s.transport.rawValue.uppercased()))\n"
+                result += "- Status: `\(s.status.rawValue)`\n"
+                result += "- URL / Path: `\(s.transport == .stdio ? (s.executablePath ?? "n/a") : s.urlString)`\n"
+                result += "- Available Tools (\(s.tools.count)):\n"
+                if s.tools.isEmpty {
+                    result += "  - *(No tools loaded yet; server may be connecting)*\n"
+                } else {
+                    for tool in s.tools {
+                        result += "  - **`\(tool.name)`**: \(tool.description ?? "No description")\n"
+                    }
+                }
+                result += "\n"
+            }
+            return .success(result)
         }
 
-        guard server.status == .connected else {
-            return .failure("MCP Server '\(server.displayName)' is disconnected. Please connect the server in settings before executing tools.")
+        guard let server = manager.servers.first(where: { $0.displayName.lowercased() == serverName.lowercased() || $0.id.uuidString == serverName }) else {
+            return .failure("MCP Server '\(serverName)' not found or not configured in settings.")
+        }
+
+        // Auto-connect if currently disconnected
+        if server.status != .connected {
+            do {
+                try await manager.connect(server: server)
+            } catch {
+                return .failure("MCP Server '\(server.displayName)' is disconnected and automatic connection failed: \(error.localizedDescription)")
+            }
+        }
+
+        // Return tool listing if specifically requested for this server
+        if toolName.lowercased() == "list_tools" {
+            let updatedServer = manager.servers.first(where: { $0.id == server.id }) ?? server
+            var result = "### Available tools on MCP server '\(updatedServer.displayName)':\n"
+            if updatedServer.tools.isEmpty {
+                result += "No tools currently registered on this server."
+            } else {
+                for tool in updatedServer.tools {
+                    result += "- **`\(tool.name)`**: \(tool.description ?? "No description")\n"
+                }
+            }
+            return .success(result)
         }
 
         // Parse arguments JSON

@@ -59,10 +59,29 @@ public struct JSONRPCRequest: Codable, Sendable {
 }
 
 public struct JSONRPCResponse: Codable, Sendable {
-    public let jsonrpc: String
+    public let jsonrpc: String?
     public let id: JSONRPCID?
     public let result: JSONValue?
     public let error: JSONRPCError?
+
+    public init(jsonrpc: String? = "2.0", id: JSONRPCID?, result: JSONValue?, error: JSONRPCError?) {
+        self.jsonrpc = jsonrpc
+        self.id = id
+        self.result = result
+        self.error = error
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case jsonrpc, id, result, error
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.jsonrpc = try? container.decodeIfPresent(String.self, forKey: .jsonrpc)
+        self.id = try? container.decodeIfPresent(JSONRPCID.self, forKey: .id)
+        self.result = try? container.decodeIfPresent(JSONValue.self, forKey: .result)
+        self.error = try? container.decodeIfPresent(JSONRPCError.self, forKey: .error)
+    }
 }
 
 public struct JSONRPCNotification: Codable, Sendable {
@@ -81,6 +100,131 @@ public struct JSONRPCError: Codable, Sendable, Error {
     public let code: Int
     public let message: String
     public let data: JSONValue?
+}
+
+// MARK: - Server-Sent Events (SSE) Parser
+
+public enum SSEParser {
+    public struct ParsedEvent: Sendable {
+        public var eventType: String = "message"
+        public var data: String = ""
+        public var id: String? = nil
+        public var retry: String? = nil
+
+        public init(eventType: String = "message", data: String = "", id: String? = nil, retry: String? = nil) {
+            self.eventType = eventType
+            self.data = data
+            self.id = id
+            self.retry = retry
+        }
+    }
+
+    /// Parses an SSE payload (as raw Data) into a list of individual SSE events according to the W3C EventSource standard.
+    public static func parseEvents(from data: Data) -> [ParsedEvent] {
+        guard let text = String(data: data, encoding: .utf8) else { return [] }
+        return parseEvents(from: text)
+    }
+
+    /// Parses an SSE payload (as String) into a list of individual SSE events according to the W3C EventSource standard.
+    public static func parseEvents(from text: String) -> [ParsedEvent] {
+        var events: [ParsedEvent] = []
+        var currentEvent = ParsedEvent()
+        var hasData = false
+
+        let normalized = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+        let lines = normalized.components(separatedBy: "\n")
+
+        for line in lines {
+            if line.isEmpty {
+                if hasData {
+                    events.append(currentEvent)
+                    currentEvent = ParsedEvent()
+                    hasData = false
+                }
+                continue
+            }
+
+            if line.hasPrefix(":") {
+                continue
+            }
+
+            let parts = line.split(separator: ":", maxSplits: 1)
+            let field = parts[0].trimmingCharacters(in: .whitespaces)
+            var value = ""
+            if parts.count > 1 {
+                let rawVal = String(parts[1])
+                if rawVal.hasPrefix(" ") {
+                    value = String(rawVal.dropFirst())
+                } else {
+                    value = rawVal
+                }
+            }
+
+            switch field {
+            case "event":
+                currentEvent.eventType = value
+            case "data":
+                if !hasData {
+                    currentEvent.data = value
+                    hasData = true
+                } else {
+                    currentEvent.data += "\n" + value
+                }
+            case "id":
+                currentEvent.id = value
+            case "retry":
+                currentEvent.retry = value
+            default:
+                break
+            }
+        }
+
+        if hasData {
+            events.append(currentEvent)
+        }
+
+        return events
+    }
+
+    /// Extracts and decodes all JSONRPCResponse objects found in an SSE payload.
+    public static func extractJSONRPCResponses(from data: Data) -> [JSONRPCResponse] {
+        let events = parseEvents(from: data)
+        var responses: [JSONRPCResponse] = []
+        let decoder = JSONDecoder()
+
+        for event in events {
+            let trimmed = event.data.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, let eventData = trimmed.data(using: .utf8) else { continue }
+
+            if let resp = try? decoder.decode(JSONRPCResponse.self, from: eventData) {
+                if resp.result != nil || resp.error != nil || resp.id != nil {
+                    responses.append(resp)
+                }
+            } else if let batch = try? decoder.decode([JSONRPCResponse].self, from: eventData) {
+                responses.append(contentsOf: batch)
+            }
+        }
+
+        return responses
+    }
+
+    /// Extracts and decodes all JSONRPCNotification objects found in an SSE payload.
+    public static func extractNotifications(from data: Data) -> [JSONRPCNotification] {
+        let events = parseEvents(from: data)
+        var notifications: [JSONRPCNotification] = []
+        let decoder = JSONDecoder()
+
+        for event in events {
+            let trimmed = event.data.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, let eventData = trimmed.data(using: .utf8) else { continue }
+
+            if let notif = try? decoder.decode(JSONRPCNotification.self, from: eventData) {
+                notifications.append(notif)
+            }
+        }
+
+        return notifications
+    }
 }
 
 // MARK: - Transport Session Protocol
@@ -274,6 +418,7 @@ public final class StdioTransportSession: MCPTransportSession, @unchecked Sendab
 public final class HTTPJSONTransportSession: MCPTransportSession, @unchecked Sendable {
     private let server: MCPServer
     private let logEvent: @Sendable (MCPLogSeverity, String) -> Void
+    private let messageHandler = OSAllocatedUnfairLock<((JSONRPCResponse) -> Void)?>(initialState: nil)
 
     public init(server: MCPServer, logEvent: @escaping @Sendable (MCPLogSeverity, String) -> Void) {
         self.server = server
@@ -285,7 +430,8 @@ public final class HTTPJSONTransportSession: MCPTransportSession, @unchecked Sen
     }
 
     public func connect(messageHandler: @escaping @Sendable (JSONRPCResponse) -> Void) async throws {
-        logEvent(.info, "HTTP JSON transport session connected successfully.")
+        self.messageHandler.withLock { $0 = messageHandler }
+        logEvent(.info, "HTTP transport session initialized successfully.")
     }
 
     public func send(request: JSONRPCRequest) async throws -> JSONRPCResponse {
@@ -297,7 +443,7 @@ public final class HTTPJSONTransportSession: MCPTransportSession, @unchecked Sen
         urlRequest.httpMethod = "POST"
         urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.addValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
-        urlRequest.timeoutInterval = 30.0
+        urlRequest.timeoutInterval = 45.0
 
         applyAuthAndCustomHeaders(to: &urlRequest)
 
@@ -314,36 +460,92 @@ public final class HTTPJSONTransportSession: MCPTransportSession, @unchecked Sen
             throw MCPError.connectionFailed("Invalid response type from server.")
         }
 
-        let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
+        let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type")?.lowercased() ?? ""
         let isJSON = contentType.contains("application/json") || contentType.contains("text/json")
         let isSSE = contentType.contains("text/event-stream")
 
         logEvent(.info, "[\(timestamp)] HTTP Response status code: \(httpResponse.statusCode), Content-Type: \(contentType)")
         logEvent(.info, "Response Headers: \(httpResponse.allHeaderFields)")
 
-        if httpResponse.statusCode != 200 {
+        guard (200...299).contains(httpResponse.statusCode) else {
             let responseBody = String(data: data, encoding: .utf8) ?? ""
-            if isJSON, let errorObj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if isJSON || isSSE, let errorObj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 if let rpcError = errorObj["error"] as? [String: Any], let msg = rpcError["message"] as? String {
-                    throw MCPError.authenticationFailed("Server error (code \(httpResponse.statusCode)): \(msg)")
+                    throw MCPError.authenticationFailed("Server error (\(httpResponse.statusCode)): \(msg)")
                 } else if let msg = errorObj["message"] as? String {
-                    throw MCPError.authenticationFailed("Server error (code \(httpResponse.statusCode)): \(msg)")
+                    throw MCPError.authenticationFailed("Server error (\(httpResponse.statusCode)): \(msg)")
                 }
             }
             throw MCPError.authenticationFailed("Server returned HTTP \(httpResponse.statusCode). Response: \(responseBody)")
         }
 
+        // Handle SSE Response (Streamable HTTP / Server-Sent Events)
         if isSSE {
-            logEvent(.warning, "[\(timestamp)] Server selected Server-Sent Events (SSE) instead of JSON. Routing response to SSE parser.")
-            throw MCPError.decodingFailed("Server selected Server-Sent Events (text/event-stream) response instead of JSON. Please configure transport with SSE auto-detection.")
+            logEvent(.info, "[\(timestamp)] Processing Server-Sent Events (SSE) response stream...")
+            let responses = SSEParser.extractJSONRPCResponses(from: data)
+
+            // Forward any notifications in the stream to the message handler
+            let notifications = SSEParser.extractNotifications(from: data)
+            let handler = messageHandler.withLock { $0 }
+            for notif in notifications {
+                handler?(JSONRPCResponse(jsonrpc: notif.jsonrpc, id: nil, result: notif.params, error: nil))
+            }
+
+            // Find matching response by request ID
+            if let matched = responses.first(where: {
+                if let reqID = request.id, let respID = $0.id {
+                    return reqID == respID || reqID.integerValue == respID.integerValue
+                }
+                return false
+            }) {
+                logEvent(.info, "[\(timestamp)] Successfully parsed matching JSON-RPC response from SSE stream.")
+                return matched
+            }
+
+            if let first = responses.first {
+                logEvent(.info, "[\(timestamp)] Extracted JSON-RPC response from SSE stream.")
+                return first
+            }
+
+            // Fallback: Try decoding the raw body directly as JSON
+            if let fallback = try? JSONDecoder().decode(JSONRPCResponse.self, from: data) {
+                logEvent(.info, "[\(timestamp)] Successfully parsed JSON response from payload.")
+                return fallback
+            }
+
+            let rawBody = String(data: data, encoding: .utf8) ?? ""
+            let preview = rawBody.count > 300 ? String(rawBody.prefix(300)) + "..." : rawBody
+            throw MCPError.decodingFailed("Server returned text/event-stream but could not parse a valid JSON-RPC response. Raw payload: \(preview)")
         }
 
-        if !isJSON {
-            let responseBody = String(data: data, encoding: .utf8) ?? ""
-            throw MCPError.decodingFailed("Expected JSON response but received Content-Type '\(contentType)'. Raw body: \(responseBody)")
+        // Handle Standard JSON Response
+        if isJSON {
+            do {
+                return try JSONDecoder().decode(JSONRPCResponse.self, from: data)
+            } catch {
+                // If direct JSON decoding failed, check if the payload had SSE formatting
+                let sseResponses = SSEParser.extractJSONRPCResponses(from: data)
+                if let match = sseResponses.first {
+                    logEvent(.info, "[\(timestamp)] Successfully recovered JSON-RPC response via SSE fallback parser.")
+                    return match
+                }
+                let rawBody = String(data: data, encoding: .utf8) ?? ""
+                let preview = rawBody.count > 300 ? String(rawBody.prefix(300)) + "..." : rawBody
+                throw MCPError.decodingFailed("Failed to decode JSON response: \(error.localizedDescription). Body: \(preview)")
+            }
         }
 
-        return try JSONDecoder().decode(JSONRPCResponse.self, from: data)
+        // Handle Other / Ambiguous Content Types (e.g. text/plain)
+        if let direct = try? JSONDecoder().decode(JSONRPCResponse.self, from: data) {
+            return direct
+        }
+        let sseResponses = SSEParser.extractJSONRPCResponses(from: data)
+        if let match = sseResponses.first {
+            return match
+        }
+
+        let rawBody = String(data: data, encoding: .utf8) ?? ""
+        throw MCPError.decodingFailed("Expected JSON or SSE response but received Content-Type '\(contentType)'. Raw body: \(rawBody)")
     }
 
     public func send(notification: JSONRPCNotification) async throws {
@@ -364,17 +566,17 @@ public final class HTTPJSONTransportSession: MCPTransportSession, @unchecked Sen
         logEvent(.info, "Request Headers: \(urlRequest.allHTTPHeaderFields ?? [:])")
 
         urlRequest.httpBody = try JSONEncoder().encode(notification)
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        let (_, response) = try await URLSession.shared.data(for: urlRequest)
 
         if let httpResponse = response as? HTTPURLResponse {
             let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
             logEvent(.info, "[\(timestamp)] HTTP Notification Response status code: \(httpResponse.statusCode), Content-Type: \(contentType)")
-            logEvent(.info, "Response Headers: \(httpResponse.allHeaderFields)")
         }
     }
 
     public func disconnect() {
-        logEvent(.info, "HTTP JSON transport session disconnected.")
+        messageHandler.withLock { $0 = nil }
+        logEvent(.info, "HTTP transport session disconnected.")
     }
 
     private func applyAuthAndCustomHeaders(to urlRequest: inout URLRequest) {
@@ -443,14 +645,27 @@ public final class HTTPSSETransportSession: MCPTransportSession, @unchecked Send
             throw MCPError.invalidURL("Invalid base SSE URL: \(server.urlString)")
         }
 
-        let resolvedEndpoint = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
-            endpointContinuation.withLock { $0 = continuation }
+        let resolvedEndpoint = try await withThrowingTaskGroup(of: URL.self) { group in
+            group.addTask {
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
+                    self.endpointContinuation.withLock { $0 = continuation }
 
-            let task = Task.detached { [weak self] in
-                guard let self = self else { return }
-                await self.runConnectionLoop(url: baseSSEURL, messageHandler: messageHandler)
+                    let task = Task.detached { [weak self] in
+                        guard let self = self else { return }
+                        await self.runConnectionLoop(url: baseSSEURL, messageHandler: messageHandler)
+                    }
+                    self.activeTask.withLock { $0 = task }
+                }
             }
-            activeTask.withLock { $0 = task }
+
+            group.addTask {
+                try await Task.sleep(nanoseconds: 15_000_000_000)
+                throw MCPError.timeout("SSE connection timed out waiting for initial endpoint event from \(baseSSEURL.absoluteString)")
+            }
+
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
         }
 
         messageEndpoint.withLock { $0 = resolvedEndpoint }
@@ -578,7 +793,7 @@ public final class HTTPSSETransportSession: MCPTransportSession, @unchecked Send
         switch event.eventType {
         case "endpoint":
             guard let baseSSEURL = URL(string: server.urlString),
-                  let resolvedURL = URL(string: event.data, relativeTo: baseSSEURL) else {
+                  let resolvedURL = URL(string: event.data, relativeTo: baseSSEURL)?.absoluteURL else {
                 let errorMsg = "Malformed endpoint URI received from SSE: \(event.data)"
                 logEvent(.error, errorMsg)
                 if let continuation = endpointContinuation.withLock({ $0 }) {
@@ -629,7 +844,7 @@ public final class HTTPSSETransportSession: MCPTransportSession, @unchecked Send
         urlRequest.httpMethod = "POST"
         urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.addValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
-        urlRequest.timeoutInterval = 30.0
+        urlRequest.timeoutInterval = 45.0
 
         applyAuthAndCustomHeaders(to: &urlRequest)
 
@@ -657,11 +872,11 @@ public final class HTTPSSETransportSession: MCPTransportSession, @unchecked Send
                         throw MCPError.connectionFailed("Invalid response type from server.")
                     }
 
-                    let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
+                    let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type")?.lowercased() ?? ""
                     logEvent(.info, "[\(timestamp)] POST Response status code: \(httpResponse.statusCode), Content-Type: \(contentType)")
                     logEvent(.info, "Response Headers: \(httpResponse.allHeaderFields)")
 
-                    if httpResponse.statusCode != 200 && httpResponse.statusCode != 202 {
+                    if !((200...299).contains(httpResponse.statusCode)) {
                         let responseBody = String(data: data, encoding: .utf8) ?? ""
                         throw MCPError.authenticationFailed("Server returned HTTP \(httpResponse.statusCode). Response: \(responseBody)")
                     }
@@ -673,12 +888,18 @@ public final class HTTPSSETransportSession: MCPTransportSession, @unchecked Send
                                 removed.resume(returning: immediateResponse)
                             }
                         } catch {
-                            // Suppress and wait for asynchronous SSE push
                             logEvent(.info, "Failed to decode immediate HTTP POST response payload. Waiting for event stream response instead.")
                         }
                     } else if contentType.contains("text/event-stream") {
-                        logEvent(.info, "Server responded with text/event-stream Content-Type to POST request. Handling response via event stream parser.")
-                        // We do NOT attempt to decode as raw JSON
+                        logEvent(.info, "Server responded with text/event-stream Content-Type to POST request. Parsing SSE event stream...")
+                        let responses = SSEParser.extractJSONRPCResponses(from: data)
+                        if let matched = responses.first(where: { $0.id?.integerValue == reqID }) ?? responses.first {
+                            if let removed = pendingRequests.withLock({ $0.removeValue(forKey: reqID) }) {
+                                removed.resume(returning: matched)
+                            }
+                        } else {
+                            logEvent(.info, "No immediate JSON-RPC response matching ID \(reqID) found in POST SSE payload. Waiting for asynchronous SSE stream push.")
+                        }
                     }
                 } catch {
                     if let removed = pendingRequests.withLock({ $0.removeValue(forKey: reqID) }) {
@@ -707,7 +928,7 @@ public final class HTTPSSETransportSession: MCPTransportSession, @unchecked Send
         logEvent(.info, "Request Headers: \(urlRequest.allHTTPHeaderFields ?? [:])")
 
         urlRequest.httpBody = try JSONEncoder().encode(notification)
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        let (_, response) = try await URLSession.shared.data(for: urlRequest)
 
         if let httpResponse = response as? HTTPURLResponse {
             let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
@@ -722,6 +943,14 @@ public final class HTTPSSETransportSession: MCPTransportSession, @unchecked Send
         activeTask.withLock { task in
             task?.cancel()
             task = nil
+        }
+
+        if let continuation = endpointContinuation.withLock({
+            let c = $0
+            $0 = nil
+            return c
+        }) {
+            continuation.resume(throwing: MCPError.connectionFailed("Transport disconnected"))
         }
 
         let continuations = pendingRequests.withLock { requests -> [CheckedContinuation<JSONRPCResponse, Error>] in
@@ -806,18 +1035,25 @@ public final class MCPClient: Sendable {
             }
             activeSession.withLock { $0 = session }
 
+        case .sse:
+            logEvent(severity: .info, message: "Server-Sent Events (SSE) configured explicitly. Instantiating SSE session.")
+            let session = HTTPSSETransportSession(server: server) { [weak self] severity, message in
+                self?.logEvent(severity: severity, message: message)
+            }
+            activeSession.withLock { $0 = session }
+
         case .http, .https:
             logEvent(severity: .info, message: "Detecting remote transport type at: \(server.urlString)")
 
             let detectedTransport = await detectRemoteTransport()
             if detectedTransport == .sse {
-                logEvent(severity: .info, message: "Detected text/event-stream content. Instantiating Server-Sent Events (SSE) transport.")
+                logEvent(severity: .info, message: "Detected active text/event-stream session. Instantiating Server-Sent Events (SSE) transport.")
                 let session = HTTPSSETransportSession(server: server) { [weak self] severity, message in
                     self?.logEvent(severity: severity, message: message)
                 }
                 activeSession.withLock { $0 = session }
             } else {
-                logEvent(severity: .info, message: "Detected standard HTTP JSON response content. Instantiating HTTP JSON transport.")
+                logEvent(severity: .info, message: "Detected HTTP transport (Streamable SSE / JSON). Instantiating HTTP transport.")
                 let session = HTTPJSONTransportSession(server: server) { [weak self] severity, message in
                     self?.logEvent(severity: severity, message: message)
                 }
@@ -859,7 +1095,7 @@ public final class MCPClient: Sendable {
     }
 
     private func handleUnsolicitedMessage(_ message: JSONRPCResponse) {
-        logEvent(severity: .info, message: "Received unsolicited JSON-RPC message: \(message.jsonrpc)")
+        logEvent(severity: .info, message: "Received unsolicited JSON-RPC message: \(message.jsonrpc ?? "")")
     }
 
     // MARK: - Auto Detection
@@ -870,65 +1106,43 @@ public final class MCPClient: Sendable {
     }
 
     private func detectRemoteTransport() async -> DetectedTransport {
+        if server.transport == .sse {
+            return .sse
+        }
+
         guard let url = URL(string: server.urlString) else {
             return .json
         }
 
+        let isExplicitSSE = url.path.lowercased().hasSuffix("/sse")
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.addValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 5.0
+        request.addValue("text/event-stream, application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 6.0
 
-        // Apply authentication headers
-        let credentialKey = "mcp-server-key-\(server.id.uuidString)"
-        let storedSecret = KeychainService.shared.get(forKey: credentialKey) ?? ""
+        applyAuthAndCustomHeaders(to: &request)
 
-        switch server.authType {
-        case .apiKey:
-            if !storedSecret.isEmpty {
-                request.addValue(storedSecret, forHTTPHeaderField: "X-API-Key")
-            }
-        case .bearerToken, .oauth:
-            if !storedSecret.isEmpty {
-                request.addValue("Bearer \(storedSecret)", forHTTPHeaderField: "Authorization")
-            }
-        case .envVars:
-            if let envs = server.envVariables {
-                for (k, v) in envs {
-                    request.addValue(v, forHTTPHeaderField: "X-Env-\(k)")
-                }
-            }
-        case .customHeaders:
-            if let custom = server.customHeaders {
-                for (k, v) in custom {
-                    request.addValue(v, forHTTPHeaderField: k)
-                }
-            }
-        default:
-            break
-        }
-
-        logEvent(severity: .info, message: "Initiating dynamic transport detection GET request to: \(url.absoluteString)")
-        logEvent(severity: .info, message: "Outgoing request headers: \(request.allHTTPHeaderFields ?? [:])")
+        logEvent(severity: .info, message: "Testing remote transport probe at: \(url.absoluteString)...")
 
         do {
             let (_, response) = try await URLSession.shared.bytes(for: request)
             if let httpResponse = response as? HTTPURLResponse {
-                let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? ""
-                logEvent(severity: .info, message: "Transport detection response status: \(httpResponse.statusCode), Content-Type: \(contentType)")
-                logEvent(severity: .info, message: "Response Headers: \(httpResponse.allHeaderFields)")
+                let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type")?.lowercased() ?? ""
+                logEvent(severity: .info, message: "Remote probe response status: \(httpResponse.statusCode), Content-Type: \(contentType)")
 
-                if contentType.contains("text/event-stream") {
-                    logEvent(severity: .info, message: "Transport negotiation result: SERVER-SENT EVENTS (SSE)")
+                // Only consider it an open SSE stream if status is 200 AND content-type is text/event-stream
+                if httpResponse.statusCode == 200 && contentType.contains("text/event-stream") {
+                    logEvent(severity: .info, message: "Transport probe detected active Server-Sent Events (SSE) stream.")
                     return .sse
-                } else {
-                    logEvent(severity: .info, message: "Transport negotiation result: HTTP JSON")
-                    return .json
                 }
             }
         } catch {
-            logger.warning("Dynamic transport detection request failed: \(error.localizedDescription). Falling back to JSON transport.")
-            logEvent(severity: .warning, message: "Dynamic transport detection failed with error: \(error.localizedDescription). Falling back to JSON transport.")
+            logEvent(severity: .info, message: "Transport probe completed. Selecting HTTP transport.")
+        }
+
+        if isExplicitSSE {
+            return .sse
         }
 
         return .json
@@ -954,18 +1168,28 @@ public final class MCPClient: Sendable {
         logEvent(severity: .info, message: "Sending 'initialize' request with protocol version '2024-11-05'")
         let response = try await sendRPCRequest(method: "initialize", params: .object(params))
 
+        if let rpcError = response.error {
+            logEvent(severity: .error, message: "Handshake failed: Server returned error (\(rpcError.code)): \(rpcError.message)")
+            throw MCPError.handshakeFailed("Server returned error (\(rpcError.code)): \(rpcError.message)")
+        }
+
         guard let resultObj = response.result,
               case .object(let dict) = resultObj else {
             logEvent(severity: .error, message: "Handshake failed: Server did not return a valid result dictionary.")
             throw MCPError.handshakeFailed("Server handshake did not return a valid result dictionary.")
         }
 
-        guard let serverInfoObj = dict["serverInfo"],
-              case .object(let serverInfo) = serverInfoObj,
-              case .string(let serverName) = serverInfo["name"] ?? .null,
-              case .string(let serverVersion) = serverInfo["version"] ?? .null else {
-            logEvent(severity: .error, message: "Handshake failed: Server response is missing metadata.")
-            throw MCPError.handshakeFailed("Server handshake response missing metadata.")
+        var serverName = server.displayName
+        var serverVersion = "1.0.0"
+        if let serverInfoObj = dict["serverInfo"], case .object(let serverInfo) = serverInfoObj {
+            if case .string(let name) = serverInfo["name"] ?? .null {
+                serverName = name
+            }
+            if case .string(let ver) = serverInfo["version"] ?? .null {
+                serverVersion = ver
+            } else if case .number(let verNum) = serverInfo["version"] ?? .null {
+                serverVersion = String(verNum)
+            }
         }
 
         var protocolVersion = "2024-11-05"

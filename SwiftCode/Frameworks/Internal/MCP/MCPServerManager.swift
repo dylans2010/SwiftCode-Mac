@@ -183,6 +183,14 @@ public final class MCPServerManager: Sendable {
     }
 
     public func callTool(serverID: UUID, name: String, arguments: [String: JSONValue]) async throws -> MCPExecutionResponse {
+        if activeClients[serverID] == nil {
+            guard let server = servers.first(where: { $0.id == serverID }) else {
+                throw MCPError.connectionFailed("Server is not registered.")
+            }
+            logger.log("Server '\(server.displayName)' is not actively connected. Attempting auto-connection before tool execution...")
+            try await connect(server: server)
+        }
+
         guard let client = activeClients[serverID] else {
             throw MCPError.connectionFailed("Server is not actively connected.")
         }
@@ -196,7 +204,8 @@ public final class MCPServerManager: Sendable {
 
         // Temporarily store the secret in keychain if provided
         let tempKey = "mcp-server-key-\(config.id.uuidString)"
-        if let key = secretKey {
+        let existingSecret = getSecret(for: config.id)
+        if let key = secretKey, !key.isEmpty {
             KeychainService.shared.set(key, forKey: tempKey)
         }
 
@@ -204,8 +213,12 @@ public final class MCPServerManager: Sendable {
 
         defer {
             client.disconnect()
-            if secretKey != nil {
-                KeychainService.shared.delete(forKey: tempKey)
+            if let key = secretKey, !key.isEmpty {
+                if let old = existingSecret {
+                    KeychainService.shared.set(old, forKey: tempKey)
+                } else {
+                    KeychainService.shared.delete(forKey: tempKey)
+                }
             }
         }
 

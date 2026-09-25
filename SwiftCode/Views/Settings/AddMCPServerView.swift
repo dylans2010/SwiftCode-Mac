@@ -163,6 +163,49 @@ struct ServerConfigFormView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
+                    // Quick Presets Card
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Label("Quick Presets", systemImage: "wand.and.stars")
+                                    .font(.headline)
+                                    .foregroundColor(.purple)
+                                Spacer()
+                            }
+                            Text("Quickly configure popular Model Context Protocol integrations:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+
+                            HStack(spacing: 10) {
+                                Button(action: {
+                                    displayName = "GitHub"
+                                    transport = .https
+                                    urlString = "https://api.githubcopilot.com/mcp/"
+                                    authType = .bearerToken
+                                }) {
+                                    Label("GitHub Copilot MCP", systemImage: "sparkles")
+                                }
+                                .buttonStyle(.bordered)
+
+                                Button(action: {
+                                    displayName = "GitHub Local"
+                                    transport = .stdio
+                                    executablePath = "/usr/local/bin/npx"
+                                    launchArguments = "-y, @modelcontextprotocol/server-github"
+                                    authType = .none
+                                    if !envVars.contains(where: { $0.key == "GITHUB_PERSONAL_ACCESS_TOKEN" }) {
+                                        envVars.append(MCPKeyValuePair(key: "GITHUB_PERSONAL_ACCESS_TOKEN", value: ""))
+                                    }
+                                }) {
+                                    Label("GitHub Local (npx)", systemImage: "terminal")
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
                     // General Config Card
                     GroupBox {
                         VStack(alignment: .leading, spacing: 14) {
@@ -181,6 +224,7 @@ struct ServerConfigFormView: View {
                                 Text("Local Stdio Subprocess").tag(MCPTransport.stdio)
                                 Text("HTTP API endpoint").tag(MCPTransport.http)
                                 Text("HTTPS Secure API endpoint").tag(MCPTransport.https)
+                                Text("Server-Sent Events (SSE)").tag(MCPTransport.sse)
                             }
                             .pickerStyle(.radioGroup)
                             .horizontalRadioGroupLayout()
@@ -487,18 +531,28 @@ struct ServerConfigFormView: View {
         testMetadata = nil
         testTools = []
 
+        let effectiveSecret = secretKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? (serverToEdit != nil ? manager.getSecret(for: serverToEdit!.id) : nil)
+            : secretKey
+
         let testServer = constructServerObject(id: serverToEdit?.id ?? UUID())
 
         Task {
             do {
-                let (metadata, tools) = try await manager.testConnection(config: testServer, secretKey: secretKey.isEmpty ? nil : secretKey)
+                let (metadata, tools) = try await manager.testConnection(config: testServer, secretKey: effectiveSecret)
                 testSuccess = true
                 testMetadata = metadata
                 testTools = tools
                 testResult = "Handshake Successful!\nServer: \(metadata.name)\nVersion: \(metadata.version)\nProtocol: \(metadata.protocolVersion)\nDiscovered \(tools.count) callable tools."
             } catch {
                 testSuccess = false
-                testResult = "Connection test failed: \(error.localizedDescription)"
+                var msg = "Connection test failed: \(error.localizedDescription)"
+                if (authType == .bearerToken || authType == .apiKey) && (effectiveSecret == nil || effectiveSecret!.isEmpty) {
+                    msg += "\n\nTip: Authorization is configured as '\(authType.rawValue)' but no secret key/token was provided."
+                } else if error.localizedDescription.contains("401") || error.localizedDescription.contains("Authorization") {
+                    msg += "\n\nTip: Ensure your GitHub / Bearer token has valid scopes (e.g. 'repo', 'read:user') and is not expired."
+                }
+                testResult = msg
             }
             isTesting = false
         }

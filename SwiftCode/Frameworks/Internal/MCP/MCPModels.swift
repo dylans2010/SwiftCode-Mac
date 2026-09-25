@@ -7,6 +7,7 @@ public enum MCPTransport: String, Codable, Sendable, CaseIterable {
     case stdio = "stdio"
     case http = "http"
     case https = "https"
+    case sse = "sse"
 }
 
 // MARK: - MCP Authentication Type enum
@@ -68,11 +69,11 @@ public enum MCPError: LocalizedError, Sendable {
 // MARK: - MCP Tool Input Schema
 
 public struct MCPToolSchema: Codable, Sendable, Hashable {
-    public let type: String
+    public let type: String?
     public let properties: [String: MCPToolProperty]?
     public let required: [String]?
 
-    public init(type: String, properties: [String: MCPToolProperty]? = nil, required: [String]? = nil) {
+    public init(type: String? = "object", properties: [String: MCPToolProperty]? = nil, required: [String]? = nil) {
         self.type = type
         self.properties = properties
         self.required = required
@@ -80,14 +81,31 @@ public struct MCPToolSchema: Codable, Sendable, Hashable {
 }
 
 public struct MCPToolProperty: Codable, Sendable, Hashable {
-    public let type: String
+    public let type: String?
     public let description: String?
     public let `enum`: [String]?
 
-    public init(type: String, description: String? = nil, `enum`: [String]? = nil) {
+    public init(type: String? = nil, description: String? = nil, `enum`: [String]? = nil) {
         self.type = type
         self.description = description
         self.enum = `enum`
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case type, description, `enum`
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let singleType = try? container.decodeIfPresent(String.self, forKey: .type) {
+            self.type = singleType
+        } else if let multiTypes = try? container.decodeIfPresent([String].self, forKey: .type) {
+            self.type = multiTypes.joined(separator: "|")
+        } else {
+            self.type = nil
+        }
+        self.description = try? container.decodeIfPresent(String.self, forKey: .description)
+        self.enum = try? container.decodeIfPresent([String].self, forKey: .enum)
     }
 }
 
@@ -115,7 +133,7 @@ public struct MCPTool: Codable, Sendable, Identifiable, Hashable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.name = try container.decode(String.self, forKey: .name)
         self.description = try container.decodeIfPresent(String.self, forKey: .description)
-        self.inputSchema = try container.decode(MCPToolSchema.self, forKey: .inputSchema)
+        self.inputSchema = (try? container.decode(MCPToolSchema.self, forKey: .inputSchema)) ?? MCPToolSchema()
         self.isCallable = try container.decodeIfPresent(Bool.self, forKey: .isCallable) ?? true
     }
 }
@@ -218,19 +236,45 @@ public struct MCPExecutionResponse: Codable, Sendable {
     public let content: [MCPContentBlock]
     public let isError: Bool
 
-    public init(content: [MCPContentBlock], isError: Bool = false) {
+    public init(content: [MCPContentBlock] = [], isError: Bool = false) {
         self.content = content
         self.isError = isError
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case content, isError
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.content = (try? container.decode([MCPContentBlock].self, forKey: .content)) ?? []
+        self.isError = (try? container.decode(Bool.self, forKey: .isError)) ?? false
     }
 }
 
 public struct MCPContentBlock: Codable, Sendable {
     public let type: String
     public let text: String?
+    public let data: String?
+    public let mimeType: String?
 
-    public init(type: String, text: String?) {
+    public init(type: String, text: String? = nil, data: String? = nil, mimeType: String? = nil) {
         self.type = type
         self.text = text
+        self.data = data
+        self.mimeType = mimeType
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case type, text, data, mimeType
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.type = (try? container.decode(String.self, forKey: .type)) ?? "text"
+        self.text = try? container.decodeIfPresent(String.self, forKey: .text)
+        self.data = try? container.decodeIfPresent(String.self, forKey: .data)
+        self.mimeType = try? container.decodeIfPresent(String.self, forKey: .mimeType)
     }
 }
 
