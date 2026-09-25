@@ -659,6 +659,16 @@ private let settingsRegistryList: [SettingsItem] = [
         helpDoc: "Setup A.I. routing modes, OpenRouter developer API keys, default completion models, and customize the prompt engineer parameters."
     ),
     SettingsItem(
+        id: "composio",
+        title: "Composio",
+        icon: "link.badge.plus",
+        iconBgColor: .indigo,
+        category: "A.I. & Tools",
+        sortOrder: 25,
+        keywords: "composio tools integrations github slack external agent assist calendar gmail linear jira connect api",
+        helpDoc: "Connect 1500+ external app toolkits (GitHub, Slack, Google Calendar, Jira) directly to Assist and manage integration authentication."
+    ),
+    SettingsItem(
         id: "offline_models",
         title: "Offline Models",
         icon: "externaldrive.fill",
@@ -829,6 +839,8 @@ struct SettingsMainWrapper: View {
             ConnectSettingsView()
         case "ai_assist":
             AssistSettingsView()
+        case "composio":
+            ComposioSettingsView()
         case "offline_models":
             OfflineModelsView()
         case "plugins":

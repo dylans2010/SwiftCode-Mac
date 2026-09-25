@@ -114,4 +114,5 @@ extension KeychainService {
     static let githubToken = "github_personal_access_token"
     static let codexUserAPIKey = "codex_user_api_key"
     static let codexAppAPIKey = "codex_app_api_key"
+    static let composioAPIKey = "composio_api_key"
 }

@@ -40,3 +40,4 @@ logs/
 # Environment & Config
 .env
 .env.*
+.composio/

@@ -511,6 +511,7 @@ struct AssistSettingsView: View {
     @State private var openaiKey = ""
     @State private var anthropicKey = ""
     @State private var geminiKey = ""
+    @State private var composioKey = ""
     @State private var hasSavedKeys = false
 
     // OpenRouter models state
@@ -545,6 +546,10 @@ struct AssistSettingsView: View {
     @State private var showFreeModelsSheet = false
     @State private var showFoundationModelsSheet = false
     @State private var showMCPServersSheet = false
+    @State private var showComposioSheet = false
+
+    // Composio Service Integration
+    @State private var composioService = ComposioService.shared
 
     // Fallback rotation reference
     @State private var fallbackRotation = FreeModelsFallback.shared
@@ -627,6 +632,21 @@ struct AssistSettingsView: View {
                                     .buttonStyle(.plain)
                                 }
                                 SecureField("Enter Gemini API key", text: $geminiKey)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("Composio API Key")
+                                        .font(.caption.bold())
+                                    Spacer()
+                                    Link(destination: URL(string: "https://dashboard.composio.dev/~/project/settings/api-keys")!) {
+                                        Label("Get Key", systemImage: "arrow.up.right")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                SecureField("ak_... or uak_...", text: $composioKey)
                                     .textFieldStyle(.roundedBorder)
                             }
 
@@ -824,6 +844,59 @@ struct AssistSettingsView: View {
                                 showMCPServersSheet = true
                             } label: {
                                 Label("Manage MCP Servers", systemImage: "arrow.up.right.square")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // 3b. Composio External Integrations Section
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Composio Tool Integrations", systemImage: "link.badge.plus")
+                                .font(.headline)
+                                .foregroundColor(.indigo)
+
+                            Spacer()
+
+                            if composioService.isConnected {
+                                HStack(spacing: 4) {
+                                    Circle().fill(Color.green).frame(width: 8, height: 8)
+                                    Text("Connected")
+                                        .font(.caption2.bold())
+                                        .foregroundColor(.green)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Color.green.opacity(0.12), in: Capsule())
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Connect external app toolkits (GitHub, Slack, Google Calendar, Jira, Linear) to your Assist agent beyond standard MCP servers.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            if !composioService.connectedAccounts.isEmpty {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                        .font(.caption)
+                                    Text("\(composioService.connectedAccounts.count) Active: \(composioService.connectedAccounts.map { $0.toolkit.capitalized }.joined(separator: ", "))")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.primary)
+                                }
+                                .padding(.vertical, 2)
+                            }
+
+                            Button {
+                                showComposioSheet = true
+                            } label: {
+                                Label("Manage Composio & Integrations", systemImage: "arrow.up.right.square")
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
@@ -1131,6 +1204,23 @@ struct AssistSettingsView: View {
         .sheet(isPresented: $showMCPServersSheet) {
             AddMCPServerView()
         }
+        .sheet(isPresented: $showComposioSheet) {
+            NavigationStack {
+                ScrollView {
+                    ComposioSettingsView()
+                        .padding()
+                }
+                .navigationTitle("Composio Integrations")
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") {
+                            showComposioSheet = false
+                        }
+                    }
+                }
+            }
+            .frame(minWidth: 700, minHeight: 650)
+        }
         .onAppear {
             loadAPIKeys()
             loadCachedModels()
@@ -1154,6 +1244,7 @@ struct AssistSettingsView: View {
         openaiKey = APIKeyManager.shared.retrieveKey(service: .openai) ?? ""
         anthropicKey = APIKeyManager.shared.retrieveKey(service: .anthropic) ?? ""
         geminiKey = APIKeyManager.shared.retrieveKey(service: .google) ?? ""
+        composioKey = KeychainService.shared.get(forKey: KeychainService.composioAPIKey) ?? ComposioService.shared.apiKey
     }
 
     private func saveAPIKeys() {
@@ -1161,6 +1252,7 @@ struct AssistSettingsView: View {
         APIKeyManager.shared.storeKey(service: .openai, key: openaiKey)
         APIKeyManager.shared.storeKey(service: .anthropic, key: anthropicKey)
         APIKeyManager.shared.storeKey(service: .google, key: geminiKey)
+        ComposioService.shared.saveApiKey(composioKey)
 
         // Directly store to keychain to ensure instant access across all routing frameworks
         KeychainService.shared.set(openRouterKey, forKey: "openrouter-api-key")

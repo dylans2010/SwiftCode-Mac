@@ -57,6 +57,7 @@ public final class AssistToolRegistry {
         register(AssistEnvironmentInfoTool())
         register(UseTermFunction())
         register(UseMCP())
+        register(AssistComposioTool())
 
         // Intelligence
         register(AssistPlanTaskTool())

@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CMPBLD000000000000000001 /* ComposioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000001 /* ComposioService.swift */; };
+		CMPBLD000000000000000002 /* AssistComposioTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000002 /* AssistComposioTool.swift */; };
+		CMPBLD000000000000000003 /* AgentUseComposio.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000003 /* AgentUseComposio.swift */; };
+		CMPBLD000000000000000004 /* ComposioSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000004 /* ComposioSettingsView.swift */; };
 		C7AEAE25727E423B9CE45920 /* AlertTone.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE06445031945EAB673D2C5 /* AlertTone.swift */; };
 		0CF39455D3434725B1A992CA /* ToneSynthesizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03792B8A9C1E4D8E8C0BE002 /* ToneSynthesizer.swift */; };
 		F5969CD6E8FA4068BB086678 /* SoundLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D74D5E4FEC241FA907C64F6 /* SoundLibrary.swift */; };
@@ -2549,6 +2553,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		CMPREF000000000000000001 /* ComposioService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ComposioService.swift; sourceTree = "<group>"; };
+		CMPREF000000000000000002 /* AssistComposioTool.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistComposioTool.swift; sourceTree = "<group>"; };
+		CMPREF000000000000000003 /* AgentUseComposio.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentUseComposio.swift; sourceTree = "<group>"; };
+		CMPREF000000000000000004 /* ComposioSettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ComposioSettingsView.swift; sourceTree = "<group>"; };
 		4AE06445031945EAB673D2C5 /* AlertTone.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlertTone.swift; sourceTree = "<group>"; };
 		03792B8A9C1E4D8E8C0BE002 /* ToneSynthesizer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ToneSynthesizer.swift; sourceTree = "<group>"; };
 		0D74D5E4FEC241FA907C64F6 /* SoundLibrary.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SoundLibrary.swift; sourceTree = "<group>"; };
@@ -5291,6 +5299,7 @@
 			isa = PBXGroup;
 			children = (
 				EFF867F1B5A5C3D758D6E5B5 /* UseMCP.swift */,
+				CMPREF000000000000000002 /* AssistComposioTool.swift */,
 				5C86F1D43534422697C2209E /* CodeReview.swift */,
 				5C5E70000000000000000504 /* UseTermFunction.swift */,
 				F8671939AE117A1B8ED8D013 /* AssistTool.swift */,
@@ -5659,6 +5668,7 @@
 			isa = PBXGroup;
 			children = (
 				EFF77F9E6B06ABB7FB6C0A4F /* AgentUseMCP.swift */,
+				CMPREF000000000000000003 /* AgentUseComposio.swift */,
 				3891332787254C0784D1C5AF /* CodeAssistUserView.swift */,
 				F852C009A90B3CC08411A4B6 /* AgentTimelineView.swift */,
 				F8304153802789C34488D395 /* ToolExecutionView.swift */,
@@ -6246,6 +6256,7 @@
 				B94E3A032C12345600123456 /* AgentCodeReviewManager.swift */,
 				E88ABC5285FBB00F71402090 /* SyntaxHighlighter.swift */,
 				FECDF3B19AFE35EDD3CC54A0 /* ZipImporter.swift */,
+				CMPREF000000000000000001 /* ComposioService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -8102,6 +8113,7 @@
 				775C17DFAC2EE718919A322 /* SettingsView.swift */,
 				02BC29E58C19C690DD971DA0 /* NewSettingsView.swift */,
 				E5C09D1515DC441A8619FDB6 /* AssistSettingsView.swift */,
+				CMPREF000000000000000004 /* ComposioSettingsView.swift */,
 				057EAE735A7C77DB1A01F4B0 /* PluginManagerView.swift */,
 				08968ED253EE45E40E03838E /* Custom Tools */,
 				089B1CE7F469330E3B904175 /* GeneralSettingsView.swift */,
@@ -10116,6 +10128,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CMPBLD000000000000000001 /* ComposioService.swift in Sources */,
+				CMPBLD000000000000000002 /* AssistComposioTool.swift in Sources */,
+				CMPBLD000000000000000003 /* AgentUseComposio.swift in Sources */,
+				CMPBLD000000000000000004 /* ComposioSettingsView.swift in Sources */,
 				SWTBLD000000000000000001 /* SoundCatalog.swift in Sources */,
 				SWTBLD000000000000000002 /* SoundManager.swift in Sources */,
 				SWTBLD000000000000000003 /* SoundInstaller.swift in Sources */,
@@ -11742,7 +11758,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 27.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.dylans2010.SwiftCode-Mac";
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx27.0;
+				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
 			};
@@ -11889,7 +11905,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 27.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.dylans2010.SwiftCode-Mac";
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx27.0;
+				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
 			};

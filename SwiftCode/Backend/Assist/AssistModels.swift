@@ -235,6 +235,45 @@ public enum AssistStatus: String, Codable {
     case rejected
 }
 
+// MARK: - Composio Execution Metadata for Timeline Rendering
+
+public struct ComposioExecutionMetadata: Codable, Sendable, Identifiable {
+    public let id: UUID
+    public let toolkit: String
+    public let toolSlug: String
+    public let arguments: String
+    public var output: String
+    public var logId: String?
+    public var success: Bool
+    public var isExecuting: Bool
+    public var duration: TimeInterval
+    public var timestamp: Date
+
+    public init(
+        id: UUID = UUID(),
+        toolkit: String = "general",
+        toolSlug: String,
+        arguments: String,
+        output: String,
+        logId: String? = nil,
+        success: Bool = false,
+        isExecuting: Bool = true,
+        duration: TimeInterval = 0.0,
+        timestamp: Date = Date()
+    ) {
+        self.id = id
+        self.toolkit = toolkit
+        self.toolSlug = toolSlug
+        self.arguments = arguments
+        self.output = output
+        self.logId = logId
+        self.success = success
+        self.isExecuting = isExecuting
+        self.duration = duration
+        self.timestamp = timestamp
+    }
+}
+
 public struct AssistMessage: Codable, Identifiable, Sendable {
     public let id: UUID
     public let role: AssistRole
@@ -242,14 +281,22 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
     public let timestamp: Date
     public var attachments: [AgentFileContext]?
     public var mcpExecution: MCPExecutionMetadata?
+    public var composioExecution: ComposioExecutionMetadata?
 
-    public init(role: AssistRole, content: String, attachments: [AgentFileContext]? = nil, mcpExecution: MCPExecutionMetadata? = nil) {
+    public init(
+        role: AssistRole,
+        content: String,
+        attachments: [AgentFileContext]? = nil,
+        mcpExecution: MCPExecutionMetadata? = nil,
+        composioExecution: ComposioExecutionMetadata? = nil
+    ) {
         self.id = UUID()
         self.role = role
         self.content = content
         self.timestamp = Date()
         self.attachments = attachments
         self.mcpExecution = mcpExecution
+        self.composioExecution = composioExecution
     }
 }
 

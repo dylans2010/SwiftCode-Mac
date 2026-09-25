@@ -198,7 +198,9 @@ public struct AssistMainView: View {
 
                             // Chat bubbles
                             ForEach(filteredMessages) { message in
-                                if let mcp = message.mcpExecution {
+                                if let composio = message.composioExecution {
+                                    AgentUseComposio(metadata: composio)
+                                } else if let mcp = message.mcpExecution {
                                     AgentUseMCP(metadata: mcp)
                                 } else {
                                     AssistChatBubble(message: message)
