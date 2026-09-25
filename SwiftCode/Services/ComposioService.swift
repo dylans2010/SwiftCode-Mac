@@ -40,7 +40,7 @@ public struct ComposioConnectedAccount: Identifiable, Codable, Sendable, Hashabl
 
 // MARK: - Composio Execution Result
 
-public struct ComposioExecutionResult: Sendable {
+public struct ComposioExecutionResult: @unchecked Sendable {
     public let success: Bool
     public let output: String
     public let logId: String?
@@ -75,6 +75,10 @@ public final class ComposioService {
     public var lastExecutionResult: String?
     public var lastLogId: String?
     public var lastLatency: TimeInterval = 0
+
+    public var hasConfiguredKey: Bool {
+        !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     private let cliExecutableCandidates = [
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/composio").path,
@@ -364,7 +368,8 @@ public final class ComposioService {
     // MARK: - Process Execution Helper
 
     private func runProcess(executablePath: String, arguments: [String]) async -> (stdout: String, stderr: String, exitCode: Int32) {
-        await withCheckedContinuation { continuation in
+        let currentKey = self.apiKey
+        return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: executablePath)
@@ -373,6 +378,9 @@ public final class ComposioService {
                 var env = ProcessInfo.processInfo.environment
                 if let home = env["HOME"] {
                     env["PATH"] = "\(home)/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+                }
+                if !currentKey.isEmpty {
+                    env["COMPOSIO_API_KEY"] = currentKey
                 }
                 process.environment = env
 

@@ -131,6 +131,19 @@ public struct ComposioSettingsView: View {
 
                         Spacer()
 
+                        if service.hasConfiguredKey {
+                            HStack(spacing: 5) {
+                                Image(systemName: "lock.shield.fill")
+                                    .foregroundColor(.green)
+                                Text("Secured in Keychain")
+                                    .font(.caption.bold())
+                                    .foregroundColor(.green)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.green.opacity(0.12), in: Capsule())
+                        }
+
                         Link(destination: URL(string: "https://dashboard.composio.dev/~/project/settings/api-keys")!) {
                             Label("Get API Key", systemImage: "arrow.up.right")
                                 .font(.caption)
@@ -138,17 +151,38 @@ public struct ComposioSettingsView: View {
                         .buttonStyle(.plain)
                     }
 
-                    Text("Configure your Composio Project API Key (ak_...) or User API Key (uak_...) to enable direct SDK/REST access.")
+                    if service.hasConfiguredKey {
+                        HStack(spacing: 8) {
+                            Text("Active Key:")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                            Text("•••••••••••••••• (Protected & Non-Exportable)")
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Remove Key", role: .destructive) {
+                                service.saveApiKey("")
+                                inputApiKey = ""
+                                statusMessage = "API Key removed from Keychain."
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                        .padding(8)
+                        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+                    }
+
+                    Text(service.hasConfiguredKey ? "Credentials are saved in the system Keychain. To update or replace, enter a new key below:" : "Configure your Composio Project API Key (ak_...) or User API Key (uak_...) to enable direct SDK/REST access.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
                     HStack(spacing: 8) {
                         if isShowingKey {
-                            TextField("ak_... or uak_...", text: $inputApiKey)
+                            TextField(service.hasConfiguredKey ? "Enter new key to replace..." : "ak_... or uak_...", text: $inputApiKey)
                                 .textFieldStyle(.roundedBorder)
                                 .font(.system(.body, design: .monospaced))
                         } else {
-                            SecureField("ak_... or uak_...", text: $inputApiKey)
+                            SecureField(service.hasConfiguredKey ? "Enter new key to replace..." : "ak_... or uak_...", text: $inputApiKey)
                                 .textFieldStyle(.roundedBorder)
                                 .font(.system(.body, design: .monospaced))
                         }
@@ -159,14 +193,19 @@ public struct ComposioSettingsView: View {
                             Image(systemName: isShowingKey ? "eye.slash" : "eye")
                         }
                         .buttonStyle(.plain)
-                        .help("Toggle Key Visibility")
+                        .disabled(inputApiKey.isEmpty)
+                        .help(inputApiKey.isEmpty ? "No input to reveal" : "Toggle Key Visibility")
 
-                        Button("Save Key") {
-                            service.saveApiKey(inputApiKey)
-                            statusMessage = "API Key saved to Keychain."
+                        Button(service.hasConfiguredKey ? "Update Key" : "Save Key") {
+                            let trimmed = inputApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !trimmed.isEmpty else { return }
+                            service.saveApiKey(trimmed)
+                            inputApiKey = ""
+                            statusMessage = "API Key saved securely to Keychain."
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.regular)
+                        .disabled(inputApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
 
                     if let msg = statusMessage {
@@ -408,9 +447,7 @@ public struct ComposioSettingsView: View {
             }
         }
         .onAppear {
-            if !service.apiKey.isEmpty {
-                inputApiKey = service.apiKey
-            }
+            inputApiKey = ""
         }
     }
 

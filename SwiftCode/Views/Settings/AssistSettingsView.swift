@@ -639,6 +639,16 @@ struct AssistSettingsView: View {
                                 HStack {
                                     Text("Composio API Key")
                                         .font(.caption.bold())
+                                    if composioService.hasConfiguredKey {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "lock.shield.fill")
+                                                .foregroundColor(.green)
+                                                .font(.caption2)
+                                            Text("Secured in Keychain")
+                                                .font(.caption2)
+                                                .foregroundColor(.green)
+                                        }
+                                    }
                                     Spacer()
                                     Link(destination: URL(string: "https://dashboard.composio.dev/~/project/settings/api-keys")!) {
                                         Label("Get Key", systemImage: "arrow.up.right")
@@ -646,8 +656,11 @@ struct AssistSettingsView: View {
                                     }
                                     .buttonStyle(.plain)
                                 }
-                                SecureField("ak_... or uak_...", text: $composioKey)
-                                    .textFieldStyle(.roundedBorder)
+                                SecureField(
+                                    composioService.hasConfiguredKey ? "•••••••••••••••• (Configured & Protected)" : "ak_... or uak_...",
+                                    text: $composioKey
+                                )
+                                .textFieldStyle(.roundedBorder)
                             }
 
                             Button(action: saveAPIKeys) {
@@ -1244,7 +1257,7 @@ struct AssistSettingsView: View {
         openaiKey = APIKeyManager.shared.retrieveKey(service: .openai) ?? ""
         anthropicKey = APIKeyManager.shared.retrieveKey(service: .anthropic) ?? ""
         geminiKey = APIKeyManager.shared.retrieveKey(service: .google) ?? ""
-        composioKey = KeychainService.shared.get(forKey: KeychainService.composioAPIKey) ?? ComposioService.shared.apiKey
+        composioKey = ""
     }
 
     private func saveAPIKeys() {
@@ -1252,7 +1265,11 @@ struct AssistSettingsView: View {
         APIKeyManager.shared.storeKey(service: .openai, key: openaiKey)
         APIKeyManager.shared.storeKey(service: .anthropic, key: anthropicKey)
         APIKeyManager.shared.storeKey(service: .google, key: geminiKey)
-        ComposioService.shared.saveApiKey(composioKey)
+        let trimmedComposio = composioKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedComposio.isEmpty {
+            ComposioService.shared.saveApiKey(trimmedComposio)
+            composioKey = ""
+        }
 
         // Directly store to keychain to ensure instant access across all routing frameworks
         KeychainService.shared.set(openRouterKey, forKey: "openrouter-api-key")
