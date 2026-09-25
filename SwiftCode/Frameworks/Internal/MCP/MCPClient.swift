@@ -418,7 +418,7 @@ public final class StdioTransportSession: MCPTransportSession, @unchecked Sendab
 public final class HTTPJSONTransportSession: MCPTransportSession, @unchecked Sendable {
     private let server: MCPServer
     private let logEvent: @Sendable (MCPLogSeverity, String) -> Void
-    private let messageHandler = OSAllocatedUnfairLock<((JSONRPCResponse) -> Void)?>(initialState: nil)
+    private let messageHandler = OSAllocatedUnfairLock<(@Sendable (JSONRPCResponse) -> Void)?>(initialState: nil)
 
     public init(server: MCPServer, logEvent: @escaping @Sendable (MCPLogSeverity, String) -> Void) {
         self.server = server
@@ -646,7 +646,7 @@ public final class HTTPSSETransportSession: MCPTransportSession, @unchecked Send
         }
 
         let resolvedEndpoint = try await withThrowingTaskGroup(of: URL.self) { group in
-            group.addTask {
+            group.addTask { [self] in
                 try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
                     self.endpointContinuation.withLock { $0 = continuation }
 
@@ -1146,6 +1146,36 @@ public final class MCPClient: Sendable {
         }
 
         return .json
+    }
+
+    private func applyAuthAndCustomHeaders(to urlRequest: inout URLRequest) {
+        let credentialKey = "mcp-server-key-\(server.id.uuidString)"
+        let storedSecret = KeychainService.shared.get(forKey: credentialKey) ?? ""
+
+        switch server.authType {
+        case .apiKey:
+            if !storedSecret.isEmpty {
+                urlRequest.addValue(storedSecret, forHTTPHeaderField: "X-API-Key")
+            }
+        case .bearerToken, .oauth:
+            if !storedSecret.isEmpty {
+                urlRequest.addValue("Bearer \(storedSecret)", forHTTPHeaderField: "Authorization")
+            }
+        case .envVars:
+            if let envs = server.envVariables {
+                for (k, v) in envs {
+                    urlRequest.addValue(v, forHTTPHeaderField: "X-Env-\(k)")
+                }
+            }
+        case .customHeaders:
+            if let custom = server.customHeaders {
+                for (k, v) in custom {
+                    urlRequest.addValue(v, forHTTPHeaderField: k)
+                }
+            }
+        default:
+            break
+        }
     }
 
     // MARK: - Transport Execution Core
