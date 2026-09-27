@@ -99,6 +99,10 @@ struct SwiftCodeApp: App {
                 if authManager.isAuthenticated {
                     await CloudManager.shared.initialize()
                 }
+
+                if CommandLine.arguments.contains("--open-last-project"), let firstProject = sessionStore.projects.first {
+                    await sessionStore.openProject(firstProject)
+                }
             }
         }
         .commands {

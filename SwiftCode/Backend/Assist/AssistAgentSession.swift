@@ -23,6 +23,7 @@ public final class AssistAgentSession: Sendable {
     public var state = AgentSessionState()
     public var currentTask: AgentTask?
     public var iterationCount = 0
+    public var validationCount = 0
     public var repairAttemptCount = 0
     public var recentToolResults: [AssistToolResult] = []
     public var recentErrors: [String] = []
@@ -35,7 +36,8 @@ public final class AssistAgentSession: Sendable {
 
     // Statistics for execution metrics dashboard
     public var executionSummary: ExecutionSummaryData?
-    private var validationCount = 0
+    public let phaseCoordinator = AgentPhaseCoordinator.shared
+    public var cachedDiscoveredSkills: [DiscoveredSkill] = []
 
     public init() {}
 
@@ -64,7 +66,7 @@ public final class AssistAgentSession: Sendable {
         // Append to the active UI timeline events
         let event = AgentEvent(state: newState, summary: reason, toolResult: toolResult)
         self.state.events.append(event)
-        updateAgentNotes()
+        updateAgentNotes(currentAction: reason)
     }
 
     public func start(objective: String, attachments: [AgentFileContext] = [], context: AssistContext) async throws {
@@ -78,7 +80,10 @@ public final class AssistAgentSession: Sendable {
         self.activeContext = context
         self.isCancelled = false
 
-        // Initialize structured task and recovery engine
+        // Initialize structured task, recovery engine, and phase coordinator
+        phaseCoordinator.reset()
+        _ = phaseCoordinator.startPhase("PHASE_01_INIT")
+
         var task = AgentTask(objective: objective)
         self.currentTask = task
         AssistErrorRecoveryEngine.shared.resetSession()
@@ -86,7 +91,6 @@ public final class AssistAgentSession: Sendable {
         // PHASE 1: Initializing
         transition(to: .receivingRequest, reason: "Production orchestrator initializing and understanding objective.")
         self.state.changeSummary.clear()
-        updateAgentNotes()
 
         // --- COMPREHENSIVE SESSION STATE VALIDATION ---
         let selectedModel = AssistModelManager.shared.selectedModelID
@@ -105,6 +109,7 @@ public final class AssistAgentSession: Sendable {
         // 1. Verify selected model is not empty
         guard !selectedModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             let errorMsg = "Session State Error: No model has been selected for this session."
+            phaseCoordinator.failPhase("PHASE_01_INIT", error: errorMsg)
             transition(to: .failed, reason: errorMsg)
             throw NSError(domain: "AssistAgentSession", code: 400, userInfo: [NSLocalizedDescriptionKey: errorMsg])
         }
@@ -112,6 +117,7 @@ public final class AssistAgentSession: Sendable {
         // 2. Verify runtime execution mode is correct (Agent Mode must be active)
         guard isAgentMode else {
             let errorMsg = "Session State Error: Attempted to run Agent session while execution mode is not set to Agent Mode."
+            phaseCoordinator.failPhase("PHASE_01_INIT", error: errorMsg)
             transition(to: .failed, reason: errorMsg)
             throw NSError(domain: "AssistAgentSession", code: 400, userInfo: [NSLocalizedDescriptionKey: errorMsg])
         }
@@ -121,6 +127,7 @@ public final class AssistAgentSession: Sendable {
             let key = LLMService.shared.retrieveAPIKey(for: selectedProvider)
             guard !key.isEmpty else {
                 let errorMsg = "Session Validation Failed: Missing API key / credentials for provider \(selectedProvider.rawValue). Please configure your key in Assist Settings."
+                phaseCoordinator.failPhase("PHASE_01_INIT", error: errorMsg)
                 transition(to: .failed, reason: errorMsg)
                 throw NSError(domain: "AssistAgentSession", code: 401, userInfo: [NSLocalizedDescriptionKey: errorMsg])
             }
@@ -129,11 +136,15 @@ public final class AssistAgentSession: Sendable {
             // Apple Foundation Models validation
             guard FoundationModels.shared.isEnabled else {
                 let errorMsg = "Session Validation Failed: Local Apple Foundation Models are selected but disabled. Please enable them in Assist Settings."
+                phaseCoordinator.failPhase("PHASE_01_INIT", error: errorMsg)
                 transition(to: .failed, reason: errorMsg)
                 throw NSError(domain: "AssistAgentSession", code: 400, userInfo: [NSLocalizedDescriptionKey: errorMsg])
             }
             pipelineLogger.log("[start] Local capabilities verified. Foundation Models are enabled.")
         }
+
+        phaseCoordinator.completePhase("PHASE_01_INIT", evidence: "Model \(selectedModel) and provider \(selectedProvider.rawValue) validated.")
+        _ = phaseCoordinator.startPhase("PHASE_02_GROUNDING")
 
         pipelineLogger.log("[start] Session validation succeeded. Proceeding to autonomous execution loop.")
         DiagnosticEventBus.shared.logEvent(
@@ -171,12 +182,18 @@ public final class AssistAgentSession: Sendable {
 
         let impactDetails = "Pre-Modification Archaeology Impact Analysis: Inspected active targets, evaluated change risks, and resolved initial structure maps."
         pipelineLogger.log("[Archaeology] \(impactDetails)")
-        DiagnosticEventBus.shared.logEvent(
-            component: "Archaeology",
-            severity: "INFO",
-            category: "archaeology",
-            message: "Completed codebase archaeology. Summary: \(preModSummary)"
-        )
+        phaseCoordinator.completePhase("PHASE_02_GROUNDING", evidence: preModSummary)
+
+        // --- STEP 4.5: DYNAMIC SKILLS DISCOVERY ---
+        _ = phaseCoordinator.startPhase("PHASE_03_SKILLS")
+        self.cachedDiscoveredSkills = await AgentSkillResolver.shared.discoverSkills(in: context.workspaceRoot)
+        let matchedSkills = AgentSkillResolver.shared.matchSkills(for: objective, in: self.cachedDiscoveredSkills)
+        phaseCoordinator.completePhase("PHASE_03_SKILLS", evidence: "\(matchedSkills.count) matching skills loaded from \(self.cachedDiscoveredSkills.count) discovered.")
+
+        // --- STEP 4.6: AGENT NOTES CREATION ---
+        _ = phaseCoordinator.startPhase("PHASE_04_NOTES")
+        updateAgentNotes(currentAction: "Initializing execution plan and notes.")
+        phaseCoordinator.completePhase("PHASE_04_NOTES", evidence: "agent_notes.md created and excluded from git.")
 
         // --- STEP 5: VALIDATION 1 (Pre-planning repository baseline checks) ---
         self.validationCount += 1
@@ -215,7 +232,8 @@ public final class AssistAgentSession: Sendable {
                 return
             }
 
-            // PHASE 4: Planning & Context Assembly
+            // PHASE 5: Planning & Context Assembly
+            _ = phaseCoordinator.startPhase("PHASE_05_PLANNING")
             transition(to: .planning, reason: "Constructing system-level repository plan and formulating strategy...")
 
             let failureSummary = AssistErrorRecoveryEngine.shared.formatFailuresForPrompt()
@@ -242,22 +260,8 @@ public final class AssistAgentSession: Sendable {
 
             let assetSystemPrompt = try AssistManager.shared.getSystemPrompt()
 
-            let discoveredSkills = await AssistSkillsCheck.shared.discoverSkills()
-            var skillsBlock = ""
-            if !discoveredSkills.isEmpty {
-                skillsBlock = "\n# DISCOVERED SYSTEM SKILLS\n"
-                for skill in discoveredSkills {
-                    skillsBlock += "- Name: \(skill.name)\n"
-                    skillsBlock += "  Description: \(skill.description)\n"
-                    if !skill.recommendedTools.isEmpty {
-                        skillsBlock += "  Recommended Tools: \(skill.recommendedTools.joined(separator: ", "))\n"
-                    }
-                    if !skill.guidance.isEmpty {
-                        skillsBlock += "  Guidance: \(skill.guidance.joined(separator: " "))\n"
-                    }
-                    skillsBlock += "\n"
-                }
-            }
+            let activeMatchedSkills = AgentSkillResolver.shared.matchSkills(for: objective, in: self.cachedDiscoveredSkills)
+            let skillsBlock = "\n" + AgentSkillResolver.shared.formatSkillsBlock(matched: activeMatchedSkills, totalDiscovered: self.cachedDiscoveredSkills.count) + "\n"
 
             var attachmentsBlock = ""
             if !attachments.isEmpty {
@@ -335,17 +339,17 @@ public final class AssistAgentSession: Sendable {
             // PHASE 5: Selecting Tool
             transition(to: .selectingTools, reason: "Reasoning about next actions based on tool schema specifications...")
 
-            // Query Model dynamically!
+            // Query Model dynamically with capability normalization!
             let activeModel = AssistModelManager.shared.selectedModelID
-            let response = try await LLMService.shared.generateResponse(prompt: conversationPrompt, useContext: false, modelOverride: activeModel)
+            let response = try await AgentModelAdapter.shared.queryModel(prompt: conversationPrompt, modelId: activeModel)
             guard response.count > 0 else {
                 pipelineLogger.warning("Model returned empty response. Retrying with instruction...")
                 conversationHistory.append("- System note: Your previous response was empty. Please provide a valid tool call or finalResponse JSON block.")
                 continue
             }
 
-            // Parse response
-            guard let jsonBlock = extractJSON(from: response) else {
+            // Parse response with robust boundary scanner and markdown fence unwrapping
+            guard let jsonBlock = AgentModelAdapter.shared.extractJSON(from: response) ?? extractJSON(from: response) else {
                 pipelineLogger.warning("Model returned invalid JSON command. Retrying with instructions...")
                 conversationHistory.append("- System note: Your previous response was not valid JSON. Ensure you respond with exactly the specified JSON structure, containing either 'toolId' and 'input' or 'finalResponse'. Do not wrap in extra markdown or prose outside the JSON block.")
                 continue
@@ -355,6 +359,7 @@ public final class AssistAgentSession: Sendable {
             if let finalResponse = jsonBlock["finalResponse"] as? String {
                 // --- STEP 5: VALIDATION 3 (AUTONOMOUS COMPLETION CONTRACT ENFORCEMENT) ---
                 self.validationCount += 1
+                _ = phaseCoordinator.startPhase("PHASE_07_VERIFICATION")
                 transition(to: .validating, reason: "Evaluating Autonomous Completion Contract (Build verification, diff review, syntax audit)...")
 
                 // Update task state with actual files modified
@@ -372,6 +377,7 @@ public final class AssistAgentSession: Sendable {
 
                 if !contractEvaluation.passed {
                     // CONTRACT REJECTED - Do NOT falsely claim completion!
+                    phaseCoordinator.failPhase("PHASE_07_VERIFICATION", error: contractEvaluation.issues.joined(separator: "; "))
                     self.repairAttemptCount += 1
                     transition(to: .recovering, reason: "Completion rejected by Autonomous Completion Contract: \(contractEvaluation.issues.joined(separator: ", "))")
 
@@ -390,7 +396,10 @@ public final class AssistAgentSession: Sendable {
                     continue
                 }
 
+                phaseCoordinator.completePhase("PHASE_07_VERIFICATION", evidence: "Autonomous Completion Contract verified (all checks passed).")
+
                 // If contract passes, execute final code review gate
+                _ = phaseCoordinator.startPhase("PHASE_08_REVIEW")
                 transition(to: .reviewing, reason: "Initiating Autonomous Code Review Verification...")
                 if let reviewTool = registry.getTool("code_review") {
                     do {
@@ -398,6 +407,7 @@ public final class AssistAgentSession: Sendable {
                         if let reviewState = AssistManager.shared.currentCodeReview, reviewState.status != "task_ready" {
                             codeReviewAttempts += 1
                             self.repairAttemptCount += 1
+                            phaseCoordinator.failPhase("PHASE_08_REVIEW", error: "Reviewer requested changes: \(reviewState.issues.joined(separator: "; "))")
                             transition(to: .recovering, reason: "Code Review Rejected (Iteration \(codeReviewAttempts)). Continuing implementation with reviewer feedback.")
 
                             let feedbackStr = """
@@ -420,7 +430,10 @@ public final class AssistAgentSession: Sendable {
                     }
                 }
 
+                phaseCoordinator.completePhase("PHASE_08_REVIEW", evidence: "Code review passed.")
+
                 // Total contract compliance confirmed!
+                _ = phaseCoordinator.startPhase("PHASE_09_COMPLETION")
                 transition(to: .generatingSummary, reason: "Compiling structured execution statistics and dashboard summary...")
                 let duration = Date().timeIntervalSince(startDate)
                 let reviewerConf = AssistManager.shared.currentCodeReview?.confidence ?? 0.95
@@ -438,6 +451,7 @@ public final class AssistAgentSession: Sendable {
                 self.executionSummary = summary
 
                 transition(to: .completing, reason: "Finalizing task details...")
+                phaseCoordinator.completePhase("PHASE_09_COMPLETION", evidence: "Autonomous Completion Contract Verified! Task completed: \(finalResponse)")
                 transition(to: .terminated, reason: "Autonomous Completion Contract Verified! Task completed: \(finalResponse)")
                 NotificationManager.shared.sendAgentTaskFinishedNotification()
                 AlertSoundPlayer.shared.play(.agentResponseReady)
@@ -458,6 +472,7 @@ public final class AssistAgentSession: Sendable {
             state.plan.append(newStep)
 
             // State-driven routing for specific actions
+            _ = phaseCoordinator.startPhase("PHASE_06_EXECUTION")
             if toolId == "use_terminal" || toolId == "terminal_command" || toolId == "execute_command" {
                 transition(to: .awaitingApproval, reason: "Awaiting developer approval to execute terminal command.")
             } else if ["file_write", "code_refactor", "file_create", "file_append", "patch_apply", "file_delete", "directory_delete", "file_rename", "file_move", "code_replace"].contains(toolId) {
@@ -667,98 +682,29 @@ public final class AssistAgentSession: Sendable {
         default:
             break
         }
-        updateAgentNotes()
+        updateAgentNotes(currentAction: reason)
     }
 
     @MainActor
-    private func updateAgentNotes() {
+    public func updateAgentNotes(currentAction: String = "") {
         guard let context = activeContext else { return }
-        let fileURL = context.workspaceRoot.appendingPathComponent("AgentNotes.md")
+        let selectedModel = AssistModelManager.shared.selectedModelID
+        let discoveredInstructions = AgentRepositoryScanner.shared.discoverInstructions(in: context.workspaceRoot)
+        let applicableAgents = discoveredInstructions.map { $0.filePath }
+        let matchedSkills = AgentSkillResolver.shared.matchSkills(for: self.state.objective, in: self.cachedDiscoveredSkills)
+        let applicableSkills = matchedSkills.map { $0.name }
 
-        let objective = self.state.objective
-        let completed = self.state.completedActions.joined(separator: "\n- ")
-
-        // Compile file change items
-        let createdFiles = self.state.changeSummary.createdFiles.map { "- \($0.filename) (\($0.details))" }.joined(separator: "\n")
-        let modifiedFiles = self.state.changeSummary.modifiedFiles.map { "- \($0.filename) (\($0.details))" }.joined(separator: "\n")
-        let deletedFiles = self.state.changeSummary.deletedFiles.map { "- \($0.filename) (\($0.details))" }.joined(separator: "\n")
-
-        let xcodeProjName = (try? FileManager.default.contentsOfDirectory(at: context.workspaceRoot, includingPropertiesForKeys: nil)
-            .first { $0.pathExtension == "xcodeproj" }?.lastPathComponent) ?? "SwiftCode Project"
-
-        let notesContent = """
-# Agent Session Notes: SwiftCode Assist v3
-
-## Repository Overview
-- **Workspace Path**: \(context.workspaceRoot.path)
-- **Active Xcode Project**: \(xcodeProjName)
-
-## Project Architecture
-- Pure-Swift modular desktop application.
-- State-driven reactive architecture with atomic transition workflows.
-- Native multi-column workspace and diagnostic pipelines.
-
-## File Relationships
-- `AssistMainView` acts as the primary orchestrator host view.
-- `AssistAgentSession` controls execution lifecycle transitions.
-- `_AssistCriticalExecutionEngine` handles pure-Swift programmatic file edits and `.pbxproj` group registrations.
-
-## Important Discoveries
-- Modernized session status translation delivers transparent user-friendly status descriptions.
-- Synchronized Keychain OpenRouter keys avoid cross-module key desynchronization.
-- Nonisolated asynchronous directory walking prevents MainActor UI thread blocking.
-
-## APIs & Dependencies
-- Local OpenAI Codex Node bridge running on port 3003.
-- Private local Apple Foundation Models via CoreML / AFM.
-- OpenRouter API endpoints for cloud fallback routing.
-
-## Current Task Progress
-- **Original Objective**: \(objective)
-- **Current Status**: \(self.state.status.rawValue)
-- **Tool Executions Count**: \(self.state.toolCallCount)
-- **Iterations Count**: \(self.iterationCount)
-- **Repair Attempts**: \(self.repairAttemptCount)
-
-## Completed Work
-- **Completed Actions**:
-\(completed.isEmpty ? "- None yet." : "- " + completed)
-
-- **Created Files**:
-\(createdFiles.isEmpty ? "- None yet." : createdFiles)
-
-- **Modified Files**:
-\(modifiedFiles.isEmpty ? "- None yet." : modifiedFiles)
-
-- **Deleted Files**:
-\(deletedFiles.isEmpty ? "- None yet." : deletedFiles)
-
-## Remaining Work
-- Finalize ongoing subtasks and trigger verification pass.
-- Execute Code Review stage to confirm total contract compliance.
-
-## Warnings
-- Ensure all newly added Swift files are registered correctly in Xcode using the strict 4-step protocol.
-- Do not modify build artifacts under `build/` or `dist/` directly; always edit source and compile.
-
-## Assumptions
-- Local Codex Node bridge is active and reachable if selected.
-- Internet connectivity is available for cloud models fallback.
-
-## Build Information
-- **Target OS**: macOS (Universal)
-- **Build System**: xcodebuild CLI / Package.swift
-- **Validation Stage**: Baseline and post-modification automated compiler passes active.
-
-## Notes Useful for Future Iterations
-- Maintain strict thread-safety and main-actor isolation compliance.
-- Keep diagnostic logging clear and robust under category `agent.diagnostics`.
-"""
-        do {
-            try notesContent.write(to: fileURL, atomically: true, encoding: .utf8)
-        } catch {
-            pipelineLogger.error("Failed to write AgentNotes.md: \(error.localizedDescription)")
-        }
+        let task = self.currentTask ?? AgentTask(objective: self.state.objective)
+        _ = AgentNotesManager.shared.updateNotes(
+            task: task,
+            session: self,
+            phaseCoordinator: phaseCoordinator,
+            applicableAgents: applicableAgents,
+            applicableSkills: applicableSkills,
+            modelName: selectedModel,
+            currentAction: currentAction,
+            workspaceRoot: context.workspaceRoot
+        )
     }
 
     public func cancel() {
