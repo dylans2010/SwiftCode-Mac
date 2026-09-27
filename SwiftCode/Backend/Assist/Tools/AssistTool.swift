@@ -74,6 +74,12 @@ public protocol AssistTool: Sendable {
     var name: String { get }
     var description: String { get }
     var parametersSchema: JSONSchema { get }
+    var capability: ToolCapability { get }
+    var riskLevel: ToolRiskLevel { get }
+    var isReadOnly: Bool { get }
+    var isMutating: Bool { get }
+    var prerequisites: [String] { get }
+    var estimatedCost: Double { get }
 
     func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult
 }
@@ -81,5 +87,29 @@ public protocol AssistTool: Sendable {
 public extension AssistTool {
     var parametersSchema: JSONSchema {
         JSONSchema(type: "object", description: description, properties: [:], required: [])
+    }
+
+    var capability: ToolCapability {
+        .general
+    }
+
+    var riskLevel: ToolRiskLevel {
+        .safeRead
+    }
+
+    var isReadOnly: Bool {
+        riskLevel == .safeRead
+    }
+
+    var isMutating: Bool {
+        riskLevel == .safeMutation || riskLevel == .potentiallyDestructive
+    }
+
+    var prerequisites: [String] {
+        []
+    }
+
+    var estimatedCost: Double {
+        0.01
     }
 }
