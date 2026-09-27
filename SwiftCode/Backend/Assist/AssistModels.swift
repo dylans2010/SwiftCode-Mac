@@ -151,21 +151,82 @@ public struct AssistToolResult: Codable, Sendable {
     public let data: [String: String]?
     public let error: String?
     public let errorCode: Int?
+    public let diagnostics: [String]
+    public let filesChanged: [String]
+    public let diff: String?
+    public let duration: TimeInterval
+    public let exitCode: Int32?
+    public let suggestedNextActions: [String]
+    public let beforeContent: String?
+    public let afterContent: String?
 
-    public init(success: Bool, output: String, data: [String: String]? = nil, error: String? = nil, errorCode: Int? = nil) {
+    public init(
+        success: Bool,
+        output: String,
+        data: [String: String]? = nil,
+        error: String? = nil,
+        errorCode: Int? = nil,
+        diagnostics: [String] = [],
+        filesChanged: [String] = [],
+        diff: String? = nil,
+        duration: TimeInterval = 0,
+        exitCode: Int32? = nil,
+        suggestedNextActions: [String] = [],
+        beforeContent: String? = nil,
+        afterContent: String? = nil
+    ) {
         self.success = success
         self.output = output
         self.data = data
         self.error = error
         self.errorCode = errorCode
+        self.diagnostics = diagnostics
+        self.filesChanged = filesChanged
+        self.diff = diff
+        self.duration = duration
+        self.exitCode = exitCode
+        self.suggestedNextActions = suggestedNextActions
+        self.beforeContent = beforeContent
+        self.afterContent = afterContent
     }
 
-    public static func success(_ output: String, data: [String: String]? = nil) -> AssistToolResult {
-        AssistToolResult(success: true, output: output, data: data)
+    public static func success(
+        _ output: String,
+        data: [String: String]? = nil,
+        diff: String? = nil,
+        filesChanged: [String] = [],
+        diagnostics: [String] = [],
+        suggestedNextActions: [String] = []
+    ) -> AssistToolResult {
+        var finalData = data ?? [:]
+        if let diff = diff, finalData[AssistToolDataKey.diff] == nil {
+            finalData[AssistToolDataKey.diff] = diff
+        }
+        return AssistToolResult(
+            success: true,
+            output: output,
+            data: finalData.isEmpty ? nil : finalData,
+            diagnostics: diagnostics,
+            filesChanged: filesChanged,
+            diff: diff,
+            suggestedNextActions: suggestedNextActions
+        )
     }
 
-    public static func failure(_ error: String, code: Int? = nil) -> AssistToolResult {
-        AssistToolResult(success: false, output: "Error: \(error)", error: error, errorCode: code)
+    public static func failure(
+        _ error: String,
+        code: Int? = nil,
+        diagnostics: [String] = [],
+        suggestedNextActions: [String] = []
+    ) -> AssistToolResult {
+        AssistToolResult(
+            success: false,
+            output: "Error: \(error)",
+            error: error,
+            errorCode: code,
+            diagnostics: diagnostics,
+            suggestedNextActions: suggestedNextActions
+        )
     }
 }
 

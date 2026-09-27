@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8D9E00010001000100000002 /* AssistTaskModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000001 /* AssistTaskModel.swift */; };
+		8D9E00010001000100000004 /* AssistToolRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000003 /* AssistToolRouter.swift */; };
+		8D9E00010001000100000006 /* AssistDiffEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000005 /* AssistDiffEngine.swift */; };
+		8D9E00010001000100000008 /* AssistVerificationPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000007 /* AssistVerificationPipeline.swift */; };
+		8D9E0001000100010000000A /* AssistErrorRecoveryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000009 /* AssistErrorRecoveryEngine.swift */; };
+		8D9E0001000100010000000C /* AssistRuntimeTestSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E0001000100010000000B /* AssistRuntimeTestSuite.swift */; };
 		CMPBLD000000000000000001 /* ComposioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000001 /* ComposioService.swift */; };
 		CMPBLD000000000000000002 /* AssistComposioTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000002 /* AssistComposioTool.swift */; };
 		CMPBLD000000000000000003 /* AgentUseComposio.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000003 /* AgentUseComposio.swift */; };
@@ -2553,6 +2559,12 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		8D9E00010001000100000001 /* AssistTaskModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistTaskModel.swift; sourceTree = "<group>"; };
+		8D9E00010001000100000003 /* AssistToolRouter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistToolRouter.swift; sourceTree = "<group>"; };
+		8D9E00010001000100000005 /* AssistDiffEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistDiffEngine.swift; sourceTree = "<group>"; };
+		8D9E00010001000100000007 /* AssistVerificationPipeline.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistVerificationPipeline.swift; sourceTree = "<group>"; };
+		8D9E00010001000100000009 /* AssistErrorRecoveryEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistErrorRecoveryEngine.swift; sourceTree = "<group>"; };
+		8D9E0001000100010000000B /* AssistRuntimeTestSuite.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistRuntimeTestSuite.swift; sourceTree = "<group>"; };
 		CMPREF000000000000000001 /* ComposioService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ComposioService.swift; sourceTree = "<group>"; };
 		CMPREF000000000000000002 /* AssistComposioTool.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistComposioTool.swift; sourceTree = "<group>"; };
 		CMPREF000000000000000003 /* AgentUseComposio.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentUseComposio.swift; sourceTree = "<group>"; };
@@ -6957,6 +6969,12 @@
 		8D9EEDCDE1FB450488F4CF12 /* Assist */ = {
 			isa = PBXGroup;
 			children = (
+				8D9E00010001000100000001 /* AssistTaskModel.swift */,
+				8D9E00010001000100000003 /* AssistToolRouter.swift */,
+				8D9E00010001000100000005 /* AssistDiffEngine.swift */,
+				8D9E00010001000100000007 /* AssistVerificationPipeline.swift */,
+				8D9E00010001000100000009 /* AssistErrorRecoveryEngine.swift */,
+				8D9E0001000100010000000B /* AssistRuntimeTestSuite.swift */,
 				5C5E70000000000000000F41 /* ModelSessionManager.swift */,
 				5C5E70000000000000000F43 /* DiagnosticEvent.swift */,
 				F859731420AEAAE5ADDF29A8 /* AgentSessionState.swift */,
@@ -10128,6 +10146,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8D9E00010001000100000002 /* AssistTaskModel.swift in Sources */,
+				8D9E00010001000100000004 /* AssistToolRouter.swift in Sources */,
+				8D9E00010001000100000006 /* AssistDiffEngine.swift in Sources */,
+				8D9E00010001000100000008 /* AssistVerificationPipeline.swift in Sources */,
+				8D9E0001000100010000000A /* AssistErrorRecoveryEngine.swift in Sources */,
+				8D9E0001000100010000000C /* AssistRuntimeTestSuite.swift in Sources */,
 				CMPBLD000000000000000001 /* ComposioService.swift in Sources */,
 				CMPBLD000000000000000002 /* AssistComposioTool.swift in Sources */,
 				CMPBLD000000000000000003 /* AgentUseComposio.swift in Sources */,

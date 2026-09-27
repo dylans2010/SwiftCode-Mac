@@ -3,23 +3,58 @@ import Foundation
 public struct AssistDiffTool: AssistTool {
     public let id = "project_diff"
     public let name = "Diff Project"
-    public let description = "Compares the current project state with the latest snapshot."
+    public let description = "Compares the working tree with Git HEAD, returning real unified diffs and modified files."
+    public let capability: ToolCapability = .gitOperations
+    public let riskLevel: ToolRiskLevel = .safeRead
 
     public init() {}
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
+        let startTime = Date()
         do {
-            let snapshots = try AssistSnapshotFunctions.listSnapshots()
-            guard let latest = snapshots.first else {
-                return .success("No snapshots found to compare.")
+            let status = try await GitService.shared.getStatus(for: context.workspaceRoot)
+            let diffHunks = try await GitService.shared.getDiff(repositoryURL: context.workspaceRoot)
+
+            var modifiedFiles: [String] = []
+            for item in status.files {
+                modifiedFiles.append(item.path.lastPathComponent)
             }
 
-            let diffs = try AssistSnapshotFunctions.compare(project: context.workspaceRoot, withSnapshot: latest.id)
-            let formattedDiff = diffs.map { "\($0.status.rawValue.uppercased()): \($0.path)" }.joined(separator: "\n")
+            if diffHunks.isEmpty && modifiedFiles.isEmpty {
+                return AssistToolResult(
+                    success: true,
+                    output: "No changes detected. Working tree is clean.",
+                    data: [AssistToolDataKey.diff: ""],
+                    filesChanged: [],
+                    diff: "",
+                    duration: Date().timeIntervalSince(startTime),
+                    suggestedNextActions: ["project_build", "code_review"]
+                )
+            }
 
-            return .success("Diff completed with snapshot '\(latest.message)'.", data: ["diff": formattedDiff.isEmpty ? "No differences found." : formattedDiff])
+            let formattedDiff = diffHunks.map { hunk in
+                "\(hunk.header)\n\(hunk.lines.joined(separator: "\n"))"
+            }.joined(separator: "\n\n")
+
+            let summary = "Git Status on branch '\(status.branchName)': \(status.stagedFiles.count) staged, \(status.unstagedFiles.count) unstaged, \(diffHunks.count) diff hunks."
+
+            return AssistToolResult(
+                success: true,
+                output: "\(summary)\n\n\(formattedDiff)",
+                data: [
+                    AssistToolDataKey.diff: formattedDiff,
+                    "branch": status.branchName,
+                    "staged_count": "\(status.stagedFiles.count)",
+                    "unstaged_count": "\(status.unstagedFiles.count)"
+                ],
+                diagnostics: [],
+                filesChanged: modifiedFiles,
+                diff: formattedDiff,
+                duration: Date().timeIntervalSince(startTime),
+                suggestedNextActions: ["project_build", "code_review"]
+            )
         } catch {
-            return .failure("Diff failed: \(error.localizedDescription)")
+            return .failure("Diff inspection failed: \(error.localizedDescription)")
         }
     }
 }

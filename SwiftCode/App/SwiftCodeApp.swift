@@ -5,6 +5,20 @@ struct SwiftCodeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     init() {
+        if CommandLine.arguments.contains("--run-assist-tests") {
+            Task { @MainActor in
+                let report = await AssistRuntimeTestSuite.shared.runAllTests()
+                print("========================================")
+                print("ASSIST V3 RUNTIME TEST SUITE REPORT")
+                print("Total: \(report.totalTests), Passed: \(report.passedTests), Failed: \(report.failedTests)")
+                for r in report.results {
+                    print("[\(r.passed ? "PASS" : "FAIL")] \(r.testName) (\(String(format: "%.3f", r.duration))s): \(r.message)")
+                }
+                print("========================================")
+                fflush(stdout)
+                exit(report.allPassed ? 0 : 1)
+            }
+        }
         OfflineModelDownloader.shared.registerBackgroundTask()
         AgentSystemInitializer.shared.initialize()
         StylingBootstrap.initialize()
