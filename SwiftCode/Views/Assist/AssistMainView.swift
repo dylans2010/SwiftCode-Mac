@@ -96,7 +96,7 @@ public struct AssistMainView: View {
                         .foregroundStyle(AgentNotesManager.shared.currentNotesMarkdown.isEmpty ? .secondary : Color.accentColor)
                 }
                 .buttonStyle(.plain)
-                .help("Inspect agent_notes.md & Phase Matrix")
+                .help("Inspect Execution Plan & Phase Matrix")
 
                 // Diagnostics Trigger
                 Button {
@@ -251,25 +251,46 @@ public struct AssistMainView: View {
                             if isAgentMode {
                                 CodeAssistUserView()
                                 TaskProgressView(agentSession: manager.agentSession)
-                                Button {
-                                    showAgentNotesSheet = true
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "doc.text.magnifyingglass")
-                                            .foregroundStyle(Color.accentColor)
-                                        Text("Inspect Live Execution Notes & 350-Phase Matrix")
-                                            .font(.caption.bold())
-                                        Spacer()
-                                        Image(systemName: "chevron.right")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
+                                // Inline Execution Plan preview
+                                if !AgentNotesManager.shared.currentNotesMarkdown.isEmpty {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: "list.bullet.clipboard")
+                                                .font(.caption)
+                                                .foregroundStyle(Color.accentColor)
+                                            Text("Execution Plan")
+                                                .font(.caption.bold())
+                                                .foregroundStyle(Color.accentColor)
+                                            Spacer()
+                                            if let ts = AgentNotesManager.shared.lastSavedTimestamp {
+                                                Text(ts, style: .time)
+                                                    .font(.system(size: 9))
+                                                    .foregroundStyle(.tertiary)
+                                            }
+                                            Button {
+                                                showAgentNotesSheet = true
+                                            } label: {
+                                                HStack(spacing: 3) {
+                                                    Text("Details")
+                                                        .font(.system(size: 10, weight: .medium))
+                                                    Image(systemName: "chevron.right")
+                                                        .font(.system(size: 8, weight: .semibold))
+                                                }
+                                                .foregroundStyle(.secondary)
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+
+                                        Text(AgentNotesManager.shared.currentNotesMarkdown)
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(12)
+                                            .textSelection(.enabled)
+                                            .lineSpacing(2)
                                     }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 7)
-                                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                                    .padding(10)
+                                    .padding(.horizontal, 12)
                                 }
-                                .buttonStyle(.plain)
-                                .padding(.horizontal, 12)
 
                                 ToolExecutionView(agentSession: manager.agentSession)
                                 AgentChangeSummaryView(agentSession: manager.agentSession)

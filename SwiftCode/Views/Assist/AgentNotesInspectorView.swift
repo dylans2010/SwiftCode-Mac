@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// Native macOS desktop inspector for viewing and verifying temporary autonomous execution notes (`agent_notes.md`).
+/// Native macOS desktop inspector for viewing and verifying the autonomous agent execution plan and phase timeline.
 public struct AgentNotesInspectorView: View {
     @Bindable private var notesManager = AgentNotesManager.shared
     @Bindable private var phaseCoordinator = AgentPhaseCoordinator.shared
@@ -25,8 +25,6 @@ public struct AgentNotesInspectorView: View {
             headerBar
             Divider()
             contentBody
-            Divider()
-            footerBar
         }
         .frame(minWidth: 550, minHeight: 450)
         .background(.background)
@@ -36,29 +34,15 @@ public struct AgentNotesInspectorView: View {
 
     private var headerBar: some View {
         HStack(spacing: 12) {
-            Image(systemName: "doc.text.magnifyingglass")
+            Image(systemName: "list.bullet.clipboard")
                 .font(.title2)
                 .foregroundStyle(Color.accentColor)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text("agent_notes.md")
+                    Text("Execution Plan")
                         .font(.headline)
                         .fontWeight(.semibold)
-
-                    // Git exclusion badge
-                    HStack(spacing: 3) {
-                        Image(systemName: "checkmark.shield.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.green)
-                        Text("Git-Excluded")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .foregroundStyle(.green)
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.green.opacity(0.12), in: Capsule())
 
                     if let timestamp = notesManager.lastSavedTimestamp {
                         Text("• Updated \(timestamp, style: .time)")
@@ -72,7 +56,7 @@ public struct AgentNotesInspectorView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("Temporary Execution State & Verification Notes")
+                    Text("Autonomous Execution State & Verification")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -114,9 +98,9 @@ public struct AgentNotesInspectorView: View {
             VStack(alignment: .leading, spacing: 14) {
                 if notesManager.currentNotesMarkdown.isEmpty {
                     ContentUnavailableView(
-                        "No Active Notes",
-                        systemImage: "doc.badge.gearshape",
-                        description: Text("agent_notes.md will be automatically generated upon starting an autonomous engineering task.")
+                        "No Active Plan",
+                        systemImage: "list.bullet.clipboard",
+                        description: Text("The execution plan will be automatically generated when an autonomous engineering task begins.")
                     )
                     .padding(.top, 40)
                 } else {
@@ -280,43 +264,7 @@ public struct AgentNotesInspectorView: View {
 
     // MARK: - Footer Bar
 
-    private var footerBar: some View {
-        HStack {
-            if let savedURL = notesManager.lastSavedURL {
-                Text(savedURL.path)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            } else {
-                Text("Stored strictly in ephemeral memory / excluded path.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Button {
-                let pb = NSPasteboard.general
-                pb.clearContents()
-                pb.setString(notesManager.currentNotesMarkdown, forType: .string)
-                copiedConfirmation = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    copiedConfirmation = false
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: copiedConfirmation ? "checkmark" : "doc.on.doc")
-                    Text(copiedConfirmation ? "Copied" : "Copy Notes")
-                }
-                .font(.caption)
-            }
-            .buttonStyle(.bordered)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(.thinMaterial)
-    }
+    // Footer removed — file path and artifact details are internal-only.
 
     // MARK: - Section Parser
 
