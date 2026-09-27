@@ -515,7 +515,7 @@ struct SwiftCodeWelcomeView: View {
                     .background(Color(NSColor.controlBackgroundColor).opacity(0.4))
                     .cornerRadius(12)
                     .contentShape(Rectangle())
-                    .onTapGesture(count: 2) {
+                    .onTapGesture {
                         Task {
                             await sessionStore.openProject(project)
                         }

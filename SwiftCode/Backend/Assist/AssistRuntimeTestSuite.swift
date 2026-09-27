@@ -53,6 +53,12 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(await testFailureMemoryAndThrashingDetection())
         results.append(await testCompletionContractEvaluation())
         results.append(await testPathSandboxSecurity())
+        results.append(await testPhaseCoordinationAndDependencyGating())
+        results.append(await testAgentNotesLifecycleAndGitExclusion())
+        results.append(await testAgentSkillDiscoveryAndMatching())
+        results.append(await testAgentRepositoryScannerScopePrecedence())
+        results.append(await testAgentModelAdapterCapabilityNegotiationAndJSONRepair())
+        results.append(await testAgentTerminalServiceDeveloperDirResolution())
 
         let duration = Date().timeIntervalSince(startTime)
         let passed = results.filter { $0.passed }.count
@@ -255,6 +261,197 @@ public final class AssistRuntimeTestSuite: Sendable {
             testName: "Path Sandbox Security",
             passed: allBlocked,
             message: allBlocked ? "Relative and root traversals identified and blocked." : "Path sandbox allowed traversal.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 9. Phase Coordination & Dependency Gating
+    public func testPhaseCoordinationAndDependencyGating() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let coordinator = AgentPhaseCoordinator.shared
+        coordinator.reset()
+
+        // Initial state: 180+ phases initialized
+        let initialCount = coordinator.phases.count
+        guard initialCount >= 180 else {
+            return RuntimeTestCaseResult(
+                testName: "Phase Coordination & Dependency Gating",
+                passed: false,
+                message: "Expected >= 180 phases, got \(initialCount)",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        // Test dependency gating: Cannot activate Phase 004 without completing Phase 003
+        let canActivate004 = coordinator.canStartPhase("PHASE_004_AGENTS_INTERPRETATION")
+        coordinator.completePhase("PHASE_001_REPO_INIT", evidence: "Verified root")
+        coordinator.completePhase("PHASE_002_GIT_AUDIT", evidence: "Working tree clean")
+        coordinator.completePhase("PHASE_003_AGENTS_DISCOVERY", evidence: "Found AGENTS.md")
+
+        let canActivate004After = coordinator.canStartPhase("PHASE_004_AGENTS_INTERPRETATION")
+        let activated = coordinator.startPhase("PHASE_004_AGENTS_INTERPRETATION")
+
+        let passed = !canActivate004 && canActivate004After && activated && coordinator.activePhaseId == "PHASE_004_AGENTS_INTERPRETATION"
+
+        return RuntimeTestCaseResult(
+            testName: "Phase Coordination & Dependency Gating",
+            passed: passed,
+            message: passed ? "All \(initialCount) phases registered and dependency gating verified." : "Dependency gating failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 10. Agent Notes Lifecycle & Contract Formatting
+    public func testAgentNotesLifecycleAndGitExclusion() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let notesManager = AgentNotesManager.shared
+        let dummyWorkspace = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_workspace_\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: dummyWorkspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dummyWorkspace) }
+
+        notesManager.ensureGitIgnored(in: dummyWorkspace)
+        let gitignorePath = dummyWorkspace.appendingPathComponent(".gitignore").path
+        let gitignoreContent = (try? String(contentsOfFile: gitignorePath, encoding: .utf8)) ?? ""
+        let isGitIgnored = gitignoreContent.contains("agent_notes.md") && gitignoreContent.contains("AgentNotes.md")
+
+        let task = AgentTask(originalRequest: "Refactor Network Layer", interpretedObjective: "Migrate to async/await")
+        let session = AssistAgentSession()
+        let sampleNotes = notesManager.updateNotes(
+            task: task,
+            session: session,
+            applicableAgents: ["Root AGENTS.md"],
+            applicableSkills: ["modern-web-guidance"],
+            modelName: "Claude 3.5 Sonnet",
+            currentAction: "Inspecting source files",
+            workspaceRoot: dummyWorkspace
+        )
+
+        let containsSections = sampleNotes.contains("# Assist Task") &&
+                               sampleNotes.contains("## Objective") &&
+                               sampleNotes.contains("## Model") &&
+                               sampleNotes.contains("## Current Phase") &&
+                               sampleNotes.contains("## Plan") &&
+                               sampleNotes.contains("## Verification")
+
+        let passed = isGitIgnored && containsSections
+
+        return RuntimeTestCaseResult(
+            testName: "Agent Notes Lifecycle & Git Exclusion",
+            passed: passed,
+            message: passed ? "agent_notes.md properly structured and excluded from git." : "Agent notes formatting or git exclusion failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 11. Skill Discovery & Keyword Matching
+    public func testAgentSkillDiscoveryAndMatching() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let resolver = AgentSkillResolver.shared
+        let tempDir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("skills_test_\(UUID().uuidString)")
+        let skillFolder = tempDir.appendingPathComponent(".agents/skills/modern-web-guidance")
+        try? FileManager.default.createDirectory(at: skillFolder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let skillMD = """
+        ---
+        name: modern-web-guidance
+        description: Search tool for modern web development best practices.
+        keywords: [css, html, web, frontend]
+        ---
+        # Modern Web Guidance
+        Follow desktop web standards.
+        """
+        try? skillMD.write(to: skillFolder.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+
+        let discovered = await resolver.discoverSkills(in: tempDir)
+        let relevant = resolver.matchSkills(for: "Refactor web frontend css layout", in: discovered)
+
+        let passed = discovered.contains(where: { $0.name == "modern-web-guidance" }) &&
+                     relevant.contains(where: { $0.name == "modern-web-guidance" })
+
+        return RuntimeTestCaseResult(
+            testName: "Skill Discovery & Keyword Matching",
+            passed: passed,
+            message: passed ? "Skill discovered from .agents/skills and matched via keywords." : "Skill discovery/matching failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 12. Repository Instruction Scope & Precedence
+    public func testAgentRepositoryScannerScopePrecedence() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let scanner = AgentRepositoryScanner.shared
+        let tempDir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("repo_test_\(UUID().uuidString)")
+        let subDir = tempDir.appendingPathComponent("Sources/SubModule")
+        try? FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let rootAgents = "# Root Rules\nRule 1: Swift 6 concurrency strictly required."
+        let subAgents = "# SubModule Rules\nRule 2: Prefer async streams over notifications."
+
+        try? rootAgents.write(to: tempDir.appendingPathComponent("AGENTS.md"), atomically: true, encoding: .utf8)
+        try? subAgents.write(to: subDir.appendingPathComponent("AGENTS.md"), atomically: true, encoding: .utf8)
+
+        scanner.invalidateCache()
+        let allInstructions = scanner.discoverInstructions(in: tempDir)
+        let targetFile = subDir.appendingPathComponent("Worker.swift")
+        let applicable = scanner.governingInstruction(for: targetFile.path, in: allInstructions)
+
+        let passed = allInstructions.count == 2 && applicable?.content.contains("Prefer async streams") == true
+
+        return RuntimeTestCaseResult(
+            testName: "Repository Instruction Scope & Precedence",
+            passed: passed,
+            message: passed ? "Nearest AGENTS.md scoped correctly to target subdirectory." : "Instruction scope precedence failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 13. Model Adapter Capabilities & JSON Trailing Comma Repair
+    public func testAgentModelAdapterCapabilityNegotiationAndJSONRepair() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let adapter = AgentModelAdapter.shared
+
+        let spec = adapter.specification(for: "claude-3-5-sonnet")
+        let hasTools = spec.capabilities.contains(.toolCalling)
+        let hasVision = spec.capabilities.contains(.vision)
+
+        let malformed = """
+        ```json
+        {
+          "toolId": "file_write",
+          "input": {
+            "path": "Sources/Test.swift",
+            "content": "let x = 1",
+          },
+          "explanation": "writing test file",
+        }
+        ```
+        """
+        let parsed = adapter.extractJSON(from: malformed)
+        let toolId = parsed?["toolId"] as? String
+
+        let passed = hasTools && hasVision && toolId == "file_write"
+
+        return RuntimeTestCaseResult(
+            testName: "Model Capabilities & JSON Repair",
+            passed: passed,
+            message: passed ? "Capabilities negotiated and malformed trailing-comma JSON repaired." : "Model capability or JSON repair failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 14. Terminal Service & Developer Directory Resolution
+    public func testAgentTerminalServiceDeveloperDirResolution() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let terminalService = AgentTerminalService.shared
+        let devDir = terminalService.resolveDeveloperDirectory()
+        let isValid = FileManager.default.fileExists(atPath: devDir) && devDir.contains("Developer")
+
+        return RuntimeTestCaseResult(
+            testName: "Terminal Developer Directory Resolution",
+            passed: isValid,
+            message: isValid ? "Resolved valid developer dir: \\(devDir)" : "Invalid developer dir resolved: \\(devDir)",
             duration: Date().timeIntervalSince(start)
         )
     }

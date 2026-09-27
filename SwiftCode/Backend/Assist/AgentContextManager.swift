@@ -63,16 +63,21 @@ public final class AgentContextManager: Sendable {
         let projectName = context.project?.name ?? "SwiftCode"
         let manifest = "Workspace root: \(context.workspaceRoot.path)\nActive project: \(projectName)"
 
-        // Priority 2: Repository Instructions & Grounding (AGENTS.md / README.md)
+        // Priority 2: Repository Instructions & Grounding (AGENTS.md / README.md) with nearest scope resolution
         var repoInstructions = ""
-        let groundingFiles = ["AGENTS.md", "CLAUDE.md", "README.md", "Package.swift"]
-        for gFile in groundingFiles {
-            if context.fileSystem.exists(at: gFile) {
-                if let raw = try? context.fileSystem.readFile(at: gFile) {
-                    let maxChars = 3000
-                    let snippet = raw.count > maxChars ? String(raw.prefix(maxChars)) + "\n... [TRUNCATED]" : raw
-                    repoInstructions += "\n--- [GROUNDING: \(gFile)] ---\n\(snippet)\n"
-                    break // Prefer AGENTS.md if available
+        let discoveredInstructions = AgentRepositoryScanner.shared.discoverInstructions(in: context.workspaceRoot)
+        if !discoveredInstructions.isEmpty {
+            repoInstructions = AgentRepositoryScanner.shared.formatInstructionsForPrompt(instructions: discoveredInstructions, targetFiles: activeFiles)
+        } else {
+            let groundingFiles = ["CLAUDE.md", "README.md", "Package.swift"]
+            for gFile in groundingFiles {
+                if context.fileSystem.exists(at: gFile) {
+                    if let raw = try? context.fileSystem.readFile(at: gFile) {
+                        let maxChars = 3000
+                        let snippet = raw.count > maxChars ? String(raw.prefix(maxChars)) + "\n... [TRUNCATED]" : raw
+                        repoInstructions += "\n--- [GROUNDING: \(gFile)] ---\n\(snippet)\n"
+                        break
+                    }
                 }
             }
         }

@@ -78,101 +78,51 @@ public struct UseTermFunction: AssistTool {
             return .failure("Terminal execution rejected by user.")
         }
 
-        // 3. Execute command asynchronously with live output streaming
+        // 3. Execute command asynchronously with live output streaming via AgentTerminalService
         await context.logger.info("Executing approved command: \(command)", toolId: id)
 
-        #if os(macOS)
         do {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-            process.arguments = ["-c", command]
-            process.currentDirectoryURL = workingDirURL
+            let res = try await AgentTerminalService.shared.execute(
+                command: command,
+                workingDirectory: workingDirURL
+            )
 
-            // Set up environment to inherit standard paths (like homebrew, etc.)
-            var env = ProcessInfo.processInfo.environment
-            env["PATH"] = (env["PATH"] ?? "") + ":/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-            process.environment = env
-
-            let stdoutPipe = Pipe()
-            let stderrPipe = Pipe()
-            process.standardOutput = stdoutPipe
-            process.standardError = stderrPipe
-
-            // Store the process in AssistManager so it can be cancelled
-            await MainActor.run {
-                AssistManager.shared.activeProcess = process
-                AssistManager.shared.terminalLiveOutput = ""
-                AssistManager.shared.terminalRunning = true
-            }
-
-            stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
-                let data = handle.availableData
-                if !data.isEmpty, let str = String(data: data, encoding: .utf8) {
-                    Task { @MainActor in
-                        AssistManager.shared.appendTerminalOutput(str)
-                    }
-                }
-            }
-
-            stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-                let data = handle.availableData
-                if !data.isEmpty, let str = String(data: data, encoding: .utf8) {
-                    Task { @MainActor in
-                        AssistManager.shared.appendTerminalOutput(str)
-                    }
-                }
-            }
-
-            try process.run()
-
-            // Wait with a timeout (e.g. 5 minutes)
-            let timeoutSeconds: Double = 300
-            let task = Task {
-                process.waitUntilExit()
-            }
-
-            let timeoutTask = Task {
-                try? await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
-                if process.isRunning {
-                    process.terminate()
-                }
-            }
-
-            await task.value
-            timeoutTask.cancel()
-
-            stdoutPipe.fileHandleForReading.readabilityHandler = nil
-            stderrPipe.fileHandleForReading.readabilityHandler = nil
-
-            let exitCode = Int(process.terminationStatus)
-            let finalOutput = await AssistManager.shared.terminalLiveOutput
-
-            await MainActor.run {
-                AssistManager.shared.terminalRunning = false
-                AssistManager.shared.terminalExitCode = exitCode
-                AssistManager.shared.terminalCompleted = true
-                AssistManager.shared.activeProcess = nil
-            }
-
+            let diagStrings = res.diagnostics.map { "\($0.filePath):\($0.line): \($0.severity.rawValue): \($0.message)" }
             let resultData: [String: String] = [
-                "exit_code": "\(exitCode)",
-                "output": finalOutput
+                "command": res.command,
+                "workingDirectory": res.workingDirectory,
+                "stdout": String(res.stdout.suffix(3000)),
+                "stderr": String(res.stderr.suffix(2000)),
+                "exitCode": "\(res.exitCode)",
+                "duration": String(format: "%.2fs", res.duration)
             ]
 
-            if exitCode == 0 {
-                return .success("Terminal command executed successfully.\nExit code: 0\nOutput summary:\n\(finalOutput.suffix(2000))", data: resultData)
+            if res.isSuccess {
+                return AssistToolResult(
+                    success: true,
+                    output: "Terminal command executed successfully (exit code 0 in \(String(format: "%.2fs", res.duration))):\n\(res.stdout.isEmpty ? "(No stdout output)" : res.stdout.suffix(2000))",
+                    data: resultData,
+                    diagnostics: diagStrings,
+                    duration: res.duration,
+                    exitCode: 0,
+                    suggestedNextActions: ["project_status", "project_build"]
+                )
             } else {
-                return .failure("Terminal command failed with exit code \(exitCode). Output:\n\(finalOutput.suffix(1000))", code: exitCode)
+                let errSummary = res.stderr.isEmpty ? res.stdout : res.stderr
+                return AssistToolResult(
+                    success: false,
+                    output: "Terminal command failed with exit code \(res.exitCode) (\(String(format: "%.2fs", res.duration))):\n\(errSummary.suffix(1500))",
+                    data: resultData,
+                    error: "Command exited with non-zero status \(res.exitCode)",
+                    errorCode: res.exitCode,
+                    diagnostics: diagStrings,
+                    duration: res.duration,
+                    exitCode: Int32(res.exitCode),
+                    suggestedNextActions: ["file_read", "replan"]
+                )
             }
         } catch {
-            await MainActor.run {
-                AssistManager.shared.terminalRunning = false
-                AssistManager.shared.activeProcess = nil
-            }
             return .failure("Process execution failed: \(error.localizedDescription)")
         }
-        #else
-        return .failure("Terminal execution is only supported on macOS")
-        #endif
     }
 }

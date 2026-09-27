@@ -10,6 +10,7 @@ public struct AssistMainView: View {
     @State private var inputText: String = ""
     @State private var isEnhancingPrompt = false
     @State private var showDiagnosticsSheet = false
+    @State private var showAgentNotesSheet = false
     @State private var showExecutionModeSheet = false
     @State private var showApprovalSheet = false
     @State private var searchConversationText = ""
@@ -85,6 +86,17 @@ public struct AssistMainView: View {
                 .help("Toggle Execution Mode")
 
                 Spacer()
+
+                // Agent Notes Trigger
+                Button {
+                    showAgentNotesSheet = true
+                } label: {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.body)
+                        .foregroundStyle(AgentNotesManager.shared.currentNotesMarkdown.isEmpty ? .secondary : Color.accentColor)
+                }
+                .buttonStyle(.plain)
+                .help("Inspect agent_notes.md & Phase Matrix")
 
                 // Diagnostics Trigger
                 Button {
@@ -239,6 +251,26 @@ public struct AssistMainView: View {
                             if isAgentMode {
                                 CodeAssistUserView()
                                 TaskProgressView(agentSession: manager.agentSession)
+                                Button {
+                                    showAgentNotesSheet = true
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "doc.text.magnifyingglass")
+                                            .foregroundStyle(Color.accentColor)
+                                        Text("Inspect Live Execution Notes & 350-Phase Matrix")
+                                            .font(.caption.bold())
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 7)
+                                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.horizontal, 12)
+
                                 ToolExecutionView(agentSession: manager.agentSession)
                                 AgentChangeSummaryView(agentSession: manager.agentSession)
                                 AgentSummaryStatisticsView(agentSession: manager.agentSession)
@@ -483,6 +515,9 @@ public struct AssistMainView: View {
         }
         .sheet(isPresented: $showDiagnosticsSheet) {
             DiagnosticsSheet(manager: manager)
+        }
+        .sheet(isPresented: $showAgentNotesSheet) {
+            AgentNotesInspectorView()
         }
         .alert("There was an issue on this request:", isPresented: $showEnhancementError, presenting: enhancementErrorMessage) { _ in
             Button("OK") {}

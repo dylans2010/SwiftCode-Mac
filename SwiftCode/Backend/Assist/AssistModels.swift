@@ -3,7 +3,7 @@ import SwiftUI
 
 // MARK: - AI Models & Providers
 
-public enum AssistModelProvider: String, Codable, CaseIterable {
+public enum AssistModelProvider: String, Codable, CaseIterable, Sendable {
     case openAI = "ChatGPT"
     case anthropic = "Claude"
     case gemini = "Gemini"

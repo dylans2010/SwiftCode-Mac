@@ -13,6 +13,12 @@
 		8D9E00010001000100000008 /* AssistVerificationPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000007 /* AssistVerificationPipeline.swift */; };
 		8D9E0001000100010000000A /* AssistErrorRecoveryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000009 /* AssistErrorRecoveryEngine.swift */; };
 		8D9E0001000100010000000C /* AssistRuntimeTestSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E0001000100010000000B /* AssistRuntimeTestSuite.swift */; };
+		8D9E00020001000100000002 /* AgentPhaseCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000001 /* AgentPhaseCoordinator.swift */; };
+		8D9E00020001000100000004 /* AgentNotesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000003 /* AgentNotesManager.swift */; };
+		8D9E00020001000100000006 /* AgentModelAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000005 /* AgentModelAdapter.swift */; };
+		8D9E00020001000100000008 /* AgentSkillResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000007 /* AgentSkillResolver.swift */; };
+		8D9E0002000100010000000A /* AgentRepositoryScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000009 /* AgentRepositoryScanner.swift */; };
+		8D9E0002000100010000000C /* AgentTerminalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E0002000100010000000B /* AgentTerminalService.swift */; };
 		CMPBLD000000000000000001 /* ComposioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000001 /* ComposioService.swift */; };
 		CMPBLD000000000000000002 /* AssistComposioTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000002 /* AssistComposioTool.swift */; };
 		CMPBLD000000000000000003 /* AgentUseComposio.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000003 /* AgentUseComposio.swift */; };
@@ -1637,6 +1643,7 @@
 		F170E176145CCF048C9CEE0B /* MLXIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CC1E54976EEBE8EA9EE0F0E /* MLXIntegration.swift */; };
 		F1B0E961BA4AD44EABE5BD59 /* Models/Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 167EEE1B406216DAE1DBC8D2 /* Models/Database.swift */; };
 		F1CD2E378216E7D1A040795B /* AssistMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9D7E2F8F62E029750AD8AA /* AssistMainView.swift */; };
+		F1CD2E378216E7D1A040795C /* AgentNotesInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9D7E2F8F62E029750AD8AB /* AgentNotesInspectorView.swift */; };
 		F1DF9D7D788182C84703E772 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A9117BE5C6EF991F79E8454 /* KeychainService.swift */; };
 		F1EBB607831B61EC2ABE3F16 /* CollaborationNotificationCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F73BA0184F327F66A9B7E1A /* CollaborationNotificationCenterView.swift */; };
 		F21783C606DF48DAB6ECAF8D /* DebounceTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02D0FDCF43197B775CCB4595 /* DebounceTool.swift */; };
@@ -2565,6 +2572,12 @@
 		8D9E00010001000100000007 /* AssistVerificationPipeline.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistVerificationPipeline.swift; sourceTree = "<group>"; };
 		8D9E00010001000100000009 /* AssistErrorRecoveryEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistErrorRecoveryEngine.swift; sourceTree = "<group>"; };
 		8D9E0001000100010000000B /* AssistRuntimeTestSuite.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistRuntimeTestSuite.swift; sourceTree = "<group>"; };
+		8D9E00020001000100000001 /* AgentPhaseCoordinator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentPhaseCoordinator.swift; sourceTree = "<group>"; };
+		8D9E00020001000100000003 /* AgentNotesManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentNotesManager.swift; sourceTree = "<group>"; };
+		8D9E00020001000100000005 /* AgentModelAdapter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentModelAdapter.swift; sourceTree = "<group>"; };
+		8D9E00020001000100000007 /* AgentSkillResolver.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentSkillResolver.swift; sourceTree = "<group>"; };
+		8D9E00020001000100000009 /* AgentRepositoryScanner.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentRepositoryScanner.swift; sourceTree = "<group>"; };
+		8D9E0002000100010000000B /* AgentTerminalService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentTerminalService.swift; sourceTree = "<group>"; };
 		CMPREF000000000000000001 /* ComposioService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ComposioService.swift; sourceTree = "<group>"; };
 		CMPREF000000000000000002 /* AssistComposioTool.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistComposioTool.swift; sourceTree = "<group>"; };
 		CMPREF000000000000000003 /* AgentUseComposio.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentUseComposio.swift; sourceTree = "<group>"; };
@@ -2786,6 +2799,7 @@
 		1E2E48FF8366AD78838798DB /* Result+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Result+Extensions.swift"; sourceTree = "<group>"; };
 		1E67047F15594D14B133BF98 /* ListTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListTools.swift; sourceTree = "<group>"; };
 		1E9D7E2F8F62E029750AD8AA /* AssistMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistMainView.swift; sourceTree = "<group>"; };
+		1E9D7E2F8F62E029750AD8AB /* AgentNotesInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentNotesInspectorView.swift; sourceTree = "<group>"; };
 		1EDAB6A339F43FA6BF5A78D1 /* CollaborationSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollaborationSidebarView.swift; sourceTree = "<group>"; };
 		1F03DD9ED6C9182AC9E01A51 /* TransferSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferSession.swift; sourceTree = "<group>"; };
 		1F1500D1399177D480F223EF /* AIModelDebuggerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIModelDebuggerView.swift; sourceTree = "<group>"; };
@@ -5693,6 +5707,7 @@
 				5C5E70000000000000000203 /* AddFilesAgentContext.swift */,
 				6D3F79ABA55559EF6F44BF84 /* AssistDiffView.swift */,
 				1E9D7E2F8F62E029750AD8AA /* AssistMainView.swift */,
+				1E9D7E2F8F62E029750AD8AB /* AgentNotesInspectorView.swift */,
 				C46493C840B09DCD68F12134 /* AssistPlanView.swift */,
 				8E7952EF405A445030396ECB /* AssistPlannerView.swift */,
 				277B2689C37E945ED7BC0C66 /* AssistUserTakeover.swift */,
@@ -6975,6 +6990,12 @@
 				8D9E00010001000100000007 /* AssistVerificationPipeline.swift */,
 				8D9E00010001000100000009 /* AssistErrorRecoveryEngine.swift */,
 				8D9E0001000100010000000B /* AssistRuntimeTestSuite.swift */,
+				8D9E00020001000100000001 /* AgentPhaseCoordinator.swift */,
+				8D9E00020001000100000003 /* AgentNotesManager.swift */,
+				8D9E00020001000100000005 /* AgentModelAdapter.swift */,
+				8D9E00020001000100000007 /* AgentSkillResolver.swift */,
+				8D9E00020001000100000009 /* AgentRepositoryScanner.swift */,
+				8D9E0002000100010000000B /* AgentTerminalService.swift */,
 				5C5E70000000000000000F41 /* ModelSessionManager.swift */,
 				5C5E70000000000000000F43 /* DiagnosticEvent.swift */,
 				F859731420AEAAE5ADDF29A8 /* AgentSessionState.swift */,
@@ -10152,6 +10173,12 @@
 				8D9E00010001000100000008 /* AssistVerificationPipeline.swift in Sources */,
 				8D9E0001000100010000000A /* AssistErrorRecoveryEngine.swift in Sources */,
 				8D9E0001000100010000000C /* AssistRuntimeTestSuite.swift in Sources */,
+				8D9E00020001000100000002 /* AgentPhaseCoordinator.swift in Sources */,
+				8D9E00020001000100000004 /* AgentNotesManager.swift in Sources */,
+				8D9E00020001000100000006 /* AgentModelAdapter.swift in Sources */,
+				8D9E00020001000100000008 /* AgentSkillResolver.swift in Sources */,
+				8D9E0002000100010000000A /* AgentRepositoryScanner.swift in Sources */,
+				8D9E0002000100010000000C /* AgentTerminalService.swift in Sources */,
 				CMPBLD000000000000000001 /* ComposioService.swift in Sources */,
 				CMPBLD000000000000000002 /* AssistComposioTool.swift in Sources */,
 				CMPBLD000000000000000003 /* AgentUseComposio.swift in Sources */,
@@ -10599,6 +10626,7 @@
 				75D79D3590909772C681B38C /* AssistWriteFileTool.swift in Sources */,
 				9930144B633DA489516E0991 /* AssistDiffView.swift in Sources */,
 				F1CD2E378216E7D1A040795B /* AssistMainView.swift in Sources */,
+				F1CD2E378216E7D1A040795C /* AgentNotesInspectorView.swift in Sources */,
 				52DD46069C3AA9C5DA53998A /* AssistPlanView.swift in Sources */,
 				D11703E67C572322D24C4CB2 /* AssistPlannerView.swift in Sources */,
 				48176A27BC0B7F64AC7113AD /* AssistUserTakeover.swift in Sources */,
