@@ -62,6 +62,7 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(await testContinuousMultiGoalTakeoverSafeguards())
         results.append(await testMyersDiffAlgorithmAndLiveStreamer())
         results.append(await testOfflineModelFallbackClassificationAndRehydration())
+        results.append(await testAssistWorkersSubsystem())
 
         let duration = Date().timeIntervalSince(startTime)
         let passed = results.filter { $0.passed }.count
@@ -625,6 +626,98 @@ public final class AssistRuntimeTestSuite: Sendable {
             testName: "Offline Model Fallback & Classification",
             passed: passed,
             message: passed ? "Network failure classification, fallback resolution, and state tracking verified." : "Offline fallback verification failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 18. Assist Workers Subsystem (M-TOOL, M-MODEL, M-SCHED, M-PERSIST, M-HANDOFF)
+    public func testAssistWorkersSubsystem() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let parentTaskID = UUID()
+
+        // 1. Tool Input Validation Test (use_workers schema enforcement)
+        let tool = UseWorkersTool()
+        let dummyContext = AssistContext(
+            sessionId: parentTaskID,
+            project: nil,
+            workspaceRoot: URL(fileURLWithPath: "/tmp"),
+            memory: AssistMemoryGraph(),
+            logger: AssistLogger(),
+            fileSystem: AssistFileSystem(workspaceRoot: URL(fileURLWithPath: "/tmp")),
+            git: AssistGitManager(project: nil),
+            permissions: AssistPermissionsManager(),
+            safetyLevel: .balanced,
+            isAutonomous: true
+        )
+
+        // Missing workers array
+        let resEmpty = try? await tool.execute(input: [:], context: dummyContext)
+        let rejectedEmpty = resEmpty?.success == false
+
+        // Empty task / scope rejection
+        let invalidWorker: [[String: Any]] = [
+            ["name": "TestWorker", "scope": "", "task": "Do something"]
+        ]
+        let resInvalid = try? await tool.execute(input: ["workers": invalidWorker], context: dummyContext)
+        let rejectedInvalid = resInvalid?.success == false
+
+        // Duplicate worker name rejection
+        let duplicateWorkers: [[String: Any]] = [
+            ["name": "WorkerDup", "scope": "ScopeA", "task": "TaskA"],
+            ["name": "WorkerDup", "scope": "ScopeB", "task": "TaskB"]
+        ]
+        let resDup = try? await tool.execute(input: ["workers": duplicateWorkers], context: dummyContext)
+        let rejectedDup = resDup?.success == false
+
+        // Task > 500 characters rejection
+        let longTask = String(repeating: "X", count: 501)
+        let oversizedWorkers: [[String: Any]] = [
+            ["name": "OversizedWorker", "scope": "ScopeA", "task": longTask]
+        ]
+        let resOversized = try? await tool.execute(input: ["workers": oversizedWorkers], context: dummyContext)
+        let rejectedOversized = resOversized?.success == false
+
+        // 2. Worker State Transitions & Aggregations
+        let state = WorkerRuntimeState.shared
+        let testWorker = Worker(
+            name: "Architecture Worker",
+            role: "Systems Architect",
+            scope: "Backend/Assist",
+            task: "Audit dependency models",
+            status: .created,
+            parentTaskID: parentTaskID
+        )
+        state.register(worker: testWorker)
+        let registered = state.getWorker(id: testWorker.id) != nil
+
+        state.transitionWorker(id: testWorker.id, to: .working, reason: "Began analysis")
+        let isWorking = state.getWorker(id: testWorker.id)?.status == .working
+
+        state.transitionWorker(id: testWorker.id, to: .reviewing, reason: "Awaiting review")
+        let isReviewing = state.getWorker(id: testWorker.id)?.status == .reviewing
+
+        // 3. Stop Worker Flow & Mode B (Handoff) Continuity
+        let coordinator = WorkerHandoffCoordinator.shared
+        let handoffResult = coordinator.stopWorker(
+            workerID: testWorker.id,
+            mode: .reassign,
+            reason: "Targeted sub-scope split"
+        )
+        let stopped = state.getWorker(id: testWorker.id)?.status == .cancelled
+        let replacementCreated = handoffResult?.replacementWorker != nil
+
+        // 4. Task Tree Durable Persistence & Restoration
+        let store = WorkerPersistenceStore.shared
+        store.persistWorkers(state.allWorkers, parentTaskID: parentTaskID)
+        let restored = store.restoreLastSession()
+        let persistenceMatches = restored?.parentTaskID == parentTaskID
+
+        let passed = rejectedEmpty && rejectedInvalid && rejectedDup && rejectedOversized && registered && isWorking && isReviewing && stopped && replacementCreated && persistenceMatches
+
+        return RuntimeTestCaseResult(
+            testName: "Assist Workers Multi-Agent Subsystem",
+            passed: passed,
+            message: passed ? "All Worker validation gates, state machines, handoffs, and durable persistence verified." : "Worker subsystem regression check failed.",
             duration: Date().timeIntervalSince(start)
         )
     }

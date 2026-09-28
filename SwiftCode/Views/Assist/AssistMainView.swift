@@ -87,6 +87,9 @@ public struct AssistMainView: View {
 
                 Spacer()
 
+                // Workers Trigger (Native Assist Workers Entry)
+                WorkersHeaderButton()
+
                 // Agent Notes Trigger
                 Button {
                     showAgentNotesSheet = true
@@ -251,6 +254,7 @@ public struct AssistMainView: View {
                             if isAgentMode {
                                 CodeAssistUserView()
                                 TaskProgressView(agentSession: manager.agentSession)
+                                WorkersOnAssistView()
                                 ContinuousTakeoverStatusView(agentSession: manager.agentSession)
                                 OfflineFallbackStatusView()
                                 // Inline Execution Plan preview

@@ -304,6 +304,18 @@ public final class AssistAgentSession: Sendable {
                 }
             }
 
+            let workerGuidance: String
+            if WorkerTaskDecomposer.shared.shouldDecompose(objective: objective) {
+                workerGuidance = """
+
+                # MULTI-WORKER DECOMPOSITION DIRECTIVE
+                This task represents a multi-faceted codebase objective. You have the `use_workers` tool available to decompose the task into isolated, concurrent/sequential Workers (e.g. Architecture, Implementation, UI, Tests).
+                Break down work into non-overlapping scopes and call `use_workers` with structured assignments.
+                """
+            } else {
+                workerGuidance = ""
+            }
+
             let systemPrompt = """
             # SYSTEM PROMPT (OPERATING POLICY)
             \(assetSystemPrompt)
@@ -321,6 +333,7 @@ public final class AssistAgentSession: Sendable {
             - Paths must be relative to the workspace root without '..' or root '/' prefix.
 
             \(groundingInstructions)
+            \(workerGuidance)
 
             You can execute local actions by outputting a JSON object.
             Choose one of the available tools, or output a final response when the task is complete and fully verified.
@@ -869,7 +882,7 @@ public final class AssistAgentSession: Sendable {
             transition(to: .planning, reason: "Retrying failed/stalled/cancelled agent cycle.")
             if let activeContext = self.activeContext, let task = self.currentTask {
                 Task { [weak self] in
-                    try? await self?.start(objective: task.objective, attachments: [], context: activeContext)
+                    try? await self?.start(objective: task.originalRequest, attachments: [], context: activeContext)
                 }
             }
         }

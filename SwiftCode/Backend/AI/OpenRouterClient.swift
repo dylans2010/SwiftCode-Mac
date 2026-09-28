@@ -381,4 +381,11 @@ public enum AgentStreamEvent: Sendable {
 public struct AIAssistantRequest: Sendable {
     public let model: String
     public let messages: [AIMessage]
+    public let systemPrompt: String
+
+    public init(model: String, messages: [AIMessage], systemPrompt: String = "") {
+        self.model = model
+        self.messages = messages
+        self.systemPrompt = systemPrompt
+    }
 }

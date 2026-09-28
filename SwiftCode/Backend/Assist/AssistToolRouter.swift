@@ -118,6 +118,10 @@ public final class AssistToolRouter: Sendable {
         case "code_review":
             return ToolMetadata(id: toolId, name: "Code Review", description: "Autonomous code review evaluation gate.", capability: .diagnostics, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
 
+        // Multi-Worker Autonomous Execution
+        case "use_workers":
+            return ToolMetadata(id: toolId, name: "Use Workers", description: "Creates, schedules, and executes isolated concurrent/sequential Workers for complex tasks.", capability: .planning, riskLevel: .execution, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
+
         // System & Terminal
         case "use_terminal", "execute_terminal_command", "terminal_command":
             return ToolMetadata(id: toolId, name: "Execute Terminal Command", description: "Executes shell commands in workspace.", capability: .systemExecution, riskLevel: .execution, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
@@ -149,7 +153,8 @@ public final class AssistToolRouter: Sendable {
                 return meta.capability == .planning ||
                        meta.capability == .repositoryDiscovery ||
                        meta.capability == .fileReading ||
-                       tool.id == "code_summary"
+                       tool.id == "code_summary" ||
+                       tool.id == "use_workers"
             }
 
         case .executingTools, .updatingRepository, .executingStrategy:
@@ -161,7 +166,8 @@ public final class AssistToolRouter: Sendable {
                        meta.capability == .systemExecution ||
                        tool.id == "code_replace" ||
                        tool.id == "file_write" ||
-                       tool.id == "project_diff"
+                       tool.id == "project_diff" ||
+                       tool.id == "use_workers"
             }
 
         case .validating, .reviewing:

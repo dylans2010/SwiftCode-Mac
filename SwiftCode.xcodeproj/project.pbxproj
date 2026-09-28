@@ -7,6 +7,27 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8E4166F3134063D969CE396C /* WorkerContextBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EDF63C8310BD29FA3725CD4 /* WorkerContextBuilder.swift */; };
+		8E5D65C48D9A161B17FB5530 /* WorkerTaskDecomposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0A51BF7AFCE5CAF07D8676 /* WorkerTaskDecomposer.swift */; };
+		8ED63EB6A3941EB0354442EB /* WorkerScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB120DC19ADC7298CF0CB8E /* WorkerScheduler.swift */; };
+		8EDBDAD07B29D2F01D5988C2 /* WorkerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E6C3C0018E1EFACD2F52739 /* WorkerEngine.swift */; };
+		8E4C3D48C22EF1F20B57F0B3 /* WorkerEventBus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E601F3FF6A6CF0D5BB3BA8A /* WorkerEventBus.swift */; };
+		8E7ABDA99898EDA22EAB074A /* WorkerFileTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E6D456B2F94383D968B8AC8 /* WorkerFileTracker.swift */; };
+		8EC8C0DF63D4B364F4D76012 /* WorkerRuntimeState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EED4B6D6C7D39E008ED0147 /* WorkerRuntimeState.swift */; };
+		8E0E69CD6E58E6F88F27FFC7 /* WorkerEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E3EDACA1831B2DA97BFB826 /* WorkerEvent.swift */; };
+		8E0EBBA7E3D8D02985DB10B5 /* WorkerModelSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EC38D0F62781C99CC0270C8 /* WorkerModelSelector.swift */; };
+		8EFB3C823EE9651376E35EA5 /* WorkerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E085CF30791B1B7435FD7AF /* WorkerModels.swift */; };
+		8E03DBB467F75893FCBCF8FA /* WorkerPersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EE85E4A3CB85D595FA6A604 /* WorkerPersistenceStore.swift */; };
+		8ECC2A26E7C1E153D09F94A2 /* WorkerHandoffCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1DA8486963DE9E29BF49D1 /* WorkerHandoffCoordinator.swift */; };
+		8E20E41E923E96D526CE6D2A /* WorkerRecoveryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E11DEFE4BEC3802EF3B919D /* WorkerRecoveryEngine.swift */; };
+		8E278F144AB51F98B8582952 /* WorkerRecapGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E989E94D283AE868C065B74 /* WorkerRecapGenerator.swift */; };
+		8EBF81AB8544F5BE39193537 /* WorkerReviewEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ECB79AA3A51B3A99FEB0038 /* WorkerReviewEngine.swift */; };
+		8EF2DB59CAF6EDA8B26A4140 /* UseWorkersTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB8BC88A527548058975032 /* UseWorkersTool.swift */; };
+		8E32DAF8C17BC7E168F968A5 /* WorkerStopConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E89768D779B6B9F58B2CE6E /* WorkerStopConfirmationSheet.swift */; };
+		8E674D3BA52BF075AEACF289 /* WorkersHeaderButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E4EBBCC2041C06D9BF6A578 /* WorkersHeaderButton.swift */; };
+		8E31D074B98BF2FA0BF2C510 /* WorkersInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EC860A8D480F8C05072A31B /* WorkersInfoView.swift */; };
+		8E443BC61EA3E196C90D1526 /* WorkersMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBF02855411F12D3ACCE9E2 /* WorkersMainView.swift */; };
+		8E2AFDBA9296CCB125068005 /* WorkersOnAssistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E57F55B1910840C4F98A132 /* WorkersOnAssistView.swift */; };
 		8D9E00010001000100000002 /* AssistTaskModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000001 /* AssistTaskModel.swift */; };
 		8D9E00010001000100000004 /* AssistToolRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000003 /* AssistToolRouter.swift */; };
 		8D9E00010001000100000006 /* AssistDiffEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000005 /* AssistDiffEngine.swift */; };
@@ -2566,6 +2587,27 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		8EDF63C8310BD29FA3725CD4 /* WorkerContextBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerContextBuilder.swift"; sourceTree = "<group>"; };
+		8E0A51BF7AFCE5CAF07D8676 /* WorkerTaskDecomposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerTaskDecomposer.swift"; sourceTree = "<group>"; };
+		8EB120DC19ADC7298CF0CB8E /* WorkerScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerScheduler.swift"; sourceTree = "<group>"; };
+		8E6C3C0018E1EFACD2F52739 /* WorkerEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerEngine.swift"; sourceTree = "<group>"; };
+		8E601F3FF6A6CF0D5BB3BA8A /* WorkerEventBus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerEventBus.swift"; sourceTree = "<group>"; };
+		8E6D456B2F94383D968B8AC8 /* WorkerFileTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerFileTracker.swift"; sourceTree = "<group>"; };
+		8EED4B6D6C7D39E008ED0147 /* WorkerRuntimeState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerRuntimeState.swift"; sourceTree = "<group>"; };
+		8E3EDACA1831B2DA97BFB826 /* WorkerEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerEvent.swift"; sourceTree = "<group>"; };
+		8EC38D0F62781C99CC0270C8 /* WorkerModelSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerModelSelector.swift"; sourceTree = "<group>"; };
+		8E085CF30791B1B7435FD7AF /* WorkerModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerModels.swift"; sourceTree = "<group>"; };
+		8EE85E4A3CB85D595FA6A604 /* WorkerPersistenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerPersistenceStore.swift"; sourceTree = "<group>"; };
+		8E1DA8486963DE9E29BF49D1 /* WorkerHandoffCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerHandoffCoordinator.swift"; sourceTree = "<group>"; };
+		8E11DEFE4BEC3802EF3B919D /* WorkerRecoveryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerRecoveryEngine.swift"; sourceTree = "<group>"; };
+		8E989E94D283AE868C065B74 /* WorkerRecapGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerRecapGenerator.swift"; sourceTree = "<group>"; };
+		8ECB79AA3A51B3A99FEB0038 /* WorkerReviewEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerReviewEngine.swift"; sourceTree = "<group>"; };
+		8EB8BC88A527548058975032 /* UseWorkersTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UseWorkersTool.swift"; sourceTree = "<group>"; };
+		8E89768D779B6B9F58B2CE6E /* WorkerStopConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerStopConfirmationSheet.swift"; sourceTree = "<group>"; };
+		8E4EBBCC2041C06D9BF6A578 /* WorkersHeaderButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkersHeaderButton.swift"; sourceTree = "<group>"; };
+		8EC860A8D480F8C05072A31B /* WorkersInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkersInfoView.swift"; sourceTree = "<group>"; };
+		8EBF02855411F12D3ACCE9E2 /* WorkersMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkersMainView.swift"; sourceTree = "<group>"; };
+		8E57F55B1910840C4F98A132 /* WorkersOnAssistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkersOnAssistView.swift"; sourceTree = "<group>"; };
 		8D9E00010001000100000001 /* AssistTaskModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistTaskModel.swift; sourceTree = "<group>"; };
 		8D9E00010001000100000003 /* AssistToolRouter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistToolRouter.swift; sourceTree = "<group>"; };
 		8D9E00010001000100000005 /* AssistDiffEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistDiffEngine.swift; sourceTree = "<group>"; };
@@ -5116,6 +5158,106 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		8E21D77153ACA44B1BDF41F8 /* Context */ = {
+			isa = PBXGroup;
+			children = (
+				8EDF63C8310BD29FA3725CD4 /* WorkerContextBuilder.swift */,
+				8E0A51BF7AFCE5CAF07D8676 /* WorkerTaskDecomposer.swift */,
+			);
+			path = Context;
+			sourceTree = "<group>";
+		};
+		8E1B50F4E5605A14ABDE2A13 /* Coordination */ = {
+			isa = PBXGroup;
+			children = (
+				8EB120DC19ADC7298CF0CB8E /* WorkerScheduler.swift */,
+			);
+			path = Coordination;
+			sourceTree = "<group>";
+		};
+		8ED7070B0A229B6D74743E6D /* Engine */ = {
+			isa = PBXGroup;
+			children = (
+				8E6C3C0018E1EFACD2F52739 /* WorkerEngine.swift */,
+				8E601F3FF6A6CF0D5BB3BA8A /* WorkerEventBus.swift */,
+				8E6D456B2F94383D968B8AC8 /* WorkerFileTracker.swift */,
+				8EED4B6D6C7D39E008ED0147 /* WorkerRuntimeState.swift */,
+			);
+			path = Engine;
+			sourceTree = "<group>";
+		};
+		8E5620111AF0BF572750F4AB /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				8E3EDACA1831B2DA97BFB826 /* WorkerEvent.swift */,
+				8EC38D0F62781C99CC0270C8 /* WorkerModelSelector.swift */,
+				8E085CF30791B1B7435FD7AF /* WorkerModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		8E57209014D3182D1A591791 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				8EE85E4A3CB85D595FA6A604 /* WorkerPersistenceStore.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		8E54D9C026E347D81D7401BD /* Recovery */ = {
+			isa = PBXGroup;
+			children = (
+				8E1DA8486963DE9E29BF49D1 /* WorkerHandoffCoordinator.swift */,
+				8E11DEFE4BEC3802EF3B919D /* WorkerRecoveryEngine.swift */,
+			);
+			path = Recovery;
+			sourceTree = "<group>";
+		};
+		8E879649B971ADB76D304DC1 /* Review */ = {
+			isa = PBXGroup;
+			children = (
+				8E989E94D283AE868C065B74 /* WorkerRecapGenerator.swift */,
+				8ECB79AA3A51B3A99FEB0038 /* WorkerReviewEngine.swift */,
+			);
+			path = Review;
+			sourceTree = "<group>";
+		};
+		8ED6FEE1462A337C7FD406A1 /* Tools */ = {
+			isa = PBXGroup;
+			children = (
+				8EB8BC88A527548058975032 /* UseWorkersTool.swift */,
+			);
+			path = Tools;
+			sourceTree = "<group>";
+		};
+		8E9EC930C2CECEE9FC01D379 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				8E89768D779B6B9F58B2CE6E /* WorkerStopConfirmationSheet.swift */,
+				8E4EBBCC2041C06D9BF6A578 /* WorkersHeaderButton.swift */,
+				8EC860A8D480F8C05072A31B /* WorkersInfoView.swift */,
+				8EBF02855411F12D3ACCE9E2 /* WorkersMainView.swift */,
+				8E57F55B1910840C4F98A132 /* WorkersOnAssistView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		8ECEC56FDC2B7FB96933295F /* Subagents */ = {
+			isa = PBXGroup;
+			children = (
+				8E21D77153ACA44B1BDF41F8 /* Context */,
+				8E1B50F4E5605A14ABDE2A13 /* Coordination */,
+				8ED7070B0A229B6D74743E6D /* Engine */,
+				8E5620111AF0BF572750F4AB /* Models */,
+				8E57209014D3182D1A591791 /* Persistence */,
+				8E54D9C026E347D81D7401BD /* Recovery */,
+				8E879649B971ADB76D304DC1 /* Review */,
+				8ED6FEE1462A337C7FD406A1 /* Tools */,
+				8E9EC930C2CECEE9FC01D379 /* UI */,
+			);
+			path = Subagents;
+			sourceTree = "<group>";
+		};
 		8F634A921B5F4A988D4E1A2B /* Audio */ = {
 			isa = PBXGroup;
 			children = (
@@ -6984,6 +7126,7 @@
 		8D9EEDCDE1FB450488F4CF12 /* Assist */ = {
 			isa = PBXGroup;
 			children = (
+				8ECEC56FDC2B7FB96933295F /* Subagents */,
 				8D9E00010001000100000001 /* AssistTaskModel.swift */,
 				8D9E00010001000100000003 /* AssistToolRouter.swift */,
 				8D9E00010001000100000005 /* AssistDiffEngine.swift */,
@@ -10167,6 +10310,27 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8E4166F3134063D969CE396C /* WorkerContextBuilder.swift in Sources */,
+				8E5D65C48D9A161B17FB5530 /* WorkerTaskDecomposer.swift in Sources */,
+				8ED63EB6A3941EB0354442EB /* WorkerScheduler.swift in Sources */,
+				8EDBDAD07B29D2F01D5988C2 /* WorkerEngine.swift in Sources */,
+				8E4C3D48C22EF1F20B57F0B3 /* WorkerEventBus.swift in Sources */,
+				8E7ABDA99898EDA22EAB074A /* WorkerFileTracker.swift in Sources */,
+				8EC8C0DF63D4B364F4D76012 /* WorkerRuntimeState.swift in Sources */,
+				8E0E69CD6E58E6F88F27FFC7 /* WorkerEvent.swift in Sources */,
+				8E0EBBA7E3D8D02985DB10B5 /* WorkerModelSelector.swift in Sources */,
+				8EFB3C823EE9651376E35EA5 /* WorkerModels.swift in Sources */,
+				8E03DBB467F75893FCBCF8FA /* WorkerPersistenceStore.swift in Sources */,
+				8ECC2A26E7C1E153D09F94A2 /* WorkerHandoffCoordinator.swift in Sources */,
+				8E20E41E923E96D526CE6D2A /* WorkerRecoveryEngine.swift in Sources */,
+				8E278F144AB51F98B8582952 /* WorkerRecapGenerator.swift in Sources */,
+				8EBF81AB8544F5BE39193537 /* WorkerReviewEngine.swift in Sources */,
+				8EF2DB59CAF6EDA8B26A4140 /* UseWorkersTool.swift in Sources */,
+				8E32DAF8C17BC7E168F968A5 /* WorkerStopConfirmationSheet.swift in Sources */,
+				8E674D3BA52BF075AEACF289 /* WorkersHeaderButton.swift in Sources */,
+				8E31D074B98BF2FA0BF2C510 /* WorkersInfoView.swift in Sources */,
+				8E443BC61EA3E196C90D1526 /* WorkersMainView.swift in Sources */,
+				8E2AFDBA9296CCB125068005 /* WorkersOnAssistView.swift in Sources */,
 				8D9E00010001000100000002 /* AssistTaskModel.swift in Sources */,
 				8D9E00010001000100000004 /* AssistToolRouter.swift in Sources */,
 				8D9E00010001000100000006 /* AssistDiffEngine.swift in Sources */,
