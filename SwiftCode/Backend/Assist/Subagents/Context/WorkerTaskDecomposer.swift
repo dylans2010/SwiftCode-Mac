@@ -160,16 +160,38 @@ public final class WorkerTaskDecomposer: Sendable {
         guard !assignments.isEmpty else { return false }
 
         var names = Set<String>()
+        var allTargetFiles = Set<String>()
         for a in assignments {
             if a.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return false }
             if a.scope.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return false }
             if a.task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return false }
             if a.task.count > 500 { return false }
-            if names.contains(a.name) { return false } // No duplicates (INV-7)
+            if names.contains(a.name) { return false }
             names.insert(a.name)
+
+            let targetFiles = a.targetFiles.map { $0.lowercased() }
+            let overlaps = allTargetFiles.intersection(targetFiles)
+            if !overlaps.isEmpty { return false }
+            allTargetFiles.formUnion(targetFiles)
         }
 
         return true
+    }
+
+    public func assignTargetFiles(
+        to assignment: inout WorkerAssignment,
+        from availableFiles: [String],
+        workspaceRoot: URL
+    ) -> WorkerAssignment {
+        let scopeKeywords = assignment.scope.lowercased().split(separator: " ").map(String.init)
+        let matched = availableFiles.filter { file in
+            let lower = file.lowercased()
+            return scopeKeywords.contains { keyword in
+                lower.contains(keyword) && keyword.count > 2
+            }
+        }
+        assignment.targetFiles = Array(matched.prefix(10))
+        return assignment
     }
 
     private func synthesizeDeterministicBreakdown(for objective: String) -> [WorkerAssignment] {

@@ -1,17 +1,15 @@
 import Foundation
 import os
 
-/// Tracks real filesystem operations and changes during an Assist Worker's execution.
-/// Ensures all file modifications are captured from live disk events (INV-11).
 @MainActor
 public final class WorkerFileTracker: Sendable {
     public static let shared = WorkerFileTracker()
 
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "WorkerFileTracker")
+    private var ownerships: [String: WorkerFileOwnership] = [:]
 
     private init() {}
 
-    /// Records an atomic file mutation executed by a Worker
     public func recordMutation(
         workerID: UUID,
         path: String,
@@ -48,5 +46,70 @@ public final class WorkerFileTracker: Sendable {
 
         WorkerRuntimeState.shared.recordFileChange(id: workerID, change: change)
         logger.info("[Worker \(workerID)] Recorded file \(type.rawValue): \(path) (+\(linesAdded)/-\(linesRemoved))")
+    }
+
+    public func registerOwnership(
+        workerID: UUID,
+        workerName: String,
+        filePath: String,
+        ownershipType: FileOwnershipType
+    ) {
+        let ownership = WorkerFileOwnership(
+            workerID: workerID,
+            workerName: workerName,
+            filePath: filePath,
+            ownershipType: ownershipType
+        )
+        ownerships[filePath] = ownership
+        logger.info("[Worker \(workerName)] Registered \(ownershipType.rawValue) ownership of \(filePath)")
+    }
+
+    public func checkConflict(filePath: String, requestingWorkerID: UUID) -> WorkerFileOwnership? {
+        guard let existing = ownerships[filePath] else { return nil }
+        guard existing.workerID != requestingWorkerID else { return nil }
+        guard existing.ownershipType == .exclusive else { return nil }
+        return existing
+    }
+
+    public func transferOwnership(
+        filePath: String,
+        fromWorkerID: UUID,
+        toWorkerID: UUID,
+        toWorkerName: String
+    ) -> Bool {
+        guard let existing = ownerships[filePath], existing.workerID == fromWorkerID else { return false }
+        ownerships[filePath] = WorkerFileOwnership(
+            workerID: toWorkerID,
+            workerName: toWorkerName,
+            filePath: filePath,
+            ownershipType: existing.ownershipType
+        )
+        logger.info("[Worker \(toWorkerName)] Transferred ownership of \(filePath) from \(fromWorkerID)")
+        return true
+    }
+
+    public func releaseOwnership(filePath: String, workerID: UUID) {
+        guard let existing = ownerships[filePath], existing.workerID == workerID else { return }
+        ownerships.removeValue(forKey: filePath)
+    }
+
+    public func releaseAllOwnerships(workerID: UUID) {
+        ownerships = ownerships.filter { $0.value.workerID != workerID }
+    }
+
+    public func getOwnership(filePath: String) -> WorkerFileOwnership? {
+        ownerships[filePath]
+    }
+
+    public func getFilesOwnedBy(workerID: UUID) -> [String] {
+        ownerships.filter { $0.value.workerID == workerID }.map { $0.key }
+    }
+
+    public func getAllOwnerships() -> [WorkerFileOwnership] {
+        Array(ownerships.values)
+    }
+
+    public func clear() {
+        ownerships.removeAll()
     }
 }

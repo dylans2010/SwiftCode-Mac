@@ -1,8 +1,6 @@
 import Foundation
 import os
 
-/// Executes the autonomous lifecycle of a single Assist Worker.
-/// Runs in isolation with strict scope boundaries (INV-6), executing actions non-conversationally (INV-2).
 @MainActor
 public final class WorkerEngine: Sendable {
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "WorkerEngine")
@@ -10,7 +8,6 @@ public final class WorkerEngine: Sendable {
 
     public init() {}
 
-    /// Runs a worker through its assigned task to completion or failure
     public func execute(
         worker: Worker,
         scopedPrompt: String,
@@ -20,13 +17,12 @@ public final class WorkerEngine: Sendable {
         let workerID = worker.id
         let workerName = worker.name
 
-        // Transition: STARTING -> WORKING
-        WorkerRuntimeState.shared.transitionWorker(id: workerID, to: .starting, reason: "Worker initialized and loading isolated context bundle...")
+        transition(workerID: workerID, from: worker.status, to: .starting, reason: "Worker initialized and loading isolated context bundle...")
+
         try? await Task.sleep(nanoseconds: 100_000_000)
 
-        WorkerRuntimeState.shared.transitionWorker(id: workerID, to: .working, reason: "Executing assigned task: \(worker.task)")
+        transition(workerID: workerID, from: .starting, to: .working, reason: "Executing assigned task: \(worker.task)")
 
-        // Phase: Implementation
         var progress = WorkerProgress(
             narrative: "Executing implementation phase for scope '\(worker.scope)'",
             currentAction: "Inspecting codebase symbols and target files",
@@ -41,7 +37,6 @@ public final class WorkerEngine: Sendable {
         var remainingWork: [String] = []
 
         do {
-            // Check for cooperative cancellation
             if Task.isCancelled || WorkerRuntimeState.shared.workers.first(where: { $0.id == workerID })?.status == .cancelled {
                 return WorkerResult(
                     workerID: workerID,
@@ -54,7 +49,6 @@ public final class WorkerEngine: Sendable {
                 )
             }
 
-            // Step 1: Execution & Tool Interactions
             logger.info("[Worker \(workerName)] Querying model '\(modelID)' for implementation plan...")
             progress.currentAction = "Generating mutations for \(worker.scope)"
             progress.percentage = 0.50
@@ -149,6 +143,12 @@ public final class WorkerEngine: Sendable {
                             default: changeType = .modified
                             }
                             WorkerRuntimeState.shared.recordFileChange(id: workerID, change: WorkerFileChange(path: file, changeType: changeType))
+                            WorkerFileTracker.shared.registerOwnership(
+                                workerID: workerID,
+                                workerName: workerName,
+                                filePath: file,
+                                ownershipType: .exclusive
+                            )
                         }
                         completedWork.append("Executed \(toolId): \(result.output.prefix(200))")
                         conversationHistory.append("- Action: Run \(toolId). Result: SUCCESS - \(result.output.prefix(300))")
@@ -168,13 +168,11 @@ public final class WorkerEngine: Sendable {
                 remainingWork.append(worker.task)
             }
 
-            // Phase: Testing & QA
             progress.phase = .testing
             progress.currentAction = "Reviewing executed changes"
             progress.percentage = 0.75
             WorkerRuntimeState.shared.updateProgress(id: workerID, progress: progress)
 
-            // Phase: Verification
             progress.phase = .verification
             progress.currentAction = "Auditing AST and boundary rules"
             progress.percentage = 0.90
@@ -187,12 +185,7 @@ public final class WorkerEngine: Sendable {
                 w.recap = completedWork
             }
 
-            // Transition: REVIEWING
-            WorkerRuntimeState.shared.transitionWorker(
-                id: workerID,
-                to: .reviewing,
-                reason: "Implementation complete. Awaiting parent Assist review gate."
-            )
+            transition(workerID: workerID, from: .working, to: .reviewing, reason: "Implementation complete. Awaiting parent Assist review gate.")
 
             let result = WorkerResult(
                 workerID: workerID,
@@ -230,11 +223,7 @@ public final class WorkerEngine: Sendable {
                 w.currentAction = "Failed: \(error.localizedDescription)"
             }
 
-            WorkerRuntimeState.shared.transitionWorker(
-                id: workerID,
-                to: .failed,
-                reason: "Execution failure: \(error.localizedDescription)"
-            )
+            transition(workerID: workerID, from: .working, to: .failed, reason: "Execution failure: \(error.localizedDescription)")
 
             return WorkerResult(
                 workerID: workerID,
@@ -246,5 +235,19 @@ public final class WorkerEngine: Sendable {
                 recommendedParentAction: "Repair or reassign remaining scope"
             )
         }
+    }
+
+    private func transition(workerID: UUID, from: WorkerStatus, to: WorkerStatus, reason: String) {
+        guard from.canTransition(to: to) else {
+            logger.warning("[Worker \(workerID)] Invalid transition: \(from.rawValue) -> \(to.rawValue)")
+            return
+        }
+        WorkerRuntimeState.shared.transitionWorker(id: workerID, to: to, reason: reason)
+        WorkerEventBus.shared.publish(WorkerEvent(
+            workerID: workerID,
+            type: .workerStarted,
+            title: "Status Change",
+            details: "\(from.rawValue) -> \(to.rawValue): \(reason)"
+        ))
     }
 }

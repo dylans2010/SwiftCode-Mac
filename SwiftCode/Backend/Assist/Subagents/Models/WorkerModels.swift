@@ -38,34 +38,80 @@ public enum WorkerStatus: String, Codable, Sendable, CaseIterable {
         self == .working
     }
 
-    /// Distinct native SF Symbol for each state (No emoji allowed per INV-14)
+    public var canTransitionTo: [WorkerStatus] {
+        switch self {
+        case .created: return [.queued, .cancelled]
+        case .queued: return [.assigned, .cancelled, .standby]
+        case .assigned: return [.starting, .blocked, .cancelled]
+        case .starting: return [.working, .blocked, .failed, .cancelled]
+        case .working: return [.reviewing, .blocked, .failed, .cancelled, .standby]
+        case .reviewing: return [.completed, .reassigning, .failed, .cancelled]
+        case .standby: return [.queued, .cancelled]
+        case .reassigning: return [.assigned, .failed, .cancelled]
+        case .blocked: return [.working, .failed, .cancelled, .standby]
+        case .completed, .failed, .cancelled: return []
+        }
+    }
+
+    public func canTransition(to newStatus: WorkerStatus) -> Bool {
+        canTransitionTo.contains(newStatus)
+    }
+
     public var sfSymbolName: String {
         switch self {
-        case .created:
-            return "clock"
-        case .queued:
-            return "hourglass"
-        case .assigned:
-            return "person.badge.shield.checkmark"
-        case .starting:
-            return "rays"
-        case .working:
-            return "gearshape.arrow.triangle.2.circlepath"
-        case .reviewing:
-            return "eye.circle"
-        case .completed:
-            return "checkmark.circle.fill"
-        case .standby:
-            return "pause.circle.fill"
-        case .reassigning:
-            return "arrow.triangle.2.circlepath.circle"
-        case .failed:
-            return "xmark.octagon.fill"
-        case .cancelled:
-            return "slash.circle.fill"
-        case .blocked:
-            return "exclamationmark.shield.fill"
+        case .created: return "clock"
+        case .queued: return "hourglass"
+        case .assigned: return "person.badge.shield.checkmark"
+        case .starting: return "rays"
+        case .working: return "gearshape.arrow.triangle.2.circlepath"
+        case .reviewing: return "eye.circle"
+        case .completed: return "checkmark.circle.fill"
+        case .standby: return "pause.circle.fill"
+        case .reassigning: return "arrow.triangle.2.circlepath.circle"
+        case .failed: return "xmark.octagon.fill"
+        case .cancelled: return "slash.circle.fill"
+        case .blocked: return "exclamationmark.shield.fill"
         }
+    }
+}
+
+// MARK: - Worker Lifecycle State Machine
+
+public struct WorkerLifecycleTransition: Codable, Sendable {
+    public let from: WorkerStatus
+    public let to: WorkerStatus
+    public let reason: String
+    public let timestamp: Date
+
+    public init(from: WorkerStatus, to: WorkerStatus, reason: String, timestamp: Date = Date()) {
+        self.from = from
+        self.to = to
+        self.reason = reason
+        self.timestamp = timestamp
+    }
+}
+
+public struct WorkerLifecycleStateMachine: Codable, Sendable {
+    public private(set) var transitions: [WorkerLifecycleTransition] = []
+
+    public init() {}
+
+    public mutating func transition(
+        from: WorkerStatus,
+        to: WorkerStatus,
+        reason: String
+    ) -> Bool {
+        guard from.canTransition(to: to) else { return false }
+        transitions.append(WorkerLifecycleTransition(from: from, to: to, reason: reason))
+        return true
+    }
+
+    public var currentStatus: WorkerStatus? {
+        transitions.last?.to
+    }
+
+    public var transitionCount: Int {
+        transitions.count
     }
 }
 
@@ -284,6 +330,69 @@ public struct WorkerAssignment: Identifiable, Codable, Sendable {
     }
 }
 
+// MARK: - Worker File Ownership
+
+public struct WorkerFileOwnership: Codable, Sendable, Hashable {
+    public let workerID: UUID
+    public let workerName: String
+    public let filePath: String
+    public let ownershipType: FileOwnershipType
+    public let acquiredAt: Date
+
+    public init(
+        workerID: UUID,
+        workerName: String,
+        filePath: String,
+        ownershipType: FileOwnershipType,
+        acquiredAt: Date = Date()
+    ) {
+        self.workerID = workerID
+        self.workerName = workerName
+        self.filePath = filePath
+        self.ownershipType = ownershipType
+        self.acquiredAt = acquiredAt
+    }
+}
+
+public enum FileOwnershipType: String, Codable, Sendable {
+    case exclusive = "Exclusive"
+    case shared = "Shared"
+    case readOnly = "Read-Only"
+}
+
+// MARK: - Worker Context Scope
+
+public struct WorkerContextScope: Codable, Sendable {
+    public let workerID: UUID
+    public let assignmentID: UUID
+    public var relevantFiles: [String]
+    public var relevantRules: [String]
+    public var relevantSkills: [String]
+    public var requiredDependencies: [String]
+    public var parentContextSummary: String
+    public var excludedFiles: [String]
+
+    public init(
+        workerID: UUID,
+        assignmentID: UUID,
+        relevantFiles: [String] = [],
+        relevantRules: [String] = [],
+        relevantSkills: [String] = [],
+        requiredDependencies: [String] = [],
+        parentContextSummary: String = "",
+        excludedFiles: [String] = []
+    ) {
+        self.workerID = workerID
+        self.assignmentID = assignmentID
+        self.relevantFiles = relevantFiles
+        self.relevantRules = relevantRules
+        self.relevantSkills = relevantSkills
+        self.requiredDependencies = requiredDependencies
+        self.parentContextSummary = parentContextSummary
+        self.excludedFiles = excludedFiles
+    }
+}
+
 // MARK: - Worker Result
 
 public struct WorkerResult: Codable, Sendable {
@@ -498,6 +607,9 @@ public struct Worker: Identifiable, Codable, Sendable {
     public var eventHistory: [WorkerEvent]
     public var cancellationReason: String?
     public var result: WorkerResult?
+    public var lifecycleStateMachine: WorkerLifecycleStateMachine
+    public var contextScope: WorkerContextScope?
+    public var fileOwnerships: [WorkerFileOwnership]
 
     public init(
         id: UUID = UUID(),
@@ -529,7 +641,10 @@ public struct Worker: Identifiable, Codable, Sendable {
         recap: [String] = [],
         eventHistory: [WorkerEvent] = [],
         cancellationReason: String? = nil,
-        result: WorkerResult? = nil
+        result: WorkerResult? = nil,
+        lifecycleStateMachine: WorkerLifecycleStateMachine = WorkerLifecycleStateMachine(),
+        contextScope: WorkerContextScope? = nil,
+        fileOwnerships: [WorkerFileOwnership] = []
     ) {
         self.id = id
         self.name = name
@@ -561,6 +676,9 @@ public struct Worker: Identifiable, Codable, Sendable {
         self.eventHistory = eventHistory
         self.cancellationReason = cancellationReason
         self.result = result
+        self.lifecycleStateMachine = lifecycleStateMachine
+        self.contextScope = contextScope
+        self.fileOwnerships = fileOwnerships
     }
 
     /// All files affected by this worker

@@ -34,7 +34,6 @@ public final class WorkerEventBus: Sendable {
     public func emit(_ event: WorkerEvent) {
         logger.info("[WorkerEvent] [\(event.type.rawValue)] \(event.title) - \(event.details)")
 
-        // Post to diagnostic telemetry bus
         DiagnosticEventBus.shared.logEvent(
             component: "WorkerEventBus",
             severity: event.type == .workerFailed ? "ERROR" : "INFO",
@@ -42,14 +41,30 @@ public final class WorkerEventBus: Sendable {
             message: "[\(event.type.rawValue)] \(event.title): \(event.details)"
         )
 
-        // Distribute to all direct subscribers
         for subscriber in subscribers {
             subscriber(event)
         }
 
-        // Distribute to async streams
         for (_, continuation) in continuations {
             continuation.yield(event)
+        }
+    }
+
+    /// Alias for emit — used by WorkerEngine for state transition events
+    public func publish(_ event: WorkerEvent) {
+        emit(event)
+    }
+
+    /// Creates a filtered stream for a specific worker ID
+    public func eventStream(for workerID: UUID) -> AsyncStream<WorkerEvent> {
+        let streamID = UUID()
+        return AsyncStream { continuation in
+            continuations[streamID] = continuation
+            continuation.onTermination = { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.continuations.removeValue(forKey: streamID)
+                }
+            }
         }
     }
 }

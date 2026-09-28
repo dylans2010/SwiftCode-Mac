@@ -146,6 +146,28 @@ public final class WorkerScheduler: Sendable {
             )
         } else {
             self.logger.warning("Worker '\(worker.name)' review status: \(review.status.rawValue)")
+
+            // Attempt recovery for repair-required workers
+            if review.status == .repairRequired {
+                let recoveryError = WorkerError(
+                    code: "REVIEW_REPAIR_REQUIRED",
+                    message: review.issues.joined(separator: "; "),
+                    timestamp: Date()
+                )
+                let recovered = await WorkerRecoveryEngine.shared.attemptRecovery(
+                    for: worker,
+                    error: recoveryError,
+                    assignment: assignment,
+                    context: context
+                )
+                if !recovered {
+                    WorkerRuntimeState.shared.transitionWorker(
+                        id: worker.id,
+                        to: .failed,
+                        reason: "Worker failed review and recovery was unsuccessful."
+                    )
+                }
+            }
         }
 
         return result
