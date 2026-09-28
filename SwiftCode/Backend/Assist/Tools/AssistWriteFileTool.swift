@@ -36,10 +36,32 @@ public struct AssistWriteFileTool: AssistTool {
             let isNewFile = !context.fileSystem.exists(at: path)
             let originalContent = isNewFile ? "" : (try? context.fileSystem.readFile(at: path)) ?? ""
 
+            // Live Diff Streamer: Broadcast edit initiation
+            LiveDiffStreamer.shared.beginEdit(
+                filePath: path,
+                operationType: isNewFile ? .create : .write,
+                beforeContent: originalContent
+            )
+
+            // Live Diff Streamer: Stream in-flight mutation state
+            LiveDiffStreamer.shared.streamMutation(
+                filePath: path,
+                currentContent: content,
+                isFinal: false
+            )
+
             // Write updated content
             try context.fileSystem.writeFile(at: path, content: content)
 
-            // Generate verified Unified Diff
+            // Complete in-flight diff stream
+            LiveDiffStreamer.shared.completeEdit(filePath: path, finalContent: content)
+
+            // Reconcile with verified disk state
+            if let verifiedDisk = try? context.fileSystem.readFile(at: path) {
+                LiveDiffStreamer.shared.reconcileWithDisk(filePath: path, actualDiskContent: verifiedDisk)
+            }
+
+            // Generate verified Unified Diff via Myers algorithm
             let diff = AssistDiffEngine.shared.generateUnifiedDiff(
                 filePath: path,
                 original: originalContent,
@@ -71,6 +93,7 @@ public struct AssistWriteFileTool: AssistTool {
                 afterContent: content
             )
         } catch {
+            LiveDiffStreamer.shared.cancelStream(filePath: path)
             return .failure("Failed to write file at \(path): \(error.localizedDescription)")
         }
     }

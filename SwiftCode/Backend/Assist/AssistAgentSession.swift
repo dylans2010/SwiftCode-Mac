@@ -165,6 +165,32 @@ public final class AssistAgentSession: Sendable {
         AssistManager.shared.hasCodeReviewBeenInvoked = false
         AssistManager.shared.isCodeReviewRunning = false
 
+        // Assist v4: Multi-Goal State & Live Diff initialization
+        let rootProvenance = GoalProvenance(
+            createdReason: "Initial objective requested by user",
+            evidenceTrigger: "Direct user prompt",
+            relationshipToRoot: "Root Goal",
+            generationDepth: 1,
+            timestamp: startDate
+        )
+        let rootGoal = AssistGoal(
+            title: objective,
+            detailedObjective: objective,
+            status: .inProgress,
+            provenance: rootProvenance,
+            expectedOutcome: "Completion and verification of initial objective"
+        )
+        self.state.rootGoal = objective
+        self.state.currentGoal = rootGoal
+        self.state.goalGraph = [rootGoal]
+        self.state.completedGoals = []
+        self.state.pendingGoals = []
+        self.state.rejectedGoals = []
+        self.state.takeoverActive = UserDefaults.standard.bool(forKey: "assist.takeoverEnabled")
+        self.state.isAutonomousExpansion = false
+
+        LiveDiffStreamer.shared.clearAll()
+
         self.contextManager = AgentContextManager(context: context)
 
         // --- STEP 4: DEEP REPOSITORY ANALYSIS & PRE-MODIFICATION ARCHAEOLOGY ---
@@ -432,13 +458,111 @@ public final class AssistAgentSession: Sendable {
 
                 phaseCoordinator.completePhase("PHASE_08_REVIEW", evidence: "Code review passed.")
 
-                // Total contract compliance confirmed!
+                // Update active goal record
+                let currentGoalRef = self.state.currentGoal
+                if var goal = self.state.currentGoal {
+                    goal.status = .completed
+                    goal.completedAt = Date()
+                    goal.executionResult = finalResponse
+                    goal.verificationResult = "Autonomous Completion Contract & Code Review Passed"
+                    goal.filesModified = self.state.changeSummary.modifiedFiles.map { $0.filename } + self.state.changeSummary.createdFiles.map { $0.filename }
+                    self.state.currentGoal = goal
+                    if let idx = self.state.goalGraph.firstIndex(where: { $0.id == goal.id }) {
+                        self.state.goalGraph[idx] = goal
+                    }
+                    if !self.state.completedGoals.contains(where: { $0.id == goal.id }) {
+                        self.state.completedGoals.append(goal)
+                    }
+                }
+
+                // Check for Continuous Multi-Goal Autonomous Takeover
+                let isTakeoverEnabled = UserDefaults.standard.bool(forKey: "assist.takeoverEnabled")
+                self.state.takeoverActive = isTakeoverEnabled
+
+                if isTakeoverEnabled && !self.isCancelled && !Task.isCancelled {
+                    transition(to: .evaluatingGoalExpansion, reason: "Autonomous Takeover: Evaluating follow-up engineering goals...")
+                    _ = phaseCoordinator.startPhase("PHASE_351_GOAL_EXPANSION_AUDIT")
+
+                    let expansionEngine = AssistGoalExpansionEngine()
+                    let modified = self.state.changeSummary.modifiedFiles.map { $0.filename } + self.state.changeSummary.createdFiles.map { $0.filename }
+                    if let current = currentGoalRef {
+                        let candidateGoals = await expansionEngine.expandGoals(
+                            completedGoal: current,
+                            existingGoals: self.state.goalGraph,
+                            rootGoal: self.state.rootGoal.isEmpty ? objective : self.state.rootGoal,
+                            modifiedFiles: modified,
+                            consecutiveFailures: 0
+                        )
+
+                        for newGoal in candidateGoals {
+                            if !self.state.goalGraph.contains(where: { $0.id == newGoal.id }) {
+                                self.state.goalGraph.append(newGoal)
+                                self.state.pendingGoals.append(newGoal)
+                            }
+                        }
+                    }
+
+                    // Check if an actionable pending goal is available
+                    if let nextGoal = self.state.pendingGoals.first(where: { $0.status == .pending }) {
+                        self.state.pendingGoals.removeAll(where: { $0.id == nextGoal.id })
+                        var activeNext = nextGoal
+                        activeNext.status = .inProgress
+                        activeNext.startedAt = Date()
+                        self.state.currentGoal = activeNext
+                        if let idx = self.state.goalGraph.firstIndex(where: { $0.id == activeNext.id }) {
+                            self.state.goalGraph[idx] = activeNext
+                        }
+
+                        self.state.isAutonomousExpansion = true
+                        self.state.objective = activeNext.detailedObjective
+
+                        transition(
+                            to: .transitioningToNextGoal,
+                            reason: "Autonomous Takeover: Transitioning to expanded goal '\(activeNext.title)' [Depth: \(activeNext.provenance.generationDepth)]"
+                        )
+
+                        DiagnosticEventBus.shared.logEvent(
+                            component: "AssistAgentSession",
+                            severity: "INFO",
+                            category: "goal_takeover",
+                            message: "Continuous Takeover: Started expanded goal '\(activeNext.title)'. Rationale: \(activeNext.provenance.createdReason)"
+                        )
+
+                        updateAgentNotes(currentAction: "Started autonomous expanded goal: \(activeNext.title)")
+
+                        // Preserve context across goals while injecting new goal directives
+                        conversationHistory.append("""
+                        - System Directive: Goal '\(currentGoalRef?.title ?? "Previous Goal")' was COMPLETED and VERIFIED.
+                          Continuous Takeover has activated the next validated engineering goal:
+                          Title: "\(activeNext.title)"
+                          Objective: "\(activeNext.detailedObjective)"
+                          Expected Outcome: "\(activeNext.expectedOutcome)"
+                          Rationale: "\(activeNext.provenance.createdReason)"
+                        Formulate your plan and select appropriate tools for this expanded goal.
+                        """)
+
+                        consecutiveNoProgressCycles = 0
+                        codeReviewAttempts = 0
+                        continue
+                    }
+                }
+
+                // Total contract compliance confirmed across all goals!
                 _ = phaseCoordinator.startPhase("PHASE_09_COMPLETION")
                 transition(to: .generatingSummary, reason: "Compiling structured execution statistics and dashboard summary...")
                 let duration = Date().timeIntervalSince(startDate)
                 let reviewerConf = AssistManager.shared.currentCodeReview?.confidence ?? 0.95
+
+                let finalOutcomeSummary: String
+                if self.state.completedGoals.count > 1 {
+                    finalOutcomeSummary = "Completed \(self.state.completedGoals.count) autonomous engineering goals:\n" +
+                        self.state.completedGoals.enumerated().map { "  \($0.offset + 1). \($0.element.title) - \($0.element.executionResult ?? "Done")" }.joined(separator: "\n")
+                } else {
+                    finalOutcomeSummary = finalResponse
+                }
+
                 let summary = ExecutionSummaryData(
-                    objective: objective,
+                    objective: self.state.rootGoal.isEmpty ? objective : self.state.rootGoal,
                     totalDuration: duration,
                     toolCallCount: self.state.toolCallCount,
                     filesCreatedCount: self.state.changeSummary.createdFiles.count,
@@ -446,13 +570,13 @@ public final class AssistAgentSession: Sendable {
                     filesDeletedCount: self.state.changeSummary.deletedFiles.count,
                     validationCount: self.validationCount,
                     reviewerConfidence: reviewerConf,
-                    finalOutcome: finalResponse
+                    finalOutcome: finalOutcomeSummary
                 )
                 self.executionSummary = summary
 
                 transition(to: .completing, reason: "Finalizing task details...")
-                phaseCoordinator.completePhase("PHASE_09_COMPLETION", evidence: "Autonomous Completion Contract Verified! Task completed: \(finalResponse)")
-                transition(to: .terminated, reason: "Autonomous Completion Contract Verified! Task completed: \(finalResponse)")
+                phaseCoordinator.completePhase("PHASE_09_COMPLETION", evidence: "Autonomous Completion Contract Verified! Tasks completed: \(finalOutcomeSummary)")
+                transition(to: .terminated, reason: "Autonomous Completion Contract Verified! Tasks completed: \(finalOutcomeSummary)")
                 NotificationManager.shared.sendAgentTaskFinishedNotification()
                 AlertSoundPlayer.shared.play(.agentResponseReady)
                 return
@@ -549,8 +673,8 @@ public final class AssistAgentSession: Sendable {
 
                     // Refresh file tree if file mutated
                     if ["file_write", "code_refactor", "file_create", "file_append", "patch_apply", "file_delete", "code_replace"].contains(toolId) {
-                        if let project = await ProjectSessionStore.shared.activeProject {
-                            await ProjectSessionStore.shared.refreshFileTree(for: project)
+                        if let project = ProjectSessionStore.shared.activeProject {
+                            ProjectSessionStore.shared.refreshFileTree(for: project)
                         }
                     }
                 } else {
@@ -709,6 +833,13 @@ public final class AssistAgentSession: Sendable {
 
     public func cancel() {
         self.isCancelled = true
+        self.state.takeoverActive = false
+        LiveDiffStreamer.shared.clearAll()
+        for i in 0..<self.state.goalGraph.count {
+            if self.state.goalGraph[i].status == .pending || self.state.goalGraph[i].status == .inProgress {
+                self.state.goalGraph[i].status = .skipped
+            }
+        }
         transition(to: .cancelled, reason: "Operation cancelled by user.")
     }
 

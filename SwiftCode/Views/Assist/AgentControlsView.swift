@@ -41,6 +41,28 @@ public struct AgentControlsView: View {
                     .tint(.orange)
                     .help("Retry the last step")
                 }
+
+                Spacer()
+
+                // Continuous Takeover Toggle Button
+                let isTakeover = UserDefaults.standard.bool(forKey: "assist.takeoverEnabled")
+                Button {
+                    let next = !isTakeover
+                    UserDefaults.standard.set(next, forKey: "assist.takeoverEnabled")
+                    agentSession.state.takeoverActive = next
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: isTakeover ? "infinity.circle.fill" : "infinity.circle")
+                            .foregroundStyle(isTakeover ? .green : .secondary)
+                        Text(isTakeover ? "Takeover Active" : "Takeover Off")
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.bordered)
+                .tint(isTakeover ? .green : .secondary)
+                .help(isTakeover ? "Continuous takeover is active. Click to stop expanding into new goals after this task." : "Enable continuous autonomous multi-goal expansion.")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)

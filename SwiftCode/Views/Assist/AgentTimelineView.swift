@@ -152,6 +152,10 @@ public struct AgentTimelineView: View {
             return .yellow
         case .completed, .finished:
             return .green
+        case .evaluatingGoalExpansion:
+            return .purple
+        case .transitioningToNextGoal:
+            return .teal
         default:
             return .blue
         }
@@ -217,6 +221,12 @@ public struct AgentTimelineView: View {
             return Image(systemName: "nosign")
         case .stalled:
             return Image(systemName: "exclamationmark.triangle.fill")
+        case .evaluatingGoalExpansion:
+            return Image(systemName: "arrow.triangle.branch")
+        case .transitioningToNextGoal:
+            return Image(systemName: "arrow.right.circle.fill")
+        default:
+            return Image(systemName: "circle")
         }
     }
 }

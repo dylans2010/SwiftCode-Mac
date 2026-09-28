@@ -111,7 +111,7 @@ public final class AgentSkillResolver: Sendable {
 
             // Check name, description, and tags against objective tokens
             let nameMatch = lowerObjective.contains(lowerName)
-            let descMatch = skill.tags.contains { tag in lowerObjective.contains(tag.lowercased()) }
+            let descMatch = lowerObjective.contains(lowerDesc) || skill.tags.contains { tag in lowerObjective.contains(tag.lowercased()) }
 
             if nameMatch || descMatch {
                 matched.append(skill)

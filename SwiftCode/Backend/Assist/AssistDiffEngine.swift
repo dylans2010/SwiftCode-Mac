@@ -68,80 +68,9 @@ public final class AssistDiffEngine: Sendable {
 
     public init() {}
 
-    /// Computes a unified diff between two string versions of a file.
+    /// Computes a unified diff between two string versions of a file using Myers Diff.
     public func createUnifiedDiff(filePath: String, oldContent: String, newContent: String) -> UnifiedDiffResult {
-        let oldLines = oldContent.components(separatedBy: "\n")
-        let newLines = newContent.components(separatedBy: "\n")
-
-        let diff = computeLineDifferences(oldLines: oldLines, newLines: newLines)
-
-        var hunks: [DiffHunk] = []
-        var totalAdded = 0
-        var totalRemoved = 0
-
-        var currentHunkLines: [String] = []
-        var oldStart = 1
-        var newStart = 1
-        var oldCount = 0
-        var newCount = 0
-
-        for item in diff {
-            switch item {
-            case .unchanged(let line):
-                if !currentHunkLines.isEmpty {
-                    // Include up to 3 lines of trailing context
-                    currentHunkLines.append(" " + line)
-                    oldCount += 1
-                    newCount += 1
-                    if currentHunkLines.filter({ $0.hasPrefix(" ") }).count >= 3 {
-                        hunks.append(DiffHunk(oldStart: oldStart, oldCount: oldCount, newStart: newStart, newCount: newCount, lines: currentHunkLines))
-                        currentHunkLines = []
-                        oldCount = 0
-                        newCount = 0
-                    }
-                }
-            case .addition(let line):
-                if currentHunkLines.isEmpty {
-                    oldStart = max(1, oldCount)
-                    newStart = max(1, newCount)
-                }
-                currentHunkLines.append("+" + line)
-                newCount += 1
-                totalAdded += 1
-            case .deletion(let line):
-                if currentHunkLines.isEmpty {
-                    oldStart = max(1, oldCount)
-                    newStart = max(1, newCount)
-                }
-                currentHunkLines.append("-" + line)
-                oldCount += 1
-                totalRemoved += 1
-            }
-        }
-
-        if !currentHunkLines.isEmpty {
-            hunks.append(DiffHunk(oldStart: oldStart, oldCount: oldCount, newStart: newStart, newCount: newCount, lines: currentHunkLines))
-        }
-
-        var text = "--- a/\(filePath)\n+++ b/\(filePath)\n"
-        if hunks.isEmpty {
-            text += "(No changes detected)"
-        } else {
-            for hunk in hunks {
-                text += hunk.header + "\n"
-                for line in hunk.lines {
-                    text += line + "\n"
-                }
-            }
-        }
-
-        return UnifiedDiffResult(
-            filePath: filePath,
-            hunks: hunks,
-            addedLines: totalAdded,
-            removedLines: totalRemoved,
-            unifiedText: text
-        )
+        return MyersDiffAlgorithm.shared.computeUnifiedDiff(filePath: filePath, oldContent: oldContent, newContent: newContent, contextLines: 3)
     }
 
     /// Convenience helper returning the unified diff string directly.

@@ -98,6 +98,12 @@ public struct TaskProgressView: View {
             return .red
         case .awaitingApproval, .waitingForUserApproval:
             return .blue
+        case .evaluatingGoalExpansion:
+            return .purple
+        case .transitioningToNextGoal:
+            return .teal
+        default:
+            return .gray
         }
     }
 }

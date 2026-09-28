@@ -251,6 +251,8 @@ public struct AssistMainView: View {
                             if isAgentMode {
                                 CodeAssistUserView()
                                 TaskProgressView(agentSession: manager.agentSession)
+                                ContinuousTakeoverStatusView(agentSession: manager.agentSession)
+                                OfflineFallbackStatusView()
                                 // Inline Execution Plan preview
                                 if !AgentNotesManager.shared.currentNotesMarkdown.isEmpty {
                                     VStack(alignment: .leading, spacing: 6) {
@@ -665,6 +667,12 @@ public struct AssistMainView: View {
             return "Task cancelled."
         case .stalled:
             return "Task execution stalled."
+        case .evaluatingGoalExpansion:
+            return "Evaluating continuous goal expansion..."
+        case .transitioningToNextGoal:
+            return "Transitioning to next autonomous goal..."
+        default:
+            return status.rawValue
         }
     }
 
@@ -1059,21 +1067,169 @@ struct AgentSummaryStatisticsView: View {
     }
 }
 
-// MARK: - Agent Change Summary View
+// MARK: - Continuous Takeover Status View
+
+struct ContinuousTakeoverStatusView: View {
+    let agentSession: AssistAgentSession
+
+    var body: some View {
+        let isTakeover = agentSession.state.takeoverActive || UserDefaults.standard.bool(forKey: "assist.takeoverEnabled")
+        let hasMultipleGoals = agentSession.state.goalGraph.count > 1 || agentSession.state.isAutonomousExpansion
+
+        if isTakeover || hasMultipleGoals {
+            GroupBox {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "infinity.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(isTakeover ? .green : .secondary)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack {
+                                Text("Continuous Multi-Goal Takeover")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.primary)
+
+                                Spacer()
+
+                                Text("Goal \(agentSession.state.completedGoals.count + 1) of \(max(1, agentSession.state.goalGraph.count))")
+                                    .font(.caption2.bold())
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.green.opacity(0.15), in: Capsule())
+                                    .foregroundStyle(.green)
+                            }
+
+                            if let current = agentSession.state.currentGoal {
+                                Text(current.title)
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(2)
+
+                                Text("Reason: \(current.provenance.createdReason)")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                    }
+
+                    if let nextGoal = agentSession.state.pendingGoals.first(where: { $0.status == .pending }) {
+                        HStack(spacing: 4) {
+                            Text("Next Queued:")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            Text(nextGoal.title)
+                                .font(.system(size: 9))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                        }
+                        .padding(.top, 2)
+                    }
+
+                    HStack {
+                        Spacer()
+                        Button {
+                            UserDefaults.standard.set(false, forKey: "assist.takeoverEnabled")
+                            agentSession.state.takeoverActive = false
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "stop.circle")
+                                Text("Stop Takeover After Goal")
+                            }
+                            .font(.system(size: 10, weight: .medium))
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.orange)
+                        .controlSize(.mini)
+                    }
+                }
+                .padding(6)
+            }
+            .groupBoxStyle(ModernGroupBoxStyle())
+            .padding(.horizontal, 12)
+        }
+    }
+}
+
+// MARK: - Offline Model Fallback Status View
+
+struct OfflineFallbackStatusView: View {
+    @Bindable private var fallbackManager = OfflineFallbackManager.shared
+
+    var body: some View {
+        if fallbackManager.isActive, let state = fallbackManager.currentState {
+            GroupBox {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "bolt.horizontal.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.orange)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack {
+                                Text("Local Offline Model Fallback Active")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.orange)
+                                Spacer()
+                                Text("\(state.requestsHandled) turns handled")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Text("Operating via \(state.fallbackModel)")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.primary)
+
+                            Text("Remote disconnected: \(state.reason.rawValue)")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    HStack(spacing: 6) {
+                        Label("Context Preserved", systemImage: "checkmark.seal.fill")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.green)
+
+                        Spacer()
+
+                        Label("On-Device Private", systemImage: "lock.shield.fill")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.blue)
+                    }
+                    .padding(.top, 2)
+                }
+                .padding(6)
+            }
+            .groupBoxStyle(ModernGroupBoxStyle())
+            .padding(.horizontal, 12)
+        }
+    }
+}
+
+// MARK: - Agent Change Summary View (Live Myers Diff Streamer)
 
 struct AgentChangeSummaryView: View {
     let agentSession: AssistAgentSession
     @State private var isExpanded = true
+    @State private var selectedDiffFile: String?
 
     var body: some View {
+        let streamer = LiveDiffStreamer.shared
+        let activeStreams = streamer.activeStreams
+        let recentEdits = streamer.recentEdits
         let summary = agentSession.state.changeSummary
+
+        let hasLiveEdits = !activeStreams.isEmpty || !recentEdits.isEmpty
         let hasChanges = !summary.modifiedFiles.isEmpty ||
                           !summary.createdFiles.isEmpty ||
                           !summary.deletedFiles.isEmpty ||
                           !summary.renamedFiles.isEmpty ||
                           !summary.movedFiles.isEmpty ||
                           !summary.configChanges.isEmpty ||
-                          !summary.toolActivities.isEmpty
+                          !summary.toolActivities.isEmpty ||
+                          hasLiveEdits
 
         if !hasChanges {
             EmptyView()
@@ -1083,6 +1239,36 @@ struct AgentChangeSummaryView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Divider()
                             .padding(.vertical, 4)
+
+                        // 1. IN-FLIGHT LIVE MYERS DIFF STREAMER
+                        if hasLiveEdits {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    HStack(spacing: 5) {
+                                        Circle()
+                                            .fill(!activeStreams.isEmpty ? Color.green : Color.blue)
+                                            .frame(width: 8, height: 8)
+                                        Text(!activeStreams.isEmpty ? "Live In-Flight Myers Diff" : "Reconciled File Diffs")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(!activeStreams.isEmpty ? .green : .blue)
+                                    }
+                                    Spacer()
+                                    Text("\(activeStreams.count + recentEdits.count) files")
+                                        .font(.caption2.bold())
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                // List of in-flight / recent file diff cards
+                                let allEdits = Array(activeStreams.values) + recentEdits.filter { activeStreams[$0.filePath] == nil }
+                                ForEach(allEdits) { edit in
+                                    liveDiffCard(edit: edit)
+                                }
+                            }
+                            .padding(.bottom, 6)
+
+                            Divider()
+                                .padding(.vertical, 2)
+                        }
 
                         if !summary.createdFiles.isEmpty {
                             changeSection(title: "Created Files", icon: "doc.badge.plus", color: .green, items: summary.createdFiles)
@@ -1150,9 +1336,17 @@ struct AgentChangeSummaryView: View {
                     HStack {
                         Image(systemName: "checklist.checked")
                             .foregroundStyle(.green)
-                        Text("Repository Changes Summary")
+                        Text("Live Repository Changes & Diffs")
                             .font(.subheadline.bold())
                         Spacer()
+                        if !activeStreams.isEmpty {
+                            Text("STREAMING")
+                                .font(.system(size: 8, weight: .black))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.green, in: Capsule())
+                                .foregroundStyle(.black)
+                        }
                     }
                 }
                 .padding(4)
@@ -1160,6 +1354,92 @@ struct AgentChangeSummaryView: View {
             .groupBoxStyle(ModernGroupBoxStyle())
             .padding(.horizontal, 12)
         }
+    }
+
+    private func liveDiffCard(edit: LiveFileEditEvent) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                // Operation badge
+                Text(edit.operationType.rawValue.uppercased())
+                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color.secondary.opacity(0.2), in: RoundedRectangle(cornerRadius: 3))
+                    .foregroundStyle(.secondary)
+
+                Text(edit.filePath)
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                // Addition / Deletion badges
+                if edit.addedLineCount > 0 {
+                    Text("+\(edit.addedLineCount)")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.green)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Color.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 3))
+                }
+                if edit.deletedLineCount > 0 {
+                    Text("-\(edit.deletedLineCount)")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Color.red.opacity(0.12), in: RoundedRectangle(cornerRadius: 3))
+                }
+
+                // In-Flight / Reconciled status
+                if !edit.isFinal {
+                    Text("IN-FLIGHT")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.orange)
+                } else if edit.isReconciled {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.blue)
+                        .help("Reconciled with disk state")
+                }
+            }
+
+            // Expandable unified diff hunks
+            if !edit.hunks.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(edit.hunks) { hunk in
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(hunk.header)
+                                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                .foregroundStyle(Color.accentColor)
+                                .padding(.vertical, 1)
+
+                            ForEach(hunk.lines.prefix(12), id: \.self) { line in
+                                Text(line)
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundStyle(line.hasPrefix("+") ? Color.green : (line.hasPrefix("-") ? Color.red : Color.secondary))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 4)
+                                    .background(line.hasPrefix("+") ? Color.green.opacity(0.08) : (line.hasPrefix("-") ? Color.red.opacity(0.08) : Color.clear))
+                            }
+                            if hunk.lines.count > 12 {
+                                Text("... +\(hunk.lines.count - 12) more lines")
+                                    .font(.system(size: 8, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.leading, 8)
+                            }
+                        }
+                    }
+                }
+                .padding(6)
+                .background(Color(NSColor.textBackgroundColor).opacity(0.5))
+                .cornerRadius(6)
+            }
+        }
+        .padding(8)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
     }
 
     private func changeSection(title: String, icon: String, color: Color, items: [FileChangeItem]) -> some View {

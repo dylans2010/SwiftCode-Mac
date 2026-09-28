@@ -1,60 +1,223 @@
 import Foundation
+import os
 
-/// Automatically generates follow-up goals and expands task scope beyond the original request.
-/// Enables true autonomous operation by continuously generating new work.
+/// Automatically evaluates completed tasks, generates logical follow-up goals,
+/// enforces anti-runaway safeguards, and expands task scope under continuous autonomous takeover.
 @MainActor
-public final class AssistGoalExpansionEngine {
-    private let context: AssistContext
+public final class AssistGoalExpansionEngine: Sendable {
+    private let logger = Logger(subsystem: "com.swiftcode.app", category: "AssistGoalExpansionEngine")
 
-    public init(context: AssistContext) {
-        self.context = context
+    public init() {}
+    public init(context: AssistContext) {}
+
+    /// Backward-compatible overload for legacy Assist engine workflows.
+    public func expandGoals(
+        originalGoal: String,
+        completedPlan: AssistExecutionPlan? = nil
+    ) async -> [String] {
+        let dummyCompleted = AssistGoal(
+            title: originalGoal,
+            detailedObjective: originalGoal,
+            status: .completed,
+            provenance: GoalProvenance(
+                createdReason: "Initial plan execution",
+                evidenceTrigger: "Completed plan",
+                relationshipToRoot: "Root goal",
+                parentGoalId: nil,
+                generationDepth: 0,
+                timestamp: Date()
+            ),
+            dependencies: [],
+            expectedOutcome: "Successful plan execution"
+        )
+
+        var modifiedFiles: [String] = []
+        if let plan = completedPlan {
+            for step in plan.steps {
+                if let file = step.input["path"] ?? step.input["filePath"] ?? step.input["targetFile"] {
+                    modifiedFiles.append(file)
+                }
+            }
+        }
+
+        let expanded = await expandGoals(
+            completedGoal: dummyCompleted,
+            existingGoals: [dummyCompleted],
+            rootGoal: originalGoal,
+            modifiedFiles: modifiedFiles
+        )
+
+        return expanded.map { $0.title }
     }
 
-    /// Generates expanded goals based on the completed task
-    public func expandGoals(originalGoal: String, completedPlan: AssistExecutionPlan) async -> [String] {
-        await context.logger.info("Expanding goals from completed task: \(originalGoal)", toolId: "GoalExpansion")
+    /// Generates structured follow-up goals based on a completed goal and repository observations.
+    public func expandGoals(
+        completedGoal: AssistGoal,
+        existingGoals: [AssistGoal],
+        rootGoal: String,
+        modifiedFiles: [String],
+        consecutiveFailures: Int = 0
+    ) async -> [AssistGoal] {
+        logger.info("[GoalExpansion] Evaluating expansion candidates from completed goal: '\(completedGoal.title)'")
 
-        let providerRawValue = UserDefaults.standard.string(forKey: "assist.selectedProvider") ?? AssistModelProvider.openAI.rawValue
-        let provider = AssistModelProvider(rawValue: providerRawValue) ?? .openAI
-        let apiKey = await APIKeyManager.shared.retrieveKey(service: provider.apiKeyProvider)
+        let currentDepth = completedGoal.provenance.generationDepth + 1
+
+        // Check if safeguards prevent further expansion before prompting
+        if existingGoals.count >= AssistGoalSafeguards.maxTotalExpandedGoals || currentDepth > AssistGoalSafeguards.maxDepth {
+            logger.warning("[GoalExpansion] Safeguards limit reached. Halting autonomous expansion.")
+            return []
+        }
+
+        // Try AI-driven candidate generation first
+        var candidatePairs: [(title: String, objective: String, reason: String, expected: String)] = []
 
         let prompt = """
-        \(AssistAgenticPrompt.systemPrompt)
+        # CONTINUOUS AUTONOMOUS TAKEOVER: GOAL EXPANSION
+        Root User Goal: "\(rootGoal)"
+        Just Completed Goal: "\(completedGoal.title)"
+        Modified Files: \(modifiedFiles.joined(separator: ", "))
 
-        # GOAL EXPANSION TASK
-        Original goal: "\(originalGoal)"
+        You are the autonomous engineering coordinator.
+        Suggest 1 to 2 strictly necessary follow-up engineering goals that naturally complete this work.
+        Valid expansion categories:
+        1. Unit Test Coverage: Adding unit tests for the modified files.
+        2. Documentation: Adding DocC or README architecture notes for newly introduced interfaces.
+        3. Edge Case Hardening: Adding input validation, concurrency safety, or error handling.
 
-        The task has been completed. Generate 3-5 logical follow-up tasks that would improve or extend this work.
-
-        Examples of expansion:
-        - If a view was created, add authentication, validation, or persistence
-        - If a service was created, add error handling, logging, or tests
-        - If a feature was implemented, add UI improvements, optimization, or documentation
-
-        Return JSON array ONLY:
-        ["follow-up task 1", "follow-up task 2", "follow-up task 3"]
+        Respond ONLY with a JSON array formatted exactly like:
+        [
+          {
+            "title": "Add Unit Tests for <Component>",
+            "objective": "Write comprehensive unit tests covering edge cases and happy path for <Component>",
+            "reason": "Ensure regression prevention for recently created/modified files",
+            "expectedOutcome": "All test assertions pass cleanly with zero compiler warnings"
+          }
+        ]
         """
 
-        let response = await AssistLLMService.generateResponse(prompt: prompt, provider: provider, apiKey: apiKey)
-
-        if response.success {
-            return parseGoals(from: response.content)
-        } else {
-            await context.logger.warning("Goal expansion failed, no follow-ups generated", toolId: "GoalExpansion")
-            return []
+        do {
+            let activeModel = AssistModelManager.shared.selectedModelID
+            let response = try await AgentModelAdapter.shared.queryModel(prompt: prompt, modelId: activeModel, maxRetries: 1)
+            candidatePairs = parseGoalCandidates(from: response)
+        } catch {
+            logger.warning("[GoalExpansion] Model query for expansion failed or offline: \(error.localizedDescription). Falling back to deterministic synthesis.")
         }
+
+        // Fallback: Deterministic engineering synthesis if model output is unavailable
+        if candidatePairs.isEmpty {
+            candidatePairs = synthesizeDeterministicCandidates(
+                completedGoal: completedGoal,
+                modifiedFiles: modifiedFiles
+            )
+        }
+
+        var validatedGoals: [AssistGoal] = []
+
+        for candidate in candidatePairs {
+            let validation = AssistGoalSafeguards.validateCandidate(
+                candidateTitle: candidate.title,
+                candidateObjective: candidate.objective,
+                existingGoals: existingGoals + validatedGoals,
+                rootGoal: rootGoal,
+                depth: currentDepth,
+                consecutiveFailures: consecutiveFailures
+            )
+
+            if validation.isValid {
+                let provenance = GoalProvenance(
+                    createdReason: candidate.reason,
+                    evidenceTrigger: "Completed goal '\(completedGoal.title)' with \(modifiedFiles.count) modified files",
+                    relationshipToRoot: "Extends root task '\(rootGoal)' with necessary engineering completion",
+                    parentGoalId: completedGoal.id,
+                    generationDepth: currentDepth,
+                    timestamp: Date()
+                )
+
+                let newGoal = AssistGoal(
+                    title: candidate.title,
+                    detailedObjective: candidate.objective,
+                    status: .pending,
+                    provenance: provenance,
+                    dependencies: [completedGoal.id],
+                    expectedOutcome: candidate.expected
+                )
+
+                validatedGoals.append(newGoal)
+                logger.info("[GoalExpansion] Validated new goal: '\(newGoal.title)' (Depth: \(currentDepth))")
+
+                DiagnosticEventBus.shared.logEvent(
+                    component: "AssistGoalExpansionEngine",
+                    severity: "INFO",
+                    category: "goal_expansion",
+                    message: "Synthesized valid follow-up goal: '\(newGoal.title)'"
+                )
+            } else {
+                logger.info("[GoalExpansion] Rejected candidate '\(candidate.title)': \(validation.rejectionReason ?? "unknown")")
+            }
+        }
+
+        return validatedGoals
     }
 
-    private func parseGoals(from content: String) -> [String] {
-        var jsonStr = content
-        if let range = content.range(of: "\\[.*\\]", options: .regularExpression) {
-            jsonStr = String(content[range])
+    /// Deterministic heuristics for continuous engineering when LLM is unavailable or offline.
+    private func synthesizeDeterministicCandidates(
+        completedGoal: AssistGoal,
+        modifiedFiles: [String]
+    ) -> [(title: String, objective: String, reason: String, expected: String)] {
+        var candidates: [(title: String, objective: String, reason: String, expected: String)] = []
+
+        let swiftFiles = modifiedFiles.filter { $0.hasSuffix(".swift") && !$0.contains("Test") }
+
+        // Heuristic 1: Add Unit Tests
+        if !swiftFiles.isEmpty {
+            let primaryFile = (swiftFiles.first as NSString?)?.lastPathComponent ?? "Component"
+            let componentName = primaryFile.replacingOccurrences(of: ".swift", with: "")
+
+            candidates.append((
+                title: "Add Unit Tests for \(componentName)",
+                objective: "Implement automated unit tests validating functional requirements and boundary conditions for \(componentName).",
+                reason: "Modified files require test coverage to verify stability.",
+                expected: "All unit tests compile and pass successfully."
+            ))
         }
 
-        guard let data = jsonStr.data(using: .utf8),
-              let goals = try? JSONDecoder().decode([String].self, from: data) else {
-            return []
+        // Heuristic 2: Architecture Documentation
+        if candidates.isEmpty && !modifiedFiles.isEmpty {
+            candidates.append((
+                title: "Document Architecture and Interface Contracts",
+                objective: "Add DocC and documentation comments for public interfaces modified during the task.",
+                reason: "Maintain codebase clarity and documentation integrity.",
+                expected: "Documentation comments complete with clean formatting."
+            ))
         }
-        return goals
+
+        return candidates
+    }
+
+    private func parseGoalCandidates(from response: String) -> [(title: String, objective: String, reason: String, expected: String)] {
+        guard let data = response.data(using: .utf8) else { return [] }
+
+        // Attempt array decode
+        if let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+            return array.compactMap { dict in
+                guard let title = dict["title"] as? String,
+                      let obj = dict["objective"] as? String else { return nil }
+                let reason = dict["reason"] as? String ?? "Follow-up required"
+                let expected = dict["expectedOutcome"] as? String ?? "Goal verified"
+                return (title, obj, reason, expected)
+            }
+        }
+
+        // Check for markdown code fences
+        if let jsonBlock = AgentModelAdapter.shared.extractJSON(from: response) {
+            if let title = jsonBlock["title"] as? String,
+               let obj = jsonBlock["objective"] as? String {
+                let reason = jsonBlock["reason"] as? String ?? "Follow-up required"
+                let expected = jsonBlock["expectedOutcome"] as? String ?? "Goal verified"
+                return [(title, obj, reason, expected)]
+            }
+        }
+
+        return []
     }
 }

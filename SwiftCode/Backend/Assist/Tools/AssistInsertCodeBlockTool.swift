@@ -17,17 +17,25 @@ public struct AssistInsertCodeBlockTool: AssistTool {
 
         do {
             let content = try context.fileSystem.readFile(at: path)
+            LiveDiffStreamer.shared.beginEdit(
+                filePath: path,
+                operationType: .insert,
+                beforeContent: content
+            )
+
             let insertionMode = (input["mode"] as? String ?? "line").lowercased()
             let updated: String
 
             switch insertionMode {
             case "before":
                 guard let pattern = input["pattern"] as? String else {
+                    LiveDiffStreamer.shared.cancelStream(filePath: path)
                     return .failure("Missing required parameter for before mode: pattern")
                 }
                 updated = AssistCodeFunctions.insertBefore(in: content, pattern: pattern, insert: code)
             case "after":
                 guard let pattern = input["pattern"] as? String else {
+                    LiveDiffStreamer.shared.cancelStream(filePath: path)
                     return .failure("Missing required parameter for after mode: pattern")
                 }
                 updated = AssistCodeFunctions.insertAfter(in: content, pattern: pattern, insert: code)
@@ -39,9 +47,13 @@ public struct AssistInsertCodeBlockTool: AssistTool {
                 updated = lines.joined(separator: "\n")
             }
 
+            LiveDiffStreamer.shared.streamMutation(filePath: path, currentContent: updated, isFinal: false)
             try context.fileSystem.writeFile(at: path, content: updated)
+            LiveDiffStreamer.shared.completeEdit(filePath: path, finalContent: updated)
+
             return .success("Code block inserted into \(path)")
         } catch {
+            LiveDiffStreamer.shared.cancelStream(filePath: path)
             return .failure("Failed to insert code into \(path): \(error.localizedDescription)")
         }
     }

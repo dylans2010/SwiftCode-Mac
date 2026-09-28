@@ -21,6 +21,9 @@ public enum AgentSessionStatus: String, Codable, Sendable {
     case completing = "Completing"
     case terminated = "Terminated"
 
+    case evaluatingGoalExpansion = "Evaluating Goal Expansion"
+    case transitioningToNextGoal = "Transitioning to Expanded Goal"
+
     // Backward compatibility cases
     case initializing = "Initializing"
     case understandingRequest = "Understanding Request"
@@ -148,6 +151,16 @@ public final class AgentSessionState: Sendable {
     public var events: [AgentEvent] = []
     public var stateHistory: [StateTransition] = []
     public var changeSummary = AgentChangeSummary()
+
+    // MARK: - Assist v4 Continuous Takeover & Multi-Goal State
+    public var rootGoal: String = ""
+    public var currentGoal: AssistGoal?
+    public var goalGraph: [AssistGoal] = []
+    public var completedGoals: [AssistGoal] = []
+    public var pendingGoals: [AssistGoal] = []
+    public var rejectedGoals: [String] = []
+    public var takeoverActive: Bool = false
+    public var isAutonomousExpansion: Bool = false
 
     public init() {}
 }

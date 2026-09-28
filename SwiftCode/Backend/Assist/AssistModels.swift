@@ -504,3 +504,173 @@ public final class AssistModelFilter {
         disabledModelIDs = current
     }
 }
+
+// MARK: - Assist v4 Continuous Multi-Goal Autonomous Takeover Models
+
+public enum GoalStatus: String, Codable, Sendable {
+    case pending = "Pending"
+    case inProgress = "In Progress"
+    case completed = "Completed"
+    case failed = "Failed"
+    case rejected = "Rejected"
+    case skipped = "Skipped"
+}
+
+public struct GoalProvenance: Codable, Sendable {
+    public let createdReason: String
+    public let evidenceTrigger: String
+    public let relationshipToRoot: String
+    public let parentGoalId: UUID?
+    public let generationDepth: Int
+    public let timestamp: Date
+
+    public init(
+        createdReason: String,
+        evidenceTrigger: String,
+        relationshipToRoot: String,
+        parentGoalId: UUID? = nil,
+        generationDepth: Int = 1,
+        timestamp: Date = Date()
+    ) {
+        self.createdReason = createdReason
+        self.evidenceTrigger = evidenceTrigger
+        self.relationshipToRoot = relationshipToRoot
+        self.parentGoalId = parentGoalId
+        self.generationDepth = generationDepth
+        self.timestamp = timestamp
+    }
+}
+
+public struct AssistGoal: Identifiable, Codable, Sendable {
+    public let id: UUID
+    public let title: String
+    public let detailedObjective: String
+    public var status: GoalStatus
+    public let provenance: GoalProvenance
+    public var dependencies: [UUID]
+    public var expectedOutcome: String
+    public var executionResult: String?
+    public var verificationResult: String?
+    public var filesModified: [String]
+    public var startedAt: Date?
+    public var completedAt: Date?
+
+    public init(
+        id: UUID = UUID(),
+        title: String,
+        detailedObjective: String,
+        status: GoalStatus = .pending,
+        provenance: GoalProvenance,
+        dependencies: [UUID] = [],
+        expectedOutcome: String,
+        executionResult: String? = nil,
+        verificationResult: String? = nil,
+        filesModified: [String] = [],
+        startedAt: Date? = nil,
+        completedAt: Date? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.detailedObjective = detailedObjective
+        self.status = status
+        self.provenance = provenance
+        self.dependencies = dependencies
+        self.expectedOutcome = expectedOutcome
+        self.executionResult = executionResult
+        self.verificationResult = verificationResult
+        self.filesModified = filesModified
+        self.startedAt = startedAt
+        self.completedAt = completedAt
+    }
+}
+
+/// Evaluates candidates against runaway autonomous expansion safeguards.
+public struct AssistGoalSafeguards: Sendable {
+    public static let maxDepth = 5
+    public static let maxTotalExpandedGoals = 8
+    public static let maxConsecutiveFailures = 2
+
+    /// Validates candidate goals against all safety constraints.
+    public static func validateCandidate(
+        candidateTitle: String,
+        candidateObjective: String,
+        existingGoals: [AssistGoal],
+        rootGoal: String,
+        depth: Int,
+        consecutiveFailures: Int
+    ) -> (isValid: Bool, rejectionReason: String?) {
+        // 1. Circuit breaker on repeated failures
+        if consecutiveFailures >= maxConsecutiveFailures {
+            return (false, "Safeguard Triggered: Repeated verification failure circuit breaker active (\(consecutiveFailures) consecutive failures).")
+        }
+
+        // 2. Goal Explosion: Generation Depth
+        if depth > maxDepth {
+            return (false, "Safeguard Triggered: Goal tree depth (\(depth)) exceeds maximum allowed depth (\(maxDepth)).")
+        }
+
+        // 3. Goal Explosion: Total Count
+        if existingGoals.count >= maxTotalExpandedGoals {
+            return (false, "Safeguard Triggered: Total expanded goal limit (\(maxTotalExpandedGoals)) reached.")
+        }
+
+        let normalizedCandidate = candidateTitle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        // 4. Duplicate / Circular Goal Detection
+        for existing in existingGoals {
+            let normalizedExisting = existing.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if normalizedCandidate == normalizedExisting {
+                return (false, "Safeguard Triggered: Duplicate goal detected ('\(candidateTitle)').")
+            }
+
+            // Word overlap / token similarity
+            let candTokens = Set(normalizedCandidate.split(separator: " "))
+            let existTokens = Set(normalizedExisting.split(separator: " "))
+            let intersection = candTokens.intersection(existTokens)
+            if candTokens.count >= 3 && intersection.count >= candTokens.count - 1 {
+                return (false, "Safeguard Triggered: Repetitive/near-identical goal detected ('\(candidateTitle)').")
+            }
+        }
+
+        // 5. Unrelated Work Safeguard (Grounding check)
+        let rootTokens = Set(rootGoal.lowercased().split(separator: " ").filter { $0.count > 3 })
+        let candTokens = Set(candidateObjective.lowercased().split(separator: " ").filter { $0.count > 3 })
+
+        // Check if candidate shares domain context or common engineering actions
+        let commonEngineeringVerbs = ["test", "verify", "lint", "doc", "document", "error", "guard", "robust", "refactor", "benchmark", "spec", "clean"]
+        let hasEngineeringLink = candidateObjective.lowercased().split(separator: " ").contains { commonEngineeringVerbs.contains(String($0)) }
+        let hasRootDomainOverlap = !rootTokens.intersection(candTokens).isEmpty
+
+        if !hasEngineeringLink && !hasRootDomainOverlap {
+            return (false, "Safeguard Triggered: Goal lacks semantic alignment with root task ('\(candidateTitle)').")
+        }
+
+        return (true, nil)
+    }
+}
+
+public struct MultiGoalSessionSummary: Codable, Sendable {
+    public let rootGoal: String
+    public let goals: [AssistGoal]
+    public let totalGoalsCompleted: Int
+    public let totalDuration: TimeInterval
+    public let totalFilesModified: Int
+    public let overallOutcome: String
+
+    public init(
+        rootGoal: String,
+        goals: [AssistGoal],
+        totalGoalsCompleted: Int,
+        totalDuration: TimeInterval,
+        totalFilesModified: Int,
+        overallOutcome: String
+    ) {
+        self.rootGoal = rootGoal
+        self.goals = goals
+        self.totalGoalsCompleted = totalGoalsCompleted
+        self.totalDuration = totalDuration
+        self.totalFilesModified = totalFilesModified
+        self.overallOutcome = overallOutcome
+    }
+}
+

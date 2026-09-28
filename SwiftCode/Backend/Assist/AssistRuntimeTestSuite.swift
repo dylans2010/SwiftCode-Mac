@@ -59,6 +59,9 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(await testAgentRepositoryScannerScopePrecedence())
         results.append(await testAgentModelAdapterCapabilityNegotiationAndJSONRepair())
         results.append(await testAgentTerminalServiceDeveloperDirResolution())
+        results.append(await testContinuousMultiGoalTakeoverSafeguards())
+        results.append(await testMyersDiffAlgorithmAndLiveStreamer())
+        results.append(await testOfflineModelFallbackClassificationAndRehydration())
 
         let duration = Date().timeIntervalSince(startTime)
         let passed = results.filter { $0.passed }.count
@@ -452,6 +455,176 @@ public final class AssistRuntimeTestSuite: Sendable {
             testName: "Terminal Developer Directory Resolution",
             passed: isValid,
             message: isValid ? "Resolved valid developer dir: \\(devDir)" : "Invalid developer dir resolved: \\(devDir)",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 15. Continuous Multi-Goal Autonomous Takeover Safeguards
+    public func testContinuousMultiGoalTakeoverSafeguards() async -> RuntimeTestCaseResult {
+        let start = Date()
+
+        let rootGoal = "Refactor project networking architecture"
+        let parentGoal = AssistGoal(
+            title: "Implement NetworkSession actor",
+            detailedObjective: "Create actor-isolated networking layer",
+            status: .completed,
+            provenance: GoalProvenance(
+                createdReason: "Initial plan",
+                evidenceTrigger: "User request",
+                relationshipToRoot: "Direct child",
+                parentGoalId: nil,
+                generationDepth: 0,
+                timestamp: Date()
+            ),
+            dependencies: [],
+            expectedOutcome: "Actor compiles"
+        )
+
+        // 1. Valid candidate should pass
+        let valid = AssistGoalSafeguards.validateCandidate(
+            candidateTitle: "Add Unit Tests for NetworkSession",
+            candidateObjective: "Write comprehensive unit tests for NetworkSession",
+            existingGoals: [parentGoal],
+            rootGoal: rootGoal,
+            depth: 1,
+            consecutiveFailures: 0
+        )
+
+        // 2. Duplicate title should fail
+        let duplicate = AssistGoalSafeguards.validateCandidate(
+            candidateTitle: "Implement NetworkSession actor",
+            candidateObjective: "Re-implement the same actor",
+            existingGoals: [parentGoal],
+            rootGoal: rootGoal,
+            depth: 1,
+            consecutiveFailures: 0
+        )
+
+        // 3. Unrelated goal should fail
+        let unrelated = AssistGoalSafeguards.validateCandidate(
+            candidateTitle: "Write a cooking recipe for pasta",
+            candidateObjective: "Unrelated culinary text",
+            existingGoals: [parentGoal],
+            rootGoal: rootGoal,
+            depth: 1,
+            consecutiveFailures: 0
+        )
+
+        // 4. Excessive depth should fail
+        let tooDeep = AssistGoalSafeguards.validateCandidate(
+            candidateTitle: "Deeply nested subtask",
+            candidateObjective: "Subtask at excessive depth",
+            existingGoals: [parentGoal],
+            rootGoal: rootGoal,
+            depth: AssistGoalSafeguards.maxDepth + 1,
+            consecutiveFailures: 0
+        )
+
+        // 5. Consecutive failures threshold should fail
+        let failureStall = AssistGoalSafeguards.validateCandidate(
+            candidateTitle: "Another follow up",
+            candidateObjective: "Another attempt after multiple failures",
+            existingGoals: [parentGoal],
+            rootGoal: rootGoal,
+            depth: 1,
+            consecutiveFailures: AssistGoalSafeguards.maxConsecutiveFailures
+        )
+
+        let passed = valid.isValid &&
+                     !duplicate.isValid &&
+                     !unrelated.isValid &&
+                     !tooDeep.isValid &&
+                     !failureStall.isValid
+
+        return RuntimeTestCaseResult(
+            testName: "Continuous Multi-Goal Takeover Safeguards",
+            passed: passed,
+            message: passed ? "All 5 takeover safeguards (valid, duplicate, relevance, depth, failures) enforced." : "Takeover safeguard validation failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 16. Myers O(ND) Diff Engine & Live Streamer
+    public func testMyersDiffAlgorithmAndLiveStreamer() async -> RuntimeTestCaseResult {
+        let start = Date()
+
+        let oldText = "func calculate() -> Int {\n    let a = 1\n    return a\n}"
+        let newText = "func calculate() -> Int {\n    let a = 1\n    let b = 2\n    return a + b\n}"
+
+        // Compute Myers unified diff
+        let diffResult = MyersDiffAlgorithm.shared.computeUnifiedDiff(
+            filePath: "Sources/Math.swift",
+            oldContent: oldText,
+            newContent: newText,
+            contextLines: 2
+        )
+        let diff = diffResult.unifiedText
+
+        let hasHeader = diff.contains("--- a/Sources/Math.swift") && diff.contains("+++ b/Sources/Math.swift")
+        let hasHunk = diff.contains("@@")
+        let hasInsertion = diff.contains("+    let b = 2")
+        let hasReplacement = diff.contains("-    return a") && diff.contains("+    return a + b")
+
+        // Live Diff Streamer integration
+        let streamer = LiveDiffStreamer.shared
+        streamer.beginEdit(filePath: "Sources/Math.swift", operationType: .write, beforeContent: oldText)
+        streamer.streamMutation(filePath: "Sources/Math.swift", currentContent: newText, isFinal: true)
+        streamer.completeEdit(filePath: "Sources/Math.swift", finalContent: newText)
+
+        let recent = streamer.recentEdits
+        let streamerRecorded = recent.contains { $0.filePath == "Sources/Math.swift" && $0.addedLineCount >= 1 }
+
+        let passed = hasHeader && hasHunk && hasInsertion && hasReplacement && streamerRecorded
+
+        return RuntimeTestCaseResult(
+            testName: "Myers Diff & In-Flight Streamer",
+            passed: passed,
+            message: passed ? "Myers O(ND) algorithm and LiveDiffStreamer validated with hunks and counts." : "Myers diff or streamer verification failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 17. Offline Model Fallback Classification & Context Rehydration
+    public func testOfflineModelFallbackClassificationAndRehydration() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let manager = OfflineFallbackManager.shared
+
+        // 1. Classification tests
+        let dnsError = NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotFindHost, userInfo: nil)
+        let dnsClassification = manager.classify(error: dnsError)
+        let dnsMatches = dnsClassification == .dnsFailure
+
+        let timeoutError = NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut, userInfo: nil)
+        let timeoutClassification = manager.classify(error: timeoutError)
+        let timeoutMatches = timeoutClassification == .connectionTimeout
+
+        // 2. Resolve fallback model
+        let localFallback = manager.selectBestLocalFallback()
+        let hasFallback = !localFallback.modelId.isEmpty
+
+        // 3. Fallback state recording and deactivation
+        let testState = ModelFallbackState(
+            primaryModel: "claude-3-5-sonnet",
+            fallbackModel: localFallback.displayName,
+            reason: .dnsFailure,
+            errorDetails: "DNS lookup failed",
+            activatedAt: Date(),
+            contextRehydrated: true,
+            continuationSuccessful: true,
+            requestsHandled: 1
+        )
+        manager.currentState = testState
+        let isFallbackActive = manager.isActive
+
+        manager.deactivateFallback(reason: "Unit test cleanup")
+        let isDeactivated = !manager.isActive
+
+        let passed = dnsMatches && timeoutMatches && hasFallback && isFallbackActive && isDeactivated
+
+        return RuntimeTestCaseResult(
+            testName: "Offline Model Fallback & Classification",
+            passed: passed,
+            message: passed ? "Network failure classification, fallback resolution, and state tracking verified." : "Offline fallback verification failed.",
             duration: Date().timeIntervalSince(start)
         )
     }

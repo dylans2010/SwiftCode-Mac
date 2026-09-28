@@ -222,11 +222,251 @@ public final class AgentModelAdapter: Sendable {
                     continue
                 }
 
-                // If non-retryable, rethrow immediately
+                // Check for offline connectivity / transport failure and trigger local fallback
+                if OfflineFallbackManager.shared.isFallbackPermitted {
+                    logger.warning("Remote model query failed. Routing to Offline Fallback Provider...")
+                    return try await OfflineFallbackManager.shared.handleFallbackQuery(
+                        prompt: prompt,
+                        originalModelId: modelId,
+                        error: error
+                    )
+                }
+
+                // If fallback not permitted, rethrow immediately
                 throw error
             }
+        }
+
+        if let finalErr = lastError, OfflineFallbackManager.shared.isFallbackPermitted {
+            logger.warning("Retries exhausted for remote model query. Triggering Offline Fallback Provider...")
+            return try await OfflineFallbackManager.shared.handleFallbackQuery(
+                prompt: prompt,
+                originalModelId: modelId,
+                error: finalErr
+            )
         }
 
         throw lastError ?? NSError(domain: "AgentModelAdapter", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed after \(maxRetries) attempts."])
     }
 }
+
+// MARK: - Assist v4 Offline Model Fallback Provider
+
+public enum ModelFailureClassification: String, Codable, Sendable {
+    case networkInterruption = "Network Interruption"
+    case dnsFailure = "DNS Resolution Failure"
+    case connectionTimeout = "Connection Timeout"
+    case providerOutage = "Remote Provider Outage"
+    case transportFailure = "Transport Protocol Failure"
+    case quotaExhaustion = "Remote Quota Exhausted"
+    case missingCredentials = "Credentials Unavailable"
+    case unknown = "Unknown Failure"
+}
+
+public struct ModelFallbackState: Identifiable, Codable, Sendable {
+    public let id: UUID
+    public let primaryModel: String
+    public let fallbackModel: String
+    public let reason: ModelFailureClassification
+    public let errorDetails: String
+    public let activatedAt: Date
+    public var deactivatedAt: Date?
+    public var contextRehydrated: Bool
+    public var continuationSuccessful: Bool
+    public var requestsHandled: Int
+
+    public init(
+        id: UUID = UUID(),
+        primaryModel: String,
+        fallbackModel: String,
+        reason: ModelFailureClassification,
+        errorDetails: String,
+        activatedAt: Date = Date(),
+        deactivatedAt: Date? = nil,
+        contextRehydrated: Bool = true,
+        continuationSuccessful: Bool = true,
+        requestsHandled: Int = 1
+    ) {
+        self.id = id
+        self.primaryModel = primaryModel
+        self.fallbackModel = fallbackModel
+        self.reason = reason
+        self.errorDetails = errorDetails
+        self.activatedAt = activatedAt
+        self.deactivatedAt = deactivatedAt
+        self.contextRehydrated = contextRehydrated
+        self.continuationSuccessful = continuationSuccessful
+        self.requestsHandled = requestsHandled
+    }
+}
+
+@Observable
+@MainActor
+public final class OfflineFallbackManager: Sendable {
+    public static let shared = OfflineFallbackManager()
+    private let logger = Logger(subsystem: "com.swiftcode.app", category: "OfflineFallbackManager")
+
+    public var isActive: Bool {
+        return currentState != nil && currentState?.deactivatedAt == nil
+    }
+
+    public var currentState: ModelFallbackState?
+    public var fallbackHistory: [ModelFallbackState] = []
+
+    public var isFallbackPermitted: Bool {
+        get {
+            let key = "assist.offlineFallbackEnabled"
+            if UserDefaults.standard.object(forKey: key) == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: key)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "assist.offlineFallbackEnabled")
+        }
+    }
+
+    public init() {}
+
+    public func classify(error: Error) -> ModelFailureClassification {
+        let nsError = error as NSError
+        let desc = error.localizedDescription.lowercased()
+
+        if nsError.domain == NSURLErrorDomain && (nsError.code == NSURLErrorCannotFindHost || nsError.code == NSURLErrorDNSLookupFailed) {
+            return .dnsFailure
+        }
+        if desc.contains("cannot find host") || desc.contains("dns") || desc.contains("nodename nor servname provided") {
+            return .dnsFailure
+        }
+
+        if nsError.domain == NSURLErrorDomain && (nsError.code == NSURLErrorTimedOut) {
+            return .connectionTimeout
+        }
+        if desc.contains("timed out") || desc.contains("timeout") {
+            return .connectionTimeout
+        }
+
+        if nsError.domain == NSURLErrorDomain && (
+            nsError.code == NSURLErrorNotConnectedToInternet ||
+            nsError.code == NSURLErrorNetworkConnectionLost ||
+            nsError.code == NSURLErrorCannotConnectToHost
+        ) {
+            return .networkInterruption
+        }
+        if desc.contains("not connected to internet") || desc.contains("connection lost") || desc.contains("offline") {
+            return .networkInterruption
+        }
+
+        if desc.contains("500") || desc.contains("502") || desc.contains("503") || desc.contains("504") || desc.contains("bad gateway") || desc.contains("service unavailable") {
+            return .providerOutage
+        }
+
+        if desc.contains("429") || desc.contains("quota exceeded") || desc.contains("rate limit") {
+            return .quotaExhaustion
+        }
+
+        if desc.contains("api key") || desc.contains("missing credentials") || nsError.code == 401 {
+            return .missingCredentials
+        }
+
+        return .unknown
+    }
+
+    public func selectBestLocalFallback() -> (modelId: String, displayName: String) {
+        if FoundationModels.shared.isEnabled {
+            let model = FoundationModels.shared.selectedModel
+            return (model.rawValue, "Apple Foundation Models (\(model.rawValue))")
+        }
+        return (AppleFoundationModel.afm3Core.rawValue, "Apple Foundation Models (On-Device AFM 3 Core)")
+    }
+
+    public func handleFallbackQuery(
+        prompt: String,
+        originalModelId: String,
+        error: Error
+    ) async throws -> String {
+        let classification = classify(error: error)
+        let localCandidate = selectBestLocalFallback()
+
+        logger.warning("[Fallback] Triggering offline fallback for \(originalModelId) due to \(classification.rawValue): \(error.localizedDescription)")
+
+        if var active = currentState, active.deactivatedAt == nil {
+            active.requestsHandled += 1
+            currentState = active
+        } else {
+            let newState = ModelFallbackState(
+                primaryModel: originalModelId,
+                fallbackModel: localCandidate.displayName,
+                reason: classification,
+                errorDetails: error.localizedDescription,
+                activatedAt: Date(),
+                contextRehydrated: true,
+                continuationSuccessful: true,
+                requestsHandled: 1
+            )
+            currentState = newState
+            fallbackHistory.append(newState)
+
+            DiagnosticEventBus.shared.logEvent(
+                component: "OfflineFallbackManager",
+                severity: "WARNING",
+                category: "fallback_transition",
+                message: "Remote connection lost (\(classification.rawValue)). Switched to local fallback: \(localCandidate.displayName). Context preserved."
+            )
+        }
+
+        let originalFMEnabled = FoundationModels.shared.isEnabled
+        FoundationModels.shared.isEnabled = true
+        defer {
+            FoundationModels.shared.isEnabled = originalFMEnabled
+        }
+
+        let rehydratedPrompt = rehydratePromptForLocalContext(prompt: prompt)
+
+        do {
+            let response = try await FoundationModels.shared.generatePrivateResponse(prompt: rehydratedPrompt)
+            logger.info("[Fallback] Local fallback successfully generated response (\(response.count) chars)")
+            return response
+        } catch {
+            logger.error("[Fallback] Local fallback query failed: \(error.localizedDescription)")
+            currentState?.continuationSuccessful = false
+            throw error
+        }
+    }
+
+    private func rehydratePromptForLocalContext(prompt: String) -> String {
+        if prompt.count <= 16_000 {
+            return prompt
+        }
+
+        var compactPrompt = prompt
+        if let historyStart = prompt.range(of: "# HISTORY OF RECENT TOOL EXECUTION RESULTS"),
+           let activeFilesStart = prompt.range(of: "# ACTIVE FILE CONTENTS") {
+            let sub = prompt[historyStart.lowerBound..<activeFilesStart.lowerBound]
+            if sub.count > 4000 {
+                let recentPortion = String(sub.suffix(2000))
+                compactPrompt = prompt.replacingOccurrences(
+                    of: String(sub),
+                    with: "# HISTORY OF RECENT TOOL EXECUTION RESULTS (COMPACTED)\n[Prior steps truncated for local model buffer]\n" + recentPortion
+                )
+            }
+        }
+
+        return compactPrompt
+    }
+
+    public func deactivateFallback(reason: String = "Remote connectivity restored") {
+        guard var active = currentState, active.deactivatedAt == nil else { return }
+        active.deactivatedAt = Date()
+        currentState = active
+
+        logger.info("[Fallback] Deactivated fallback: \(reason)")
+        DiagnosticEventBus.shared.logEvent(
+            component: "OfflineFallbackManager",
+            severity: "INFO",
+            category: "fallback_recovery",
+            message: "Restored primary remote model: \(active.primaryModel). Reason: \(reason)"
+        )
+    }
+}
+

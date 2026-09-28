@@ -44,6 +44,13 @@ public struct AssistReplaceInFileTool: AssistTool {
         do {
             let original = try context.fileSystem.readFile(at: path)
 
+            // Live Diff Streamer: Broadcast edit initiation
+            LiveDiffStreamer.shared.beginEdit(
+                filePath: path,
+                operationType: .replace,
+                beforeContent: original
+            )
+
             // Execute verified targeted replacement with strict conflict checking
             let modified = try AssistDiffEngine.shared.applyTargetedReplacement(
                 source: original,
@@ -53,10 +60,25 @@ public struct AssistReplaceInFileTool: AssistTool {
                 filePath: path
             )
 
+            // Live Diff Streamer: Stream in-flight mutation state
+            LiveDiffStreamer.shared.streamMutation(
+                filePath: path,
+                currentContent: modified,
+                isFinal: false
+            )
+
             // Save modified content
             try context.fileSystem.writeFile(at: path, content: modified)
 
-            // Generate unified diff
+            // Complete in-flight diff stream
+            LiveDiffStreamer.shared.completeEdit(filePath: path, finalContent: modified)
+
+            // Reconcile with verified disk state
+            if let verifiedDisk = try? context.fileSystem.readFile(at: path) {
+                LiveDiffStreamer.shared.reconcileWithDisk(filePath: path, actualDiskContent: verifiedDisk)
+            }
+
+            // Generate unified diff via Myers algorithm
             let diff = AssistDiffEngine.shared.generateUnifiedDiff(
                 filePath: path,
                 original: original,
@@ -86,6 +108,7 @@ public struct AssistReplaceInFileTool: AssistTool {
                 afterContent: modified
             )
         } catch let conflict as DiffConflictError {
+            LiveDiffStreamer.shared.cancelStream(filePath: path)
             switch conflict {
             case .targetNotFound(let snippet, let file):
                 return .failure("Target snippet not found in '\(file)'. Please re-read the file with 'file_read' to inspect the exact existing lines before attempting replacement. Target snippet was: '\(snippet)'")
@@ -95,6 +118,7 @@ public struct AssistReplaceInFileTool: AssistTool {
                 return .failure("File '\(file)' state changed unexpectedly on disk during operation.")
             }
         } catch {
+            LiveDiffStreamer.shared.cancelStream(filePath: path)
             return .failure("Failed to replace in file at \(path): \(error.localizedDescription)")
         }
     }
