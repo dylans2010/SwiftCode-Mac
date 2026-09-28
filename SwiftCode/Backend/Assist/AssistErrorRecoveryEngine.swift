@@ -1,14 +1,142 @@
 import Foundation
 import os
 
-// MARK: - Assist v3 Autonomous Error Recovery Engine
+// MARK: - Recovery Domains & Scoped Recovery Budgets
+
+public enum RecoveryDomain: String, Codable, Sendable, CaseIterable {
+    case tool = "Tool Recovery"
+    case model = "Model Recovery"
+    case build = "Build Recovery"
+    case test = "Test Recovery"
+    case worker = "Worker Recovery"
+    case network = "Network Recovery"
+    case file = "File Recovery"
+    case context = "Context Recovery"
+}
+
+public struct ToolValidationResult: Sendable {
+    public let isValid: Bool
+    public let issue: String?
+    public let correctedInput: [String: Any]?
+
+    public init(isValid: Bool, issue: String? = nil, correctedInput: [String: Any]? = nil) {
+        self.isValid = isValid
+        self.issue = issue
+        self.correctedInput = correctedInput
+    }
+}
+
+// MARK: - Assist Autonomous Error Recovery Engine
 
 @MainActor
 public final class AssistErrorRecoveryEngine: Sendable {
     public static let shared = AssistErrorRecoveryEngine()
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "AssistErrorRecoveryEngine")
 
-    private init() {}
+    // Domain-scoped recovery attempt counters capped strictly at 5 (never 6/5)
+    private var domainCounters: [RecoveryDomain: Int] = [:]
+    private var activeSessionFailures: [TaskFailure] = []
+    private var signatureCounts: [String: Int] = [:]
+    private var previousToolCalls: [String: String] = [:] // Signature to output hash
+
+    private init() {
+        resetSession()
+    }
+
+    public func resetSession() {
+        domainCounters.removeAll()
+        for domain in RecoveryDomain.allCases {
+            domainCounters[domain] = 0
+        }
+        activeSessionFailures.removeAll()
+        signatureCounts.removeAll()
+        previousToolCalls.removeAll()
+    }
+
+    /// Checks if recovery is allowed under the domain budget without exceeding 5 attempts.
+    public func canAttemptRecovery(domain: RecoveryDomain, maxAllowed: Int = 5) -> Bool {
+        let current = domainCounters[domain, default: 0]
+        return current < maxAllowed
+    }
+
+    /// Increments and returns the bounded attempt number guaranteed to never exceed maxAllowed (e.g. 1/5 .. 5/5).
+    public func recordRecoveryAttempt(domain: RecoveryDomain, maxAllowed: Int = 5) -> (attemptNumber: Int, maxAllowed: Int, allowed: Bool) {
+        let current = domainCounters[domain, default: 0]
+        if current >= maxAllowed {
+            logger.warning("Recovery budget exhausted for domain \(domain.rawValue): \(current)/\(maxAllowed)")
+            return (maxAllowed, maxAllowed, false)
+        }
+
+        let next = min(current + 1, maxAllowed)
+        domainCounters[domain] = next
+        logger.info("Recorded recovery attempt for \(domain.rawValue): \(next)/\(maxAllowed)")
+        return (next, maxAllowed, true)
+    }
+
+    /// Pre-execution tool validation to prevent schema errors from consuming generic task repair budget.
+    public func validateToolCall(
+        toolId: String,
+        input: [String: Any],
+        registry: AssistToolRegistry
+    ) -> ToolValidationResult {
+        // 1. Tool availability
+        guard registry.getTool(toolId) != nil else {
+            return ToolValidationResult(isValid: false, issue: "Tool '\(toolId)' is not registered or available in current environment.")
+        }
+
+        var mutableInput = input
+
+        // 2. Validate path requirements if tool expects a path
+        let pathKeys = ["path", "filepath", "target", "filePath", "source", "destination"]
+        for key in pathKeys {
+            if let pathVal = mutableInput[key] as? String {
+                let trimmed = pathVal.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.hasPrefix("/") || trimmed.contains("..") {
+                    // Pre-correct invalid path traversal or absolute root path
+                    let cleaned = trimmed.replacingOccurrences(of: "../", with: "")
+                                        .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                    mutableInput[key] = cleaned
+                    logger.info("Auto-corrected parameter '\(key)' from '\(pathVal)' to '\(cleaned)'")
+                    return ToolValidationResult(
+                        isValid: true,
+                        issue: "Auto-corrected relative path",
+                        correctedInput: mutableInput
+                    )
+                }
+            }
+        }
+
+        // 3. Tool specific schema checks
+        if toolId == "file_write" || toolId == "file_create" {
+            if mutableInput["path"] == nil && mutableInput["filepath"] != nil {
+                mutableInput["path"] = mutableInput["filepath"]
+            }
+            if mutableInput["path"] == nil {
+                return ToolValidationResult(isValid: false, issue: "Missing required parameter 'path' for tool \(toolId)")
+            }
+        }
+
+        if toolId == "code_replace" || toolId == "replace_in_file" {
+            if mutableInput["targetText"] == nil && mutableInput["target_text"] != nil {
+                mutableInput["targetText"] = mutableInput["target_text"]
+            }
+            if mutableInput["replacementText"] == nil && mutableInput["replacement_text"] != nil {
+                mutableInput["replacementText"] = mutableInput["replacement_text"]
+            }
+        }
+
+        return ToolValidationResult(isValid: true, issue: nil, correctedInput: mutableInput)
+    }
+
+    /// Detects if an exact duplicate tool call with identical arguments failed previously.
+    public func isIdenticalFailure(toolId: String, input: [String: Any], error: String) -> Bool {
+        let callSignature = "\(toolId)::\(input.description)"
+        if let prevError = previousToolCalls[callSignature], prevError == error {
+            return true
+        }
+        previousToolCalls[callSignature] = error
+        return false
+    }
 
     /// Classifies an error message into a structured FailureCategory.
     public func classify(message: String, exitCode: Int? = nil) -> FailureCategory {
@@ -40,7 +168,6 @@ public final class AssistErrorRecoveryEngine: Sendable {
 
     /// Computes a normalized error signature to detect repetitions and thrashing.
     public func computeSignature(category: FailureCategory, message: String) -> String {
-        // Strip out line numbers, timestamps, and memory addresses to normalize
         let cleaned = message
             .replacingOccurrences(of: "0x[0-9a-fA-F]+", with: "ADDR", options: .regularExpression)
             .replacingOccurrences(of: ":\\d+:\\d+:", with: ":LINE:COL:", options: .regularExpression)
@@ -68,7 +195,6 @@ public final class AssistErrorRecoveryEngine: Sendable {
         )
         task.failures.append(failure)
 
-        // Count occurrences of this exact signature
         let signatureCount = task.failures.filter { $0.signature == signature }.count
         let isThrashing = signatureCount >= task.budgets.maxRepeatedFailures
 
@@ -127,16 +253,6 @@ public final class AssistErrorRecoveryEngine: Sendable {
             hypothesis: hypothesis,
             strategy: strategy
         )
-    }
-
-    // MARK: - Session-Scoped Recovery State
-
-    private var activeSessionFailures: [TaskFailure] = []
-    private var signatureCounts: [String: Int] = [:]
-
-    public func resetSession() {
-        activeSessionFailures.removeAll()
-        signatureCounts.removeAll()
     }
 
     @discardableResult

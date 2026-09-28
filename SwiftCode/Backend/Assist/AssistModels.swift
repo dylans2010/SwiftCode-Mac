@@ -343,13 +343,15 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
     public var attachments: [AgentFileContext]?
     public var mcpExecution: MCPExecutionMetadata?
     public var composioExecution: ComposioExecutionMetadata?
+    public var activityGroup: AssistActivityGroup?
 
     public init(
         role: AssistRole,
         content: String,
         attachments: [AgentFileContext]? = nil,
         mcpExecution: MCPExecutionMetadata? = nil,
-        composioExecution: ComposioExecutionMetadata? = nil
+        composioExecution: ComposioExecutionMetadata? = nil,
+        activityGroup: AssistActivityGroup? = nil
     ) {
         self.id = UUID()
         self.role = role
@@ -358,6 +360,7 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
         self.attachments = attachments
         self.mcpExecution = mcpExecution
         self.composioExecution = composioExecution
+        self.activityGroup = activityGroup
     }
 }
 
