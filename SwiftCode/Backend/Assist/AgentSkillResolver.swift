@@ -42,14 +42,23 @@ public struct DiscoveredSkill: Identifiable, Codable, Sendable, Hashable {
 
 // MARK: - Agent Skill Resolver
 
-public final class AgentSkillResolver: Sendable {
+public final class AgentSkillResolver: @unchecked Sendable {
     public static let shared = AgentSkillResolver()
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "AgentSkillResolver")
+
+    private var lastSkillScan: (root: String, timestamp: Date, skills: [DiscoveredSkill])?
 
     private init() {}
 
     /// Recursively discovers all available skills in workspace, configuration roots, and bundled resources.
     public func discoverSkills(in workspaceRoot: URL) async -> [DiscoveredSkill] {
+        let rootKey = workspaceRoot.standardizedFileURL.resolvingSymlinksInPath().path
+        if let cached = lastSkillScan,
+           cached.root == rootKey,
+           Date().timeIntervalSince(cached.timestamp) < 10.0 {
+            return cached.skills
+        }
+
         var results: [DiscoveredSkill] = []
         let fileManager = FileManager.default
 
@@ -77,6 +86,7 @@ public final class AgentSkillResolver: Sendable {
             message: "Discovered \(results.count) available skills across workspace and bundle."
         )
 
+        lastSkillScan = (root: rootKey, timestamp: Date(), skills: results)
         return results
     }
 

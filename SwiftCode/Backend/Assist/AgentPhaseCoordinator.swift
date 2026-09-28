@@ -489,14 +489,21 @@ public final class AgentPhaseCoordinator: Sendable {
 
     public var phases: [TaskPhase] = []
     public var activePhaseId: String?
+    private var phaseIndexCache: [String: Int] = [:]
 
     public init() {
         self.phases = StandardEngineeringPhases.defaultLifecycle()
+        rebuildIndexCache()
     }
 
     public func reset(with customPhases: [TaskPhase]? = nil) {
         self.phases = customPhases ?? StandardEngineeringPhases.defaultLifecycle()
         self.activePhaseId = nil
+        rebuildIndexCache()
+    }
+
+    private func rebuildIndexCache() {
+        phaseIndexCache = Dictionary(uniqueKeysWithValues: phases.enumerated().map { ($0.element.phaseId, $0.offset) })
     }
 
     public var activePhase: TaskPhase? {
@@ -539,10 +546,18 @@ public final class AgentPhaseCoordinator: Sendable {
 
     private func resolvePhaseIndex(for phaseId: String) -> Int {
         let canonical = canonicalPhaseId(for: phaseId)
+        if let idx = phaseIndexCache[canonical] {
+            return idx
+        }
+        if let idx = phaseIndexCache[phaseId] {
+            return idx
+        }
         if let idx = phases.firstIndex(where: { $0.phaseId == canonical || $0.phaseId == phaseId }) {
+            phaseIndexCache[canonical] = idx
             return idx
         }
         if let idx = phases.firstIndex(where: { $0.phaseId.contains(phaseId) || phaseId.contains($0.phaseId) }) {
+            phaseIndexCache[canonical] = idx
             return idx
         }
         let newPhase = TaskPhase(
@@ -551,6 +566,7 @@ public final class AgentPhaseCoordinator: Sendable {
             description: "Dynamically registered phase: \(phaseId)"
         )
         phases.append(newPhase)
+        phaseIndexCache[phaseId] = phases.count - 1
         return phases.count - 1
     }
 

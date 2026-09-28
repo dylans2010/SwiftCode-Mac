@@ -121,7 +121,7 @@ public struct AssistActivityView: View {
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.tertiary)
 
-            VStack(alignment: .leading, spacing: 4) {
+            LazyVStack(alignment: .leading, spacing: 4) {
                 ForEach(activityGroup.tools) { tool in
                     HStack(spacing: 8) {
                         Image(systemName: tool.status.iconName)
@@ -166,7 +166,7 @@ public struct AssistActivityView: View {
                     .foregroundStyle(.blue)
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            LazyVStack(alignment: .leading, spacing: 4) {
                 ForEach(activityGroup.files) { file in
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
@@ -235,7 +235,7 @@ public struct AssistActivityView: View {
     }
 
     private var terminalSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        LazyVStack(alignment: .leading, spacing: 6) {
             Text("Terminal")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.tertiary)
@@ -267,7 +267,7 @@ public struct AssistActivityView: View {
     }
 
     private var buildsSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        LazyVStack(alignment: .leading, spacing: 6) {
             Text("Build")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.tertiary)
@@ -288,7 +288,7 @@ public struct AssistActivityView: View {
     }
 
     private var testsSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        LazyVStack(alignment: .leading, spacing: 6) {
             Text("Tests")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.tertiary)
@@ -308,7 +308,7 @@ public struct AssistActivityView: View {
     }
 
     private var workersSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        LazyVStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text("Workers")
                     .font(.system(size: 10, weight: .bold))
@@ -344,7 +344,7 @@ public struct AssistActivityView: View {
     }
 
     private var recoverySection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        LazyVStack(alignment: .leading, spacing: 6) {
             Text("Recovery")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.tertiary)
@@ -376,7 +376,7 @@ public struct AssistActivityView: View {
     }
 
     private var verificationsSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        LazyVStack(alignment: .leading, spacing: 6) {
             Text("Verification")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.tertiary)

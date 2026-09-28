@@ -60,49 +60,119 @@ public final class WorkerEngine: Sendable {
             progress.percentage = 0.50
             WorkerRuntimeState.shared.updateProgress(id: workerID, progress: progress)
 
+            let toolSchemas = registry.getToolSchemas().compactMap { schema -> String? in
+                guard let name = schema["name"] as? String, let desc = schema["description"] as? String else { return nil }
+                return "- \(name): \(desc)"
+            }.joined(separator: "\n")
+
             let fullPrompt = """
             \(scopedPrompt)
 
-            Begin execution of your assigned task now. Output JSON tool call or completion.
+            # AVAILABLE TOOLS
+            \(toolSchemas)
+
+            Begin execution of your assigned task now. Respond with JSON only:
+            { "toolId": "...", "input": { "key": "value" }, "explanation": "..." }
+            or { "finalResponse": "summary of completed work" }
             """
 
-            var responseText = ""
-            do {
-                responseText = try await LLMService.shared.generateResponse(prompt: fullPrompt, useContext: false, modelOverride: modelID)
-            } catch {
-                logger.warning("[Worker \(workerName)] Model query error: \(error.localizedDescription). Attempting recovery.")
-                // Attempt fallback model
-                if let fallback = WorkerModelSelector.shared.fallbackModel(for: modelID) {
-                    WorkerRuntimeState.shared.updateWorker(id: workerID) { w in
-                        w.modelUsed = fallback
+            var conversationHistory: [String] = []
+            var currentModel = modelID
+            var loopIterations = 0
+            let maxLoopIterations = 10
+            var finalResponse: String?
+
+            while loopIterations < maxLoopIterations {
+                loopIterations += 1
+
+                if Task.isCancelled || WorkerRuntimeState.shared.workers.first(where: { $0.id == workerID })?.status == .cancelled {
+                    return WorkerResult(
+                        workerID: workerID,
+                        workerName: workerName,
+                        summary: "Worker was cancelled before completion.",
+                        completedWork: completedWork,
+                        knownIssues: ["Cancelled by user"],
+                        remainingWork: [worker.task],
+                        recommendedParentAction: "Review stopped state"
+                    )
+                }
+
+                var responseText = ""
+                do {
+                    responseText = try await LLMService.shared.generateResponse(prompt: fullPrompt + "\n\n# RECENT RESULTS\n" + conversationHistory.suffix(6).joined(separator: "\n"), useContext: false, modelOverride: currentModel)
+                } catch {
+                    logger.warning("[Worker \(workerName)] Model query error: \(error.localizedDescription). Attempting recovery.")
+                    if let fallback = WorkerModelSelector.shared.fallbackModel(for: currentModel) {
+                        WorkerRuntimeState.shared.updateWorker(id: workerID) { w in
+                            w.modelUsed = fallback
+                        }
+                        currentModel = fallback
+                        responseText = (try? await LLMService.shared.generateResponse(prompt: fullPrompt + "\n\n# RECENT RESULTS\n" + conversationHistory.suffix(6).joined(separator: "\n"), useContext: false, modelOverride: fallback)) ?? ""
                     }
-                    responseText = (try? await LLMService.shared.generateResponse(prompt: fullPrompt, useContext: false, modelOverride: fallback)) ?? ""
+                }
+
+                guard !responseText.isEmpty else {
+                    conversationHistory.append("- System note: empty model response")
+                    continue
+                }
+
+                guard let jsonBlock = AgentModelAdapter.shared.extractJSON(from: responseText) else {
+                    conversationHistory.append("- System note: invalid JSON response. Respond with a tool call or finalResponse.")
+                    continue
+                }
+
+                if let final = jsonBlock["finalResponse"] as? String {
+                    finalResponse = final
+                    break
+                }
+
+                guard let toolId = jsonBlock["toolId"] as? String,
+                      let toolInput = jsonBlock["input"] as? [String: Any] else {
+                    conversationHistory.append("- System note: response missing 'toolId' or 'input'.")
+                    continue
+                }
+
+                guard let tool = registry.getTool(toolId) else {
+                    conversationHistory.append("- Action: Run \(toolId). Result: FAILED - Tool '\(toolId)' not found.")
+                    continue
+                }
+
+                do {
+                    let result = try await tool.execute(input: toolInput, context: context)
+                    if result.success {
+                        for file in result.filesChanged {
+                            let changeType: FileChangeType
+                            switch toolId {
+                            case "file_create": changeType = .created
+                            case "file_delete": changeType = .deleted
+                            case "file_rename", "file_move": changeType = .renamed
+                            default: changeType = .modified
+                            }
+                            WorkerRuntimeState.shared.recordFileChange(id: workerID, change: WorkerFileChange(path: file, changeType: changeType))
+                        }
+                        completedWork.append("Executed \(toolId): \(result.output.prefix(200))")
+                        conversationHistory.append("- Action: Run \(toolId). Result: SUCCESS - \(result.output.prefix(300))")
+                    } else {
+                        let errMsg = result.error ?? result.output
+                        knownIssues.append(errMsg)
+                        conversationHistory.append("- Action: Run \(toolId). Result: FAILED - \(errMsg)")
+                    }
+                } catch {
+                    conversationHistory.append("- Action: Run \(toolId). Result: FAILED - Exception: \(error.localizedDescription)")
                 }
             }
 
-            // Parse response for tool execution or completion
-            if !responseText.isEmpty {
-                completedWork.append("Analyzed scope and formulated atomic file patch for \(worker.scope)")
+            if let final = finalResponse {
+                completedWork.append(final)
             } else {
-                completedWork.append("Executed scoped task baseline operations")
+                remainingWork.append(worker.task)
             }
 
             // Phase: Testing & QA
             progress.phase = .testing
-            progress.currentAction = "Executing targeted verification tests"
+            progress.currentAction = "Reviewing executed changes"
             progress.percentage = 0.75
             WorkerRuntimeState.shared.updateProgress(id: workerID, progress: progress)
-
-            let testRecord = WorkerTestRecord(
-                testName: "\(worker.name)_IntegrityCheck",
-                suite: "WorkerValidationSuite",
-                passed: true,
-                duration: 0.15,
-                output: "All scoped syntax and boundary assertions passed.",
-                failureReason: nil
-            )
-            WorkerRuntimeState.shared.recordTest(id: workerID, test: testRecord)
-            completedWork.append("Verified test assertions: \(testRecord.testName)")
 
             // Phase: Verification
             progress.phase = .verification
@@ -110,8 +180,10 @@ public final class WorkerEngine: Sendable {
             progress.percentage = 0.90
             WorkerRuntimeState.shared.updateProgress(id: workerID, progress: progress)
 
+            let workerState = WorkerRuntimeState.shared.workers.first(where: { $0.id == workerID })
+            let verificationState = finalResponse != nil ? "Completed" : "Incomplete"
             WorkerRuntimeState.shared.updateWorker(id: workerID) { w in
-                w.verificationState = "Passed Verification"
+                w.verificationState = verificationState
                 w.recap = completedWork
             }
 
@@ -119,23 +191,25 @@ public final class WorkerEngine: Sendable {
             WorkerRuntimeState.shared.transitionWorker(
                 id: workerID,
                 to: .reviewing,
-                reason: "Implementation and tests complete. Awaiting parent Assist review gate."
+                reason: "Implementation complete. Awaiting parent Assist review gate."
             )
 
             let result = WorkerResult(
                 workerID: workerID,
                 workerName: workerName,
-                summary: "Successfully fulfilled scope '\(worker.scope)'. Task: \(worker.task)",
+                summary: finalResponse != nil
+                    ? "Fulfilled scope '\(worker.scope)'. Task: \(worker.task)"
+                    : "Incomplete scope '\(worker.scope)': model did not return a final response within \(maxLoopIterations) iterations.",
                 completedWork: completedWork,
-                modifiedFiles: WorkerRuntimeState.shared.workers.first(where: { $0.id == workerID })?.modifiedFiles.map { $0.path } ?? [],
-                createdFiles: WorkerRuntimeState.shared.workers.first(where: { $0.id == workerID })?.createdFiles.map { $0.path } ?? [],
-                deletedFiles: WorkerRuntimeState.shared.workers.first(where: { $0.id == workerID })?.deletedFiles.map { $0.path } ?? [],
-                tests: [testRecord],
-                buildResult: "Build Successful",
-                verificationResult: "All checks passed",
+                modifiedFiles: workerState?.modifiedFiles.map { $0.path } ?? [],
+                createdFiles: workerState?.createdFiles.map { $0.path } ?? [],
+                deletedFiles: workerState?.deletedFiles.map { $0.path } ?? [],
+                tests: [],
+                buildResult: "Not executed",
+                verificationResult: finalResponse != nil ? "Tool execution completed; build not run" : "Incomplete",
                 knownIssues: knownIssues,
                 remainingWork: remainingWork,
-                recommendedParentAction: "Accept and integrate results"
+                recommendedParentAction: finalResponse != nil ? "Accept and integrate results" : "Re-execute or reassign remaining scope"
             )
 
             return result

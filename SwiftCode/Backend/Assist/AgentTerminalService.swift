@@ -70,7 +70,23 @@ public final class AgentTerminalService: Sendable {
     public var isRunning: Bool = false
     public var liveOutput: String = ""
 
+    private var pendingOutputBuffer = ""
+    private var flushTask: Task<Void, Never>?
+
     private init() {}
+
+    private func scheduleOutputFlush() {
+        guard flushTask == nil else { return }
+        flushTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            flushTask = nil
+            if !pendingOutputBuffer.isEmpty {
+                let chunk = pendingOutputBuffer
+                pendingOutputBuffer = ""
+                AssistManager.shared.appendTerminalOutput(chunk)
+            }
+        }
+    }
 
     /// Discovers developer directory for Xcode tools to prevent command line tools xcode-select errors.
     public func resolveDeveloperDirectory() -> String {
@@ -115,8 +131,8 @@ public final class AgentTerminalService: Sendable {
                 Task {
                     await collector.appendStdout(text)
                     await MainActor.run {
-                        self?.liveOutput += text
-                        AssistManager.shared.appendTerminalOutput(text)
+                        self?.pendingOutputBuffer += text
+                        self?.scheduleOutputFlush()
                         onOutput?(text)
                     }
                 }
@@ -129,8 +145,8 @@ public final class AgentTerminalService: Sendable {
                 Task {
                     await collector.appendStderr(text)
                     await MainActor.run {
-                        self?.liveOutput += text
-                        AssistManager.shared.appendTerminalOutput(text)
+                        self?.pendingOutputBuffer += text
+                        self?.scheduleOutputFlush()
                         onOutput?(text)
                     }
                 }
@@ -163,6 +179,14 @@ public final class AgentTerminalService: Sendable {
 
         stdoutPipe.fileHandleForReading.readabilityHandler = nil
         stderrPipe.fileHandleForReading.readabilityHandler = nil
+
+        if !pendingOutputBuffer.isEmpty {
+            let chunk = pendingOutputBuffer
+            pendingOutputBuffer = ""
+            AssistManager.shared.appendTerminalOutput(chunk)
+        }
+        flushTask?.cancel()
+        flushTask = nil
 
         let exitCode = Int(process.terminationStatus)
         let duration = Date().timeIntervalSince(startTime)

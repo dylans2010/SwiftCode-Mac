@@ -83,7 +83,7 @@ public final class WorkerScheduler: Sendable {
                     role: worker.role
                 )
 
-                return Task { @MainActor in
+                let task = Task { @MainActor in
                     await self.executeSingleWorker(
                         worker: worker,
                         assignment: assignment,
@@ -91,11 +91,16 @@ public final class WorkerScheduler: Sendable {
                         dependencyResults: completedResults
                     )
                 }
+                activeExecutionTasks[worker.id] = task
+                return task
             }
 
             var resultsChunk: [WorkerResult] = []
             for task in tasks {
                 resultsChunk.append(await task.value)
+            }
+            for id in resultsChunk.map({ $0.workerID }) {
+                activeExecutionTasks.removeValue(forKey: id)
             }
 
             completedResults.append(contentsOf: resultsChunk)

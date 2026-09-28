@@ -151,6 +151,15 @@ public final class AssistManager: ObservableObject {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
+        // Prevent concurrent agent sessions on the shared AssistAgentSession instance.
+        guard !isProcessing else {
+            await MainActor.run {
+                messages.append(AssistMessage(role: .system, content: "A task is already in progress. Please wait for it to finish or stop it before starting a new one."))
+                saveHistory()
+            }
+            return
+        }
+
         await MainActor.run {
             messages.append(AssistMessage(role: .user, content: trimmed, attachments: attachments))
             isProcessing = true

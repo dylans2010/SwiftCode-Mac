@@ -327,7 +327,7 @@ public struct TaskExecutionBudget: Codable, Sendable {
         if toolCalls > maxToolCalls {
             return "Maximum tool calls reached (\(toolCalls)/\(maxToolCalls))"
         }
-        if repairAttempts > maxRepairAttempts {
+        if repairAttempts >= maxRepairAttempts {
             return "Maximum repair attempts reached (\(repairAttempts)/\(maxRepairAttempts))"
         }
         if duration > maxExecutionTimeSeconds {

@@ -195,7 +195,8 @@ public final class AssistErrorRecoveryEngine: Sendable {
         )
         task.failures.append(failure)
 
-        let signatureCount = task.failures.filter { $0.signature == signature }.count
+        signatureCounts[signature, default: 0] += 1
+        let signatureCount = signatureCounts[signature, default: 0]
         let isThrashing = signatureCount >= task.budgets.maxRepeatedFailures
 
         if isThrashing {

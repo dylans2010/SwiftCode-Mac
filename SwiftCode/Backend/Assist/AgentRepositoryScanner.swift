@@ -37,6 +37,7 @@ public final class AgentRepositoryScanner: @unchecked Sendable {
     // In-memory cache keyed by relative directory path
     private let cacheLock = NSLock()
     private var cachedInstructions: [String: DiscoveredAgentInstruction] = [:]
+    private var lastScanResult: (root: String, timestamp: Date, instructions: [DiscoveredAgentInstruction])?
 
     private init() {}
 
@@ -44,6 +45,13 @@ public final class AgentRepositoryScanner: @unchecked Sendable {
     public func discoverInstructions(in workspaceRoot: URL) -> [DiscoveredAgentInstruction] {
         cacheLock.lock()
         defer { cacheLock.unlock() }
+
+        let rootKey = workspaceRoot.standardizedFileURL.resolvingSymlinksInPath().path
+        if let cached = lastScanResult,
+           cached.root == rootKey,
+           Date().timeIntervalSince(cached.timestamp) < 5.0 {
+            return cached.instructions
+        }
 
         var results: [DiscoveredAgentInstruction] = []
         let fileManager = FileManager.default
@@ -108,6 +116,7 @@ public final class AgentRepositoryScanner: @unchecked Sendable {
             return $0.directoryPath.count < $1.directoryPath.count
         }
 
+        lastScanResult = (root: rootKey, timestamp: Date(), instructions: results)
         return results
     }
 
@@ -167,6 +176,7 @@ public final class AgentRepositoryScanner: @unchecked Sendable {
     public func invalidateCache() {
         cacheLock.lock()
         cachedInstructions.removeAll()
+        lastScanResult = nil
         cacheLock.unlock()
     }
 }

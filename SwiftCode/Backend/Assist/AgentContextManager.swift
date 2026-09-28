@@ -40,11 +40,25 @@ public struct AgentContext: Sendable, Codable {
     }
 }
 
-public final class AgentContextManager: Sendable {
+public final class AgentContextManager: @unchecked Sendable {
     private let context: AssistContext
+    private var fileContentCache: [String: (mtime: Date, content: String)] = [:]
 
     public init(context: AssistContext) {
         self.context = context
+    }
+
+    private func cachedFileContent(at path: String, maxChars: Int) -> String? {
+        if let cached = fileContentCache[path] {
+            let currentMtime = (try? context.workspaceRoot.appendingPathComponent(path).resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            if let current = currentMtime, current == cached.mtime {
+                return cached.content.count > maxChars ? String(cached.content.prefix(maxChars)) + "\n... [TRUNCATED]" : cached.content
+            }
+        }
+        guard let raw = try? context.fileSystem.readFile(at: path) else { return nil }
+        let mtime = (try? context.workspaceRoot.appendingPathComponent(path).resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? Date()
+        fileContentCache[path] = (mtime: mtime, content: raw)
+        return raw.count > maxChars ? String(raw.prefix(maxChars)) + "\n... [TRUNCATED]" : raw
     }
 
     /// Assembles a token-efficient, layered, prioritized project and task context.
@@ -86,13 +100,8 @@ public final class AgentContextManager: Sendable {
         var activeContents: [String: String] = [:]
         for file in activeFiles.prefix(6) {
             if context.fileSystem.exists(at: file) {
-                if let content = try? context.fileSystem.readFile(at: file) {
-                    let maxChars = 4000
-                    if content.count > maxChars {
-                        activeContents[file] = String(content.prefix(maxChars)) + "\n... [TRUNCATED]"
-                    } else {
-                        activeContents[file] = content
-                    }
+                if let content = cachedFileContent(at: file, maxChars: 4000) {
+                    activeContents[file] = content
                 }
             }
         }

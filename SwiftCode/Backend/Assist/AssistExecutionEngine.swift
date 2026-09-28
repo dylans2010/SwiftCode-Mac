@@ -42,7 +42,7 @@ public final class AssistExecutionEngine {
                     }
                 }
                 if let path = toolInput["path"] as? String,
-                   ["code_refactor", "file_read", "file_append"].contains(step.toolId),
+                   ["code_refactor", "file_append"].contains(step.toolId),
                    !self.context.fileSystem.exists(at: path),
                    let createFileTool = self.registry.getTool("file_create") {
                     _ = try await createFileTool.execute(input: ["path": path, "content": "", "overwrite": false], context: self.context)
@@ -79,11 +79,12 @@ public final class AssistExecutionEngine {
             }
         }
 
-        plan.status = .completed
+        let anyStepFailed = plan.steps.contains { $0.status == .failed }
+        plan.status = anyStepFailed ? .failed : .completed
         if TasksAIPlanner.shared.currentPlan?.id == plan.id {
-            TasksAIPlanner.shared.currentPlan?.status = .completed
+            TasksAIPlanner.shared.currentPlan?.status = plan.status
         }
-        await context.logger.info("Plan execution completed: \(plan.goal)")
+        await context.logger.info(anyStepFailed ? "Plan execution finished with failed steps: \(plan.goal)" : "Plan execution completed: \(plan.goal)")
     }
 }
 

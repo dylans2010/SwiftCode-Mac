@@ -34,6 +34,10 @@ public final class AssistAgentSession: Sendable {
     private var contextManager: AgentContextManager?
     private var conversationHistory: [String] = []
     private var activeContext: AssistContext?
+    private var cachedMatchedSkills: [DiscoveredSkill] = []
+    private var cachedSkillsBlock = ""
+    private var cachedToolSchemas: [AgentSessionStatus: String] = [:]
+    private var lastNotesUpdateTime = Date.distantPast
 
     // Active Activity Group tracking for conversational messages
     public var currentActivityGroup = AssistActivityGroup(isExecuting: true)
@@ -226,8 +230,9 @@ public final class AssistAgentSession: Sendable {
         // Dynamic Skills Discovery
         _ = phaseCoordinator.startPhase("PHASE_03_SKILLS")
         self.cachedDiscoveredSkills = await AgentSkillResolver.shared.discoverSkills(in: context.workspaceRoot)
-        let matchedSkills = AgentSkillResolver.shared.matchSkills(for: objective, in: self.cachedDiscoveredSkills)
-        phaseCoordinator.completePhase("PHASE_03_SKILLS", evidence: "\(matchedSkills.count) matching skills loaded.")
+        cachedMatchedSkills = AgentSkillResolver.shared.matchSkills(for: objective, in: self.cachedDiscoveredSkills)
+        cachedSkillsBlock = "\n" + AgentSkillResolver.shared.formatSkillsBlock(matched: cachedMatchedSkills, totalDiscovered: self.cachedDiscoveredSkills.count) + "\n"
+        phaseCoordinator.completePhase("PHASE_03_SKILLS", evidence: "\(cachedMatchedSkills.count) matching skills loaded.")
 
         // Agent Notes Creation
         _ = phaseCoordinator.startPhase("PHASE_04_NOTES")
@@ -292,12 +297,22 @@ public final class AssistAgentSession: Sendable {
             let groundingInstructions = contextPayload?.repositoryInstructions ?? ""
             let activeFiles = contextPayload?.activeFileContents.map { "\($0.key):\n\($0.value)" }.joined(separator: "\n\n") ?? ""
 
-            let phaseTools = AssistToolRouter.shared.filterTools(for: self.state.status, in: registry)
-            let toolSchemas = AssistToolRouter.shared.serializeToolSchemas(phaseTools)
-            let assetSystemPrompt = try AssistManager.shared.getSystemPrompt()
+            let toolSchemas = cachedToolSchemas[self.state.status] ?? {
+                let phaseTools = AssistToolRouter.shared.filterTools(for: self.state.status, in: registry)
+                let serialized = AssistToolRouter.shared.serializeToolSchemas(phaseTools)
+                cachedToolSchemas[self.state.status] = serialized
+                return serialized
+            }()
+            let assetSystemPrompt: String
+            do {
+                assetSystemPrompt = try AssistManager.shared.getSystemPrompt()
+            } catch {
+                transition(to: .failed, reason: "System prompt unavailable: \(error.localizedDescription)")
+                postConversationalMessage("Task failed: the system prompt could not be loaded.", isComplete: true)
+                return
+            }
 
-            let activeMatchedSkills = AgentSkillResolver.shared.matchSkills(for: objective, in: self.cachedDiscoveredSkills)
-            let skillsBlock = "\n" + AgentSkillResolver.shared.formatSkillsBlock(matched: activeMatchedSkills, totalDiscovered: self.cachedDiscoveredSkills.count) + "\n"
+            let skillsBlock = cachedSkillsBlock
 
             var attachmentsBlock = ""
             if !attachments.isEmpty {
@@ -350,12 +365,12 @@ public final class AssistAgentSession: Sendable {
             let activeModel = AssistModelManager.shared.selectedModelID
             let response = try await AgentModelAdapter.shared.queryModel(prompt: conversationPrompt, modelId: activeModel)
             guard response.count > 0 else {
-                conversationHistory.append("- System note: Response was empty. Retrying...")
+                appendConversationHistory("- System note: Response was empty. Retrying...")
                 continue
             }
 
             guard let jsonBlock = AgentModelAdapter.shared.extractJSON(from: response) ?? extractJSON(from: response) else {
-                conversationHistory.append("- System note: Invalid JSON response. Please provide valid JSON.")
+                appendConversationHistory("- System note: Invalid JSON response. Please provide valid JSON.")
                 continue
             }
 
@@ -390,7 +405,7 @@ public final class AssistAgentSession: Sendable {
                       Issues: \(contractEvaluation.issues.joined(separator: "\n  "))
                     Please run 'project_build' or fix compiler errors before declaring completion.
                     """
-                    conversationHistory.append(rejectionFeedback)
+                    appendConversationHistory(rejectionFeedback)
                     consecutiveNoProgressCycles = 0
                     continue
                 }
@@ -408,18 +423,28 @@ public final class AssistAgentSession: Sendable {
                 if let reviewTool = registry.getTool("code_review") {
                     do {
                         _ = try await reviewTool.execute(input: [:], context: context)
-                        if let reviewState = AssistManager.shared.currentCodeReview, reviewState.status != "task_ready" {
+                        guard let reviewState = AssistManager.shared.currentCodeReview else {
+                            throw NSError(domain: "AssistAgentSession", code: 409, userInfo: [NSLocalizedDescriptionKey: "Code review produced no result."])
+                        }
+                        if reviewState.status != "task_ready" {
                             codeReviewAttempts += 1
                             self.repairAttemptCount += 1
                             phaseCoordinator.failPhase("PHASE_08_REVIEW", error: "Reviewer requested changes.")
                             transition(to: .recovering, reason: "Code review requested changes.")
                             let feedbackStr = "- Action: Code Review. FAILED - Revisions required: \(reviewState.issues.joined(separator: "; "))"
-                            conversationHistory.append(feedbackStr)
+                            appendConversationHistory(feedbackStr)
                             consecutiveNoProgressCycles = 0
                             continue
                         }
                     } catch {
                         pipelineLogger.warning("Code review non-fatal error: \(error.localizedDescription)")
+                        codeReviewAttempts += 1
+                        self.repairAttemptCount += 1
+                        phaseCoordinator.failPhase("PHASE_08_REVIEW", error: "Code review tool error: \(error.localizedDescription)")
+                        transition(to: .recovering, reason: "Code review could not be completed.")
+                        appendConversationHistory("- Action: Code Review. FAILED - Reviewer error: \(error.localizedDescription). Please self-verify your changes and call code_review again.")
+                        consecutiveNoProgressCycles = 0
+                        continue
                     }
                 }
 
@@ -438,8 +463,8 @@ public final class AssistAgentSession: Sendable {
             // Tool Execution Handling
             guard let toolId = jsonBlock["toolId"] as? String,
                   let rawInput = jsonBlock["input"] as? [String: Any] else {
-                transition(to: .failed, reason: "Model JSON output missing toolId or input arguments.")
-                return
+                appendConversationHistory("- System note: Model output was missing 'toolId' or 'input'. Respond with a valid JSON tool call.")
+                continue
             }
 
             let explanation = jsonBlock["explanation"] as? String ?? "Inspecting project"
@@ -454,7 +479,7 @@ public final class AssistAgentSession: Sendable {
             guard validation.isValid, let validatedInput = validation.correctedInput else {
                 let errorIssue = validation.issue ?? "Invalid arguments for tool \(toolId)"
                 pipelineLogger.warning("Tool validation failed: \(errorIssue)")
-                conversationHistory.append("- Action: Run \(toolId). Result: FAILED - Argument Error: \(errorIssue). Please correct tool parameters.")
+                appendConversationHistory("- Action: Run \(toolId). Result: FAILED - Argument Error: \(errorIssue). Please correct tool parameters.")
                 continue
             }
 
@@ -469,14 +494,14 @@ public final class AssistAgentSession: Sendable {
             _ = phaseCoordinator.startPhase("PHASE_06_EXECUTION")
             if toolId == "use_terminal" || toolId == "terminal_command" || toolId == "execute_command" {
                 transition(to: .awaitingApproval, reason: "Awaiting developer authorization for terminal command.")
-            } else if ["file_write", "code_refactor", "file_create", "file_append", "patch_apply", "file_delete", "directory_delete", "file_rename", "file_move", "code_replace"].contains(toolId) {
+            } else if ["file_write", "code_refactor", "file_create", "file_append", "patch_application_engine", "file_delete", "dir_delete", "file_rename", "file_move", "code_replace"].contains(toolId) {
                 transition(to: .updatingRepository, reason: "Applying repository changes...")
             } else {
                 transition(to: .executingTools, reason: "Executing tool [\(toolId)]")
             }
 
             guard let tool = registry.getTool(toolId) else {
-                conversationHistory.append("- Action: Run \(toolId). Result: FAILED - Tool '\(toolId)' not found.")
+                appendConversationHistory("- Action: Run \(toolId). Result: FAILED - Tool '\(toolId)' not found.")
                 continue
             }
 
@@ -491,7 +516,7 @@ public final class AssistAgentSession: Sendable {
             ))
 
             // Post progress message if user-facing milestone reached
-            if ["file_write", "code_replace", "file_create", "patch_apply"].contains(toolId) {
+            if ["file_write", "code_replace", "file_create", "patch_application_engine"].contains(toolId) {
                 let path = toolInput["path"] ?? toolInput["filepath"] ?? "file"
                 postConversationalMessage("I found the issue. I’m applying the fix to \(path) and will verify it with a build afterward.")
             } else if ["project_build", "build_project", "xcodebuild"].contains(toolId) {
@@ -503,6 +528,9 @@ public final class AssistAgentSession: Sendable {
             do {
                 let result = try await tool.execute(input: validatedInput, context: context)
                 self.recentToolResults.append(result)
+                if self.recentToolResults.count > 10 {
+                    self.recentToolResults.removeFirst(self.recentToolResults.count - 10)
+                }
 
                 if result.success {
                     successfulToolExecutionCount += 1
@@ -562,7 +590,7 @@ public final class AssistAgentSession: Sendable {
 
                     var feedback = "- Action: Run \(toolId). Result: SUCCESS - Output: \(result.output)"
                     if let diff = result.diff, !diff.isEmpty { feedback += "\n Diff:\n\(diff.prefix(600))" }
-                    conversationHistory.append(feedback)
+                    appendConversationHistory(feedback)
                 } else {
                     let errMsg = result.error ?? result.output
                     currentActivityGroup.tools[toolActivityIndex].status = .failed
@@ -588,12 +616,12 @@ public final class AssistAgentSession: Sendable {
                         state.plan[index].status = .failed
                     }
 
-                    conversationHistory.append("- Action: Run \(toolId). Result: FAILED - Error: \(errMsg)")
+                    appendConversationHistory("- Action: Run \(toolId). Result: FAILED - Error: \(errMsg)")
                 }
             } catch {
                 currentActivityGroup.tools[toolActivityIndex].status = .failed
                 currentActivityGroup.tools[toolActivityIndex].result = error.localizedDescription
-                conversationHistory.append("- Action: Run \(toolId). Result: FAILED - Exception: \(error.localizedDescription)")
+                appendConversationHistory("- Action: Run \(toolId). Result: FAILED - Exception: \(error.localizedDescription)")
             }
 
             let currentRepoModificationCount = self.state.changeSummary.createdFiles.count +
@@ -636,7 +664,7 @@ public final class AssistAgentSession: Sendable {
         switch toolId {
         case "file_create":
             state.changeSummary.createdFiles.append(FileChangeItem(filename: path, details: reason))
-        case "file_write", "code_refactor", "file_append", "patch_apply", "code_replace":
+        case "file_write", "code_refactor", "file_append", "patch_application_engine", "code_replace":
             if !state.changeSummary.modifiedFiles.contains(where: { $0.filename == path }) {
                 state.changeSummary.modifiedFiles.append(FileChangeItem(filename: path, details: "Modified: \(reason)"))
             }
@@ -651,11 +679,13 @@ public final class AssistAgentSession: Sendable {
     @MainActor
     public func updateAgentNotes(currentAction: String = "") {
         guard let context = activeContext else { return }
+        let isTerminal = state.status == .terminated || state.status == .failed || state.status == .cancelled || state.status == .stalled
+        if !isTerminal && Date().timeIntervalSince(lastNotesUpdateTime) < 2.0 { return }
+        lastNotesUpdateTime = Date()
         let selectedModel = AssistModelManager.shared.selectedModelID
         let discoveredInstructions = AgentRepositoryScanner.shared.discoverInstructions(in: context.workspaceRoot)
         let applicableAgents = discoveredInstructions.map { $0.filePath }
-        let matchedSkills = AgentSkillResolver.shared.matchSkills(for: self.state.objective, in: self.cachedDiscoveredSkills)
-        let applicableSkills = matchedSkills.map { $0.name }
+        let applicableSkills = cachedMatchedSkills.map { $0.name }
 
         let task = self.currentTask ?? AgentTask(objective: self.state.objective)
         _ = AgentNotesManager.shared.updateNotes(
@@ -686,6 +716,13 @@ public final class AssistAgentSession: Sendable {
                     try? await self?.start(objective: task.originalRequest, attachments: [], context: activeContext)
                 }
             }
+        }
+    }
+
+    private func appendConversationHistory(_ entry: String) {
+        conversationHistory.append(entry)
+        if conversationHistory.count > 16 {
+            conversationHistory.removeFirst(conversationHistory.count - 16)
         }
     }
 

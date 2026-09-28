@@ -48,7 +48,7 @@ public struct AgentTimelineView: View {
 
                     Divider()
 
-                    VStack(alignment: .leading, spacing: 0) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(events.enumerated()), id: \.offset) { index, event in
                             HStack(alignment: .top, spacing: 14) {
                                 // Left Track Column: Dot & Vertical line
