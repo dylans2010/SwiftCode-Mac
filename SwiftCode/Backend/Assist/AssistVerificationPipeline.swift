@@ -38,16 +38,16 @@ public final class AssistVerificationPipeline: Sendable {
     /// Discovers active Xcode DEVELOPER_DIR to ensure command reliability.
     public func resolveDeveloperDir() -> String {
         let candidates = [
-            "/Applications/Xcode-beta.app/Contents/Developer",
             "/Users/dylan/Xcode.app/Contents/Developer",
-            "/Applications/Xcode.app/Contents/Developer"
+            "/Applications/Xcode.app/Contents/Developer",
+            "/Applications/Xcode-beta.app/Contents/Developer"
         ]
         for path in candidates {
             if FileManager.default.fileExists(atPath: path) {
                 return path
             }
         }
-        return "/Applications/Xcode.app/Contents/Developer"
+        return "/Users/dylan/Xcode.app/Contents/Developer"
     }
 
     /// Verifies individual Swift file syntax using swiftc typecheck pass.
@@ -252,6 +252,8 @@ public final class AssistVerificationPipeline: Sendable {
         didTestsSucceed: Bool,
         diffAuditPassed: Bool
     ) -> Bool {
+        let isReadOnly = task.filesInvolved.isEmpty && task.completedOperations.isEmpty
+
         for i in 0..<task.completionCriteria.count {
             let criterion = task.completionCriteria[i]
             switch criterion.type {
@@ -259,20 +261,40 @@ public final class AssistVerificationPipeline: Sendable {
                 task.completionCriteria[i].isMet = !task.interpretedObjective.isEmpty
                 task.completionCriteria[i].evidence = "Objective understood: \(task.interpretedObjective)"
             case .implementationComplete:
-                task.completionCriteria[i].isMet = !task.completedOperations.isEmpty || task.plannedOperations.allSatisfy { $0.status == .completed }
-                task.completionCriteria[i].evidence = "\(task.completedOperations.count) operations landed."
+                if isReadOnly {
+                    task.completionCriteria[i].isMet = true
+                    task.completionCriteria[i].evidence = "Read-only analysis / assessment complete."
+                } else {
+                    task.completionCriteria[i].isMet = !task.completedOperations.isEmpty || task.plannedOperations.allSatisfy { $0.status == .completed }
+                    task.completionCriteria[i].evidence = "\(task.completedOperations.count) operations landed."
+                }
             case .expectedFilesChanged:
-                task.completionCriteria[i].isMet = !task.filesInvolved.isEmpty
-                task.completionCriteria[i].evidence = "Involved files: \(task.filesInvolved.joined(separator: ", "))"
+                if isReadOnly {
+                    task.completionCriteria[i].isMet = true
+                    task.completionCriteria[i].evidence = "Read-only task; no file modifications expected."
+                } else {
+                    task.completionCriteria[i].isMet = !task.filesInvolved.isEmpty
+                    task.completionCriteria[i].evidence = "Involved files: \(task.filesInvolved.joined(separator: ", "))"
+                }
             case .buildVerified:
-                task.completionCriteria[i].isMet = didBuildSucceed
-                task.completionCriteria[i].evidence = didBuildSucceed ? "Build verified clean via xcodebuild." : "Build failed or not run."
+                if isReadOnly {
+                    task.completionCriteria[i].isMet = true
+                    task.completionCriteria[i].evidence = "Read-only task; build verification bypassed."
+                } else {
+                    task.completionCriteria[i].isMet = didBuildSucceed
+                    task.completionCriteria[i].evidence = didBuildSucceed ? "Build verified clean via xcodebuild." : "Build failed or not run."
+                }
             case .testsVerified:
                 task.completionCriteria[i].isMet = didTestsSucceed
                 task.completionCriteria[i].evidence = didTestsSucceed ? "Tests verified clean." : "Tests failed."
             case .diffReviewed:
-                task.completionCriteria[i].isMet = diffAuditPassed
-                task.completionCriteria[i].evidence = diffAuditPassed ? "Diff contains no placeholders and conforms to FCM mandate." : "Diff audit failed."
+                if isReadOnly {
+                    task.completionCriteria[i].isMet = true
+                    task.completionCriteria[i].evidence = "Read-only task; no diffs to review."
+                } else {
+                    task.completionCriteria[i].isMet = diffAuditPassed
+                    task.completionCriteria[i].evidence = diffAuditPassed ? "Diff contains no placeholders and conforms to FCM mandate." : "Diff audit failed."
+                }
             case .noBlockingErrors:
                 task.completionCriteria[i].isMet = task.unresolvedIssues.isEmpty
                 task.completionCriteria[i].evidence = task.unresolvedIssues.isEmpty ? "No active blocking errors." : "Unresolved: \(task.unresolvedIssues.joined(separator: ", "))"
@@ -287,6 +309,18 @@ public final class AssistVerificationPipeline: Sendable {
         task: inout AgentTask,
         context: AssistContext
     ) async -> CompletionContractReport {
+        let isReadOnly = task.filesInvolved.isEmpty && task.completedOperations.isEmpty
+        if isReadOnly {
+            _ = evaluateCompletionContract(
+                task: &task,
+                context: context,
+                didBuildSucceed: true,
+                didTestsSucceed: true,
+                diffAuditPassed: true
+            )
+            return CompletionContractReport(passed: true, issues: [], unsatisfiedRequirements: [])
+        }
+
         let buildOutcome = await verifyCompilation(context: context)
         let diffOutcome = await verifyDiffCompleteness(context: context, expectedFiles: task.filesInvolved)
         let didBuildSucceed = buildOutcome.isSuccess

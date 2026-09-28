@@ -25,6 +25,7 @@ public final class AssistAgentSession: Sendable {
     public var iterationCount = 0
     public var validationCount = 0
     public var repairAttemptCount = 0
+    public var successfulToolExecutionCount = 0
     public var recentToolResults: [AssistToolResult] = []
     public var recentErrors: [String] = []
 
@@ -74,6 +75,7 @@ public final class AssistAgentSession: Sendable {
         self.validationCount = 0
         self.iterationCount = 0
         self.repairAttemptCount = 0
+        self.successfulToolExecutionCount = 0
         self.recentToolResults = []
         self.recentErrors = []
         self.executionSummary = nil
@@ -584,9 +586,24 @@ public final class AssistAgentSession: Sendable {
 
             // Check for tool call
             guard let toolId = jsonBlock["toolId"] as? String,
-                  let toolInput = jsonBlock["input"] as? [String: String] else {
+                  let rawInput = jsonBlock["input"] as? [String: Any] else {
                 transition(to: .failed, reason: "Model JSON output missing toolId or input arguments.")
                 return
+            }
+
+            var toolInput: [String: String] = [:]
+            for (key, val) in rawInput {
+                if let str = val as? String {
+                    toolInput[key] = str
+                } else if let num = val as? NSNumber {
+                    toolInput[key] = num.stringValue
+                } else if let dict = val as? [String: Any], let data = try? JSONSerialization.data(withJSONObject: dict), let s = String(data: data, encoding: .utf8) {
+                    toolInput[key] = s
+                } else if let arr = val as? [Any], let data = try? JSONSerialization.data(withJSONObject: arr), let s = String(data: data, encoding: .utf8) {
+                    toolInput[key] = s
+                } else {
+                    toolInput[key] = "\(val)"
+                }
             }
 
             let explanation = jsonBlock["explanation"] as? String ?? ""
@@ -621,11 +638,12 @@ public final class AssistAgentSession: Sendable {
                     }
                 }
 
-                // Execute tool
-                let result = try await tool.execute(input: toolInput, context: context)
+                // Execute tool with full raw dictionary
+                let result = try await tool.execute(input: rawInput, context: context)
                 self.recentToolResults.append(result)
 
                 if result.success {
+                    successfulToolExecutionCount += 1
                     transition(to: .inspectingResult, reason: "Step completed: \(result.output.prefix(150))", toolResult: result.output)
                     state.completedActions.append(newStep.description)
 
@@ -731,13 +749,13 @@ public final class AssistAgentSession: Sendable {
                 self.state.changeSummary.configChanges.count
 
             let hasRepoModifications = currentRepoModificationCount > lastRepoModificationCount
-            let hasNewSuccessfulTool = self.state.toolCallCount > lastSuccessfulToolCallCount
+            let hasNewSuccessfulTool = self.successfulToolExecutionCount > lastSuccessfulToolCallCount
             let hasNewValidation = self.validationCount > lastValidationCount
 
             if hasRepoModifications || hasNewSuccessfulTool || hasNewValidation {
                 consecutiveNoProgressCycles = 0
                 if hasRepoModifications { lastRepoModificationCount = currentRepoModificationCount }
-                if hasNewSuccessfulTool { lastSuccessfulToolCallCount = self.state.toolCallCount }
+                if hasNewSuccessfulTool { lastSuccessfulToolCallCount = self.successfulToolExecutionCount }
                 if hasNewValidation { lastValidationCount = self.validationCount }
             } else {
                 consecutiveNoProgressCycles += 1
@@ -751,8 +769,10 @@ public final class AssistAgentSession: Sendable {
             }
         }
 
-        if isCancelled {
-            transition(to: .cancelled, reason: "Task execution cancelled by user.")
+        if isCancelled || Task.isCancelled {
+            if self.state.status != .cancelled {
+                transition(to: .cancelled, reason: "Task execution cancelled by user.")
+            }
             NotificationManager.shared.sendAgentTaskFinishedNotification()
         }
     }
@@ -847,6 +867,11 @@ public final class AssistAgentSession: Sendable {
         self.isCancelled = false
         if self.state.status == .failed || self.state.status == .stalled || self.state.status == .cancelled {
             transition(to: .planning, reason: "Retrying failed/stalled/cancelled agent cycle.")
+            if let activeContext = self.activeContext, let task = self.currentTask {
+                Task { [weak self] in
+                    try? await self?.start(objective: task.objective, attachments: [], context: activeContext)
+                }
+            }
         }
     }
 

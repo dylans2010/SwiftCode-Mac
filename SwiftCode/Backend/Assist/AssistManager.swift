@@ -109,7 +109,14 @@ public final class AssistManager: ObservableObject {
 
     public var selectedModel: AssistModelOption {
         let modelID = AssistModelManager.shared.selectedModelID
-        return AssistModelOption.all.first(where: { $0.id == modelID }) ?? .swiftCodeBalanced
+        if let match = AssistModelOption.all.first(where: { $0.id == modelID }) {
+            return match
+        }
+        return AssistModelOption(
+            id: modelID,
+            displayName: modelID,
+            provider: LLMService.shared.provider(for: modelID).rawValue
+        )
     }
 
     private var selectedProvider: AssistModelProvider {

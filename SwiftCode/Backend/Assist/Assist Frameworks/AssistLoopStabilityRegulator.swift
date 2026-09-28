@@ -88,7 +88,6 @@ public final class AssistLoopStabilityRegulator {
 
     private func computePlanHash(_ plan: AssistExecutionPlan) -> Int {
         var hasher = Hasher()
-        hasher.combine(plan.goal)
         for step in plan.steps {
             hasher.combine(step.toolId)
             hasher.combine(step.description)
@@ -97,19 +96,23 @@ public final class AssistLoopStabilityRegulator {
     }
 
     private func isOscillating(_ pattern: [Int]) -> Bool {
-        // Check if pattern is [A, B, A, B] or [A, B, C, A, B, C]
         guard pattern.count >= 4 else { return false }
+        let tail = Array(pattern.suffix(6))
+        let tailCount = tail.count
 
-        // Check 2-state oscillation
-        if pattern.count >= 4 {
-            let twoState = (pattern[0] == pattern[2] && pattern[1] == pattern[3])
-            if twoState { return true }
+        // Check 2-state oscillation on the tail: [..., A, B, A, B]
+        if tailCount >= 4 {
+            let n = tailCount
+            if tail[n - 4] == tail[n - 2] && tail[n - 3] == tail[n - 1] && tail[n - 4] != tail[n - 3] {
+                return true
+            }
         }
 
-        // Check 3-state oscillation
-        if pattern.count >= 6 {
-            let threeState = (pattern[0] == pattern[3] && pattern[1] == pattern[4] && pattern[2] == pattern[5])
-            if threeState { return true }
+        // Check 3-state oscillation on the tail: [A, B, C, A, B, C]
+        if tailCount >= 6 {
+            if tail[0] == tail[3] && tail[1] == tail[4] && tail[2] == tail[5] {
+                return true
+            }
         }
 
         return false

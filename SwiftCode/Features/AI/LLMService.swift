@@ -36,7 +36,7 @@ public enum LLMProvider: String, CaseIterable, Codable {
         case .openRouter: return URL(string: "https://openrouter.ai/api/v1")!
         case .anthropic: return URL(string: "https://api.anthropic.com/v1")!
         case .openai: return URL(string: "https://api.openai.com/v1")!
-        case .google: return URL(string: "https://generativelanguage.googleapis.com/v1beta")!
+        case .google: return URL(string: "https://generativelanguage.googleapis.com/v1beta/openai")!
         case .mistral: return URL(string: "https://api.mistral.ai/v1")!
         case .qwen: return URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1")!
         case .offline: return URL(string: "http://localhost")! // Not used for offline
@@ -326,11 +326,17 @@ public final class LLMService: Sendable {
         if trimmed.hasPrefix("claude-") {
             return .anthropic
         }
-        if trimmed.hasPrefix("gpt-") {
+        if trimmed.hasPrefix("gpt-") || trimmed.hasPrefix("o1") || trimmed.hasPrefix("o3") || trimmed.hasPrefix("chatgpt-") {
             return .openai
         }
         if trimmed.hasPrefix("gemini-") {
             return .google
+        }
+        if trimmed.hasPrefix("mistral-") || trimmed.hasPrefix("codestral-") || trimmed.hasPrefix("pixtral-") {
+            return .mistral
+        }
+        if trimmed.hasPrefix("qwen-") || trimmed.hasPrefix("qwq-") {
+            return .qwen
         }
         return (try? resolvedRoutingProvider()) ?? .openRouter
     }
@@ -650,7 +656,7 @@ public final class LLMService: Sendable {
 
         if provider == .codex {
             logInfo("[sendChatRequest] Delegating request to OpenAI Codex.")
-            let prompt = messages.last?.content ?? ""
+            let prompt = formatFullPrompt(messages: messages)
             let startTime = Date()
             let content = try await CodexBridgeManager.shared.sendPrompt(prompt)
             return LLMResponse(
@@ -857,7 +863,8 @@ public final class LLMService: Sendable {
 
         if model == "AFM 3 Core" || model == "AFM 3 Core Advanced" {
             logInfo("[streamChat] Routing stream to Apple private on-device reasoning.")
-            try await FoundationModels.shared.streamPrivateResponse(prompt: messages.last?.content ?? "", onToken: onToken)
+            let prompt = formatFullPrompt(messages: messages, systemPrompt: systemPrompt)
+            try await FoundationModels.shared.streamPrivateResponse(prompt: prompt, onToken: onToken)
             return
         }
 
@@ -865,7 +872,8 @@ public final class LLMService: Sendable {
 
         if provider == .codex {
             logInfo("[streamChat] Routing stream to OpenAI Codex bridge.")
-            try await CodexBridgeManager.shared.streamPrompt(messages.last?.content ?? "", onToken: onToken)
+            let prompt = formatFullPrompt(messages: messages, systemPrompt: systemPrompt)
+            try await CodexBridgeManager.shared.streamPrompt(prompt, onToken: onToken)
             return
         }
 
@@ -873,7 +881,8 @@ public final class LLMService: Sendable {
             logInfo("[streamChat] Routing stream to offline model.")
             _ = try await defaultOfflineModelName()
             try await OfflineModelRunner.shared.loadModel(at: try await defaultOfflineModelDirectory())
-            try await OfflineModelRunner.shared.streamResponse(prompt: messages.last?.content ?? "") { token in
+            let prompt = formatFullPrompt(messages: messages, systemPrompt: systemPrompt)
+            try await OfflineModelRunner.shared.streamResponse(prompt: prompt) { token in
                 Task {
                     await onToken(token)
                 }
@@ -969,7 +978,7 @@ public final class LLMService: Sendable {
             return AsyncThrowingStream { continuation in
                 Task {
                     do {
-                        let prompt = request.messages.last?.content ?? ""
+                        let prompt = self.formatFullPrompt(messages: request.messages, systemPrompt: request.systemPrompt)
                         try await FoundationModels.shared.streamPrivateResponse(prompt: prompt) { token in
                             continuation.yield(token)
                         }
@@ -987,7 +996,7 @@ public final class LLMService: Sendable {
             return AsyncThrowingStream { continuation in
                 Task {
                     do {
-                        let prompt = request.messages.last?.content ?? ""
+                        let prompt = self.formatFullPrompt(messages: request.messages, systemPrompt: request.systemPrompt)
                         try await CodexBridgeManager.shared.streamPrompt(prompt) { token in
                             continuation.yield(token)
                         }
@@ -1004,9 +1013,9 @@ public final class LLMService: Sendable {
             return AsyncThrowingStream { continuation in
                 Task {
                     do {
-                        let prompt = request.messages.last?.content ?? ""
-                        _ = try await defaultOfflineModelName()
-                        try await OfflineModelRunner.shared.loadModel(at: try await defaultOfflineModelDirectory())
+                        let prompt = self.formatFullPrompt(messages: request.messages, systemPrompt: request.systemPrompt)
+                        _ = try await self.defaultOfflineModelName()
+                        try await OfflineModelRunner.shared.loadModel(at: try await self.defaultOfflineModelDirectory())
                         try await OfflineModelRunner.shared.streamResponse(prompt: prompt) { token in
                             continuation.yield(token)
                         }
@@ -1039,6 +1048,27 @@ public final class LLMService: Sendable {
         }
     }
 
+    private func formatFullPrompt(messages: [AIMessage], systemPrompt: String = "") -> String {
+        var parts: [String] = []
+        let cleanSystem = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cleanSystem.isEmpty {
+            parts.append("System Instructions:\n\(cleanSystem)")
+        }
+        for msg in messages {
+            let roleName: String
+            switch msg.role {
+            case .user: roleName = "User"
+            case .assistant: roleName = "Assistant"
+            case .system: roleName = "System"
+            }
+            parts.append("\(roleName):\n\(msg.content)")
+        }
+        if parts.isEmpty {
+            return messages.last?.content ?? ""
+        }
+        return parts.joined(separator: "\n\n")
+    }
+
     @MainActor
     private func shouldFallbackToOffline(for provider: LLMProvider) -> Bool {
         let mode = AIRoutingMode.from(rawValue: UserDefaults.standard.string(forKey: aiRoutingModeKey))
@@ -1049,7 +1079,8 @@ public final class LLMService: Sendable {
         let startTime = Date()
         let offlineModel = try await defaultOfflineModelName()
         try await OfflineModelRunner.shared.loadModel(at: try await defaultOfflineModelDirectory())
-        let completionText = try await OfflineModelRunner.shared.generateResponse(prompt: messages.last?.content ?? "")
+        let prompt = formatFullPrompt(messages: messages)
+        let completionText = try await OfflineModelRunner.shared.generateResponse(prompt: prompt)
         return LLMResponse(modelName: offlineModel, completionText: completionText, tokenUsage: nil, latency: Date().timeIntervalSince(startTime))
     }
 

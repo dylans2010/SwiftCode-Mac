@@ -10,12 +10,12 @@ public final class AssistFileSystem: @unchecked Sendable, AssistFileSystemProtoc
     }
 
     public func readFile(at path: String) throws -> String {
-        let url = resolve(path)
+        let url = try resolve(path)
         return try String(contentsOf: url, encoding: .utf8)
     }
 
     public func writeFile(at path: String, content: String) throws {
-        let url = resolve(path)
+        let url = try resolve(path)
         let parentDir = url.deletingLastPathComponent()
         if !fileManager.fileExists(atPath: parentDir.path) {
             try fileManager.createDirectory(at: parentDir, withIntermediateDirectories: true)
@@ -24,15 +24,15 @@ public final class AssistFileSystem: @unchecked Sendable, AssistFileSystemProtoc
     }
 
     public func deleteFile(at path: String) throws {
-        let url = resolve(path)
+        let url = try resolve(path)
         if fileManager.fileExists(atPath: url.path) {
             try fileManager.removeItem(at: url)
         }
     }
 
     public func moveFile(from: String, to: String) throws {
-        let fromURL = resolve(from)
-        let toURL = resolve(to)
+        let fromURL = try resolve(from)
+        let toURL = try resolve(to)
         if fileManager.fileExists(atPath: toURL.path) {
             try fileManager.removeItem(at: toURL)
         }
@@ -40,8 +40,8 @@ public final class AssistFileSystem: @unchecked Sendable, AssistFileSystemProtoc
     }
 
     public func copyFile(from: String, to: String) throws {
-        let fromURL = resolve(from)
-        let toURL = resolve(to)
+        let fromURL = try resolve(from)
+        let toURL = try resolve(to)
         if fileManager.fileExists(atPath: toURL.path) {
             try fileManager.removeItem(at: toURL)
         }
@@ -49,33 +49,30 @@ public final class AssistFileSystem: @unchecked Sendable, AssistFileSystemProtoc
     }
 
     public func exists(at path: String) -> Bool {
-        let url = resolve(path)
+        guard let url = try? resolve(path) else { return false }
         return fileManager.fileExists(atPath: url.path)
     }
 
     public func appendFile(at path: String, content: String) throws {
-        let url = resolve(path)
+        let url = try resolve(path)
         let existing = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
         try writeFile(at: path, content: existing + content)
     }
 
     public func createDirectory(at path: String) throws {
-        let url = resolve(path)
+        let url = try resolve(path)
         if !fileManager.fileExists(atPath: url.path) {
             try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
         }
     }
 
-
-    private func resolve(_ path: String) -> URL {
+    public func resolve(_ path: String) throws -> URL {
         let normalizedPath = path.hasPrefix("/") ? String(path.dropFirst()) : path
         let resolvedURL = workspaceRoot.appendingPathComponent(normalizedPath).standardized
 
         // Safety: Ensure the resolved path is within the workspace root
         if !resolvedURL.path.hasPrefix(workspaceRoot.path) {
-            // Log security violation if we had access to logger here,
-            // for now, fallback to a safe path within workspace
-            return workspaceRoot.appendingPathComponent("safe_fallback_\(UUID().uuidString)")
+            throw NSError(domain: "PathSecurityError", code: 403, userInfo: [NSLocalizedDescriptionKey: "Security Error: Path traversal outside workspace bounds is forbidden: \(path)"])
         }
 
         return resolvedURL
@@ -83,7 +80,7 @@ public final class AssistFileSystem: @unchecked Sendable, AssistFileSystemProtoc
 
     // Additional internal helpers
     public func listDirectory(at path: String) throws -> [String] {
-        let url = resolve(path)
+        let url = try resolve(path)
         return try fileManager.contentsOfDirectory(atPath: url.path)
     }
 }

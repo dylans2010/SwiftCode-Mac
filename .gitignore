@@ -41,3 +41,5 @@ logs/
 .env
 .env.*
 .composio/
+agent_notes.md
+

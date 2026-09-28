@@ -15,17 +15,17 @@ public final class AssistModelManager: ObservableObject {
     }
 
     public var selectedModelID: String {
-        if !customModelID.isEmpty {
-            return customModelID
+        let appSetting = AppSettings.shared.selectedAssistModelID
+        if !appSetting.isEmpty {
+            return AssistModelOption.resolve(id: appSetting)
         }
-        return AppSettings.shared.selectedAssistModelID
+        if !customModelID.isEmpty {
+            return AssistModelOption.resolve(id: customModelID)
+        }
+        return AssistModelOption.swiftCodeBalanced.id
     }
 
     public func overrideModelID(for provider: AssistModelProvider) -> String {
-        if !customModelID.isEmpty {
-            return customModelID
-        }
-        // Fallback to provider defaults if needed
-        return AppSettings.shared.selectedAssistModelID
+        return selectedModelID
     }
 }

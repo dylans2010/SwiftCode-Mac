@@ -147,11 +147,21 @@ public final class TasksAIPlanner: ObservableObject {
     }
 
     private func parsePlan(from response: String) throws -> AssistExecutionPlan {
-        // Find JSON block (handles ```json ... ``` or just { ... })
-        // Use non-greedy regex to avoid capturing multiple JSON blocks
-        var jsonStr = response
-        if let range = response.range(of: "\\{[^}]*\\}", options: .regularExpression, range: nil, locale: nil) {
-            jsonStr = String(response[range])
+        var jsonStr = response.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if jsonStr.hasPrefix("```json") {
+            jsonStr = String(jsonStr.dropFirst(7))
+        } else if jsonStr.hasPrefix("```") {
+            jsonStr = String(jsonStr.dropFirst(3))
+        }
+        if jsonStr.hasSuffix("```") {
+            jsonStr = String(jsonStr.dropLast(3))
+        }
+        jsonStr = jsonStr.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let firstBrace = jsonStr.firstIndex(of: "{"),
+           let lastBrace = jsonStr.lastIndex(of: "}") {
+            jsonStr = String(jsonStr[firstBrace...lastBrace])
         }
 
         guard let data = jsonStr.data(using: .utf8) else {
