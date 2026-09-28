@@ -20,7 +20,7 @@ public enum ActivityStatus: String, Codable, Sendable {
 }
 
 /// Tool activity item representing tool execution inside Activity disclosure.
-public struct ToolActivityItem: Codable, Identifiable, Sendable {
+public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
     public let id: UUID
     public let toolId: String
     public let purpose: String

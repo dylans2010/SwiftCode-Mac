@@ -231,6 +231,8 @@
 		17C87AA6DCB4BA5EB571A646 /* LicenseCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09441CA4D2FCDDEB3005C337 /* LicenseCatalog.swift */; };
 		17D1C7378E4E4C05BB87FF9F /* ExplainCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 759A984F462348FDA71BEC86 /* ExplainCode.swift */; };
 		18500DEA6FC9B066E529BE11 /* AssistSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 791F3C0604F728999EE5B894 /* AssistSnapshotModels.swift */; };
+		D1A0000128C0000100000001 /* AssistActivityModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000128C0000100000002 /* AssistActivityModels.swift */; };
+		D1A0000128C0000100000003 /* AssistActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000128C0000100000004 /* AssistActivityView.swift */; };
 		18514A79310C4968A5D07119 /* AgentOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91F164A308314C72BF49FA48 /* AgentOrchestrator.swift */; };
 		187E48D6B1A5492490C1D52B /* AssistModelOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E796ACFB49B458BAFDDB3FA /* AssistModelOption.swift */; };
 		187ED80BBA2CB7A99B5AEABB /* RegexSyntaxCheatsheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E031CFA3E65C9492E36E9BC /* RegexSyntaxCheatsheetView.swift */; };
@@ -3333,6 +3335,8 @@
 		78EA614EFC4E4D608C78416B /* BookmarksSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarksSidebarView.swift; sourceTree = "<group>"; };
 		7914BB37E4FA1478483D30E5 /* AssistToolingSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistToolingSupport.swift; sourceTree = "<group>"; };
 		791F3C0604F728999EE5B894 /* AssistSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSnapshotModels.swift; sourceTree = "<group>"; };
+		D1A0000128C0000100000002 /* AssistActivityModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistActivityModels.swift; sourceTree = "<group>"; };
+		D1A0000128C0000100000004 /* AssistActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistActivityView.swift; sourceTree = "<group>"; };
 		79242388A3CE4414A18F5C0F /* SwiftCode/Views/Build/DeviceConnectKit/Views/Inspector/DeviceConnectInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Build/DeviceConnectKit/Views/Inspector/DeviceConnectInspector.swift; sourceTree = SOURCE_ROOT; };
 		792F4711DDE954D40A2B1B7B /* AIAssistantViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantViewModel.swift; sourceTree = "<group>"; };
 		794AE660D22E4A1E9314DD3F /* PreviewRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewRuntime.swift; sourceTree = "<group>"; };
@@ -5849,6 +5853,7 @@
 				5C5E70000000000000000203 /* AddFilesAgentContext.swift */,
 				6D3F79ABA55559EF6F44BF84 /* AssistDiffView.swift */,
 				1E9D7E2F8F62E029750AD8AA /* AssistMainView.swift */,
+				D1A0000128C0000100000004 /* AssistActivityView.swift */,
 				1E9D7E2F8F62E029750AD8AB /* AgentNotesInspectorView.swift */,
 				C46493C840B09DCD68F12134 /* AssistPlanView.swift */,
 				8E7952EF405A445030396ECB /* AssistPlannerView.swift */,
@@ -6712,6 +6717,7 @@
 		73DBC5F4AA3F5DE0BEFBEA35 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				D1A0000128C0000100000002 /* AssistActivityModels.swift */,
 				791F3C0604F728999EE5B894 /* AssistSnapshotModels.swift */,
 			);
 			path = Models;
@@ -10727,6 +10733,8 @@
 				7F0432DD7C37F5F3255D729F /* AssistSearchFunctions.swift in Sources */,
 				954D91DE4D75F7BF9CF8DFB1 /* AssistSnapshotFunctions.swift in Sources */,
 				18500DEA6FC9B066E529BE11 /* AssistSnapshotModels.swift in Sources */,
+				D1A0000128C0000100000001 /* AssistActivityModels.swift in Sources */,
+				D1A0000128C0000100000003 /* AssistActivityView.swift in Sources */,
 				EA99345BD693E0A939986E60 /* PromptEnhancer.swift in Sources */,
 				48E911039AF476A516C2A0FD /* TasksAIPlanner.swift in Sources */,
 				1C9E1D4AF6D9422785D48BB1 /* AssistAppendFileTool.swift in Sources */,

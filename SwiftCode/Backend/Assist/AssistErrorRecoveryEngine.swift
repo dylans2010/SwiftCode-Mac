@@ -14,7 +14,7 @@ public enum RecoveryDomain: String, Codable, Sendable, CaseIterable {
     case context = "Context Recovery"
 }
 
-public struct ToolValidationResult: Sendable {
+public struct ToolValidationResult: @unchecked Sendable {
     public let isValid: Bool
     public let issue: String?
     public let correctedInput: [String: Any]?

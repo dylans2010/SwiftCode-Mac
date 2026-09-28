@@ -99,22 +99,6 @@ public struct FileChangeItem: Identifiable, Codable, Sendable, Hashable {
     }
 }
 
-public struct ToolActivityItem: Identifiable, Codable, Sendable, Hashable {
-    public let id: UUID
-    public let toolId: String
-    public let purpose: String
-    public let result: String
-    public let timestamp: Date
-
-    public init(id: UUID = UUID(), toolId: String, purpose: String, result: String, timestamp: Date = Date()) {
-        self.id = id
-        self.toolId = toolId
-        self.purpose = purpose
-        self.result = result
-        self.timestamp = timestamp
-    }
-}
-
 @Observable
 @MainActor
 public final class AgentChangeSummary: Sendable {

@@ -226,13 +226,7 @@ public struct AssistMainView: View {
                                 AssistErrorBubble(error: error)
                             }
 
-                            if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
-                                if isAgentMode {
-                                    thinkingIndicator
-                                } else {
-                                    chatTypingIndicator
-                                }
-                            }
+                            processingIndicator
                         }
                         .padding(.bottom, 12)
                         .blur(radius: manager.takeoverReason != nil ? 8 : 0)
@@ -620,6 +614,17 @@ public struct AssistMainView: View {
         .background(Color.orange.opacity(0.08))
         .cornerRadius(8)
         .padding(.horizontal, 12)
+    }
+
+    @ViewBuilder
+    private var processingIndicator: some View {
+        if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
+            if isAgentMode {
+                thinkingIndicator
+            } else {
+                chatTypingIndicator
+            }
+        }
     }
 
     private var chatTypingIndicator: some View {
@@ -1073,3 +1078,307 @@ private final class ModelMenuTarget: NSObject {
         }
     }
 }
+
+// MARK: - Execution Mode Sheet
+
+struct ExecutionModeSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("com.swiftcode.assist.mode") private var isAgentMode = false
+
+    var body: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("Select Execution Mode")
+                    .font(.headline)
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.bottom, 8)
+
+            VStack(spacing: 12) {
+                // Chat Mode Button
+                Button {
+                    isAgentMode = false
+                    dismiss()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "text.bubble.fill")
+                            .font(.title)
+                            .foregroundColor(.blue)
+                            .frame(width: 40)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Chat Mode")
+                                .font(.subheadline.bold())
+                            Text("A conversational assistant. Safe, read-only, and will not make autonomous changes to your project.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.leading)
+                        }
+                        Spacer()
+                        if !isAgentMode {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.secondary.opacity(0.08))
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+
+                // Agent Mode Button
+                Button {
+                    isAgentMode = true
+                    dismiss()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "cpu.fill")
+                            .font(.title)
+                            .foregroundColor(.orange)
+                            .frame(width: 40)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Agent Mode")
+                                .font(.subheadline.bold())
+                            Text("An autonomous software engineering agent. Can build, test, repair, and apply plans with your permission.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.leading)
+                        }
+                        Spacer()
+                        if isAgentMode {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.orange)
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.secondary.opacity(0.08))
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding()
+        .frame(width: 400)
+    }
+}
+
+// MARK: - Diagnostics Sheet
+
+struct DiagnosticsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var manager: AssistManager
+    @State private var searchText = ""
+    @State private var selectedSeverity = "All"
+    @State private var selectedProvider = "All"
+
+    private let severities = ["All", "INFO", "WARN", "ERROR", "DEBUG", "SUCCESS"]
+    private let providers = ["All", "OpenRouter", "OpenAI", "Anthropic", "Gemini", "Apple", "None"]
+
+    private var filteredEventsGrouped: [String: [DiagnosticEvent]] {
+        let events = DiagnosticEventBus.shared.events
+
+        let filtered = events.filter { event in
+            // Search text filter
+            if !searchText.isEmpty {
+                let term = searchText.lowercased()
+                guard event.message.lowercased().contains(term) ||
+                      event.component.lowercased().contains(term) ||
+                      (event.errorDescription?.lowercased().contains(term) ?? false) else {
+                    return false
+                }
+            }
+
+            // Severity filter
+            if selectedSeverity != "All" {
+                guard event.severity == selectedSeverity else { return false }
+            }
+
+            // Provider filter
+            if selectedProvider != "All" {
+                guard event.provider.lowercased().contains(selectedProvider.lowercased()) else { return false }
+            }
+
+            return true
+        }
+
+        // Group by category, order most-recent-first (chronologically descending)
+        let sorted = filtered.sorted { $0.timestamp > $1.timestamp }
+        return Dictionary(grouping: sorted, by: { $0.category })
+    }
+
+    private func severityColor(_ severity: String) -> Color {
+        switch severity {
+        case "ERROR": return .red
+        case "WARN": return .orange
+        case "SUCCESS": return .green
+        case "DEBUG": return .gray
+        default: return .blue
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Label("System Telemetry & Diagnostics", systemImage: "terminal.fill")
+                    .font(.headline)
+                    .foregroundColor(.orange)
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    GroupBox("Active Runtime Metrics") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Execution Mode:")
+                                    .fontWeight(.semibold)
+                                Spacer()
+                                Text(manager.isProcessing ? "Processing (Active)" : "Idle")
+                                    .foregroundColor(manager.isProcessing ? .green : .secondary)
+                            }
+                        }
+                        .padding(4)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+                    .padding(.horizontal)
+
+                    GroupBox("Diagnostics Logs") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Recent Events")
+                                    .font(.caption.bold())
+                                Spacer()
+                                Button("Clear All Logs") {
+                                    DiagnosticEventBus.shared.clear()
+                                }
+                                .buttonStyle(.borderless)
+                                .controlSize(.small)
+                            }
+
+                            // Interactive Filters
+                            HStack(spacing: 12) {
+                                Picker("Severity:", selection: $selectedSeverity) {
+                                    ForEach(severities, id: \.self) { sev in
+                                        Text(sev).tag(sev)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .controlSize(.small)
+
+                                Picker("Provider:", selection: $selectedProvider) {
+                                    ForEach(providers, id: \.self) { prov in
+                                        Text(prov).tag(prov)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .controlSize(.small)
+                            }
+
+                            // Unified Log Search Filter
+                            HStack {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundColor(.secondary)
+                                TextField("Filter logs...", text: $searchText)
+                                    .textFieldStyle(.plain)
+                                if !searchText.isEmpty {
+                                    Button {
+                                        searchText = ""
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(6)
+                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                            .padding(.bottom, 4)
+
+                            let grouped = filteredEventsGrouped
+                            if grouped.isEmpty {
+                                Text("No matching diagnostic events captured.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                                    .padding(.vertical, 20)
+                            } else {
+                                ScrollView {
+                                    LazyVStack(alignment: .leading, spacing: 8) {
+                                        ForEach(grouped.keys.sorted(), id: \.self) { category in
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(category.uppercased())
+                                                    .font(.caption2.bold())
+                                                    .foregroundColor(.purple)
+                                                    .padding(.top, 4)
+
+                                                ForEach(grouped[category] ?? []) { event in
+                                                    VStack(alignment: .leading, spacing: 2) {
+                                                        HStack {
+                                                            Text("[\(event.component)]")
+                                                                .foregroundColor(.orange)
+                                                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                                            Text("[\(event.severity)]")
+                                                                .foregroundColor(severityColor(event.severity))
+                                                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                                            Text(event.timestamp.formatted(.dateTime.hour().minute().second()))
+                                                                .font(.system(size: 9, design: .monospaced))
+                                                                .foregroundColor(.secondary)
+                                                            if event.provider != "None" {
+                                                                Text("[\(event.provider)]")
+                                                                    .font(.system(size: 9, design: .monospaced))
+                                                                    .foregroundColor(.blue)
+                                                            }
+                                                        }
+                                                        Text(event.message)
+                                                            .font(.system(size: 10, design: .monospaced))
+                                                            .foregroundColor(.primary)
+                                                        if let desc = event.errorDescription {
+                                                            Text(desc)
+                                                                .font(.system(size: 9, design: .monospaced))
+                                                                .foregroundColor(.secondary)
+                                                                .padding(.leading, 8)
+                                                        }
+                                                    }
+                                                    .padding(.bottom, 4)
+                                                }
+                                                Divider()
+                                            }
+                                        }
+                                    }
+                                }
+                                .frame(height: 250)
+                                .background(Color.black.opacity(0.05))
+                                .cornerRadius(6)
+                            }
+                        }
+                        .padding(4)
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+                    .padding(.horizontal)
+                }
+                .padding(.vertical)
+            }
+        }
+        .frame(width: 520, height: 550)
+    }
+}
+
