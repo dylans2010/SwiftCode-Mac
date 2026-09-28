@@ -77,12 +77,10 @@ public final class AssistToolRouter: Sendable {
 
     private init() {}
 
-    /// Categorizes known tools with metadata
     public func metadata(for toolId: String) -> ToolMetadata {
         switch toolId {
-        // Discovery & Reading
         case "file_read", "read_file":
-            return ToolMetadata(id: toolId, name: "Read File", description: "Reads file content with targeted lines.", capability: .fileReading, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
+            return ToolMetadata(id: toolId, name: "Read File", description: "Read file content with targeted lines.", capability: .fileReading, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
         case "directory_read", "list_directory", "read_dir":
             return ToolMetadata(id: toolId, name: "Read Directory", description: "Lists directory contents.", capability: .repositoryDiscovery, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
         case "project_search", "search_files", "find_text":
@@ -92,7 +90,6 @@ public final class AssistToolRouter: Sendable {
         case "tree_view":
             return ToolMetadata(id: toolId, name: "Tree View", description: "ASCII folder tree hierarchy.", capability: .repositoryDiscovery, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
 
-        // Modifications
         case "file_write", "write_file":
             return ToolMetadata(id: toolId, name: "Write File", description: "Writes full file content atomically.", capability: .fileModification, riskLevel: .safeMutation, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
         case "code_replace", "replace_in_file", "edit_file":
@@ -106,7 +103,6 @@ public final class AssistToolRouter: Sendable {
         case "file_rename", "file_move":
             return ToolMetadata(id: toolId, name: "Move/Rename File", description: "Moves or renames files.", capability: .fileModification, riskLevel: .safeMutation, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
 
-        // Compilation & Verification
         case "project_build", "build_project", "run_build":
             return ToolMetadata(id: toolId, name: "Build Project", description: "Builds macOS project via xcodebuild.", capability: .compilation, riskLevel: .execution, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
         case "project_test", "run_tests":
@@ -118,11 +114,9 @@ public final class AssistToolRouter: Sendable {
         case "code_review":
             return ToolMetadata(id: toolId, name: "Code Review", description: "Autonomous code review evaluation gate.", capability: .diagnostics, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
 
-        // Multi-Worker Autonomous Execution
         case "use_workers":
             return ToolMetadata(id: toolId, name: "Use Workers", description: "Creates, schedules, and executes isolated concurrent/sequential Workers for complex tasks.", capability: .planning, riskLevel: .execution, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
 
-        // System & Terminal
         case "use_terminal", "execute_terminal_command", "terminal_command":
             return ToolMetadata(id: toolId, name: "Execute Terminal Command", description: "Executes shell commands in workspace.", capability: .systemExecution, riskLevel: .execution, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
 
@@ -131,13 +125,11 @@ public final class AssistToolRouter: Sendable {
         }
     }
 
-    /// Selects and prioritizes tools suitable for the active phase of the agent task.
     public func filterTools(for status: AgentSessionStatus, in registry: AssistToolRegistry) -> [AssistTool] {
         let all = registry.allTools
 
         switch status {
         case .analyzingRepository, .collectingContext, .gatheringContext, .understandingRequest:
-            // Discovery & Reading tools
             return all.filter { tool in
                 let meta = metadata(for: tool.id)
                 return meta.capability == .repositoryDiscovery ||
@@ -147,7 +139,6 @@ public final class AssistToolRouter: Sendable {
             }
 
         case .planning, .planningReview:
-            // Planning, discovery, and read tools
             return all.filter { tool in
                 let meta = metadata(for: tool.id)
                 return meta.capability == .planning ||
@@ -158,7 +149,6 @@ public final class AssistToolRouter: Sendable {
             }
 
         case .executingTools, .updatingRepository, .executingStrategy:
-            // Mutation, reading, targeted tools
             return all.filter { tool in
                 let meta = metadata(for: tool.id)
                 return meta.capability == .fileModification ||
@@ -171,7 +161,6 @@ public final class AssistToolRouter: Sendable {
             }
 
         case .validating, .reviewing:
-            // Build, test, diff, and review tools
             return all.filter { tool in
                 let meta = metadata(for: tool.id)
                 return meta.capability == .compilation ||
@@ -183,7 +172,6 @@ public final class AssistToolRouter: Sendable {
             }
 
         case .recovering, .reviewFailed:
-            // Diagnostics, read, patch, and build tools
             return all.filter { tool in
                 let meta = metadata(for: tool.id)
                 return meta.capability == .diagnostics ||
@@ -197,7 +185,24 @@ public final class AssistToolRouter: Sendable {
         }
     }
 
-    /// Serializes dynamic tool schemas for injection into the prompt, formatted cleanly.
+    public func selectTools(forCapability capability: ToolCapability, in registry: AssistToolRegistry) -> [AssistTool] {
+        return registry.toolsForCapability(capability)
+    }
+
+    public func selectTools(forCapabilities capabilities: [ToolCapability], in registry: AssistToolRegistry) -> [AssistTool] {
+        var seen = Set<String>()
+        var result: [AssistTool] = []
+        for capability in capabilities {
+            for tool in registry.toolsForCapability(capability) {
+                if !seen.contains(tool.id) {
+                    seen.insert(tool.id)
+                    result.append(tool)
+                }
+            }
+        }
+        return result
+    }
+
     public func serializeToolSchemas(_ tools: [AssistTool]) -> String {
         return tools.map { tool in
             let meta = metadata(for: tool.id)
@@ -212,5 +217,29 @@ public final class AssistToolRouter: Sendable {
               parameters: \(schemaStr)
             """
         }.joined(separator: "\n\n")
+    }
+
+    public func serializeCompactSchemas(_ tools: [AssistTool]) -> String {
+        return tools.map { tool in
+            let meta = metadata(for: tool.id)
+            return """
+            - id: "\(tool.id)"
+              name: "\(tool.name)"
+              category: "\(meta.capability.rawValue)"
+              risk: "\(meta.riskLevel.rawValue)"
+              description: "\(tool.description)"
+            """
+        }.joined(separator: "\n\n")
+    }
+
+    public func compactCapabilitySummary(for registry: AssistToolRegistry) -> String {
+        let capMap = registry.compactCapabilityRepresentation
+        var lines: [String] = []
+        for capability in ToolCapability.allCases {
+            if let ids = capMap[capability.rawValue], !ids.isEmpty {
+                lines.append("\(capability.rawValue): \(ids.joined(separator: ", "))")
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 }

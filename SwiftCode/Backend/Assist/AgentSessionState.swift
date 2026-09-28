@@ -3,10 +3,24 @@ import Observation
 
 public enum AgentSessionStatus: String, Codable, Sendable {
     case idle = "Idle"
+    case initializing = "Initializing"
+    case grounding = "Grounding"
+    case planning = "Planning"
+    case executing = "Executing"
+    case observing = "Observing"
+    case verifying = "Verifying"
+    case repairing = "Repairing"
+    case recovering = "Recovering"
+    case waiting = "Waiting"
+    case completed = "Completed"
+    case blocked = "Blocked"
+    case failed = "Failed"
+    case cancelled = "Cancelled"
+
+    // Legacy aliases for backward compatibility
     case receivingRequest = "Receiving Request"
     case analyzingRepository = "Analyzing Repository"
     case collectingContext = "Collecting Context"
-    case planning = "Planning"
     case planningReview = "Planning Review"
     case awaitingApproval = "Awaiting Approval"
     case executingStrategy = "Executing Strategy"
@@ -16,16 +30,11 @@ public enum AgentSessionStatus: String, Codable, Sendable {
     case validating = "Validating"
     case reviewing = "Reviewing"
     case reviewFailed = "Review Failed"
-    case recovering = "Recovering"
     case generatingSummary = "Generating Summary"
     case completing = "Completing"
     case terminated = "Terminated"
-
     case evaluatingGoalExpansion = "Evaluating Goal Expansion"
     case transitioningToNextGoal = "Transitioning to Expanded Goal"
-
-    // Backward compatibility cases
-    case initializing = "Initializing"
     case understandingRequest = "Understanding Request"
     case gatheringContext = "Gathering Context"
     case selectingTool = "Selecting Tool"
@@ -33,10 +42,57 @@ public enum AgentSessionStatus: String, Codable, Sendable {
     case waitingForUserApproval = "Waiting For User Approval"
     case inspectingResult = "Inspecting Result"
     case finished = "Finished"
-    case completed = "Completed"
-    case failed = "Failed"
-    case cancelled = "Cancelled"
     case stalled = "Stalled"
+}
+
+extension AgentSessionStatus {
+    public var isTerminal: Bool {
+        switch self {
+        case .completed, .failed, .cancelled, .blocked:
+            return true
+        default:
+            return false
+        }
+    }
+
+    public var isLegacy: Bool {
+        switch self {
+        case .receivingRequest, .analyzingRepository, .collectingContext, .planningReview,
+             .awaitingApproval, .executingStrategy, .selectingTools, .executingTools,
+             .updatingRepository, .validating, .reviewing, .reviewFailed,
+             .generatingSummary, .completing, .terminated, .evaluatingGoalExpansion,
+             .transitioningToNextGoal, .understandingRequest, .gatheringContext,
+             .selectingTool, .executingTool, .waitingForUserApproval, .inspectingResult,
+             .finished, .stalled:
+            return true
+        default:
+            return false
+        }
+    }
+
+    public static let validTransitions: [AgentSessionStatus: Set<AgentSessionStatus>] = [
+        .idle: [.initializing, .failed, .cancelled],
+        .initializing: [.grounding, .planning, .failed, .cancelled],
+        .grounding: [.planning, .executing, .failed, .cancelled],
+        .planning: [.executing, .repairing, .recovering, .blocked, .failed, .cancelled],
+        .executing: [.observing, .verifying, .repairing, .recovering, .waiting, .completed, .blocked, .failed, .cancelled],
+        .observing: [.executing, .planning, .verifying, .repairing, .recovering, .blocked, .failed, .cancelled],
+        .verifying: [.completed, .repairing, .recovering, .executing, .blocked, .failed, .cancelled],
+        .repairing: [.executing, .observing, .recovering, .blocked, .failed, .cancelled],
+        .recovering: [.executing, .planning, .repairing, .blocked, .failed, .cancelled],
+        .waiting: [.executing, .planning, .cancelled],
+        .blocked: [.planning, .cancelled],
+        .completed: [],
+        .failed: [.idle],
+        .cancelled: [.idle]
+    ]
+
+    public func canTransition(to newState: AgentSessionStatus) -> Bool {
+        if self == newState { return true }
+        if isTerminal || newState.isTerminal { return true }
+        let allowed = AgentSessionStatus.validTransitions[self] ?? []
+        return allowed.contains(newState)
+    }
 }
 
 public struct StateTransition: Codable, Sendable, Identifiable {
@@ -146,5 +202,90 @@ public final class AgentSessionState: Sendable {
     public var takeoverActive: Bool = false
     public var isAutonomousExpansion: Bool = false
 
+    // MARK: - Observation Loop State
+    public var lastObservation: ToolObservation?
+    public var observationHistory: [ToolObservation] = []
+    public var semanticStateVersion: Int = 0
+
+    // MARK: - Stuck Detection State
+    public var toolCallSignatures: [String: Int] = [:]
+    public var recentToolCallWindow: [String] = []
+    public var lastFileChangeCount: Int = 0
+    public var iterationsSinceFileChange: Int = 0
+    public var replanningCount: Int = 0
+    public var stuckDetectionLog: [StuckDetectionEvent] = []
+
     public init() {}
+}
+
+// MARK: - Tool Observation
+
+public struct ToolObservation: Codable, Sendable, Identifiable {
+    public let id: UUID
+    public let toolId: String
+    public let inputSignature: String
+    public let success: Bool
+    public let outputSummary: String
+    public let filesChanged: [String]
+    public let timestamp: Date
+    public let interpretation: String
+    public let suggestedNextAction: String?
+
+    public init(
+        id: UUID = UUID(),
+        toolId: String,
+        inputSignature: String,
+        success: Bool,
+        outputSummary: String,
+        filesChanged: [String] = [],
+        timestamp: Date = Date(),
+        interpretation: String = "",
+        suggestedNextAction: String? = nil
+    ) {
+        self.id = id
+        self.toolId = toolId
+        self.inputSignature = inputSignature
+        self.success = success
+        self.outputSummary = outputSummary
+        self.filesChanged = filesChanged
+        self.timestamp = timestamp
+        self.interpretation = interpretation
+        self.suggestedNextAction = suggestedNextAction
+    }
+}
+
+// MARK: - Stuck Detection Event
+
+public struct StuckDetectionEvent: Codable, Sendable, Identifiable {
+    public let id: UUID
+    public let timestamp: Date
+    public let detectionType: StuckDetectionType
+    public let reason: String
+    public let iteration: Int
+    public let evidence: String
+
+    public init(
+        id: UUID = UUID(),
+        timestamp: Date = Date(),
+        detectionType: StuckDetectionType,
+        reason: String,
+        iteration: Int,
+        evidence: String = ""
+    ) {
+        self.id = id
+        self.timestamp = timestamp
+        self.detectionType = detectionType
+        self.reason = reason
+        self.iteration = iteration
+        self.evidence = evidence
+    }
+}
+
+public enum StuckDetectionType: String, Codable, Sendable {
+    case noProgress = "No Progress"
+    case circularBehavior = "Circular Behavior"
+    case repeatedIdenticalCalls = "Repeated Identical Calls"
+    case staleReasoning = "Stale Reasoning"
+    case repeatedFailures = "Repeated Failures"
+    case noFileChangesWhenExpected = "No File Changes When Expected"
 }

@@ -35,8 +35,13 @@ public final class AssistContextBuilder {
             fileSystem: fileSystem,
             git: git,
             permissions: permissions,
-            safetyLevel: .balanced, // Default
+            safetyLevel: .balanced,
             isAutonomous: true
         )
+    }
+
+    public func buildContextEngine(sessionId: UUID) -> AssistContextEngine {
+        let context = buildContext(sessionId: sessionId)
+        return AssistContextEngine(context: context)
     }
 }

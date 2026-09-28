@@ -24,6 +24,11 @@ public final class AssistManager: ObservableObject {
     private let api = AssistAPI.shared
     private var activeAgentTask: Task<Void, Never>?
 
+    // Transcript vs Model Context separation
+    public private(set) var modelContext: [ModelContextSection] = []
+    public private(set) var contextPressure: ContextPressureState?
+    private var contextEngine: AssistContextEngine?
+
     // Cache for bundled system prompt
     private var cachedSystemPrompt: String?
 
@@ -35,6 +40,7 @@ public final class AssistManager: ObservableObject {
     @Published public var terminalExitCode: Int? = nil
     @Published public var terminalCompleted: Bool = false
     @Published public var activeProcess: Process?
+    @Published public var activeFallbackMessage: String?
 
     public func getSystemPrompt() throws -> String {
         if let cached = cachedSystemPrompt {
@@ -128,12 +134,25 @@ public final class AssistManager: ObservableObject {
         AssistExecutionFunctions.initializeRegistry()
         loadHistory()
         setupAgent()
+        observeFallbackState()
     }
 
     private func setupAgent() {
         let context = buildContext()
         self.api.configure(context: context)
         self.agent = AssistAgent(context: context, registry: registry)
+    }
+
+    private func observeFallbackState() {
+        Task { @MainActor in
+            for await _ in AssistModelManager.shared.$lastFallbackMessage.values {
+                if let message = AssistModelManager.shared.lastFallbackMessage {
+                    activeFallbackMessage = message
+                    messages.append(AssistMessage(role: .system, content: message))
+                    saveHistory()
+                }
+            }
+        }
     }
 
     private func buildContext() -> AssistContext {
@@ -255,6 +274,62 @@ public final class AssistManager: ObservableObject {
 
             let assetSystemPrompt = try getSystemPrompt()
 
+            let context = buildContext()
+            if contextEngine == nil {
+                contextEngine = AssistContextEngine(context: context)
+            }
+
+            let messagesCopy = await MainActor.run { self.messages }
+            let recentMessages = messagesCopy.suffix(15)
+
+            let transcriptSection = ModelContextSection(
+                priority: .p1,
+                title: "Conversation History",
+                content: recentMessages.map { msg in
+                    let roleStr = msg.role == .user ? "User" : (msg.role == .system ? "System" : "Assistant")
+                    return "\(roleStr): \(msg.content)"
+                }.joined(separator: "\n"),
+                estimatedTokens: 0
+            )
+
+            var sections: [ModelContextSection] = []
+
+            let systemSection = ModelContextSection(
+                priority: .p0,
+                title: "System Prompt",
+                content: assetSystemPrompt,
+                estimatedTokens: 0
+            )
+            sections.append(systemSection)
+            sections.append(transcriptSection)
+
+            if !attachments.isEmpty {
+                var attachmentContent = ""
+                for file in attachments {
+                    attachmentContent += "Filename: \(file.filename)\n"
+                    attachmentContent += "Extension: \(file.extension)\n"
+                    attachmentContent += "MIME Type: \(file.mimeType)\n"
+                    attachmentContent += "Size: \(file.size) bytes\n"
+                    attachmentContent += "Base64 Content:\n\(file.base64Content)\n"
+                    attachmentContent += "-----------------------------\n"
+                }
+                sections.append(ModelContextSection(
+                    priority: .p1,
+                    title: "Attachments",
+                    content: attachmentContent,
+                    estimatedTokens: 0
+                ))
+            }
+
+            let modelId = AssistModelManager.shared.selectedModelID
+            let budget = contextEngine!.calculateBudget(modelId: modelId, systemPromptLength: assetSystemPrompt.count)
+            let compactedSections = contextEngine!.compactContext(sections: sections, budget: budget)
+
+            await MainActor.run {
+                self.modelContext = compactedSections
+                self.contextPressure = contextEngine!.getPressureState()
+            }
+
             var prompt = """
             # SYSTEM PROMPT (OPERATING POLICY)
             \(assetSystemPrompt)
@@ -270,23 +345,10 @@ public final class AssistManager: ObservableObject {
 
             """
 
-            if !attachments.isEmpty {
-                prompt += "\n# ATTACHED FILES FOR THIS TASK (READ-ONLY REFERENCE)\n"
-                for file in attachments {
-                    prompt += "Filename: \(file.filename)\n"
-                    prompt += "Extension: \(file.extension)\n"
-                    prompt += "MIME Type: \(file.mimeType)\n"
-                    prompt += "Size: \(file.size) bytes\n"
-                    prompt += "Base64 Content:\n\(file.base64Content)\n"
-                    prompt += "-----------------------------\n"
+            for section in compactedSections {
+                if section.title != "System Prompt" {
+                    prompt += "\n# \(section.title.uppercased())\n\(section.content)\n"
                 }
-            }
-
-            prompt += "\n# CONVERSATION HISTORY\n"
-            let messagesCopy = await MainActor.run { self.messages }
-            for msg in messagesCopy.suffix(15) {
-                let roleStr = msg.role == .user ? "User" : (msg.role == .system ? "System" : "Assistant")
-                prompt += "\(roleStr): \(msg.content)\n"
             }
 
             prompt += "\nAssistant:"
@@ -337,6 +399,8 @@ public final class AssistManager: ObservableObject {
         currentCodeReview = nil
         isCodeReviewRunning = false
         hasCodeReviewBeenInvoked = false
+        activeFallbackMessage = nil
+        AssistModelManager.shared.clearFallbackNotification()
 
         messages.removeAll()
         session.reset()

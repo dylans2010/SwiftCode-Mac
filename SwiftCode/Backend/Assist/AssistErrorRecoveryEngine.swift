@@ -138,6 +138,35 @@ public final class AssistErrorRecoveryEngine: Sendable {
         return false
     }
 
+    /// Returns a strategy shift directive when an identical failure is detected.
+    public func strategyShiftForIdenticalFailure(toolId: String, error: String) -> String {
+        let category = classify(message: error)
+        switch category {
+        case .compilerError:
+            return "The previous approach failed identically. Re-read the file from disk, verify the exact current content, and try a fundamentally different edit strategy."
+        case .editConflict:
+            return "The target text was not found. Re-read the file to get the exact current content, then apply a different editing approach."
+        case .toolError:
+            return "This tool call failed identically. Try a different tool or break the operation into smaller steps."
+        case .testFailure:
+            return "The test failure is identical. Re-read the test file and the implementation, then try a different fix approach."
+        default:
+            return "This exact action failed identically. Change your approach completely — try a different tool, different parameters, or a different strategy."
+        }
+    }
+
+    /// Checks if a tool call signature has been seen too many times.
+    public func isRepeatedCall(signature: String, threshold: Int = 3) -> Bool {
+        return signatureCounts[signature, default: 0] >= threshold
+    }
+
+    /// Records a tool call signature for circular pattern detection.
+    public func recordToolCallSignature(_ signature: String) {
+        signatureCounts[signature, default: 0] += 1
+    }
+
+    public var currentSignatureCounts: [String: Int] { signatureCounts }
+
     /// Classifies an error message into a structured FailureCategory.
     public func classify(message: String, exitCode: Int? = nil) -> FailureCategory {
         let lower = message.lowercased()

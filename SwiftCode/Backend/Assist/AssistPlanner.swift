@@ -9,7 +9,27 @@ public final class AssistPlanner {
     }
 
     public func plan(for intent: String) async throws -> AssistExecutionPlan {
-        return try await TasksAIPlanner.shared.generatePlan(intent: intent, context: context)
+        let complexity = AssistPlanner.classifyComplexity(intent: intent)
+        return try await TasksAIPlanner.shared.generatePlan(intent: intent, context: context, complexity: complexity)
+    }
+
+    static func classifyComplexity(intent: String) -> PlanComplexity {
+        let lower = intent.lowercased()
+        let wordCount = intent.split(separator: " ").count
+
+        let complexIndicators = ["refactor", "migrate", "redesign", "architect", "multi-file", "restructure", "optimize performance", "implement a complete", "build a full"]
+        let simpleIndicators = ["fix", "rename", "add a comment", "update", "change", "remove", "delete", "typo"]
+
+        let complexScore = complexIndicators.reduce(0) { $0 + (lower.contains($1) ? 1 : 0) }
+        let simpleScore = simpleIndicators.reduce(0) { $0 + (lower.contains($1) ? 1 : 0) }
+
+        if complexScore >= 2 || wordCount > 30 {
+            return .complex
+        } else if simpleScore >= 1 && wordCount < 10 {
+            return .simple
+        } else {
+            return .moderate
+        }
     }
 
     private func parsePlan(from response: String) async throws -> AssistExecutionPlan {
@@ -57,4 +77,10 @@ public final class AssistPlanner {
 
 enum AssistPlannerError: Error {
     case invalidResponse
+}
+
+public enum PlanComplexity: String, Sendable {
+    case simple = "Simple"
+    case moderate = "Moderate"
+    case complex = "Complex"
 }

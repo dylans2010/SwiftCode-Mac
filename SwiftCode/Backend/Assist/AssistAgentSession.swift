@@ -50,21 +50,29 @@ public final class AssistAgentSession: Sendable {
 
     public init() {}
 
-    /// MainActor-isolated atomic state transition helper that updates internal state machine without polluting user transcript.
+    /// MainActor-isolated atomic state transition helper that validates transitions and updates internal state machine.
     @MainActor
     public func transition(to newState: AgentSessionStatus, reason: String, toolResult: String? = nil) {
         let oldState = self.state.status
         guard oldState != newState else { return }
 
-        // Record internal state transition
+        if !oldState.canTransition(to: newState) {
+            pipelineLogger.warning("[State Transition REJECTED] \(oldState.rawValue) -> \(newState.rawValue) | Reason: \(reason)")
+            DiagnosticEventBus.shared.logEvent(
+                component: "AssistAgentSession",
+                severity: "WARNING",
+                category: "state_transition_rejected",
+                message: "Rejected transition from \(oldState.rawValue) to \(newState.rawValue). Reason: \(reason)"
+            )
+            return
+        }
+
         let transition = StateTransition(fromState: oldState, toState: newState, reason: reason)
         self.state.stateHistory.append(transition)
         self.state.status = newState
 
-        // System logging
         pipelineLogger.info("[State Transition] \(oldState.rawValue) -> \(newState.rawValue) | Reason: \(reason)")
 
-        // Post structured diagnostic events
         DiagnosticEventBus.shared.logEvent(
             component: "AssistAgentSession",
             severity: "INFO",
@@ -72,10 +80,162 @@ public final class AssistAgentSession: Sendable {
             message: "Transitioned from \(oldState.rawValue) to \(newState.rawValue). Reason: \(reason)"
         )
 
-        // Record internal AgentEvent
         let event = AgentEvent(state: newState, summary: reason, toolResult: toolResult)
         self.state.events.append(event)
         updateAgentNotes(currentAction: reason)
+    }
+
+    // MARK: - Observation Loop
+
+    @MainActor
+    private func observeResult(toolId: String, input: [String: Any], result: AssistToolResult, explanation: String) {
+        let inputSignature = "\(toolId)::\(input.description)"
+        let interpretation: String
+        let suggestedNext: String?
+
+        if result.success {
+            if !result.filesChanged.isEmpty {
+                interpretation = "Successfully modified: \(result.filesChanged.joined(separator: ", "))"
+                suggestedNext = "Verify changes and continue with next step"
+            } else if let diff = result.diff, !diff.isEmpty {
+                let added = diff.components(separatedBy: "\n").filter { $0.hasPrefix("+") && !$0.hasPrefix("+++") }.count
+                let deleted = diff.components(separatedBy: "\n").filter { $0.hasPrefix("-") && !$0.hasPrefix("---") }.count
+                interpretation = "Applied changes: +\(added)/-\(deleted) lines"
+                suggestedNext = "Continue to next step or verify"
+            } else {
+                interpretation = "Tool completed successfully: \(explanation)"
+                suggestedNext = "Continue with next planned action"
+            }
+        } else {
+            let error = result.error ?? result.output
+            interpretation = "Tool failed: \(error.prefix(200))"
+            suggestedNext = "Analyze failure and adjust approach"
+        }
+
+        let observation = ToolObservation(
+            toolId: toolId,
+            inputSignature: inputSignature,
+            success: result.success,
+            outputSummary: result.output.prefix(300).description,
+            filesChanged: result.filesChanged,
+            interpretation: interpretation,
+            suggestedNextAction: suggestedNext
+        )
+
+        self.state.lastObservation = observation
+        self.state.observationHistory.append(observation)
+        if self.state.observationHistory.count > 20 {
+            self.state.observationHistory.removeFirst(self.state.observationHistory.count - 20)
+        }
+        self.state.semanticStateVersion += 1
+
+        AssistErrorRecoveryEngine.shared.recordToolCallSignature(inputSignature)
+    }
+
+    // MARK: - Stuck Detection
+
+    @MainActor
+    private func detectStuck() -> StuckDetectionEvent? {
+        let currentFileChangeCount = self.state.changeSummary.createdFiles.count +
+            self.state.changeSummary.modifiedFiles.count +
+            self.state.changeSummary.deletedFiles.count
+
+        if currentFileChangeCount > self.state.lastFileChangeCount {
+            self.state.lastFileChangeCount = currentFileChangeCount
+            self.state.iterationsSinceFileChange = 0
+        } else {
+            self.state.iterationsSinceFileChange += 1
+        }
+
+        if self.state.iterationsSinceFileChange >= 10 {
+            let event = StuckDetectionEvent(
+                detectionType: .noFileChangesWhenExpected,
+                reason: "No file changes across \(self.state.iterationsSinceFileChange) iterations",
+                iteration: self.iterationCount,
+                evidence: "File change count stuck at \(currentFileChangeCount)"
+            )
+            self.state.stuckDetectionLog.append(event)
+            return event
+        }
+
+        let recentWindow = self.state.recentToolCallWindow.suffix(6)
+        if recentWindow.count >= 4 {
+            let unique = Set(recentWindow)
+            if unique.count <= 2 {
+                let event = StuckDetectionEvent(
+                    detectionType: .circularBehavior,
+                    reason: "Circular behavior detected: only \(unique.count) unique actions in last \(recentWindow.count) calls",
+                    iteration: self.iterationCount,
+                    evidence: "Recent calls: \(recentWindow.joined(separator: ", "))"
+                )
+                self.state.stuckDetectionLog.append(event)
+                return event
+            }
+        }
+
+        let signatureCounts = AssistErrorRecoveryEngine.shared.currentSignatureCounts
+        for (sig, count) in signatureCounts where count >= 3 {
+            let event = StuckDetectionEvent(
+                detectionType: .repeatedIdenticalCalls,
+                reason: "Tool call signature repeated \(count) times: \(sig)",
+                iteration: self.iterationCount,
+                evidence: sig
+            )
+            self.state.stuckDetectionLog.append(event)
+            return event
+        }
+
+        if self.recentErrors.count >= 5 {
+            let uniqueErrors = Set(self.recentErrors.suffix(5))
+            if uniqueErrors.count <= 2 {
+                let event = StuckDetectionEvent(
+                    detectionType: .repeatedFailures,
+                    reason: "Repeated failures with only \(uniqueErrors.count) unique errors in last 5 attempts",
+                    iteration: self.iterationCount,
+                    evidence: uniqueErrors.joined(separator: "; ")
+                )
+                self.state.stuckDetectionLog.append(event)
+                return event
+            }
+        }
+
+        return nil
+    }
+
+    // MARK: - Replanning
+
+    @MainActor
+    private func replanFromStuck(detection: StuckDetectionEvent) {
+        self.state.replanningCount += 1
+        self.state.semanticStateVersion += 1
+
+        pipelineLogger.warning("Replanning triggered: \(detection.reason)")
+
+        let replanPrompt = """
+
+        # STUCK DETECTION & REPLANNING REQUIRED
+        The agent has been detected as stuck:
+        - Type: \(detection.detectionType.rawValue)
+        - Reason: \(detection.reason)
+        - Iteration: \(detection.iteration)
+
+        # CURRENT STATE
+        - Completed actions: \(self.state.completedActions.joined(separator: ", "))
+        - Recent errors: \(self.recentErrors.suffix(3).joined(separator: "; "))
+        - Files modified so far: \(self.state.changeSummary.modifiedFiles.map { $0.filename }.joined(separator: ", "))
+
+        # REQUIRED ACTION
+        1. Re-ground: Re-read the current state of modified files from disk
+        2. Review what has actually been accomplished vs. what remains
+        3. Rebuild the plan with a different strategy
+        4. Resume execution with the new plan
+
+        Break out of the current loop. Try a completely different technique.
+        """
+
+        appendConversationHistory(replanPrompt)
+        self.recentErrors.removeAll()
+        self.state.recentToolCallWindow.removeAll()
     }
 
     /// Helper to post or update conversational messages on AssistManager.shared.messages with attached ActivityGroup.
@@ -127,7 +287,7 @@ public final class AssistAgentSession: Sendable {
         AssistErrorRecoveryEngine.shared.resetSession()
 
         // PHASE 1: Initializing
-        transition(to: .receivingRequest, reason: "Initializing autonomous session.")
+        transition(to: .initializing, reason: "Initializing autonomous session.")
         self.state.changeSummary.clear()
 
         // Conversational start
@@ -216,7 +376,7 @@ public final class AssistAgentSession: Sendable {
         self.contextManager = AgentContextManager(context: context)
 
         // Codebase Analysis
-        transition(to: .analyzingRepository, reason: "Analyzing codebase structure.")
+        transition(to: .grounding, reason: "Analyzing codebase structure.")
         let codebaseAnalyzer = _AssistCriticalCodebaseAnalyzer(context: context)
         var preModSummary = ""
         do {
@@ -241,7 +401,7 @@ public final class AssistAgentSession: Sendable {
 
         // Pre-planning baseline verification
         self.validationCount += 1
-        transition(to: .collectingContext, reason: "Verifying repository baseline integrity...")
+        transition(to: .grounding, reason: "Verifying repository baseline integrity...")
         currentActivityGroup.verifications.append(VerificationActivityItem(
             checkName: "Repository Baseline Check",
             isPassed: true,
@@ -270,7 +430,7 @@ public final class AssistAgentSession: Sendable {
             ) {
                 let budgetMsg = "Execution suspended: Budget limit reached (\(exceededReason))."
                 pipelineLogger.warning("\(budgetMsg)")
-                transition(to: .stalled, reason: budgetMsg)
+                transition(to: .blocked, reason: budgetMsg)
                 postConversationalMessage("Task execution paused as the budget limit was reached (\(exceededReason)).", isComplete: true)
                 return
             }
@@ -278,6 +438,10 @@ public final class AssistAgentSession: Sendable {
             // Planning & Context Assembly
             _ = phaseCoordinator.startPhase("PHASE_05_PLANNING")
             transition(to: .planning, reason: "Formulating execution strategy...")
+
+            let complexity = AssistPlanner.classifyComplexity(intent: objective)
+            pipelineLogger.info("Task complexity classified as: \(complexity.rawValue)")
+            pipelineLogger.info("Task complexity classified as: \(complexity.rawValue)")
 
             let failureSummary = AssistErrorRecoveryEngine.shared.formatFailuresForPrompt()
             let verificationSummary = "Syntax checks: \(self.validationCount) passes recorded. Modified targets: \(self.state.changeSummary.modifiedFiles.count)"
@@ -360,8 +524,6 @@ public final class AssistAgentSession: Sendable {
             }
             conversationPrompt += "\n\nChoose the next best tool to run or provide finalResponse in valid JSON."
 
-            transition(to: .selectingTools, reason: "Selecting tools for task...")
-
             let activeModel = AssistModelManager.shared.selectedModelID
             let response = try await AgentModelAdapter.shared.queryModel(prompt: conversationPrompt, modelId: activeModel)
             guard response.count > 0 else {
@@ -378,7 +540,7 @@ public final class AssistAgentSession: Sendable {
             if let finalResponse = jsonBlock["finalResponse"] as? String {
                 self.validationCount += 1
                 _ = phaseCoordinator.startPhase("PHASE_07_VERIFICATION")
-                transition(to: .validating, reason: "Evaluating Autonomous Completion Contract...")
+                transition(to: .verifying, reason: "Evaluating Autonomous Completion Contract...")
 
                 for file in self.state.changeSummary.modifiedFiles { task.recordFileInvolved(file.filename) }
                 for file in self.state.changeSummary.createdFiles { task.recordFileInvolved(file.filename) }
@@ -419,7 +581,7 @@ public final class AssistAgentSession: Sendable {
 
                 // Execute final code review gate if enabled
                 _ = phaseCoordinator.startPhase("PHASE_08_REVIEW")
-                transition(to: .reviewing, reason: "Executing code review verification...")
+                transition(to: .verifying, reason: "Executing code review verification...")
                 if let reviewTool = registry.getTool("code_review") {
                     do {
                         _ = try await reviewTool.execute(input: [:], context: context)
@@ -454,7 +616,7 @@ public final class AssistAgentSession: Sendable {
                 postConversationalMessage(finalResponse.isEmpty ? "The fix is complete and verified." : finalResponse, isComplete: true)
 
                 _ = phaseCoordinator.startPhase("PHASE_09_COMPLETION")
-                transition(to: .terminated, reason: "Task complete and verified.")
+                transition(to: .completed, reason: "Task complete and verified.")
                 NotificationManager.shared.sendAgentTaskFinishedNotification()
                 AlertSoundPlayer.shared.play(.agentResponseReady)
                 return
@@ -492,13 +654,7 @@ public final class AssistAgentSession: Sendable {
             state.plan.append(newStep)
 
             _ = phaseCoordinator.startPhase("PHASE_06_EXECUTION")
-            if toolId == "use_terminal" || toolId == "terminal_command" || toolId == "execute_command" {
-                transition(to: .awaitingApproval, reason: "Awaiting developer authorization for terminal command.")
-            } else if ["file_write", "code_refactor", "file_create", "file_append", "patch_application_engine", "file_delete", "dir_delete", "file_rename", "file_move", "code_replace"].contains(toolId) {
-                transition(to: .updatingRepository, reason: "Applying repository changes...")
-            } else {
-                transition(to: .executingTools, reason: "Executing tool [\(toolId)]")
-            }
+            transition(to: .executing, reason: "Executing tool [\(toolId)]")
 
             guard let tool = registry.getTool(toolId) else {
                 appendConversationHistory("- Action: Run \(toolId). Result: FAILED - Tool '\(toolId)' not found.")
@@ -530,6 +686,14 @@ public final class AssistAgentSession: Sendable {
                 self.recentToolResults.append(result)
                 if self.recentToolResults.count > 10 {
                     self.recentToolResults.removeFirst(self.recentToolResults.count - 10)
+                }
+
+                observeResult(toolId: toolId, input: validatedInput, result: result, explanation: explanation)
+
+                let callSignature = "\(toolId)::\(validatedInput.description)"
+                self.state.recentToolCallWindow.append(callSignature)
+                if self.state.recentToolCallWindow.count > 12 {
+                    self.state.recentToolCallWindow.removeFirst(self.state.recentToolCallWindow.count - 12)
                 }
 
                 if result.success {
@@ -599,6 +763,11 @@ public final class AssistAgentSession: Sendable {
                     let isDuplicate = AssistErrorRecoveryEngine.shared.isIdenticalFailure(toolId: toolId, input: validatedInput, error: errMsg)
                     let recoveryAttempt = AssistErrorRecoveryEngine.shared.recordRecoveryAttempt(domain: .tool)
 
+                    if isDuplicate {
+                        let strategyShift = AssistErrorRecoveryEngine.shared.strategyShiftForIdenticalFailure(toolId: toolId, error: errMsg)
+                        appendConversationHistory("- System note: Identical failure detected. Strategy shift required: \(strategyShift)")
+                    }
+
                     if recoveryAttempt.allowed {
                         currentActivityGroup.recoveries.append(RecoveryActivityItem(
                             domain: "Tool Recovery",
@@ -616,32 +785,40 @@ public final class AssistAgentSession: Sendable {
                         state.plan[index].status = .failed
                     }
 
+                    self.recentErrors.append(errMsg)
+                    if self.recentErrors.count > 10 {
+                        self.recentErrors.removeFirst(self.recentErrors.count - 10)
+                    }
+
                     appendConversationHistory("- Action: Run \(toolId). Result: FAILED - Error: \(errMsg)")
                 }
             } catch {
                 currentActivityGroup.tools[toolActivityIndex].status = .failed
                 currentActivityGroup.tools[toolActivityIndex].result = error.localizedDescription
+                self.recentErrors.append(error.localizedDescription)
                 appendConversationHistory("- Action: Run \(toolId). Result: FAILED - Exception: \(error.localizedDescription)")
             }
 
-            let currentRepoModificationCount = self.state.changeSummary.createdFiles.count +
-                self.state.changeSummary.modifiedFiles.count +
-                self.state.changeSummary.deletedFiles.count
+            transition(to: .observing, reason: "Interpreting tool result...")
 
-            if currentRepoModificationCount > lastRepoModificationCount || self.successfulToolExecutionCount > lastSuccessfulToolCallCount {
-                consecutiveNoProgressCycles = 0
-                lastRepoModificationCount = currentRepoModificationCount
-                lastSuccessfulToolCallCount = self.successfulToolExecutionCount
-            } else {
-                consecutiveNoProgressCycles += 1
+            if let stuckEvent = detectStuck() {
+                transition(to: .blocked, reason: "Stuck detected: \(stuckEvent.reason)")
+                postConversationalMessage("I've detected that my current approach isn't making progress. I'm re-evaluating the situation.", isComplete: false)
+
+                replanFromStuck(detection: stuckEvent)
+
+                if self.state.replanningCount >= 3 {
+                    transition(to: .blocked, reason: "Replanning exhausted after 3 attempts.")
+                    postConversationalMessage("Unable to complete the task after multiple replanning attempts.", isComplete: true)
+                    return
+                }
+
+                transition(to: .planning, reason: "Replanning after stuck detection...")
+                continue
             }
 
-            if consecutiveNoProgressCycles >= 15 {
-                let errorMsg = "The task execution reached maximum cycles without progress."
-                transition(to: .stalled, reason: errorMsg)
-                postConversationalMessage("Task paused due to lack of progress across execution cycles.", isComplete: true)
-                return
-            }
+            transition(to: .executing, reason: "Continuing execution...")
+
         }
 
         if isCancelled || Task.isCancelled {
@@ -679,7 +856,7 @@ public final class AssistAgentSession: Sendable {
     @MainActor
     public func updateAgentNotes(currentAction: String = "") {
         guard let context = activeContext else { return }
-        let isTerminal = state.status == .terminated || state.status == .failed || state.status == .cancelled || state.status == .stalled
+        let isTerminal = state.status == .completed || state.status == .failed || state.status == .cancelled || state.status == .blocked
         if !isTerminal && Date().timeIntervalSince(lastNotesUpdateTime) < 2.0 { return }
         lastNotesUpdateTime = Date()
         let selectedModel = AssistModelManager.shared.selectedModelID
@@ -709,7 +886,7 @@ public final class AssistAgentSession: Sendable {
 
     public func retryLastStep() {
         self.isCancelled = false
-        if self.state.status == .failed || self.state.status == .stalled || self.state.status == .cancelled {
+        if self.state.status == .failed || self.state.status == .blocked || self.state.status == .cancelled {
             transition(to: .planning, reason: "Retrying agent cycle.")
             if let activeContext = self.activeContext, let task = self.currentTask {
                 Task { [weak self] in

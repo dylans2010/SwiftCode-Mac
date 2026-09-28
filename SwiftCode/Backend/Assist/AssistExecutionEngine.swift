@@ -56,6 +56,9 @@ public final class AssistExecutionEngine {
                 plan.steps[i] = step
                 TasksAIPlanner.shared.updateStep(id: step.id, status: step.status, result: result)
 
+                let observation = interpretResult(toolId: step.toolId, result: result, stepDescription: step.description)
+                await context.logger.info("Observation [\(step.toolId)]: \(observation)", toolId: step.toolId)
+
                 if !result.success {
                     await context.logger.error("Step failed: \(result.error ?? "Unknown error")", toolId: step.toolId)
                     if context.safetyLevel == .conservative {
@@ -63,7 +66,6 @@ public final class AssistExecutionEngine {
                         return
                     }
                 } else {
-                    // Force project refresh on successful file writes or modifications
                     if ["file_write", "code_refactor", "file_create", "file_append"].contains(step.toolId) {
                         if let project = await ProjectSessionStore.shared.activeProject {
                             await ProjectSessionStore.shared.refreshFileTree(for: project)
@@ -85,6 +87,23 @@ public final class AssistExecutionEngine {
             TasksAIPlanner.shared.currentPlan?.status = plan.status
         }
         await context.logger.info(anyStepFailed ? "Plan execution finished with failed steps: \(plan.goal)" : "Plan execution completed: \(plan.goal)")
+    }
+
+    private func interpretResult(toolId: String, result: AssistToolResult, stepDescription: String) -> String {
+        if result.success {
+            if !result.filesChanged.isEmpty {
+                return "Success: \(result.filesChanged.joined(separator: ", ")) modified"
+            }
+            if let diff = result.diff, !diff.isEmpty {
+                let added = diff.components(separatedBy: "\n").filter { $0.hasPrefix("+") && !$0.hasPrefix("+++") }.count
+                let deleted = diff.components(separatedBy: "\n").filter { $0.hasPrefix("-") && !$0.hasPrefix("---") }.count
+                return "Success: +\(added)/-\(deleted) lines changed"
+            }
+            return "Success: \(stepDescription)"
+        } else {
+            let error = result.error ?? result.output
+            return "Failed: \(error.prefix(200))"
+        }
     }
 }
 

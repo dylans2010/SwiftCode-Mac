@@ -12,11 +12,34 @@ public final class TasksAIPlanner: ObservableObject {
     private init() {}
 
     /// Generates a structured multi-step plan based on user intent.
-    public func generatePlan(intent: String, context: AssistContext) async throws -> AssistExecutionPlan {
+    public func generatePlan(intent: String, context: AssistContext, complexity: PlanComplexity = .moderate) async throws -> AssistExecutionPlan {
         isPlanning = true
         defer { isPlanning = false }
 
-        await context.logger.info("Generating autonomous plan for intent: \(intent)", toolId: "TasksAIPlanner")
+        await context.logger.info("Generating autonomous plan for intent: \(intent) [complexity: \(complexity.rawValue)]", toolId: "TasksAIPlanner")
+
+        let complexityInstructions: String
+        switch complexity {
+        case .simple:
+            complexityInstructions = """
+            # COMPLEXITY: SIMPLE
+            This is a straightforward task. Generate a minimal plan with 2-4 steps.
+            Focus on direct execution — no need for extensive exploration.
+            """
+        case .moderate:
+            complexityInstructions = """
+            # COMPLEXITY: MODERATE
+            This is a standard task. Generate a plan with 3-6 steps.
+            Include exploration, implementation, and verification.
+            """
+        case .complex:
+            complexityInstructions = """
+            # COMPLEXITY: COMPLEX
+            This is a complex task requiring deep planning. Generate a comprehensive plan with 5-10 steps.
+            Include thorough exploration, multi-file coordination, implementation, verification, and testing.
+            Consider architectural implications and potential edge cases.
+            """
+        }
 
         let prompt = """
         \(AssistAgenticPrompt.systemPrompt)
@@ -84,6 +107,8 @@ public final class TasksAIPlanner: ObservableObject {
         - Use real file paths and FULL, production-ready implementations.
         - No mock data.
         - Every step must have a real toolId from available tools.
+
+        \(complexityInstructions)
 
         # FINAL REPORT FORMAT
         All plans must lead to a final report following the markdown structure:

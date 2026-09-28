@@ -1,6 +1,63 @@
 import Foundation
 import SwiftUI
 
+// MARK: - Canonical Agent Model Abstraction
+
+public struct AgentModelResponse: Codable, Sendable {
+    public let content: String
+    public let toolCalls: [AgentToolCall]
+    public let modelId: String
+    public let provider: String
+    public let inputTokens: Int?
+    public let outputTokens: Int?
+    public let finishReason: String?
+    public let latency: TimeInterval
+
+    public init(
+        content: String,
+        toolCalls: [AgentToolCall] = [],
+        modelId: String,
+        provider: String,
+        inputTokens: Int? = nil,
+        outputTokens: Int? = nil,
+        finishReason: String? = nil,
+        latency: TimeInterval = 0
+    ) {
+        self.content = content
+        self.toolCalls = toolCalls
+        self.modelId = modelId
+        self.provider = provider
+        self.inputTokens = inputTokens
+        self.outputTokens = outputTokens
+        self.finishReason = finishReason
+        self.latency = latency
+    }
+}
+
+public struct AgentModelContextBudget: Sendable {
+    public let modelId: String
+    public let contextWindowTokens: Int
+    public let reservedOutputTokens: Int
+    public let maxInputTokens: Int
+    public let utilizationRatio: Double
+
+    public init(modelId: String, contextWindowTokens: Int, reservedOutputTokens: Int = 4096) {
+        self.modelId = modelId
+        self.contextWindowTokens = contextWindowTokens
+        self.reservedOutputTokens = reservedOutputTokens
+        self.maxInputTokens = max(1024, contextWindowTokens - reservedOutputTokens)
+        self.utilizationRatio = Double(reservedOutputTokens) / Double(contextWindowTokens)
+    }
+
+    public func fitsContext(estimatedTokens: Int) -> Bool {
+        return estimatedTokens <= maxInputTokens
+    }
+
+    public func estimatedTokenCount(for text: String) -> Int {
+        return text.count / 4
+    }
+}
+
 // MARK: - AI Models & Providers
 
 public enum AssistModelProvider: String, Codable, CaseIterable, Sendable {
@@ -283,6 +340,141 @@ public enum AssistExecutionStatus: String, Codable, Sendable {
     case completed
     case failed
     case skipped
+}
+
+// MARK: - Context Engine Types
+
+public enum ContextPriority: Int, Codable, Sendable, Comparable {
+    case p0 = 0
+    case p1 = 1
+    case p2 = 2
+    case p3 = 3
+
+    public static func < (lhs: ContextPriority, rhs: ContextPriority) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
+public struct ContextBudget: Sendable {
+    public let modelCapacity: Int
+    public let systemPromptOverhead: Int
+    public let responseReserve: Int
+    public let toolCallReserve: Int
+    public let safetyMargin: Int
+    public let usableBudget: Int
+
+    public init(modelCapacity: Int, systemPromptOverhead: Int, responseReserve: Int = 4096, toolCallReserve: Int = 2048, safetyMargin: Int = 2048) {
+        self.modelCapacity = modelCapacity
+        self.systemPromptOverhead = systemPromptOverhead
+        self.responseReserve = responseReserve
+        self.toolCallReserve = toolCallReserve
+        self.safetyMargin = safetyMargin
+        self.usableBudget = max(0, modelCapacity - systemPromptOverhead - responseReserve - toolCallReserve - safetyMargin)
+    }
+}
+
+public struct ContextPressureState: Sendable {
+    public let capacity: Int
+    public let estimatedUsage: Int
+    public let safetyMargin: Int
+    public let compactionStatus: CompactionStatus
+    public let summaryDepth: Int
+    public let lastCompaction: Date?
+    public let sourceSizes: [String: Int]
+
+    public enum CompactionStatus: String, Sendable {
+        case none
+        case light
+        case moderate
+        case aggressive
+    }
+
+    public var pressureRatio: Double {
+        guard capacity > 0 else { return 0 }
+        return Double(estimatedUsage) / Double(capacity)
+    }
+
+    public var needsCompaction: Bool {
+        pressureRatio > 0.75
+    }
+}
+
+public struct CompactedToolResult: Sendable {
+    public let toolId: String
+    public let success: Bool
+    public let summary: String
+    public let errors: [String]
+    public let warnings: [String]
+    public let keyOutput: String
+    public let filesChanged: [String]
+    public let exitCode: Int32?
+    public let originalOutput: String?
+
+    public init(toolId: String, success: Bool, summary: String, errors: [String] = [], warnings: [String] = [], keyOutput: String = "", filesChanged: [String] = [], exitCode: Int32? = nil, originalOutput: String? = nil) {
+        self.toolId = toolId
+        self.success = success
+        self.summary = summary
+        self.errors = errors
+        self.warnings = warnings
+        self.keyOutput = keyOutput
+        self.filesChanged = filesChanged
+        self.exitCode = exitCode
+        self.originalOutput = originalOutput
+    }
+}
+
+public struct HierarchicalSummary: Sendable {
+    public let level: SummaryLevel
+    public let content: String
+    public let timestamp: Date
+    public let sourceEventCount: Int
+
+    public enum SummaryLevel: String, Sendable {
+        case raw
+        case recentWindow
+        case actionSummary
+        case taskSummary
+        case sessionSummary
+    }
+
+    public init(level: SummaryLevel, content: String, sourceEventCount: Int, timestamp: Date = Date()) {
+        self.level = level
+        self.content = content
+        self.sourceEventCount = sourceEventCount
+        self.timestamp = timestamp
+    }
+}
+
+public struct ModelContextSection: Sendable {
+    public let priority: ContextPriority
+    public let title: String
+    public let content: String
+    public let estimatedTokens: Int
+    public let isCompacted: Bool
+
+    public init(priority: ContextPriority, title: String, content: String, estimatedTokens: Int = 0, isCompacted: Bool = false) {
+        self.priority = priority
+        self.title = title
+        self.content = content
+        self.estimatedTokens = estimatedTokens
+        self.isCompacted = isCompacted
+    }
+}
+
+public struct ContextRecoveryResult: Sendable {
+    public let success: Bool
+    public let originalError: String
+    public let compactionApplied: Bool
+    public let retryCount: Int
+    public let finalPrompt: String?
+
+    public init(success: Bool, originalError: String, compactionApplied: Bool, retryCount: Int, finalPrompt: String? = nil) {
+        self.success = success
+        self.originalError = originalError
+        self.compactionApplied = compactionApplied
+        self.retryCount = retryCount
+        self.finalPrompt = finalPrompt
+    }
 }
 
 // MARK: - Legacy / UI Compatibility Models

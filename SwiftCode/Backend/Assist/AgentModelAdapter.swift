@@ -79,6 +79,22 @@ public final class AgentModelAdapter: Sendable {
                 contextWindowTokens: 200_000,
                 capabilities: [.toolCalling, .streaming, .structuredOutput, .vision, .largeContext, .codeGeneration, .systemInstructions]
             )
+        } else if lower.contains("claude-3-5-haiku") || lower.contains("claude-3.5-haiku") {
+            return ModelSpecification(
+                id: modelId,
+                displayName: "Claude 3.5 Haiku",
+                provider: .anthropic,
+                contextWindowTokens: 200_000,
+                capabilities: [.toolCalling, .streaming, .structuredOutput, .vision, .largeContext, .codeGeneration, .systemInstructions]
+            )
+        } else if lower.contains("gpt-4o-mini") || lower.contains("openai/gpt-4o-mini") {
+            return ModelSpecification(
+                id: modelId,
+                displayName: "GPT-4o Mini",
+                provider: .openAI,
+                contextWindowTokens: 128_000,
+                capabilities: [.toolCalling, .streaming, .structuredOutput, .vision, .largeContext, .parallelToolCalls, .codeGeneration, .systemInstructions]
+            )
         } else if lower.contains("gpt-4o") || lower.contains("openai/gpt-4o") {
             return ModelSpecification(
                 id: modelId,
@@ -95,6 +111,14 @@ public final class AgentModelAdapter: Sendable {
                 contextWindowTokens: 1_000_000,
                 capabilities: [.toolCalling, .streaming, .structuredOutput, .largeContext, .codeGeneration, .systemInstructions]
             )
+        } else if lower.contains("deepseek") {
+            return ModelSpecification(
+                id: modelId,
+                displayName: "DeepSeek V3",
+                provider: .openRouter,
+                contextWindowTokens: 64_000,
+                capabilities: [.toolCalling, .streaming, .structuredOutput, .largeContext, .codeGeneration, .systemInstructions]
+            )
         } else if lower.contains("codex") {
             return ModelSpecification(
                 id: modelId,
@@ -103,7 +127,7 @@ public final class AgentModelAdapter: Sendable {
                 contextWindowTokens: 32_000,
                 capabilities: [.codeGeneration, .structuredOutput]
             )
-        } else if lower.contains("apple") || lower.contains("foundation") {
+        } else if lower.contains("afm 3 core") || lower.contains("afm-3-core") || lower.contains("apple") || lower.contains("foundation") {
             return ModelSpecification(
                 id: modelId,
                 displayName: "Apple Foundation Models",
@@ -113,7 +137,6 @@ public final class AgentModelAdapter: Sendable {
             )
         }
 
-        // Default specification for OpenRouter or custom model
         return ModelSpecification(
             id: modelId,
             displayName: modelId,
@@ -121,6 +144,22 @@ public final class AgentModelAdapter: Sendable {
             contextWindowTokens: 128_000,
             capabilities: .standardCloud
         )
+    }
+
+    public func contextBudget(for modelId: String) -> AgentModelContextBudget {
+        let spec = specification(for: modelId)
+        return AgentModelContextBudget(
+            modelId: modelId,
+            contextWindowTokens: spec.contextWindowTokens
+        )
+    }
+
+    public func estimatedTokenCount(for text: String, modelId: String) -> Int {
+        return contextBudget(for: modelId).estimatedTokenCount(for: text)
+    }
+
+    public func fitsContext(_ text: String, modelId: String) -> Bool {
+        return contextBudget(for: modelId).fitsContext(estimatedTokens: estimatedTokenCount(for: text, modelId: modelId))
     }
 
     /// Normalizes outgoing prompt structure based on model capabilities
@@ -208,13 +247,13 @@ public final class AgentModelAdapter: Sendable {
                     modelOverride: modelId
                 )
                 if !response.isEmpty {
+                    OfflineFallbackManager.shared.recordSuccess(for: modelId)
                     return response
                 }
             } catch {
                 lastError = error
                 let errorDesc = error.localizedDescription.lowercased()
 
-                // Check for rate limit or transient network error
                 if errorDesc.contains("rate limit") || errorDesc.contains("429") || errorDesc.contains("overloaded") {
                     let backoff = Double(currentAttempt * 2)
                     logger.warning("Rate limit / transient error on attempt \(currentAttempt). Backing off for \(backoff)s...")
@@ -222,7 +261,6 @@ public final class AgentModelAdapter: Sendable {
                     continue
                 }
 
-                // Check for offline connectivity / transport failure and trigger local fallback
                 if OfflineFallbackManager.shared.isFallbackPermitted {
                     logger.warning("Remote model query failed. Routing to Offline Fallback Provider...")
                     return try await OfflineFallbackManager.shared.handleFallbackQuery(
@@ -232,7 +270,6 @@ public final class AgentModelAdapter: Sendable {
                     )
                 }
 
-                // If fallback not permitted, rethrow immediately
                 throw error
             }
         }
@@ -300,6 +337,56 @@ public struct ModelFallbackState: Identifiable, Codable, Sendable {
     }
 }
 
+public struct ModelHealthEntry: Codable, Sendable {
+    public let modelId: String
+    public var consecutiveFailures: Int
+    public var lastFailureAt: Date?
+    public var lastSuccessAt: Date?
+    public var totalRequests: Int
+    public var totalFailures: Int
+    public var isInCooldown: Bool
+    public var cooldownUntil: Date?
+
+    public init(modelId: String) {
+        self.modelId = modelId
+        self.consecutiveFailures = 0
+        self.lastFailureAt = nil
+        self.lastSuccessAt = nil
+        self.totalRequests = 0
+        self.totalFailures = 0
+        self.isInCooldown = false
+        self.cooldownUntil = nil
+    }
+
+    public mutating func recordSuccess() {
+        consecutiveFailures = 0
+        lastSuccessAt = Date()
+        totalRequests += 1
+        isInCooldown = false
+        cooldownUntil = nil
+    }
+
+    public mutating func recordFailure() {
+        consecutiveFailures += 1
+        lastFailureAt = Date()
+        totalRequests += 1
+        totalFailures += 1
+    }
+
+    public mutating func activateCooldown(until date: Date) {
+        isInCooldown = true
+        cooldownUntil = date
+    }
+
+    public func isHealthy(failureThreshold: Int = 3, cooldownDuration: TimeInterval = 300) -> Bool {
+        if isInCooldown, let until = cooldownUntil {
+            if Date() < until { return false }
+            return consecutiveFailures < failureThreshold
+        }
+        return consecutiveFailures < failureThreshold
+    }
+}
+
 @Observable
 @MainActor
 public final class OfflineFallbackManager: Sendable {
@@ -312,14 +399,14 @@ public final class OfflineFallbackManager: Sendable {
 
     public var currentState: ModelFallbackState?
     public var fallbackHistory: [ModelFallbackState] = []
+    public var modelHealth: [String: ModelHealthEntry] = [:]
 
     public var isFallbackPermitted: Bool {
         get {
-            let key = "assist.offlineFallbackEnabled"
-            if UserDefaults.standard.object(forKey: key) == nil {
+            if UserDefaults.standard.object(forKey: "assist.offlineFallbackEnabled") == nil {
                 return true
             }
-            return UserDefaults.standard.bool(forKey: key)
+            return UserDefaults.standard.bool(forKey: "assist.offlineFallbackEnabled")
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "assist.offlineFallbackEnabled")
@@ -327,6 +414,37 @@ public final class OfflineFallbackManager: Sendable {
     }
 
     public init() {}
+
+    public func healthEntry(for modelId: String) -> ModelHealthEntry {
+        if let entry = modelHealth[modelId] {
+            return entry
+        }
+        return ModelHealthEntry(modelId: modelId)
+    }
+
+    public func recordSuccess(for modelId: String) {
+        var entry = healthEntry(for: modelId)
+        entry.recordSuccess()
+        modelHealth[modelId] = entry
+    }
+
+    public func recordFailure(for modelId: String) {
+        var entry = healthEntry(for: modelId)
+        entry.recordFailure()
+        if entry.consecutiveFailures >= 3 {
+            entry.activateCooldown(until: Date().addingTimeInterval(300))
+        }
+        modelHealth[modelId] = entry
+    }
+
+    public func shouldFallback(for modelId: String) -> Bool {
+        let entry = healthEntry(for: modelId)
+        return !entry.isHealthy()
+    }
+
+    public func resetHealth(for modelId: String) {
+        modelHealth.removeValue(forKey: modelId)
+    }
 
     public func classify(error: Error) -> ModelFailureClassification {
         let nsError = error as NSError
@@ -388,6 +506,8 @@ public final class OfflineFallbackManager: Sendable {
         let classification = classify(error: error)
         let localCandidate = selectBestLocalFallback()
 
+        recordFailure(for: originalModelId)
+
         logger.warning("[Fallback] Triggering offline fallback for \(originalModelId) due to \(classification.rawValue): \(error.localizedDescription)")
 
         if var active = currentState, active.deactivatedAt == nil {
@@ -432,6 +552,10 @@ public final class OfflineFallbackManager: Sendable {
             currentState?.continuationSuccessful = false
             throw error
         }
+    }
+
+    public func fallbackTransitionMessage(for classification: ModelFailureClassification, fallbackModel: String) -> String {
+        return "Model fallback activated: \(classification.rawValue). Switched to \(fallbackModel). Context preserved."
     }
 
     private func rehydratePromptForLocalContext(prompt: String) -> String {
