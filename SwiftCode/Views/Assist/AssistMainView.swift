@@ -724,21 +724,29 @@ public struct AssistMainView: View {
             }
             .animation(.easeInOut(duration: 0.2), value: isEnhancingPrompt)
 
-            Button(action: submitMessage) {
-                Group {
-                    if manager.isProcessing || bridgeManager.streamStatus == "Streaming" || isProcessingFiles {
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                            .scaleEffect(0.6)
-                    } else {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 24))
-                    }
+            if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
+                Button(action: {
+                    manager.stopCurrentSession()
+                }) {
+                    Image(systemName: "stop.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(.red)
                 }
+                .buttonStyle(.plain)
+                .help("Stop execution")
+            } else if isProcessingFiles {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .scaleEffect(0.6)
+            } else {
+                Button(action: submitMessage) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 24))
+                }
+                .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .keyboardShortcut(.return, modifiers: [.command])
+                .buttonStyle(.plain)
             }
-            .disabled(inputText.isEmpty || manager.isProcessing || bridgeManager.streamStatus == "Streaming" || isProcessingFiles)
-            .keyboardShortcut(.return, modifiers: [.command])
-            .buttonStyle(.plain)
         }
     }
 

@@ -90,7 +90,7 @@ public struct PlanAskUserTool: AssistTool {
             PlanQuestionManager.shared.present(question: planQuestion)
         }
 
-        let answer = await PlanQuestionManager.shared.waitForAnswer(questionID: questionID)
+        let answer = await PlanQuestionManager.shared.waitForAnswer(questionID: questionID, timeout: 300)
 
         guard let answer = answer else {
             return .failure("Question was cancelled or timed out.")
@@ -265,15 +265,29 @@ public final class PlanQuestionManager: ObservableObject {
         persistQuestions()
     }
 
+    public func cancelPendingQuestions() {
+        if let current = currentQuestion {
+            cancel(questionID: current.id)
+        }
+        for (_, continuation) in answerContinuations {
+            continuation.resume(returning: nil)
+        }
+        answerContinuations.removeAll()
+        currentQuestion = nil
+    }
+
     public func restoreFromPersistence() {
         guard let data = UserDefaults.standard.data(forKey: persistenceKey),
               let questions = try? JSONDecoder().decode([PlanQuestion].self, from: data) else {
             return
         }
         questionHistory = questions
-        if let pending = questions.first(where: { $0.status == .pending }) {
-            currentQuestion = pending
+        // Mark any lingering pending questions as expired since continuations cannot survive app launch
+        for idx in questionHistory.indices where questionHistory[idx].status == .pending {
+            questionHistory[idx].status = .expired
         }
+        currentQuestion = nil
+        persistQuestions()
     }
 
     private func persistQuestions() {

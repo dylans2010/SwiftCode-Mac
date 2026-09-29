@@ -28,7 +28,12 @@ public struct AssistActivityView: View {
     private var summaryText: String {
         if !activityGroup.recoveries.isEmpty {
             let resolvedCount = activityGroup.recoveries.filter { $0.isResolved }.count
-            return "Recovered from \(resolvedCount) error\(resolvedCount == 1 ? "" : "s")"
+            let totalCount = activityGroup.recoveries.count
+            if resolvedCount == totalCount {
+                return "Recovered from \(resolvedCount) error\(resolvedCount == 1 ? "" : "s")"
+            } else {
+                return "Recovering from error (\(resolvedCount)/\(totalCount) resolved)"
+            }
         }
         if !activityGroup.workers.isEmpty {
             return "\(activityGroup.workers.count) Worker\(activityGroup.workers.count == 1 ? "" : "s")"
@@ -410,11 +415,11 @@ public struct AssistActivityView: View {
             LazyVStack(alignment: .leading, spacing: 2) {
                 ForEach(activityGroup.recoveries.prefix(3)) { recovery in
                     HStack(spacing: 6) {
-                        Image(systemName: "arrow.counterclockwise")
+                        Image(systemName: recovery.isResolved ? "checkmark.circle" : "arrow.counterclockwise")
                             .font(.system(size: 9))
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(recovery.isResolved ? .green : .orange)
 
-                        Text("Recovered from \(recovery.domain)")
+                        Text(recovery.isResolved ? "Recovered from \(recovery.domain)" : "Recovering from \(recovery.domain)")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.primary)
 

@@ -405,10 +405,18 @@ public final class AssistAgentSession: Sendable {
         // Pre-planning baseline verification
         self.validationCount += 1
         transition(to: .grounding, reason: "Verifying repository baseline integrity...")
+        let fm = FileManager.default
+        let rootExists = fm.fileExists(atPath: context.workspaceRoot.path)
+        let isDir = (try? context.workspaceRoot.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+        let hasFiles = (try? fm.contentsOfDirectory(atPath: context.workspaceRoot.path).isEmpty) == false
+        let baselinePassed = rootExists && isDir && hasFiles
+        let baselineDetails = baselinePassed
+            ? "Workspace root directory and structure verified (\(context.workspaceRoot.lastPathComponent))"
+            : "Workspace root directory is missing or unreadable"
         currentActivityGroup.verifications.append(VerificationActivityItem(
             checkName: "Repository Baseline Check",
-            isPassed: true,
-            details: "Workspace directory and syntax verified"
+            isPassed: baselinePassed,
+            details: baselineDetails
         ))
         postConversationalMessage("I’m analyzing the project structure and locating the relevant files.")
 
@@ -462,6 +470,7 @@ public final class AssistAgentSession: Sendable {
             ) {
                 let budgetMsg = "Execution suspended: Budget limit reached (\(exceededReason))."
                 pipelineLogger.warning("\(budgetMsg)")
+                self.currentActivityGroup.isExecuting = false
                 transition(to: .blocked, reason: budgetMsg)
                 postConversationalMessage("Task execution paused as the budget limit was reached (\(exceededReason)).", isComplete: true)
                 return
@@ -503,6 +512,7 @@ public final class AssistAgentSession: Sendable {
             do {
                 assetSystemPrompt = try AssistManager.shared.getSystemPrompt()
             } catch {
+                self.currentActivityGroup.isExecuting = false
                 transition(to: .failed, reason: "System prompt unavailable: \(error.localizedDescription)")
                 postConversationalMessage("Task failed: the system prompt could not be loaded.", isComplete: true)
                 return
@@ -606,6 +616,9 @@ public final class AssistAgentSession: Sendable {
                     continue
                 }
 
+                for i in currentActivityGroup.recoveries.indices {
+                    currentActivityGroup.recoveries[i].isResolved = true
+                }
                 currentActivityGroup.verifications.append(VerificationActivityItem(
                     checkName: "Autonomous Completion Contract",
                     isPassed: true,
@@ -647,6 +660,7 @@ public final class AssistAgentSession: Sendable {
                 phaseCoordinator.completePhase("PHASE_08_REVIEW", evidence: "Code review passed.")
 
                 // Final Conversational Completion
+                currentActivityGroup.isExecuting = false
                 postConversationalMessage(finalResponse.isEmpty ? "The fix is complete and verified." : finalResponse, isComplete: true)
 
                 _ = phaseCoordinator.startPhase("PHASE_09_COMPLETION")
@@ -735,6 +749,12 @@ public final class AssistAgentSession: Sendable {
                     currentActivityGroup.tools[toolActivityIndex].status = .completed
                     currentActivityGroup.tools[toolActivityIndex].result = result.output
 
+                    for i in currentActivityGroup.recoveries.indices {
+                        if !currentActivityGroup.recoveries[i].isResolved {
+                            currentActivityGroup.recoveries[i].isResolved = true
+                        }
+                    }
+
                     state.completedActions.append(newStep.description)
                     if let index = state.plan.firstIndex(where: { $0.id == newStep.id }) {
                         state.plan[index].status = .completed
@@ -809,7 +829,7 @@ public final class AssistAgentSession: Sendable {
                             strategy: isDuplicate ? "Pivoting strategy after duplicate failure" : "Correcting parameters and retrying",
                             attemptNumber: recoveryAttempt.attemptNumber,
                             maxAttempts: recoveryAttempt.maxAllowed,
-                            isResolved: true
+                            isResolved: false
                         ))
 
                         postConversationalMessage("I encountered a minor execution issue with \(toolId) and am adjusting my approach.")
@@ -842,6 +862,7 @@ public final class AssistAgentSession: Sendable {
                 replanFromStuck(detection: stuckEvent)
 
                 if self.state.replanningCount >= 3 {
+                    self.currentActivityGroup.isExecuting = false
                     transition(to: .blocked, reason: "Replanning exhausted after 3 attempts.")
                     postConversationalMessage("Unable to complete the task after multiple replanning attempts.", isComplete: true)
                     return
@@ -855,6 +876,7 @@ public final class AssistAgentSession: Sendable {
 
         }
 
+        self.currentActivityGroup.isExecuting = false
         if isCancelled || Task.isCancelled {
             if self.state.status != .cancelled {
                 transition(to: .cancelled, reason: "Task execution cancelled by user.")
@@ -914,6 +936,9 @@ public final class AssistAgentSession: Sendable {
     public func cancel() {
         self.isCancelled = true
         self.state.takeoverActive = false
+        self.currentActivityGroup.isExecuting = false
+        WorkerRuntimeState.shared.stopAllActiveWorkers(reason: "Operation cancelled by user.")
+        PlanQuestionManager.shared.cancelPendingQuestions()
         LiveDiffStreamer.shared.clearAll()
         transition(to: .cancelled, reason: "Operation cancelled by user.")
     }

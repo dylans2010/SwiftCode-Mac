@@ -209,6 +209,19 @@ public final class WorkerRuntimeState: Sendable {
         WorkerEventBus.shared.emit(event)
     }
 
+    public func stopAllActiveWorkers(reason: String) {
+        let active = workers.filter { !$0.status.isTerminal }
+        for w in active {
+            _ = stopWorker(id: w.id, reason: reason, mode: .preserve)
+        }
+    }
+
+    public func clearAllWorkers() {
+        workers.removeAll()
+        handoffs.removeAll()
+        selectedWorkerID = nil
+    }
+
     public func stopWorker(id: UUID, reason: String, mode: WorkerHandoffMode) -> WorkerHandoff? {
         guard !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             logger.error("Stop Worker rejected: non-empty reason required")

@@ -36,7 +36,7 @@ public struct AgentTimelineView: View {
                     Divider()
 
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(events.enumerated()), id: \.offset) { index, event in
+                        ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
                             HStack(alignment: .top, spacing: 8) {
                                 VStack(spacing: 0) {
                                     Circle()
@@ -80,7 +80,7 @@ public struct AgentTimelineView: View {
 
     private var isExecuting: Bool {
         let status = agentSession.state.status
-        return status != .terminated && status != .failed && status != .finished && status != .completed
+        return !status.isTerminal && status != .idle
     }
 
     private func timelineColor(for state: AgentSessionStatus) -> Color {

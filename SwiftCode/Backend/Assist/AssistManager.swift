@@ -215,12 +215,16 @@ public final class AssistManager: ObservableObject {
 
             let context = buildContext()
             let task = Task {
+                defer {
+                    Task { @MainActor in
+                        self.isProcessing = false
+                    }
+                }
                 do {
                     try await agentSession.start(objective: trimmed, attachments: attachments, context: context)
                     if Task.isCancelled { return }
                     await MainActor.run {
                         messages.append(AssistMessage(role: .assistant, content: "Autonomous task execution finished."))
-                        isProcessing = false
                         saveHistory()
                     }
                 } catch {
@@ -228,13 +232,15 @@ public final class AssistManager: ObservableObject {
                     await MainActor.run {
                         lastError = "Agent execution failed: \(error.localizedDescription)"
                         messages.append(AssistMessage(role: .system, content: error.localizedDescription))
-                        isProcessing = false
                         saveHistory()
                     }
                 }
             }
             activeAgentTask = task
             _ = await task.result
+            await MainActor.run {
+                self.isProcessing = false
+            }
             return
         }
 
@@ -382,12 +388,34 @@ public final class AssistManager: ObservableObject {
         }
     }
 
+    public func stopCurrentSession() {
+        activeAgentTask?.cancel()
+        activeAgentTask = nil
+
+        agentSession.cancel()
+
+        WorkerRuntimeState.shared.stopAllActiveWorkers(reason: "Operation stopped by user.")
+        PlanQuestionManager.shared.cancelPendingQuestions()
+        cancelTerminalExecution()
+
+        Task { @MainActor in
+            self.isProcessing = false
+            self.currentCodeReview = nil
+            self.isCodeReviewRunning = false
+        }
+    }
+
     public func clearChat() {
         // Immediately cancel the active agent task and agent session
         activeAgentTask?.cancel()
         activeAgentTask = nil
 
         agentSession.cancel()
+
+        // Clean up workers and pending questions
+        WorkerRuntimeState.shared.stopAllActiveWorkers(reason: "Chat cleared by user.")
+        WorkerRuntimeState.shared.clearAllWorkers()
+        PlanQuestionManager.shared.cancelPendingQuestions()
 
         // Immediately cancel terminal execution and any running sub-processes
         cancelTerminalExecution()

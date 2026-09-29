@@ -71,6 +71,13 @@ public final class WorkerScheduler: Sendable {
             if readyWorkers.isEmpty {
                 // Dependency deadlock or remaining workers are blocked/cancelled
                 logger.warning("No more ready workers could be scheduled. Deadlock or cancellation occurred.")
+                for remainingID in remainingWorkerIDs {
+                    WorkerRuntimeState.shared.transitionWorker(
+                        id: remainingID,
+                        to: .cancelled,
+                        reason: "Cancelled: Dependencies could not be resolved."
+                    )
+                }
                 break
             }
 
@@ -144,30 +151,33 @@ public final class WorkerScheduler: Sendable {
                 to: .completed,
                 reason: "Worker output passed parent review and accepted."
             )
-        } else {
-            self.logger.warning("Worker '\(worker.name)' review status: \(review.status.rawValue)")
-
-            // Attempt recovery for repair-required workers
-            if review.status == .repairRequired {
-                let recoveryError = WorkerError(
-                    code: "REVIEW_REPAIR_REQUIRED",
-                    message: review.issues.joined(separator: "; "),
-                    timestamp: Date()
+        } else if review.status == .repairRequired {
+            self.logger.warning("Worker '\(worker.name)' review requested repair: \(review.issues.joined(separator: "; "))")
+            let recoveryError = WorkerError(
+                code: "REVIEW_REPAIR_REQUIRED",
+                message: review.issues.joined(separator: "; "),
+                timestamp: Date()
+            )
+            let recovered = await WorkerRecoveryEngine.shared.attemptRecovery(
+                for: worker,
+                error: recoveryError,
+                assignment: assignment,
+                context: context
+            )
+            if !recovered {
+                WorkerRuntimeState.shared.transitionWorker(
+                    id: worker.id,
+                    to: .failed,
+                    reason: "Worker failed review and recovery was unsuccessful."
                 )
-                let recovered = await WorkerRecoveryEngine.shared.attemptRecovery(
-                    for: worker,
-                    error: recoveryError,
-                    assignment: assignment,
-                    context: context
-                )
-                if !recovered {
-                    WorkerRuntimeState.shared.transitionWorker(
-                        id: worker.id,
-                        to: .failed,
-                        reason: "Worker failed review and recovery was unsuccessful."
-                    )
-                }
             }
+        } else {
+            self.logger.warning("Worker '\(worker.name)' review status: \(review.status.rawValue) - transitioning to failed.")
+            WorkerRuntimeState.shared.transitionWorker(
+                id: worker.id,
+                to: .failed,
+                reason: "Worker review failed: \(review.issues.joined(separator: "; "))"
+            )
         }
 
         return result

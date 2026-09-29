@@ -235,7 +235,7 @@ public struct RecoveryActivityItem: Codable, Identifiable, Sendable {
         strategy: String,
         attemptNumber: Int = 1,
         maxAttempts: Int = 5,
-        isResolved: Bool = true,
+        isResolved: Bool = false,
         timestamp: Date = Date()
     ) {
         self.id = id
