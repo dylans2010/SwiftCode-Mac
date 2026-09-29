@@ -22,8 +22,15 @@ public struct PlanAskUserTool: AssistTool {
                 "allowsMultipleAnswers": JSONSchema(type: "boolean", description: "Whether multiple choices may be selected."),
                 "choices": JSONSchema(
                     type: "array",
-                    description: "Available choices for the user.",
-                    items: ["type": JSONSchema(type: "object")]
+                    description: "Available choices for the user. Each choice must have 'choice' (string) and 'assistRecommended' (boolean) fields.",
+                    items: [
+                        "type": JSONSchema(type: "object"),
+                        "properties": [
+                            "choice": JSONSchema(type: "string", description: "The text of this choice option."),
+                            "assistRecommended": JSONSchema(type: "boolean", description: "Whether Assist recommends this choice. Informational only — does not imply user approval.")
+                        ],
+                        "required": ["choice", "assistRecommended"]
+                    ]
                 ),
                 "userSpecification": JSONSchema(type: "boolean", description: "Whether the user may provide a free-form response.")
             ],
@@ -209,6 +216,27 @@ public final class PlanQuestionManager: ObservableObject {
 
         return await withCheckedContinuation { continuation in
             answerContinuations[questionID] = continuation
+        }
+    }
+
+    public func waitForAnswer(questionID: UUID, timeout: TimeInterval) async -> PlanQuestionAnswer? {
+        if let existing = questionHistory.first(where: { $0.id == questionID }), let answer = existing.answer {
+            return answer
+        }
+
+        return await withTaskGroup(of: PlanQuestionAnswer?.self) { group in
+            group.addTask {
+                await withCheckedContinuation { continuation in
+                    answerContinuations[questionID] = continuation
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                return nil
+            }
+            let result = await group.next()
+            group.cancelAll()
+            return result ?? nil
         }
     }
 

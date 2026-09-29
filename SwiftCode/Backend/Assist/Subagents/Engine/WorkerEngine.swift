@@ -19,8 +19,6 @@ public final class WorkerEngine: Sendable {
 
         transition(workerID: workerID, from: worker.status, to: .starting, reason: "Worker initialized and loading isolated context bundle...")
 
-        try? await Task.sleep(nanoseconds: 100_000_000)
-
         transition(workerID: workerID, from: .starting, to: .working, reason: "Executing assigned task: \(worker.task)")
 
         var progress = WorkerProgress(
@@ -28,13 +26,14 @@ public final class WorkerEngine: Sendable {
             currentAction: "Inspecting codebase symbols and target files",
             phase: .implementation,
             nextPlan: "Perform required code mutations and file adjustments",
-            percentage: 0.25
+            percentage: 0.1
         )
         WorkerRuntimeState.shared.updateProgress(id: workerID, progress: progress)
 
         var completedWork: [String] = []
         var knownIssues: [String] = []
         var remainingWork: [String] = []
+        var filesModifiedByWorker: [String] = []
 
         do {
             if Task.isCancelled || WorkerRuntimeState.shared.workers.first(where: { $0.id == workerID })?.status == .cancelled {
@@ -51,7 +50,7 @@ public final class WorkerEngine: Sendable {
 
             logger.info("[Worker \(workerName)] Querying model '\(modelID)' for implementation plan...")
             progress.currentAction = "Generating mutations for \(worker.scope)"
-            progress.percentage = 0.50
+            progress.percentage = 0.2
             WorkerRuntimeState.shared.updateProgress(id: workerID, progress: progress)
 
             let toolSchemas = registry.getToolSchemas().compactMap { schema -> String? in
@@ -149,9 +148,15 @@ public final class WorkerEngine: Sendable {
                                 filePath: file,
                                 ownershipType: .exclusive
                             )
+                            if !filesModifiedByWorker.contains(file) {
+                                filesModifiedByWorker.append(file)
+                            }
                         }
                         completedWork.append("Executed \(toolId): \(result.output.prefix(200))")
                         conversationHistory.append("- Action: Run \(toolId). Result: SUCCESS - \(result.output.prefix(300))")
+                        progress.percentage = min(0.2 + Double(completedWork.count) * 0.1, 0.7)
+                        progress.currentAction = "Executed \(completedWork.count) operations"
+                        WorkerRuntimeState.shared.updateProgress(id: workerID, progress: progress)
                     } else {
                         let errMsg = result.error ?? result.output
                         knownIssues.append(errMsg)
@@ -168,14 +173,40 @@ public final class WorkerEngine: Sendable {
                 remainingWork.append(worker.task)
             }
 
-            progress.phase = .testing
-            progress.currentAction = "Reviewing executed changes"
-            progress.percentage = 0.75
-            WorkerRuntimeState.shared.updateProgress(id: workerID, progress: progress)
+            var buildResult = "Not executed"
+            var testResults: [WorkerTestRecord] = []
+            var verificationResult = finalResponse != nil ? "Tool execution completed" : "Incomplete"
+
+            if !filesModifiedByWorker.isEmpty {
+                progress.phase = .testing
+                progress.currentAction = "Running build verification"
+                progress.percentage = 0.75
+                WorkerRuntimeState.shared.updateProgress(id: workerID, progress: progress)
+
+                let buildOutcome = await AssistVerificationPipeline.shared.verifyCompilation(context: context)
+                buildResult = buildOutcome.isSuccess ? "Passed" : "Failed"
+                if !buildOutcome.isSuccess {
+                    knownIssues.append("Build verification failed: \(buildOutcome.error ?? "unknown")")
+                }
+
+                progress.phase = .verification
+                progress.currentAction = "Running test verification"
+                progress.percentage = 0.85
+                WorkerRuntimeState.shared.updateProgress(id: workerID, progress: progress)
+
+                let testOutcome = await AssistVerificationPipeline.shared.verifyTests(context: context)
+                if testOutcome.isSuccess {
+                    testResults = [WorkerTestRecord(testName: "Build & Test Verification", suite: "WorkerVerification", passed: true, output: "Tests passed")]
+                    verificationResult = "Build and tests passed"
+                } else {
+                    knownIssues.append("Test verification failed: \(testOutcome.error ?? "unknown")")
+                    verificationResult = "Build passed but tests failed"
+                }
+            }
 
             progress.phase = .verification
-            progress.currentAction = "Auditing AST and boundary rules"
-            progress.percentage = 0.90
+            progress.currentAction = "Verification complete"
+            progress.percentage = 1.0
             WorkerRuntimeState.shared.updateProgress(id: workerID, progress: progress)
 
             let workerState = WorkerRuntimeState.shared.workers.first(where: { $0.id == workerID })
@@ -197,9 +228,9 @@ public final class WorkerEngine: Sendable {
                 modifiedFiles: workerState?.modifiedFiles.map { $0.path } ?? [],
                 createdFiles: workerState?.createdFiles.map { $0.path } ?? [],
                 deletedFiles: workerState?.deletedFiles.map { $0.path } ?? [],
-                tests: [],
-                buildResult: "Not executed",
-                verificationResult: finalResponse != nil ? "Tool execution completed; build not run" : "Incomplete",
+                tests: testResults,
+                buildResult: buildResult,
+                verificationResult: verificationResult,
                 knownIssues: knownIssues,
                 remainingWork: remainingWork,
                 recommendedParentAction: finalResponse != nil ? "Accept and integrate results" : "Re-execute or reassign remaining scope"

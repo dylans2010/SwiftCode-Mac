@@ -14,6 +14,9 @@ public final class AssistExecutionContextPersistenceStore {
         let expandedGoals: [String]
         let currentIteration: Int
         let totalStepsExecuted: Int
+        let planSteps: [String]
+        let filesModified: [String]
+        let executionMode: String
     }
 
     public init(context: AssistContext) {
@@ -26,7 +29,10 @@ public final class AssistExecutionContextPersistenceStore {
         completedTasks: [String],
         expandedGoals: [String],
         iteration: Int,
-        stepsExecuted: Int
+        stepsExecuted: Int,
+        planSteps: [String] = [],
+        filesModified: [String] = [],
+        executionMode: String = "autopilot"
     ) async {
         let persistentContext = PersistentContext(
             sessionId: context.sessionId.uuidString,
@@ -35,7 +41,10 @@ public final class AssistExecutionContextPersistenceStore {
             completedTasks: completedTasks,
             expandedGoals: expandedGoals,
             currentIteration: iteration,
-            totalStepsExecuted: stepsExecuted
+            totalStepsExecuted: stepsExecuted,
+            planSteps: planSteps,
+            filesModified: filesModified,
+            executionMode: executionMode
         )
 
         if let data = try? JSONEncoder().encode(persistentContext) {
@@ -56,5 +65,11 @@ public final class AssistExecutionContextPersistenceStore {
     /// Clears persisted context
     public func clearContext() {
         UserDefaults.standard.removeObject(forKey: storageKey)
+    }
+
+    /// Checks if there is a restorable context for the given session
+    public func hasRestorableContext(for sessionID: UUID) -> Bool {
+        guard let persisted = loadContext() else { return false }
+        return persisted.sessionId == sessionID.uuidString
     }
 }

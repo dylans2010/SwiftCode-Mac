@@ -46,6 +46,8 @@ public struct ExecutionPlanTool: AssistTool {
 
         logger.info("[execution_plan] Generating plan for objective: \(objective.prefix(80)) [mode: \(mode.rawValue)]")
 
+        let planInstructions = Self.loadPlanInstructions()
+
         let workspaceRoot = context.workspaceRoot
 
         let fileTree = await inspectRepositoryStructure(workspaceRoot: workspaceRoot)
@@ -68,10 +70,11 @@ public struct ExecutionPlanTool: AssistTool {
             skills: skills,
             relevantFiles: relevantFiles,
             fileContents: fileContents,
-            workspaceRoot: workspaceRoot
+            workspaceRoot: workspaceRoot,
+            planInstructions: planInstructions
         )
 
-        let planMarkdown = renderPlanMarkdown(plan)
+        let planMarkdown = renderPlanMarkdown(plan, instructions: planInstructions)
         let notesURL = workspaceRoot.appendingPathComponent("agent_notes.md")
         do {
             try planMarkdown.write(to: notesURL, atomically: true, encoding: .utf8)
@@ -290,6 +293,14 @@ public struct ExecutionPlanTool: AssistTool {
         let task: String
     }
 
+    private static func loadPlanInstructions() -> String {
+        if let url = Bundle.main.url(forResource: "WriteExecutionPlan", withExtension: "md"),
+           let content = try? String(contentsOf: url, encoding: .utf8) {
+            return content
+        }
+        return ""
+    }
+
     private func buildExecutionPlan(
         objective: String,
         mode: ExecutionMode,
@@ -299,7 +310,8 @@ public struct ExecutionPlanTool: AssistTool {
         skills: [SkillInfo],
         relevantFiles: [String],
         fileContents: [String: String],
-        workspaceRoot: URL
+        workspaceRoot: URL,
+        planInstructions: String
     ) -> ExecutionPlanData {
         var steps: [PlanStepData] = []
         var detectedProblems: [String] = []
@@ -391,11 +403,14 @@ public struct ExecutionPlanTool: AssistTool {
         )
     }
 
-    private func renderPlanMarkdown(_ plan: ExecutionPlanData) -> String {
+    private func renderPlanMarkdown(_ plan: ExecutionPlanData, instructions: String) -> String {
         var md = ""
         md += "# Execution Plan\n\n"
         md += "## Objective\n\(plan.objective)\n\n"
         md += "## Execution Mode\n\(plan.mode.rawValue)\n\n"
+        if !instructions.isEmpty {
+            md += "## Plan Generation Instructions\n\(instructions)\n\n"
+        }
         md += "## Repository Findings\n"
         md += "- Total files inspected: \(plan.relevantFiles.count) relevant files\n"
         md += "- Build configuration detected\n"

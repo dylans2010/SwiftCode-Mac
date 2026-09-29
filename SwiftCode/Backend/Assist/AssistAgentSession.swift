@@ -919,12 +919,19 @@ public final class AssistAgentSession: Sendable {
     }
 
     public func retryLastStep() {
-        self.isCancelled = false
-        if self.state.status == .failed || self.state.status == .blocked || self.state.status == .cancelled {
-            transition(to: .planning, reason: "Retrying agent cycle.")
-            if let activeContext = self.activeContext, let task = self.currentTask {
-                Task { [weak self] in
-                    try? await self?.start(objective: task.originalRequest, attachments: [], context: activeContext)
+        self.isCancelled = true
+        Task { [weak self] in
+            guard let self = self else { return }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            await MainActor.run {
+                self.isCancelled = false
+                if self.state.status == .failed || self.state.status == .blocked || self.state.status == .cancelled {
+                    self.transition(to: .planning, reason: "Retrying agent cycle.")
+                    if let activeContext = self.activeContext, let task = self.currentTask {
+                        Task { [weak self] in
+                            try? await self?.start(objective: task.originalRequest, attachments: [], context: activeContext)
+                        }
+                    }
                 }
             }
         }

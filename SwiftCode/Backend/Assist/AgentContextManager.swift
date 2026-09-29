@@ -688,21 +688,19 @@ public final class AssistContextEngine: @unchecked Sendable {
         var result: [ModelContextSection] = []
         var remaining = budget.usableBudget
 
-        for section in sections.sorted(by: { $0.priority < $1.priority }) {
+        let sorted = sections.sorted(by: { $0.priority < $1.priority })
+        let p0Sections = sorted.filter { $0.priority == .p0 }
+        let otherSections = sorted.filter { $0.priority != .p0 }
+
+        for section in p0Sections {
+            result.append(section)
+        }
+
+        for section in otherSections {
             let tokens = section.estimatedTokens
             if tokens <= remaining {
                 result.append(section)
                 remaining -= tokens
-            } else if section.priority == .p0 {
-                let truncated = String(section.content.prefix(max(0, remaining * 4)))
-                result.append(ModelContextSection(
-                    priority: section.priority,
-                    title: section.title,
-                    content: truncated + "\n... [P0 TRUNCATED - CRITICAL]",
-                    estimatedTokens: estimateTokens(truncated),
-                    isCompacted: true
-                ))
-                remaining = 0
             }
         }
 

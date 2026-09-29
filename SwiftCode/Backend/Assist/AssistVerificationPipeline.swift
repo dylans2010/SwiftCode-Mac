@@ -131,7 +131,7 @@ public final class AssistVerificationPipeline: Sendable {
         let projPath = context.workspaceRoot.appendingPathComponent("SwiftCode.xcodeproj").path
 
         guard FileManager.default.fileExists(atPath: projPath) else {
-            return VerificationOutcome(kind: .compilation, isSuccess: true, output: "No Xcode project found; assuming standalone package.", duration: 0)
+            return VerificationOutcome(kind: .compilation, isSuccess: false, error: "No Xcode project found at \(projPath); cannot verify compilation.", duration: 0)
         }
 
         let arguments = [
@@ -187,8 +187,8 @@ public final class AssistVerificationPipeline: Sendable {
         guard FileManager.default.fileExists(atPath: projPath) else {
             return VerificationOutcome(
                 kind: .unitTests,
-                isSuccess: true,
-                output: "No Xcode project present; test verification not applicable.",
+                isSuccess: false,
+                error: "No Xcode project present; cannot verify tests.",
                 duration: 0
             )
         }
@@ -238,8 +238,8 @@ public final class AssistVerificationPipeline: Sendable {
             if noTestTarget {
                 return VerificationOutcome(
                     kind: .unitTests,
-                    isSuccess: true,
-                    output: "Scheme has no test targets configured; nothing to run.\n\(res.stdout)",
+                    isSuccess: false,
+                    error: "Scheme has no test targets configured; cannot verify tests.\n\(res.stdout)",
                     duration: duration
                 )
             }
@@ -412,14 +412,16 @@ public final class AssistVerificationPipeline: Sendable {
     ) async -> CompletionContractReport {
         let isReadOnly = task.filesInvolved.isEmpty && task.completedOperations.isEmpty
         if isReadOnly {
+            let diffOutcome = await verifyDiffCompleteness(context: context, expectedFiles: [])
+            let passed = diffOutcome.isSuccess
             _ = evaluateCompletionContract(
                 task: &task,
                 context: context,
-                didBuildSucceed: true,
-                didTestsSucceed: true,
-                diffAuditPassed: true
+                didBuildSucceed: passed,
+                didTestsSucceed: passed,
+                diffAuditPassed: passed
             )
-            return CompletionContractReport(passed: true, issues: [], unsatisfiedRequirements: [])
+            return CompletionContractReport(passed: passed, issues: passed ? [] : [diffOutcome.error ?? "Read-only diff audit failed."], unsatisfiedRequirements: [])
         }
 
         let testOutcome = await verifyTests(context: context)

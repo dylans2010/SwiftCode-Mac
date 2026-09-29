@@ -26,6 +26,9 @@ public final class AssistContextBuilder {
         let project = ProjectSessionStore.shared.activeProject
         let workspaceRoot = project?.directoryURL ?? URL(fileURLWithPath: "/")
 
+        let executionModeRaw = UserDefaults.standard.string(forKey: "com.swiftcode.assist.executionMode") ?? ExecutionMode.autopilot.rawValue
+        let executionMode = ExecutionMode(rawValue: executionModeRaw) ?? .autopilot
+
         return AssistContext(
             sessionId: sessionId,
             project: project,
@@ -36,7 +39,8 @@ public final class AssistContextBuilder {
             git: git,
             permissions: permissions,
             safetyLevel: .balanced,
-            isAutonomous: true
+            isAutonomous: true,
+            sessionExecutionMode: executionMode
         )
     }
 

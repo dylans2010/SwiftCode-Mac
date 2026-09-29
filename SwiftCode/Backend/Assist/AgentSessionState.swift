@@ -103,7 +103,8 @@ extension AgentSessionStatus {
 
     public func canTransition(to newState: AgentSessionStatus) -> Bool {
         if self == newState { return true }
-        if isTerminal || newState.isTerminal { return true }
+        if isTerminal { return newState == .idle }
+        if newState.isTerminal { return true }
         let allowed = AgentSessionStatus.validTransitions[self] ?? []
         return allowed.contains(newState)
     }

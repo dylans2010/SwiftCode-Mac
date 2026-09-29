@@ -352,5 +352,10 @@ public final class WorkerPersistenceStore: Sendable {
     public func clear() {
         UserDefaults.standard.removeObject(forKey: storageKey)
         recordedAssignments.removeAll()
+        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("SwiftCode/workers", isDirectory: true)
+        if let directory = directory {
+            try? FileManager.default.removeItem(at: directory)
+        }
     }
 }
