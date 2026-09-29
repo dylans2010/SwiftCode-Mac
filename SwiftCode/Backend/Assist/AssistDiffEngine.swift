@@ -68,17 +68,14 @@ public final class AssistDiffEngine: Sendable {
 
     public init() {}
 
-    /// Computes a unified diff between two string versions of a file using Myers Diff.
     public func createUnifiedDiff(filePath: String, oldContent: String, newContent: String) -> UnifiedDiffResult {
         return MyersDiffAlgorithm.shared.computeUnifiedDiff(filePath: filePath, oldContent: oldContent, newContent: newContent, contextLines: 3)
     }
 
-    /// Convenience helper returning the unified diff string directly.
     public func generateUnifiedDiff(filePath: String, original: String, modified: String) -> String {
         return createUnifiedDiff(filePath: filePath, oldContent: original, newContent: modified).unifiedText
     }
 
-    /// Validates a targeted replacement and executes it safely, raising an error if target is missing or ambiguous.
     public func applyTargetedReplacement(
         filePath: String,
         originalContent: String,
@@ -100,7 +97,6 @@ public final class AssistDiffEngine: Sendable {
         return (modified, diff)
     }
 
-    /// Validates a targeted replacement with optional multiple-replacement allowance.
     public func applyTargetedReplacement(
         source: String,
         target: String,
@@ -120,57 +116,34 @@ public final class AssistDiffEngine: Sendable {
         return source.replacingOccurrences(of: target, with: replacement)
     }
 
-    private enum DiffItem {
-        case unchanged(String)
-        case addition(String)
-        case deletion(String)
+    public func computeMultiFileDiff(files: [(filePath: String, oldContent: String, newContent: String)]) -> [UnifiedDiffResult] {
+        return files.map { file in
+            createUnifiedDiff(filePath: file.filePath, oldContent: file.oldContent, newContent: file.newContent)
+        }
     }
 
-    private func computeLineDifferences(oldLines: [String], newLines: [String]) -> [DiffItem] {
-        var items: [DiffItem] = []
+    public func generateMultiFileUnifiedText(results: [UnifiedDiffResult]) -> String {
+        return results.map { $0.unifiedText }.joined(separator: "\n")
+    }
 
-        var i = 0
-        var j = 0
-
-        while i < oldLines.count && j < newLines.count {
-            if oldLines[i] == newLines[j] {
-                items.append(.unchanged(oldLines[i]))
-                i += 1
-                j += 1
-            } else {
-                // Lookahead to find match
-                let matchInNew = (j..<min(j + 5, newLines.count)).firstIndex(where: { newLines[$0] == oldLines[i] })
-                let matchInOld = (i..<min(i + 5, oldLines.count)).firstIndex(where: { oldLines[$0] == newLines[j] })
-
-                if let foundNew = matchInNew {
-                    while j < foundNew {
-                        items.append(.addition(newLines[j]))
-                        j += 1
-                    }
-                } else if let foundOld = matchInOld {
-                    while i < foundOld {
-                        items.append(.deletion(oldLines[i]))
-                        i += 1
-                    }
-                } else {
-                    items.append(.deletion(oldLines[i]))
-                    items.append(.addition(newLines[j]))
-                    i += 1
-                    j += 1
-                }
-            }
+    public func createFileActivityItem(
+        filePath: String,
+        operation: String,
+        oldContent: String,
+        newContent: String
+    ) -> FileActivityItem {
+        let diff = createUnifiedDiff(filePath: filePath, oldContent: oldContent, newContent: newContent)
+        let hunkStrings = diff.hunks.map { hunk in
+            ([hunk.header] + hunk.lines).joined(separator: "\n")
         }
-
-        while i < oldLines.count {
-            items.append(.deletion(oldLines[i]))
-            i += 1
-        }
-
-        while j < newLines.count {
-            items.append(.addition(newLines[j]))
-            j += 1
-        }
-
-        return items
+        return FileActivityItem(
+            filePath: filePath,
+            operation: operation,
+            addedLines: diff.addedLines,
+            deletedLines: diff.removedLines,
+            diffSummary: diff.unifiedText,
+            diffHunks: hunkStrings,
+            isReconciled: true
+        )
     }
 }

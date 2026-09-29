@@ -42,11 +42,7 @@ public struct AssistMainView: View {
     @AppStorage("com.swiftcode.assist.enableCodeReview") private var enableCodeReview = true
     @State private var showAssistSettings = false
 
-    // Glowing border pulse state for Apple Intelligence
-    @State private var pulseGlow = false
 
-    // Typing indicator pulse animation state
-    @State private var typingIndicatorPulse = false
 
     public init() {}
 
@@ -65,24 +61,17 @@ public struct AssistMainView: View {
 
                 Spacer()
 
-                // Execution Mode Button
                 Button {
                     showExecutionModeSheet = true
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: isAgentMode ? "cpu.fill" : "text.bubble.fill")
-                            .foregroundStyle(isAgentMode ? .orange : .blue)
-                        Text(isAgentMode ? "Agent Mode" : "Chat Mode")
-                            .font(.subheadline.bold())
-                        Image(systemName: "chevron.down")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        Image(systemName: isAgentMode ? "cpu" : "text.bubble")
+                            .font(.caption)
+                        Text(isAgentMode ? "Agent" : "Chat")
+                            .font(.caption.weight(.medium))
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.secondary.opacity(0.12), in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
                 .help("Toggle Execution Mode")
 
                 Spacer()
@@ -223,7 +212,7 @@ public struct AssistMainView: View {
                             }
 
                             if let error = manager.lastError {
-                                AssistErrorBubble(error: error)
+                                AssistInlineError(message: error)
                             }
 
                             processingIndicator
@@ -473,17 +462,7 @@ public struct AssistMainView: View {
                 }
             }
         }
-        .onChange(of: isEnhancingPrompt) { _, newValue in
-            if newValue {
-                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-                    pulseGlow = true
-                }
-            } else {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    pulseGlow = false
-                }
-            }
-        }
+
         .onChange(of: bridgeManager.activeToolName) { _, newTool in
             if isAgentMode && !alwaysAllowThisSession {
                 let destructive = ["command_execution", "file_change", "terminal", "delete", "remove"]
@@ -526,94 +505,91 @@ public struct AssistMainView: View {
         case .idle:
             return "Idle"
         case .receivingRequest:
-            return "Receiving new request..."
+            return "Thinking..."
         case .analyzingRepository:
-            return "Analyzing the codebase..."
+            return "Inspecting the project..."
         case .collectingContext:
-            return "Collecting code context..."
+            return "Reading relevant files..."
         case .planningReview:
-            return "Reviewing execution plan..."
+            return "Reviewing the plan..."
         case .awaitingApproval:
-            return "Awaiting developer approval..."
+            return "Waiting for your approval..."
         case .executingStrategy:
-            return "Executing plan strategy..."
+            return "Working on it..."
         case .selectingTools:
-            return "Selecting available tools..."
+            return "Deciding how to proceed..."
         case .executingTools:
-            return "Executing tools..."
+            return "Making changes..."
         case .reviewFailed:
-            return "Code review failed, retrying..."
+            return "Reviewing the changes..."
         case .recovering:
-            return "Recovering from error..."
+            return "Fixing an issue..."
         case .generatingSummary:
-            return "Generating session summary..."
+            return "Wrapping up..."
         case .terminated:
-            return "Session terminated."
+            return "Done."
         case .initializing:
-            return "Initializing session..."
+            return "Starting..."
         case .understandingRequest:
-            return "Analyzing the repository..."
+            return "Understanding the request..."
         case .gatheringContext:
-            return "Reviewing project structure..."
+            return "Inspecting the project..."
         case .planning:
-            return "Building execution strategy..."
+            return "Determining the best approach..."
         case .selectingTool:
-            return "Selecting the best tool for the task..."
+            return "Deciding how to proceed..."
         case .executingTool:
-            return "Updating project files..."
+            return "Making changes..."
         case .waitingForUserApproval:
-            return "Waiting for terminal execution approval..."
+            return "Waiting for your approval..."
         case .updatingRepository:
-            return "Applying repository updates..."
+            return "Applying changes..."
         case .inspectingResult:
-            return "Reviewing action result..."
+            return "Checking the result..."
         case .validating:
-            return "Running validation..."
+            return "Verifying..."
         case .reviewing:
-            return "Reviewing implementation quality..."
+            return "Reviewing the implementation..."
         case .completing:
-            return "Preparing final response..."
+            return "Almost done..."
         case .finished, .completed:
-            return "Task completed successfully."
+            return "Done."
         case .failed:
-            return "Task failed."
+            return "Something went wrong."
         case .cancelled:
-            return "Task cancelled."
+            return "Cancelled."
         case .stalled:
-            return "Task execution stalled."
+            return "Taking longer than expected..."
         case .evaluatingGoalExpansion:
-            return "Evaluating continuous goal expansion..."
+            return "Considering next steps..."
         case .transitioningToNextGoal:
-            return "Transitioning to next autonomous goal..."
+            return "Moving to the next task..."
         default:
-            return status.rawValue
+            return "Working..."
         }
     }
 
     private var thinkingIndicator: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             ProgressView()
-                .scaleEffect(0.6)
-                .tint(.orange)
+                .scaleEffect(0.5)
+                .tint(.secondary)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(statusUserDescription(for: manager.agentSession.state.status))
-                    .font(.caption.bold())
-                    .foregroundStyle(.orange)
+            Text(statusUserDescription(for: manager.agentSession.state.status))
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
-                if bridgeManager.activeToolName != "None" {
-                    Text("Executing: \(bridgeManager.activeToolName)")
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+            if bridgeManager.activeToolName != "None" {
+                Text("· \(bridgeManager.activeToolName)")
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
             }
+
             Spacer()
         }
-        .padding(10)
-        .background(Color.orange.opacity(0.08))
-        .cornerRadius(8)
         .padding(.horizontal, 12)
+        .padding(.vertical, 6)
     }
 
     @ViewBuilder
@@ -631,39 +607,16 @@ public struct AssistMainView: View {
         HStack(spacing: 8) {
             ProgressView()
                 .scaleEffect(0.5)
-                .tint(.blue)
+                .tint(.secondary)
 
             Text("Assist is typing")
-                .font(.caption.bold())
-                .foregroundColor(.secondary)
-
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(Color.blue.opacity(0.8))
-                    .frame(width: 4, height: 4)
-                    .scaleEffect(typingIndicatorPulse ? 1.4 : 0.8)
-                    .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: typingIndicatorPulse)
-                Circle()
-                    .fill(Color.blue.opacity(0.8))
-                    .frame(width: 4, height: 4)
-                    .scaleEffect(typingIndicatorPulse ? 0.8 : 1.4)
-                    .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true).delay(0.2), value: typingIndicatorPulse)
-                Circle()
-                    .fill(Color.blue.opacity(0.8))
-                    .frame(width: 4, height: 4)
-                    .scaleEffect(typingIndicatorPulse ? 1.4 : 0.8)
-                    .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true).delay(0.4), value: typingIndicatorPulse)
-            }
-            .onAppear {
-                typingIndicatorPulse = true
-            }
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             Spacer()
         }
-        .padding(10)
-        .background(Color.blue.opacity(0.06))
-        .cornerRadius(8)
         .padding(.horizontal, 12)
+        .padding(.vertical, 6)
     }
 
     private var inputArea: some View {
@@ -672,18 +625,15 @@ public struct AssistMainView: View {
                 showingFilePickerSheet = true
             } label: {
                 Image(systemName: "paperclip")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.orange)
-                    .padding(7)
-                    .background(Color.orange.opacity(0.12), in: Circle())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderless)
             .sheet(isPresented: $showingFilePickerSheet) {
                 AddFilesAgentContext(attachedFiles: $attachedFiles, isProcessingFiles: $isProcessingFiles)
             }
             .help("Attach Files to Context")
 
-            // Dynamic model selector via native AppKit popup menu
             Button {
                 let event = NSApplication.shared.currentEvent
                 let models = loadDynamicModels()
@@ -693,25 +643,20 @@ public struct AssistMainView: View {
                 }
             } label: {
                 Image(systemName: "cpu")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.orange)
-                    .padding(7)
-                    .background(Color.orange.opacity(0.12), in: Circle())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain)
-            .help("Choose Model for Assist Agent")
+            .buttonStyle(.borderless)
+            .help("Choose Model")
 
             Button {
                 expandPrompt()
             } label: {
                 Image(systemName: "apple.intelligence")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(6)
-                    .background(
-                        LinearGradient(colors: [.blue, .purple, .pink], startPoint: .topLeading, endPoint: .bottomTrailing),
-                        in: Circle()
-                    )
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(isEnhancingPrompt ? .secondary : .primary)
+                    .padding(7)
+                    .background(Color.secondary.opacity(0.12), in: Circle())
             }
             .disabled(isEnhancingPrompt || inputText.isEmpty || manager.isProcessing || bridgeManager.streamStatus == "Streaming" || isProcessingFiles)
             .help("Enhance prompt with Apple Intelligence")
@@ -729,25 +674,13 @@ public struct AssistMainView: View {
                         submitMessage()
                     }
             }
-            .scaleEffect(isEnhancingPrompt ? 1.015 : 1.0)
             .overlay {
                 if isEnhancingPrompt {
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(
-                            LinearGradient(
-                                colors: [.blue, .purple, .pink, .orange],
-                                startPoint: pulseGlow ? .topLeading : .bottomTrailing,
-                                endPoint: pulseGlow ? .bottomTrailing : .topLeading
-                            ),
-                            lineWidth: 2
-                        )
-                        .shadow(
-                            color: .purple.opacity(pulseGlow ? 0.6 : 0.2),
-                            radius: pulseGlow ? 8 : 3
-                        )
+                        .stroke(Color.accentColor.opacity(0.4), lineWidth: 1)
                 }
             }
-            .animation(.easeInOut(duration: 0.3), value: isEnhancingPrompt)
+            .animation(.easeInOut(duration: 0.2), value: isEnhancingPrompt)
 
             Button(action: submitMessage) {
                 Group {
@@ -945,21 +878,18 @@ private struct AssistChatBubble: View {
 
     private var bubbleColor: Color {
         switch message.role {
-        case .user: return Color.primary.opacity(0.08)
-        case .assistant: return Color.secondary.opacity(0.08)
-        case .system: return Color.blue.opacity(0.12)
+        case .user: return Color.primary.opacity(0.06)
+        case .assistant: return Color.secondary.opacity(0.06)
+        case .system: return Color.secondary.opacity(0.08)
         }
     }
 
     var body: some View {
         VStack(alignment: alignment, spacing: 4) {
-            HStack(spacing: 6) {
-                Image(systemName: message.role == .user ? "person.crop.circle.fill" : (message.role == .system ? "info.circle.fill" : "sparkles"))
-                    .font(.caption2)
-                    .foregroundStyle(message.role == .user ? .blue : (message.role == .system ? .yellow : .orange))
+            HStack(spacing: 4) {
                 Text(message.role == .user ? "You" : (message.role == .system ? "System" : "Assist"))
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.tertiary)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -981,28 +911,23 @@ private struct AssistChatBubble: View {
                 }
 
                 if let attachments = message.attachments, !attachments.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("ATTACHMENTS")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.secondary)
-
+                    VStack(alignment: .leading, spacing: 4) {
                         ForEach(attachments) { file in
-                            HStack(spacing: 8) {
-                                Image(systemName: "doc.fill")
+                            HStack(spacing: 6) {
+                                Image(systemName: "doc")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                                Text(file.filename)
                                     .font(.caption)
-                                    .foregroundColor(.orange)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(file.filename)
-                                        .font(.caption.bold())
-                                        .foregroundColor(.primary)
-                                    Text("\(file.mimeType.uppercased()) • \(ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file)) • Attached")
-                                        .font(.system(size: 9))
-                                        .foregroundColor(.secondary)
-                                }
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text(ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file))
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.tertiary)
                             }
                             .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                            .padding(.vertical, 3)
+                            .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
                         }
                     }
                     .padding(.top, 4)
@@ -1086,87 +1011,83 @@ struct ExecutionModeSheet: View {
     @AppStorage("com.swiftcode.assist.mode") private var isAgentMode = false
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 0) {
             HStack {
-                Text("Select Execution Mode")
+                Text("Execution Mode")
                     .font(.headline)
                 Spacer()
                 Button {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
             }
+            .padding()
             .padding(.bottom, 8)
 
-            VStack(spacing: 12) {
-                // Chat Mode Button
+            VStack(spacing: 4) {
                 Button {
                     isAgentMode = false
                     dismiss()
                 } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "text.bubble.fill")
-                            .font(.title)
-                            .foregroundColor(.blue)
-                            .frame(width: 40)
-
-                        VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "text.bubble")
+                            .font(.caption)
+                            .frame(width: 20)
+                        VStack(alignment: .leading, spacing: 2) {
                             Text("Chat Mode")
-                                .font(.subheadline.bold())
-                            Text("A conversational assistant. Safe, read-only, and will not make autonomous changes to your project.")
+                                .font(.subheadline.weight(.medium))
+                            Text("Read-only conversational assistant")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.leading)
+                                .foregroundStyle(.secondary)
                         }
                         Spacer()
                         if !isAgentMode {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.blue)
+                            Image(systemName: "checkmark")
+                                .font(.caption.weight(.medium))
+                                .foregroundColor(.accentColor)
                         }
                     }
-                    .padding(12)
-                    .background(Color.secondary.opacity(0.08))
-                    .cornerRadius(8)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
 
-                // Agent Mode Button
                 Button {
                     isAgentMode = true
                     dismiss()
                 } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "cpu.fill")
-                            .font(.title)
-                            .foregroundColor(.orange)
-                            .frame(width: 40)
-
-                        VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "cpu")
+                            .font(.caption)
+                            .frame(width: 20)
+                        VStack(alignment: .leading, spacing: 2) {
                             Text("Agent Mode")
-                                .font(.subheadline.bold())
-                            Text("An autonomous software engineering agent. Can build, test, repair, and apply plans with your permission.")
+                                .font(.subheadline.weight(.medium))
+                            Text("Autonomous agent that can build, test, and repair")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.leading)
+                                .foregroundStyle(.secondary)
                         }
                         Spacer()
                         if isAgentMode {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.orange)
+                            Image(systemName: "checkmark")
+                                .font(.caption.weight(.medium))
+                                .foregroundColor(.accentColor)
                         }
                     }
-                    .padding(12)
-                    .background(Color.secondary.opacity(0.08))
-                    .cornerRadius(8)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
+            .padding(.horizontal)
         }
-        .padding()
-        .frame(width: 400)
+        .padding(.bottom)
+        .frame(width: 360)
     }
 }
 
@@ -1228,9 +1149,8 @@ struct DiagnosticsSheet: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Label("System Telemetry & Diagnostics", systemImage: "terminal.fill")
+                Label("Diagnostics", systemImage: "terminal")
                     .font(.headline)
-                    .foregroundColor(.orange)
                 Spacer()
                 Button {
                     dismiss()
@@ -1379,6 +1299,27 @@ struct DiagnosticsSheet: View {
             }
         }
         .frame(width: 520, height: 550)
+    }
+}
+
+private struct AssistInlineError: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: "exclamationmark.circle")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
     }
 }
 

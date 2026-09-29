@@ -6,6 +6,8 @@ public final class AssistLoopStabilityRegulator {
     private let context: AssistContext
     private var executionHistory: [ExecutionRecord] = []
 
+    private static let maxHistorySize = 50
+
     public struct ExecutionRecord {
         let iteration: Int
         let timestamp: Date
@@ -44,6 +46,25 @@ public final class AssistLoopStabilityRegulator {
             wasSuccessful: validationResult.isSuccess
         )
         executionHistory.append(record)
+        if executionHistory.count > Self.maxHistorySize {
+            executionHistory.removeFirst(executionHistory.count - Self.maxHistorySize)
+        }
+
+        if validationResult.isSuccess {
+            AssistTakeoverSessionState.shared.recordSuccess()
+        } else {
+            AssistTakeoverSessionState.shared.recordFailure()
+        }
+    }
+
+    /// Consecutive failed iterations at the tail of the execution history
+    public var consecutiveFailures: Int {
+        var count = 0
+        for record in executionHistory.reversed() {
+            if record.wasSuccessful { break }
+            count += 1
+        }
+        return count
     }
 
     /// Detects stability issues in execution loop

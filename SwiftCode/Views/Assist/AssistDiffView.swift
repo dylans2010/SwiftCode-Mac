@@ -60,19 +60,9 @@ struct DiffActionView: View {
             }
 
             if case .modifyFile(_, let patch) = action {
-                Text(patch)
-                    .font(.system(size: 11, design: .monospaced))
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
-                    .foregroundStyle(.green)
+                DiffHunkView(patch: patch)
             } else if case .createFile(_, let content) = action {
-                Text(content)
-                    .font(.system(size: 11, design: .monospaced))
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
-                    .foregroundStyle(.green)
+                DiffHunkView(patch: content)
             }
         }
         .padding(.top, 4)
@@ -106,5 +96,103 @@ struct DiffActionView: View {
         case .renameFile: return "RENAME"
         case .runTest: return "TEST"
         }
+    }
+}
+
+struct DiffHunkView: View {
+    let patch: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(hunks.enumerated()), id: \.offset) { _, hunk in
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(hunk.header)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.cyan)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+
+                    ForEach(Array(hunk.lines.enumerated()), id: \.offset) { _, line in
+                        DiffLineView(line: line)
+                    }
+                }
+            }
+        }
+        .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var hunks: [(header: String, lines: [String])] {
+        let allLines = patch.components(separatedBy: "\n")
+        var result: [(header: String, lines: [String])] = []
+        var currentHeader = ""
+        var currentLines: [String] = []
+
+        for line in allLines {
+            if line.hasPrefix("@@") {
+                if !currentHeader.isEmpty || !currentLines.isEmpty {
+                    result.append((header: currentHeader, lines: currentLines))
+                }
+                currentHeader = line
+                currentLines = []
+            } else if !line.hasPrefix("---") && !line.hasPrefix("+++") && !line.hasPrefix("(No changes") {
+                currentLines.append(line)
+            }
+        }
+        if !currentHeader.isEmpty || !currentLines.isEmpty {
+            result.append((header: currentHeader, lines: currentLines))
+        }
+        return result
+    }
+}
+
+struct DiffLineView: View {
+    let line: String
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Text(prefix)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(prefixColor)
+                .frame(width: 16, alignment: .trailing)
+
+            Text(content)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(lineColor)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 8)
+        .background(backgroundColor)
+    }
+
+    private var prefix: String {
+        if line.hasPrefix("+") { return "+" }
+        if line.hasPrefix("-") { return "-" }
+        if line.hasPrefix(" ") { return " " }
+        return " "
+    }
+
+    private var content: String {
+        if line.hasPrefix("+") || line.hasPrefix("-") || line.hasPrefix(" ") {
+            return String(line.dropFirst())
+        }
+        return line
+    }
+
+    private var prefixColor: Color {
+        if line.hasPrefix("+") { return .green }
+        if line.hasPrefix("-") { return .red }
+        return .secondary
+    }
+
+    private var lineColor: Color {
+        if line.hasPrefix("+") { return .green }
+        if line.hasPrefix("-") { return .red }
+        return .primary
+    }
+
+    private var backgroundColor: Color {
+        if line.hasPrefix("+") { return .green.opacity(0.08) }
+        if line.hasPrefix("-") { return .red.opacity(0.08) }
+        return .clear
     }
 }

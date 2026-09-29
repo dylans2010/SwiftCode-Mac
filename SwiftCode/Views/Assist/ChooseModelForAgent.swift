@@ -29,9 +29,8 @@ public struct ChooseModelForAgent: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Label("Choose Task Model", systemImage: "cpu")
+                Label("Choose Model", systemImage: "cpu")
                     .font(.headline)
-                    .foregroundStyle(.orange)
                 Spacer()
                 if isFetching {
                     ProgressView()
@@ -245,38 +244,33 @@ public struct ChooseModelForAgent: View {
         Button {
             selectModel(option)
         } label: {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(option.name)
-                            .font(.subheadline.bold())
-                            .foregroundColor(isSelected ? .orange : .primary)
-
-                        Text(option.status)
-                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(Color.orange.opacity(0.12), in: Capsule())
-                            .foregroundColor(.orange)
-                    }
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(option.name)
+                        .font(.subheadline)
+                        .foregroundStyle(isSelected ? .primary : .primary)
 
                     Text(option.modelID)
-                        .font(.system(size: 10, design: .monospaced))
+                        .font(.system(size: 9, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
+                Text(option.status)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+
                 if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.orange)
-                        .font(.title3)
+                    Image(systemName: "checkmark")
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(.accentColor)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
             .contentShape(Rectangle())
-            .background(isSelected ? Color.orange.opacity(0.06) : Color.clear)
+            .background(isSelected ? Color.accentColor.opacity(0.06) : Color.clear)
         }
         .buttonStyle(.plain)
     }

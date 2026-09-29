@@ -15,21 +15,36 @@ public final class AssistGoalExpansionEngine: Sendable {
         originalGoal: String,
         completedPlan: AssistExecutionPlan? = nil
     ) async -> [String] {
-        let dummyCompleted = AssistGoal(
-            title: originalGoal,
-            detailedObjective: originalGoal,
-            status: .completed,
-            provenance: GoalProvenance(
-                createdReason: "Initial plan execution",
-                evidenceTrigger: "Completed plan",
-                relationshipToRoot: "Root goal",
-                parentGoalId: nil,
-                generationDepth: 0,
-                timestamp: Date()
-            ),
-            dependencies: [],
-            expectedOutcome: "Successful plan execution"
-        )
+        let session = AssistTakeoverSessionState.shared
+
+        guard session.consecutiveFailures < AssistGoalSafeguards.maxConsecutiveFailures else {
+            logger.warning("[GoalExpansion] Circuit breaker active (\(session.consecutiveFailures) consecutive failures). Halting expansion.")
+            return []
+        }
+
+        let completedNode: AssistGoal
+        if let existing = session.goalGraph.goal(withTitle: originalGoal) {
+            completedNode = existing
+        } else {
+            completedNode = AssistGoal(
+                title: originalGoal,
+                detailedObjective: originalGoal,
+                status: .completed,
+                provenance: GoalProvenance(
+                    createdReason: "Root user goal",
+                    evidenceTrigger: "User request",
+                    relationshipToRoot: "Root goal",
+                    parentGoalId: nil,
+                    generationDepth: 0,
+                    timestamp: Date()
+                ),
+                dependencies: [],
+                expectedOutcome: "Successful plan execution"
+            )
+            session.goalGraph.setRoot(originalGoal)
+            session.goalGraph.add(completedNode)
+        }
+        session.goalGraph.markCompleted(id: completedNode.id)
 
         var modifiedFiles: [String] = []
         if let plan = completedPlan {
@@ -40,12 +55,19 @@ public final class AssistGoalExpansionEngine: Sendable {
             }
         }
 
+        let rootGoal = session.goalGraph.rootGoal.isEmpty ? originalGoal : session.goalGraph.rootGoal
+
         let expanded = await expandGoals(
-            completedGoal: dummyCompleted,
-            existingGoals: [dummyCompleted],
-            rootGoal: originalGoal,
-            modifiedFiles: modifiedFiles
+            completedGoal: completedNode,
+            existingGoals: session.goalGraph.goals,
+            rootGoal: rootGoal,
+            modifiedFiles: modifiedFiles,
+            consecutiveFailures: session.consecutiveFailures
         )
+
+        for goal in expanded {
+            session.goalGraph.add(goal)
+        }
 
         return expanded.map { $0.title }
     }
@@ -59,6 +81,11 @@ public final class AssistGoalExpansionEngine: Sendable {
         consecutiveFailures: Int = 0
     ) async -> [AssistGoal] {
         logger.info("[GoalExpansion] Evaluating expansion candidates from completed goal: '\(completedGoal.title)'")
+
+        guard completedGoal.status == .completed else {
+            logger.info("[GoalExpansion] Skipping expansion: goal '\(completedGoal.title)' did not complete successfully")
+            return []
+        }
 
         let currentDepth = completedGoal.provenance.generationDepth + 1
 
@@ -179,10 +206,16 @@ public final class AssistGoalExpansionEngine: Sendable {
                 reason: "Modified files require test coverage to verify stability.",
                 expected: "All unit tests compile and pass successfully."
             ))
-        }
 
-        // Heuristic 2: Architecture Documentation
-        if candidates.isEmpty && !modifiedFiles.isEmpty {
+            // Heuristic 2: Edge Case Hardening
+            candidates.append((
+                title: "Harden Edge Cases for \(componentName)",
+                objective: "Add input validation, concurrency safety, and error handling to \(componentName) covering boundary and failure conditions.",
+                reason: "Modified files require edge-case hardening to prevent regressions.",
+                expected: "Edge cases handled with zero compiler warnings."
+            ))
+        } else if !modifiedFiles.isEmpty {
+            // Heuristic 3: Architecture Documentation
             candidates.append((
                 title: "Document Architecture and Interface Contracts",
                 objective: "Add DocC and documentation comments for public interfaces modified during the task.",
@@ -195,10 +228,18 @@ public final class AssistGoalExpansionEngine: Sendable {
     }
 
     private func parseGoalCandidates(from response: String) -> [(title: String, objective: String, reason: String, expected: String)] {
-        guard let data = response.data(using: .utf8) else { return [] }
+        var cleaned = response.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if cleaned.contains("```") {
+            cleaned = cleaned
+                .replacingOccurrences(of: "```json", with: "")
+                .replacingOccurrences(of: "```", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
 
         // Attempt array decode
-        if let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+        if let data = cleaned.data(using: .utf8),
+           let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
             return array.compactMap { dict in
                 guard let title = dict["title"] as? String,
                       let obj = dict["objective"] as? String else { return nil }

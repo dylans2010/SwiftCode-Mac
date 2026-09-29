@@ -5,10 +5,18 @@ import Foundation
 public final class AssistContextDriftDetector {
     private let context: AssistContext
 
+    private static let engineeringVerbs: Set<String> = [
+        "test", "tests", "testing", "verify", "lint", "document", "documentation",
+        "error", "guard", "robust", "refactor", "benchmark", "spec", "clean",
+        "fix", "implement", "validate", "coverage", "harden", "edge"
+    ]
+
     public struct DriftAnalysis {
         let hasDrift: Bool
         let driftScore: Double // 0.0 to 1.0
         let reason: String
+
+        var isSevere: Bool { driftScore > 0.8 }
     }
 
     public init(context: AssistContext) {
@@ -23,22 +31,24 @@ public final class AssistContextDriftDetector {
     ) async -> DriftAnalysis {
         await context.logger.info("Analyzing context drift", toolId: "DriftDetector")
 
-        // Simple keyword-based drift detection
-        let originalKeywords = extractKeywords(from: originalGoal)
-        let currentKeywords = extractKeywords(from: currentGoal)
+        // Anchor on the original goal plus everything already completed so that
+        // legitimate follow-up goals (tests, docs, hardening) are not flagged.
+        let anchorKeywords = Set(extractKeywords(from: ([originalGoal] + completedTasks).joined(separator: " ")))
+        let currentKeywords = Set(extractKeywords(from: currentGoal))
+        let relatedKeywords = currentKeywords.intersection(anchorKeywords)
 
-        let commonKeywords = Set(originalKeywords).intersection(Set(currentKeywords))
-        let totalKeywords = Set(originalKeywords).union(Set(currentKeywords))
+        let coverage = currentKeywords.isEmpty ? 1.0 : Double(relatedKeywords.count) / Double(currentKeywords.count)
+        let hasEngineeringLink = currentKeywords.contains { Self.engineeringVerbs.contains($0) }
 
-        let similarity = totalKeywords.isEmpty ? 0 : Double(commonKeywords.count) / Double(totalKeywords.count)
-        let driftScore = 1.0 - similarity
+        let isAligned = coverage >= 0.2 || hasEngineeringLink
+        let driftScore = isAligned ? (1.0 - coverage) * 0.5 : 0.9
 
         let hasDrift = driftScore > 0.6 // More than 60% drift
 
         let reason: String
-        if hasDrift {
+        if driftScore > 0.8 {
             reason = "Current goal has significantly diverged from original objective"
-        } else if driftScore > 0.3 {
+        } else if hasDrift {
             reason = "Moderate drift detected, but still aligned with original goal"
         } else {
             reason = "No significant drift detected"

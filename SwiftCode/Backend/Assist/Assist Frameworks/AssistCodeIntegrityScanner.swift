@@ -16,7 +16,7 @@ public final class AssistCodeIntegrityScanner {
         self.context = context
     }
 
-    /// Scans Swift code for integrity issues
+    /// Scans Swift code for integrity issues, including a real swiftc -parse pass.
     public func scanCode(at path: String) async -> IntegrityReport {
         await context.logger.info("Scanning code integrity: \(path)", toolId: "IntegrityScanner")
 
@@ -62,11 +62,26 @@ public final class AssistCodeIntegrityScanner {
             structuralIssues.append("Contains TODO/FIXME markers indicating incomplete work")
         }
 
+        // Check for unresolved merge conflict markers
+        if assistHasConflictMarkers(content) {
+            syntaxErrors.append("Contains unresolved merge conflict markers")
+        }
+
         // Check for empty bodies
         let emptyFunctionPattern = "(func|init)\\s+\\w+[^{]*\\{\\s*\\}"
         if content.range(of: emptyFunctionPattern, options: .regularExpression) != nil {
             structuralIssues.append("Contains empty function implementations")
         }
+
+        // Real compiler-based syntax verification
+        #if os(macOS)
+        if path.hasSuffix(".swift") {
+            let syntaxOutcome = await AssistVerificationPipeline.shared.verifySyntax(filePath: path, context: context)
+            if !syntaxOutcome.isSuccess {
+                syntaxErrors.append("swiftc -parse failed: \(syntaxOutcome.error ?? "syntax errors")")
+            }
+        }
+        #endif
 
         let hasIssues = !syntaxErrors.isEmpty || !structuralIssues.isEmpty || !bestPracticeViolations.isEmpty
 

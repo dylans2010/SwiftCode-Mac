@@ -78,6 +78,18 @@ public struct FileActivityItem: Codable, Identifiable, Sendable {
         self.diffHunks = diffHunks
         self.isReconciled = isReconciled
     }
+
+    public var changeDescription: String {
+        if addedLines == 0 && deletedLines == 0 { return "No changes" }
+        var parts: [String] = []
+        if addedLines > 0 { parts.append("+\(addedLines)") }
+        if deletedLines > 0 { parts.append("−\(deletedLines)") }
+        return parts.joined(separator: " ")
+    }
+
+    public var hasChanges: Bool {
+        return addedLines > 0 || deletedLines > 0
+    }
 }
 
 /// Terminal activity item for raw or structured terminal execution inside Activity.
