@@ -24,12 +24,7 @@ public struct PlanAskUserTool: AssistTool {
                     type: "array",
                     description: "Available choices for the user. Each choice must have 'choice' (string) and 'assistRecommended' (boolean) fields.",
                     items: [
-                        "type": JSONSchema(type: "object"),
-                        "properties": [
-                            "choice": JSONSchema(type: "string", description: "The text of this choice option."),
-                            "assistRecommended": JSONSchema(type: "boolean", description: "Whether Assist recommends this choice. Informational only — does not imply user approval.")
-                        ],
-                        "required": ["choice", "assistRecommended"]
+                        "type": JSONSchema(type: "object")
                     ]
                 ),
                 "userSpecification": JSONSchema(type: "boolean", description: "Whether the user may provide a free-form response.")
@@ -224,19 +219,17 @@ public final class PlanQuestionManager: ObservableObject {
             return answer
         }
 
-        return await withTaskGroup(of: PlanQuestionAnswer?.self) { group in
-            group.addTask {
-                await withCheckedContinuation { continuation in
-                    answerContinuations[questionID] = continuation
+        return await withCheckedContinuation { continuation in
+            self.answerContinuations[questionID] = continuation
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                await MainActor.run {
+                    guard let self = self else { return }
+                    if let pendingContinuation = self.answerContinuations.removeValue(forKey: questionID) {
+                        pendingContinuation.resume(returning: nil)
+                    }
                 }
             }
-            group.addTask {
-                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                return nil
-            }
-            let result = await group.next()
-            group.cancelAll()
-            return result ?? nil
         }
     }
 

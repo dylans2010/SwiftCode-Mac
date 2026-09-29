@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D9F800010000000000000001 /* ExecutionPlanTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F800020000000000000001 /* ExecutionPlanTool.swift */; };
+		D9F800010000000000000002 /* PlanAskUserTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F800020000000000000002 /* PlanAskUserTool.swift */; };
+		D9F800010000000000000003 /* PlanUserAskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F800020000000000000003 /* PlanUserAskView.swift */; };
 		8E4166F3134063D969CE396C /* WorkerContextBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EDF63C8310BD29FA3725CD4 /* WorkerContextBuilder.swift */; };
 		8E5D65C48D9A161B17FB5530 /* WorkerTaskDecomposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0A51BF7AFCE5CAF07D8676 /* WorkerTaskDecomposer.swift */; };
 		8ED63EB6A3941EB0354442EB /* WorkerScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB120DC19ADC7298CF0CB8E /* WorkerScheduler.swift */; };
@@ -2589,6 +2592,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		D9F800020000000000000001 /* ExecutionPlanTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExecutionPlanTool.swift; sourceTree = "<group>"; };
+		D9F800020000000000000002 /* PlanAskUserTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanAskUserTool.swift; sourceTree = "<group>"; };
+		D9F800020000000000000003 /* PlanUserAskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanUserAskView.swift; sourceTree = "<group>"; };
 		8EDF63C8310BD29FA3725CD4 /* WorkerContextBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerContextBuilder.swift"; sourceTree = "<group>"; };
 		8E0A51BF7AFCE5CAF07D8676 /* WorkerTaskDecomposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerTaskDecomposer.swift"; sourceTree = "<group>"; };
 		8EB120DC19ADC7298CF0CB8E /* WorkerScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorkerScheduler.swift"; sourceTree = "<group>"; };
@@ -5534,6 +5540,8 @@
 				C57619E8FD94733EDFC515F6 /* AssistValidateChangesTool.swift */,
 				61FF804206ECCD45E291353C /* AssistVersionControlOperator.swift */,
 				BC4ED3821A1E7390B7CFD995 /* AssistWriteFileTool.swift */,
+				D9F800020000000000000001 /* ExecutionPlanTool.swift */,
+				D9F800020000000000000002 /* PlanAskUserTool.swift */,
 			);
 			path = Tools;
 			sourceTree = "<group>";
@@ -5853,6 +5861,7 @@
 				5C5E70000000000000000203 /* AddFilesAgentContext.swift */,
 				6D3F79ABA55559EF6F44BF84 /* AssistDiffView.swift */,
 				1E9D7E2F8F62E029750AD8AA /* AssistMainView.swift */,
+				D9F800020000000000000003 /* PlanUserAskView.swift */,
 				D1A0000128C0000100000004 /* AssistActivityView.swift */,
 				1E9D7E2F8F62E029750AD8AB /* AgentNotesInspectorView.swift */,
 				C46493C840B09DCD68F12134 /* AssistPlanView.swift */,
@@ -10798,6 +10807,9 @@
 				75D79D3590909772C681B38C /* AssistWriteFileTool.swift in Sources */,
 				9930144B633DA489516E0991 /* AssistDiffView.swift in Sources */,
 				F1CD2E378216E7D1A040795B /* AssistMainView.swift in Sources */,
+				D9F800010000000000000001 /* ExecutionPlanTool.swift in Sources */,
+				D9F800010000000000000002 /* PlanAskUserTool.swift in Sources */,
+				D9F800010000000000000003 /* PlanUserAskView.swift in Sources */,
 				F1CD2E378216E7D1A040795C /* AgentNotesInspectorView.swift in Sources */,
 				52DD46069C3AA9C5DA53998A /* AssistPlanView.swift in Sources */,
 				D11703E67C572322D24C4CB2 /* AssistPlannerView.swift in Sources */,

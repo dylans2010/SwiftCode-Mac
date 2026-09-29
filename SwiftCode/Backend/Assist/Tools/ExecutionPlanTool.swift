@@ -119,7 +119,7 @@ public struct ExecutionPlanTool: AssistTool {
         var rootFiles: [String] = []
 
         if let enumerator = fm.enumerator(at: workspaceRoot, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) {
-            for case let url as URL in enumerator {
+            while let url = enumerator.nextObject() as? URL {
                 let relPath = url.path.replacingOccurrences(of: workspaceRoot.path + "/", with: "")
                 if relPath.hasPrefix(".git/") || relPath.hasPrefix(".build/") || relPath.hasPrefix("build/") {
                     continue
@@ -229,7 +229,7 @@ public struct ExecutionPlanTool: AssistTool {
         let fm = FileManager.default
 
         if let enumerator = fm.enumerator(at: workspaceRoot, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
-            for case let url as URL in enumerator {
+            while let url = enumerator.nextObject() as? URL {
                 let relPath = url.path.replacingOccurrences(of: workspaceRoot.path + "/", with: "")
                 if relPath.hasPrefix(".git/") || relPath.hasPrefix(".build/") || relPath.hasPrefix("build/") {
                     continue
@@ -340,7 +340,7 @@ public struct ExecutionPlanTool: AssistTool {
             detectedProblems.append("No relevant files identified — task may require broader search")
         }
 
-        if !fileTree.swiftFileCount.isEmpty && fileTree.swiftFileCount > 0 {
+        if fileTree.swiftFileCount > 0 {
             steps.append(PlanStepData(
                 order: 2,
                 toolId: "search_text",

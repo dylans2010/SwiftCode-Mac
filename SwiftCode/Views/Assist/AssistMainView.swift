@@ -327,12 +327,19 @@ public struct AssistMainView: View {
                                     Text("Executing Command...")
                                         .font(.caption.bold())
                                         .foregroundColor(.orange)
-                                } else {
-                                    Image(systemName: manager.terminalExitCode == 0 ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                        .foregroundColor(manager.terminalExitCode == 0 ? .green : .red)
-                                    Text(manager.terminalExitCode == 0 ? "Execution Succeeded (Exit code 0)" : "Execution Failed (Exit code \(manager.terminalExitCode ?? -1))")
+                                } else if manager.terminalExitCode == 0 {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                    Text("Execution Succeeded (Exit code 0)")
                                         .font(.caption.bold())
-                                        .foregroundColor(manager.terminalExitCode == 0 ? .green : .red)
+                                        .foregroundColor(.green)
+                                } else {
+                                    let exitCode = manager.terminalExitCode ?? -1
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.red)
+                                    Text("Execution Failed (Exit code \(exitCode))")
+                                        .font(.caption.bold())
+                                        .foregroundColor(.red)
                                 }
                                 Spacer()
                             }
