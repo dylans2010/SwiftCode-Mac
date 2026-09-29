@@ -168,6 +168,7 @@ public struct AssistContext: Sendable {
     // Safety & Mode settings
     public let safetyLevel: AssistSafetyLevel
     public let isAutonomous: Bool
+    public let sessionExecutionMode: ExecutionMode
 
     public init(
         sessionId: UUID,
@@ -179,7 +180,8 @@ public struct AssistContext: Sendable {
         git: AssistGitManagerProtocol,
         permissions: AssistPermissionsManagerProtocol,
         safetyLevel: AssistSafetyLevel,
-        isAutonomous: Bool
+        isAutonomous: Bool,
+        sessionExecutionMode: ExecutionMode = .autopilot
     ) {
         self.sessionId = sessionId
         self.project = project
@@ -191,6 +193,7 @@ public struct AssistContext: Sendable {
         self.permissions = permissions
         self.safetyLevel = safetyLevel
         self.isAutonomous = isAutonomous
+        self.sessionExecutionMode = sessionExecutionMode
     }
 }
 

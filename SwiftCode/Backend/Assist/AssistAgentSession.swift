@@ -297,8 +297,11 @@ public final class AssistAgentSession: Sendable {
         let selectedModel = AssistModelManager.shared.selectedModelID
         let selectedProvider = LLMService.shared.provider(for: selectedModel)
         let isAgentMode = UserDefaults.standard.bool(forKey: "com.swiftcode.assist.mode")
+        let executionModeRaw = UserDefaults.standard.string(forKey: "com.swiftcode.assist.executionMode") ?? ExecutionMode.autopilot.rawValue
+        let executionMode = ExecutionMode(rawValue: executionModeRaw) ?? .autopilot
+        self.state.executionMode = executionMode
 
-        pipelineLogger.log("[start] Validating Assist session configuration. Selected Model: \(selectedModel), Selected Provider: \(selectedProvider.rawValue), Mode: \(isAgentMode ? "Agent" : "Chat")")
+        pipelineLogger.log("[start] Validating Assist session configuration. Selected Model: \(selectedModel), Selected Provider: \(selectedProvider.rawValue), Mode: \(isAgentMode ? "Agent" : "Chat"), Execution Mode: \(executionMode.rawValue)")
 
         // 1. Verify selected model is not empty
         guard !selectedModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -409,6 +412,35 @@ public final class AssistAgentSession: Sendable {
         ))
         postConversationalMessage("I’m analyzing the project structure and locating the relevant files.")
 
+        // MANDATORY: Execute execution_plan tool before any modification
+        _ = phaseCoordinator.startPhase("PHASE_04B_EXECUTION_PLAN")
+        transition(to: .planning, reason: "Generating Execution Plan...")
+        if let executionPlanTool = registry.getTool("execution_plan") {
+            do {
+                let planResult = try await executionPlanTool.execute(
+                    input: [
+                        "objective": objective,
+                        "mode": executionMode.rawValue
+                    ],
+                    context: context
+                )
+                if planResult.success {
+                    pipelineLogger.info("[execution_plan] Plan generated successfully: \(planResult.output.prefix(100))")
+                    phaseCoordinator.completePhase("PHASE_04B_EXECUTION_PLAN", evidence: "Execution Plan generated and written to agent_notes.md")
+                } else {
+                    let errorMsg = planResult.error ?? "Unknown error"
+                    pipelineLogger.warning("[execution_plan] Plan generation failed: \(errorMsg)")
+                    phaseCoordinator.failPhase("PHASE_04B_EXECUTION_PLAN", error: errorMsg)
+                }
+            } catch {
+                pipelineLogger.warning("[execution_plan] Tool execution error: \(error.localizedDescription)")
+                phaseCoordinator.failPhase("PHASE_04B_EXECUTION_PLAN", error: error.localizedDescription)
+            }
+        } else {
+            pipelineLogger.warning("[execution_plan] Tool not found in registry")
+            phaseCoordinator.failPhase("PHASE_04B_EXECUTION_PLAN", error: "execution_plan tool not found")
+        }
+
         // Production-grade adaptive orchestration trackers
         var lastRepoModificationCount = 0
         var lastSuccessfulToolCallCount = 0
@@ -493,6 +525,8 @@ public final class AssistAgentSession: Sendable {
 
             You are an autonomous Swift/macOS coding agent in SwiftCode.
             Goal: "\(objective)"
+
+            \(executionMode.systemInstruction)
 
             \(groundingInstructions)
 

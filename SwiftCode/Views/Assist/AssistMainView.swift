@@ -38,6 +38,9 @@ public struct AssistMainView: View {
     // Mode selection: Chat Mode (Read-Only) vs. Agent Mode (Autonomous)
     @AppStorage("com.swiftcode.assist.mode") private var isAgentMode = false
 
+    // Execution Mode: Plan vs Autopilot
+    @AppStorage("com.swiftcode.assist.executionMode") private var executionModeRaw: String = ExecutionMode.autopilot.rawValue
+
     // Assist Configuration
     @AppStorage("com.swiftcode.assist.enableCodeReview") private var enableCodeReview = true
     @State private var showAssistSettings = false
@@ -73,6 +76,8 @@ public struct AssistMainView: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Toggle Execution Mode")
+
+                executionModePopover
 
                 Spacer()
 
@@ -434,6 +439,9 @@ public struct AssistMainView: View {
             .background(.thinMaterial)
         }
         .background(.windowBackground)
+        .overlay {
+            PlanUserAskView()
+        }
         .sheet(isPresented: $showingCodexSetup) {
             CodexSignInFlow()
         }
@@ -473,6 +481,33 @@ public struct AssistMainView: View {
                 }
             }
         }
+    }
+
+    private var executionModePopover: some View {
+        Menu {
+            ForEach(ExecutionMode.allCases, id: \.self) { mode in
+                Button {
+                    executionModeRaw = mode.rawValue
+                } label: {
+                    HStack {
+                        Text(mode.rawValue)
+                        if executionModeRaw == mode.rawValue {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: executionModeRaw == "Plan" ? "list.bullet.rectangle" : "arrow.triangle.2.circlepath")
+                    .font(.caption)
+                Text(executionModeRaw)
+                    .font(.caption.weight(.medium))
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Execution Mode: \(executionModeRaw)")
     }
 
     private func updateCodexButtonVisibility() async {
@@ -1009,6 +1044,7 @@ private final class ModelMenuTarget: NSObject {
 struct ExecutionModeSheet: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("com.swiftcode.assist.mode") private var isAgentMode = false
+    @AppStorage("com.swiftcode.assist.executionMode") private var executionModeRaw: String = ExecutionMode.autopilot.rawValue
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1085,6 +1121,48 @@ struct ExecutionModeSheet: View {
                 .buttonStyle(.plain)
             }
             .padding(.horizontal)
+
+            if isAgentMode {
+                Divider()
+                    .padding(.vertical, 4)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Agent Execution Mode")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12)
+
+                    ForEach(ExecutionMode.allCases, id: \.self) { mode in
+                        Button {
+                            executionModeRaw = mode.rawValue
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: mode == .plan ? "list.bullet.rectangle" : "arrow.triangle.2.circlepath")
+                                    .font(.caption)
+                                    .frame(width: 20)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(mode.rawValue)
+                                        .font(.subheadline.weight(.medium))
+                                    Text(mode == .plan ? "Collaborative — asks user for key decisions" : "Fully autonomous — no user questions")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if executionModeRaw == mode.rawValue {
+                                    Image(systemName: "checkmark")
+                                        .font(.caption.weight(.medium))
+                                        .foregroundColor(.accentColor)
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
         }
         .padding(.bottom)
         .frame(width: 360)

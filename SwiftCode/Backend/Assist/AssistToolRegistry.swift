@@ -109,6 +109,8 @@ public final class AssistToolRegistry {
         register(AssistAutonomousReviewEngine())
         register(CodeReviewTool())
         register(UseWorkersTool())
+        register(ExecutionPlanTool())
+        register(PlanAskUserTool())
     }
 
     public var version: Int { registryVersion }

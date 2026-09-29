@@ -1,6 +1,20 @@
 import Foundation
 import Observation
 
+public enum ExecutionMode: String, Codable, Sendable, CaseIterable {
+    case plan = "Plan"
+    case autopilot = "Autopilot"
+
+    public var systemInstruction: String {
+        switch self {
+        case .autopilot:
+            return "You are operating in Autopilot mode. Operate autonomously. Do not ask routine user questions. Do not use plan-AskUser."
+        case .plan:
+            return "You are operating in Plan mode. Operate autonomously where possible. You may use plan-AskUser when a meaningful user decision is required. Do not ask unnecessary questions. Wait for the user's answer when plan-AskUser is invoked. Never treat assistRecommended as user authorization."
+        }
+    }
+}
+
 public enum AgentSessionStatus: String, Codable, Sendable {
     case idle = "Idle"
     case initializing = "Initializing"
@@ -191,6 +205,7 @@ public final class AgentSessionState: Sendable {
     public var events: [AgentEvent] = []
     public var stateHistory: [StateTransition] = []
     public var changeSummary = AgentChangeSummary()
+    public var executionMode: ExecutionMode = .autopilot
 
     // MARK: - Assist v4 Continuous Takeover & Multi-Goal State
     public var rootGoal: String = ""

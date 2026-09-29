@@ -148,6 +148,10 @@ public final class AgentNotesManager: Sendable {
         ## Applicable Skills
         \(applicableSkills.isEmpty ? "- Discovered system skills available on demand." : applicableSkills.map { "- " + $0 }.joined(separator: "\n"))
 
+        ## Execution Mode
+        - Mode: \(session.state.executionMode.rawValue)
+        - Instructions: \(session.state.executionMode.systemInstruction)
+
         ## Model
         - Active Model: \(modelName)
         - Provider: \(LLMService.shared.provider(for: modelName).rawValue)

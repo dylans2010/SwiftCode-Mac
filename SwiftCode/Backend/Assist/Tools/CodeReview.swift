@@ -32,16 +32,16 @@ public struct CodeReviewTool: AssistTool {
         if !isReviewEnabled {
             await context.logger.info("Autonomous Code Review is disabled in settings. Skipping verification step.", toolId: id)
             let reviewData: [String: Any] = [
-                "status": "task_ready",
+                "status": "review_skipped",
                 "summary": "Code Review skipped because Autonomous Code Review is disabled in settings.",
-                "strengths": ["Bypassed Code Review Stage"],
-                "issues": [] as [String],
-                "recommendedFixes": [] as [String],
+                "strengths": [] as [String],
+                "issues": ["Code Review is disabled — no independent verification was performed"],
+                "recommendedFixes": ["Enable Code Review in Assist Settings for independent verification"],
                 "user_see": "Code Review bypassed per user configuration.",
-                "confidence": 1.0
+                "confidence": 0.0
             ]
             await updateReviewState(reviewData: reviewData)
-            return .success("Code Review disabled in settings. Bypassing review.", data: reviewData.mapValues { "\($0)" })
+            return .failure("Code Review is disabled in settings. No independent verification was performed. Enable Code Review in Assist Settings to activate the review gate.")
         }
 
         // 2. Load System Prompt from Resource Bundle

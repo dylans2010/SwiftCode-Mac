@@ -63,7 +63,6 @@ public final class AssistVerificationPipeline: Sendable {
     /// Discovers active Xcode DEVELOPER_DIR to ensure command reliability.
     public func resolveDeveloperDir() -> String {
         let candidates = [
-            "/Users/dylan/Xcode.app/Contents/Developer",
             "/Applications/Xcode.app/Contents/Developer",
             "/Applications/Xcode-beta.app/Contents/Developer"
         ]
@@ -72,7 +71,7 @@ public final class AssistVerificationPipeline: Sendable {
                 return path
             }
         }
-        return "/Users/dylan/Xcode.app/Contents/Developer"
+        return "/Applications/Xcode.app/Contents/Developer"
     }
 
     /// Verifies individual Swift file syntax using swiftc typecheck pass.
