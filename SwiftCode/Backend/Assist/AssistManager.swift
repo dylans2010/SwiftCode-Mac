@@ -172,7 +172,7 @@ public final class AssistManager: ObservableObject {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        // Prevent concurrent agent sessions on the shared AssistAgentSession instance.
+        // Prevent concurrent agent sessions
         guard !isProcessing else {
             await MainActor.run {
                 messages.append(AssistMessage(role: .system, content: "A task is already in progress. Please wait for it to finish or stop it before starting a new one."))
@@ -188,13 +188,15 @@ public final class AssistManager: ObservableObject {
             saveHistory()
         }
 
-        // If 'Assist on Google Cloud' is active, delegate all execution to Google Cloud SDK / Antigravity
-        if AppSettings.shared.isGoogleCloudAssist {
+        let isAgentMode = UserDefaults.standard.bool(forKey: "com.swiftcode.assist.mode")
+        let isAntigravityAvailable = GoogleCloudSDKRuntime.shared.isAvailable
+
+        // Always prioritize Antigravity in Agent Mode or when explicitly enabled
+        if AppSettings.shared.isGoogleCloudAssist || (isAgentMode && isAntigravityAvailable) {
             await sendGoogleCloudSDKMessage(trimmed, attachments: attachments)
             return
         }
 
-        let isAgentMode = UserDefaults.standard.bool(forKey: "com.swiftcode.assist.mode")
         if isAgentMode {
             guard let _ = self.agent else {
                 let error = "Assist agent is unavailable."
@@ -516,7 +518,7 @@ public final class AssistManager: ObservableObject {
             try await runtime.ensureStarted()
         } catch {
             await MainActor.run {
-                self.lastError = "Google Cloud SDK engine failed to start: \(error.localizedDescription)"
+                self.lastError = "Google Antigravity engine failed to start: \(error.localizedDescription)"
                 self.messages.append(AssistMessage(role: .system, content: "Engine error: \(error.localizedDescription)"))
                 self.isProcessing = false
                 self.saveHistory()
@@ -537,7 +539,7 @@ public final class AssistManager: ObservableObject {
                 activeGoogleCloudSession = session
             } catch {
                 await MainActor.run {
-                    self.lastError = "Failed to create Google Cloud SDK session: \(error.localizedDescription)"
+                    self.lastError = "Failed to create Antigravity session: \(error.localizedDescription)"
                     self.messages.append(AssistMessage(role: .system, content: "Session error: \(error.localizedDescription)"))
                     self.isProcessing = false
                     self.saveHistory()
@@ -546,7 +548,6 @@ public final class AssistManager: ObservableObject {
             }
         }
 
-        let assistantMsgId = UUID()
         let initialActivity = AssistActivityGroup(isExecuting: true)
         await MainActor.run {
             var initialMsg = AssistMessage(role: .assistant, content: "")
@@ -653,4 +654,3 @@ public final class AssistManager: ObservableObject {
         }
     }
 }
-

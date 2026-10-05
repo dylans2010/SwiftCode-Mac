@@ -7,6 +7,20 @@
 
 import Foundation
 
+public struct GoogleCloudSDKToolExecutionRequest: Sendable {
+    public let requestId: String
+    public let sessionId: String
+    public let toolName: String
+    public let arguments: [String: Any]
+
+    public init(requestId: String, sessionId: String, toolName: String, arguments: [String: Any]) {
+        self.requestId = requestId
+        self.sessionId = sessionId
+        self.toolName = toolName
+        self.arguments = arguments
+    }
+}
+
 public struct GoogleCloudSDKToolEvent: Identifiable, Sendable, Codable {
     public let id: String
     public let sessionId: String

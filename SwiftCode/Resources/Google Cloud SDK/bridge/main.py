@@ -11,6 +11,7 @@ import os
 import signal
 import sys
 import logging
+import uuid
 from typing import Any, Dict, Optional
 
 # Add bundled site-packages to sys.path before any library imports
@@ -57,7 +58,8 @@ class BridgeServer:
     def __init__(self, socket_path: Optional[str] = None):
         self.socket_path = socket_path
         self.writer: Optional[asyncio.StreamWriter] = None
-        self.runner = AgentRunner(self.emit_notification)
+        self.pending_requests: Dict[str, asyncio.Future[Dict[str, Any]]] = {}
+        self.runner = AgentRunner(self.emit_notification, self.request_tool_execution)
         self.is_running = True
         self.server: Optional[asyncio.Server] = None
 
@@ -66,6 +68,36 @@ class BridgeServer:
             raw = ProtocolMessage.notification(method, params)
             self.writer.write(raw.encode("utf-8"))
             asyncio.create_task(self._safe_drain())
+
+    async def request_tool_execution(self, session_id: str, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        if not self.writer or self.writer.is_closing():
+            raise RuntimeError("Connection to SwiftCode is closed")
+
+        req_id = f"tool_exec_{uuid.uuidString() if hasattr(uuid, 'uuidString') else str(uuid.uuid4())}"
+        loop = asyncio.get_event_loop()
+        future: asyncio.Future[Dict[str, Any]] = loop.create_future()
+        self.pending_requests[req_id] = future
+
+        req_msg = ProtocolMessage.request(
+            req_id,
+            "tool.execute",
+            {
+                "sessionId": session_id,
+                "toolName": tool_name,
+                "arguments": arguments,
+            },
+        )
+        self.writer.write(req_msg.encode("utf-8"))
+        await self._safe_drain()
+
+        try:
+            result = await asyncio.wait_for(future, timeout=120.0)
+            return result
+        except asyncio.TimeoutError:
+            logger.error("Timed out waiting for SwiftCode tool execution of '%s'", tool_name)
+            return {"success": False, "error": f"Tool execution of '{tool_name}' timed out"}
+        finally:
+            self.pending_requests.pop(req_id, None)
 
     async def _safe_drain(self):
         try:
@@ -78,6 +110,23 @@ class BridgeServer:
         msg_id = message.get("id")
         method = message.get("method")
         params = message.get("params", {}) or {}
+
+        # Handle responses to Python-initiated requests (e.g. tool.execute response from SwiftCode)
+        if "id" in message and ("result" in message or "error" in message) and not method:
+            req_id = str(msg_id)
+            if req_id in self.pending_requests:
+                future = self.pending_requests.get(req_id)
+                if future and not future.done():
+                    if "error" in message and message["error"]:
+                        err_obj = message["error"]
+                        err_msg = err_obj.get("message") if isinstance(err_obj, dict) else str(err_obj)
+                        future.set_result({"success": False, "error": err_msg})
+                    else:
+                        res = message.get("result", {})
+                        if not isinstance(res, dict):
+                            res = {"result": str(res), "success": True}
+                        future.set_result(res)
+            return None
 
         if not method:
             return ProtocolMessage.error(msg_id, INVALID_REQUEST, "Missing 'method' field in JSON-RPC request")
@@ -116,10 +165,8 @@ class BridgeServer:
                 session_id = params.get("sessionId")
                 if not session_id:
                     return ProtocolMessage.error(msg_id, INVALID_PARAMS, "Missing required parameter 'sessionId'")
-                # If session exists in runner, return it
                 if session_id in self.runner.sessions:
                     return ProtocolMessage.success(msg_id, {"sessionId": session_id, "status": "resumed"})
-                # Otherwise re-create session using provided config
                 result = await self.runner.create_session(session_id, params)
                 return ProtocolMessage.success(msg_id, result)
 

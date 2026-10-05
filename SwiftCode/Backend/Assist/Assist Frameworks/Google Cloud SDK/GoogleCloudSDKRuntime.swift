@@ -32,6 +32,61 @@ public final class GoogleCloudSDKRuntime: Sendable {
     private init() {
         Task { @MainActor in
             await self.auditEnvironment()
+            await self.setupToolExecutionBridge()
+        }
+    }
+
+    /// Configures the Swift tool execution bridge callback on the bridge.
+    private func setupToolExecutionBridge() async {
+        await bridge.setToolExecutionHandler { request in
+            await self.executeSwiftTool(request: request)
+        }
+    }
+
+    /// Validates, checks permissions, and executes a SwiftCode tool for Antigravity.
+    private func executeSwiftTool(request: GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?) {
+        let toolRegistry = AssistManager.shared.registry
+        let toolName = request.toolName
+        let args = request.arguments
+
+        guard let tool = toolRegistry.getTool(toolName) else {
+            return (false, nil, "Tool '\(toolName)' is not registered in SwiftCode")
+        }
+
+        // Validate arguments
+        let validation = toolRegistry.validate(toolId: toolName, arguments: args)
+        guard validation.isValid else {
+            return (false, nil, "Invalid arguments for '\(toolName)': \(validation.issue ?? "Schema mismatch")")
+        }
+
+        // Build execution context
+        let context = AssistContextBuilder(
+            logger: AssistManager.shared.logger,
+            permissions: AssistPermissionsManager(),
+            memory: AssistMemoryGraph(),
+            fileSystem: AssistFileSystem(workspaceRoot: ProjectSessionStore.shared.activeProject?.directoryURL ?? URL(fileURLWithPath: "/")),
+            git: AssistGitManager(project: ProjectSessionStore.shared.activeProject)
+        ).buildContext(sessionId: request.sessionId)
+
+        // Evaluate permissions via AssistPermissionsManager
+        let permissions = AssistPermissionsManager()
+        if !permissions.isToolAllowed(toolName, riskLevel: tool.riskLevel) {
+            return (false, nil, "Permission denied for tool '\(toolName)'")
+        }
+
+        do {
+            toolRegistry.markUsed(toolName)
+            let result = try await tool.execute(input: args, context: context)
+            if result.success {
+                return (true, result.output, nil)
+            } else {
+                let errStr = result.error ?? result.output
+                toolRegistry.markError(toolName, error: errStr)
+                return (false, nil, errStr)
+            }
+        } catch {
+            toolRegistry.markError(toolName, error: error.localizedDescription)
+            return (false, nil, "Tool '\(toolName)' execution error: \(error.localizedDescription)")
         }
     }
 
@@ -177,6 +232,16 @@ public final class GoogleCloudSDKRuntime: Sendable {
         case .workerStarted(let sid, let workerId, let name, let args):
             appendLog("[\(sid)] Worker \(name) (\(workerId)) started with args: \(args)")
             let wID = UUID(uuidString: workerId) ?? UUID()
+            let worker = WorkerModel(
+                id: wID,
+                name: name,
+                type: .subagent,
+                status: .active,
+                task: args,
+                startedAt: Date()
+            )
+            WorkerRuntimeState.shared.registerWorker(worker)
+
             let wEvent = WorkerEvent(
                 workerID: wID,
                 type: .workerStarted,
@@ -189,6 +254,8 @@ public final class GoogleCloudSDKRuntime: Sendable {
         case .workerProgress(let sid, let workerId, let progress):
             appendLog("[\(sid)] Worker \(workerId) progress: \(progress)")
             let wID = UUID(uuidString: workerId) ?? UUID()
+            WorkerRuntimeState.shared.updateWorkerStatus(wID, status: .active, activity: progress)
+
             let wEvent = WorkerEvent(
                 workerID: wID,
                 type: .workerProgressUpdated,
@@ -201,6 +268,8 @@ public final class GoogleCloudSDKRuntime: Sendable {
         case .workerCompleted(let sid, let workerId, let result):
             appendLog("[\(sid)] Worker \(workerId) completed: \(result)")
             let wID = UUID(uuidString: workerId) ?? UUID()
+            WorkerRuntimeState.shared.updateWorkerStatus(wID, status: .completed, activity: "Completed")
+
             let wEvent = WorkerEvent(
                 workerID: wID,
                 type: .workerCompleted,
@@ -213,6 +282,8 @@ public final class GoogleCloudSDKRuntime: Sendable {
         case .workerFailed(let sid, let workerId, let err):
             appendLog("[\(sid)] Worker \(workerId) failed: \(err)")
             let wID = UUID(uuidString: workerId) ?? UUID()
+            WorkerRuntimeState.shared.updateWorkerStatus(wID, status: .failed, activity: err)
+
             let wEvent = WorkerEvent(
                 workerID: wID,
                 type: .workerFailed,
