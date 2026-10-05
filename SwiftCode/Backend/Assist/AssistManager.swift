@@ -681,7 +681,7 @@ public final class AssistManager: ObservableObject {
         }
 
         let isSavedModels = AppSettings.shared.useSavedModels
-        let initialRouted = isSavedModels ? AssistModelRouter.shared.selectModelForSDK() : nil
+        let initialRouted = isSavedModels ? await AssistModelRouter.shared.selectModelForSDK() : nil
         let initialConfig = initialRouted?.config ?? GoogleCloudSDKConfiguration.resolveDefault()
         let initialModelId = initialRouted?.model.modelIdentifier ?? initialConfig.model
         let initialModelName = initialRouted?.model.displayName ?? (initialConfig.model)

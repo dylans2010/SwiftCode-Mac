@@ -118,7 +118,7 @@ public final class AssistModelRouterTests: Sendable {
             providerID: "apple",
             providerName: "Apple Foundation Models",
             modelIdentifier: "AppleFoundationModel.afm3Core",
-            capabilities: .fastInference,
+            capabilities: .localFoundation,
             source: .appleFoundationModels,
             isConfigured: true,
             isAvailable: true,
@@ -134,7 +134,7 @@ public final class AssistModelRouterTests: Sendable {
         )
 
         let isToolCapableAccepted = toolModel.supportsAgenticUse && toolModel.supportsToolCalling
-        let isNonToolGated = !nonToolModel.supportsAgenticUse && nonToolModel.status == .unsupportedAgentic
+        let isNonToolGated = !nonToolModel.supportsAgenticUse && nonToolModel.status == AssistModelStatus.unsupportedAgentic
         let passed = isToolCapableAccepted && isNonToolGated
 
         return RuntimeTestCaseResult(

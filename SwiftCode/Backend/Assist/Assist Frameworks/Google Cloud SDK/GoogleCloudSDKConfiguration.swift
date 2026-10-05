@@ -130,12 +130,14 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         var enableSubagents = true
 
         if isSavedModels {
-            if let routed = AssistModelRouter.shared.selectModelForSDK() {
-                selectedModel = routed.config.model
-                provider = routed.config.provider
-                baseURL = routed.config.baseURL
-                apiKey = routed.config.apiKey
-                enableSubagents = routed.model.supportsSubagents
+            if let routed = AssistModelRouter.shared.currentRuntimeModel {
+                selectedModel = routed.modelIdentifier
+                provider = routed.providerID
+                baseURL = routed.endpointURL
+                if let key = AssistModelRouter.shared.resolveAPIKey(for: routed.providerID) {
+                    apiKey = key
+                }
+                enableSubagents = routed.supportsSubagents
             }
         }
 

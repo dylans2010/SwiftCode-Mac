@@ -662,7 +662,7 @@ public final class AssistModelDiscoveryService: Sendable {
             return models.map { m in
                 let lower = m.id.lowercased()
                 let supportsVision = lower.contains("vision") || lower.contains("4o") || lower.contains("gemini") || lower.contains("claude-3")
-                let context = m.context_length ?? 128_000
+                let context = m.contextLength ?? 128_000
                 return AssistAvailableModel(
                     id: m.id,
                     displayName: m.name,

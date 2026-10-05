@@ -533,7 +533,7 @@ public struct ComposioExecutionMetadata: Codable, Sendable, Identifiable {
 public struct AssistMessage: Codable, Identifiable, Sendable {
     public let id: UUID
     public let role: AssistRole
-    public let content: String
+    public var content: String
     public let timestamp: Date
     public var attachments: [AgentFileContext]?
     public var mcpExecution: MCPExecutionMetadata?
