@@ -154,10 +154,10 @@ public final class GoogleCloudSDKTests: Sendable {
             config.apiKey = config.apiKey ?? "test-suite-key"
 
             let created = try await bridge.createSession(sessionId: sessionId, config: config)
-            let createdOk = (created["status"] as? String) == "ready"
+            let createdOk = created.status == "ready"
 
             let closed = try await bridge.closeSession(sessionId: sessionId)
-            let closedOk = (closed["status"] as? String) == "closed"
+            let closedOk = closed.status == "closed"
 
             await bridge.stop()
             let passed = createdOk && closedOk

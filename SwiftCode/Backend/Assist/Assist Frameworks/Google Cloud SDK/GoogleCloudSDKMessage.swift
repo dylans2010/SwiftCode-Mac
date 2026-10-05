@@ -59,3 +59,30 @@ public struct GoogleCloudSDKMessage: Identifiable, Sendable, Codable {
         self.timestamp = timestamp
     }
 }
+
+public struct GoogleCloudSDKResponse: Sendable {
+    public let data: [String: JSONValue]
+
+    public init(_ data: [String: JSONValue] = [:]) {
+        self.data = data
+    }
+
+    public subscript(key: String) -> JSONValue? {
+        data[key]
+    }
+
+    public var status: String? {
+        if case .string(let str) = data["status"] { return str }
+        return nil
+    }
+
+    public var conversationId: String? {
+        if case .string(let str) = data["conversationId"] { return str }
+        return nil
+    }
+
+    public var sdkVersion: String? {
+        if case .string(let str) = data["sdkVersion"] { return str }
+        return nil
+    }
+}

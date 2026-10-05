@@ -107,7 +107,7 @@ public final class GoogleCloudSDKRuntime: Sendable {
 
         let resolvedConfig = config ?? GoogleCloudSDKConfiguration.resolveDefault()
         let resp = try await bridge.createSession(sessionId: id, config: resolvedConfig)
-        let convId = resp["conversationId"] as? String
+        let convId = resp.conversationId
 
         let session = GoogleCloudSDKSession(id: id, config: resolvedConfig, bridge: bridge, conversationId: convId)
         self.activeSessions[id] = session

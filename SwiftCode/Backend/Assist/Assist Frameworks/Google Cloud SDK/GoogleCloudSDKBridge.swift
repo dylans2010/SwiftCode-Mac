@@ -49,7 +49,7 @@ public actor GoogleCloudSDKBridge {
 
         // Perform initial handshake via runtime.start
         let handshakeResult = try await transport.sendRequest(method: "runtime.start", params: [:], timeout: 10.0)
-        if let version = handshakeResult["sdkVersion"] as? String {
+        if let version = handshakeResult.sdkVersion {
             self.sdkVersion = version
         }
 
@@ -75,7 +75,7 @@ public actor GoogleCloudSDKBridge {
     }
 
     /// Creates an active agent session with Antigravity.
-    public func createSession(sessionId: String, config: GoogleCloudSDKConfiguration) async throws -> [String: Any] {
+    public func createSession(sessionId: String, config: GoogleCloudSDKConfiguration) async throws -> GoogleCloudSDKResponse {
         try await start()
         var params = config.toDictionary()
         params["sessionId"] = sessionId
@@ -83,7 +83,7 @@ public actor GoogleCloudSDKBridge {
     }
 
     /// Resumes an existing agent session.
-    public func resumeSession(sessionId: String, config: GoogleCloudSDKConfiguration) async throws -> [String: Any] {
+    public func resumeSession(sessionId: String, config: GoogleCloudSDKConfiguration) async throws -> GoogleCloudSDKResponse {
         try await start()
         var params = config.toDictionary()
         params["sessionId"] = sessionId
@@ -91,13 +91,13 @@ public actor GoogleCloudSDKBridge {
     }
 
     /// Closes an active agent session.
-    public func closeSession(sessionId: String) async throws -> [String: Any] {
-        guard isStarted else { return [:] }
+    public func closeSession(sessionId: String) async throws -> GoogleCloudSDKResponse {
+        guard isStarted else { return GoogleCloudSDKResponse() }
         return try await transport.sendRequest(method: "session.close", params: ["sessionId": sessionId], timeout: 10.0)
     }
 
     /// Dispatches a message to the agent session for turn execution.
-    public func sendMessage(sessionId: String, content: String, attachments: [GoogleCloudSDKAttachment] = []) async throws -> [String: Any] {
+    public func sendMessage(sessionId: String, content: String, attachments: [GoogleCloudSDKAttachment] = []) async throws -> GoogleCloudSDKResponse {
         try await start()
         let attachmentsDict = attachments.map { $0.toDictionary() }
         let params: [String: Any] = [
@@ -109,13 +109,13 @@ public actor GoogleCloudSDKBridge {
     }
 
     /// Cancels active turn execution in an agent session.
-    public func cancelMessage(sessionId: String) async throws -> [String: Any] {
-        guard isStarted else { return [:] }
+    public func cancelMessage(sessionId: String) async throws -> GoogleCloudSDKResponse {
+        guard isStarted else { return GoogleCloudSDKResponse() }
         return try await transport.sendRequest(method: "message.cancel", params: ["sessionId": sessionId], timeout: 5.0)
     }
 
     /// Queries the runtime health and active session count.
-    public func getStatus() async throws -> [String: Any] {
+    public func getStatus() async throws -> GoogleCloudSDKResponse {
         try await start()
         return try await transport.sendRequest(method: "runtime.status", params: [:], timeout: 5.0)
     }

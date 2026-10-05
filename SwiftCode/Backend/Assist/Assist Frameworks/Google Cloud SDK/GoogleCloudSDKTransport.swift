@@ -14,7 +14,7 @@ private let logger = Logger(subsystem: "com.swiftcode.GoogleCloudSDK", category:
 public actor GoogleCloudSDKTransport {
     private var socketFD: Int32 = -1
     private var readTask: Task<Void, Never>?
-    private var pendingRequests: [String: CheckedContinuation<[String: Any], Error>] = [:]
+    private var pendingRequests: [String: CheckedContinuation<GoogleCloudSDKResponse, Error>] = [:]
     private var eventContinuations: [UUID: AsyncStream<GoogleCloudSDKEvent>.Continuation] = [:]
 
     public init() {}
@@ -119,7 +119,7 @@ public actor GoogleCloudSDKTransport {
     }
 
     /// Sends a JSON-RPC 2.0 request and awaits the matching response.
-    public func sendRequest(method: String, params: [String: Any] = [:], timeout: TimeInterval = 60.0) async throws -> [String: Any] {
+    public func sendRequest(method: String, params: [String: Any] = [:], timeout: TimeInterval = 60.0) async throws -> GoogleCloudSDKResponse {
         guard socketFD >= 0 else {
             throw GoogleCloudSDKError.socketConnectionFailed("Socket is not connected")
         }
@@ -223,9 +223,13 @@ public actor GoogleCloudSDKTransport {
                     let msg = errorObj["message"] as? String ?? "Unknown bridge error"
                     cont.resume(throwing: GoogleCloudSDKError.internalError(code: code, message: msg))
                 } else if let result = json["result"] as? [String: Any] {
-                    cont.resume(returning: result)
+                    var responseData: [String: JSONValue] = [:]
+                    for (k, v) in result {
+                        responseData[k] = Self.toJSONValue(v)
+                    }
+                    cont.resume(returning: GoogleCloudSDKResponse(responseData))
                 } else {
-                    cont.resume(returning: [:])
+                    cont.resume(returning: GoogleCloudSDKResponse([:]))
                 }
             }
             return
@@ -340,6 +344,30 @@ public actor GoogleCloudSDKTransport {
             for (_, cont) in eventContinuations {
                 cont.yield(event)
             }
+        }
+    }
+
+    private static func toJSONValue(_ value: Any) -> JSONValue {
+        switch value {
+        case let str as String:
+            return .string(str)
+        case let bool as Bool:
+            return .boolean(bool)
+        case let num as NSNumber:
+            if CFGetTypeID(num) == CFBooleanGetTypeID() {
+                return .boolean(num.boolValue)
+            }
+            return .number(num.doubleValue)
+        case let dict as [String: Any]:
+            var obj: [String: JSONValue] = [:]
+            for (k, v) in dict {
+                obj[k] = toJSONValue(v)
+            }
+            return .object(obj)
+        case let arr as [Any]:
+            return .array(arr.map { toJSONValue($0) })
+        default:
+            return .null
         }
     }
 }
