@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct GoogleCloudSDKToolExecutionRequest: Sendable {
+public struct GoogleCloudSDKToolExecutionRequest: @unchecked Sendable {
     public let requestId: String
     public let sessionId: String
     public let toolName: String

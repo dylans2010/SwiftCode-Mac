@@ -38,8 +38,8 @@ public final class GoogleCloudSDKRuntime: Sendable {
 
     /// Configures the Swift tool execution bridge callback on the bridge.
     private func setupToolExecutionBridge() async {
-        await bridge.setToolExecutionHandler { request in
-            await self.executeSwiftTool(request: request)
+        await bridge.setToolExecutionHandler { @Sendable request in
+            await GoogleCloudSDKRuntime.shared.executeSwiftTool(request: request)
         }
     }
 
@@ -66,11 +66,11 @@ public final class GoogleCloudSDKRuntime: Sendable {
             memory: AssistMemoryGraph(),
             fileSystem: AssistFileSystem(workspaceRoot: ProjectSessionStore.shared.activeProject?.directoryURL ?? URL(fileURLWithPath: "/")),
             git: AssistGitManager(project: ProjectSessionStore.shared.activeProject)
-        ).buildContext(sessionId: request.sessionId)
+        ).buildContext(sessionId: UUID(uuidString: request.sessionId) ?? UUID())
 
         // Evaluate permissions via AssistPermissionsManager
         let permissions = AssistPermissionsManager()
-        if !permissions.isToolAllowed(toolName, riskLevel: tool.riskLevel) {
+        if !permissions.authorizeOperation(toolName) {
             return (false, nil, "Permission denied for tool '\(toolName)'")
         }
 
@@ -232,15 +232,15 @@ public final class GoogleCloudSDKRuntime: Sendable {
         case .workerStarted(let sid, let workerId, let name, let args):
             appendLog("[\(sid)] Worker \(name) (\(workerId)) started with args: \(args)")
             let wID = UUID(uuidString: workerId) ?? UUID()
-            let worker = WorkerModel(
+            let worker = Worker(
                 id: wID,
                 name: name,
-                type: .subagent,
-                status: .active,
+                scope: name,
                 task: args,
-                startedAt: Date()
+                status: .working,
+                parentTaskID: UUID()
             )
-            WorkerRuntimeState.shared.registerWorker(worker)
+            WorkerRuntimeState.shared.register(worker: worker)
 
             let wEvent = WorkerEvent(
                 workerID: wID,
@@ -254,7 +254,7 @@ public final class GoogleCloudSDKRuntime: Sendable {
         case .workerProgress(let sid, let workerId, let progress):
             appendLog("[\(sid)] Worker \(workerId) progress: \(progress)")
             let wID = UUID(uuidString: workerId) ?? UUID()
-            WorkerRuntimeState.shared.updateWorkerStatus(wID, status: .active, activity: progress)
+            WorkerRuntimeState.shared.updateProgress(id: wID, progress: WorkerProgress(narrative: progress, currentAction: progress))
 
             let wEvent = WorkerEvent(
                 workerID: wID,
@@ -268,7 +268,7 @@ public final class GoogleCloudSDKRuntime: Sendable {
         case .workerCompleted(let sid, let workerId, let result):
             appendLog("[\(sid)] Worker \(workerId) completed: \(result)")
             let wID = UUID(uuidString: workerId) ?? UUID()
-            WorkerRuntimeState.shared.updateWorkerStatus(wID, status: .completed, activity: "Completed")
+            WorkerRuntimeState.shared.transitionWorker(id: wID, to: .completed, reason: "Completed")
 
             let wEvent = WorkerEvent(
                 workerID: wID,
@@ -282,7 +282,7 @@ public final class GoogleCloudSDKRuntime: Sendable {
         case .workerFailed(let sid, let workerId, let err):
             appendLog("[\(sid)] Worker \(workerId) failed: \(err)")
             let wID = UUID(uuidString: workerId) ?? UUID()
-            WorkerRuntimeState.shared.updateWorkerStatus(wID, status: .failed, activity: err)
+            WorkerRuntimeState.shared.transitionWorker(id: wID, to: .failed, reason: err)
 
             let wEvent = WorkerEvent(
                 workerID: wID,

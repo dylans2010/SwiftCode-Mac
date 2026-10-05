@@ -31,7 +31,7 @@ public actor GoogleCloudSDKBridge {
     }
 
     /// Sets the handler closure for incoming tool execution requests (`tool.execute`).
-    public func setToolExecutionHandler(_ handler: @escaping (GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?)) async {
+    public func setToolExecutionHandler(_ handler: @escaping @Sendable (GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?)) async {
         await transport.setToolExecutionHandler(handler)
     }
 

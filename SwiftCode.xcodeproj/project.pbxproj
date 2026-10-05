@@ -623,7 +623,7 @@
 		5C5E70000000000000000204 /* AddFilesAgentContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000203 /* AddFilesAgentContext.swift */; };
 		5C5E70000000000000000206 /* FileAgentHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000205 /* FileAgentHelper.swift */; };
 		5C5E70000000000000000501 /* AgentSystemAsset.md in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000502 /* AgentSystemAsset.md */; };
-		5C5E70000000000000000503 /* CreatingAppAsset.md in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000504 /* CreatingAppAsset.md */; };
+		5C5E700000000000000005A1 /* CreatingAppAsset.md in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E700000000000000005A2 /* CreatingAppAsset.md */; };
 		5C5E70000000000000000503 /* UseTermFunction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000504 /* UseTermFunction.swift */; };
 		5C5E70000000000000000F05 /* RepositoryContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000F04 /* RepositoryContext.swift */; };
 		5C5E70000000000000000F42 /* ModelSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000F41 /* ModelSessionManager.swift */; };
@@ -3224,7 +3224,7 @@
 		5C5E70000000000000000203 /* AddFilesAgentContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddFilesAgentContext.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000205 /* FileAgentHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileAgentHelper.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000502 /* AgentSystemAsset.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = AgentSystemAsset.md; sourceTree = "<group>"; };
-		5C5E70000000000000000504 /* CreatingAppAsset.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = CreatingAppAsset.md; sourceTree = "<group>"; };
+		5C5E700000000000000005A2 /* CreatingAppAsset.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = CreatingAppAsset.md; sourceTree = "<group>"; };
 		5C5E70000000000000000504 /* UseTermFunction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UseTermFunction.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000F04 /* RepositoryContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryContext.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000F41 /* ModelSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSessionManager.swift; sourceTree = "<group>"; };
@@ -5583,13 +5583,6 @@
 				06F2018DB65748AA6C5F4BE9 /* AssistReadDirectoryTool.swift */,
 				860ABF8784347CA86D1DFBED /* AssistReadFileTool.swift */,
 				5C5E70000000000000000602 /* AssistCreateNewAppTool.swift */,
-				5C5E70000000000000000702 /* CreateNewAppWizardView.swift */,
-				5C5E70000000000000000704 /* CreateNewAppIdeaView.swift */,
-				5C5E70000000000000000706 /* CreateNewAppMetadataView.swift */,
-				5C5E70000000000000000708 /* CreateNewAppUIOptionsView.swift */,
-				5C5E70000000000000000710 /* CreateNewAppAdvancedView.swift */,
-				5C5E70000000000000000714 /* CreateNewAppCompletionView.swift */,
-				5C5E70000000000000000716 /* CreateNewAppArtifactView.swift */,
 				79B4B38ACD3166E79B4F58E3 /* AssistRefactorTool.swift */,
 				0ADC238F270C5BCC42CB380A /* AssistRegexSearchTool.swift */,
 				610FCD13C80FB38A943D0ECB /* AssistRenameFileTool.swift */,
@@ -5689,7 +5682,7 @@
 				5C5E70000000000000000F45 /* AssistSkillsCheck.swift */,
 				C25E63C0C3F147AD9AFB057B /* CodeReviewSystemAsset.md */,
 				5C5E70000000000000000502 /* AgentSystemAsset.md */,
-				5C5E70000000000000000504 /* CreatingAppAsset.md */,
+				5C5E700000000000000005A2 /* CreatingAppAsset.md */,
 				70B77B2DA5337218E8C99F32 /* AssistCIFunctions.swift */,
 				18CF30B32C4FDB2D67687DEF /* AssistCodeFunctions.swift */,
 				FE11A99520A647A6230281D7 /* AssistExecutionFunctions.swift */,
@@ -9180,6 +9173,7 @@
 				E203F76FC6AA18FB282E8EB2 /* MemoryLeakDetectionView.swift */,
 				E5D64F9FF65A0ED54E33742B /* StateInspectorView.swift */,
 				F69153200808B37207CDDE2E /* PerformanceMonitor */,
+				5C5E70000000000000000720 /* CreateNewApp */,
 			);
 			path = Developer;
 			sourceTree = "<group>";
@@ -9189,6 +9183,20 @@
 			children = (
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		5C5E70000000000000000720 /* CreateNewApp */ = {
+			isa = PBXGroup;
+			children = (
+				5C5E70000000000000000702 /* CreateNewAppWizardView.swift */,
+				5C5E70000000000000000704 /* CreateNewAppIdeaView.swift */,
+				5C5E70000000000000000706 /* CreateNewAppMetadataView.swift */,
+				5C5E70000000000000000708 /* CreateNewAppUIOptionsView.swift */,
+				5C5E70000000000000000710 /* CreateNewAppAdvancedView.swift */,
+				5C5E70000000000000000714 /* CreateNewAppCompletionView.swift */,
+				5C5E70000000000000000716 /* CreateNewAppArtifactView.swift */,
+			);
+			path = CreateNewApp;
 			sourceTree = "<group>";
 		};
 		F69153200808B37207CDDE2E /* PerformanceMonitor */ = {
@@ -9512,7 +9520,7 @@
 				D48EB73DDC4EC7ADD58C1CAA /* DocSymbols.json in Resources */,
 				5A218C6921DA4803A19F8831 /* CodeReviewSystemAsset.md in Resources */,
 				5C5E70000000000000000501 /* AgentSystemAsset.md in Resources */,
-				5C5E70000000000000000503 /* CreatingAppAsset.md in Resources */,
+				5C5E700000000000000005A1 /* CreatingAppAsset.md in Resources */,
 				600B4ED1612FABB403A598E2 /* package.json in Resources */,
 				4B170D36F9DA274C8C143C69 /* bridge.js in Resources */,
 				CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,

@@ -16,7 +16,7 @@ public actor GoogleCloudSDKTransport {
     private var readTask: Task<Void, Never>?
     private var pendingRequests: [String: CheckedContinuation<GoogleCloudSDKResponse, Error>] = [:]
     private var eventContinuations: [UUID: AsyncStream<GoogleCloudSDKEvent>.Continuation] = [:]
-    private var toolExecutionHandler: ((GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?))?
+    private var toolExecutionHandler: (@Sendable (GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?))?
 
     public init() {}
 
@@ -28,7 +28,7 @@ public actor GoogleCloudSDKTransport {
     }
 
     /// Sets the handler closure for incoming server-initiated tool execution requests (`tool.execute`).
-    public func setToolExecutionHandler(_ handler: @escaping (GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?)) {
+    public func setToolExecutionHandler(_ handler: @escaping @Sendable (GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?)) {
         self.toolExecutionHandler = handler
     }
 
@@ -233,12 +233,7 @@ public actor GoogleCloudSDKTransport {
                 let request = GoogleCloudSDKToolExecutionRequest(requestId: reqId, sessionId: sessionId, toolName: toolName, arguments: arguments)
 
                 Task { [weak self] in
-                    if let handler = await self?.toolExecutionHandler {
-                        let resultTuple = await handler(request)
-                        await self?.sendToolExecutionResponse(reqId: reqId, success: resultTuple.success, result: resultTuple.result, error: resultTuple.error)
-                    } else {
-                        await self?.sendToolExecutionResponse(reqId: reqId, success: false, result: nil, error: "No tool execution handler registered in Swift")
-                    }
+                    await self?.executeTool(request: request, reqId: reqId)
                 }
                 return
             }
@@ -268,6 +263,15 @@ public actor GoogleCloudSDKTransport {
         if let method = json["method"] as? String {
             let params = json["params"] as? [String: Any] ?? [:]
             dispatchNotification(method: method, params: params)
+        }
+    }
+
+    private func executeTool(request: GoogleCloudSDKToolExecutionRequest, reqId: String) async {
+        if let handler = self.toolExecutionHandler {
+            let resultTuple = await handler(request)
+            sendToolExecutionResponse(reqId: reqId, success: resultTuple.success, result: resultTuple.result, error: resultTuple.error)
+        } else {
+            sendToolExecutionResponse(reqId: reqId, success: false, result: nil, error: "No tool execution handler registered in Swift")
         }
     }
 

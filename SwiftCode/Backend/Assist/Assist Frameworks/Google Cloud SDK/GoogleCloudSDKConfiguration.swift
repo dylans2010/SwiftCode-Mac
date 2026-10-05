@@ -12,7 +12,7 @@ public enum GoogleCloudSDKServiceTier: String, Codable, Sendable {
     case priority = "priority"
 }
 
-public struct GoogleCloudSDKConfiguration: Codable, Sendable {
+public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     public var model: String
     public var apiKey: String?
     public var vertex: Bool

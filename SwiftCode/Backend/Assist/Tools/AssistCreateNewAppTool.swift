@@ -7,7 +7,7 @@ public final class AssistCreateNewAppTool: AssistTool {
     public let description = "Creates a new native application project from user specifications or autonomous request parameters."
 
     public var capability: ToolCapability {
-        .projectManagement
+        .general
     }
 
     public var riskLevel: ToolRiskLevel {
@@ -92,7 +92,6 @@ public final class AssistCreateNewAppTool: AssistTool {
             try FileManager.default.createDirectory(at: targetDirURL, withIntermediateDirectories: true)
         } catch {
             return AssistToolResult(
-                toolId: id,
                 success: false,
                 output: "Failed to create target project directory at \(targetDirURL.path): \(error.localizedDescription)"
             )
@@ -100,26 +99,21 @@ public final class AssistCreateNewAppTool: AssistTool {
 
         // Apply starter template based on platform
         let template = selectTemplate(for: platform)
-        let newProject = Project(
-            id: UUID(),
-            name: appName,
-            directoryURL: targetDirURL,
-            creationDate: Date(),
-            lastModifiedDate: Date()
-        )
+        var newProject = Project(name: appName)
+        newProject.customDirectoryPath = targetDirURL.path
+        newProject.description = applicationDescription
 
         do {
             try ProjectTemplateManager.shared.applyTemplate(template, to: newProject)
         } catch {
             return AssistToolResult(
-                toolId: id,
                 success: false,
                 output: "Failed to scaffold template for \(appName): \(error.localizedDescription)"
             )
         }
 
         // Open newly created project into active session
-        ProjectSessionStore.shared.openProject(at: targetDirURL)
+        await ProjectSessionStore.shared.openProject(newProject)
 
         // Inject initial project.json metadata if needed
         let metadataDict: [String: Any] = [
@@ -137,7 +131,6 @@ public final class AssistCreateNewAppTool: AssistTool {
         }
 
         return AssistToolResult(
-            toolId: id,
             success: true,
             output: """
             Successfully initialized Create New App workflow for '\(appName)'.

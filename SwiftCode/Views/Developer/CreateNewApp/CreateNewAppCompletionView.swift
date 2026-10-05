@@ -47,7 +47,11 @@ public struct CreateNewAppCompletionView: View {
 
             HStack(spacing: 12) {
                 Button("Open Project") {
-                    ProjectSessionStore.shared.openProject(at: URL(fileURLWithPath: createdAppPath))
+                    var proj = Project(name: config.appName)
+                    proj.customDirectoryPath = createdAppPath
+                    Task {
+                        await ProjectSessionStore.shared.openProject(proj)
+                    }
                     onDismiss()
                 }
 
