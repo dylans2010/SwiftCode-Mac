@@ -1,0 +1,121 @@
+name: Build and Package SwiftCode macOS App
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-package:
+    name: Build macOS App & Create DMG
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Select Xcode Version
+        run: |
+          echo "Selecting Xcode 16+..."
+          if [ -d "/Applications/Xcode_16.2.app" ]; then
+            sudo xcode-select -s "/Applications/Xcode_16.2.app"
+          elif [ -d "/Applications/Xcode_16.1.app" ]; then
+            sudo xcode-select -s "/Applications/Xcode_16.1.app"
+          elif [ -d "/Applications/Xcode_16.0.app" ]; then
+            sudo xcode-select -s "/Applications/Xcode_16.0.app"
+          else
+            sudo xcode-select -s "/Applications/Xcode.app"
+          fi
+          xcodebuild -version
+
+      - name: Cache Swift Packages & DerivedData
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/DerivedData/SourcePackages
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-xcode-${{ hashFiles('**/Package.resolved', 'Package.swift', 'SwiftCode.xcodeproj/**') }}
+          restore-keys: |
+            ${{ runner.os }}-xcode-
+
+      - name: Compile App with xcodebuild
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project SwiftCode.xcodeproj \
+            -scheme SwiftCode \
+            -configuration Release \
+            -derivedDataPath ./build/DerivedData \
+            build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Ad-Hoc Code Sign App
+        run: |
+          APP_PATH="./build/DerivedData/Build/Products/Release/SwiftCode.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::SwiftCode.app bundle was not found at $APP_PATH"
+            exit 1
+          fi
+          echo "Applying ad-hoc code signature..."
+          codesign --force --deep --sign - "$APP_PATH"
+
+      - name: Create DMG Installer
+        run: |
+          APP_PATH="./build/DerivedData/Build/Products/Release/SwiftCode.app"
+          DMG_NAME="SwiftCode.dmg"
+          STAGING_DIR="./build/dmg-staging"
+
+          echo "Preparing DMG staging directory..."
+          rm -rf "$STAGING_DIR" "$DMG_NAME"
+          mkdir -p "$STAGING_DIR"
+
+          echo "Copying application bundle..."
+          cp -R "$APP_PATH" "$STAGING_DIR/SwiftCode.app"
+
+          echo "Adding Applications folder symlink for drag-and-drop installation..."
+          ln -s /Applications "$STAGING_DIR/Applications"
+
+          echo "Building compressed disk image (UDZO)..."
+          hdiutil create \
+            -volname "SwiftCode" \
+            -srcfolder "$STAGING_DIR" \
+            -ov \
+            -format UDZO \
+            "$DMG_NAME"
+
+          echo "DMG successfully generated:"
+          ls -lh "$DMG_NAME"
+
+      - name: Upload DMG as GitHub Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SwiftCode-DMG
+          path: SwiftCode.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish DMG to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SwiftCode.dmg
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

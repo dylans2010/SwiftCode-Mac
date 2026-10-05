@@ -14,7 +14,7 @@ public final class GoogleCloudSDKSession: Identifiable, Sendable {
     public let id: String
     public let config: GoogleCloudSDKConfiguration
     private let bridge: GoogleCloudSDKBridge
-    public var conversationId: String?
+    public let conversationId: String?
 
     public init(id: String, config: GoogleCloudSDKConfiguration, bridge: GoogleCloudSDKBridge, conversationId: String? = nil) {
         self.id = id

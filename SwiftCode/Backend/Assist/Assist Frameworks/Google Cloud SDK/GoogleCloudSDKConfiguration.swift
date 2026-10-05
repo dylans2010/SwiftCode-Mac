@@ -61,6 +61,7 @@ public struct GoogleCloudSDKConfiguration: Codable, Sendable {
     }
 
     /// Automatically resolves environment configuration from SwiftCode project and preferences.
+    @MainActor
     public static func resolveDefault(for workspaceURL: URL? = nil) -> GoogleCloudSDKConfiguration {
         let selectedModel = UserDefaults.standard.string(forKey: "assist.geminiModel") ?? "gemini-3.8-flash"
         let apiKey = KeychainService.shared.get(forKey: LLMProvider.google.keychainKey)

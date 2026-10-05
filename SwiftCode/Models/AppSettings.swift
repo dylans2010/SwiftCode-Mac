@@ -259,6 +259,8 @@ class AppSettings: ObservableObject {
 
     // MARK: - Debounced Save
 
+    private var saveTask: Task<Void, Never>?
+
     private func debouncedSave(_ key: String, _ value: Any) {
         // Cancel previous save task
         saveTask?.cancel()

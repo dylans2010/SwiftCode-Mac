@@ -35,6 +35,7 @@ public actor GoogleCloudSDKProcess {
     }
 
     /// Resolves the Google Cloud SDK root directory across bundle, workspace, and Application Support locations.
+    @MainActor
     public static func resolveSDKDirectory() -> URL? {
         let fm = FileManager.default
 
@@ -88,7 +89,7 @@ public actor GoogleCloudSDKProcess {
 
         stop()
 
-        guard let sdkDir = Self.resolveSDKDirectory() else {
+        guard let sdkDir = await Self.resolveSDKDirectory() else {
             throw GoogleCloudSDKError.runtimeNotFound("Could not locate 'Google Cloud SDK' in application bundle or resources.")
         }
 
@@ -183,14 +184,22 @@ public actor GoogleCloudSDKProcess {
 
     private func startLogStreaming(stdout: Pipe, stderr: Pipe) {
         stdoutTask = Task.detached(priority: .utility) { [weak self] in
-            for try await line in stdout.fileHandleForReading.bytes.lines {
-                await self?.appendLog("[OUT] \(line)")
+            do {
+                for try await line in stdout.fileHandleForReading.bytes.lines {
+                    await self?.appendLog("[OUT] \(line)")
+                }
+            } catch {
+                await self?.appendLog("[OUT stream error] \(error.localizedDescription)")
             }
         }
 
         stderrTask = Task.detached(priority: .utility) { [weak self] in
-            for try await line in stderr.fileHandleForReading.bytes.lines {
-                await self?.appendLog("[ERR] \(line)")
+            do {
+                for try await line in stderr.fileHandleForReading.bytes.lines {
+                    await self?.appendLog("[ERR] \(line)")
+                }
+            } catch {
+                await self?.appendLog("[ERR stream error] \(error.localizedDescription)")
             }
         }
     }
