@@ -9,33 +9,36 @@ public struct WorkersHeaderButton: View {
     
     public init() {}
     
+    @ViewBuilder
     public var body: some View {
-        Button {
-            showingDashboard = true
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "person.3.sequence.fill")
-                    .font(.caption)
-                    .foregroundStyle(runtimeState.activeWorkers.isEmpty ? Color.secondary : Color.blue)
-                
-                Text(buttonTitle)
-                    .font(.subheadline.bold())
-                    .foregroundStyle(runtimeState.activeWorkers.isEmpty ? Color.secondary : Color.primary)
-                
-                if !runtimeState.activeWorkers.isEmpty {
-                    Circle()
-                        .fill(Color.blue)
-                        .frame(width: 6, height: 6)
+        if !runtimeState.allWorkers.isEmpty {
+            Button {
+                showingDashboard = true
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "person.3.sequence.fill")
+                        .font(.caption)
+                        .foregroundStyle(runtimeState.activeWorkers.isEmpty ? Color.secondary : Color.blue)
+
+                    Text(buttonTitle)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(runtimeState.activeWorkers.isEmpty ? Color.secondary : Color.primary)
+
+                    if !runtimeState.activeWorkers.isEmpty {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 6, height: 6)
+                    }
                 }
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(Color.secondary.opacity(0.12), in: Capsule())
             }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 5)
-            .background(Color.secondary.opacity(0.12), in: Capsule())
-        }
-        .buttonStyle(.plain)
-        .help("Inspect Active Assist Workers")
-        .sheet(isPresented: $showingDashboard) {
-            WorkersMainView()
+            .buttonStyle(.plain)
+            .help("Inspect Active Assist Workers")
+            .sheet(isPresented: $showingDashboard) {
+                WorkersMainView()
+            }
         }
     }
     

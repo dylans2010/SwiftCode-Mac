@@ -180,10 +180,17 @@ class AgentRunner:
                 session_policies.append(policy.workspace_only(workspaces))
             session_policies.append(policy.allow_all())
 
-            # Configure capabilities
+            # Configure capabilities: disable built-in tools (e.g. run_command, edit_file, view_file)
+            # and allow ONLY START_SUBAGENT if subagents are enabled. All actual work uses
+            # dynamic Swift tools registered from SwiftCode Assist.
+            builtin_tools = []
+            if enable_subagents:
+                builtin_tools.append(types.BuiltinTools.START_SUBAGENT)
+
             cap_config = types.CapabilitiesConfig(
+                enabled_tools=builtin_tools,
                 enable_subagents=enable_subagents,
-                max_subagent_depth=max_subagent_depth,
+                max_subagent_depth=max_subagent_depth if enable_subagents else None,
                 agent_behavior=types.AgentBehavior.AUTONOMOUS,
             )
 
