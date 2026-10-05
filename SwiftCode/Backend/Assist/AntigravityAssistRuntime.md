@@ -97,3 +97,14 @@ Antigravity events (`agent.progress`, `tool.started`, `tool.completed`, `tool.fa
 - Streaming Markdown content is parsed incrementally via `MarkdownParser.shared`.
 - Tool execution is displayed as compact, non-intrusive activity items in `AssistMessage.activityGroup`.
 - Worker events update `WorkerRuntimeState` and publish to `WorkerEventBus`.
+
+---
+
+## 6. Saved Models & Model Router Integration
+
+When **Use Saved Models** (`AppSettings.shared.useSavedModels`) is enabled:
+- Antigravity routes model reasoning through `AssistModelRouter` (`AssistModelRouter.swift`) and `ProviderModelDiscovery` (`AssistAvailableModel.swift`).
+- Models across Gemini, Claude, OpenAI, Custom OpenAI-compatible endpoints, and local endpoints (Ollama/LM Studio) are dynamically discovered from actual provider APIs/configurations without hardcoded model lists.
+- Candidate models are capability-gated (verifying tool calling, streaming, and agentic capabilities) and deterministically ranked based on user preferences, health, and priority.
+- For local/custom OpenAI-compatible endpoints, `GoogleCloudSDKConfiguration` initializes `LocalOpenAIAgentConfig` in the Python bridge (`agent_runner.py`), passing `base_url` and custom API keys.
+- Automatic model failover occurs upon encountering rate limits (429 / quota errors) or transient model failures. Logical task state, execution plans, agent notes, and repository workspace changes are preserved across session handovers without user intervention.
