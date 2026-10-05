@@ -15,6 +15,39 @@ public final class AssistManager: ObservableObject {
     @Published public var queuedMessages: [QueuedAssistMessage] = []
     @Published public var currentActivityStatus: String = "Idle"
 
+    // Thinking Progress & Duration State
+    @Published public var activeThinkingText: String = ""
+    @Published public var isThinking: Bool = false
+    @Published public var thinkingStartedAt: Date? = nil
+    @Published public var thinkingDurationSeconds: Int = 0
+    private var thinkingTimerTask: Task<Void, Never>?
+
+    public func startThinkingTimer() {
+        if thinkingTimerTask == nil {
+            thinkingStartedAt = Date()
+            thinkingDurationSeconds = 0
+            thinkingTimerTask = Task { @MainActor [weak self] in
+                while let self = self, self.isThinking {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    if Task.isCancelled || !self.isThinking { break }
+                    if let start = self.thinkingStartedAt {
+                        self.thinkingDurationSeconds = max(1, Int(Date().timeIntervalSince(start)))
+                        self.currentActivityStatus = "Thinking (\(self.thinkingDurationSeconds)s)..."
+                        if let idx = self.messages.indices.last {
+                            self.messages[idx].thinkingDuration = Double(self.thinkingDurationSeconds)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public func stopThinkingTimer() {
+        thinkingTimerTask?.cancel()
+        thinkingTimerTask = nil
+        isThinking = false
+    }
+
     public let logger = AssistLogger()
     public let session = AssistSession()
     public let agentSession = AssistAgentSession()
@@ -185,6 +218,10 @@ public final class AssistManager: ObservableObject {
         await MainActor.run {
             messages.append(AssistMessage(role: .user, content: trimmed, attachments: attachments))
             isProcessing = true
+            isThinking = false
+            activeThinkingText = ""
+            thinkingStartedAt = nil
+            thinkingDurationSeconds = 0
             currentActivityStatus = "Thinking..."
             lastError = nil
             saveHistory()
@@ -438,12 +475,40 @@ public final class AssistManager: ObservableObject {
     public func sendQueuedMessageNow(id: UUID) {
         guard let idx = queuedMessages.firstIndex(where: { $0.id == id }) else { return }
         let msg = queuedMessages.remove(at: idx)
+        interruptActiveSessionAndSend(content: msg.content, attachments: msg.attachments)
+    }
+
+    public func interruptActiveSessionAndSend(content: String, attachments: [AgentFileContext] = []) {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
         if isProcessing {
-            stopCurrentSession()
+            // Signal graceful turn cancellation to the bridge without tearing down the session or chat
+            if let gcSession = activeGoogleCloudSession {
+                Task {
+                    try? await gcSession.cancel()
+                }
+            }
+            activeAgentTask?.cancel()
+            activeAgentTask = nil
+            activeGoogleCloudTask?.cancel()
+            activeGoogleCloudTask = nil
+            WorkerRuntimeState.shared.stopAllActiveWorkers(reason: "Interrupted by user for continuation.")
+            cancelTerminalExecution()
+            stopThinkingTimer()
+
+            // Finalize previous assistant message so its activity group is marked non-executing
+            if let idx = messages.indices.last {
+                messages[idx].activityGroup?.isExecuting = false
+                saveHistory()
+            }
         }
+
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 150_000_000)
-            await self.sendMessage(msg.content, attachments: msg.attachments)
+            self.isProcessing = false
+            self.currentActivityStatus = "Idle"
+            await self.sendMessage(trimmed, attachments: attachments)
         }
     }
 
@@ -627,6 +692,7 @@ public final class AssistManager: ObservableObject {
         let task = Task {
             defer {
                 Task { @MainActor in
+                    self.stopThinkingTimer()
                     self.isProcessing = false
                     self.currentActivityStatus = "Idle"
                 }
@@ -639,7 +705,22 @@ public final class AssistManager: ObservableObject {
                     guard let idx = self.messages.indices.last else { continue }
                     switch event {
                     case .agentProgress(_, let delta, let thoughtDelta):
+                        if let thought = thoughtDelta, !thought.isEmpty {
+                            if !self.isThinking {
+                                self.isThinking = true
+                                self.startThinkingTimer()
+                            }
+                            self.activeThinkingText += thought
+                            self.messages[idx].thinkingContent = self.activeThinkingText
+                        }
                         if let delta = delta {
+                            if self.isThinking {
+                                self.stopThinkingTimer()
+                                if let start = self.thinkingStartedAt {
+                                    self.thinkingDurationSeconds = max(1, Int(Date().timeIntervalSince(start)))
+                                    self.messages[idx].thinkingDuration = Double(self.thinkingDurationSeconds)
+                                }
+                            }
                             self.currentActivityStatus = "Responding..."
                             self.messages[idx] = AssistMessage(
                                 role: self.messages[idx].role,
@@ -647,16 +728,19 @@ public final class AssistManager: ObservableObject {
                                 attachments: self.messages[idx].attachments,
                                 mcpExecution: self.messages[idx].mcpExecution,
                                 composioExecution: self.messages[idx].composioExecution,
-                                activityGroup: self.messages[idx].activityGroup
+                                activityGroup: self.messages[idx].activityGroup,
+                                thinkingContent: self.messages[idx].thinkingContent,
+                                thinkingDuration: self.messages[idx].thinkingDuration
                             )
                         }
-                        if let thought = thoughtDelta {
-                            self.currentActivityStatus = "Thinking..."
-                            var activity = self.messages[idx].activityGroup ?? AssistActivityGroup(isExecuting: true)
-                            activity.tools.append(ToolActivityItem(toolId: "Thought", purpose: thought, result: "", status: .completed))
-                            self.messages[idx].activityGroup = activity
-                        }
                     case .toolStarted(let tool):
+                        if self.isThinking {
+                            self.stopThinkingTimer()
+                            if let start = self.thinkingStartedAt {
+                                self.thinkingDurationSeconds = max(1, Int(Date().timeIntervalSince(start)))
+                                self.messages[idx].thinkingDuration = Double(self.thinkingDurationSeconds)
+                            }
+                        }
                         self.currentActivityStatus = "Executing \(tool.name)..."
                         var activity = self.messages[idx].activityGroup ?? AssistActivityGroup(isExecuting: true)
                         activity.tools.append(
@@ -682,6 +766,13 @@ public final class AssistManager: ObservableObject {
                             }
                         }
                     case .agentCompleted(_, let response, _, _):
+                        self.stopThinkingTimer()
+                        if let start = self.thinkingStartedAt {
+                            self.messages[idx].thinkingDuration = Double(max(1, Int(Date().timeIntervalSince(start))))
+                        }
+                        self.thinkingStartedAt = nil
+                        self.activeThinkingText = ""
+
                         let currentContent = self.messages[idx].content
                         let finalContent = currentContent.isEmpty ? response : currentContent
                         self.messages[idx] = AssistMessage(
@@ -690,7 +781,9 @@ public final class AssistManager: ObservableObject {
                             attachments: self.messages[idx].attachments,
                             mcpExecution: self.messages[idx].mcpExecution,
                             composioExecution: self.messages[idx].composioExecution,
-                            activityGroup: self.messages[idx].activityGroup
+                            activityGroup: self.messages[idx].activityGroup,
+                            thinkingContent: self.messages[idx].thinkingContent,
+                            thinkingDuration: self.messages[idx].thinkingDuration
                         )
                         self.messages[idx].activityGroup?.isExecuting = false
                         self.saveHistory()
@@ -698,6 +791,9 @@ public final class AssistManager: ObservableObject {
                         self.isProcessing = false
                         break streamLoop
                     case .agentFailed(_, let err):
+                        self.stopThinkingTimer()
+                        self.thinkingStartedAt = nil
+                        self.activeThinkingText = ""
                         self.lastError = err
                         self.messages[idx].activityGroup?.isExecuting = false
                         self.saveHistory()

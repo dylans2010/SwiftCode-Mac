@@ -384,22 +384,20 @@ class AgentRunner:
                     "usage": usage,
                 })
             except types.AntigravityCancelledError:
-                logger.info("Session '%s' turn was cancelled", session_id)
-                emit("agent.progress", {
-                    "sessionId": session_id,
-                    "delta": "\n[Generation cancelled by user]",
-                })
+                logger.info("Session '%s' turn was cancelled/interrupted", session_id)
+                final_text = "".join(accumulated_text)
                 emit("agent.completed", {
                     "sessionId": session_id,
-                    "response": "[Cancelled]",
-                    "stopReason": "cancelled",
+                    "response": final_text if final_text else "[Interrupted by user]",
+                    "stopReason": "interrupted",
                 })
             except asyncio.CancelledError:
-                logger.info("Session '%s' asyncio task was cancelled", session_id)
+                logger.info("Session '%s' asyncio task was cancelled/interrupted", session_id)
+                final_text = "".join(accumulated_text)
                 emit("agent.completed", {
                     "sessionId": session_id,
-                    "response": "[Cancelled]",
-                    "stopReason": "cancelled",
+                    "response": final_text if final_text else "[Interrupted by user]",
+                    "stopReason": "interrupted",
                 })
             except Exception as e:
                 logger.exception("Error executing turn in session '%s': %s", session_id, e)

@@ -23,6 +23,7 @@ public struct AssistMainView: View {
     @State private var editingQueueId: UUID? = nil
     @State private var editingQueueText: String = ""
     @State private var isQueueExpanded: Bool = true
+    @State private var isThinkingDropdownExpanded: Bool = false
 
     // Apple Intelligence Prompt Enhancement Alert
     @State private var showEnhancementError = false
@@ -624,34 +625,95 @@ public struct AssistMainView: View {
     }
 
     private var thinkingIndicator: some View {
-        HStack(spacing: 8) {
-            ProgressView()
-                .scaleEffect(0.5)
-                .tint(.secondary)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .scaleEffect(0.5)
+                    .tint(.secondary)
 
-            let displayText: String = {
-                if !manager.currentActivityStatus.isEmpty && manager.currentActivityStatus != "Idle" {
-                    return manager.currentActivityStatus
+                let displayText: String = {
+                    if manager.isThinking {
+                        return "Thinking (\(manager.thinkingDurationSeconds)s)..."
+                    }
+                    if !manager.currentActivityStatus.isEmpty && manager.currentActivityStatus != "Idle" {
+                        return manager.currentActivityStatus
+                    }
+                    let sessionDesc = statusUserDescription(for: manager.agentSession.state.status)
+                    if sessionDesc != "Idle" {
+                        return sessionDesc
+                    }
+                    return "Thinking..."
+                }()
+
+                Text(displayText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if bridgeManager.activeToolName != "None" {
+                    Text("· \(bridgeManager.activeToolName)")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
                 }
-                let sessionDesc = statusUserDescription(for: manager.agentSession.state.status)
-                if sessionDesc != "Idle" {
-                    return sessionDesc
+
+                Spacer()
+
+                if !manager.activeThinkingText.isEmpty {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isThinkingDropdownExpanded.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "brain")
+                                .font(.system(size: 11))
+                            Text("Thoughts")
+                                .font(.system(size: 11, weight: .medium))
+                            Image(systemName: isThinkingDropdownExpanded ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 9, weight: .bold))
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                        .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(isThinkingDropdownExpanded ? "Collapse Thinking Progress" : "Show Thinking Progress")
                 }
-                return "Thinking..."
-            }()
-
-            Text(displayText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            if bridgeManager.activeToolName != "None" {
-                Text("· \(bridgeManager.activeToolName)")
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
             }
 
-            Spacer()
+            if isThinkingDropdownExpanded && !manager.activeThinkingText.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Image(systemName: "lightbulb.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(.orange)
+                        Text("Live Thoughts (\(manager.thinkingDurationSeconds)s)")
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+
+                    ScrollView {
+                        Text(manager.activeThinkingText)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(8)
+                            .textSelection(.enabled)
+                    }
+                    .frame(maxHeight: 160)
+                    .background(Color(nsColor: .textBackgroundColor).opacity(0.35))
+                    .cornerRadius(6)
+                }
+                .padding(8)
+                .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
@@ -957,10 +1019,33 @@ public struct AssistMainView: View {
             } else if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
                 let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty {
+                    // Send Now button (interrupts active turn and continues conversation immediately)
+                    Button {
+                        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let files = attachedFiles
+                        attachedFiles = []
+                        inputText = ""
+                        manager.interruptActiveSessionAndSend(content: text, attachments: files)
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "bolt.fill")
+                                .font(.system(size: 11))
+                            Text("Send Now")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(Color.orange, in: RoundedRectangle(cornerRadius: 8))
+                        .foregroundColor(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Interrupt current turn and send immediately")
+
+                    // Queue button (queues message to send once current completes)
                     Button(action: submitMessage) {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 3) {
                             Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 14))
+                                .font(.system(size: 13))
                             Text("Queue")
                                 .font(.system(size: 11, weight: .semibold))
                         }
@@ -970,7 +1055,7 @@ public struct AssistMainView: View {
                         .foregroundColor(.white)
                     }
                     .buttonStyle(.plain)
-                    .help("Add Message to Execution Queue (Return)")
+                    .help("Queue to send after current response completes (Return)")
                 }
 
                 Button(action: {
@@ -1205,6 +1290,11 @@ private struct AssistChatBubble: View {
                         .textSelection(.enabled)
                 }
 
+                // Thoughts Dropdown for completed message
+                if let thoughts = message.thinkingContent, !thoughts.isEmpty {
+                    ThinkingDisclosureView(thoughts: thoughts, duration: message.thinkingDuration)
+                }
+
                 // Native Expandable Technical Activity Disclosure Panel
                 if let activity = message.activityGroup {
                     AssistActivityView(activityGroup: activity)
@@ -1239,6 +1329,64 @@ private struct AssistChatBubble: View {
         }
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
+    }
+}
+
+// MARK: - Thinking Disclosure View
+
+private struct ThinkingDisclosureView: View {
+    let thoughts: String
+    let duration: TimeInterval?
+    @State private var isExpanded: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "brain")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+
+                    let durationStr = duration.map { " (\(Int($0))s)" } ?? ""
+                    Text("Thought\(durationStr)")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.secondary)
+
+                    Spacer()
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                ScrollView {
+                    Text(thoughts)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                        .textSelection(.enabled)
+                }
+                .frame(maxHeight: 180)
+                .background(Color(nsColor: .textBackgroundColor).opacity(0.3))
+                .cornerRadius(6)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
     }
 }
 
