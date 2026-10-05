@@ -111,11 +111,37 @@ public final class GoogleCloudSDKRuntime: Sendable {
             return (false, nil, errorMsg)
         }
 
+        let meta = AssistToolRouter.shared.metadata(for: toolName)
+        let semKey = await MainActor.run {
+            AssistEventNormalizer.shared.computeSemanticKey(toolName: toolName, arguments: args)
+        }
+
+        // Runtime Result Reuse / Idempotency Check for Read-Only tools
+        if meta.isReadOnly {
+            if let cached = await MainActor.run({ toolRegistry.getCachedResult(semanticKey: semKey) }) {
+                await MainActor.run {
+                    AssistManager.shared.reportToolCompleted(
+                        callId: callId,
+                        toolName: toolName,
+                        output: cached,
+                        arguments: args
+                    )
+                }
+                return (true, cached, nil)
+            }
+        }
+
         do {
             toolRegistry.markUsed(toolName)
             let result = try await tool.execute(input: args, context: context)
             if result.success {
                 await MainActor.run {
+                    if meta.isMutating {
+                        toolRegistry.invalidateReadOnlyCache()
+                    } else if meta.isReadOnly {
+                        toolRegistry.setCachedResult(result.output, for: semKey)
+                    }
+
                     AssistManager.shared.reportToolCompleted(
                         callId: callId,
                         toolName: toolName,

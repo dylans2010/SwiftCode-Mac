@@ -386,16 +386,12 @@ public struct AssistActivityView: View {
                 ForEach(activityGroup.workers.prefix(5)) { worker in
                     HStack(spacing: 6) {
                         Circle()
-                            .fill(worker.status == .running ? Color.orange : Color.green)
+                            .fill(worker.status == .running ? Color.orange : (worker.status == .failed ? Color.red : Color.green))
                             .frame(width: 5, height: 5)
 
-                        Text(worker.name)
+                        Text(worker.userFacingTitle)
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.primary)
-
-                        Text("· \(worker.role)")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.secondary)
 
                         Spacer()
 
@@ -481,7 +477,9 @@ public struct AssistActivityView: View {
         case .failed: return .red
         case .running: return .orange
         case .retrying: return .orange
+        case .pending: return .secondary
         case .skipped: return .secondary
+        case .cancelled: return .secondary
         }
     }
 }
