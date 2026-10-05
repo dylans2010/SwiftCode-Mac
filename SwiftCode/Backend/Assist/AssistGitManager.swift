@@ -66,6 +66,11 @@ public final class AssistGitManager: Sendable, AssistGitManagerProtocol {
     }
 
     public func add(path: String) throws {
+        // Exclude internal user-facing artifact files from Git staging
+        if path.contains("app_summary.md") || path.hasSuffix(".artifact.md") {
+            return
+        }
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = ["add", path]

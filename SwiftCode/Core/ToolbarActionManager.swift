@@ -67,6 +67,7 @@ final class ToolbarActionManager {
         case localizationManager
         case deviceConnect
         case virtualization
+        case createNewApp
 
         // Sidebar & Inspector additions
         case debugSessions
