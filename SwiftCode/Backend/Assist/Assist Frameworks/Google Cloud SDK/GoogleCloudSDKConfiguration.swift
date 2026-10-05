@@ -27,6 +27,7 @@ public struct GoogleCloudSDKConfiguration: Codable, Sendable {
     public var maxSubagentDepth: Int
     public var allowedSubagents: [String]?
     public var serviceTier: GoogleCloudSDKServiceTier
+    public var tools: [[String: Any]]?
 
     public init(
         model: String = "gemini-3.8-flash",
@@ -42,7 +43,8 @@ public struct GoogleCloudSDKConfiguration: Codable, Sendable {
         enableSubagents: Bool = true,
         maxSubagentDepth: Int = 3,
         allowedSubagents: [String]? = nil,
-        serviceTier: GoogleCloudSDKServiceTier = .standard
+        serviceTier: GoogleCloudSDKServiceTier = .standard,
+        tools: [[String: Any]]? = nil
     ) {
         self.model = model
         self.apiKey = apiKey
@@ -58,9 +60,51 @@ public struct GoogleCloudSDKConfiguration: Codable, Sendable {
         self.maxSubagentDepth = maxSubagentDepth
         self.allowedSubagents = allowedSubagents
         self.serviceTier = serviceTier
+        self.tools = tools
     }
 
-    /// Automatically resolves environment configuration from SwiftCode project and preferences.
+    public enum CodingKeys: String, CodingKey {
+        case model, apiKey, vertex, project, location, systemInstructions, skillsPaths, workspaces, appDataDir, saveDir, enableSubagents, maxSubagentDepth, allowedSubagents, serviceTier
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.model = try container.decode(String.self, forKey: .model)
+        self.apiKey = try container.decodeIfPresent(String.self, forKey: .apiKey)
+        self.vertex = try container.decode(Bool.self, forKey: .vertex)
+        self.project = try container.decodeIfPresent(String.self, forKey: .project)
+        self.location = try container.decodeIfPresent(String.self, forKey: .location)
+        self.systemInstructions = try container.decodeIfPresent(String.self, forKey: .systemInstructions)
+        self.skillsPaths = try container.decode([String].self, forKey: .skillsPaths)
+        self.workspaces = try container.decode([String].self, forKey: .workspaces)
+        self.appDataDir = try container.decodeIfPresent(String.self, forKey: .appDataDir)
+        self.saveDir = try container.decodeIfPresent(String.self, forKey: .saveDir)
+        self.enableSubagents = try container.decode(Bool.self, forKey: .enableSubagents)
+        self.maxSubagentDepth = try container.decode(Int.self, forKey: .maxSubagentDepth)
+        self.allowedSubagents = try container.decodeIfPresent([String].self, forKey: .allowedSubagents)
+        self.serviceTier = try container.decode(GoogleCloudSDKServiceTier.self, forKey: .serviceTier)
+        self.tools = nil
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(model, forKey: .model)
+        try container.encodeIfPresent(apiKey, forKey: .apiKey)
+        try container.encode(vertex, forKey: .vertex)
+        try container.encodeIfPresent(project, forKey: .project)
+        try container.encodeIfPresent(location, forKey: .location)
+        try container.encodeIfPresent(systemInstructions, forKey: .systemInstructions)
+        try container.encode(skillsPaths, forKey: .skillsPaths)
+        try container.encode(workspaces, forKey: .workspaces)
+        try container.encodeIfPresent(appDataDir, forKey: .appDataDir)
+        try container.encodeIfPresent(saveDir, forKey: .saveDir)
+        try container.encode(enableSubagents, forKey: .enableSubagents)
+        try container.encode(maxSubagentDepth, forKey: .maxSubagentDepth)
+        try container.encodeIfPresent(allowedSubagents, forKey: .allowedSubagents)
+        try container.encode(serviceTier, forKey: .serviceTier)
+    }
+
+    /// Automatically resolves environment configuration from SwiftCode project, tools, and preferences.
     @MainActor
     public static func resolveDefault(for workspaceURL: URL? = nil) -> GoogleCloudSDKConfiguration {
         let selectedModel = UserDefaults.standard.string(forKey: "assist.geminiModel") ?? "gemini-3.8-flash"
@@ -68,7 +112,12 @@ public struct GoogleCloudSDKConfiguration: Codable, Sendable {
 
         var workspaces: [String] = []
         var skillsPaths: [String] = []
-        var systemInstructions: String? = nil
+        var effectiveInstructions: String? = nil
+
+        // Load SwiftCode system prompt AgentSystemAsset.md
+        if let systemPrompt = try? AssistManager.shared.getSystemPrompt() {
+            effectiveInstructions = systemPrompt
+        }
 
         let targetURL = workspaceURL ?? ProjectSessionStore.shared.activeProject?.directoryURL
 
@@ -76,14 +125,18 @@ public struct GoogleCloudSDKConfiguration: Codable, Sendable {
             let rootPath = rootURL.path
             workspaces.append(rootPath)
 
-            // Discover repository AGENTS.md / Agent.md
+            // Discover repository AGENTS.md / Agent.md and append if present
             let candidates = ["AGENTS.md", "Agents.md", "Agent.md"]
             for name in candidates {
                 let candidateURL = rootURL.appendingPathComponent(name)
                 if FileManager.default.fileExists(atPath: candidateURL.path),
-                   let content = try? String(contentsOf: candidateURL, encoding: .utf8),
-                   !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    systemInstructions = content
+                   let repoAgentsContent = try? String(contentsOf: candidateURL, encoding: .utf8),
+                   !repoAgentsContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    if let existing = effectiveInstructions {
+                        effectiveInstructions = existing + "\n\n# REPOSITORY SPECIFIC AGENTS RULES\n" + repoAgentsContent
+                    } else {
+                        effectiveInstructions = repoAgentsContent
+                    }
                     break
                 }
             }
@@ -112,13 +165,16 @@ public struct GoogleCloudSDKConfiguration: Codable, Sendable {
         try? fm.createDirectory(atPath: appDataDir, withIntermediateDirectories: true)
         try? fm.createDirectory(atPath: saveDir, withIntermediateDirectories: true)
 
+        // Derive dynamic tool schemas from SwiftCode Tool Registry
+        let toolSchemas = AssistManager.shared.registry.getToolSchemas()
+
         return GoogleCloudSDKConfiguration(
             model: selectedModel,
             apiKey: apiKey,
             vertex: false,
             project: nil,
             location: nil,
-            systemInstructions: systemInstructions,
+            systemInstructions: effectiveInstructions,
             skillsPaths: skillsPaths,
             workspaces: workspaces,
             appDataDir: appDataDir,
@@ -126,7 +182,8 @@ public struct GoogleCloudSDKConfiguration: Codable, Sendable {
             enableSubagents: true,
             maxSubagentDepth: 3,
             allowedSubagents: nil,
-            serviceTier: .standard
+            serviceTier: .standard,
+            tools: toolSchemas
         )
     }
 
@@ -162,6 +219,9 @@ public struct GoogleCloudSDKConfiguration: Codable, Sendable {
         }
         if let allowedSubagents = allowedSubagents {
             dict["allowedSubagents"] = allowedSubagents
+        }
+        if let tools = tools {
+            dict["tools"] = tools
         }
 
         return dict

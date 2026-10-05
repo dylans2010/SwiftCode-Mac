@@ -16,6 +16,7 @@ public actor GoogleCloudSDKTransport {
     private var readTask: Task<Void, Never>?
     private var pendingRequests: [String: CheckedContinuation<GoogleCloudSDKResponse, Error>] = [:]
     private var eventContinuations: [UUID: AsyncStream<GoogleCloudSDKEvent>.Continuation] = [:]
+    private var toolExecutionHandler: ((GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?))?
 
     public init() {}
 
@@ -24,6 +25,11 @@ public actor GoogleCloudSDKTransport {
         if fd >= 0 {
             Darwin.close(fd)
         }
+    }
+
+    /// Sets the handler closure for incoming server-initiated tool execution requests (`tool.execute`).
+    public func setToolExecutionHandler(_ handler: @escaping (GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?)) {
+        self.toolExecutionHandler = handler
     }
 
     /// Establishes connection to the Unix domain socket at the given path.
@@ -208,14 +214,37 @@ public actor GoogleCloudSDKTransport {
         }
     }
 
-    private func handleIncomingLine(_ line: String) {
+    private func handleIncomingLine(_ line: String) async {
         guard let data = line.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             logger.warning("Received invalid JSON from socket: \(line)")
             return
         }
 
-        // 1. Response matching (has "id")
+        // 1. Check for incoming server-initiated JSON-RPC request (has "method" AND "id")
+        if let method = json["method"] as? String, let id = json["id"] {
+            let params = json["params"] as? [String: Any] ?? [:]
+            if method == "tool.execute" {
+                let reqId = "\(id)"
+                let sessionId = params["sessionId"] as? String ?? ""
+                let toolName = params["toolName"] as? String ?? ""
+                let arguments = params["arguments"] as? [String: Any] ?? [:]
+
+                let request = GoogleCloudSDKToolExecutionRequest(requestId: reqId, sessionId: sessionId, toolName: toolName, arguments: arguments)
+
+                Task { [weak self] in
+                    if let handler = await self?.toolExecutionHandler {
+                        let resultTuple = await handler(request)
+                        await self?.sendToolExecutionResponse(reqId: reqId, success: resultTuple.success, result: resultTuple.result, error: resultTuple.error)
+                    } else {
+                        await self?.sendToolExecutionResponse(reqId: reqId, success: false, result: nil, error: "No tool execution handler registered in Swift")
+                    }
+                }
+                return
+            }
+        }
+
+        // 2. Response matching (has "id" but NO "method")
         if let id = json["id"] as? String {
             if let cont = pendingRequests.removeValue(forKey: id) {
                 if let errorObj = json["error"] as? [String: Any] {
@@ -235,10 +264,34 @@ public actor GoogleCloudSDKTransport {
             return
         }
 
-        // 2. Notification / Event matching (has "method")
+        // 3. Notification / Event matching (has "method" but NO "id")
         if let method = json["method"] as? String {
             let params = json["params"] as? [String: Any] ?? [:]
             dispatchNotification(method: method, params: params)
+        }
+    }
+
+    private func sendToolExecutionResponse(reqId: String, success: Bool, result: String?, error: String?) {
+        var payload: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": reqId,
+        ]
+
+        if success {
+            payload["result"] = [
+                "success": true,
+                "result": result ?? "",
+            ]
+        } else {
+            payload["result"] = [
+                "success": false,
+                "error": error ?? "Tool execution failed",
+            ]
+        }
+
+        if let data = try? JSONSerialization.data(withJSONObject: payload),
+           let jsonString = String(data: data, encoding: .utf8) {
+            try? writeRaw(jsonString + "\n")
         }
     }
 

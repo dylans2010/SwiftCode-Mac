@@ -1,7 +1,7 @@
 """
 Antigravity SDK Session Runner & Execution Engine.
 Manages Google Antigravity Agent lifecycles, streaming chunks, tool execution,
-subagents, and error recovery.
+subagents, dynamic SwiftCode tools, and error recovery.
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ import asyncio
 import os
 import sys
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple, Awaitable
 
 # Ensure bundled site-packages are available
 bridge_dir = os.path.dirname(os.path.abspath(__file__))
@@ -21,6 +21,7 @@ if os.path.isdir(site_packages) and site_packages not in sys.path:
 from google.antigravity import Agent, LocalAgentConfig, types
 from google.antigravity.hooks import hooks, policy
 from google.antigravity.types import Text, Thought, ToolCall, ToolResult
+from google.antigravity.tools.tool_runner import ToolWithSchema
 
 logger = logging.getLogger("AntigravityAgentRunner")
 
@@ -36,8 +37,13 @@ class ActiveSession:
 
 
 class AgentRunner:
-    def __init__(self, emit_fn: Callable[[str, Dict[str, Any]], None]):
+    def __init__(
+        self,
+        emit_fn: Callable[[str, Dict[str, Any]], None],
+        request_tool_execution_fn: Optional[Callable[[str, str, Dict[str, Any]], Awaitable[Dict[str, Any]]]] = None,
+    ):
         self.emit_fn = emit_fn
+        self.request_tool_execution_fn = request_tool_execution_fn
         self.sessions: Dict[str, ActiveSession] = {}
         self._lock = asyncio.Lock()
 
@@ -117,6 +123,31 @@ class AgentRunner:
 
         return [on_start, on_end, on_pre_tool, on_post_tool, on_tool_err]
 
+    def _build_swift_tool_wrapper(self, session_id: str, tool_schema: Dict[str, Any]) -> ToolWithSchema:
+        tool_name = tool_schema.get("name", "unknown_tool")
+        tool_desc = tool_schema.get("description", "")
+        param_schema = tool_schema.get("parameters", {"type": "object", "properties": {}})
+
+        request_fn = self.request_tool_execution_fn
+
+        async def _execute_swift_tool(**kwargs) -> str:
+            if not request_fn:
+                raise RuntimeError(f"Tool execution handler not registered for tool '{tool_name}'")
+            res = await request_fn(session_id, tool_name, kwargs)
+            if res.get("success", False):
+                return str(res.get("result", ""))
+            else:
+                err_msg = res.get("error") or "Unknown tool execution error"
+                raise RuntimeError(err_msg)
+
+        wrapper = ToolWithSchema(
+            func=_execute_swift_tool,
+            input_schema=param_schema,
+            name=tool_name,
+            doc=tool_desc,
+        )
+        return wrapper
+
     async def create_session(self, session_id: str, params: Dict[str, Any]) -> Dict[str, Any]:
         async with self._lock:
             if session_id in self.sessions:
@@ -134,6 +165,14 @@ class AgentRunner:
             location = params.get("location")
             enable_subagents = params.get("enableSubagents", True)
             max_subagent_depth = params.get("maxSubagentDepth", 3)
+            registered_tools_schemas = params.get("tools", [])
+
+            # Construct dynamic Python tool functions from Swift tool schemas
+            dynamic_tools = []
+            for t_schema in registered_tools_schemas:
+                if isinstance(t_schema, dict) and "name" in t_schema:
+                    wrapper = self._build_swift_tool_wrapper(session_id, t_schema)
+                    dynamic_tools.append(wrapper)
 
             # Build policies
             session_policies = []
@@ -155,6 +194,9 @@ class AgentRunner:
                 "policies": session_policies,
                 "hooks": self._create_hooks(session_id),
             }
+
+            if dynamic_tools:
+                config_kwargs["tools"] = dynamic_tools
 
             if api_key:
                 config_kwargs["api_key"] = api_key
@@ -184,12 +226,13 @@ class AgentRunner:
             session = ActiveSession(session_id, agent, self.emit_fn)
             self.sessions[session_id] = session
 
-            logger.info("Created Antigravity session '%s' with model '%s'", session_id, model)
+            logger.info("Created Antigravity session '%s' with model '%s' and %d dynamic Swift tools", session_id, model, len(dynamic_tools))
             return {
                 "sessionId": session_id,
                 "conversationId": agent.conversation_id,
                 "status": "ready",
                 "model": model,
+                "toolCount": len(dynamic_tools),
             }
 
     async def send_message(self, session_id: str, content: str, attachments: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
