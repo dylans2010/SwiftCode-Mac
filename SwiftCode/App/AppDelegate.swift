@@ -13,6 +13,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Install bundled custom alert sounds into ~/Library/Sounds/
         _ = SoundInstaller.shared.installSoundsIfNeeded()
+
+        // Start background lifecycle monitoring for Google Cloud SDK
+        GoogleCloudSDKLifecycleManager.shared.startMonitoring()
     }
 
     private func setupDefaultPreferences() {

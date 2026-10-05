@@ -559,116 +559,223 @@ struct AssistSettingsView: View {
             VStack(spacing: 24) {
                 // 0. Assist System Selection (Native Assist vs Assist on Google Cloud)
                 GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack {
-                            Label("Assist System Architecture", systemImage: "cpu.fill")
-                                .font(.headline)
-                                .foregroundColor(.blue)
-                            Spacer()
-                        }
+                    VStack(alignment: .leading, spacing: 18) {
+                        HStack(alignment: .center) {
+                            HStack(spacing: 10) {
+                                ZStack {
+                                    Circle()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [Color.blue.opacity(0.2), Color.indigo.opacity(0.3)],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                        .frame(width: 32, height: 32)
+                                    Image(systemName: "cpu.fill")
+                                        .font(.system(size: 15, weight: .bold))
+                                        .foregroundStyle(LinearGradient(colors: [.blue, .indigo], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                }
 
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Choose the core engine architecture powering your Assist workflow.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            Picker("Active Assist System", selection: $settings.assistSystemID) {
-                                Text("Native Assist System (Current)")
-                                    .tag(AppSettings.nativeAssistSystemID)
-                                Text("Assist on Google Cloud")
-                                    .tag(AppSettings.googleCloudAssistSystemID)
-                            }
-                            .pickerStyle(.segmented)
-
-                            if settings.assistSystemID == AppSettings.googleCloudAssistSystemID {
-                                VStack(alignment: .leading, spacing: 14) {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "cloud.rainbow.half")
-                                            .symbolRenderingMode(.multicolor)
-                                            .font(.title3)
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text("Assist on Google Cloud")
-                                                .font(.subheadline.bold())
-                                            Text("Identifier: \(AppSettings.googleCloudAssistSystemID)")
-                                                .font(.system(.caption2, design: .monospaced))
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        Spacer()
-
-                                        let runtime = GoogleCloudSDKRuntime.shared
-                                        if runtime.isRunning {
-                                            HStack(spacing: 4) {
-                                                Circle().fill(Color.green).frame(width: 8, height: 8)
-                                                Text("Running (v\(runtime.sdkVersion))")
-                                                    .font(.caption2.bold())
-                                                    .foregroundColor(.green)
-                                            }
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 3)
-                                            .background(Color.green.opacity(0.12), in: Capsule())
-                                        } else if runtime.isStarting {
-                                            HStack(spacing: 4) {
-                                                ProgressView().scaleEffect(0.5)
-                                                Text("Starting...")
-                                                    .font(.caption2.bold())
-                                                    .foregroundColor(.orange)
-                                            }
-                                        } else if runtime.isAvailable {
-                                            HStack(spacing: 4) {
-                                                Circle().fill(Color.secondary).frame(width: 8, height: 8)
-                                                Text("Installed (v\(runtime.sdkVersion))")
-                                                    .font(.caption2.bold())
-                                                    .foregroundColor(.secondary)
-                                            }
-                                        } else {
-                                            HStack(spacing: 4) {
-                                                Circle().fill(Color.red).frame(width: 8, height: 8)
-                                                Text("Unavailable")
-                                                    .font(.caption2.bold())
-                                                    .foregroundColor(.red)
-                                            }
-                                        }
-                                    }
-                                    .padding(10)
-                                    .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-
-                                    HStack(spacing: 12) {
-                                        Button {
-                                            Task {
-                                                let runtime = GoogleCloudSDKRuntime.shared
-                                                if runtime.isRunning {
-                                                    await runtime.stop()
-                                                } else {
-                                                    try? await runtime.start()
-                                                }
-                                            }
-                                        } label: {
-                                            let runtime = GoogleCloudSDKRuntime.shared
-                                            Label(runtime.isRunning ? "Stop Bridge" : "Start Bridge", systemImage: runtime.isRunning ? "stop.fill" : "play.fill")
-                                                .frame(maxWidth: .infinity)
-                                        }
-                                        .buttonStyle(.bordered)
-
-                                        Button {
-                                            Task {
-                                                try? await GoogleCloudSDKRuntime.shared.restart()
-                                            }
-                                        } label: {
-                                            Label("Restart", systemImage: "arrow.clockwise")
-                                        }
-                                        .buttonStyle(.bordered)
-                                    }
-
-                                    Text("Executes Gemini autonomous agents with persistent sessions, real-time token and thought streaming, and built-in coding tools.")
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Assist System Architecture")
+                                        .font(.system(size: 15, weight: .semibold))
+                                    Text("Select the underlying reasoning and tool execution engine")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                 }
-                                .padding(.top, 4)
-                            } else {
-                                Text("Using the Native Assist System. Standard local and OpenRouter execution pipelines are active.")
+                            }
+
+                            Spacer()
+
+                            // Architecture mode pill badge
+                            HStack(spacing: 5) {
+                                Circle()
+                                    .fill(settings.isGoogleCloudAssist ? Color.blue : Color.purple)
+                                    .frame(width: 7, height: 7)
+                                Text(settings.isGoogleCloudAssist ? "Google Cloud SDK" : "Native Engine")
+                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(settings.isGoogleCloudAssist ? Color.blue : Color.purple)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background((settings.isGoogleCloudAssist ? Color.blue : Color.purple).opacity(0.1), in: Capsule())
+                        }
+
+                        // Modern segmented picker
+                        Picker("Active Assist System", selection: $settings.assistSystemID) {
+                            Text("Native Assist System")
+                                .tag(AppSettings.nativeAssistSystemID)
+                            Text("Assist on Google Cloud")
+                                .tag(AppSettings.googleCloudAssistSystemID)
+                        }
+                        .pickerStyle(.segmented)
+
+                        if settings.assistSystemID == AppSettings.googleCloudAssistSystemID {
+                            VStack(alignment: .leading, spacing: 16) {
+                                // Status banner card
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: [Color.blue.opacity(0.18), Color.cyan.opacity(0.12)],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                            .frame(width: 40, height: 40)
+                                        Image(systemName: "cloud.rainbow.half")
+                                            .symbolRenderingMode(.multicolor)
+                                            .font(.system(size: 20))
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        HStack(spacing: 6) {
+                                            Text("Assist on Google Cloud")
+                                                .font(.system(size: 13, weight: .semibold))
+                                            Text("Active Engine")
+                                                .font(.system(size: 9, weight: .heavy, design: .rounded))
+                                                .foregroundStyle(.blue)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(Color.blue.opacity(0.12), in: Capsule())
+                                        }
+
+                                        Text("Google Antigravity SDK · Persistent Autonomous Sessions")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Spacer()
+
+                                    // Dynamic runtime status indicator
+                                    let runtime = GoogleCloudSDKRuntime.shared
+                                    if runtime.isRunning {
+                                        HStack(spacing: 6) {
+                                            Circle().fill(Color.green).frame(width: 8, height: 8)
+                                            Text("Active (v\(runtime.sdkVersion))")
+                                                .font(.system(size: 11, weight: .semibold))
+                                                .foregroundColor(.green)
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 4)
+                                        .background(Color.green.opacity(0.12), in: Capsule())
+                                    } else if runtime.isStarting {
+                                        HStack(spacing: 6) {
+                                            ProgressView().scaleEffect(0.55)
+                                            Text("Starting Engine...")
+                                                .font(.system(size: 11, weight: .semibold))
+                                                .foregroundColor(.orange)
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 4)
+                                        .background(Color.orange.opacity(0.12), in: Capsule())
+                                    } else if runtime.isAvailable {
+                                        HStack(spacing: 6) {
+                                            Circle().fill(Color.secondary).frame(width: 8, height: 8)
+                                            Text("Standby (v\(runtime.sdkVersion))")
+                                                .font(.system(size: 11, weight: .medium))
+                                                .foregroundColor(.secondary)
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 4)
+                                        .background(Color.secondary.opacity(0.1), in: Capsule())
+                                    } else {
+                                        HStack(spacing: 6) {
+                                            Circle().fill(Color.red).frame(width: 8, height: 8)
+                                            Text("Unavailable")
+                                                .font(.system(size: 11, weight: .semibold))
+                                                .foregroundColor(.red)
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 4)
+                                        .background(Color.red.opacity(0.12), in: Capsule())
+                                    }
+                                }
+                                .padding(12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.primary.opacity(0.03))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.blue.opacity(0.18), lineWidth: 1)
+                                        )
+                                )
+
+                                // Feature pill highlights
+                                HStack(spacing: 8) {
+                                    Label("Gemini Reasoning", systemImage: "sparkles")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(.blue)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.blue.opacity(0.08), in: Capsule())
+
+                                    Label("Subagent Coordination", systemImage: "person.2.fill")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(.indigo)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.indigo.opacity(0.08), in: Capsule())
+
+                                    Label("Background Daemon", systemImage: "bolt.horizontal.fill")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(.teal)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.teal.opacity(0.08), in: Capsule())
+
+                                    Spacer()
+                                }
+
+                                // Interactive engine controls
+                                HStack(spacing: 12) {
+                                    Button {
+                                        Task {
+                                            if GoogleCloudSDKRuntime.shared.isRunning {
+                                                await GoogleCloudSDKLifecycleManager.shared.stopEngine()
+                                            } else {
+                                                try? await GoogleCloudSDKLifecycleManager.shared.startEngine()
+                                            }
+                                        }
+                                    } label: {
+                                        Text(GoogleCloudSDKRuntime.shared.isRunning ? "Stop Engine" : "Start Engine")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(GoogleCloudSDKRuntime.shared.isRunning ? Color.secondary : Color.blue)
+                                    .controlSize(.regular)
+
+                                    Button {
+                                        Task {
+                                            try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
+                                        }
+                                    } label: {
+                                        Label("Restart Engine", systemImage: "arrow.clockwise")
+                                            .font(.system(size: 12, weight: .medium))
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.regular)
+                                }
+
+                                Text("The Google Cloud engine runs continuously in the background to deliver instant autonomous tool calls, subagent orchestration, and token streaming.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.top, 2)
+                        } else {
+                            HStack(spacing: 10) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.purple)
+                                    .font(.body)
+                                Text("Using the Native Assist System. Standard local compiler loops and multi-provider pipelines are active.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
+                            .padding(10)
+                            .background(Color.purple.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
                         }
                     }
                     .padding()
@@ -1037,7 +1144,7 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 3c. Assist on Google Cloud Bridge Section
+                // 3c. Assist on Google Cloud Engine Section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -1092,24 +1199,24 @@ struct AssistSettingsView: View {
                                     Task {
                                         let runtime = GoogleCloudSDKRuntime.shared
                                         if runtime.isRunning {
-                                            await runtime.stop()
+                                            await GoogleCloudSDKLifecycleManager.shared.stopEngine()
                                         } else {
-                                            try? await runtime.start()
+                                            try? await GoogleCloudSDKLifecycleManager.shared.startEngine()
                                         }
                                     }
                                 } label: {
                                     let runtime = GoogleCloudSDKRuntime.shared
-                                    Label(runtime.isRunning ? "Stop Bridge" : "Start Bridge", systemImage: runtime.isRunning ? "stop.fill" : "play.fill")
+                                    Label(runtime.isRunning ? "Stop Engine" : "Start Engine", systemImage: runtime.isRunning ? "stop.fill" : "play.fill")
                                         .frame(maxWidth: .infinity)
                                 }
                                 .buttonStyle(.bordered)
 
                                 Button {
                                     Task {
-                                        try? await GoogleCloudSDKRuntime.shared.restart()
+                                        try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
                                     }
                                 } label: {
-                                    Label("Restart", systemImage: "arrow.clockwise")
+                                    Label("Restart Engine", systemImage: "arrow.clockwise")
                                 }
                                 .buttonStyle(.bordered)
                             }

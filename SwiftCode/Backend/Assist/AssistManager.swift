@@ -23,6 +23,8 @@ public final class AssistManager: ObservableObject {
     private var agent: AssistAgent?
     private let api = AssistAPI.shared
     private var activeAgentTask: Task<Void, Never>?
+    private var activeGoogleCloudSession: GoogleCloudSDKSession?
+    private var activeGoogleCloudTask: Task<Void, Never>?
 
     // Transcript vs Model Context separation
     public private(set) var modelContext: [ModelContextSection] = []
@@ -184,6 +186,12 @@ public final class AssistManager: ObservableObject {
             isProcessing = true
             lastError = nil
             saveHistory()
+        }
+
+        // If 'Assist on Google Cloud' is active, delegate all execution to Google Cloud SDK / Antigravity
+        if AppSettings.shared.isGoogleCloudAssist {
+            await sendGoogleCloudSDKMessage(trimmed, attachments: attachments)
+            return
         }
 
         let isAgentMode = UserDefaults.standard.bool(forKey: "com.swiftcode.assist.mode")
@@ -392,6 +400,15 @@ public final class AssistManager: ObservableObject {
         activeAgentTask?.cancel()
         activeAgentTask = nil
 
+        activeGoogleCloudTask?.cancel()
+        activeGoogleCloudTask = nil
+
+        if let gcSession = activeGoogleCloudSession {
+            Task {
+                try? await gcSession.cancel()
+            }
+        }
+
         agentSession.cancel()
 
         WorkerRuntimeState.shared.stopAllActiveWorkers(reason: "Operation stopped by user.")
@@ -409,6 +426,17 @@ public final class AssistManager: ObservableObject {
         // Immediately cancel the active agent task and agent session
         activeAgentTask?.cancel()
         activeAgentTask = nil
+
+        activeGoogleCloudTask?.cancel()
+        activeGoogleCloudTask = nil
+
+        if let gcSession = activeGoogleCloudSession {
+            let sessionToClose = gcSession
+            activeGoogleCloudSession = nil
+            Task {
+                try? await sessionToClose.close()
+            }
+        }
 
         agentSession.cancel()
 
@@ -479,4 +507,150 @@ public final class AssistManager: ObservableObject {
             UserDefaults.standard.set(data, forKey: "com.swiftcode.assist.history")
         }
     }
+
+    // MARK: - Google Cloud SDK / Antigravity Execution Pipeline
+
+    private func sendGoogleCloudSDKMessage(_ content: String, attachments: [AgentFileContext] = []) async {
+        let runtime = GoogleCloudSDKRuntime.shared
+        do {
+            try await runtime.ensureStarted()
+        } catch {
+            await MainActor.run {
+                self.lastError = "Google Cloud SDK engine failed to start: \(error.localizedDescription)"
+                self.messages.append(AssistMessage(role: .system, content: "Engine error: \(error.localizedDescription)"))
+                self.isProcessing = false
+                self.saveHistory()
+            }
+            return
+        }
+
+        let sdkAttachments: [GoogleCloudSDKAttachment] = attachments.map {
+            GoogleCloudSDKAttachment(name: $0.filename, path: $0.filename, mimeType: $0.mimeType, content: $0.base64Content)
+        }
+
+        let session: GoogleCloudSDKSession
+        if let existing = activeGoogleCloudSession {
+            session = existing
+        } else {
+            do {
+                session = try await runtime.createSession()
+                activeGoogleCloudSession = session
+            } catch {
+                await MainActor.run {
+                    self.lastError = "Failed to create Google Cloud SDK session: \(error.localizedDescription)"
+                    self.messages.append(AssistMessage(role: .system, content: "Session error: \(error.localizedDescription)"))
+                    self.isProcessing = false
+                    self.saveHistory()
+                }
+                return
+            }
+        }
+
+        let assistantMsgId = UUID()
+        let initialActivity = AssistActivityGroup(isExecuting: true)
+        await MainActor.run {
+            var initialMsg = AssistMessage(role: .assistant, content: "")
+            initialMsg.activityGroup = initialActivity
+            self.messages.append(initialMsg)
+            self.saveHistory()
+        }
+
+        let task = Task {
+            defer {
+                Task { @MainActor in
+                    self.isProcessing = false
+                }
+            }
+
+            let eventStream = await session.subscribeEvents()
+            let streamTask = Task { @MainActor in
+                for await event in eventStream {
+                    guard !Task.isCancelled else { break }
+                    guard let idx = self.messages.indices.last else { continue }
+                    switch event {
+                    case .agentProgress(_, let delta, let thoughtDelta):
+                        if let delta = delta {
+                            self.messages[idx] = AssistMessage(
+                                role: self.messages[idx].role,
+                                content: self.messages[idx].content + delta,
+                                attachments: self.messages[idx].attachments,
+                                mcpExecution: self.messages[idx].mcpExecution,
+                                composioExecution: self.messages[idx].composioExecution,
+                                activityGroup: self.messages[idx].activityGroup
+                            )
+                        }
+                        if let thought = thoughtDelta {
+                            var activity = self.messages[idx].activityGroup ?? AssistActivityGroup(isExecuting: true)
+                            activity.tools.append(ToolActivityItem(toolId: "Thought", purpose: thought, result: "", status: .completed))
+                            self.messages[idx].activityGroup = activity
+                        }
+                    case .toolStarted(let tool):
+                        var activity = self.messages[idx].activityGroup ?? AssistActivityGroup(isExecuting: true)
+                        activity.tools.append(
+                            ToolActivityItem(id: UUID(uuidString: tool.id) ?? UUID(), toolId: tool.name, purpose: tool.rawArgs, status: .running)
+                        )
+                        self.messages[idx].activityGroup = activity
+                    case .toolCompleted(let res):
+                        if var activity = self.messages[idx].activityGroup {
+                            if let tIdx = activity.tools.firstIndex(where: { $0.toolId == res.name }) {
+                                activity.tools[tIdx].status = .completed
+                                activity.tools[tIdx].result = res.result
+                                self.messages[idx].activityGroup = activity
+                            }
+                        }
+                    case .toolFailed(_, let name, let err):
+                        if var activity = self.messages[idx].activityGroup {
+                            if let tIdx = activity.tools.firstIndex(where: { $0.toolId == name }) {
+                                activity.tools[tIdx].status = .failed
+                                activity.tools[tIdx].result = err
+                                self.messages[idx].activityGroup = activity
+                            }
+                        }
+                    case .agentCompleted(_, let response, _, _):
+                        let currentContent = self.messages[idx].content
+                        let finalContent = currentContent.isEmpty ? response : currentContent
+                        self.messages[idx] = AssistMessage(
+                            role: self.messages[idx].role,
+                            content: finalContent,
+                            attachments: self.messages[idx].attachments,
+                            mcpExecution: self.messages[idx].mcpExecution,
+                            composioExecution: self.messages[idx].composioExecution,
+                            activityGroup: self.messages[idx].activityGroup
+                        )
+                        self.messages[idx].activityGroup?.isExecuting = false
+                        self.saveHistory()
+                    case .agentFailed(_, let err):
+                        self.lastError = err
+                        self.messages[idx].activityGroup?.isExecuting = false
+                        self.saveHistory()
+                    default:
+                        break
+                    }
+                }
+            }
+
+            do {
+                try await session.sendMessage(content, attachments: sdkAttachments)
+                _ = await streamTask.result
+            } catch {
+                streamTask.cancel()
+                if !Task.isCancelled {
+                    await MainActor.run {
+                        self.lastError = error.localizedDescription
+                        if let idx = self.messages.indices.last {
+                            self.messages[idx].activityGroup?.isExecuting = false
+                        }
+                        self.saveHistory()
+                    }
+                }
+            }
+        }
+
+        activeGoogleCloudTask = task
+        _ = await task.result
+        await MainActor.run {
+            self.isProcessing = false
+        }
+    }
 }
+
