@@ -45,6 +45,8 @@ public struct AssistMainView: View {
     @AppStorage("com.swiftcode.assist.enableCodeReview") private var enableCodeReview = true
     @State private var showAssistSettings = false
 
+    // Create New App Wizard Sheet
+    @State private var showCreateNewAppSheet = false
 
 
     public init() {}
@@ -80,6 +82,16 @@ public struct AssistMainView: View {
                 executionModePopover
 
                 Spacer()
+
+                // Create New App Trigger
+                Button {
+                    showCreateNewAppSheet = true
+                } label: {
+                    Image(systemName: "wand.and.stars")
+                        .font(.body)
+                }
+                .buttonStyle(.plain)
+                .help("Create New App Wizard")
 
                 // Workers Trigger (Native Assist Workers Entry)
                 WorkersHeaderButton()
@@ -449,6 +461,9 @@ public struct AssistMainView: View {
         }
         .sheet(isPresented: $showAgentNotesSheet) {
             AgentNotesInspectorView()
+        }
+        .sheet(isPresented: $showCreateNewAppSheet) {
+            CreateNewAppWizardView()
         }
         .alert("There was an issue on this request:", isPresented: $showEnhancementError, presenting: enhancementErrorMessage) { _ in
             Button("OK") {}

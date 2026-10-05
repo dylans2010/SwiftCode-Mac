@@ -764,7 +764,6 @@
 		5C5E70000000000000000705 /* CreateNewAppMetadataView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000706 /* CreateNewAppMetadataView.swift */; };
 		5C5E70000000000000000707 /* CreateNewAppUIOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000708 /* CreateNewAppUIOptionsView.swift */; };
 		5C5E70000000000000000709 /* CreateNewAppAdvancedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000710 /* CreateNewAppAdvancedView.swift */; };
-		5C5E70000000000000000711 /* CreateNewAppProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000712 /* CreateNewAppProgressView.swift */; };
 		5C5E70000000000000000713 /* CreateNewAppCompletionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000714 /* CreateNewAppCompletionView.swift */; };
 		5C5E70000000000000000715 /* CreateNewAppArtifactView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000716 /* CreateNewAppArtifactView.swift */; };
 		75B4716543B742DBA28175B5 /* ParseXML.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F89000F887242D48DFA8521 /* ParseXML.swift */; };
@@ -3507,7 +3506,6 @@
 		5C5E70000000000000000706 /* CreateNewAppMetadataView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateNewAppMetadataView.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000708 /* CreateNewAppUIOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateNewAppUIOptionsView.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000710 /* CreateNewAppAdvancedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateNewAppAdvancedView.swift; sourceTree = "<group>"; };
-		5C5E70000000000000000712 /* CreateNewAppProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateNewAppProgressView.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000714 /* CreateNewAppCompletionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateNewAppCompletionView.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000716 /* CreateNewAppArtifactView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateNewAppArtifactView.swift; sourceTree = "<group>"; };
 		86122350693B256B489D0029 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
@@ -5590,7 +5588,6 @@
 				5C5E70000000000000000706 /* CreateNewAppMetadataView.swift */,
 				5C5E70000000000000000708 /* CreateNewAppUIOptionsView.swift */,
 				5C5E70000000000000000710 /* CreateNewAppAdvancedView.swift */,
-				5C5E70000000000000000712 /* CreateNewAppProgressView.swift */,
 				5C5E70000000000000000714 /* CreateNewAppCompletionView.swift */,
 				5C5E70000000000000000716 /* CreateNewAppArtifactView.swift */,
 				79B4B38ACD3166E79B4F58E3 /* AssistRefactorTool.swift */,
@@ -10879,7 +10876,6 @@
 				5C5E70000000000000000705 /* CreateNewAppMetadataView.swift in Sources */,
 				5C5E70000000000000000707 /* CreateNewAppUIOptionsView.swift in Sources */,
 				5C5E70000000000000000709 /* CreateNewAppAdvancedView.swift in Sources */,
-				5C5E70000000000000000711 /* CreateNewAppProgressView.swift in Sources */,
 				5C5E70000000000000000713 /* CreateNewAppCompletionView.swift in Sources */,
 				5C5E70000000000000000715 /* CreateNewAppArtifactView.swift in Sources */,
 				A82B7FBA9D92E6280C98B9B7 /* AssistRefactorTool.swift in Sources */,
