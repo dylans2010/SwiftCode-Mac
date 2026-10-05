@@ -46,25 +46,81 @@ public enum JSONValue: Codable, Sendable, Hashable {
     }
 }
 
+public indirect enum JSONSchemaItems: Codable, Sendable, Hashable {
+    case single(JSONSchema)
+    case dictionary([String: JSONSchema])
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .single(let schema):
+            try container.encode(schema)
+        case .dictionary(let dict):
+            if dict.count == 1, let schema = dict["type"] {
+                try container.encode(schema)
+            } else {
+                try container.encode(dict)
+            }
+        }
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let schema = try? container.decode(JSONSchema.self) {
+            self = .single(schema)
+        } else if let dict = try? container.decode([String: JSONSchema].self) {
+            if dict.count == 1, let schema = dict["type"] {
+                self = .single(schema)
+            } else {
+                self = .dictionary(dict)
+            }
+        } else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid JSONSchema items")
+        }
+    }
+}
+
 public struct JSONSchema: Codable, Sendable, Hashable {
     public let type: String
     public let description: String?
     public let properties: [String: JSONSchema]?
     public let required: [String]?
-    public let items: [String: JSONSchema]?
+    public let items: JSONSchemaItems?
 
     public init(
         type: String,
         description: String? = nil,
         properties: [String: JSONSchema]? = nil,
         required: [String]? = nil,
-        items: [String: JSONSchema]? = nil
+        items: JSONSchema? = nil
     ) {
         self.type = type
         self.description = description
         self.properties = properties
         self.required = required
-        self.items = items
+        self.items = items.map { .single($0) }
+    }
+
+    public init(
+        type: String,
+        description: String? = nil,
+        properties: [String: JSONSchema]? = nil,
+        required: [String]? = nil,
+        items: [String: JSONSchema]?
+    ) {
+        self.type = type
+        self.description = description
+        self.properties = properties
+        self.required = required
+        if let items = items {
+            if items.count == 1, let schema = items["type"] {
+                self.items = .single(schema)
+            } else {
+                self.items = .dictionary(items)
+            }
+        } else {
+            self.items = nil
+        }
     }
 }
 

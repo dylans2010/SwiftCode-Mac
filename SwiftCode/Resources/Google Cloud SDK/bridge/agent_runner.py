@@ -26,6 +26,44 @@ from google.antigravity.tools.tool_runner import ToolWithSchema
 logger = logging.getLogger("AntigravityAgentRunner")
 
 
+def sanitize_schema(schema: Any) -> Any:
+    """Sanitizes JSON schemas from clients to ensure full compliance with Gemini/OpenAPI."""
+    if not isinstance(schema, dict):
+        return schema
+
+    cleaned = dict(schema)
+
+    # If type is array, inspect and normalize items
+    if cleaned.get("type") == "array" and "items" in cleaned:
+        items = cleaned["items"]
+        if isinstance(items, dict):
+            # Check for bad nesting like {'type': {'type': 'string'}} or {'type': {'type': 'object'}}
+            if "type" in items and isinstance(items["type"], dict):
+                inner = items["type"]
+                if "type" in inner and isinstance(inner["type"], str):
+                    items = dict(inner)
+                else:
+                    items = sanitize_schema(inner)
+                cleaned["items"] = items
+            elif "type" not in items and len(items) == 1:
+                first_val = next(iter(items.values()))
+                if isinstance(first_val, dict) and "type" in first_val:
+                    cleaned["items"] = first_val
+        elif isinstance(items, str):
+            cleaned["items"] = {"type": items.lower()}
+
+        if isinstance(cleaned.get("items"), dict):
+            cleaned["items"] = sanitize_schema(cleaned["items"])
+
+    # Recursively clean properties
+    if "properties" in cleaned and isinstance(cleaned["properties"], dict):
+        cleaned["properties"] = {
+            k: sanitize_schema(v) for k, v in cleaned["properties"].items()
+        }
+
+    return cleaned
+
+
 class ActiveSession:
     def __init__(self, session_id: str, agent: Agent, emit_fn: Callable[[str, Dict[str, Any]], None]):
         self.session_id = session_id
@@ -129,6 +167,7 @@ class AgentRunner:
         param_schema = tool_schema.get("parameters")
         if not isinstance(param_schema, dict):
             param_schema = {"type": "object", "properties": {}}
+        param_schema = sanitize_schema(param_schema)
 
         request_fn = self.request_tool_execution_fn
 

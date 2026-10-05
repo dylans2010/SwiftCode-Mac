@@ -23,9 +23,10 @@ public struct PlanAskUserTool: AssistTool {
                 "choices": JSONSchema(
                     type: "array",
                     description: "Available choices for the user. Each choice must have 'choice' (string) and 'assistRecommended' (boolean) fields.",
-                    items: [
-                        "type": JSONSchema(type: "object")
-                    ]
+                    items: JSONSchema(
+                        type: "object",
+                        description: "A choice item with text and recommendation flag."
+                    )
                 ),
                 "userSpecification": JSONSchema(type: "boolean", description: "Whether the user may provide a free-form response.")
             ],

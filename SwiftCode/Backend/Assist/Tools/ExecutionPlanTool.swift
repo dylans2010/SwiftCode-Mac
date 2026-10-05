@@ -19,7 +19,7 @@ public struct ExecutionPlanTool: AssistTool {
             properties: [
                 "objective": JSONSchema(type: "string", description: "The user's task objective."),
                 "mode": JSONSchema(type: "string", description: "Execution mode: 'plan' or 'autopilot'."),
-                "relevantFiles": JSONSchema(type: "array", description: "Optional list of file paths already known to be relevant.", items: ["type": JSONSchema(type: "string")])
+                "relevantFiles": JSONSchema(type: "array", description: "Optional list of file paths already known to be relevant.", items: JSONSchema(type: "string"))
             ],
             required: ["objective", "mode"]
         )
