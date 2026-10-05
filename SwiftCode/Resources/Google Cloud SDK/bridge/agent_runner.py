@@ -126,7 +126,9 @@ class AgentRunner:
     def _build_swift_tool_wrapper(self, session_id: str, tool_schema: Dict[str, Any]) -> ToolWithSchema:
         tool_name = tool_schema.get("name", "unknown_tool")
         tool_desc = tool_schema.get("description", "")
-        param_schema = tool_schema.get("parameters", {"type": "object", "properties": {}})
+        param_schema = tool_schema.get("parameters")
+        if not isinstance(param_schema, dict):
+            param_schema = {"type": "object", "properties": {}}
 
         request_fn = self.request_tool_execution_fn
 
@@ -140,12 +142,15 @@ class AgentRunner:
                 err_msg = res.get("error") or "Unknown tool execution error"
                 raise RuntimeError(err_msg)
 
+        _execute_swift_tool.__name__ = tool_name
+        _execute_swift_tool.__doc__ = tool_desc
+
         wrapper = ToolWithSchema(
-            func=_execute_swift_tool,
+            fn=_execute_swift_tool,
             input_schema=param_schema,
-            name=tool_name,
-            doc=tool_desc,
         )
+        wrapper.__name__ = tool_name
+        wrapper.__doc__ = tool_desc
         return wrapper
 
     async def create_session(self, session_id: str, params: Dict[str, Any]) -> Dict[str, Any]:
