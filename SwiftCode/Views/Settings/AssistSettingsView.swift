@@ -769,8 +769,71 @@ struct AssistSettingsView: View {
                                 Divider()
                                     .padding(.vertical, 4)
 
+                                // Default Assist Model Configuration
                                 VStack(alignment: .leading, spacing: 8) {
-                                    Toggle(isOn: $settings.useSavedModels) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Default Assist Model")
+                                            .font(.system(size: 13, weight: .semibold))
+                                        Text("Choose whether to use the default Antigravity SDK models or choose an App Model from all available endpoints.")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Picker("Model Mode", selection: Binding(
+                                        get: { settings.useSavedModels ? "App Model" : "Default" },
+                                        set: { newMode in
+                                            if newMode == "App Model" {
+                                                settings.useSavedModels = true
+                                                settings.alternativeKeysEnabled = false
+                                            } else {
+                                                settings.useSavedModels = false
+                                            }
+                                        }
+                                    )) {
+                                        Text("Default (Antigravity SDK Models)").tag("Default")
+                                        Text("App Model (Choose from Available List)").tag("App Model")
+                                    }
+                                    .pickerStyle(.segmented)
+
+                                    if settings.useSavedModels {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Text("Select App Model:")
+                                                .font(.caption2.bold())
+                                                .foregroundStyle(.secondary)
+
+                                            Picker("App Model Selection", selection: $settings.selectedAssistModelID) {
+                                                if discoveryService.discoveredModels.isEmpty {
+                                                    Text("Default Model (\(settings.selectedAssistModelID))").tag(settings.selectedAssistModelID)
+                                                } else {
+                                                    ForEach(discoveryService.discoveredModels) { model in
+                                                        Text("\(model.displayName) (\(model.providerName))")
+                                                            .tag(model.modelIdentifier)
+                                                    }
+                                                }
+                                            }
+                                            .pickerStyle(.menu)
+                                        }
+                                        .padding(.top, 4)
+                                    }
+                                }
+
+                                Divider()
+                                    .padding(.vertical, 4)
+
+                                Text("Note: 'Use Saved Models' and 'Alternative Keys' are mutually exclusive. Users can only enable one option at a time.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Toggle(isOn: Binding(
+                                        get: { settings.useSavedModels },
+                                        set: { newValue in
+                                            settings.useSavedModels = newValue
+                                            if newValue {
+                                                settings.alternativeKeysEnabled = false
+                                            }
+                                        }
+                                    )) {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text("Use Saved Models")
                                                 .font(.system(size: 13, weight: .semibold))
@@ -809,7 +872,15 @@ struct AssistSettingsView: View {
                                     .padding(.vertical, 4)
 
                                 VStack(alignment: .leading, spacing: 8) {
-                                    Toggle(isOn: $settings.alternativeKeysEnabled) {
+                                    Toggle(isOn: Binding(
+                                        get: { settings.alternativeKeysEnabled },
+                                        set: { newValue in
+                                            settings.alternativeKeysEnabled = newValue
+                                            if newValue {
+                                                settings.useSavedModels = false
+                                            }
+                                        }
+                                    )) {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text("Alternative Keys")
                                                 .font(.system(size: 13, weight: .semibold))
