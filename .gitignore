@@ -42,4 +42,6 @@ logs/
 .env.*
 .composio/
 agent_notes.md
+**/google/antigravity/bin/localharness
+!**/google/antigravity/bin/localharness.gz
 

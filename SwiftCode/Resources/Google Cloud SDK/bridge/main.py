@@ -1,0 +1,285 @@
+#!/usr/bin/env python3
+"""
+SwiftCode Antigravity Bridge Daemon.
+Bidirectional structured IPC server bridging SwiftCode to the Google Antigravity SDK.
+"""
+
+from __future__ import annotations
+import argparse
+import asyncio
+import os
+import signal
+import sys
+import logging
+from typing import Any, Dict, Optional
+
+# Add bundled site-packages to sys.path before any library imports
+bridge_dir = os.path.dirname(os.path.abspath(__file__))
+sdk_root = os.path.dirname(bridge_dir)
+site_packages = os.path.join(sdk_root, "runtime", "lib", "python3.14", "site-packages")
+if os.path.isdir(site_packages) and site_packages not in sys.path:
+    sys.path.insert(0, site_packages)
+
+# Ensure localharness is uncompressed if needed
+lh_bin_dir = os.path.join(site_packages, "google", "antigravity", "bin")
+lh_path = os.path.join(lh_bin_dir, "localharness")
+lh_gz = os.path.join(lh_bin_dir, "localharness.gz")
+if os.path.isfile(lh_gz) and (not os.path.isfile(lh_path) or os.path.getsize(lh_path) == 0):
+    try:
+        import gzip
+        import shutil
+        with gzip.open(lh_gz, "rb") as f_in, open(lh_path, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
+        os.chmod(lh_path, 0o755)
+    except Exception:
+        pass
+
+from protocol import (
+    ProtocolMessage,
+    PARSE_ERROR,
+    INVALID_REQUEST,
+    METHOD_NOT_FOUND,
+    INVALID_PARAMS,
+    INTERNAL_ERROR,
+    SESSION_NOT_FOUND,
+)
+from agent_runner import AgentRunner
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s",
+    stream=sys.stderr,
+)
+logger = logging.getLogger("AntigravityBridge")
+
+
+class BridgeServer:
+    def __init__(self, socket_path: Optional[str] = None):
+        self.socket_path = socket_path
+        self.writer: Optional[asyncio.StreamWriter] = None
+        self.runner = AgentRunner(self.emit_notification)
+        self.is_running = True
+        self.server: Optional[asyncio.Server] = None
+
+    def emit_notification(self, method: str, params: Dict[str, Any]):
+        if self.writer and not self.writer.is_closing():
+            raw = ProtocolMessage.notification(method, params)
+            self.writer.write(raw.encode("utf-8"))
+            asyncio.create_task(self._safe_drain())
+
+    async def _safe_drain(self):
+        try:
+            if self.writer and not self.writer.is_closing():
+                await self.writer.drain()
+        except Exception as e:
+            logger.debug("Error draining writer: %s", e)
+
+    async def handle_request(self, message: Dict[str, Any]) -> Optional[str]:
+        msg_id = message.get("id")
+        method = message.get("method")
+        params = message.get("params", {}) or {}
+
+        if not method:
+            return ProtocolMessage.error(msg_id, INVALID_REQUEST, "Missing 'method' field in JSON-RPC request")
+
+        logger.debug("Dispatching method: %s, id: %s", method, msg_id)
+
+        try:
+            if method == "runtime.start":
+                return ProtocolMessage.success(msg_id, {
+                    "status": "ready",
+                    "sdkVersion": "0.1.20",
+                    "engine": "google-antigravity",
+                })
+
+            elif method == "runtime.stop":
+                await self.runner.stop_all()
+                self.is_running = False
+                return ProtocolMessage.success(msg_id, {"status": "stopping"})
+
+            elif method == "runtime.status":
+                active_count = len(self.runner.sessions)
+                return ProtocolMessage.success(msg_id, {
+                    "status": "running" if self.is_running else "stopped",
+                    "activeSessions": active_count,
+                    "sdkVersion": "0.1.20",
+                })
+
+            elif method == "session.create":
+                session_id = params.get("sessionId")
+                if not session_id:
+                    return ProtocolMessage.error(msg_id, INVALID_PARAMS, "Missing required parameter 'sessionId'")
+                result = await self.runner.create_session(session_id, params)
+                return ProtocolMessage.success(msg_id, result)
+
+            elif method == "session.resume":
+                session_id = params.get("sessionId")
+                if not session_id:
+                    return ProtocolMessage.error(msg_id, INVALID_PARAMS, "Missing required parameter 'sessionId'")
+                # If session exists in runner, return it
+                if session_id in self.runner.sessions:
+                    return ProtocolMessage.success(msg_id, {"sessionId": session_id, "status": "resumed"})
+                # Otherwise re-create session using provided config
+                result = await self.runner.create_session(session_id, params)
+                return ProtocolMessage.success(msg_id, result)
+
+            elif method == "session.close":
+                session_id = params.get("sessionId")
+                if not session_id:
+                    return ProtocolMessage.error(msg_id, INVALID_PARAMS, "Missing required parameter 'sessionId'")
+                result = await self.runner.close_session(session_id)
+                return ProtocolMessage.success(msg_id, result)
+
+            elif method == "message.send":
+                session_id = params.get("sessionId")
+                content = params.get("content", "")
+                attachments = params.get("attachments", [])
+                if not session_id:
+                    return ProtocolMessage.error(msg_id, INVALID_PARAMS, "Missing required parameter 'sessionId'")
+                result = await self.runner.send_message(session_id, content, attachments)
+                return ProtocolMessage.success(msg_id, result)
+
+            elif method == "message.cancel":
+                session_id = params.get("sessionId")
+                if not session_id:
+                    return ProtocolMessage.error(msg_id, INVALID_PARAMS, "Missing required parameter 'sessionId'")
+                result = await self.runner.cancel_message(session_id)
+                return ProtocolMessage.success(msg_id, result)
+
+            elif method == "event.subscribe":
+                return ProtocolMessage.success(msg_id, {"subscribed": True})
+
+            else:
+                return ProtocolMessage.error(msg_id, METHOD_NOT_FOUND, f"Unknown method '{method}'")
+
+        except KeyError as ke:
+            return ProtocolMessage.error(msg_id, SESSION_NOT_FOUND, str(ke))
+        except Exception as e:
+            logger.exception("Error handling method '%s': %s", method, e)
+            return ProtocolMessage.error(msg_id, INTERNAL_ERROR, f"Internal bridge error: {str(e)}")
+
+    async def _handle_connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        logger.info("SwiftCode connected to Antigravity bridge")
+        self.writer = writer
+
+        # Send initial ready event upon connection
+        ready_notif = ProtocolMessage.notification("runtime.ready", {
+            "version": "0.1.20",
+            "sdk": "google-antigravity",
+            "status": "ready",
+            "pid": os.getpid(),
+        })
+        writer.write(ready_notif.encode("utf-8"))
+        await writer.drain()
+
+        buffer = ""
+        while self.is_running:
+            try:
+                chunk = await reader.read(4096)
+                if not chunk:
+                    logger.info("Connection closed by peer")
+                    break
+
+                buffer += chunk.decode("utf-8")
+                while "\n" in buffer:
+                    line, buffer = buffer.split("\n", 1)
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    try:
+                        parsed = ProtocolMessage.parse(line)
+                    except Exception as pe:
+                        err = ProtocolMessage.error(None, PARSE_ERROR, f"Malformed JSON: {pe}")
+                        writer.write(err.encode("utf-8"))
+                        await writer.drain()
+                        continue
+
+                    resp = await self.handle_request(parsed)
+                    if resp:
+                        writer.write(resp.encode("utf-8"))
+                        await writer.drain()
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.exception("Error in connection loop: %s", e)
+                break
+
+        writer.close()
+        await writer.wait_closed()
+        logger.info("Client connection terminated")
+
+    async def run_socket_server(self):
+        if not self.socket_path:
+            raise ValueError("Socket path required for socket server")
+
+        if os.path.exists(self.socket_path):
+            try:
+                os.unlink(self.socket_path)
+            except OSError:
+                pass
+
+        server = await asyncio.start_unix_server(self._handle_connection, path=self.socket_path)
+        self.server = server
+        logger.info("Antigravity Bridge listening on Unix domain socket: %s", self.socket_path)
+
+        async with server:
+            await server.serve_forever()
+
+    async def run_stdio_server(self):
+        logger.info("Antigravity Bridge running in stdio mode")
+        loop = asyncio.get_event_loop()
+        reader = asyncio.StreamReader()
+        protocol = asyncio.StreamReaderProtocol(reader)
+        await loop.connect_read_pipe(lambda: protocol, sys.stdin)
+
+        w_transport, w_protocol = await loop.connect_write_pipe(asyncio.streams.FlowControlMixin, sys.stdout)
+        writer = asyncio.StreamWriter(w_transport, w_protocol, reader, loop)
+
+        await self._handle_connection(reader, writer)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="SwiftCode Antigravity Bridge Daemon")
+    parser.add_argument("--socket-path", type=str, default=None, help="Path to Unix domain socket")
+    parser.add_argument("--stdio", action="store_true", help="Run over stdin/stdout")
+    parser.add_argument("--log-level", type=str, default="INFO", help="Logging level")
+    parser.add_argument("--version", action="store_true", help="Print version and exit")
+    args = parser.parse_args()
+
+    if args.version:
+        print("0.1.20")
+        sys.exit(0)
+
+    logging.getLogger().setLevel(getattr(logging, args.log_level.upper(), logging.INFO))
+
+    server = BridgeServer(socket_path=args.socket_path)
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, lambda: asyncio.create_task(server.runner.stop_all()))
+        except NotImplementedError:
+            pass
+
+    try:
+        if args.socket_path:
+            loop.run_until_complete(server.run_socket_server())
+        else:
+            loop.run_until_complete(server.run_stdio_server())
+    except KeyboardInterrupt:
+        pass
+    finally:
+        loop.run_until_complete(server.runner.stop_all())
+        if args.socket_path and os.path.exists(args.socket_path):
+            try:
+                os.unlink(args.socket_path)
+            except OSError:
+                pass
+
+
+if __name__ == "__main__":
+    main()

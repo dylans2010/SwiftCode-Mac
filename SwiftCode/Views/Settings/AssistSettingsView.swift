@@ -557,6 +557,124 @@ struct AssistSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
+                // 0. Assist System Selection (Native Assist vs Assist on Google Cloud)
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Assist System Architecture", systemImage: "cpu.fill")
+                                .font(.headline)
+                                .foregroundColor(.blue)
+                            Spacer()
+                        }
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Choose the core engine architecture powering your Assist workflow.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Picker("Active Assist System", selection: $settings.assistSystemID) {
+                                Text("Native Assist System (Current)")
+                                    .tag(AppSettings.nativeAssistSystemID)
+                                Text("Assist on Google Cloud")
+                                    .tag(AppSettings.googleCloudAssistSystemID)
+                            }
+                            .pickerStyle(.segmented)
+
+                            if settings.assistSystemID == AppSettings.googleCloudAssistSystemID {
+                                VStack(alignment: .leading, spacing: 14) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "cloud.rainbow.half")
+                                            .symbolRenderingMode(.multicolor)
+                                            .font(.title3)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Assist on Google Cloud")
+                                                .font(.subheadline.bold())
+                                            Text("Identifier: \(AppSettings.googleCloudAssistSystemID)")
+                                                .font(.system(.caption2, design: .monospaced))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+
+                                        let runtime = GoogleCloudSDKRuntime.shared
+                                        if runtime.isRunning {
+                                            HStack(spacing: 4) {
+                                                Circle().fill(Color.green).frame(width: 8, height: 8)
+                                                Text("Running (v\(runtime.sdkVersion))")
+                                                    .font(.caption2.bold())
+                                                    .foregroundColor(.green)
+                                            }
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 3)
+                                            .background(Color.green.opacity(0.12), in: Capsule())
+                                        } else if runtime.isStarting {
+                                            HStack(spacing: 4) {
+                                                ProgressView().scaleEffect(0.5)
+                                                Text("Starting...")
+                                                    .font(.caption2.bold())
+                                                    .foregroundColor(.orange)
+                                            }
+                                        } else if runtime.isAvailable {
+                                            HStack(spacing: 4) {
+                                                Circle().fill(Color.secondary).frame(width: 8, height: 8)
+                                                Text("Installed (v\(runtime.sdkVersion))")
+                                                    .font(.caption2.bold())
+                                                    .foregroundColor(.secondary)
+                                            }
+                                        } else {
+                                            HStack(spacing: 4) {
+                                                Circle().fill(Color.red).frame(width: 8, height: 8)
+                                                Text("Unavailable")
+                                                    .font(.caption2.bold())
+                                                    .foregroundColor(.red)
+                                            }
+                                        }
+                                    }
+                                    .padding(10)
+                                    .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+                                    HStack(spacing: 12) {
+                                        Button {
+                                            Task {
+                                                let runtime = GoogleCloudSDKRuntime.shared
+                                                if runtime.isRunning {
+                                                    await runtime.stop()
+                                                } else {
+                                                    try? await runtime.start()
+                                                }
+                                            }
+                                        } label: {
+                                            let runtime = GoogleCloudSDKRuntime.shared
+                                            Label(runtime.isRunning ? "Stop Bridge" : "Start Bridge", systemImage: runtime.isRunning ? "stop.fill" : "play.fill")
+                                                .frame(maxWidth: .infinity)
+                                        }
+                                        .buttonStyle(.bordered)
+
+                                        Button {
+                                            Task {
+                                                try? await GoogleCloudSDKRuntime.shared.restart()
+                                            }
+                                        } label: {
+                                            Label("Restart", systemImage: "arrow.clockwise")
+                                        }
+                                        .buttonStyle(.bordered)
+                                    }
+
+                                    Text("Executes Gemini autonomous agents with persistent sessions, real-time token and thought streaming, and built-in coding tools.")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.top, 4)
+                            } else {
+                                Text("Using the Native Assist System. Standard local and OpenRouter execution pipelines are active.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
                 // 1. API Keys Section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
@@ -913,6 +1031,88 @@ struct AssistSettingsView: View {
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // 3c. Assist on Google Cloud Bridge Section
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Assist on Google Cloud Engine", systemImage: "cloud.fill")
+                                .font(.headline)
+                                .foregroundColor(.blue)
+
+                            Spacer()
+
+                            let runtime = GoogleCloudSDKRuntime.shared
+                            if runtime.isRunning {
+                                HStack(spacing: 4) {
+                                    Circle().fill(Color.green).frame(width: 8, height: 8)
+                                    Text("Running (v\(runtime.sdkVersion))")
+                                        .font(.caption2.bold())
+                                        .foregroundColor(.green)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Color.green.opacity(0.12), in: Capsule())
+                            } else if runtime.isStarting {
+                                HStack(spacing: 4) {
+                                    ProgressView().scaleEffect(0.5)
+                                    Text("Starting...")
+                                        .font(.caption2.bold())
+                                        .foregroundColor(.orange)
+                                }
+                            } else if runtime.isAvailable {
+                                HStack(spacing: 4) {
+                                    Circle().fill(Color.secondary).frame(width: 8, height: 8)
+                                    Text("Installed (v\(runtime.sdkVersion))")
+                                        .font(.caption2.bold())
+                                        .foregroundColor(.secondary)
+                                }
+                            } else {
+                                HStack(spacing: 4) {
+                                    Circle().fill(Color.red).frame(width: 8, height: 8)
+                                    Text("Unavailable")
+                                        .font(.caption2.bold())
+                                        .foregroundColor(.red)
+                                }
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Bundled native Assist on Google Cloud runtime. Executes Gemini autonomous agents with persistent sessions, real-time token/thought streaming, and built-in coding tools.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 12) {
+                                Button {
+                                    Task {
+                                        let runtime = GoogleCloudSDKRuntime.shared
+                                        if runtime.isRunning {
+                                            await runtime.stop()
+                                        } else {
+                                            try? await runtime.start()
+                                        }
+                                    }
+                                } label: {
+                                    let runtime = GoogleCloudSDKRuntime.shared
+                                    Label(runtime.isRunning ? "Stop Bridge" : "Start Bridge", systemImage: runtime.isRunning ? "stop.fill" : "play.fill")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.bordered)
+
+                                Button {
+                                    Task {
+                                        try? await GoogleCloudSDKRuntime.shared.restart()
+                                    }
+                                } label: {
+                                    Label("Restart", systemImage: "arrow.clockwise")
+                                }
+                                .buttonStyle(.bordered)
+                            }
                         }
                     }
                     .padding()

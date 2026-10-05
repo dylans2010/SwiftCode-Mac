@@ -1,0 +1,36 @@
+#!/bin/bash
+set -e
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SDK_ROOT="$(cd "${DIR}/../.." && pwd)"
+SITE_PACKAGES="${SDK_ROOT}/runtime/lib/python3.14/site-packages"
+
+# Find suitable python3 binary
+PYTHON_BIN=""
+if [ -n "${SWIFTCODE_PYTHON_BIN:-}" ] && [ -x "${SWIFTCODE_PYTHON_BIN}" ]; then
+    PYTHON_BIN="${SWIFTCODE_PYTHON_BIN}"
+elif [ -x "/opt/homebrew/bin/python3" ]; then
+    PYTHON_BIN="/opt/homebrew/bin/python3"
+elif [ -x "/usr/local/bin/python3" ]; then
+    PYTHON_BIN="/usr/local/bin/python3"
+elif [ -x "/usr/bin/python3" ]; then
+    PYTHON_BIN="/usr/bin/python3"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="$(command -v python3)"
+else
+    echo "Error: No Python 3 interpreter found on the system." >&2
+    exit 1
+fi
+
+# Ensure localharness binary is extracted from localharness.gz if needed
+LH_DIR="${SITE_PACKAGES}/google/antigravity/bin"
+if [ -f "${LH_DIR}/localharness.gz" ] && [ ! -s "${LH_DIR}/localharness" ]; then
+    gunzip -c "${LH_DIR}/localharness.gz" > "${LH_DIR}/localharness" 2>/dev/null || true
+    chmod +x "${LH_DIR}/localharness" 2>/dev/null || true
+fi
+
+export PYTHONPATH="${SITE_PACKAGES}:${PYTHONPATH:-}"
+export PYTHONNOUSERSITE=1
+export PYTHONUNBUFFERED=1
+
+exec "${PYTHON_BIN}" "$@"

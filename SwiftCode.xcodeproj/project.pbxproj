@@ -43,6 +43,17 @@
 		8D9E00020001000100000008 /* AgentSkillResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000007 /* AgentSkillResolver.swift */; };
 		8D9E0002000100010000000A /* AgentRepositoryScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000009 /* AgentRepositoryScanner.swift */; };
 		8D9E0002000100010000000C /* AgentTerminalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E0002000100010000000B /* AgentTerminalService.swift */; };
+		8D9E00030001000100000002 /* GoogleCloudSDKError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00030001000100000001 /* GoogleCloudSDKError.swift */; };
+		8D9E00030001000100000004 /* GoogleCloudSDKConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00030001000100000003 /* GoogleCloudSDKConfiguration.swift */; };
+		8D9E00030001000100000006 /* GoogleCloudSDKMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00030001000100000005 /* GoogleCloudSDKMessage.swift */; };
+		8D9E00030001000100000008 /* GoogleCloudSDKTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00030001000100000007 /* GoogleCloudSDKTool.swift */; };
+		8D9E0003000100010000000A /* GoogleCloudSDKEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00030001000100000009 /* GoogleCloudSDKEvent.swift */; };
+		8D9E0003000100010000000C /* GoogleCloudSDKTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E0003000100010000000B /* GoogleCloudSDKTransport.swift */; };
+		8D9E0003000100010000000E /* GoogleCloudSDKProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E0003000100010000000D /* GoogleCloudSDKProcess.swift */; };
+		8D9E00030001000100000010 /* GoogleCloudSDKBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E0003000100010000000F /* GoogleCloudSDKBridge.swift */; };
+		8D9E00030001000100000012 /* GoogleCloudSDKSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00030001000100000011 /* GoogleCloudSDKSession.swift */; };
+		8D9E00030001000100000014 /* GoogleCloudSDKRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00030001000100000013 /* GoogleCloudSDKRuntime.swift */; };
+		8D9E00030001000100000016 /* GoogleCloudSDKTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00030001000100000015 /* GoogleCloudSDKTests.swift */; };
 		CMPBLD000000000000000001 /* ComposioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000001 /* ComposioService.swift */; };
 		CMPBLD000000000000000002 /* AssistComposioTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000002 /* AssistComposioTool.swift */; };
 		CMPBLD000000000000000003 /* AgentUseComposio.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000003 /* AgentUseComposio.swift */; };
@@ -2628,6 +2639,18 @@
 		8D9E00020001000100000007 /* AgentSkillResolver.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentSkillResolver.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000009 /* AgentRepositoryScanner.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentRepositoryScanner.swift; sourceTree = "<group>"; };
 		8D9E0002000100010000000B /* AgentTerminalService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentTerminalService.swift; sourceTree = "<group>"; };
+		8D9E00030001000100000001 /* GoogleCloudSDKError.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoogleCloudSDKError.swift; sourceTree = "<group>"; };
+		8D9E00030001000100000003 /* GoogleCloudSDKConfiguration.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoogleCloudSDKConfiguration.swift; sourceTree = "<group>"; };
+		8D9E00030001000100000005 /* GoogleCloudSDKMessage.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoogleCloudSDKMessage.swift; sourceTree = "<group>"; };
+		8D9E00030001000100000007 /* GoogleCloudSDKTool.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoogleCloudSDKTool.swift; sourceTree = "<group>"; };
+		8D9E00030001000100000009 /* GoogleCloudSDKEvent.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoogleCloudSDKEvent.swift; sourceTree = "<group>"; };
+		8D9E0003000100010000000B /* GoogleCloudSDKTransport.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoogleCloudSDKTransport.swift; sourceTree = "<group>"; };
+		8D9E0003000100010000000D /* GoogleCloudSDKProcess.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoogleCloudSDKProcess.swift; sourceTree = "<group>"; };
+		8D9E0003000100010000000F /* GoogleCloudSDKBridge.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoogleCloudSDKBridge.swift; sourceTree = "<group>"; };
+		8D9E00030001000100000011 /* GoogleCloudSDKSession.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoogleCloudSDKSession.swift; sourceTree = "<group>"; };
+		8D9E00030001000100000013 /* GoogleCloudSDKRuntime.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoogleCloudSDKRuntime.swift; sourceTree = "<group>"; };
+		8D9E00030001000100000015 /* GoogleCloudSDKTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoogleCloudSDKTests.swift; sourceTree = "<group>"; };
+		8D9E00030001000100000020 /* Google Cloud SDK */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "Google Cloud SDK"; sourceTree = "<group>"; };
 		CMPREF000000000000000001 /* ComposioService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ComposioService.swift; sourceTree = "<group>"; };
 		CMPREF000000000000000002 /* AssistComposioTool.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistComposioTool.swift; sourceTree = "<group>"; };
 		CMPREF000000000000000003 /* AgentUseComposio.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentUseComposio.swift; sourceTree = "<group>"; };
@@ -5429,6 +5452,7 @@
 		0552912968A227D7F9DBDAD8 /* Assist Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				8D9E00030001000100000000 /* Google Cloud SDK */,
 				1036DD7471313D36E4B368E1 /* AssistAutonomousDecisionEngine.swift */,
 				1647B0EEBE86E22B995D730C /* AssistCodeIntegrityScanner.swift */,
 				5DC048FAC35CD865E114AB58 /* AssistContextDriftDetector.swift */,
@@ -5454,6 +5478,24 @@
 				00573C77C75B8076494A575A /* _AssistCriticalValidationEngine.swift */,
 			);
 			path = "Assist Frameworks";
+			sourceTree = "<group>";
+		};
+		8D9E00030001000100000000 /* Google Cloud SDK */ = {
+			isa = PBXGroup;
+			children = (
+				8D9E00030001000100000001 /* GoogleCloudSDKError.swift */,
+				8D9E00030001000100000003 /* GoogleCloudSDKConfiguration.swift */,
+				8D9E00030001000100000005 /* GoogleCloudSDKMessage.swift */,
+				8D9E00030001000100000007 /* GoogleCloudSDKTool.swift */,
+				8D9E00030001000100000009 /* GoogleCloudSDKEvent.swift */,
+				8D9E0003000100010000000B /* GoogleCloudSDKTransport.swift */,
+				8D9E0003000100010000000D /* GoogleCloudSDKProcess.swift */,
+				8D9E0003000100010000000F /* GoogleCloudSDKBridge.swift */,
+				8D9E00030001000100000011 /* GoogleCloudSDKSession.swift */,
+				8D9E00030001000100000013 /* GoogleCloudSDKRuntime.swift */,
+				8D9E00030001000100000015 /* GoogleCloudSDKTests.swift */,
+			);
+			path = "Google Cloud SDK";
 			sourceTree = "<group>";
 		};
 		0801FE77C016F8F6DAA035C0 /* BuildSystem */ = {
@@ -6995,6 +7037,7 @@
 				8EC74630C976564B1DEDD86B /* sf_symbols_full.json */,
 				C10A62EFACEB434185598840 /* SwiftCode.entitlements */,
 				F8373FD99C056ADA512A5B32 /* Themes */,
+				8D9E00030001000100000020 /* Google Cloud SDK */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -10316,7 +10359,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "#!/bin/bash\nset -euo pipefail\n\nDEST=\"/Applications/${WRAPPER_NAME}\"\n\necho \"Installing ${WRAPPER_NAME}...\"\n\nrm -rf \"$DEST\"\nditto \"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\" \"$DEST\"\n\necho \"Installed successfully.\"\n";
+			shellScript = "#!/bin/bash\nset -euo pipefail\n\n# Sync Google Cloud SDK runtime into application bundle Resources\nSDK_SRC=\"${SRCROOT}/SwiftCode/Resources/Google Cloud SDK\"\nSDK_DEST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/Google Cloud SDK\"\nif [ -d \"$SDK_SRC\" ]; then\n    echo \"Syncing Google Cloud SDK to ${SDK_DEST}...\"\n    mkdir -p \"$SDK_DEST\"\n    rsync -a --delete \"$SDK_SRC/\" \"$SDK_DEST/\"\nfi\n\nDEST=\"/Applications/${WRAPPER_NAME}\"\n\necho \"Installing ${WRAPPER_NAME}...\"\n\nrm -rf \"$DEST\"\nditto \"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\" \"$DEST\"\n\necho \"Installed successfully.\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -10358,6 +10401,17 @@
 				8D9E00020001000100000008 /* AgentSkillResolver.swift in Sources */,
 				8D9E0002000100010000000A /* AgentRepositoryScanner.swift in Sources */,
 				8D9E0002000100010000000C /* AgentTerminalService.swift in Sources */,
+				8D9E00030001000100000002 /* GoogleCloudSDKError.swift in Sources */,
+				8D9E00030001000100000004 /* GoogleCloudSDKConfiguration.swift in Sources */,
+				8D9E00030001000100000006 /* GoogleCloudSDKMessage.swift in Sources */,
+				8D9E00030001000100000008 /* GoogleCloudSDKTool.swift in Sources */,
+				8D9E0003000100010000000A /* GoogleCloudSDKEvent.swift in Sources */,
+				8D9E0003000100010000000C /* GoogleCloudSDKTransport.swift in Sources */,
+				8D9E0003000100010000000E /* GoogleCloudSDKProcess.swift in Sources */,
+				8D9E00030001000100000010 /* GoogleCloudSDKBridge.swift in Sources */,
+				8D9E00030001000100000012 /* GoogleCloudSDKSession.swift in Sources */,
+				8D9E00030001000100000014 /* GoogleCloudSDKRuntime.swift in Sources */,
+				8D9E00030001000100000016 /* GoogleCloudSDKTests.swift in Sources */,
 				CMPBLD000000000000000001 /* ComposioService.swift in Sources */,
 				CMPBLD000000000000000002 /* AssistComposioTool.swift in Sources */,
 				CMPBLD000000000000000003 /* AgentUseComposio.swift in Sources */,

@@ -49,7 +49,16 @@ enum FileNavigatorAnimationStyle: String, Codable, CaseIterable {
 class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
-    private var saveTask: Task<Void, Never>?
+    public static let nativeAssistSystemID = "com.swiftcode.assist.native"
+    public static let googleCloudAssistSystemID = "com.swiftcode.Assist.Google-Cloud"
+
+    @Published var assistSystemID: String {
+        didSet { debouncedSave("assistSystemID", assistSystemID) }
+    }
+
+    public var isGoogleCloudAssist: Bool {
+        assistSystemID == Self.googleCloudAssistSystemID
+    }
 
     @Published var swiftCloudModelsEnabled: Bool {
         didSet { debouncedSave("swiftCloudModelsEnabled", swiftCloudModelsEnabled) }
@@ -269,6 +278,7 @@ class AppSettings: ObservableObject {
 
 
     private init() {
+        assistSystemID = UserDefaults.standard.string(forKey: "assistSystemID") ?? Self.nativeAssistSystemID
         swiftCloudModelsEnabled = UserDefaults.standard.object(forKey: "swiftCloudModelsEnabled") as? Bool ?? false
         selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "openai/gpt-4o"
         customModel   = UserDefaults.standard.string(forKey: "customModel") ?? ""
