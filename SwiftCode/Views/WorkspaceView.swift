@@ -543,8 +543,6 @@ struct WorkspaceView: View {
 
                 case .virtualization:
                     SCVirtualizationView()
-        case .createNewApp:
-            CreateNewAppWizardView()
 
                 case .settings:
                     SettingsView()
