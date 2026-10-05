@@ -19,6 +19,11 @@ public struct AssistMainView: View {
     @State private var isProcessingFiles = false
     @State private var fetchedOpenRouterModels: [OpenRouterModel] = []
 
+    // Message Queue State
+    @State private var editingQueueId: UUID? = nil
+    @State private var editingQueueText: String = ""
+    @State private var isQueueExpanded: Bool = true
+
     // Apple Intelligence Prompt Enhancement Alert
     @State private var showEnhancementError = false
     @State private var enhancementErrorMessage: String? = nil
@@ -441,6 +446,9 @@ public struct AssistMainView: View {
                 if !manager.logger.logs.isEmpty {
                     MiniLogFeed(logger: manager.logger)
                 }
+
+                queuedMessagesView
+
                 inputArea
             }
             .padding(12)
@@ -621,7 +629,18 @@ public struct AssistMainView: View {
                 .scaleEffect(0.5)
                 .tint(.secondary)
 
-            Text(statusUserDescription(for: manager.agentSession.state.status))
+            let displayText: String = {
+                if !manager.currentActivityStatus.isEmpty && manager.currentActivityStatus != "Idle" {
+                    return manager.currentActivityStatus
+                }
+                let sessionDesc = statusUserDescription(for: manager.agentSession.state.status)
+                if sessionDesc != "Idle" {
+                    return sessionDesc
+                }
+                return "Thinking..."
+            }()
+
+            Text(displayText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -665,6 +684,207 @@ public struct AssistMainView: View {
         .padding(.vertical, 6)
     }
 
+    // MARK: - Queued Messages View
+
+    @ViewBuilder
+    private var queuedMessagesView: some View {
+        if !manager.queuedMessages.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                // Header
+                HStack(spacing: 8) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.accentColor)
+
+                    Text("Queued Messages (\(manager.queuedMessages.count))")
+                        .font(.system(size: 12, weight: .semibold))
+
+                    Text("· will auto-send once active response completes")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isQueueExpanded.toggle()
+                        }
+                    } label: {
+                        Image(systemName: isQueueExpanded ? "chevron.down" : "chevron.up")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(isQueueExpanded ? "Collapse Queue" : "Expand Queue")
+
+                    Button {
+                        withAnimation {
+                            manager.clearQueue()
+                        }
+                    } label: {
+                        Text("Clear All")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.red.opacity(0.8))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Clear All Queued Messages")
+                }
+                .padding(.horizontal, 4)
+
+                // List
+                if isQueueExpanded {
+                    VStack(spacing: 6) {
+                        ForEach(Array(manager.queuedMessages.enumerated()), id: \.element.id) { index, item in
+                            queuedMessageRow(index: index, item: item)
+                        }
+                    }
+                }
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.secondary.opacity(0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.accentColor.opacity(0.25), lineWidth: 1)
+            )
+            .padding(.horizontal, 4)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
+
+    private func queuedMessageRow(index: Int, item: QueuedAssistMessage) -> some View {
+        let isEditing = editingQueueId == item.id
+
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 8) {
+                // Index badge
+                Text("#\(index + 1)")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(0.15), in: Capsule())
+                    .foregroundColor(.accentColor)
+
+                if isEditing {
+                    TextField("Edit queued message...", text: $editingQueueText, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .padding(6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.secondary.opacity(0.12))
+                        )
+                        .lineLimit(1...4)
+                        .onSubmit {
+                            saveEditedQueueItem(id: item.id)
+                        }
+                } else {
+                    Text(item.content)
+                        .font(.system(size: 12))
+                        .foregroundColor(.primary)
+                        .lineLimit(3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                HStack(spacing: 6) {
+                    if isEditing {
+                        Button {
+                            saveEditedQueueItem(id: item.id)
+                        } label: {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(.green)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Save Changes")
+
+                        Button {
+                            editingQueueId = nil
+                            editingQueueText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Cancel Editing")
+                    } else {
+                        Button {
+                            manager.sendQueuedMessageNow(id: item.id)
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "bolt.fill")
+                                    .font(.system(size: 9))
+                                Text("Send Now")
+                                    .font(.system(size: 10, weight: .semibold))
+                            }
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 5))
+                            .foregroundColor(.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Interrupt and Send Immediately")
+
+                        Button {
+                            editingQueueId = item.id
+                            editingQueueText = item.content
+                        } label: {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Edit Queued Message")
+
+                        Button {
+                            withAnimation {
+                                manager.removeQueuedMessage(id: item.id)
+                            }
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 12))
+                                .foregroundColor(.red.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Remove from Queue")
+                    }
+                }
+            }
+
+            if !item.attachments.isEmpty {
+                HStack(spacing: 4) {
+                    ForEach(item.attachments) { att in
+                        HStack(spacing: 3) {
+                            Image(systemName: "doc.fill")
+                                .font(.system(size: 9))
+                                .foregroundColor(.orange)
+                            Text(att.filename)
+                                .font(.system(size: 9))
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.1), in: Capsule())
+                    }
+                }
+            }
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.7))
+        )
+    }
+
+    private func saveEditedQueueItem(id: UUID) {
+        manager.updateQueuedMessage(id: id, newContent: editingQueueText)
+        editingQueueId = nil
+        editingQueueText = ""
+    }
+
     private var inputArea: some View {
         HStack(spacing: 8) {
             Button {
@@ -704,18 +924,20 @@ public struct AssistMainView: View {
                     .padding(7)
                     .background(Color.secondary.opacity(0.12), in: Circle())
             }
-            .disabled(isEnhancingPrompt || inputText.isEmpty || manager.isProcessing || bridgeManager.streamStatus == "Streaming" || isProcessingFiles)
+            .disabled(isEnhancingPrompt || inputText.isEmpty || isProcessingFiles)
             .help("Enhance prompt with Apple Intelligence")
 
             ZStack {
-                TextField("What should I build next?", text: $inputText, axis: .vertical)
+                let isBusy = manager.isProcessing || bridgeManager.streamStatus == "Streaming"
+                let placeholder = isBusy ? "Queue next message..." : "What should I build next?"
+                TextField(placeholder, text: $inputText, axis: .vertical)
                     .padding(8)
                     .background(
                         RoundedRectangle(cornerRadius: 10)
                             .fill(.regularMaterial)
                     )
                     .lineLimit(1...5)
-                    .disabled(manager.isProcessing || isEnhancingPrompt || bridgeManager.streamStatus == "Streaming" || isProcessingFiles)
+                    .disabled(isEnhancingPrompt || isProcessingFiles)
                     .onSubmit {
                         submitMessage()
                     }
@@ -728,7 +950,29 @@ public struct AssistMainView: View {
             }
             .animation(.easeInOut(duration: 0.2), value: isEnhancingPrompt)
 
-            if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
+            if isProcessingFiles {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .scaleEffect(0.6)
+            } else if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
+                let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    Button(action: submitMessage) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 14))
+                            Text("Queue")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8))
+                        .foregroundColor(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Add Message to Execution Queue (Return)")
+                }
+
                 Button(action: {
                     manager.stopCurrentSession()
                 }) {
@@ -738,10 +982,6 @@ public struct AssistMainView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Stop execution")
-            } else if isProcessingFiles {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .scaleEffect(0.6)
             } else {
                 Button(action: submitMessage) {
                     Image(systemName: "arrow.up.circle.fill")
@@ -756,11 +996,18 @@ public struct AssistMainView: View {
 
     private func submitMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty && !manager.isProcessing && bridgeManager.streamStatus != "Streaming" && !isProcessingFiles else { return }
-        inputText = ""
+        guard !text.isEmpty && !isProcessingFiles else { return }
 
         let filesToSend = attachedFiles
         attachedFiles = []
+        inputText = ""
+
+        if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                manager.enqueueMessage(text, attachments: filesToSend)
+            }
+            return
+        }
 
         Task {
             await manager.sendMessage(text, attachments: filesToSend)

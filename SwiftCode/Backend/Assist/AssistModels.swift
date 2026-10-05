@@ -872,3 +872,25 @@ public struct MultiGoalSessionSummary: Codable, Sendable {
     }
 }
 
+// MARK: - Queued Assist Message
+
+public struct QueuedAssistMessage: Identifiable, Sendable, Codable, Equatable {
+    public let id: UUID
+    public var content: String
+    public var attachments: [AgentFileContext]
+    public let timestamp: Date
+
+    public init(
+        id: UUID = UUID(),
+        content: String,
+        attachments: [AgentFileContext] = [],
+        timestamp: Date = Date()
+    ) {
+        self.id = id
+        self.content = content
+        self.attachments = attachments
+        self.timestamp = timestamp
+    }
+}
+
+

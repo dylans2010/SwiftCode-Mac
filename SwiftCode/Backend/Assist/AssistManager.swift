@@ -12,6 +12,8 @@ public final class AssistManager: ObservableObject {
     @Published public var currentCodeReview: CodeReviewInternalResult?
     @Published public var isCodeReviewRunning: Bool = false
     @Published public var hasCodeReviewBeenInvoked: Bool = false
+    @Published public var queuedMessages: [QueuedAssistMessage] = []
+    @Published public var currentActivityStatus: String = "Idle"
 
     public let logger = AssistLogger()
     public let session = AssistSession()
@@ -172,11 +174,10 @@ public final class AssistManager: ObservableObject {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        // Prevent concurrent agent sessions
+        // If already processing, enqueue the message for sequential execution
         guard !isProcessing else {
             await MainActor.run {
-                messages.append(AssistMessage(role: .system, content: "A task is already in progress. Please wait for it to finish or stop it before starting a new one."))
-                saveHistory()
+                enqueueMessage(trimmed, attachments: attachments)
             }
             return
         }
@@ -184,6 +185,7 @@ public final class AssistManager: ObservableObject {
         await MainActor.run {
             messages.append(AssistMessage(role: .user, content: trimmed, attachments: attachments))
             isProcessing = true
+            currentActivityStatus = "Thinking..."
             lastError = nil
             saveHistory()
         }
@@ -228,6 +230,8 @@ public final class AssistManager: ObservableObject {
                 defer {
                     Task { @MainActor in
                         self.isProcessing = false
+                        self.currentActivityStatus = "Idle"
+                        self.processNextQueuedMessageIfAny()
                     }
                 }
                 do {
@@ -385,7 +389,9 @@ public final class AssistManager: ObservableObject {
                     messages.append(AssistMessage(role: .system, content: response.error ?? "Unable to complete request."))
                 }
                 isProcessing = false
+                currentActivityStatus = "Idle"
                 saveHistory()
+                processNextQueuedMessageIfAny()
             }
         } catch {
             await MainActor.run {
@@ -393,8 +399,67 @@ public final class AssistManager: ObservableObject {
                 lastError = errorMsg
                 messages.append(AssistMessage(role: .system, content: errorMsg))
                 isProcessing = false
+                currentActivityStatus = "Idle"
                 saveHistory()
+                processNextQueuedMessageIfAny()
             }
+        }
+    }
+
+    // MARK: - Message Queue System
+
+    public func enqueueMessage(_ content: String, attachments: [AgentFileContext] = []) {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let item = QueuedAssistMessage(content: trimmed, attachments: attachments)
+        queuedMessages.append(item)
+
+        if !isProcessing {
+            processNextQueuedMessageIfAny()
+        }
+    }
+
+    public func removeQueuedMessage(id: UUID) {
+        queuedMessages.removeAll(where: { $0.id == id })
+    }
+
+    public func updateQueuedMessage(id: UUID, newContent: String) {
+        let trimmed = newContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            removeQueuedMessage(id: id)
+            return
+        }
+        if let idx = queuedMessages.firstIndex(where: { $0.id == id }) {
+            queuedMessages[idx].content = trimmed
+        }
+    }
+
+    public func sendQueuedMessageNow(id: UUID) {
+        guard let idx = queuedMessages.firstIndex(where: { $0.id == id }) else { return }
+        let msg = queuedMessages.remove(at: idx)
+        if isProcessing {
+            stopCurrentSession()
+        }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            await self.sendMessage(msg.content, attachments: msg.attachments)
+        }
+    }
+
+    public func clearQueue() {
+        queuedMessages.removeAll()
+    }
+
+    private var isDispatchingFromQueue: Bool = false
+
+    public func processNextQueuedMessageIfAny() {
+        guard !isProcessing, !isDispatchingFromQueue, !queuedMessages.isEmpty else { return }
+        isDispatchingFromQueue = true
+        let next = queuedMessages.removeFirst()
+        Task { @MainActor in
+            defer { self.isDispatchingFromQueue = false }
+            await self.sendMessage(next.content, attachments: next.attachments)
         }
     }
 
@@ -419,6 +484,7 @@ public final class AssistManager: ObservableObject {
 
         Task { @MainActor in
             self.isProcessing = false
+            self.currentActivityStatus = "Idle"
             self.currentCodeReview = nil
             self.isCodeReviewRunning = false
         }
@@ -452,6 +518,7 @@ public final class AssistManager: ObservableObject {
 
         // Reset states to a clean, idle state
         isProcessing = false
+        currentActivityStatus = "Idle"
         lastError = nil
         takeoverReason = nil
         currentCodeReview = nil
@@ -461,6 +528,7 @@ public final class AssistManager: ObservableObject {
         AssistModelManager.shared.clearFallbackNotification()
 
         messages.removeAll()
+        clearQueue()
         session.reset()
         UserDefaults.standard.removeObject(forKey: "com.swiftcode.assist.history")
     }
@@ -560,17 +628,19 @@ public final class AssistManager: ObservableObject {
             defer {
                 Task { @MainActor in
                     self.isProcessing = false
+                    self.currentActivityStatus = "Idle"
                 }
             }
 
             let eventStream = await session.subscribeEvents()
             let streamTask = Task { @MainActor in
-                for await event in eventStream {
-                    guard !Task.isCancelled else { break }
+                streamLoop: for await event in eventStream {
+                    guard !Task.isCancelled else { break streamLoop }
                     guard let idx = self.messages.indices.last else { continue }
                     switch event {
                     case .agentProgress(_, let delta, let thoughtDelta):
                         if let delta = delta {
+                            self.currentActivityStatus = "Responding..."
                             self.messages[idx] = AssistMessage(
                                 role: self.messages[idx].role,
                                 content: self.messages[idx].content + delta,
@@ -581,17 +651,20 @@ public final class AssistManager: ObservableObject {
                             )
                         }
                         if let thought = thoughtDelta {
+                            self.currentActivityStatus = "Thinking..."
                             var activity = self.messages[idx].activityGroup ?? AssistActivityGroup(isExecuting: true)
                             activity.tools.append(ToolActivityItem(toolId: "Thought", purpose: thought, result: "", status: .completed))
                             self.messages[idx].activityGroup = activity
                         }
                     case .toolStarted(let tool):
+                        self.currentActivityStatus = "Executing \(tool.name)..."
                         var activity = self.messages[idx].activityGroup ?? AssistActivityGroup(isExecuting: true)
                         activity.tools.append(
                             ToolActivityItem(id: UUID(uuidString: tool.id) ?? UUID(), toolId: tool.name, purpose: tool.rawArgs, status: .running)
                         )
                         self.messages[idx].activityGroup = activity
                     case .toolCompleted(let res):
+                        self.currentActivityStatus = "Completed \(res.name)"
                         if var activity = self.messages[idx].activityGroup {
                             if let tIdx = activity.tools.firstIndex(where: { $0.toolId == res.name }) {
                                 activity.tools[tIdx].status = .completed
@@ -600,6 +673,7 @@ public final class AssistManager: ObservableObject {
                             }
                         }
                     case .toolFailed(_, let name, let err):
+                        self.currentActivityStatus = "Tool failed"
                         if var activity = self.messages[idx].activityGroup {
                             if let tIdx = activity.tools.firstIndex(where: { $0.toolId == name }) {
                                 activity.tools[tIdx].status = .failed
@@ -620,10 +694,16 @@ public final class AssistManager: ObservableObject {
                         )
                         self.messages[idx].activityGroup?.isExecuting = false
                         self.saveHistory()
+                        self.currentActivityStatus = "Idle"
+                        self.isProcessing = false
+                        break streamLoop
                     case .agentFailed(_, let err):
                         self.lastError = err
                         self.messages[idx].activityGroup?.isExecuting = false
                         self.saveHistory()
+                        self.currentActivityStatus = "Idle"
+                        self.isProcessing = false
+                        break streamLoop
                     default:
                         break
                     }
@@ -651,6 +731,8 @@ public final class AssistManager: ObservableObject {
         _ = await task.result
         await MainActor.run {
             self.isProcessing = false
+            self.currentActivityStatus = "Idle"
+            self.processNextQueuedMessageIfAny()
         }
     }
 }
