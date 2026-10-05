@@ -623,6 +623,7 @@
 		5C5E70000000000000000204 /* AddFilesAgentContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000203 /* AddFilesAgentContext.swift */; };
 		5C5E70000000000000000206 /* FileAgentHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000205 /* FileAgentHelper.swift */; };
 		5C5E70000000000000000501 /* AgentSystemAsset.md in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000502 /* AgentSystemAsset.md */; };
+		5C5E70000000000000000503 /* CreatingAppAsset.md in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000504 /* CreatingAppAsset.md */; };
 		5C5E70000000000000000503 /* UseTermFunction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000504 /* UseTermFunction.swift */; };
 		5C5E70000000000000000F05 /* RepositoryContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000F04 /* RepositoryContext.swift */; };
 		5C5E70000000000000000F42 /* ModelSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000F41 /* ModelSessionManager.swift */; };
@@ -757,6 +758,15 @@
 		74BEE9A5925442AFA5F9206C /* YAMLConverterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0431ABD8EA2248FB9116A745 /* YAMLConverterView.swift */; };
 		7531A00DB24865112A0C489D /* PreviewDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1DFF8B13C2092ADF6D257ED /* PreviewDiagnostics.swift */; };
 		7562E9C3295B60A446A1D8FE /* AssistReadFileTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 860ABF8784347CA86D1DFBED /* AssistReadFileTool.swift */; };
+		5C5E70000000000000000601 /* AssistCreateNewAppTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000602 /* AssistCreateNewAppTool.swift */; };
+		5C5E70000000000000000701 /* CreateNewAppWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000702 /* CreateNewAppWizardView.swift */; };
+		5C5E70000000000000000703 /* CreateNewAppIdeaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000704 /* CreateNewAppIdeaView.swift */; };
+		5C5E70000000000000000705 /* CreateNewAppMetadataView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000706 /* CreateNewAppMetadataView.swift */; };
+		5C5E70000000000000000707 /* CreateNewAppUIOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000708 /* CreateNewAppUIOptionsView.swift */; };
+		5C5E70000000000000000709 /* CreateNewAppAdvancedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000710 /* CreateNewAppAdvancedView.swift */; };
+		5C5E70000000000000000711 /* CreateNewAppProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000712 /* CreateNewAppProgressView.swift */; };
+		5C5E70000000000000000713 /* CreateNewAppCompletionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000714 /* CreateNewAppCompletionView.swift */; };
+		5C5E70000000000000000715 /* CreateNewAppArtifactView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000716 /* CreateNewAppArtifactView.swift */; };
 		75B4716543B742DBA28175B5 /* ParseXML.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F89000F887242D48DFA8521 /* ParseXML.swift */; };
 		75B6B34D045A6D85C36F9BBF /* GitHubRepositoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 895394671B28492ACD9662B3 /* GitHubRepositoryManager.swift */; };
 		75D79D3590909772C681B38C /* AssistWriteFileTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC4ED3821A1E7390B7CFD995 /* AssistWriteFileTool.swift */; };
@@ -3215,6 +3225,7 @@
 		5C5E70000000000000000203 /* AddFilesAgentContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddFilesAgentContext.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000205 /* FileAgentHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileAgentHelper.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000502 /* AgentSystemAsset.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = AgentSystemAsset.md; sourceTree = "<group>"; };
+		5C5E70000000000000000504 /* CreatingAppAsset.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = CreatingAppAsset.md; sourceTree = "<group>"; };
 		5C5E70000000000000000504 /* UseTermFunction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UseTermFunction.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000F04 /* RepositoryContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryContext.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000F41 /* ModelSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSessionManager.swift; sourceTree = "<group>"; };
@@ -3490,6 +3501,15 @@
 		85C3E264C32142EF9793EA86 /* SwiftCode/Views/Build/DeviceConnectKit/Models/SigningStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Build/DeviceConnectKit/Models/SigningStatus.swift; sourceTree = SOURCE_ROOT; };
 		85E5CEE7C0B7C31345655336 /* FeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFlags.swift; sourceTree = "<group>"; };
 		860ABF8784347CA86D1DFBED /* AssistReadFileTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistReadFileTool.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000602 /* AssistCreateNewAppTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistCreateNewAppTool.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000702 /* CreateNewAppWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateNewAppWizardView.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000704 /* CreateNewAppIdeaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateNewAppIdeaView.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000706 /* CreateNewAppMetadataView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateNewAppMetadataView.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000708 /* CreateNewAppUIOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateNewAppUIOptionsView.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000710 /* CreateNewAppAdvancedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateNewAppAdvancedView.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000712 /* CreateNewAppProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateNewAppProgressView.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000714 /* CreateNewAppCompletionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateNewAppCompletionView.swift; sourceTree = "<group>"; };
+		5C5E70000000000000000716 /* CreateNewAppArtifactView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateNewAppArtifactView.swift; sourceTree = "<group>"; };
 		86122350693B256B489D0029 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		86227AE3EB394159BDB6B12D /* ASCIIArtGeneratorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASCIIArtGeneratorView.swift; sourceTree = "<group>"; };
 		8629199A243E039542E69950 /* Base64FileConverterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Base64FileConverterView.swift; sourceTree = "<group>"; };
@@ -5564,6 +5584,15 @@
 				B74ED44E4C80A55F022EB26A /* AssistProjectMutationController.swift */,
 				06F2018DB65748AA6C5F4BE9 /* AssistReadDirectoryTool.swift */,
 				860ABF8784347CA86D1DFBED /* AssistReadFileTool.swift */,
+				5C5E70000000000000000602 /* AssistCreateNewAppTool.swift */,
+				5C5E70000000000000000702 /* CreateNewAppWizardView.swift */,
+				5C5E70000000000000000704 /* CreateNewAppIdeaView.swift */,
+				5C5E70000000000000000706 /* CreateNewAppMetadataView.swift */,
+				5C5E70000000000000000708 /* CreateNewAppUIOptionsView.swift */,
+				5C5E70000000000000000710 /* CreateNewAppAdvancedView.swift */,
+				5C5E70000000000000000712 /* CreateNewAppProgressView.swift */,
+				5C5E70000000000000000714 /* CreateNewAppCompletionView.swift */,
+				5C5E70000000000000000716 /* CreateNewAppArtifactView.swift */,
 				79B4B38ACD3166E79B4F58E3 /* AssistRefactorTool.swift */,
 				0ADC238F270C5BCC42CB380A /* AssistRegexSearchTool.swift */,
 				610FCD13C80FB38A943D0ECB /* AssistRenameFileTool.swift */,
@@ -5663,6 +5692,7 @@
 				5C5E70000000000000000F45 /* AssistSkillsCheck.swift */,
 				C25E63C0C3F147AD9AFB057B /* CodeReviewSystemAsset.md */,
 				5C5E70000000000000000502 /* AgentSystemAsset.md */,
+				5C5E70000000000000000504 /* CreatingAppAsset.md */,
 				70B77B2DA5337218E8C99F32 /* AssistCIFunctions.swift */,
 				18CF30B32C4FDB2D67687DEF /* AssistCodeFunctions.swift */,
 				FE11A99520A647A6230281D7 /* AssistExecutionFunctions.swift */,
@@ -9485,6 +9515,7 @@
 				D48EB73DDC4EC7ADD58C1CAA /* DocSymbols.json in Resources */,
 				5A218C6921DA4803A19F8831 /* CodeReviewSystemAsset.md in Resources */,
 				5C5E70000000000000000501 /* AgentSystemAsset.md in Resources */,
+				5C5E70000000000000000503 /* CreatingAppAsset.md in Resources */,
 				600B4ED1612FABB403A598E2 /* package.json in Resources */,
 				4B170D36F9DA274C8C143C69 /* bridge.js in Resources */,
 				CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
@@ -10842,6 +10873,15 @@
 				A6E3F7207917024C9497D402 /* AssistProjectMutationController.swift in Sources */,
 				FB8F42680983C38CD18A6492 /* AssistReadDirectoryTool.swift in Sources */,
 				7562E9C3295B60A446A1D8FE /* AssistReadFileTool.swift in Sources */,
+				5C5E70000000000000000601 /* AssistCreateNewAppTool.swift in Sources */,
+				5C5E70000000000000000701 /* CreateNewAppWizardView.swift in Sources */,
+				5C5E70000000000000000703 /* CreateNewAppIdeaView.swift in Sources */,
+				5C5E70000000000000000705 /* CreateNewAppMetadataView.swift in Sources */,
+				5C5E70000000000000000707 /* CreateNewAppUIOptionsView.swift in Sources */,
+				5C5E70000000000000000709 /* CreateNewAppAdvancedView.swift in Sources */,
+				5C5E70000000000000000711 /* CreateNewAppProgressView.swift in Sources */,
+				5C5E70000000000000000713 /* CreateNewAppCompletionView.swift in Sources */,
+				5C5E70000000000000000715 /* CreateNewAppArtifactView.swift in Sources */,
 				A82B7FBA9D92E6280C98B9B7 /* AssistRefactorTool.swift in Sources */,
 				F63C212115382E55C9AD3CA1 /* AssistRegexSearchTool.swift in Sources */,
 				178A2291137EEB800449302F /* AssistRenameFileTool.swift in Sources */,

@@ -83,6 +83,7 @@ public final class AssistToolRegistry {
         register(UseMCP())
         register(AssistComposioTool())
 
+        register(AssistCreateNewAppTool())
         register(AssistPlanTaskTool())
         register(AssistBreakdownTaskTool())
         register(AssistAutoFixErrorsTool())
