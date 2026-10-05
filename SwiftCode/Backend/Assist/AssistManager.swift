@@ -548,10 +548,25 @@ public final class AssistManager: ObservableObject {
         cancelTerminalExecution()
 
         Task { @MainActor in
+            self.stopThinkingTimer()
+            self.isThinking = false
             self.isProcessing = false
-            self.currentActivityStatus = "Idle"
+            self.currentActivityStatus = "Cancelled"
             self.currentCodeReview = nil
             self.isCodeReviewRunning = false
+            if let idx = self.messages.indices.last {
+                if var activity = self.messages[idx].activityGroup {
+                    for i in activity.tools.indices where activity.tools[i].status == .running {
+                        activity.tools[i].status = .failed
+                        activity.tools[i].result = "Cancelled"
+                        let label = activity.tools[i].displayLabel ?? activity.tools[i].toolId
+                        activity.tools[i].purpose = "\(label) (Cancelled)"
+                    }
+                    activity.isExecuting = false
+                    self.messages[idx].activityGroup = activity
+                }
+            }
+            self.saveHistory()
         }
     }
 
@@ -734,37 +749,27 @@ public final class AssistManager: ObservableObject {
                             )
                         }
                     case .toolStarted(let tool):
-                        if self.isThinking {
-                            self.stopThinkingTimer()
-                            if let start = self.thinkingStartedAt {
-                                self.thinkingDurationSeconds = max(1, Int(Date().timeIntervalSince(start)))
-                                self.messages[idx].thinkingDuration = Double(self.thinkingDurationSeconds)
-                            }
-                        }
-                        self.currentActivityStatus = "Executing \(tool.name)..."
-                        var activity = self.messages[idx].activityGroup ?? AssistActivityGroup(isExecuting: true)
-                        activity.tools.append(
-                            ToolActivityItem(id: UUID(uuidString: tool.id) ?? UUID(), toolId: tool.name, purpose: tool.rawArgs, status: .running)
-                        )
-                        self.messages[idx].activityGroup = activity
+                        let argsDict: [String: Any] = (try? JSONSerialization.jsonObject(with: tool.rawArgs.data(using: .utf8) ?? Data())) as? [String: Any] ?? [:]
+                        self.reportToolStarted(callId: tool.id, toolName: tool.name, arguments: argsDict)
+
                     case .toolCompleted(let res):
-                        self.currentActivityStatus = "Completed \(res.name)"
-                        if var activity = self.messages[idx].activityGroup {
-                            if let tIdx = activity.tools.firstIndex(where: { $0.toolId == res.name }) {
-                                activity.tools[tIdx].status = .completed
-                                activity.tools[tIdx].result = res.result
-                                self.messages[idx].activityGroup = activity
-                            }
-                        }
-                    case .toolFailed(_, let name, let err):
-                        self.currentActivityStatus = "Tool failed"
-                        if var activity = self.messages[idx].activityGroup {
-                            if let tIdx = activity.tools.firstIndex(where: { $0.toolId == name }) {
-                                activity.tools[tIdx].status = .failed
-                                activity.tools[tIdx].result = err
-                                self.messages[idx].activityGroup = activity
-                            }
-                        }
+                        self.reportToolCompleted(callId: res.id, toolName: res.name, output: res.result, arguments: [:])
+
+                    case .toolFailed(let toolId, let name, let err):
+                        self.reportToolFailed(callId: toolId, toolName: name, error: err, arguments: [:])
+
+                    case .workerStarted(_, let workerId, let name, let args):
+                        self.reportWorkerStarted(workerId: workerId, name: name, args: args)
+
+                    case .workerProgress(_, _, let progress):
+                        self.currentActivityStatus = progress
+
+                    case .workerCompleted(_, let workerId, let result):
+                        self.reportWorkerCompleted(workerId: workerId, result: result)
+
+                    case .workerFailed(_, let workerId, let error):
+                        self.reportWorkerFailed(workerId: workerId, error: error)
+
                     case .agentCompleted(_, let response, _, _):
                         self.stopThinkingTimer()
                         if let start = self.thinkingStartedAt {
@@ -772,6 +777,18 @@ public final class AssistManager: ObservableObject {
                         }
                         self.thinkingStartedAt = nil
                         self.activeThinkingText = ""
+
+                        // Finalize any running tools so no spinners remain stuck
+                        if var activity = self.messages[idx].activityGroup {
+                            for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
+                                activity.tools[tIdx].status = .completed
+                                if let comp = activity.tools[tIdx].completedLabel {
+                                    activity.tools[tIdx].purpose = comp
+                                }
+                            }
+                            activity.isExecuting = false
+                            self.messages[idx].activityGroup = activity
+                        }
 
                         let currentContent = self.messages[idx].content
                         let finalContent = currentContent.isEmpty ? response : currentContent
@@ -795,13 +812,20 @@ public final class AssistManager: ObservableObject {
                         self.thinkingStartedAt = nil
                         self.activeThinkingText = ""
                         self.lastError = err
-                        self.messages[idx].activityGroup?.isExecuting = false
+
+                        if var activity = self.messages[idx].activityGroup {
+                            for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
+                                activity.tools[tIdx].status = .failed
+                                activity.tools[tIdx].result = err
+                            }
+                            activity.isExecuting = false
+                            self.messages[idx].activityGroup = activity
+                        }
+
                         self.saveHistory()
                         self.currentActivityStatus = "Idle"
                         self.isProcessing = false
                         break streamLoop
-                    default:
-                        break
                     }
                 }
             }
@@ -830,5 +854,242 @@ public final class AssistManager: ObservableObject {
             self.currentActivityStatus = "Idle"
             self.processNextQueuedMessageIfAny()
         }
+    }
+
+    // MARK: - Live Tool & Activity Reporting
+
+    @MainActor
+    public func reportToolStarted(callId: String, toolName: String, arguments: [String: Any]) {
+        let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
+        self.currentActivityStatus = formatted.runningLabel
+        self.stopThinkingTimer()
+        self.isThinking = false
+
+        guard let idx = self.messages.indices.last else { return }
+        var activity = self.messages[idx].activityGroup ?? AssistActivityGroup(isExecuting: true)
+        activity.isExecuting = true
+
+        let itemId = UUID(uuidString: callId) ?? UUID()
+        if let existingIdx = activity.tools.firstIndex(where: { $0.id == itemId || ($0.toolId == toolName && $0.status == .running) }) {
+            activity.tools[existingIdx].status = .running
+            activity.tools[existingIdx].purpose = formatted.runningLabel
+            activity.tools[existingIdx].displayLabel = formatted.runningLabel
+            activity.tools[existingIdx].completedLabel = formatted.completedLabel
+            activity.tools[existingIdx].iconName = formatted.iconName
+        } else {
+            let newItem = ToolActivityItem(
+                id: itemId,
+                toolId: toolName,
+                purpose: formatted.runningLabel,
+                result: "",
+                status: .running,
+                duration: 0.0,
+                timestamp: Date(),
+                displayLabel: formatted.runningLabel,
+                completedLabel: formatted.completedLabel,
+                iconName: formatted.iconName
+            )
+            activity.tools.append(newItem)
+        }
+
+        // File operations integration
+        if let path = AssistToolActivityFormatter.extractFilePath(arguments: arguments) {
+            let op = AssistToolActivityFormatter.determineFileOperation(toolId: toolName)
+            if let op = op {
+                if !activity.files.contains(where: { $0.filePath == path }) {
+                    activity.files.append(FileActivityItem(filePath: path, operation: op))
+                }
+            }
+        }
+
+        // Build operations integration
+        if toolName == "project_build" || toolName == "build_project" || toolName == "build" {
+            if !activity.builds.contains(where: { $0.status == .running }) {
+                activity.builds.append(BuildActivityItem(scheme: "SwiftCode", configuration: "Release", status: .running))
+            }
+        }
+
+        // Test operations integration
+        if toolName == "run_tests" || toolName == "test_runner" || toolName == "test" {
+            if !activity.tests.contains(where: { $0.status == .running }) {
+                activity.tests.append(TestActivityItem(suiteName: "SwiftCodeTests", status: .running))
+            }
+        }
+
+        // Terminal operations integration
+        if toolName == "use_terminal" || toolName == "task_runner" || toolName == "run_command" {
+            let rawCmd = arguments["command"] as? String ?? arguments["CommandLine"] as? String ?? arguments["cmd"] as? String ?? ""
+            if !rawCmd.isEmpty && !activity.terminalCommands.contains(where: { $0.command == rawCmd }) {
+                activity.terminalCommands.append(TerminalActivityItem(command: rawCmd, workingDirectory: ProjectSessionStore.shared.activeProject?.directoryURL?.path ?? "", output: "", exitCode: 0, status: .running, timestamp: Date()))
+            }
+        }
+
+        self.messages[idx].activityGroup = activity
+    }
+
+    @MainActor
+    public func reportToolCompleted(callId: String, toolName: String, output: String?, arguments: [String: Any]) {
+        let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
+        self.currentActivityStatus = formatted.completedLabel
+
+        guard let idx = self.messages.indices.last else { return }
+        guard var activity = self.messages[idx].activityGroup else { return }
+
+        let itemId = UUID(uuidString: callId)
+        let toolIdx = activity.tools.firstIndex(where: {
+            (itemId != nil && $0.id == itemId) || ($0.toolId == toolName && $0.status == .running)
+        })
+
+        if let tIdx = toolIdx {
+            activity.tools[tIdx].status = .completed
+            activity.tools[tIdx].result = output ?? ""
+            activity.tools[tIdx].duration = max(0.1, Date().timeIntervalSince(activity.tools[tIdx].timestamp))
+            activity.tools[tIdx].purpose = formatted.completedLabel
+            activity.tools[tIdx].completedLabel = formatted.completedLabel
+        } else {
+            let newItem = ToolActivityItem(
+                id: itemId ?? UUID(),
+                toolId: toolName,
+                purpose: formatted.completedLabel,
+                result: output ?? "",
+                status: .completed,
+                duration: 0.1,
+                timestamp: Date(),
+                displayLabel: formatted.runningLabel,
+                completedLabel: formatted.completedLabel,
+                iconName: formatted.iconName
+            )
+            activity.tools.append(newItem)
+        }
+
+        // Finalize builds
+        if toolName == "project_build" || toolName == "build_project" || toolName == "build" {
+            for bIdx in activity.builds.indices where activity.builds[bIdx].status == .running {
+                activity.builds[bIdx].status = .completed
+                activity.builds[bIdx].duration = Date().timeIntervalSince(activity.builds[bIdx].timestamp)
+            }
+        }
+
+        // Finalize tests
+        if toolName == "run_tests" || toolName == "test_runner" || toolName == "test" {
+            for tIdx in activity.tests.indices where activity.tests[tIdx].status == .running {
+                activity.tests[tIdx].status = .completed
+                activity.tests[tIdx].passedCount = max(1, activity.tests[tIdx].passedCount)
+                activity.tests[tIdx].duration = Date().timeIntervalSince(activity.tests[tIdx].timestamp)
+            }
+        }
+
+        // Finalize terminal
+        if toolName == "use_terminal" || toolName == "task_runner" || toolName == "run_command" {
+            for cIdx in activity.terminalCommands.indices where activity.terminalCommands[cIdx].status == .running {
+                activity.terminalCommands[cIdx].status = .completed
+                activity.terminalCommands[cIdx].output = output ?? ""
+            }
+        }
+
+        self.messages[idx].activityGroup = activity
+    }
+
+    @MainActor
+    public func reportToolFailed(callId: String, toolName: String, error: String, arguments: [String: Any]) {
+        let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
+        self.currentActivityStatus = formatted.failedLabel
+
+        guard let idx = self.messages.indices.last else { return }
+        guard var activity = self.messages[idx].activityGroup else { return }
+
+        let itemId = UUID(uuidString: callId)
+        let toolIdx = activity.tools.firstIndex(where: {
+            (itemId != nil && $0.id == itemId) || ($0.toolId == toolName && $0.status == .running)
+        })
+
+        if let tIdx = toolIdx {
+            activity.tools[tIdx].status = .failed
+            activity.tools[tIdx].result = error
+            activity.tools[tIdx].duration = max(0.1, Date().timeIntervalSince(activity.tools[tIdx].timestamp))
+            activity.tools[tIdx].purpose = formatted.failedLabel
+        } else {
+            let newItem = ToolActivityItem(
+                id: itemId ?? UUID(),
+                toolId: toolName,
+                purpose: formatted.failedLabel,
+                result: error,
+                status: .failed,
+                duration: 0.1,
+                timestamp: Date(),
+                displayLabel: formatted.runningLabel,
+                completedLabel: formatted.completedLabel,
+                iconName: formatted.iconName
+            )
+            activity.tools.append(newItem)
+        }
+
+        // Finalize builds
+        if toolName == "project_build" || toolName == "build_project" || toolName == "build" {
+            for bIdx in activity.builds.indices where activity.builds[bIdx].status == .running {
+                activity.builds[bIdx].status = .failed
+                activity.builds[bIdx].errorCount = 1
+                activity.builds[bIdx].duration = Date().timeIntervalSince(activity.builds[bIdx].timestamp)
+            }
+        }
+
+        // Finalize tests
+        if toolName == "run_tests" || toolName == "test_runner" || toolName == "test" {
+            for tIdx in activity.tests.indices where activity.tests[tIdx].status == .running {
+                activity.tests[tIdx].status = .failed
+                activity.tests[tIdx].failedCount = 1
+                activity.tests[tIdx].duration = Date().timeIntervalSince(activity.tests[tIdx].timestamp)
+            }
+        }
+
+        // Finalize terminal
+        if toolName == "use_terminal" || toolName == "task_runner" || toolName == "run_command" {
+            for cIdx in activity.terminalCommands.indices where activity.terminalCommands[cIdx].status == .running {
+                activity.terminalCommands[cIdx].status = .failed
+                activity.terminalCommands[cIdx].output = error
+            }
+        }
+
+        self.messages[idx].activityGroup = activity
+    }
+
+    @MainActor
+    public func reportWorkerStarted(workerId: String, name: String, args: String) {
+        self.currentActivityStatus = "Worker: \(name)..."
+        guard let idx = self.messages.indices.last else { return }
+        var activity = self.messages[idx].activityGroup ?? AssistActivityGroup(isExecuting: true)
+        let item = WorkerActivityItem(
+            workerId: workerId,
+            name: name,
+            role: "Subagent",
+            scope: "Workspace",
+            taskDescription: args,
+            status: .running
+        )
+        activity.workers.append(item)
+        self.messages[idx].activityGroup = activity
+    }
+
+    @MainActor
+    public func reportWorkerCompleted(workerId: String, result: String) {
+        self.currentActivityStatus = "Worker completed"
+        guard let idx = self.messages.indices.last else { return }
+        guard var activity = self.messages[idx].activityGroup else { return }
+        if let wIdx = activity.workers.indices.last {
+            activity.workers[wIdx].status = .completed
+            activity.workers[wIdx].progress = 1.0
+        }
+        self.messages[idx].activityGroup = activity
+    }
+
+    @MainActor
+    public func reportWorkerFailed(workerId: String, error: String) {
+        self.currentActivityStatus = "Worker failed"
+        guard let idx = self.messages.indices.last else { return }
+        guard var activity = self.messages[idx].activityGroup else { return }
+        if let wIdx = activity.workers.indices.last {
+            activity.workers[wIdx].status = .failed
+        }
+        self.messages[idx].activityGroup = activity
     }
 }

@@ -11,12 +11,19 @@ import sys
 import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple, Awaitable
 
+import uuid
+
 # Ensure bundled site-packages are available
 bridge_dir = os.path.dirname(os.path.abspath(__file__))
 sdk_root = os.path.dirname(bridge_dir)
 site_packages = os.path.join(sdk_root, "runtime", "lib", "python3.14", "site-packages")
 if os.path.isdir(site_packages) and site_packages not in sys.path:
     sys.path.insert(0, site_packages)
+
+if "ANTIGRAVITY_HARNESS_PATH" not in os.environ:
+    candidate = os.path.abspath(os.path.join(sdk_root, "runtime", "lib", "python3.14", "site-packages", "google", "antigravity", "bin", "localharness"))
+    if os.path.exists(candidate):
+        os.environ["ANTIGRAVITY_HARNESS_PATH"] = candidate
 
 from google.antigravity import Agent, LocalAgentConfig, types
 from google.antigravity.hooks import hooks, policy
@@ -170,16 +177,53 @@ class AgentRunner:
         param_schema = sanitize_schema(param_schema)
 
         request_fn = self.request_tool_execution_fn
+        emit = self.emit_fn
 
         async def _execute_swift_tool(**kwargs) -> str:
+            call_id = str(uuid.uuid4())
+            emit("tool.started", {
+                "sessionId": session_id,
+                "toolCallId": call_id,
+                "toolName": tool_name,
+                "args": kwargs,
+            })
             if not request_fn:
-                raise RuntimeError(f"Tool execution handler not registered for tool '{tool_name}'")
-            res = await request_fn(session_id, tool_name, kwargs)
-            if res.get("success", False):
-                return str(res.get("result", ""))
-            else:
-                err_msg = res.get("error") or "Unknown tool execution error"
-                raise RuntimeError(err_msg)
+                err = f"Tool execution handler not registered for tool '{tool_name}'"
+                emit("tool.failed", {
+                    "sessionId": session_id,
+                    "toolCallId": call_id,
+                    "toolName": tool_name,
+                    "error": err,
+                })
+                raise RuntimeError(err)
+            try:
+                res = await request_fn(session_id, tool_name, kwargs)
+                if res.get("success", False):
+                    result_str = str(res.get("result", ""))
+                    emit("tool.completed", {
+                        "sessionId": session_id,
+                        "toolCallId": call_id,
+                        "toolName": tool_name,
+                        "result": result_str,
+                    })
+                    return result_str
+                else:
+                    err_msg = res.get("error") or "Unknown tool execution error"
+                    emit("tool.failed", {
+                        "sessionId": session_id,
+                        "toolCallId": call_id,
+                        "toolName": tool_name,
+                        "error": err_msg,
+                    })
+                    raise RuntimeError(err_msg)
+            except Exception as e:
+                emit("tool.failed", {
+                    "sessionId": session_id,
+                    "toolCallId": call_id,
+                    "toolName": tool_name,
+                    "error": str(e),
+                })
+                raise
 
         _execute_swift_tool.__name__ = tool_name
         _execute_swift_tool.__doc__ = tool_desc

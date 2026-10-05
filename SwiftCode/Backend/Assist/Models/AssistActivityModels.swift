@@ -23,11 +23,14 @@ public enum ActivityStatus: String, Codable, Sendable {
 public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
     public let id: UUID
     public let toolId: String
-    public let purpose: String
+    public var purpose: String
     public var result: String
     public var status: ActivityStatus
     public var duration: TimeInterval
     public let timestamp: Date
+    public var displayLabel: String?
+    public var completedLabel: String?
+    public var iconName: String?
 
     public init(
         id: UUID = UUID(),
@@ -36,7 +39,10 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         result: String = "",
         status: ActivityStatus = .completed,
         duration: TimeInterval = 0.0,
-        timestamp: Date = Date()
+        timestamp: Date = Date(),
+        displayLabel: String? = nil,
+        completedLabel: String? = nil,
+        iconName: String? = nil
     ) {
         self.id = id
         self.toolId = toolId
@@ -45,6 +51,9 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         self.status = status
         self.duration = duration
         self.timestamp = timestamp
+        self.displayLabel = displayLabel
+        self.completedLabel = completedLabel
+        self.iconName = iconName
     }
 }
 

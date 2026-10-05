@@ -133,6 +133,11 @@ public actor GoogleCloudSDKProcess {
         env["PYTHONUNBUFFERED"] = "1"
         env["PYTHONNOUSERSITE"] = "1"
 
+        let harnessURL = sdkDir.appendingPathComponent("runtime/lib/python3.14/site-packages/google/antigravity/bin/localharness")
+        if FileManager.default.fileExists(atPath: harnessURL.path) {
+            env["ANTIGRAVITY_HARNESS_PATH"] = harnessURL.path
+        }
+
         if let apiKey = KeychainService.shared.get(forKey: LLMProvider.google.keychainKey), !apiKey.isEmpty {
             env["GEMINI_API_KEY"] = apiKey
         }

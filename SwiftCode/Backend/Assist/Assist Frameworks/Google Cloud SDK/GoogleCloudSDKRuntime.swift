@@ -48,15 +48,43 @@ public final class GoogleCloudSDKRuntime: Sendable {
         let toolRegistry = AssistManager.shared.registry
         let toolName = request.toolName
         let args = request.arguments
+        let callId = request.requestId
+
+        // Instantly notify AssistManager that a tool has started execution on the main actor
+        await MainActor.run {
+            AssistManager.shared.reportToolStarted(
+                callId: callId,
+                toolName: toolName,
+                arguments: args
+            )
+        }
 
         guard let tool = toolRegistry.getTool(toolName) else {
-            return (false, nil, "Tool '\(toolName)' is not registered in SwiftCode")
+            let errorMsg = "Tool '\(toolName)' is not registered in SwiftCode"
+            await MainActor.run {
+                AssistManager.shared.reportToolFailed(
+                    callId: callId,
+                    toolName: toolName,
+                    error: errorMsg,
+                    arguments: args
+                )
+            }
+            return (false, nil, errorMsg)
         }
 
         // Validate arguments
         let validation = toolRegistry.validate(toolId: toolName, arguments: args)
         guard validation.isValid else {
-            return (false, nil, "Invalid arguments for '\(toolName)': \(validation.issue ?? "Schema mismatch")")
+            let errorMsg = "Invalid arguments for '\(toolName)': \(validation.issue ?? "Schema mismatch")"
+            await MainActor.run {
+                AssistManager.shared.reportToolFailed(
+                    callId: callId,
+                    toolName: toolName,
+                    error: errorMsg,
+                    arguments: args
+                )
+            }
+            return (false, nil, errorMsg)
         }
 
         // Build execution context
@@ -71,22 +99,56 @@ public final class GoogleCloudSDKRuntime: Sendable {
         // Evaluate permissions via AssistPermissionsManager
         let permissions = AssistPermissionsManager()
         if !permissions.authorizeOperation(toolName) {
-            return (false, nil, "Permission denied for tool '\(toolName)'")
+            let errorMsg = "Permission denied for tool '\(toolName)'"
+            await MainActor.run {
+                AssistManager.shared.reportToolFailed(
+                    callId: callId,
+                    toolName: toolName,
+                    error: errorMsg,
+                    arguments: args
+                )
+            }
+            return (false, nil, errorMsg)
         }
 
         do {
             toolRegistry.markUsed(toolName)
             let result = try await tool.execute(input: args, context: context)
             if result.success {
+                await MainActor.run {
+                    AssistManager.shared.reportToolCompleted(
+                        callId: callId,
+                        toolName: toolName,
+                        output: result.output,
+                        arguments: args
+                    )
+                }
                 return (true, result.output, nil)
             } else {
                 let errStr = result.error ?? result.output
                 toolRegistry.markError(toolName, error: errStr)
+                await MainActor.run {
+                    AssistManager.shared.reportToolFailed(
+                        callId: callId,
+                        toolName: toolName,
+                        error: errStr,
+                        arguments: args
+                    )
+                }
                 return (false, nil, errStr)
             }
         } catch {
             toolRegistry.markError(toolName, error: error.localizedDescription)
-            return (false, nil, "Tool '\(toolName)' execution error: \(error.localizedDescription)")
+            let errStr = "Tool '\(toolName)' execution error: \(error.localizedDescription)"
+            await MainActor.run {
+                AssistManager.shared.reportToolFailed(
+                    callId: callId,
+                    toolName: toolName,
+                    error: errStr,
+                    arguments: args
+                )
+            }
+            return (false, nil, errStr)
         }
     }
 

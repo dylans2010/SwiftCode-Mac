@@ -723,7 +723,9 @@ public struct AssistMainView: View {
     private var processingIndicator: some View {
         if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
             if isAgentMode {
-                thinkingIndicator
+                if manager.messages.last?.role != .assistant {
+                    thinkingIndicator
+                }
             } else {
                 chatTypingIndicator
             }
@@ -1279,26 +1281,39 @@ private struct AssistChatBubble: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                let blocks = MarkdownParser.shared.parse(message.content)
-                if blocks.isEmpty && !message.content.isEmpty {
-                    Text(message.content)
-                        .font(.body)
-                        .lineSpacing(4)
-                        .textSelection(.enabled)
-                } else {
-                    MarkdownBlockListView(blocks: blocks)
-                        .textSelection(.enabled)
+                // 1. Native Live Activity Feed (Subtle, Compact, Streaming)
+                if let activity = message.activityGroup, activity.hasContent {
+                    AssistLiveActivityFeed(activityGroup: activity)
                 }
 
-                // Thoughts Dropdown for completed message
+                // 2. Thoughts Dropdown for message
                 if let thoughts = message.thinkingContent, !thoughts.isEmpty {
                     ThinkingDisclosureView(thoughts: thoughts, duration: message.thinkingDuration)
                 }
 
-                // Native Expandable Technical Activity Disclosure Panel
-                if let activity = message.activityGroup {
+                // 3. Fallback Temporary Thinking Indicator (ONLY when empty assistant message with no activities yet)
+                if message.role == .assistant && message.content.isEmpty && (message.activityGroup == nil || !message.activityGroup!.hasContent) {
+                    AssistTemporaryThinkingView()
+                }
+
+                // 4. Streamed / Completed Assistant Markdown Message
+                if !message.content.isEmpty {
+                    let blocks = MarkdownParser.shared.parse(message.content)
+                    if blocks.isEmpty {
+                        Text(message.content)
+                            .font(.body)
+                            .lineSpacing(4)
+                            .textSelection(.enabled)
+                    } else {
+                        MarkdownBlockListView(blocks: blocks)
+                            .textSelection(.enabled)
+                    }
+                }
+
+                // 5. Expandable Activity Details (Files modified diffs, etc.)
+                if let activity = message.activityGroup, !activity.files.isEmpty {
                     AssistActivityView(activityGroup: activity)
-                        .padding(.top, 4)
+                        .padding(.top, 2)
                 }
 
                 if let attachments = message.attachments, !attachments.isEmpty {
@@ -1329,6 +1344,230 @@ private struct AssistChatBubble: View {
         }
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
+    }
+}
+
+// MARK: - Live Activity Feed
+
+private struct AssistLiveActivityFeed: View {
+    let activityGroup: AssistActivityGroup
+    @State private var isExpanded: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            let tools = activityGroup.tools
+            let displayTools: [ToolActivityItem] = {
+                if isExpanded || tools.count <= 4 {
+                    return tools
+                } else {
+                    let first = tools.prefix(1)
+                    let last = tools.suffix(3)
+                    var combined: [ToolActivityItem] = Array(first)
+                    for item in last {
+                        if !combined.contains(where: { $0.id == item.id }) {
+                            combined.append(item)
+                        }
+                    }
+                    return combined
+                }
+            }()
+
+            ForEach(displayTools) { tool in
+                HStack(spacing: 6) {
+                    if tool.status == .running {
+                        ProgressView()
+                            .scaleEffect(0.4)
+                            .frame(width: 14, height: 14)
+                            .tint(.secondary)
+
+                        Text(tool.displayLabel ?? tool.purpose)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                    } else if tool.status == .completed {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.green.opacity(0.85))
+                            .frame(width: 14, height: 14)
+
+                        Text(tool.completedLabel ?? tool.purpose)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+
+                        if tool.duration > 0 {
+                            Text(String(format: "%.1fs", tool.duration))
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                        }
+                    } else if tool.status == .failed {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.red)
+                            .frame(width: 14, height: 14)
+
+                        Text(tool.purpose)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.red.opacity(0.9))
+                            .lineLimit(1)
+                    } else {
+                        Image(systemName: "circle")
+                            .font(.system(size: 8))
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 14, height: 14)
+
+                        Text(tool.purpose)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+            }
+
+            if tools.count > 4 {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                        Text(isExpanded ? "Show fewer activities" : "Show \(tools.count - displayTools.count) more activities")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, 18)
+                }
+                .buttonStyle(.plain)
+            }
+
+            // Workers summary if any
+            ForEach(activityGroup.workers) { worker in
+                HStack(spacing: 6) {
+                    if worker.status == .running {
+                        ProgressView()
+                            .scaleEffect(0.4)
+                            .frame(width: 14, height: 14)
+                        Text("Worker: \(worker.name)...")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.primary)
+                    } else if worker.status == .completed {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.green.opacity(0.85))
+                            .frame(width: 14, height: 14)
+                        Text("Worker completed: \(worker.name)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.red)
+                            .frame(width: 14, height: 14)
+                        Text("Worker failed: \(worker.name)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.red.opacity(0.9))
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+
+            // Builds summary if any
+            ForEach(activityGroup.builds) { build in
+                HStack(spacing: 6) {
+                    if build.status == .running {
+                        ProgressView()
+                            .scaleEffect(0.4)
+                            .frame(width: 14, height: 14)
+                        Text("Building project...")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.primary)
+                    } else if build.status == .completed {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.green.opacity(0.85))
+                            .frame(width: 14, height: 14)
+                        Text("Build succeeded")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    } else if build.status == .failed {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.red)
+                            .frame(width: 14, height: 14)
+                        Text("Build failed")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.red.opacity(0.9))
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+
+            // Tests summary if any
+            ForEach(activityGroup.tests) { test in
+                HStack(spacing: 6) {
+                    if test.status == .running {
+                        ProgressView()
+                            .scaleEffect(0.4)
+                            .frame(width: 14, height: 14)
+                        Text("Running tests...")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.primary)
+                    } else if test.status == .completed {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.green.opacity(0.85))
+                            .frame(width: 14, height: 14)
+                        Text("Tests passed (\(test.passedCount))")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    } else if test.status == .failed {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.red)
+                            .frame(width: 14, height: 14)
+                        Text("Tests failed (\(test.failedCount) failures)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.red.opacity(0.9))
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Temporary Thinking View
+
+private struct AssistTemporaryThinkingView: View {
+    @ObservedObject private var manager = AssistManager.shared
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ProgressView()
+                .scaleEffect(0.4)
+                .frame(width: 14, height: 14)
+                .tint(.secondary)
+
+            let label: String = {
+                if manager.isThinking {
+                    return "Thinking (\(manager.thinkingDurationSeconds)s)..."
+                }
+                if !manager.currentActivityStatus.isEmpty && manager.currentActivityStatus != "Idle" {
+                    return manager.currentActivityStatus
+                }
+                return "Thinking..."
+            }()
+
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 2)
     }
 }
 
