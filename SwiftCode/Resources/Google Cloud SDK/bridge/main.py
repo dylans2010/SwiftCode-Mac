@@ -45,6 +45,7 @@ from protocol import (
     SESSION_NOT_FOUND,
 )
 from agent_runner import AgentRunner
+from model_adapter_server import ModelAdapterServer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -59,7 +60,8 @@ class BridgeServer:
         self.socket_path = socket_path
         self.writer: Optional[asyncio.StreamWriter] = None
         self.pending_requests: Dict[str, asyncio.Future[Dict[str, Any]]] = {}
-        self.runner = AgentRunner(self.emit_notification, self.request_tool_execution)
+        self.adapter_server = ModelAdapterServer()
+        self.runner = AgentRunner(self.emit_notification, self.request_tool_execution, adapter_server=self.adapter_server)
         self.is_running = True
         self.server: Optional[asyncio.Server] = None
 
@@ -135,13 +137,16 @@ class BridgeServer:
 
         try:
             if method == "runtime.start":
+                adapter_port = await self.adapter_server.start()
                 return ProtocolMessage.success(msg_id, {
                     "status": "ready",
                     "sdkVersion": "0.1.20",
                     "engine": "google-antigravity",
+                    "adapterPort": adapter_port,
                 })
 
             elif method == "runtime.stop":
+                await self.adapter_server.stop()
                 await self.runner.stop_all()
                 self.is_running = False
                 return ProtocolMessage.success(msg_id, {"status": "stopping"})
@@ -209,12 +214,16 @@ class BridgeServer:
         logger.info("SwiftCode connected to Antigravity bridge")
         self.writer = writer
 
+        # Start adapter server if not already started
+        adapter_port = await self.adapter_server.start()
+
         # Send initial ready event upon connection
         ready_notif = ProtocolMessage.notification("runtime.ready", {
             "version": "0.1.20",
             "sdk": "google-antigravity",
             "status": "ready",
             "pid": os.getpid(),
+            "adapterPort": adapter_port,
         })
         writer.write(ready_notif.encode("utf-8"))
         await writer.drain()

@@ -64,6 +64,20 @@ class AppSettings: ObservableObject {
         didSet { debouncedSave("swiftCloudModelsEnabled", swiftCloudModelsEnabled) }
     }
 
+    @Published var useSavedModels: Bool {
+        didSet {
+            debouncedSave("useSavedModels", useSavedModels)
+            UserDefaults.standard.set(useSavedModels, forKey: "assist.useSavedModels")
+        }
+    }
+
+    @Published var alternativeKeysEnabled: Bool {
+        didSet {
+            debouncedSave("alternativeKeysEnabled", alternativeKeysEnabled)
+            UserDefaults.standard.set(alternativeKeysEnabled, forKey: "assist.alternativeKeysEnabled")
+        }
+    }
+
     @Published var selectedModel: String {
         didSet {
             debouncedSave("selectedModel", selectedModel)
@@ -282,6 +296,12 @@ class AppSettings: ObservableObject {
     private init() {
         assistSystemID = UserDefaults.standard.string(forKey: "assistSystemID") ?? Self.nativeAssistSystemID
         swiftCloudModelsEnabled = UserDefaults.standard.object(forKey: "swiftCloudModelsEnabled") as? Bool ?? false
+        useSavedModels = UserDefaults.standard.object(forKey: "useSavedModels") as? Bool
+            ?? UserDefaults.standard.object(forKey: "assist.useSavedModels") as? Bool
+            ?? false
+        alternativeKeysEnabled = UserDefaults.standard.object(forKey: "alternativeKeysEnabled") as? Bool
+            ?? UserDefaults.standard.object(forKey: "assist.alternativeKeysEnabled") as? Bool
+            ?? false
         selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "openai/gpt-4o"
         customModel   = UserDefaults.standard.string(forKey: "customModel") ?? ""
         selectedAssistModelID = UserDefaults.standard.string(forKey: "selectedAssistModelID") ?? AssistModelOption.swiftCodeBalanced.id

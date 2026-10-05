@@ -28,6 +28,9 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     public var allowedSubagents: [String]?
     public var serviceTier: GoogleCloudSDKServiceTier
     public var tools: [[String: Any]]?
+    public var provider: String?
+    public var baseURL: String?
+    public var useSavedModels: Bool
 
     public init(
         model: String = "gemini-3.8-flash",
@@ -44,7 +47,10 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         maxSubagentDepth: Int = 3,
         allowedSubagents: [String]? = nil,
         serviceTier: GoogleCloudSDKServiceTier = .standard,
-        tools: [[String: Any]]? = nil
+        tools: [[String: Any]]? = nil,
+        provider: String? = nil,
+        baseURL: String? = nil,
+        useSavedModels: Bool = false
     ) {
         self.model = model
         self.apiKey = apiKey
@@ -61,10 +67,13 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.allowedSubagents = allowedSubagents
         self.serviceTier = serviceTier
         self.tools = tools
+        self.provider = provider
+        self.baseURL = baseURL
+        self.useSavedModels = useSavedModels
     }
 
     public enum CodingKeys: String, CodingKey {
-        case model, apiKey, vertex, project, location, systemInstructions, skillsPaths, workspaces, appDataDir, saveDir, enableSubagents, maxSubagentDepth, allowedSubagents, serviceTier
+        case model, apiKey, vertex, project, location, systemInstructions, skillsPaths, workspaces, appDataDir, saveDir, enableSubagents, maxSubagentDepth, allowedSubagents, serviceTier, provider, baseURL, useSavedModels
     }
 
     public init(from decoder: Decoder) throws {
@@ -83,6 +92,9 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.maxSubagentDepth = try container.decode(Int.self, forKey: .maxSubagentDepth)
         self.allowedSubagents = try container.decodeIfPresent([String].self, forKey: .allowedSubagents)
         self.serviceTier = try container.decode(GoogleCloudSDKServiceTier.self, forKey: .serviceTier)
+        self.provider = try container.decodeIfPresent(String.self, forKey: .provider)
+        self.baseURL = try container.decodeIfPresent(String.self, forKey: .baseURL)
+        self.useSavedModels = try container.decodeIfPresent(Bool.self, forKey: .useSavedModels) ?? false
         self.tools = nil
     }
 
@@ -102,13 +114,37 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         try container.encode(maxSubagentDepth, forKey: .maxSubagentDepth)
         try container.encodeIfPresent(allowedSubagents, forKey: .allowedSubagents)
         try container.encode(serviceTier, forKey: .serviceTier)
+        try container.encodeIfPresent(provider, forKey: .provider)
+        try container.encodeIfPresent(baseURL, forKey: .baseURL)
+        try container.encode(useSavedModels, forKey: .useSavedModels)
     }
 
     /// Automatically resolves environment configuration from SwiftCode project, tools, and preferences.
     @MainActor
     public static func resolveDefault(for workspaceURL: URL? = nil) -> GoogleCloudSDKConfiguration {
-        let selectedModel = UserDefaults.standard.string(forKey: "assist.geminiModel") ?? "gemini-3.8-flash"
-        let apiKey = KeychainService.shared.get(forKey: LLMProvider.google.keychainKey)
+        let isSavedModels = AppSettings.shared.useSavedModels
+        var selectedModel = UserDefaults.standard.string(forKey: "assist.geminiModel") ?? "gemini-3.8-flash"
+        var apiKey = KeychainService.shared.get(forKey: LLMProvider.google.keychainKey)
+        var provider: String? = nil
+        var baseURL: String? = nil
+        var enableSubagents = true
+
+        if isSavedModels {
+            if let routed = AssistModelRouter.shared.selectModelForSDK() {
+                selectedModel = routed.config.model
+                provider = routed.config.provider
+                baseURL = routed.config.baseURL
+                apiKey = routed.config.apiKey
+                enableSubagents = routed.model.supportsSubagents
+            }
+        }
+
+        // Alternative Keys resolution for Gemini
+        if AppSettings.shared.alternativeKeysEnabled, provider == nil || provider == "gemini" || provider == "google" {
+            if let altKey = AlternativeKeyManager.shared.getActiveOrNextKey() {
+                apiKey = altKey.key
+            }
+        }
 
         var workspaces: [String] = []
         var skillsPaths: [String] = []
@@ -179,11 +215,14 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             workspaces: workspaces,
             appDataDir: appDataDir,
             saveDir: saveDir,
-            enableSubagents: true,
+            enableSubagents: enableSubagents,
             maxSubagentDepth: 3,
             allowedSubagents: nil,
             serviceTier: .standard,
-            tools: toolSchemas
+            tools: toolSchemas,
+            provider: provider,
+            baseURL: baseURL,
+            useSavedModels: isSavedModels
         )
     }
 
@@ -197,8 +236,15 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             "serviceTier": serviceTier.rawValue,
             "skillsPaths": skillsPaths,
             "workspaces": workspaces,
+            "useSavedModels": useSavedModels
         ]
 
+        if let provider = provider, !provider.isEmpty {
+            dict["provider"] = provider
+        }
+        if let baseURL = baseURL, !baseURL.isEmpty {
+            dict["baseURL"] = baseURL
+        }
         if let apiKey = apiKey, !apiKey.isEmpty {
             dict["apiKey"] = apiKey
         }

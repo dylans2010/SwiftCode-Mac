@@ -538,6 +538,7 @@ struct AssistSettingsView: View {
     @State private var endpointShowInPopup = true
 
     // Cached Available Models configurations
+    @State private var discoveryService = AssistModelDiscoveryService.shared
     @State private var cachedModels: [CachedModel] = []
     @State private var isFetchingAvailableModels = false
     @State private var availableModelsFetchError: String? = nil
@@ -547,6 +548,7 @@ struct AssistSettingsView: View {
     @State private var showFoundationModelsSheet = false
     @State private var showMCPServersSheet = false
     @State private var showComposioSheet = false
+    @State private var showAlternativeKeysSheet = false
 
     // Composio Service Integration
     @State private var composioService = ComposioService.shared
@@ -763,6 +765,86 @@ struct AssistSettingsView: View {
                                 Text("The Google Cloud engine runs continuously in the background to deliver instant autonomous tool calls, subagent orchestration, and token streaming.")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
+
+                                Divider()
+                                    .padding(.vertical, 4)
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Toggle(isOn: $settings.useSavedModels) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Use Saved Models")
+                                                .font(.system(size: 13, weight: .semibold))
+                                            Text("Allow Assist to use your saved SwiftCode models instead of relying on Antigravity's default Gemini models.")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .toggleStyle(.switch)
+
+                                    if settings.useSavedModels {
+                                        let stats = discoveryService.getDiscoveryStats()
+                                        HStack(spacing: 8) {
+                                            HStack(spacing: 4) {
+                                                Circle().fill(Color.green).frame(width: 6, height: 6)
+                                                Text("\(stats.total) models available")
+                                                    .font(.caption2.bold())
+                                                    .foregroundStyle(.primary)
+                                            }
+                                            Text("·").font(.caption2).foregroundStyle(.secondary)
+                                            Text("\(stats.providers) providers")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                            Text("·").font(.caption2).foregroundStyle(.secondary)
+                                            Text("\(stats.agentCompatible) agent-compatible")
+                                                .font(.caption2.bold())
+                                                .foregroundStyle(.blue)
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 5)
+                                        .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                                    }
+                                }
+
+                                Divider()
+                                    .padding(.vertical, 4)
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Toggle(isOn: $settings.alternativeKeysEnabled) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Alternative Keys")
+                                                .font(.system(size: 13, weight: .semibold))
+                                            Text("Automatically rotate between saved Gemini API keys when a key encounters rate limits or quota exhaustion.")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .toggleStyle(.switch)
+
+                                    HStack(spacing: 8) {
+                                        let keyCount = AlternativeKeyManager.shared.keys.count
+                                        let readyCount = AlternativeKeyManager.shared.keys.filter { $0.isAvailableForUse }.count
+                                        HStack(spacing: 4) {
+                                            Circle().fill(readyCount > 0 ? Color.green : Color.secondary).frame(width: 6, height: 6)
+                                            Text("\(keyCount) Gemini keys saved (\(readyCount) ready)")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+
+                                        Spacer()
+
+                                        Button {
+                                            showAlternativeKeysSheet = true
+                                        } label: {
+                                            Label("Manage Keys", systemImage: "key.fill")
+                                                .font(.caption2.bold())
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+                                }
                             }
                             .padding(.top, 2)
                         } else {
@@ -858,6 +940,20 @@ struct AssistSettingsView: View {
                                 }
                                 SecureField("Enter Gemini API key", text: $geminiKey)
                                     .textFieldStyle(.roundedBorder)
+
+                                HStack {
+                                    Button {
+                                        showAlternativeKeysSheet = true
+                                    } label: {
+                                        Label("Alternative Keys (\(AlternativeKeyManager.shared.keys.count) configured)", systemImage: "arrow.triangle.2.circlepath")
+                                            .font(.caption2)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+
+                                    Spacer()
+                                }
+                                .padding(.top, 2)
                             }
 
                             VStack(alignment: .leading, spacing: 6) {
@@ -909,83 +1005,209 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 2. Available Models Section
+                // 2. Dynamic Available Models Section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
-                            Label("Available Models", systemImage: "sparkles")
-                                .font(.headline)
-                                .foregroundColor(.purple)
+                            HStack(spacing: 8) {
+                                Label("Available Models", systemImage: "sparkles")
+                                    .font(.headline)
+                                    .foregroundColor(.purple)
+
+                                if discoveryService.isDiscovering {
+                                    HStack(spacing: 4) {
+                                        ProgressView().scaleEffect(0.55)
+                                        Text("Refreshing models…")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+
                             Spacer()
+
+                            Button {
+                                Task {
+                                    await discoveryService.discoverAllModels(forceRefresh: true)
+                                }
+                            } label: {
+                                Label("Refresh", systemImage: "arrow.clockwise")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(discoveryService.isDiscovering)
                         }
 
-                        VStack(alignment: .leading, spacing: 12) {
-                            Picker("Default Model", selection: $settings.selectedAssistModelID) {
-                                ForEach(cachedModels) { model in
-                                    Text("\(model.modelID) (\(model.providerName))")
-                                        .tag(model.modelID)
-                                }
+                        let stats = discoveryService.getDiscoveryStats()
+                        HStack(spacing: 8) {
+                            Text("\(stats.agentCompatible) agent-compatible models")
+                                .font(.caption.bold())
+                                .foregroundStyle(.primary)
+                            Text("·").font(.caption).foregroundStyle(.secondary)
+                            Text("\(stats.total) discovered across \(stats.providers) providers")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            if let last = discoveryService.lastDiscoveryDate {
+                                Spacer()
+                                Text("Updated \(last.formatted(date: .omitted, time: .shortened))")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             }
-                            .pickerStyle(.menu)
+                        }
 
-                            HStack(spacing: 12) {
-                                Picker("Fetch Models From", selection: $selectedFetchProvider) {
-                                    Text("OpenRouter").tag(FetchProviderOption.openRouter)
-                                    Text("OpenAI").tag(FetchProviderOption.openai)
-                                    Text("Anthropic").tag(FetchProviderOption.anthropic)
-                                    Text("Gemini").tag(FetchProviderOption.gemini)
-                                    Text("Foundation Models").tag(FetchProviderOption.foundation)
-                                    ForEach(customEndpointsManager.endpoints) { endpoint in
-                                        Text(endpoint.name).tag(FetchProviderOption.custom(id: endpoint.id, name: endpoint.name))
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .frame(maxWidth: 240)
-                                .onChange(of: selectedFetchProvider) { _, newOption in
-                                    Task {
-                                        await fetchModels(for: newOption)
-                                    }
-                                }
-
-                                if isFetchingAvailableModels {
-                                    ProgressView().scaleEffect(0.6).padding(.leading, 4)
-                                }
-
-                                if selectedFetchProvider == .openRouter {
-                                    Button {
-                                        showFreeModelsSheet = true
-                                    } label: {
-                                        Label("Browse Free Models", systemImage: "gift.fill")
-                                    }
-                                    .buttonStyle(.bordered)
-                                }
-                            }
-
-                            // Free fallback toggle
-                            Toggle(isOn: Binding(
-                                get: { fallbackRotation.isEnabled },
-                                set: { fallbackRotation.isEnabled = $0 }
-                            )) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Automatic Fallback to Other Models")
-                                        .font(.subheadline.bold())
-                                    Text("Rotates through all available models from the active provider automatically if rate limits or network issues strike.")
+                        // Compact grouped model browser
+                        let groups = discoveryService.modelsByProvider
+                        if groups.isEmpty {
+                            if discoveryService.isDiscovering {
+                                HStack {
+                                    ProgressView().scaleEffect(0.7)
+                                    Text("Discovering configured models across providers...")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
-                            }
-                            .padding(.top, 4)
-
-                            if let error = availableModelsFetchError {
-                                Text(error)
+                                .padding(.vertical, 8)
+                            } else {
+                                Text("No models discovered. Ensure your API keys or custom endpoints are configured.")
                                     .font(.caption)
-                                    .foregroundStyle(.red)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.vertical, 8)
                             }
+                        } else {
+                            VStack(spacing: 12) {
+                                ForEach(groups, id: \.providerName) { group in
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        HStack {
+                                            Text(group.providerName)
+                                                .font(.system(size: 12, weight: .bold))
+                                                .foregroundStyle(.primary)
 
-                            Text("Select the primary model used for AI assistance and code generation.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                            let availCount = group.models.filter { $0.isAvailable }.count
+                                            Text("\(availCount) available")
+                                                .font(.system(size: 10, weight: .semibold))
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(availCount > 0 ? Color.green.opacity(0.12) : Color.secondary.opacity(0.1), in: Capsule())
+                                                .foregroundStyle(availCount > 0 ? Color.green : Color.secondary)
+
+                                            if let err = discoveryService.lastDiscoveryErrors[group.providerName] {
+                                                Text("— \(err)")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.red)
+                                                    .lineLimit(1)
+                                            }
+
+                                            Spacer()
+                                        }
+
+                                        VStack(spacing: 4) {
+                                            ForEach(group.models) { model in
+                                                HStack(spacing: 8) {
+                                                    // Status indicator dot
+                                                    Circle()
+                                                        .fill(modelStatusColor(model))
+                                                        .frame(width: 6, height: 6)
+
+                                                    // Model name
+                                                    VStack(alignment: .leading, spacing: 1) {
+                                                        HStack(spacing: 6) {
+                                                            Text(model.displayName)
+                                                                .font(.system(size: 12, weight: .medium))
+
+                                                            if model.supportsToolCalling {
+                                                                Text("Tools")
+                                                                    .font(.system(size: 8, weight: .bold))
+                                                                    .padding(.horizontal, 4)
+                                                                    .padding(.vertical, 1)
+                                                                    .background(Color.blue.opacity(0.12))
+                                                                    .foregroundStyle(.blue)
+                                                                    .cornerRadius(3)
+                                                            }
+
+                                                            if model.supportsVision {
+                                                                Image(systemName: "eye.fill")
+                                                                    .font(.system(size: 8))
+                                                                    .foregroundStyle(.secondary)
+                                                            }
+
+                                                            if model.supportsSubagents {
+                                                                Text("Subagents")
+                                                                    .font(.system(size: 8, weight: .bold))
+                                                                    .padding(.horizontal, 4)
+                                                                    .padding(.vertical, 1)
+                                                                    .background(Color.indigo.opacity(0.12))
+                                                                    .foregroundStyle(.indigo)
+                                                                    .cornerRadius(3)
+                                                            }
+                                                        }
+
+                                                        Text(model.modelIdentifier)
+                                                            .font(.system(size: 10, design: .monospaced))
+                                                            .foregroundStyle(.secondary)
+                                                    }
+
+                                                    Spacer()
+
+                                                    // Status label
+                                                    Text(modelStatusLabel(model))
+                                                        .font(.system(size: 10))
+                                                        .foregroundStyle(modelStatusColor(model))
+
+                                                    // Selection button
+                                                    if settings.selectedAssistModelID == model.modelIdentifier {
+                                                        Image(systemName: "checkmark.circle.fill")
+                                                            .font(.system(size: 14))
+                                                            .foregroundStyle(.green)
+                                                    } else if model.isAvailable && model.supportsAgenticUse {
+                                                        Button("Select") {
+                                                            settings.selectedAssistModelID = model.modelIdentifier
+                                                            settings.selectedModel = model.modelIdentifier
+                                                        }
+                                                        .buttonStyle(.bordered)
+                                                        .controlSize(.mini)
+                                                    }
+                                                }
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(
+                                                    RoundedRectangle(cornerRadius: 6)
+                                                        .fill(settings.selectedAssistModelID == model.modelIdentifier ? Color.accentColor.opacity(0.06) : Color.primary.opacity(0.02))
+                                                )
+                                            }
+                                        }
+                                    }
+                                    .padding(8)
+                                    .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8))
+                                }
+                            }
                         }
+
+                        Divider().padding(.vertical, 2)
+
+                        // Default Model Picker for quick switching
+                        Picker("Active Default Model", selection: $settings.selectedAssistModelID) {
+                            ForEach(discoveryService.discoveredModels) { model in
+                                Text("\(model.displayName) (\(model.providerName))")
+                                    .tag(model.modelIdentifier)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        // Free fallback rotation toggle
+                        Toggle(isOn: Binding(
+                            get: { fallbackRotation.isEnabled },
+                            set: { fallbackRotation.isEnabled = $0 }
+                        )) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Automatic Fallback to Other Models")
+                                    .font(.subheadline.bold())
+                                Text("Rotates through all available models from the active provider automatically if rate limits or network issues strike.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.top, 4)
                     }
                     .padding()
                 }
@@ -1541,9 +1763,16 @@ struct AssistSettingsView: View {
             }
             .frame(minWidth: 700, minHeight: 650)
         }
+        .sheet(isPresented: $showAlternativeKeysSheet) {
+            AlternativeKeysView()
+                .environmentObject(settings)
+        }
         .onAppear {
             loadAPIKeys()
             loadCachedModels()
+            Task {
+                await discoveryService.discoverAllModels()
+            }
         }
         .onChange(of: customEndpoint) { _, _ in
             if isEditingEndpoint && isNewEndpoint { triggerAutoFetchCustomModels() }
@@ -1770,14 +1999,52 @@ struct AssistSettingsView: View {
     }
 
     private func loadCachedModels() {
-        // No-op to prevent caching models on start
-        cachedModels = []
+        cachedModels = discoveryService.discoveredModels.map { CachedModel(modelID: $0.modelIdentifier, providerName: $0.providerName) }
     }
 
     private func saveCachedModels() {
         // No-op to prevent caching models in UserDefaults
     }
 
+    private func modelStatusColor(_ model: AssistAvailableModel) -> Color {
+        if model.isCurrentlyRateLimited { return .orange }
+        switch model.status {
+        case .available:
+            return model.supportsAgenticUse ? .green : .purple
+        case .authRequired:
+            return .yellow
+        case .providerUnavailable:
+            return .red
+        case .unsupportedAgentic:
+            return .purple
+        case .rateLimited:
+            return .orange
+        case .configured:
+            return .blue
+        case .unavailable:
+            return .secondary
+        }
+    }
+
+    private func modelStatusLabel(_ model: AssistAvailableModel) -> String {
+        if model.isCurrentlyRateLimited { return "Rate limited" }
+        switch model.status {
+        case .available:
+            return model.supportsAgenticUse ? "Available" : "No tool support"
+        case .authRequired:
+            return "Auth required"
+        case .providerUnavailable:
+            return "Provider offline"
+        case .unsupportedAgentic:
+            return "Unsupported for agentic use"
+        case .rateLimited:
+            return "Rate limited"
+        case .configured:
+            return "Configured"
+        case .unavailable:
+            return "Unavailable"
+        }
+    }
 }
 
 // MARK: - Models For Assist Selection Card

@@ -543,7 +543,17 @@ public final class LLMService: Sendable {
         try handleHTTPError(response, data: data)
 
         if provider == .anthropic {
-            return ["claude-3-5-sonnet-20240620", "claude-3-opus-20240229", "claude-3-haiku-20240307"]
+            struct AnthropicModelsResponse: Codable {
+                struct Entry: Codable {
+                    let id: String
+                }
+                let data: [Entry]?
+            }
+            if let decoded = try? JSONDecoder().decode(AnthropicModelsResponse.self, from: data),
+               let list = decoded.data, !list.isEmpty {
+                return list.map { $0.id }
+            }
+            return []
         }
 
         let decoded = try JSONDecoder().decode(ModelListResponse.self, from: data)

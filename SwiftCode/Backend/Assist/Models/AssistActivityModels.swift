@@ -171,6 +171,7 @@ public struct TestActivityItem: Codable, Identifiable, Sendable {
     public var skippedCount: Int
     public var failureDetails: [String]
     public var status: ActivityStatus
+    public var duration: TimeInterval
     public let timestamp: Date
 
     public init(
@@ -181,6 +182,7 @@ public struct TestActivityItem: Codable, Identifiable, Sendable {
         skippedCount: Int = 0,
         failureDetails: [String] = [],
         status: ActivityStatus = .completed,
+        duration: TimeInterval = 0.0,
         timestamp: Date = Date()
     ) {
         self.id = id
@@ -190,6 +192,7 @@ public struct TestActivityItem: Codable, Identifiable, Sendable {
         self.skippedCount = skippedCount
         self.failureDetails = failureDetails
         self.status = status
+        self.duration = duration
         self.timestamp = timestamp
     }
 }

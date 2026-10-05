@@ -25,7 +25,7 @@ if "ANTIGRAVITY_HARNESS_PATH" not in os.environ:
     if os.path.exists(candidate):
         os.environ["ANTIGRAVITY_HARNESS_PATH"] = candidate
 
-from google.antigravity import Agent, LocalAgentConfig, types
+from google.antigravity import Agent, LocalAgentConfig, LocalOpenAIAgentConfig, types
 from google.antigravity.hooks import hooks, policy
 from google.antigravity.types import Text, Thought, ToolCall, ToolResult
 from google.antigravity.tools.tool_runner import ToolWithSchema
@@ -86,9 +86,11 @@ class AgentRunner:
         self,
         emit_fn: Callable[[str, Dict[str, Any]], None],
         request_tool_execution_fn: Optional[Callable[[str, str, Dict[str, Any]], Awaitable[Dict[str, Any]]]] = None,
+        adapter_server: Optional[Any] = None,
     ):
         self.emit_fn = emit_fn
         self.request_tool_execution_fn = request_tool_execution_fn
+        self.adapter_server = adapter_server
         self.sessions: Dict[str, ActiveSession] = {}
         self._lock = asyncio.Lock()
 
@@ -282,37 +284,86 @@ class AgentRunner:
                 agent_behavior=types.AgentBehavior.AUTONOMOUS,
             )
 
-            # Build LocalAgentConfig
-            config_kwargs: Dict[str, Any] = {
-                "model": model,
-                "capabilities": cap_config,
-                "policies": session_policies,
-                "hooks": self._create_hooks(session_id),
-            }
+            # Determine provider & routing strategy
+            provider = (params.get("provider") or "").lower()
+            use_saved_models = params.get("useSavedModels", False)
+            base_url = params.get("baseURL") or ""
 
-            if dynamic_tools:
-                config_kwargs["tools"] = dynamic_tools
+            is_gemini = (not use_saved_models) or (provider in ("gemini", "google")) or (not provider and model.startswith("gemini"))
 
-            if api_key:
-                config_kwargs["api_key"] = api_key
-            if vertex:
-                config_kwargs["vertex"] = True
-                if project:
-                    config_kwargs["project"] = project
-                if location:
-                    config_kwargs["location"] = location
-            if system_instructions:
-                config_kwargs["system_instructions"] = system_instructions
-            if skills_paths:
-                config_kwargs["skills_paths"] = skills_paths
-            if workspaces:
-                config_kwargs["workspaces"] = workspaces
-            if app_data_dir and os.path.isabs(app_data_dir):
-                config_kwargs["app_data_dir"] = app_data_dir
-            if save_dir and os.path.isabs(save_dir):
-                config_kwargs["save_dir"] = save_dir
+            if is_gemini:
+                config_kwargs: Dict[str, Any] = {
+                    "model": model,
+                    "capabilities": cap_config,
+                    "policies": session_policies,
+                    "hooks": self._create_hooks(session_id),
+                }
 
-            agent_config = LocalAgentConfig(**config_kwargs)
+                if dynamic_tools:
+                    config_kwargs["tools"] = dynamic_tools
+
+                if api_key:
+                    config_kwargs["api_key"] = api_key
+                if vertex:
+                    config_kwargs["vertex"] = True
+                    if project:
+                        config_kwargs["project"] = project
+                    if location:
+                        config_kwargs["location"] = location
+                if system_instructions:
+                    config_kwargs["system_instructions"] = system_instructions
+                if skills_paths:
+                    config_kwargs["skills_paths"] = skills_paths
+                if workspaces:
+                    config_kwargs["workspaces"] = workspaces
+                if app_data_dir and os.path.isabs(app_data_dir):
+                    config_kwargs["app_data_dir"] = app_data_dir
+                if save_dir and os.path.isabs(save_dir):
+                    config_kwargs["save_dir"] = save_dir
+
+                agent_config = LocalAgentConfig(**config_kwargs)
+            else:
+                # Use LocalOpenAIAgentConfig with direct local endpoint or bridge adapter
+                resolved_base_url = base_url
+                if provider in ("ollama", "lmstudio") and not resolved_base_url:
+                    resolved_base_url = "http://localhost:11434/v1" if provider == "ollama" else "http://localhost:1234/v1"
+
+                if not resolved_base_url or provider in ("anthropic", "claude", "openai", "openrouter", "custom"):
+                    if self.adapter_server and self.adapter_server.actual_port > 0:
+                        self.adapter_server.register_target(
+                            model_name=model,
+                            provider=provider,
+                            api_key=api_key,
+                            base_url=base_url,
+                            headers=params.get("headers"),
+                        )
+                        resolved_base_url = f"http://127.0.0.1:{self.adapter_server.actual_port}/v1"
+                    elif not resolved_base_url:
+                        resolved_base_url = "http://127.0.0.1:11434/v1"
+
+                openai_config_kwargs: Dict[str, Any] = {
+                    "model": model,
+                    "base_url": resolved_base_url,
+                    "capabilities": cap_config,
+                    "policies": session_policies,
+                    "hooks": self._create_hooks(session_id),
+                }
+
+                if dynamic_tools:
+                    openai_config_kwargs["tools"] = dynamic_tools
+                if system_instructions:
+                    openai_config_kwargs["system_instructions"] = system_instructions
+                if skills_paths:
+                    openai_config_kwargs["skills_paths"] = skills_paths
+                if workspaces:
+                    openai_config_kwargs["workspaces"] = workspaces
+                if app_data_dir and os.path.isabs(app_data_dir):
+                    openai_config_kwargs["app_data_dir"] = app_data_dir
+                if save_dir and os.path.isabs(save_dir):
+                    openai_config_kwargs["save_dir"] = save_dir
+
+                agent_config = LocalOpenAIAgentConfig(**openai_config_kwargs)
+
             agent = Agent(config=agent_config)
 
             # Enter agent async context

@@ -60,6 +60,8 @@ public final class AssistManager: ObservableObject {
     private var activeAgentTask: Task<Void, Never>?
     private var activeGoogleCloudSession: GoogleCloudSDKSession?
     private var activeGoogleCloudTask: Task<Void, Never>?
+    private var activeGoogleCloudModelId: String?
+    private var activeGoogleCloudModelDisplayName: String?
 
     // Transcript vs Model Context separation
     public private(set) var modelContext: [ModelContextSection] = []
@@ -678,13 +680,21 @@ public final class AssistManager: ObservableObject {
             GoogleCloudSDKAttachment(name: $0.filename, path: $0.filename, mimeType: $0.mimeType, content: $0.base64Content)
         }
 
+        let isSavedModels = AppSettings.shared.useSavedModels
+        let initialRouted = isSavedModels ? AssistModelRouter.shared.selectModelForSDK() : nil
+        let initialConfig = initialRouted?.config ?? GoogleCloudSDKConfiguration.resolveDefault()
+        let initialModelId = initialRouted?.model.modelIdentifier ?? initialConfig.model
+        let initialModelName = initialRouted?.model.displayName ?? (initialConfig.model)
+
         let session: GoogleCloudSDKSession
         if let existing = activeGoogleCloudSession {
             session = existing
         } else {
             do {
-                session = try await runtime.createSession()
+                session = try await runtime.createSession(config: initialConfig)
                 activeGoogleCloudSession = session
+                activeGoogleCloudModelId = initialModelId
+                activeGoogleCloudModelDisplayName = initialModelName
             } catch {
                 await MainActor.run {
                     self.lastError = "Failed to create Antigravity session: \(error.localizedDescription)"
@@ -713,33 +723,101 @@ public final class AssistManager: ObservableObject {
                 }
             }
 
-            let eventStream = await session.subscribeEvents()
-            let streamTask = Task { @MainActor in
-                streamLoop: for await event in eventStream {
-                    guard !Task.isCancelled else { break streamLoop }
-                    guard let idx = self.messages.indices.last else { continue }
-                    switch event {
-                    case .agentProgress(_, let delta, let thoughtDelta):
-                        if let thought = thoughtDelta, !thought.isEmpty {
-                            if !self.isThinking {
-                                self.isThinking = true
-                                self.startThinkingTimer()
-                            }
-                            self.activeThinkingText += thought
-                            self.messages[idx].thinkingContent = self.activeThinkingText
-                        }
-                        if let delta = delta {
-                            if self.isThinking {
-                                self.stopThinkingTimer()
-                                if let start = self.thinkingStartedAt {
-                                    self.thinkingDurationSeconds = max(1, Int(Date().timeIntervalSince(start)))
-                                    self.messages[idx].thinkingDuration = Double(self.thinkingDurationSeconds)
+            var currentPrompt = content
+            var currentAttachments = sdkAttachments
+            var currentSession: GoogleCloudSDKSession = session
+            var currentConfig = initialConfig
+            var currentModelId = initialModelId
+            var currentModelName = initialModelName
+            var attempts = 0
+            let maxFailoverAttempts = 15
+
+            executionLoop: while attempts < maxFailoverAttempts {
+                attempts += 1
+                let eventStream = await currentSession.subscribeEvents()
+                var turnError: String? = nil
+                var turnCompletedSuccessfully = false
+
+                let streamTask = Task { @MainActor in
+                    streamLoop: for await event in eventStream {
+                        guard !Task.isCancelled else { break streamLoop }
+                        guard let idx = self.messages.indices.last else { continue }
+                        switch event {
+                        case .agentProgress(_, let delta, let thoughtDelta):
+                            if let thought = thoughtDelta, !thought.isEmpty {
+                                if !self.isThinking {
+                                    self.isThinking = true
+                                    self.startThinkingTimer()
                                 }
+                                self.activeThinkingText += thought
+                                self.messages[idx].thinkingContent = self.activeThinkingText
                             }
-                            self.currentActivityStatus = "Responding..."
+                            if let delta = delta {
+                                if self.isThinking {
+                                    self.stopThinkingTimer()
+                                    if let start = self.thinkingStartedAt {
+                                        self.thinkingDurationSeconds = max(1, Int(Date().timeIntervalSince(start)))
+                                        self.messages[idx].thinkingDuration = Double(self.thinkingDurationSeconds)
+                                    }
+                                }
+                                self.currentActivityStatus = "Responding..."
+                                self.messages[idx] = AssistMessage(
+                                    role: self.messages[idx].role,
+                                    content: self.messages[idx].content + delta,
+                                    attachments: self.messages[idx].attachments,
+                                    mcpExecution: self.messages[idx].mcpExecution,
+                                    composioExecution: self.messages[idx].composioExecution,
+                                    activityGroup: self.messages[idx].activityGroup,
+                                    thinkingContent: self.messages[idx].thinkingContent,
+                                    thinkingDuration: self.messages[idx].thinkingDuration
+                                )
+                            }
+                        case .toolStarted(let tool):
+                            let argsDict: [String: Any] = (try? JSONSerialization.jsonObject(with: tool.rawArgs.data(using: .utf8) ?? Data())) as? [String: Any] ?? [:]
+                            self.reportToolStarted(callId: tool.id, toolName: tool.name, arguments: argsDict)
+
+                        case .toolCompleted(let res):
+                            self.reportToolCompleted(callId: res.id, toolName: res.name, output: res.result, arguments: [:])
+
+                        case .toolFailed(let toolId, let name, let err):
+                            self.reportToolFailed(callId: toolId, toolName: name, error: err, arguments: [:])
+
+                        case .workerStarted(_, let workerId, let name, let args):
+                            self.reportWorkerStarted(workerId: workerId, name: name, args: args)
+
+                        case .workerProgress(_, _, let progress):
+                            self.currentActivityStatus = progress
+
+                        case .workerCompleted(_, let workerId, let result):
+                            self.reportWorkerCompleted(workerId: workerId, result: result)
+
+                        case .workerFailed(_, let workerId, let error):
+                            self.reportWorkerFailed(workerId: workerId, error: error)
+
+                        case .agentCompleted(_, let response, _, _):
+                            self.stopThinkingTimer()
+                            if let start = self.thinkingStartedAt {
+                                self.messages[idx].thinkingDuration = Double(max(1, Int(Date().timeIntervalSince(start))))
+                            }
+                            self.thinkingStartedAt = nil
+                            self.activeThinkingText = ""
+
+                            if var activity = self.messages[idx].activityGroup {
+                                for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
+                                    activity.tools[tIdx].status = .completed
+                                    if let comp = activity.tools[tIdx].completedLabel {
+                                        activity.tools[tIdx].purpose = comp
+                                    }
+                                }
+                                activity.isExecuting = false
+                                self.messages[idx].activityGroup = activity
+                            }
+
+                            let currentContent = self.messages[idx].content
+                            let finalContent = currentContent.isEmpty ? response : currentContent
                             self.messages[idx] = AssistMessage(
                                 role: self.messages[idx].role,
-                                content: self.messages[idx].content + delta,
+                                content: finalContent,
                                 attachments: self.messages[idx].attachments,
                                 mcpExecution: self.messages[idx].mcpExecution,
                                 composioExecution: self.messages[idx].composioExecution,
@@ -747,103 +825,202 @@ public final class AssistManager: ObservableObject {
                                 thinkingContent: self.messages[idx].thinkingContent,
                                 thinkingDuration: self.messages[idx].thinkingDuration
                             )
+                            self.messages[idx].activityGroup?.isExecuting = false
+                            self.saveHistory()
+                            self.currentActivityStatus = "Idle"
+                            self.isProcessing = false
+                            turnCompletedSuccessfully = true
+                            break streamLoop
+
+                        case .agentFailed(_, let err):
+                            self.stopThinkingTimer()
+                            self.thinkingStartedAt = nil
+                            self.activeThinkingText = ""
+                            turnError = err
+
+                            if var activity = self.messages[idx].activityGroup {
+                                for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
+                                    activity.tools[tIdx].status = .failed
+                                    activity.tools[tIdx].result = err
+                                }
+                                self.messages[idx].activityGroup = activity
+                            }
+                            break streamLoop
+
+                        default:
+                            break
                         }
-                    case .toolStarted(let tool):
-                        let argsDict: [String: Any] = (try? JSONSerialization.jsonObject(with: tool.rawArgs.data(using: .utf8) ?? Data())) as? [String: Any] ?? [:]
-                        self.reportToolStarted(callId: tool.id, toolName: tool.name, arguments: argsDict)
+                    }
+                }
 
-                    case .toolCompleted(let res):
-                        self.reportToolCompleted(callId: res.id, toolName: res.name, output: res.result, arguments: [:])
+                do {
+                    try await currentSession.sendMessage(currentPrompt, attachments: currentAttachments)
+                    _ = await streamTask.result
+                } catch {
+                    streamTask.cancel()
+                    turnError = error.localizedDescription
+                }
 
-                    case .toolFailed(let toolId, let name, let err):
-                        self.reportToolFailed(callId: toolId, toolName: name, error: err, arguments: [:])
+                if turnCompletedSuccessfully {
+                    break executionLoop
+                }
 
-                    case .workerStarted(_, let workerId, let name, let args):
-                        self.reportWorkerStarted(workerId: workerId, name: name, args: args)
+                let altKeysEnabled = await MainActor.run { AppSettings.shared.alternativeKeysEnabled }
+                let savedModelsEnabled = await MainActor.run { AppSettings.shared.useSavedModels }
+                let isGemini = currentModelId.lowercased().contains("gemini") || currentModelName.lowercased().contains("gemini") || (currentConfig.provider == nil || currentConfig.provider == "gemini" || currentConfig.provider == "google")
 
-                    case .workerProgress(_, _, let progress):
-                        self.currentActivityStatus = progress
+                if let errText = turnError {
+                    let isQuota = AssistModelRouter.shared.isQuotaOrRateLimit(errorText: errText)
+                    let isPermanentAuth = errText.contains("401") || errText.contains("403") || errText.contains("API_KEY_INVALID") || errText.contains("invalid api key")
 
-                    case .workerCompleted(_, let workerId, let result):
-                        self.reportWorkerCompleted(workerId: workerId, result: result)
+                    // 1. Alternative Keys Rotation (Gemini)
+                    if altKeysEnabled && isGemini && (isQuota || isPermanentAuth) {
+                        let activeId = await MainActor.run { AlternativeKeyManager.shared.activeKeyId }
 
-                    case .workerFailed(_, let workerId, let error):
-                        self.reportWorkerFailed(workerId: workerId, error: error)
-
-                    case .agentCompleted(_, let response, _, _):
-                        self.stopThinkingTimer()
-                        if let start = self.thinkingStartedAt {
-                            self.messages[idx].thinkingDuration = Double(max(1, Int(Date().timeIntervalSince(start))))
-                        }
-                        self.thinkingStartedAt = nil
-                        self.activeThinkingText = ""
-
-                        // Finalize any running tools so no spinners remain stuck
-                        if var activity = self.messages[idx].activityGroup {
-                            for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
-                                activity.tools[tIdx].status = .completed
-                                if let comp = activity.tools[tIdx].completedLabel {
-                                    activity.tools[tIdx].purpose = comp
+                        if isPermanentAuth, let aid = activeId {
+                            await MainActor.run {
+                                AlternativeKeyManager.shared.markFailed(id: aid, isPermanentAuthError: true)
+                            }
+                        } else if isQuota {
+                            if let aid = activeId {
+                                await MainActor.run {
+                                    AlternativeKeyManager.shared.markRateLimited(id: aid, retryAfterSeconds: 60.0)
                                 }
                             }
-                            activity.isExecuting = false
-                            self.messages[idx].activityGroup = activity
-                        }
 
-                        let currentContent = self.messages[idx].content
-                        let finalContent = currentContent.isEmpty ? response : currentContent
-                        self.messages[idx] = AssistMessage(
-                            role: self.messages[idx].role,
-                            content: finalContent,
-                            attachments: self.messages[idx].attachments,
-                            mcpExecution: self.messages[idx].mcpExecution,
-                            composioExecution: self.messages[idx].composioExecution,
-                            activityGroup: self.messages[idx].activityGroup,
-                            thinkingContent: self.messages[idx].thinkingContent,
-                            thinkingDuration: self.messages[idx].thinkingDuration
-                        )
-                        self.messages[idx].activityGroup?.isExecuting = false
-                        self.saveHistory()
-                        self.currentActivityStatus = "Idle"
-                        self.isProcessing = false
-                        break streamLoop
-                    case .agentFailed(_, let err):
-                        self.stopThinkingTimer()
-                        self.thinkingStartedAt = nil
-                        self.activeThinkingText = ""
-                        self.lastError = err
-
-                        if var activity = self.messages[idx].activityGroup {
-                            for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
-                                activity.tools[tIdx].status = .failed
-                                activity.tools[tIdx].result = err
+                            // Update activity UI exactly per specification:
+                            // "Gemini key rate limited — rotating key"
+                            await MainActor.run {
+                                self.currentActivityStatus = "Gemini key rate limited — rotating key"
                             }
-                            activity.isExecuting = false
-                            self.messages[idx].activityGroup = activity
+
+                            // "Waiting 2 seconds before retry"
+                            await MainActor.run {
+                                self.currentActivityStatus = "Waiting 2 seconds before retry"
+                            }
+                            // Mandatory 2-second backend wait
+                            try? await Task.sleep(nanoseconds: 2_000_000_000)
                         }
 
-                        self.saveHistory()
-                        self.currentActivityStatus = "Idle"
-                        self.isProcessing = false
-                        break streamLoop
-                    }
-                }
-            }
-
-            do {
-                try await session.sendMessage(content, attachments: sdkAttachments)
-                _ = await streamTask.result
-            } catch {
-                streamTask.cancel()
-                if !Task.isCancelled {
-                    await MainActor.run {
-                        self.lastError = error.localizedDescription
-                        if let idx = self.messages.indices.last {
-                            self.messages[idx].activityGroup?.isExecuting = false
+                        // Select next available key
+                        let nextKeyResult = await MainActor.run {
+                            AlternativeKeyManager.shared.selectNextAvailableKey(excludingId: activeId)
                         }
-                        self.saveHistory()
+
+                        if let nextKey = nextKeyResult {
+                            let keyIndex = nextKey.metadata.orderIndex + 1
+                            await MainActor.run {
+                                self.currentActivityStatus = "Switched to Gemini key \(keyIndex)"
+                                if let idx = self.messages.indices.last {
+                                    // Clear aborted buffer so retry writes cleanly into current assistant message
+                                    self.messages[idx].content = ""
+                                    self.messages[idx].thinkingContent = ""
+                                    self.messages[idx].activityGroup?.isExecuting = true
+                                }
+                            }
+
+                            // Cleanly close previous session
+                            await runtime.closeSession(id: currentSession.id)
+                            await MainActor.run {
+                                self.activeGoogleCloudSession = nil
+                            }
+
+                            currentConfig.apiKey = nextKey.key
+                            do {
+                                let newSession = try await runtime.createSession(config: currentConfig)
+                                await MainActor.run {
+                                    self.activeGoogleCloudSession = newSession
+                                }
+                                currentSession = newSession
+                                continue executionLoop
+                            } catch {
+                                turnError = error.localizedDescription
+                                continue executionLoop
+                            }
+                        } else {
+                            // All Gemini keys exhausted
+                            if !savedModelsEnabled {
+                                await MainActor.run {
+                                    self.lastError = "All configured Gemini API keys are currently unavailable."
+                                    if let idx = self.messages.indices.last {
+                                        self.messages[idx].activityGroup?.isExecuting = false
+                                        self.messages[idx] = AssistMessage(
+                                            role: .assistant,
+                                            content: "All configured Gemini API keys are currently unavailable."
+                                        )
+                                    }
+                                    self.saveHistory()
+                                    self.currentActivityStatus = "Idle"
+                                    self.isProcessing = false
+                                }
+                                break executionLoop
+                            }
+                        }
+                    }
+
+                    // 2. Saved Models Multi-Provider Fallover
+                    if savedModelsEnabled {
+                        let priorOutput = await MainActor.run { self.messages.last?.content ?? "" }
+                        if let failover = await AssistModelRouter.shared.handleTurnFailure(
+                            failedModelIdentifier: currentModelId,
+                            errorText: errText,
+                            originalPrompt: content,
+                            priorTurnOutput: priorOutput
+                        ) {
+                            let oldName = currentModelName
+                            let newName = failover.nextModel.displayName
+                            await MainActor.run {
+                                self.currentActivityStatus = "\(oldName) quota reached — switching to \(newName)"
+                                if let idx = self.messages.indices.last {
+                                    self.messages[idx].activityGroup?.isExecuting = true
+                                }
+                            }
+
+                            // Cleanly close previous session
+                            await runtime.closeSession(id: currentSession.id)
+                            await MainActor.run {
+                                self.activeGoogleCloudSession = nil
+                            }
+
+                            // Create session with failover candidate
+                            do {
+                                let newSession = try await runtime.createSession(config: failover.nextConfig)
+                                await MainActor.run {
+                                    self.activeGoogleCloudSession = newSession
+                                    self.activeGoogleCloudModelId = failover.nextModel.modelIdentifier
+                                    self.activeGoogleCloudModelDisplayName = newName
+                                }
+                                currentSession = newSession
+                                currentConfig = failover.nextConfig
+                                currentModelId = failover.nextModel.modelIdentifier
+                                currentModelName = newName
+                                currentPrompt = failover.continuationPrompt
+                                currentAttachments = []
+                                continue executionLoop
+                            } catch {
+                                turnError = error.localizedDescription
+                                currentModelId = failover.nextModel.modelIdentifier
+                                continue executionLoop
+                            }
+                        }
                     }
                 }
+
+                // Terminal failure
+                await MainActor.run {
+                    let finalErrorMsg = (altKeysEnabled && isGemini) ? "All configured Gemini API keys are currently unavailable." : (turnError ?? "Execution failed")
+                    self.lastError = finalErrorMsg
+                    if let idx = self.messages.indices.last {
+                        self.messages[idx].activityGroup?.isExecuting = false
+                        if self.messages[idx].content.isEmpty {
+                            self.messages[idx] = AssistMessage(role: .assistant, content: finalErrorMsg)
+                        }
+                    }
+                    self.saveHistory()
+                    self.currentActivityStatus = "Idle"
+                    self.isProcessing = false
+                }
+                break executionLoop
             }
         }
 
@@ -905,7 +1082,7 @@ public final class AssistManager: ObservableObject {
         // Build operations integration
         if toolName == "project_build" || toolName == "build_project" || toolName == "build" {
             if !activity.builds.contains(where: { $0.status == .running }) {
-                activity.builds.append(BuildActivityItem(scheme: "SwiftCode", configuration: "Release", status: .running))
+                activity.builds.append(BuildActivityItem(scheme: "SwiftCode", status: .running))
             }
         }
 
@@ -920,7 +1097,7 @@ public final class AssistManager: ObservableObject {
         if toolName == "use_terminal" || toolName == "task_runner" || toolName == "run_command" {
             let rawCmd = arguments["command"] as? String ?? arguments["CommandLine"] as? String ?? arguments["cmd"] as? String ?? ""
             if !rawCmd.isEmpty && !activity.terminalCommands.contains(where: { $0.command == rawCmd }) {
-                activity.terminalCommands.append(TerminalActivityItem(command: rawCmd, workingDirectory: ProjectSessionStore.shared.activeProject?.directoryURL?.path ?? "", output: "", exitCode: 0, status: .running, timestamp: Date()))
+                activity.terminalCommands.append(TerminalActivityItem(command: rawCmd, workingDirectory: ProjectSessionStore.shared.activeProject?.directoryURL.path ?? "", output: "", exitCode: 0, status: .running, timestamp: Date()))
             }
         }
 

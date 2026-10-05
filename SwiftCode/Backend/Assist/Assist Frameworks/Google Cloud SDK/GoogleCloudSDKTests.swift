@@ -29,6 +29,9 @@ public final class GoogleCloudSDKTests: Sendable {
         results.append(await testEventStreamingSubscription())
         results.append(await testSecurityCredentialSafety())
 
+        let routerTests = await AssistModelRouterTests.shared.runAllTests()
+        results.append(contentsOf: routerTests)
+
         return results
     }
 
