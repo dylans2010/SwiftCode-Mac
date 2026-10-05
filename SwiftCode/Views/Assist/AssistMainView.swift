@@ -106,17 +106,6 @@ public struct AssistMainView: View {
                 .buttonStyle(.plain)
                 .help("System Diagnostics")
 
-                // Codex Setup Trigger
-                Button {
-                    showingCodexSetup = true
-                } label: {
-                    Image(systemName: "sparkles")
-                        .font(.body)
-                        .foregroundStyle(.orange)
-                }
-                .buttonStyle(.plain)
-                .help("Configure Codex CLI")
-
                 // Assist Settings Trigger
                 Button {
                     withAnimation(.spring()) {
