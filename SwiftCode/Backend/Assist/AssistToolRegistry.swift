@@ -34,6 +34,29 @@ public final class AssistToolRegistry {
     private var schemaCache: [String: String] = [:]
     private var registryVersion: Int = 0
 
+    // Read-only result cache for runtime idempotency
+    private var readOnlyResultCache: [String: (result: String, timestamp: Date)] = [:]
+    private var lastMutationTimestamp: Date = Date.distantPast
+
+    public func invalidateReadOnlyCache() {
+        readOnlyResultCache.removeAll()
+        lastMutationTimestamp = Date()
+    }
+
+    public func getCachedResult(semanticKey: String) -> String? {
+        guard let cached = readOnlyResultCache[semanticKey] else { return nil }
+        if cached.timestamp >= lastMutationTimestamp {
+            return cached.result
+        } else {
+            readOnlyResultCache.removeValue(forKey: semanticKey)
+            return nil
+        }
+    }
+
+    public func setCachedResult(_ result: String, for semanticKey: String) {
+        readOnlyResultCache[semanticKey] = (result: result, timestamp: Date())
+    }
+
     public init() {
         registerAllTools()
     }

@@ -2,24 +2,49 @@ import Foundation
 
 /// Activity status for execution items inside the Assist Activity disclosure panel.
 public enum ActivityStatus: String, Codable, Sendable {
+    case pending = "Pending"
     case running = "Running"
+    case retrying = "Retrying"
     case completed = "Completed"
     case failed = "Failed"
-    case retrying = "Retrying"
     case skipped = "Skipped"
+    case cancelled = "Cancelled"
 
     public var iconName: String {
         switch self {
+        case .pending: return "clock"
         case .running: return "ellipsis.circle"
+        case .retrying: return "arrow.counterclockwise.circle.fill"
         case .completed: return "checkmark.circle.fill"
         case .failed: return "exclamationmark.triangle.fill"
-        case .retrying: return "arrow.counterclockwise.circle.fill"
         case .skipped: return "slash.circle"
+        case .cancelled: return "xmark.circle.fill"
         }
     }
 }
 
-/// Tool activity item representing tool execution inside Activity disclosure.
+/// Structured operation state model for tracking explicit lifecycle transitions.
+public enum AssistOperationState: Codable, Sendable, Equatable {
+    case pending
+    case running
+    case retrying(attempt: Int)
+    case completed
+    case failed(reason: String)
+    case cancelled
+
+    public var activityStatus: ActivityStatus {
+        switch self {
+        case .pending: return .pending
+        case .running: return .running
+        case .retrying: return .retrying
+        case .completed: return .completed
+        case .failed: return .failed
+        case .cancelled: return .cancelled
+        }
+    }
+}
+
+/// Tool activity item representing logical tool execution inside Activity disclosure.
 public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
     public let id: UUID
     public let toolId: String
@@ -31,6 +56,10 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
     public var displayLabel: String?
     public var completedLabel: String?
     public var iconName: String?
+    public var attemptsCount: Int
+    public var retryCount: Int
+    public var semanticKey: String?
+    public var operationId: String?
 
     public init(
         id: UUID = UUID(),
@@ -42,7 +71,11 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         timestamp: Date = Date(),
         displayLabel: String? = nil,
         completedLabel: String? = nil,
-        iconName: String? = nil
+        iconName: String? = nil,
+        attemptsCount: Int = 1,
+        retryCount: Int = 0,
+        semanticKey: String? = nil,
+        operationId: String? = nil
     ) {
         self.id = id
         self.toolId = toolId
@@ -54,6 +87,10 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         self.displayLabel = displayLabel
         self.completedLabel = completedLabel
         self.iconName = iconName
+        self.attemptsCount = attemptsCount
+        self.retryCount = retryCount
+        self.semanticKey = semanticKey
+        self.operationId = operationId
     }
 }
 
@@ -110,6 +147,7 @@ public struct TerminalActivityItem: Codable, Identifiable, Sendable {
     public var exitCode: Int32?
     public var status: ActivityStatus
     public let timestamp: Date
+    public var attemptsCount: Int
 
     public init(
         id: UUID = UUID(),
@@ -118,7 +156,8 @@ public struct TerminalActivityItem: Codable, Identifiable, Sendable {
         output: String = "",
         exitCode: Int32? = nil,
         status: ActivityStatus = .completed,
-        timestamp: Date = Date()
+        timestamp: Date = Date(),
+        attemptsCount: Int = 1
     ) {
         self.id = id
         self.command = command
@@ -127,6 +166,7 @@ public struct TerminalActivityItem: Codable, Identifiable, Sendable {
         self.exitCode = exitCode
         self.status = status
         self.timestamp = timestamp
+        self.attemptsCount = attemptsCount
     }
 }
 
@@ -140,6 +180,7 @@ public struct BuildActivityItem: Codable, Identifiable, Sendable {
     public var diagnostics: [String]
     public var duration: TimeInterval
     public let timestamp: Date
+    public var attemptsCount: Int
 
     public init(
         id: UUID = UUID(),
@@ -149,7 +190,8 @@ public struct BuildActivityItem: Codable, Identifiable, Sendable {
         warningCount: Int = 0,
         diagnostics: [String] = [],
         duration: TimeInterval = 0.0,
-        timestamp: Date = Date()
+        timestamp: Date = Date(),
+        attemptsCount: Int = 1
     ) {
         self.id = id
         self.scheme = scheme
@@ -159,6 +201,7 @@ public struct BuildActivityItem: Codable, Identifiable, Sendable {
         self.diagnostics = diagnostics
         self.duration = duration
         self.timestamp = timestamp
+        self.attemptsCount = attemptsCount
     }
 }
 
@@ -173,6 +216,7 @@ public struct TestActivityItem: Codable, Identifiable, Sendable {
     public var status: ActivityStatus
     public var duration: TimeInterval
     public let timestamp: Date
+    public var attemptsCount: Int
 
     public init(
         id: UUID = UUID(),
@@ -183,7 +227,8 @@ public struct TestActivityItem: Codable, Identifiable, Sendable {
         failureDetails: [String] = [],
         status: ActivityStatus = .completed,
         duration: TimeInterval = 0.0,
-        timestamp: Date = Date()
+        timestamp: Date = Date(),
+        attemptsCount: Int = 1
     ) {
         self.id = id
         self.suiteName = suiteName
@@ -194,6 +239,7 @@ public struct TestActivityItem: Codable, Identifiable, Sendable {
         self.status = status
         self.duration = duration
         self.timestamp = timestamp
+        self.attemptsCount = attemptsCount
     }
 }
 
@@ -207,16 +253,18 @@ public struct WorkerActivityItem: Codable, Identifiable, Sendable {
     public var taskDescription: String
     public var status: ActivityStatus
     public var progress: Double
+    public var userFacingTitle: String
 
     public init(
         id: UUID = UUID(),
         workerId: String,
         name: String,
-        role: String,
-        scope: String,
+        role: String = "Subagent",
+        scope: String = "Workspace",
         taskDescription: String = "",
         status: ActivityStatus = .running,
-        progress: Double = 0.0
+        progress: Double = 0.0,
+        userFacingTitle: String? = nil
     ) {
         self.id = id
         self.workerId = workerId
@@ -226,6 +274,14 @@ public struct WorkerActivityItem: Codable, Identifiable, Sendable {
         self.taskDescription = taskDescription
         self.status = status
         self.progress = progress
+
+        if let title = userFacingTitle, !title.isEmpty {
+            self.userFacingTitle = title
+        } else {
+            let cleanName = name.replacingOccurrences(of: "start_subagent", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            self.userFacingTitle = cleanName.isEmpty ? "Worker" : "Worker · \(cleanName)"
+        }
     }
 }
 

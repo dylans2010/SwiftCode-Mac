@@ -218,6 +218,7 @@ public final class AssistManager: ObservableObject {
         }
 
         await MainActor.run {
+            AssistEventNormalizer.shared.resetForNewTask()
             messages.append(AssistMessage(role: .user, content: trimmed, attachments: attachments))
             isProcessing = true
             isThinking = false
@@ -1044,62 +1045,13 @@ public final class AssistManager: ObservableObject {
 
         guard let idx = self.messages.indices.last else { return }
         var activity = self.messages[idx].activityGroup ?? AssistActivityGroup(isExecuting: true)
-        activity.isExecuting = true
 
-        let itemId = UUID(uuidString: callId) ?? UUID()
-        if let existingIdx = activity.tools.firstIndex(where: { $0.id == itemId || ($0.toolId == toolName && $0.status == .running) }) {
-            activity.tools[existingIdx].status = .running
-            activity.tools[existingIdx].purpose = formatted.runningLabel
-            activity.tools[existingIdx].displayLabel = formatted.runningLabel
-            activity.tools[existingIdx].completedLabel = formatted.completedLabel
-            activity.tools[existingIdx].iconName = formatted.iconName
-        } else {
-            let newItem = ToolActivityItem(
-                id: itemId,
-                toolId: toolName,
-                purpose: formatted.runningLabel,
-                result: "",
-                status: .running,
-                duration: 0.0,
-                timestamp: Date(),
-                displayLabel: formatted.runningLabel,
-                completedLabel: formatted.completedLabel,
-                iconName: formatted.iconName
-            )
-            activity.tools.append(newItem)
-        }
-
-        // File operations integration
-        if let path = AssistToolActivityFormatter.extractFilePath(arguments: arguments) {
-            let op = AssistToolActivityFormatter.determineFileOperation(toolId: toolName)
-            if let op = op {
-                if !activity.files.contains(where: { $0.filePath == path }) {
-                    activity.files.append(FileActivityItem(filePath: path, operation: op))
-                }
-            }
-        }
-
-        // Build operations integration
-        if toolName == "project_build" || toolName == "build_project" || toolName == "build" {
-            if !activity.builds.contains(where: { $0.status == .running }) {
-                activity.builds.append(BuildActivityItem(scheme: "SwiftCode", status: .running))
-            }
-        }
-
-        // Test operations integration
-        if toolName == "run_tests" || toolName == "test_runner" || toolName == "test" {
-            if !activity.tests.contains(where: { $0.status == .running }) {
-                activity.tests.append(TestActivityItem(suiteName: "SwiftCodeTests", status: .running))
-            }
-        }
-
-        // Terminal operations integration
-        if toolName == "use_terminal" || toolName == "task_runner" || toolName == "run_command" {
-            let rawCmd = arguments["command"] as? String ?? arguments["CommandLine"] as? String ?? arguments["cmd"] as? String ?? ""
-            if !rawCmd.isEmpty && !activity.terminalCommands.contains(where: { $0.command == rawCmd }) {
-                activity.terminalCommands.append(TerminalActivityItem(command: rawCmd, workingDirectory: ProjectSessionStore.shared.activeProject?.directoryURL.path ?? "", output: "", exitCode: 0, status: .running, timestamp: Date()))
-            }
-        }
+        AssistEventNormalizer.shared.normalizeToolStarted(
+            callId: callId,
+            toolName: toolName,
+            arguments: arguments,
+            in: &activity
+        )
 
         self.messages[idx].activityGroup = activity
     }
@@ -1112,57 +1064,13 @@ public final class AssistManager: ObservableObject {
         guard let idx = self.messages.indices.last else { return }
         guard var activity = self.messages[idx].activityGroup else { return }
 
-        let itemId = UUID(uuidString: callId)
-        let toolIdx = activity.tools.firstIndex(where: {
-            (itemId != nil && $0.id == itemId) || ($0.toolId == toolName && $0.status == .running)
-        })
-
-        if let tIdx = toolIdx {
-            activity.tools[tIdx].status = .completed
-            activity.tools[tIdx].result = output ?? ""
-            activity.tools[tIdx].duration = max(0.1, Date().timeIntervalSince(activity.tools[tIdx].timestamp))
-            activity.tools[tIdx].purpose = formatted.completedLabel
-            activity.tools[tIdx].completedLabel = formatted.completedLabel
-        } else {
-            let newItem = ToolActivityItem(
-                id: itemId ?? UUID(),
-                toolId: toolName,
-                purpose: formatted.completedLabel,
-                result: output ?? "",
-                status: .completed,
-                duration: 0.1,
-                timestamp: Date(),
-                displayLabel: formatted.runningLabel,
-                completedLabel: formatted.completedLabel,
-                iconName: formatted.iconName
-            )
-            activity.tools.append(newItem)
-        }
-
-        // Finalize builds
-        if toolName == "project_build" || toolName == "build_project" || toolName == "build" {
-            for bIdx in activity.builds.indices where activity.builds[bIdx].status == .running {
-                activity.builds[bIdx].status = .completed
-                activity.builds[bIdx].duration = Date().timeIntervalSince(activity.builds[bIdx].timestamp)
-            }
-        }
-
-        // Finalize tests
-        if toolName == "run_tests" || toolName == "test_runner" || toolName == "test" {
-            for tIdx in activity.tests.indices where activity.tests[tIdx].status == .running {
-                activity.tests[tIdx].status = .completed
-                activity.tests[tIdx].passedCount = max(1, activity.tests[tIdx].passedCount)
-                activity.tests[tIdx].duration = Date().timeIntervalSince(activity.tests[tIdx].timestamp)
-            }
-        }
-
-        // Finalize terminal
-        if toolName == "use_terminal" || toolName == "task_runner" || toolName == "run_command" {
-            for cIdx in activity.terminalCommands.indices where activity.terminalCommands[cIdx].status == .running {
-                activity.terminalCommands[cIdx].status = .completed
-                activity.terminalCommands[cIdx].output = output ?? ""
-            }
-        }
+        AssistEventNormalizer.shared.normalizeToolCompleted(
+            callId: callId,
+            toolName: toolName,
+            output: output,
+            arguments: arguments,
+            in: &activity
+        )
 
         self.messages[idx].activityGroup = activity
     }
@@ -1170,103 +1078,74 @@ public final class AssistManager: ObservableObject {
     @MainActor
     public func reportToolFailed(callId: String, toolName: String, error: String, arguments: [String: Any]) {
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
-        self.currentActivityStatus = formatted.failedLabel
+        let cleanError = AssistEventNormalizer.shared.sanitizeErrorMessage(rawError: error, toolName: toolName)
+        self.currentActivityStatus = "\(formatted.failedLabel) — \(cleanError)"
 
         guard let idx = self.messages.indices.last else { return }
         guard var activity = self.messages[idx].activityGroup else { return }
 
-        let itemId = UUID(uuidString: callId)
-        let toolIdx = activity.tools.firstIndex(where: {
-            (itemId != nil && $0.id == itemId) || ($0.toolId == toolName && $0.status == .running)
-        })
-
-        if let tIdx = toolIdx {
-            activity.tools[tIdx].status = .failed
-            activity.tools[tIdx].result = error
-            activity.tools[tIdx].duration = max(0.1, Date().timeIntervalSince(activity.tools[tIdx].timestamp))
-            activity.tools[tIdx].purpose = formatted.failedLabel
-        } else {
-            let newItem = ToolActivityItem(
-                id: itemId ?? UUID(),
-                toolId: toolName,
-                purpose: formatted.failedLabel,
-                result: error,
-                status: .failed,
-                duration: 0.1,
-                timestamp: Date(),
-                displayLabel: formatted.runningLabel,
-                completedLabel: formatted.completedLabel,
-                iconName: formatted.iconName
-            )
-            activity.tools.append(newItem)
-        }
-
-        // Finalize builds
-        if toolName == "project_build" || toolName == "build_project" || toolName == "build" {
-            for bIdx in activity.builds.indices where activity.builds[bIdx].status == .running {
-                activity.builds[bIdx].status = .failed
-                activity.builds[bIdx].errorCount = 1
-                activity.builds[bIdx].duration = Date().timeIntervalSince(activity.builds[bIdx].timestamp)
-            }
-        }
-
-        // Finalize tests
-        if toolName == "run_tests" || toolName == "test_runner" || toolName == "test" {
-            for tIdx in activity.tests.indices where activity.tests[tIdx].status == .running {
-                activity.tests[tIdx].status = .failed
-                activity.tests[tIdx].failedCount = 1
-                activity.tests[tIdx].duration = Date().timeIntervalSince(activity.tests[tIdx].timestamp)
-            }
-        }
-
-        // Finalize terminal
-        if toolName == "use_terminal" || toolName == "task_runner" || toolName == "run_command" {
-            for cIdx in activity.terminalCommands.indices where activity.terminalCommands[cIdx].status == .running {
-                activity.terminalCommands[cIdx].status = .failed
-                activity.terminalCommands[cIdx].output = error
-            }
-        }
+        AssistEventNormalizer.shared.normalizeToolFailed(
+            callId: callId,
+            toolName: toolName,
+            error: error,
+            arguments: arguments,
+            in: &activity
+        )
 
         self.messages[idx].activityGroup = activity
     }
 
     @MainActor
     public func reportWorkerStarted(workerId: String, name: String, args: String) {
-        self.currentActivityStatus = "Worker: \(name)..."
+        let cleanName = name.replacingOccurrences(of: "start_subagent", with: "")
+            .replacingOccurrences(of: "Worker:", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = cleanName.isEmpty ? "Worker" : "Worker · \(cleanName)"
+        self.currentActivityStatus = "\(title)..."
+
         guard let idx = self.messages.indices.last else { return }
         var activity = self.messages[idx].activityGroup ?? AssistActivityGroup(isExecuting: true)
-        let item = WorkerActivityItem(
+
+        AssistEventNormalizer.shared.normalizeWorkerStarted(
             workerId: workerId,
             name: name,
-            role: "Subagent",
-            scope: "Workspace",
-            taskDescription: args,
-            status: .running
+            args: args,
+            in: &activity
         )
-        activity.workers.append(item)
+
         self.messages[idx].activityGroup = activity
     }
 
     @MainActor
     public func reportWorkerCompleted(workerId: String, result: String) {
         self.currentActivityStatus = "Worker completed"
+
         guard let idx = self.messages.indices.last else { return }
         guard var activity = self.messages[idx].activityGroup else { return }
-        if let wIdx = activity.workers.indices.last {
-            activity.workers[wIdx].status = .completed
-            activity.workers[wIdx].progress = 1.0
-        }
+
+        AssistEventNormalizer.shared.normalizeWorkerCompleted(
+            workerId: workerId,
+            result: result,
+            in: &activity
+        )
+
         self.messages[idx].activityGroup = activity
     }
 
     @MainActor
     public func reportWorkerFailed(workerId: String, error: String) {
-        self.currentActivityStatus = "Worker failed"
+        let cleanErr = AssistEventNormalizer.shared.sanitizeErrorMessage(rawError: error, toolName: "worker")
+        self.currentActivityStatus = "Worker failed — \(cleanErr)"
+
         guard let idx = self.messages.indices.last else { return }
         guard var activity = self.messages[idx].activityGroup else { return }
-        if let wIdx = activity.workers.indices.last {
-            activity.workers[wIdx].status = .failed
-        }
+
+        AssistEventNormalizer.shared.normalizeWorkerFailed(
+            workerId: workerId,
+            error: error,
+            in: &activity
+        )
+
         self.messages[idx].activityGroup = activity
     }
 }

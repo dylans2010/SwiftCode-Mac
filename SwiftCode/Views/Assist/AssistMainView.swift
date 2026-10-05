@@ -1451,7 +1451,7 @@ private struct AssistLiveActivityFeed: View {
                         ProgressView()
                             .scaleEffect(0.4)
                             .frame(width: 14, height: 14)
-                        Text("Worker: \(worker.name)...")
+                        Text("\(worker.userFacingTitle)…")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.primary)
                     } else if worker.status == .completed {
@@ -1459,7 +1459,7 @@ private struct AssistLiveActivityFeed: View {
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(.green.opacity(0.85))
                             .frame(width: 14, height: 14)
-                        Text("Worker completed: \(worker.name)")
+                        Text(worker.userFacingTitle)
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                     } else {
@@ -1467,7 +1467,7 @@ private struct AssistLiveActivityFeed: View {
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(.red)
                             .frame(width: 14, height: 14)
-                        Text("Worker failed: \(worker.name)")
+                        Text("\(worker.userFacingTitle) failed")
                             .font(.system(size: 11))
                             .foregroundStyle(.red.opacity(0.9))
                     }

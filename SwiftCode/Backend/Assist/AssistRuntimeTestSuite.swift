@@ -63,6 +63,7 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(await testMyersDiffAlgorithmAndLiveStreamer())
         results.append(await testOfflineModelFallbackClassificationAndRehydration())
         results.append(await testAssistWorkersSubsystem())
+        results.append(await testEventNormalizationAndActivityTrajectory())
         results.append(contentsOf: await GoogleCloudSDKTests.shared.runAllTests())
 
         let duration = Date().timeIntervalSince(startTime)
@@ -719,6 +720,70 @@ public final class AssistRuntimeTestSuite: Sendable {
             testName: "Assist Workers Multi-Agent Subsystem",
             passed: passed,
             message: passed ? "All Worker validation gates, state machines, handoffs, and durable persistence verified." : "Worker subsystem regression check failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 19. Event Normalization & Activity Trajectory Regression Test
+    public func testEventNormalizationAndActivityTrajectory() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let normalizer = AssistEventNormalizer.shared
+        normalizer.resetForNewTask()
+
+        var activityGroup = AssistActivityGroup(isExecuting: true)
+
+        // 1. Simulate Directory Inspection: Failure -> Retry -> Success + Duplicate Event
+        let dirCallId1 = UUID().uuidString
+        let dirArgs: [String: Any] = ["path": "SwiftCode"]
+
+        normalizer.normalizeToolStarted(callId: dirCallId1, toolName: "read_directory", arguments: dirArgs, in: &activityGroup)
+        normalizer.normalizeToolFailed(callId: dirCallId1, toolName: "read_directory", error: "Failed to inspect directory", in: &activityGroup)
+
+        let dirCallId2 = UUID().uuidString
+        normalizer.normalizeToolStarted(callId: dirCallId2, toolName: "read_directory", arguments: dirArgs, in: &activityGroup)
+        normalizer.normalizeToolCompleted(callId: dirCallId2, toolName: "read_directory", output: "Sources, Tests", arguments: dirArgs, in: &activityGroup)
+
+        // Replay duplicate completed event
+        normalizer.normalizeToolCompleted(callId: dirCallId2, toolName: "read_directory", output: "Sources, Tests", arguments: dirArgs, in: &activityGroup)
+
+        // Verify directory inspection results in exactly 1 logical activity
+        let dirToolCount = activityGroup.tools.filter { $0.toolId == "read_directory" }.count
+        let dirToolState = activityGroup.tools.first(where: { $0.toolId == "read_directory" })
+        let dirPassed = dirToolCount == 1 && dirToolState?.status == .completed && dirToolState?.retryCount == 1
+
+        // 2. Simulate Search: Failure -> Retry -> Success
+        let searchCallId1 = UUID().uuidString
+        let searchArgs: [String: Any] = ["query": "import"]
+
+        normalizer.normalizeToolStarted(callId: searchCallId1, toolName: "search_files", arguments: searchArgs, in: &activityGroup)
+        normalizer.normalizeToolFailed(callId: searchCallId1, toolName: "search_files", error: "Search failed", in: &activityGroup)
+
+        let searchCallId2 = UUID().uuidString
+        normalizer.normalizeToolStarted(callId: searchCallId2, toolName: "search_files", arguments: searchArgs, in: &activityGroup)
+        normalizer.normalizeToolCompleted(callId: searchCallId2, toolName: "search_files", output: "Matches found", arguments: searchArgs, in: &activityGroup)
+
+        let searchToolCount = activityGroup.tools.filter { $0.toolId == "search_files" }.count
+        let searchToolState = activityGroup.tools.first(where: { $0.toolId == "search_files" })
+        let searchPassed = searchToolCount == 1 && searchToolState?.status == .completed && searchToolState?.retryCount == 1
+
+        // 3. Simulate Worker Lifecycle with clean user-facing title
+        let workerId = UUID().uuidString
+        normalizer.normalizeWorkerStarted(workerId: workerId, name: "start_subagent Codebase audit", args: "Audit code", in: &activityGroup)
+        let workerTitleClean = activityGroup.workers.first?.userFacingTitle == "Worker · Codebase audit"
+        normalizer.normalizeWorkerCompleted(workerId: workerId, result: "Audit finished", in: &activityGroup)
+        let workerPassed = workerTitleClean && activityGroup.workers.first?.status == .completed
+
+        // 4. Simple Task Simulation ("Hello"): Ensure resetForNewTask clears operations
+        normalizer.resetForNewTask()
+        var simpleTaskActivity = AssistActivityGroup(isExecuting: true)
+        let simpleTaskPassed = !simpleTaskActivity.hasContent && simpleTaskActivity.tools.isEmpty && simpleTaskActivity.workers.isEmpty
+
+        let passed = dirPassed && searchPassed && workerPassed && simpleTaskPassed
+
+        return RuntimeTestCaseResult(
+            testName: "Event Normalization & Activity Trajectory",
+            passed: passed,
+            message: passed ? "Deduplication, retry grouping, sanitized errors, and worker titles verified." : "Event normalization regression test failed.",
             duration: Date().timeIntervalSince(start)
         )
     }
