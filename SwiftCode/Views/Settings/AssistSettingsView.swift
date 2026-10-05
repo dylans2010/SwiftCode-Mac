@@ -1026,6 +1026,41 @@ struct AssistSettingsView: View {
 
                             Spacer()
 
+                            if discoveryService.availableProviderNames.count > 1 {
+                                Menu {
+                                    Section("Select Provider to Remove") {
+                                        ForEach(discoveryService.availableProviderNames, id: \.self) { providerName in
+                                            let isHidden = discoveryService.hiddenProviderNames.contains(providerName)
+                                            Button {
+                                                if isHidden {
+                                                    discoveryService.restoreProvider(providerName)
+                                                } else {
+                                                    discoveryService.removeProvider(providerName)
+                                                }
+                                            } label: {
+                                                if isHidden {
+                                                    Label("\(providerName) (Removed - Click to Restore)", systemImage: "eye.slash")
+                                                } else {
+                                                    Label("Remove \(providerName)", systemImage: "trash")
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if !discoveryService.hiddenProviderNames.isEmpty {
+                                        Divider()
+                                        Button("Restore All Providers") {
+                                            discoveryService.restoreAllProviders()
+                                        }
+                                    }
+                                } label: {
+                                    Label("Remove Providers", systemImage: "line.3.horizontal.decrease.circle")
+                                        .font(.caption)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+
                             Button {
                                 Task {
                                     await discoveryService.discoverAllModels(forceRefresh: true)
@@ -1048,6 +1083,12 @@ struct AssistSettingsView: View {
                             Text("\(stats.total) discovered across \(stats.providers) providers")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+
+                            if !discoveryService.hiddenProviderNames.isEmpty {
+                                Text("(\(discoveryService.hiddenProviderNames.count) provider(s) removed)")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
 
                             if let last = discoveryService.lastDiscoveryDate {
                                 Spacer()
@@ -1213,45 +1254,6 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 2.1 SwiftCloud Models Section
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack {
-                            Label("SwiftCloud Models", systemImage: "cloud.fill")
-                                .font(.headline)
-                                .foregroundColor(.blue)
-                            Spacer()
-                        }
-
-                        VStack(alignment: .leading, spacing: 12) {
-                            Toggle("Enable SwiftCloud-hosted Models", isOn: $settings.swiftCloudModelsEnabled)
-                                .toggleStyle(.switch)
-
-                            Text("When enabled, SwiftCloud-hosted AI models are routed through the secure, centralized configuration. Supports OpenRouter and Gemini. Daily requests are limited to 15 successful queries across these models to ensure fair usage.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-
-                            if settings.swiftCloudModelsEnabled {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    HStack {
-                                        Text("Daily Request Tracker:")
-                                            .font(.caption.bold())
-                                        Spacer()
-                                    }
-                                    Text("\(LLMService.shared.swiftCloudRequestsRemaining) requests remaining of 15 today.")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .padding(8)
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(6)
-                            }
-                        }
-                    }
-                    .padding()
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
-
                 // Models for Assist Selection Card
                 #if false
                 ModelsForAssist(settings: settings, cachedModels: cachedModels, customEndpoints: customEndpointsManager.endpoints)
@@ -1360,88 +1362,6 @@ struct AssistSettingsView: View {
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
-                        }
-                    }
-                    .padding()
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
-
-                // 3c. Assist on Google Cloud Engine Section
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack {
-                            Label("Assist on Google Cloud Engine", systemImage: "cloud.fill")
-                                .font(.headline)
-                                .foregroundColor(.blue)
-
-                            Spacer()
-
-                            let runtime = GoogleCloudSDKRuntime.shared
-                            if runtime.isRunning {
-                                HStack(spacing: 4) {
-                                    Circle().fill(Color.green).frame(width: 8, height: 8)
-                                    Text("Running (v\(runtime.sdkVersion))")
-                                        .font(.caption2.bold())
-                                        .foregroundColor(.green)
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(Color.green.opacity(0.12), in: Capsule())
-                            } else if runtime.isStarting {
-                                HStack(spacing: 4) {
-                                    ProgressView().scaleEffect(0.5)
-                                    Text("Starting...")
-                                        .font(.caption2.bold())
-                                        .foregroundColor(.orange)
-                                }
-                            } else if runtime.isAvailable {
-                                HStack(spacing: 4) {
-                                    Circle().fill(Color.secondary).frame(width: 8, height: 8)
-                                    Text("Installed (v\(runtime.sdkVersion))")
-                                        .font(.caption2.bold())
-                                        .foregroundColor(.secondary)
-                                }
-                            } else {
-                                HStack(spacing: 4) {
-                                    Circle().fill(Color.red).frame(width: 8, height: 8)
-                                    Text("Unavailable")
-                                        .font(.caption2.bold())
-                                        .foregroundColor(.red)
-                                }
-                            }
-                        }
-
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Bundled native Assist on Google Cloud runtime. Executes Gemini autonomous agents with persistent sessions, real-time token/thought streaming, and built-in coding tools.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            HStack(spacing: 12) {
-                                Button {
-                                    Task {
-                                        let runtime = GoogleCloudSDKRuntime.shared
-                                        if runtime.isRunning {
-                                            await GoogleCloudSDKLifecycleManager.shared.stopEngine()
-                                        } else {
-                                            try? await GoogleCloudSDKLifecycleManager.shared.startEngine()
-                                        }
-                                    }
-                                } label: {
-                                    let runtime = GoogleCloudSDKRuntime.shared
-                                    Label(runtime.isRunning ? "Stop Engine" : "Start Engine", systemImage: runtime.isRunning ? "stop.fill" : "play.fill")
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .buttonStyle(.bordered)
-
-                                Button {
-                                    Task {
-                                        try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
-                                    }
-                                } label: {
-                                    Label("Restart Engine", systemImage: "arrow.clockwise")
-                                }
-                                .buttonStyle(.bordered)
-                            }
                         }
                     }
                     .padding()

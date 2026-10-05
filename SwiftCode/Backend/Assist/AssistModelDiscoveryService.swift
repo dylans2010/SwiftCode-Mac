@@ -19,13 +19,33 @@ public final class AssistModelDiscoveryService: Sendable {
     public var isDiscovering: Bool = false
     public var lastDiscoveryDate: Date? = nil
     public var lastDiscoveryErrors: [String: String] = [:]
+    public var hiddenProviderNames: Set<String> = []
 
     private let cacheKey = "com.swiftcode.assist.discovered_models_cache"
     private let cacheDateKey = "com.swiftcode.assist.discovered_models_cache_date"
+    private let hiddenProvidersKey = "com.swiftcode.assist.hidden_provider_names"
     private let cacheTTL: TimeInterval = 600 // 10 minutes
 
     private init() {
         loadCachedModels()
+        if let savedHidden = UserDefaults.standard.stringArray(forKey: hiddenProvidersKey) {
+            self.hiddenProviderNames = Set(savedHidden)
+        }
+    }
+
+    public func removeProvider(_ name: String) {
+        hiddenProviderNames.insert(name)
+        UserDefaults.standard.set(Array(hiddenProviderNames), forKey: hiddenProvidersKey)
+    }
+
+    public func restoreProvider(_ name: String) {
+        hiddenProviderNames.remove(name)
+        UserDefaults.standard.set(Array(hiddenProviderNames), forKey: hiddenProvidersKey)
+    }
+
+    public func restoreAllProviders() {
+        hiddenProviderNames.removeAll()
+        UserDefaults.standard.removeObject(forKey: hiddenProvidersKey)
     }
 
     // MARK: - Public Discovery API
@@ -711,39 +731,45 @@ public final class AssistModelDiscoveryService: Sendable {
         self.discoveredModels = decoded
     }
 
+    public func getProviderName(for model: AssistAvailableModel) -> String {
+        if model.source == .appleFoundationModels {
+            return "Apple Foundation Models"
+        } else if model.source == .local || model.providerID == "local" || model.providerID == "ollama" || model.providerID == "lmstudio" {
+            return "Local / Ollama"
+        } else if model.providerID == "mistral" {
+            return "Mistral"
+        } else if model.providerID == "qwen" {
+            return "Qwen"
+        } else if model.source == .custom {
+            return "Custom Models"
+        } else if model.source == .gemini {
+            return "Gemini"
+        } else if model.source == .claude {
+            return "Claude"
+        } else if model.source == .openAI {
+            return "OpenAI"
+        } else if model.source == .openRouter {
+            return "OpenRouter"
+        } else {
+            return model.providerName
+        }
+    }
+
     public func getDiscoveryStats() -> (total: Int, providers: Int, agentCompatible: Int) {
-        let total = discoveredModels.count
-        let providers = Set(discoveredModels.filter { $0.isAvailable || $0.isConfigured }.map { $0.providerName }).count
-        let agent = agentCompatibleModels.count
+        let visibleModels = discoveredModels.filter { model in
+            !hiddenProviderNames.contains(getProviderName(for: model))
+        }
+        let total = visibleModels.count
+        let providers = Set(visibleModels.filter { $0.isAvailable || $0.isConfigured }.map { getProviderName(for: $0) }).count
+        let agent = visibleModels.filter { $0.supportsAgenticUse && $0.supportsToolCalling && $0.isAvailable && !$0.isCurrentlyRateLimited }.count
         return (total, max(1, providers), agent)
     }
 
-    public var modelsByProvider: [(providerName: String, models: [AssistAvailableModel])] {
+    public var unfilteredModelsByProvider: [(providerName: String, models: [AssistAvailableModel])] {
         let order = ["Gemini", "Claude", "OpenAI", "Mistral", "Qwen", "Apple Foundation Models", "Custom Models", "Local / Ollama", "OpenRouter"]
         var grouped: [String: [AssistAvailableModel]] = [:]
         for model in discoveredModels {
-            let key: String
-            if model.source == .appleFoundationModels {
-                key = "Apple Foundation Models"
-            } else if model.source == .local || model.providerID == "local" || model.providerID == "ollama" || model.providerID == "lmstudio" {
-                key = "Local / Ollama"
-            } else if model.providerID == "mistral" {
-                key = "Mistral"
-            } else if model.providerID == "qwen" {
-                key = "Qwen"
-            } else if model.source == .custom {
-                key = "Custom Models"
-            } else if model.source == .gemini {
-                key = "Gemini"
-            } else if model.source == .claude {
-                key = "Claude"
-            } else if model.source == .openAI {
-                key = "OpenAI"
-            } else if model.source == .openRouter {
-                key = "OpenRouter"
-            } else {
-                key = model.providerName
-            }
+            let key = getProviderName(for: model)
             grouped[key, default: []].append(model)
         }
 
@@ -757,5 +783,13 @@ public final class AssistModelDiscoveryService: Sendable {
             result.append((name, list))
         }
         return result
+    }
+
+    public var modelsByProvider: [(providerName: String, models: [AssistAvailableModel])] {
+        unfilteredModelsByProvider.filter { !hiddenProviderNames.contains($0.providerName) }
+    }
+
+    public var availableProviderNames: [String] {
+        unfilteredModelsByProvider.map { $0.providerName }
     }
 }
