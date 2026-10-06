@@ -362,6 +362,18 @@ public enum AssistToolActivityFormatter {
             )
         }
 
+        // 22. Skills search
+        if ["search_skills", "skill_search"].contains(normalizedId) {
+            let query = arguments["query"] as? String ?? ""
+            let desc = !query.isEmpty ? "\"\(query)\"" : "skills"
+            return ToolFormattedActivity(
+                runningLabel: "Searching agent skills for \(desc)...",
+                completedLabel: "Searched agent skills",
+                failedLabel: "Failed to search skills",
+                iconName: "wand.and.stars"
+            )
+        }
+
         // Fallback: Humanize snake_case or camelCase identifier
         let humanized = humanizeIdentifier(toolId)
         return ToolFormattedActivity(

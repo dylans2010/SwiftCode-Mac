@@ -548,6 +548,7 @@ struct AssistSettingsView: View {
     @State private var showFoundationModelsSheet = false
     @State private var showMCPServersSheet = false
     @State private var showComposioSheet = false
+    @State private var showSkillsSheet = false
     @State private var showAlternativeKeysSheet = false
 
     // Composio Service Integration
@@ -1097,31 +1098,21 @@ struct AssistSettingsView: View {
 
                             Spacer()
 
-                            if discoveryService.availableProviderNames.count > 1 {
+                            let removableProviders = discoveryService.availableProviderNames.filter {
+                                $0 != "Apple Foundation Models" && !discoveryService.hiddenProviderNames.contains($0)
+                            }
+                            if !removableProviders.isEmpty {
                                 Menu {
                                     Section("Select Provider to Remove") {
-                                        ForEach(discoveryService.availableProviderNames, id: \.self) { providerName in
-                                            let isHidden = discoveryService.hiddenProviderNames.contains(providerName)
+                                        ForEach(removableProviders, id: \.self) { providerName in
                                             Button {
-                                                if isHidden {
-                                                    discoveryService.restoreProvider(providerName)
-                                                } else {
-                                                    discoveryService.removeProvider(providerName)
+                                                discoveryService.removeProvider(providerName)
+                                                Task {
+                                                    await discoveryService.discoverAllModels(forceRefresh: true)
                                                 }
                                             } label: {
-                                                if isHidden {
-                                                    Label("\(providerName) (Removed - Click to Restore)", systemImage: "eye.slash")
-                                                } else {
-                                                    Label("Remove \(providerName)", systemImage: "trash")
-                                                }
+                                                Label("Remove \(providerName)", systemImage: "trash")
                                             }
-                                        }
-                                    }
-
-                                    if !discoveryService.hiddenProviderNames.isEmpty {
-                                        Divider()
-                                        Button("Restore All Providers") {
-                                            discoveryService.restoreAllProviders()
                                         }
                                     }
                                 } label: {
@@ -1279,6 +1270,27 @@ struct AssistSettingsView: View {
                                                         .buttonStyle(.bordered)
                                                         .controlSize(.mini)
                                                     }
+
+                                                    // Model Removal / Protection
+                                                    if discoveryService.isFoundationModel(model) {
+                                                        Image(systemName: "lock.shield")
+                                                            .font(.system(size: 11))
+                                                            .foregroundStyle(.secondary.opacity(0.6))
+                                                            .help("Foundation Models is a system model integration (Protected)")
+                                                    } else {
+                                                        Button {
+                                                            discoveryService.removeModel(model.modelIdentifier)
+                                                            Task {
+                                                                await discoveryService.discoverAllModels(forceRefresh: true)
+                                                            }
+                                                        } label: {
+                                                            Image(systemName: "trash")
+                                                                .font(.system(size: 11))
+                                                                .foregroundStyle(.secondary)
+                                                        }
+                                                        .buttonStyle(.plain)
+                                                        .help("Remove model permanently")
+                                                    }
                                                 }
                                                 .padding(.horizontal, 8)
                                                 .padding(.vertical, 4)
@@ -1430,6 +1442,43 @@ struct AssistSettingsView: View {
                                 showComposioSheet = true
                             } label: {
                                 Label("Manage Composio & Integrations", systemImage: "arrow.up.right.square")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // 3c. Agent Skills Management Section
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Agent Skills", systemImage: "sparkles")
+                                .font(.headline)
+                                .foregroundColor(.orange)
+
+                            Spacer()
+
+                            let activeCount = SkillIndex.shared.skills.filter { $0.isEnabled }.count
+                            Text("\(activeCount) Active")
+                                .font(.caption2.bold())
+                                .foregroundColor(.orange)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Color.orange.opacity(0.12), in: Capsule())
+                        }
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Modular domain-specific engineering playbooks discovered across Codex, Claude, VS Code, and Antigravity. Indexed locally in Application Support.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Button {
+                                showSkillsSheet = true
+                            } label: {
+                                Label("Manage Agent Skills", systemImage: "arrow.up.right.square")
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
@@ -1758,6 +1807,20 @@ struct AssistSettingsView: View {
             AlternativeKeysView()
                 .environmentObject(settings)
         }
+        .sheet(isPresented: $showSkillsSheet) {
+            NavigationStack {
+                ModernSkillsBrowserView()
+                    .navigationTitle("Agent Skills")
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") {
+                                showSkillsSheet = false
+                            }
+                        }
+                    }
+            }
+            .frame(minWidth: 850, minHeight: 600)
+        }
         .onAppear {
             loadAPIKeys()
             loadCachedModels()
@@ -1981,12 +2044,20 @@ struct AssistSettingsView: View {
 
         isEditingEndpoint = false
         selectedEndpoint = nil
+
+        Task {
+            await discoveryService.discoverAllModels(forceRefresh: true)
+        }
     }
 
     private func deleteEndpoint(_ endpoint: SavedCustomEndpoint) {
-        customEndpointsManager.endpoints.removeAll { $0.id == endpoint.id }
+        customEndpointsManager.deleteEndpoint(id: endpoint.id)
         isEditingEndpoint = false
         selectedEndpoint = nil
+
+        Task {
+            await discoveryService.discoverAllModels(forceRefresh: true)
+        }
     }
 
     private func loadCachedModels() {

@@ -7,24 +7,32 @@ public struct AssistPlannerView: View {
     public init() {}
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if planner.isPlanning {
+        if planner.isPlanning {
+            VStack(alignment: .leading, spacing: 16) {
                 planningHeader
-            } else if let plan = planner.currentPlan {
+            }
+            .padding()
+            .background(Color(white: 0.12))
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+            )
+            .padding(.horizontal)
+        } else if let plan = planner.currentPlan {
+            VStack(alignment: .leading, spacing: 16) {
                 planHeader(plan)
                 stepsList(plan)
-            } else {
-                EmptyView()
             }
+            .padding()
+            .background(Color(white: 0.12))
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+            )
+            .padding(.horizontal)
         }
-        .padding()
-        .background(Color(white: 0.12))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-        )
-        .padding(.horizontal)
     }
 
     private var planningHeader: some View {

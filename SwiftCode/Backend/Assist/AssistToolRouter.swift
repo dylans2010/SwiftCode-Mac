@@ -89,6 +89,8 @@ public final class AssistToolRouter: Sendable {
             return ToolMetadata(id: toolId, name: "Search Symbol", description: "Finds symbol declarations.", capability: .repositoryDiscovery, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
         case "tree_view":
             return ToolMetadata(id: toolId, name: "Tree View", description: "ASCII folder tree hierarchy.", capability: .repositoryDiscovery, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
+        case "search_skills":
+            return ToolMetadata(id: toolId, name: "Search Skills", description: "Search authoritative local agent skills library.", capability: .repositoryDiscovery, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
 
         case "file_write", "write_file":
             return ToolMetadata(id: toolId, name: "Write File", description: "Writes full file content atomically.", capability: .fileModification, riskLevel: .safeMutation, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)

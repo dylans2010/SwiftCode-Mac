@@ -568,7 +568,6 @@ struct GeneralSettingsView: View {
     @State private var showThemeSheet = false
     @State private var showGitHubConfigSheet = false
     @State private var showAgentConnectionsSheet = false
-    @State private var showSkillsSheet = false
     @State private var showCoreMLSheet = false
     @State private var showResetConfirmation = false
     @State private var showUpdatesSheet = false
@@ -833,7 +832,6 @@ struct GeneralSettingsView: View {
                     agentConnectionsSection
                     #endif
 
-                    skillsSection
                     if devModeManager.isDeveloperModeEnabled {
                         developerToolsSection
                     }
@@ -863,9 +861,6 @@ struct GeneralSettingsView: View {
         .sheet(isPresented: $showCoreMLSheet) {
             CoreMLSettingsView()
                 .environmentObject(settings)
-        }
-        .sheet(isPresented: $showSkillsSheet) {
-            SkillsView()
         }
         .sheet(isPresented: $showAppIconSelectSheet) {
             AppIconSelectView()
@@ -1859,30 +1854,6 @@ struct SoundLibraryBrowserView: View {
             Label("Agent Connections", systemImage: "puzzlepiece.extension.fill")
         } footer: {
             Text("Define custom tools the AI agent can call. Tools are registered immediately and available to the agent without app updates.")
-        }
-    }
-
-    private var skillsSection: some View {
-        SettingsCardSection {
-            Button {
-                showSkillsSheet = true
-            } label: {
-                HStack {
-                    Label("Skills", systemImage: "brain")
-                        .foregroundStyle(.primary)
-                    Spacer()
-                    Text("Agent Knowledge")
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(.tertiary)
-                        .font(.caption)
-                }
-            }
-        } header: {
-            Label("Agent Skills", systemImage: "brain")
-        } footer: {
-            Text("Import zipped skills and browse built-in skill packs used by the agent while coding.")
         }
     }
 

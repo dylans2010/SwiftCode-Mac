@@ -5,17 +5,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         LoggingTool.info("SwiftCode launched.")
         setupDefaultPreferences()
 
-        // Setup native Git Controls Menu Bar Status Item
-        MenuBarManager.shared.setupMenuBar()
-
         // Apply registered app icon variant to Dock
         _ = AppIconManager.shared
 
         // Install bundled custom alert sounds into ~/Library/Sounds/
         _ = SoundInstaller.shared.installSoundsIfNeeded()
+    }
 
-        // Start background lifecycle monitoring for Google Cloud SDK
-        GoogleCloudSDKLifecycleManager.shared.startMonitoring()
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return true
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        LoggingTool.info("SwiftCode terminating cleanly.")
     }
 
     private func setupDefaultPreferences() {

@@ -205,7 +205,11 @@ public final class AssistManager: ObservableObject {
         return builder.buildContext(sessionId: session.id)
     }
 
-    public func sendMessage(_ content: String, attachments: [AgentFileContext] = []) async {
+    public func sendMessage(
+        _ content: String,
+        attachments: [AgentFileContext] = [],
+        envelope: AssistTaskEnvelope? = nil
+    ) async {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
@@ -216,6 +220,8 @@ public final class AssistManager: ObservableObject {
             }
             return
         }
+
+        let metrics = AssistRequestMetrics.start(prompt: trimmed)
 
         await MainActor.run {
             AssistEventNormalizer.shared.resetForNewTask()
@@ -230,12 +236,14 @@ public final class AssistManager: ObservableObject {
             saveHistory()
         }
 
+        metrics.mark(.sessionResolved)
+
         let isAgentMode = UserDefaults.standard.bool(forKey: "com.swiftcode.assist.mode")
         let isAntigravityAvailable = GoogleCloudSDKRuntime.shared.isAvailable
 
         // Always prioritize Antigravity in Agent Mode or when explicitly enabled
         if AppSettings.shared.isGoogleCloudAssist || (isAgentMode && isAntigravityAvailable) {
-            await sendGoogleCloudSDKMessage(trimmed, attachments: attachments)
+            await sendGoogleCloudSDKMessage(trimmed, attachments: attachments, envelope: envelope, metrics: metrics)
             return
         }
 
@@ -481,7 +489,7 @@ public final class AssistManager: ObservableObject {
         interruptActiveSessionAndSend(content: msg.content, attachments: msg.attachments)
     }
 
-    public func interruptActiveSessionAndSend(content: String, attachments: [AgentFileContext] = []) {
+    public func interruptActiveSessionAndSend(content: String, attachments: [AgentFileContext] = [], envelope: AssistTaskEnvelope? = nil) {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
@@ -511,7 +519,7 @@ public final class AssistManager: ObservableObject {
             try? await Task.sleep(nanoseconds: 150_000_000)
             self.isProcessing = false
             self.currentActivityStatus = "Idle"
-            await self.sendMessage(trimmed, attachments: attachments)
+            await self.sendMessage(trimmed, attachments: attachments, envelope: envelope)
         }
     }
 
@@ -663,7 +671,12 @@ public final class AssistManager: ObservableObject {
 
     // MARK: - Google Cloud SDK / Antigravity Execution Pipeline
 
-    private func sendGoogleCloudSDKMessage(_ content: String, attachments: [AgentFileContext] = []) async {
+    private func sendGoogleCloudSDKMessage(
+        _ content: String,
+        attachments: [AgentFileContext] = [],
+        envelope: AssistTaskEnvelope? = nil,
+        metrics: AssistRequestMetrics? = nil
+    ) async {
         let runtime = GoogleCloudSDKRuntime.shared
         do {
             try await runtime.ensureStarted()
@@ -677,7 +690,17 @@ public final class AssistManager: ObservableObject {
             return
         }
 
-        let sdkAttachments: [GoogleCloudSDKAttachment] = attachments.map {
+        // Merge explicit files from envelope if not already present
+        var allAttachments = attachments
+        if let env = envelope {
+            for file in env.explicitFiles {
+                if !allAttachments.contains(where: { $0.filename == file.filename }) {
+                    allAttachments.append(file)
+                }
+            }
+        }
+
+        let sdkAttachments: [GoogleCloudSDKAttachment] = allAttachments.map {
             GoogleCloudSDKAttachment(name: $0.filename, path: $0.filename, mimeType: $0.mimeType, content: $0.base64Content)
         }
 
@@ -685,6 +708,7 @@ public final class AssistManager: ObservableObject {
         let initialConfig = initialRouted?.config ?? GoogleCloudSDKConfiguration.resolveDefault()
         let initialModelId = initialRouted?.model.modelIdentifier ?? initialConfig.model
         let initialModelName = initialRouted?.model.displayName ?? (initialConfig.model)
+        metrics?.mark(.modelResolved)
 
         let session: GoogleCloudSDKSession
         if let existing = activeGoogleCloudSession,
@@ -728,7 +752,40 @@ public final class AssistManager: ObservableObject {
                 }
             }
 
-            var currentPrompt = content
+            var explicitContextPrefix = ""
+            if let env = envelope {
+                if !env.explicitSkills.isEmpty {
+                    explicitContextPrefix += "\n\n# EXPLICITLY SELECTED AGENT SKILLS (MANDATORY EXECUTION)\n"
+                    explicitContextPrefix += "The user explicitly selected the following skills using the / command. You MUST strictly follow their procedures and workflows:\n\n"
+                    for skill in env.explicitSkills {
+                        explicitContextPrefix += "## Skill: \(skill.name)\n"
+                        explicitContextPrefix += "Description: \(skill.description)\n"
+                        if let content = skill.skillMarkdownContent, !content.isEmpty {
+                            explicitContextPrefix += "```markdown\n\(content)\n```\n\n"
+                        }
+                    }
+                }
+
+                if !env.explicitMCPServers.isEmpty {
+                    explicitContextPrefix += "\n\n# EXPLICITLY SELECTED MCP SERVERS (MANDATORY EXECUTION)\n"
+                    explicitContextPrefix += "The user explicitly designated these MCP servers via the @ command. You MUST route applicable operations to these MCP servers via the `use_mcp` tool. Do not substitute other tools:\n"
+                    for server in env.explicitMCPServers {
+                        explicitContextPrefix += "- MCP Server: \(server)\n"
+                    }
+                    explicitContextPrefix += "\n"
+                }
+
+                if !env.explicitFiles.isEmpty {
+                    explicitContextPrefix += "\n\n# EXPLICITLY DESIGNATED TASK FILES\n"
+                    explicitContextPrefix += "The user explicitly designated these files via the @ command. Treat them as authoritative task context:\n"
+                    for file in env.explicitFiles {
+                        explicitContextPrefix += "- File: \(file.filename)\n"
+                    }
+                    explicitContextPrefix += "\n"
+                }
+            }
+
+            var currentPrompt = explicitContextPrefix.isEmpty ? content : "\(explicitContextPrefix)\n\n# USER REQUEST\n\(content)"
             var currentAttachments = sdkAttachments
             var currentSession: GoogleCloudSDKSession = session
             var currentConfig = initialConfig
@@ -748,8 +805,15 @@ public final class AssistManager: ObservableObject {
                         guard !Task.isCancelled else { break streamLoop }
                         guard let idx = self.messages.indices.last else { continue }
                         switch event {
+                        case .agentStarted:
+                            metrics?.mark(.firstEventReceived)
+                            metrics?.mark(.modelStarted)
+                            self.currentActivityStatus = "Thinking..."
+
                         case .agentProgress(_, let delta, let thoughtDelta):
+                            metrics?.mark(.firstEventReceived)
                             if let thought = thoughtDelta, !thought.isEmpty {
+                                metrics?.mark(.firstReasoningDelta)
                                 if !self.isThinking {
                                     self.isThinking = true
                                     self.startThinkingTimer()
@@ -757,7 +821,8 @@ public final class AssistManager: ObservableObject {
                                 self.activeThinkingText += thought
                                 self.messages[idx].thinkingContent = self.activeThinkingText
                             }
-                            if let delta = delta {
+                            if let delta = delta, !delta.isEmpty {
+                                metrics?.mark(.firstTextDelta)
                                 if self.isThinking {
                                     self.stopThinkingTimer()
                                     if let start = self.thinkingStartedAt {
@@ -778,6 +843,8 @@ public final class AssistManager: ObservableObject {
                                 )
                             }
                         case .toolStarted(let tool):
+                            metrics?.mark(.firstEventReceived)
+                            metrics?.mark(.firstToolCall)
                             let argsDict: [String: Any] = (try? JSONSerialization.jsonObject(with: tool.rawArgs.data(using: .utf8) ?? Data())) as? [String: Any] ?? [:]
                             self.reportToolStarted(callId: tool.id, toolName: tool.name, arguments: argsDict)
 
@@ -800,6 +867,8 @@ public final class AssistManager: ObservableObject {
                             self.reportWorkerFailed(workerId: workerId, error: error)
 
                         case .agentCompleted(_, let response, _, _):
+                            metrics?.mark(.responseCompleted)
+                            metrics?.logSummary()
                             self.stopThinkingTimer()
                             if let start = self.thinkingStartedAt {
                                 self.messages[idx].thinkingDuration = Double(max(1, Int(Date().timeIntervalSince(start))))
@@ -858,6 +927,7 @@ public final class AssistManager: ObservableObject {
                     }
                 }
 
+                metrics?.mark(.requestSent)
                 do {
                     try await currentSession.sendMessage(currentPrompt, attachments: currentAttachments)
                     _ = await streamTask.result

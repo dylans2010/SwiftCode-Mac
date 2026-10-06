@@ -387,6 +387,26 @@ class ModelAdapterServer:
                             }
                             writer.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
                             await writer.drain()
+                        elif delta_type == "thinking_delta":
+                            thought = delta.get("thinking", "")
+                            if thought:
+                                chunk = {
+                                    "id": chat_id,
+                                    "object": "chat.completion.chunk",
+                                    "created": created_ts,
+                                    "model": model,
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {
+                                            "thought": thought,
+                                            "thinking": thought,
+                                            "reasoning": thought,
+                                        },
+                                        "finish_reason": None,
+                                    }],
+                                }
+                                writer.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
+                                await writer.drain()
                         elif delta_type == "input_json_delta":
                             partial_json = delta.get("partial_json", "")
                             chunk = {
@@ -594,8 +614,38 @@ class ModelAdapterServer:
                 writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n")
                 await writer.drain()
 
-                async for chunk in resp.aiter_raw():
-                    writer.write(chunk)
+                async for line in resp.aiter_lines():
+                    if not line:
+                        writer.write(b"\n")
+                        await writer.drain()
+                        continue
+                    if not line.startswith("data: "):
+                        writer.write((line + "\n").encode("utf-8"))
+                        await writer.drain()
+                        continue
+                    raw_data = line[6:].strip()
+                    if raw_data == "[DONE]":
+                        writer.write(b"data: [DONE]\n\n")
+                        await writer.drain()
+                        break
+                    try:
+                        chunk_obj = json.loads(raw_data)
+                        choices = chunk_obj.get("choices", [])
+                        if choices:
+                            delta = choices[0].get("delta", {})
+                            if "reasoning_content" in delta:
+                                rc = delta["reasoning_content"]
+                                if rc:
+                                    if "reasoning" not in delta:
+                                        delta["reasoning"] = rc
+                                    if "thought" not in delta:
+                                        delta["thought"] = rc
+                                    if "thinking" not in delta:
+                                        delta["thinking"] = rc
+                        line = f"data: {json.dumps(chunk_obj)}"
+                    except Exception:
+                        pass
+                    writer.write((line + "\n\n").encode("utf-8"))
                     await writer.drain()
             writer.close()
         else:

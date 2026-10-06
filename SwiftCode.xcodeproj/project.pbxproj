@@ -1698,6 +1698,14 @@
 		F170E176145CCF048C9CEE0B /* MLXIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CC1E54976EEBE8EA9EE0F0E /* MLXIntegration.swift */; };
 		F1B0E961BA4AD44EABE5BD59 /* Models/Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 167EEE1B406216DAE1DBC8D2 /* Models/Database.swift */; };
 		F1CD2E378216E7D1A040795B /* AssistMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9D7E2F8F62E029750AD8AA /* AssistMainView.swift */; };
+		A1000001B001000100000001 /* AssistRequestMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001F001000100000001 /* AssistRequestMetrics.swift */; };
+		A1000002B001000100000002 /* AssistTaskContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002F001000100000002 /* AssistTaskContext.swift */; };
+		A1000003B001000100000003 /* search_skills.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000003F001000100000003 /* search_skills.swift */; };
+		A1000004B001000100000004 /* SkillDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000004F001000100000004 /* SkillDescriptor.swift */; };
+		A1000005B001000100000005 /* SkillDiscoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000005F001000100000005 /* SkillDiscoveryService.swift */; };
+		A1000006B001000100000006 /* SkillIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000006F001000100000006 /* SkillIndex.swift */; };
+		A1000007B001000100000007 /* AssistComposerPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000007F001000100000007 /* AssistComposerPopup.swift */; };
+		A1000008B001000100000008 /* ModernSkillsBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000008F001000100000008 /* ModernSkillsBrowserView.swift */; };
 		F1CD2E378216E7D1A040795C /* AgentNotesInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9D7E2F8F62E029750AD8AB /* AgentNotesInspectorView.swift */; };
 		F1DF9D7D788182C84703E772 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A9117BE5C6EF991F79E8454 /* KeychainService.swift */; };
 		F1EBB607831B61EC2ABE3F16 /* CollaborationNotificationCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F73BA0184F327F66A9B7E1A /* CollaborationNotificationCenterView.swift */; };
@@ -2891,6 +2899,14 @@
 		1E2E48FF8366AD78838798DB /* Result+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Result+Extensions.swift"; sourceTree = "<group>"; };
 		1E67047F15594D14B133BF98 /* ListTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListTools.swift; sourceTree = "<group>"; };
 		1E9D7E2F8F62E029750AD8AA /* AssistMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistMainView.swift; sourceTree = "<group>"; };
+		A1000001F001000100000001 /* AssistRequestMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Backend/Assist/AssistRequestMetrics.swift"; sourceTree = SOURCE_ROOT; };
+		A1000002F001000100000002 /* AssistTaskContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Backend/Assist/AssistTaskContext.swift"; sourceTree = SOURCE_ROOT; };
+		A1000003F001000100000003 /* search_skills.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Backend/Assist/Tools/search_skills.swift"; sourceTree = SOURCE_ROOT; };
+		A1000004F001000100000004 /* SkillDescriptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Core/AI/Agent/Skills/SkillDescriptor.swift"; sourceTree = SOURCE_ROOT; };
+		A1000005F001000100000005 /* SkillDiscoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Core/AI/Agent/Skills/SkillDiscoveryService.swift"; sourceTree = SOURCE_ROOT; };
+		A1000006F001000100000006 /* SkillIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Core/AI/Agent/Skills/SkillIndex.swift"; sourceTree = SOURCE_ROOT; };
+		A1000007F001000100000007 /* AssistComposerPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Assist/AssistComposerPopup.swift"; sourceTree = SOURCE_ROOT; };
+		A1000008F001000100000008 /* ModernSkillsBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/Settings/Skills/ModernSkillsBrowserView.swift"; sourceTree = SOURCE_ROOT; };
 		1E9D7E2F8F62E029750AD8AB /* AgentNotesInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentNotesInspectorView.swift; sourceTree = "<group>"; };
 		1EDAB6A339F43FA6BF5A78D1 /* CollaborationSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollaborationSidebarView.swift; sourceTree = "<group>"; };
 		1F03DD9ED6C9182AC9E01A51 /* TransferSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferSession.swift; sourceTree = "<group>"; };
@@ -10431,6 +10447,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000001B001000100000001 /* AssistRequestMetrics.swift in Sources */,
+				A1000002B001000100000002 /* AssistTaskContext.swift in Sources */,
+				A1000003B001000100000003 /* search_skills.swift in Sources */,
+				A1000004B001000100000004 /* SkillDescriptor.swift in Sources */,
+				A1000005B001000100000005 /* SkillDiscoveryService.swift in Sources */,
+				A1000006B001000100000006 /* SkillIndex.swift in Sources */,
+				A1000007B001000100000007 /* AssistComposerPopup.swift in Sources */,
+				A1000008B001000100000008 /* ModernSkillsBrowserView.swift in Sources */,
 				8E4166F3134063D969CE396C /* WorkerContextBuilder.swift in Sources */,
 				8E5D65C48D9A161B17FB5530 /* WorkerTaskDecomposer.swift in Sources */,
 				8ED63EB6A3941EB0354442EB /* WorkerScheduler.swift in Sources */,

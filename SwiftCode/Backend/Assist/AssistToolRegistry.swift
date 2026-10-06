@@ -135,15 +135,18 @@ public final class AssistToolRegistry {
         register(UseWorkersTool())
         register(ExecutionPlanTool())
         register(PlanAskUserTool())
+        register(SearchSkillsTool())
     }
 
     public var version: Int { registryVersion }
+    private var cachedToolSchemas: [[String: Any]]?
 
     public func register(_ tool: AssistTool) {
         tools[tool.id] = tool
         health[tool.id] = ToolHealth(toolId: tool.id, status: .available)
         rebuildCapabilityIndex()
         schemaCache.removeAll()
+        cachedToolSchemas = nil
         registryVersion += 1
     }
 
@@ -152,6 +155,7 @@ public final class AssistToolRegistry {
         health.removeValue(forKey: toolId)
         rebuildCapabilityIndex()
         schemaCache.removeAll()
+        cachedToolSchemas = nil
         registryVersion += 1
     }
 
@@ -164,7 +168,10 @@ public final class AssistToolRegistry {
     }
 
     public func getToolSchemas() -> [[String: Any]] {
-        return allTools.map { tool in
+        if let cached = cachedToolSchemas {
+            return cached
+        }
+        let schemas: [[String: Any]] = allTools.map { tool in
             var schemaDict: [String: Any] = [
                 "name": tool.id,
                 "description": tool.description
@@ -175,6 +182,8 @@ public final class AssistToolRegistry {
             }
             return schemaDict
         }
+        cachedToolSchemas = schemas
+        return schemas
     }
 
     public func toolsForCapability(_ capability: ToolCapability) -> [AssistTool] {

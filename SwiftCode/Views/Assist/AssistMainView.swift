@@ -49,10 +49,17 @@ public struct AssistMainView: View {
 
     // Assist Configuration
     @AppStorage("com.swiftcode.assist.enableCodeReview") private var enableCodeReview = true
-    @State private var showAssistSettings = false
 
     // Create New App Wizard Sheet
     @State private var showCreateNewAppSheet = false
+
+    // Composer @ and / systems
+    @State private var selectedExplicitSkills: [SkillDescriptor] = []
+    @State private var selectedExplicitMCPServers: [String] = []
+    @State private var selectedExplicitFiles: [AgentFileContext] = []
+    @State private var composerTriggerMode: ComposerTriggerMode? = nil
+    @State private var showCustomModelPicker = false
+    @State private var discoveryService = AssistModelDiscoveryService.shared
 
 
     public init() {}
@@ -102,16 +109,26 @@ public struct AssistMainView: View {
                 // Workers Trigger (Native Assist Workers Entry)
                 WorkersHeaderButton()
 
-                // Agent Notes Trigger
-                Button {
-                    showAgentNotesSheet = true
-                } label: {
-                    Image(systemName: "doc.text.magnifyingglass")
-                        .font(.body)
-                        .foregroundStyle(AgentNotesManager.shared.currentNotesMarkdown.isEmpty ? .secondary : Color.accentColor)
+                // Real Execution Plan Trigger (Strictly hidden until a real execution plan exists)
+                if !AgentNotesManager.shared.currentNotesMarkdown.isEmpty || TasksAIPlanner.shared.currentPlan != nil {
+                    Button {
+                        showAgentNotesSheet = true
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "list.bullet.rectangle")
+                                .font(.caption)
+                            Text("Execution Plan")
+                                .font(.caption.weight(.medium))
+                        }
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.accentColor.opacity(0.12), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Inspect Real Execution Plan & Phase Matrix")
+                    .transition(.scale.combined(with: .opacity))
                 }
-                .buttonStyle(.plain)
-                .help("Inspect Execution Plan & Phase Matrix")
 
                 // Diagnostics Trigger
                 Button {
@@ -123,57 +140,12 @@ public struct AssistMainView: View {
                 }
                 .buttonStyle(.plain)
                 .help("System Diagnostics")
-
-                // Assist Settings Trigger
-                Button {
-                    withAnimation(.spring()) {
-                        showAssistSettings.toggle()
-                    }
-                } label: {
-                    Image(systemName: "gearshape")
-                        .font(.body)
-                        .foregroundStyle(showAssistSettings ? Color.accentColor : Color.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Assist Settings")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(.thinMaterial)
 
             Divider()
-
-            if showAssistSettings {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Assist Configuration")
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.secondary)
-
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Toggle(isOn: $enableCodeReview) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Autonomous Code Review Stage")
-                                        .font(.body)
-                                        .fontWeight(.medium)
-                                    Text("Verify all completed implementations using an independent AI reviewer stage before completing the task.")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .toggleStyle(.checkbox)
-                        }
-                        .padding(6)
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-                }
-                .padding(12)
-                .background(Color.secondary.opacity(0.04))
-                .transition(.move(edge: .top).combined(with: .opacity))
-
-                Divider()
-            }
 
             if manager.messages.isEmpty {
                 VStack {
@@ -482,6 +454,9 @@ public struct AssistMainView: View {
         .task {
             await updateCodexButtonVisibility()
             await fetchOpenRouterModelsBackground()
+            if discoveryService.discoveredModels.isEmpty {
+                await discoveryService.discoverAllModels(forceRefresh: true)
+            }
         }
         .onChange(of: showingCodexSetup) { _, newValue in
             if !newValue {
@@ -950,133 +925,184 @@ public struct AssistMainView: View {
     }
 
     private var inputArea: some View {
-        HStack(spacing: 8) {
-            Button {
-                showingFilePickerSheet = true
-            } label: {
-                Image(systemName: "paperclip")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.borderless)
-            .sheet(isPresented: $showingFilePickerSheet) {
-                AddFilesAgentContext(attachedFiles: $attachedFiles, isProcessingFiles: $isProcessingFiles)
-            }
-            .help("Attach Files to Context")
-
-            Button {
-                let event = NSApplication.shared.currentEvent
-                let models = loadDynamicModels()
-                let activeID = currentActiveModelID()
-                ModelPopupMenuHelper.showMenu(event: event, models: models, activeModelID: activeID) { option in
-                    selectModel(option)
+        VStack(alignment: .leading, spacing: 6) {
+            // Selected explicit context chips (@MCP, @Files, /Skills)
+            AssistComposerChipsBar(
+                selectedSkills: $selectedExplicitSkills,
+                selectedMCPServers: $selectedExplicitMCPServers,
+                selectedFiles: $selectedExplicitFiles,
+                onRemoveSkill: { skill in
+                    selectedExplicitSkills.removeAll(where: { $0.id == skill.id })
+                },
+                onRemoveMCP: { server in
+                    selectedExplicitMCPServers.removeAll(where: { $0 == server })
+                },
+                onRemoveFile: { file in
+                    selectedExplicitFiles.removeAll(where: { $0.id == file.id })
                 }
-            } label: {
-                Image(systemName: "cpu")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.borderless)
-            .help("Choose Model")
+            )
 
-            Button {
-                expandPrompt()
-            } label: {
-                Image(systemName: "apple.intelligence")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(isEnhancingPrompt ? .secondary : .primary)
-                    .padding(7)
-                    .background(Color.secondary.opacity(0.12), in: Circle())
-            }
-            .disabled(isEnhancingPrompt || inputText.isEmpty || isProcessingFiles)
-            .help("Enhance prompt with Apple Intelligence")
+            HStack(spacing: 8) {
+                Button {
+                    showingFilePickerSheet = true
+                } label: {
+                    Image(systemName: "paperclip")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .sheet(isPresented: $showingFilePickerSheet) {
+                    AddFilesAgentContext(attachedFiles: $attachedFiles, isProcessingFiles: $isProcessingFiles)
+                }
+                .help("Attach Files to Context")
 
-            ZStack {
-                let isBusy = manager.isProcessing || bridgeManager.streamStatus == "Streaming"
-                let placeholder = isBusy ? "Queue next message..." : "What should I build next?"
-                TextField(placeholder, text: $inputText, axis: .vertical)
-                    .padding(8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(.regularMaterial)
+                Button {
+                    showCustomModelPicker.toggle()
+                } label: {
+                    Image(systemName: "cpu")
+                        .font(.caption)
+                        .foregroundStyle(showCustomModelPicker ? Color.accentColor : .secondary)
+                }
+                .buttonStyle(.borderless)
+                .help("Choose Model")
+                .popover(isPresented: $showCustomModelPicker, arrowEdge: .top) {
+                    AssistCustomModelPickerPopover(
+                        selectedModelID: currentActiveModelID(),
+                        onSelect: { selectedModel in
+                            selectDiscoveredModel(selectedModel)
+                            showCustomModelPicker = false
+                        },
+                        onDismiss: {
+                            showCustomModelPicker = false
+                        }
                     )
-                    .lineLimit(1...5)
-                    .disabled(isEnhancingPrompt || isProcessingFiles)
-                    .onSubmit {
-                        submitMessage()
-                    }
-            }
-            .overlay {
-                if isEnhancingPrompt {
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.accentColor.opacity(0.4), lineWidth: 1)
                 }
-            }
-            .animation(.easeInOut(duration: 0.2), value: isEnhancingPrompt)
 
-            if isProcessingFiles {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .scaleEffect(0.6)
-            } else if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
-                let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty {
-                    // Send Now button (interrupts active turn and continues conversation immediately)
-                    Button {
-                        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-                        let files = attachedFiles
-                        attachedFiles = []
-                        inputText = ""
-                        manager.interruptActiveSessionAndSend(content: text, attachments: files)
-                    } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: "bolt.fill")
-                                .font(.system(size: 11))
-                            Text("Send Now")
-                                .font(.system(size: 11, weight: .semibold))
+                Button {
+                    expandPrompt()
+                } label: {
+                    Image(systemName: "apple.intelligence")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(isEnhancingPrompt ? .secondary : .primary)
+                        .padding(7)
+                        .background(Color.secondary.opacity(0.12), in: Circle())
+                }
+                .disabled(isEnhancingPrompt || inputText.isEmpty || isProcessingFiles)
+                .help("Enhance prompt with Apple Intelligence")
+
+                ZStack {
+                    let isBusy = manager.isProcessing || bridgeManager.streamStatus == "Streaming"
+                    let placeholder = isBusy ? "Queue next message..." : "What should I build next? (Type @ for MCP/files, / for skills)"
+                    TextField(placeholder, text: $inputText, axis: .vertical)
+                        .padding(8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(.regularMaterial)
+                        )
+                        .lineLimit(1...5)
+                        .disabled(isEnhancingPrompt || isProcessingFiles)
+                        .onSubmit {
+                            submitMessage()
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(Color.orange, in: RoundedRectangle(cornerRadius: 8))
-                        .foregroundColor(.white)
+                        .onChange(of: inputText) { _, newValue in
+                            updateComposerTrigger(for: newValue)
+                        }
+                }
+                .overlay {
+                    if isEnhancingPrompt {
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.accentColor.opacity(0.4), lineWidth: 1)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.2), value: isEnhancingPrompt)
+
+                if isProcessingFiles {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .scaleEffect(0.6)
+                } else if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
+                    let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        // Send Now button (interrupts active turn and continues conversation immediately)
+                        Button {
+                            let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let files = attachedFiles
+                            let envelope = AssistTaskEnvelope(
+                                userMessage: text,
+                                explicitSkills: selectedExplicitSkills,
+                                explicitMCPServers: selectedExplicitMCPServers,
+                                explicitFiles: selectedExplicitFiles + files
+                            )
+                            attachedFiles = []
+                            selectedExplicitSkills = []
+                            selectedExplicitMCPServers = []
+                            selectedExplicitFiles = []
+                            inputText = ""
+                            manager.interruptActiveSessionAndSend(content: text, attachments: files, envelope: envelope)
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "bolt.fill")
+                                    .font(.system(size: 11))
+                                Text("Send Now")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(Color.orange, in: RoundedRectangle(cornerRadius: 8))
+                            .foregroundColor(.white)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Interrupt current turn and send immediately")
+
+                        // Queue button (queues message to send once current completes)
+                        Button(action: submitMessage) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 13))
+                                Text("Queue")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8))
+                            .foregroundColor(.white)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Queue to send after current response completes (Return)")
+                    }
+
+                    Button(action: {
+                        manager.stopCurrentSession()
+                    }) {
+                        Image(systemName: "stop.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.red)
                     }
                     .buttonStyle(.plain)
-                    .help("Interrupt current turn and send immediately")
-
-                    // Queue button (queues message to send once current completes)
+                    .help("Stop execution")
+                } else {
                     Button(action: submitMessage) {
-                        HStack(spacing: 3) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 13))
-                            Text("Queue")
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8))
-                        .foregroundColor(.white)
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 24))
                     }
+                    .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .keyboardShortcut(.return, modifiers: [.command])
                     .buttonStyle(.plain)
-                    .help("Queue to send after current response completes (Return)")
                 }
-
-                Button(action: {
-                    manager.stopCurrentSession()
-                }) {
-                    Image(systemName: "stop.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(.red)
-                }
-                .buttonStyle(.plain)
-                .help("Stop execution")
-            } else {
-                Button(action: submitMessage) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 24))
-                }
-                .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .keyboardShortcut(.return, modifiers: [.command])
-                .buttonStyle(.plain)
+            }
+        }
+        .overlay(alignment: .bottomLeading) {
+            if let mode = composerTriggerMode {
+                AssistComposerPopupView(
+                    mode: mode,
+                    onSelectSkill: { skill in selectSkill(skill) },
+                    onSelectMCP: { server in selectMCP(server) },
+                    onSelectFile: { url in selectFile(url) },
+                    onDismiss: { composerTriggerMode = nil }
+                )
+                .padding(.bottom, 60)
+                .padding(.leading, 8)
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
         }
     }
@@ -1086,7 +1112,16 @@ public struct AssistMainView: View {
         guard !text.isEmpty && !isProcessingFiles else { return }
 
         let filesToSend = attachedFiles
+        let envelope = AssistTaskEnvelope(
+            userMessage: text,
+            explicitSkills: selectedExplicitSkills,
+            explicitMCPServers: selectedExplicitMCPServers,
+            explicitFiles: selectedExplicitFiles + filesToSend
+        )
         attachedFiles = []
+        selectedExplicitSkills = []
+        selectedExplicitMCPServers = []
+        selectedExplicitFiles = []
         inputText = ""
 
         if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
@@ -1097,7 +1132,62 @@ public struct AssistMainView: View {
         }
 
         Task {
-            await manager.sendMessage(text, attachments: filesToSend)
+            await manager.sendMessage(text, attachments: filesToSend, envelope: envelope)
+        }
+    }
+
+    private func updateComposerTrigger(for text: String) {
+        guard let lastWord = text.split(whereSeparator: { $0.isWhitespace }).last.map(String.init) else {
+            composerTriggerMode = nil
+            return
+        }
+
+        if lastWord.hasPrefix("@") {
+            let query = String(lastWord.dropFirst())
+            composerTriggerMode = .resource(query: query)
+        } else if lastWord.hasPrefix("/") {
+            let query = String(lastWord.dropFirst())
+            composerTriggerMode = .skill(query: query)
+        } else {
+            composerTriggerMode = nil
+        }
+    }
+
+    private func consumeTrailingToken(prefix: String) {
+        var words = inputText.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        if let last = words.last, last.hasPrefix(prefix) {
+            words.removeLast()
+            inputText = words.joined(separator: " ") + (words.isEmpty ? "" : " ")
+        }
+    }
+
+    private func selectSkill(_ skill: SkillDescriptor) {
+        if !selectedExplicitSkills.contains(where: { $0.id == skill.id }) {
+            selectedExplicitSkills.append(skill)
+        }
+        consumeTrailingToken(prefix: "/")
+        composerTriggerMode = nil
+    }
+
+    private func selectMCP(_ server: String) {
+        if !selectedExplicitMCPServers.contains(server) {
+            selectedExplicitMCPServers.append(server)
+        }
+        consumeTrailingToken(prefix: "@")
+        composerTriggerMode = nil
+    }
+
+    private func selectFile(_ url: URL) {
+        consumeTrailingToken(prefix: "@")
+        composerTriggerMode = nil
+        Task {
+            if let fileCtx = try? await FileAgentHelper.processFile(at: url) {
+                await MainActor.run {
+                    if !selectedExplicitFiles.contains(where: { $0.filename == fileCtx.filename }) {
+                        selectedExplicitFiles.append(fileCtx)
+                    }
+                }
+            }
         }
     }
 
@@ -1251,6 +1341,26 @@ public struct AssistMainView: View {
 
         Task {
             await ModelSessionManager.shared.switchModel(to: option.modelID)
+        }
+    }
+
+    private func selectDiscoveredModel(_ model: AssistAvailableModel) {
+        logger.log("[selectModel] Selecting model: \(model.modelIdentifier) from \(model.providerName)")
+
+        if model.source == .appleFoundationModels {
+            FoundationModels.shared.isEnabled = true
+            if let appleModel = AppleFoundationModel(rawValue: model.modelIdentifier) {
+                FoundationModels.shared.selectedModel = appleModel
+            }
+        } else {
+            FoundationModels.shared.isEnabled = false
+            AppSettings.shared.selectedModel = model.modelIdentifier
+            AppSettings.shared.selectedAssistModelID = model.modelIdentifier
+            AssistModelManager.shared.customModelID = model.modelIdentifier
+        }
+
+        Task {
+            await ModelSessionManager.shared.switchModel(to: model.modelIdentifier)
         }
     }
 }
@@ -2051,6 +2161,257 @@ private struct AssistInlineError: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Custom Model Picker Popover (Section 2 "Available Models" Card Integration)
+
+struct AssistCustomModelPickerPopover: View {
+    let selectedModelID: String
+    let onSelect: (AssistAvailableModel) -> Void
+    let onDismiss: () -> Void
+
+    @State private var searchText: String = ""
+    @State private var discoveryService = AssistModelDiscoveryService.shared
+
+    private func modelColor(_ model: AssistAvailableModel) -> Color {
+        if model.isCurrentlyRateLimited { return .orange }
+        switch model.status {
+        case .available:
+            return model.supportsAgenticUse ? .green : .purple
+        case .authRequired:
+            return .yellow
+        case .providerUnavailable:
+            return .red
+        case .unsupportedAgentic:
+            return .purple
+        case .rateLimited:
+            return .orange
+        case .configured:
+            return .blue
+        case .unavailable:
+            return .secondary
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack(spacing: 8) {
+                Label("Available Models", systemImage: "sparkles")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.purple)
+
+                if discoveryService.isDiscovering {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .frame(width: 14, height: 14)
+                }
+
+                Spacer()
+
+                Button {
+                    Task {
+                        await discoveryService.discoverAllModels(forceRefresh: true)
+                    }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Refresh Available Models")
+                .disabled(discoveryService.isDiscovering)
+
+                Button {
+                    onDismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color.primary.opacity(0.04))
+
+            // Search Bar
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                TextField("Search models...", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
+            .padding(.horizontal, 10)
+            .padding(.top, 8)
+            .padding(.bottom, 6)
+
+            Divider()
+
+            // Models List (Grouped by Provider exactly as in Available Models card)
+            let groups = discoveryService.modelsByProvider
+            if groups.isEmpty {
+                VStack(spacing: 8) {
+                    if discoveryService.isDiscovering {
+                        ProgressView().scaleEffect(0.8)
+                        Text("Discovering models across configured providers...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("No models discovered.\nConfigure API keys or custom endpoints in Settings.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(groups, id: \.providerName) { group in
+                            let filteredModels = group.models.filter { model in
+                                if searchText.isEmpty { return true }
+                                let query = searchText.lowercased()
+                                return model.displayName.lowercased().contains(query) ||
+                                       model.modelIdentifier.lowercased().contains(query) ||
+                                       model.providerName.lowercased().contains(query)
+                            }
+
+                            if !filteredModels.isEmpty {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    // Provider Header
+                                    HStack {
+                                        Text(group.providerName)
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundStyle(.secondary)
+                                            .textCase(.uppercase)
+                                        Spacer()
+                                        Text("\(filteredModels.count)")
+                                            .font(.system(size: 9, weight: .semibold))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(.horizontal, 8)
+                                    .padding(.top, 4)
+
+                                    // Models in Provider
+                                    ForEach(filteredModels) { model in
+                                        AssistModelPickerRow(
+                                            model: model,
+                                            isSelected: selectedModelID == model.modelIdentifier,
+                                            statusColor: modelColor(model),
+                                            onSelect: {
+                                                onSelect(model)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                }
+            }
+        }
+        .frame(width: 320, height: 380)
+    }
+}
+
+private struct AssistModelPickerRow: View {
+    let model: AssistAvailableModel
+    let isSelected: Bool
+    let statusColor: Color
+    let onSelect: () -> Void
+
+    @State private var isHovered: Bool = false
+
+    var body: some View {
+        Button {
+            onSelect()
+        } label: {
+            HStack(spacing: 8) {
+                // Status dot
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 6, height: 6)
+
+                // Info
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(model.displayName)
+                            .font(.system(size: 12, weight: isSelected ? .bold : .medium))
+                            .foregroundStyle(.primary)
+
+                        if model.supportsToolCalling {
+                            Text("Tools")
+                                .font(.system(size: 8, weight: .bold))
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Color.blue.opacity(0.12))
+                                .foregroundStyle(.blue)
+                                .cornerRadius(3)
+                        }
+
+                        if model.supportsVision {
+                            Image(systemName: "eye.fill")
+                                .font(.system(size: 8))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if model.supportsSubagents {
+                            Text("Subagents")
+                                .font(.system(size: 8, weight: .bold))
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Color.indigo.opacity(0.12))
+                                .foregroundStyle(.indigo)
+                                .cornerRadius(3)
+                        }
+                    }
+
+                    Text(model.modelIdentifier)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.green)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? Color.accentColor.opacity(0.08) : (isHovered ? Color.primary.opacity(0.04) : Color.clear))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }
 

@@ -19,7 +19,6 @@ struct SwiftCodeApp: App {
                 exit(report.allPassed ? 0 : 1)
             }
         }
-        OfflineModelDownloader.shared.registerBackgroundTask()
         AgentSystemInitializer.shared.initialize()
         StylingBootstrap.initialize()
         LicenseCatalog.prewarm()
@@ -74,6 +73,7 @@ struct SwiftCodeApp: App {
                 codingManager.ensureModelsDirectory()
                 NotificationManager.shared.requestAuthorizationIfNeeded()
                 await OfflineModelDownloader.shared.resumePendingDownloadIfNeeded()
+                await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true)
 
                 if CommandLine.arguments.contains("--open-last-project"), let firstProject = sessionStore.projects.first {
                     await sessionStore.openProject(firstProject)

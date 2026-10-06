@@ -77,14 +77,6 @@
 			</array>
 		</dict>
 	</array>
-	<key>BGTaskSchedulerPermittedIdentifiers</key>
-	<array>
-		<string>com.swiftcode.offline-model-download</string>
-	</array>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>processing</string>
-	</array>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

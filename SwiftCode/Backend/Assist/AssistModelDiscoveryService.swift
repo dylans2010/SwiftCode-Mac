@@ -20,41 +20,60 @@ public final class AssistModelDiscoveryService: Sendable {
     public var lastDiscoveryDate: Date? = nil
     public var lastDiscoveryErrors: [String: String] = [:]
     public var hiddenProviderNames: Set<String> = []
+    public var removedModelIDs: Set<String> = []
 
-    private let cacheKey = "com.swiftcode.assist.discovered_models_cache"
-    private let cacheDateKey = "com.swiftcode.assist.discovered_models_cache_date"
     private let hiddenProvidersKey = "com.swiftcode.assist.hidden_provider_names"
-    private let cacheTTL: TimeInterval = 600 // 10 minutes
+    private let removedModelsKey = "com.swiftcode.assist.removed_model_ids"
 
     private init() {
-        loadCachedModels()
+        // Do NOT cache or load models from disk cache; fresh discovery runs on every app start.
+        self.discoveredModels = []
         if let savedHidden = UserDefaults.standard.stringArray(forKey: hiddenProvidersKey) {
             self.hiddenProviderNames = Set(savedHidden)
         }
+        if let savedRemoved = UserDefaults.standard.stringArray(forKey: removedModelsKey) {
+            self.removedModelIDs = Set(savedRemoved)
+        }
     }
 
+    /// Foundation Models is a system model integration and may NEVER be deleted.
+    public func isFoundationModel(id: String, source: AssistModelSource? = nil, providerName: String? = nil) -> Bool {
+        if source == .appleFoundationModels { return true }
+        if providerName == "Apple Foundation Models" { return true }
+        let lower = id.lowercased()
+        if lower.contains("afm") || lower.contains("apple") { return true }
+        if id == AppleFoundationModel.afm3Core.rawValue || id == AppleFoundationModel.afm3CoreAdvanced.rawValue { return true }
+        return false
+    }
+
+    public func isFoundationModel(_ model: AssistAvailableModel) -> Bool {
+        return isFoundationModel(id: model.modelIdentifier, source: model.source, providerName: model.providerName)
+    }
+
+    /// Permanently removes a model so it is never shown again. No restore option exists.
+    public func removeModel(_ modelID: String) {
+        guard !isFoundationModel(id: modelID) else {
+            logger.warning("Foundation Models is a system model integration and cannot be deleted: \(modelID)")
+            return
+        }
+        removedModelIDs.insert(modelID)
+        UserDefaults.standard.set(Array(removedModelIDs), forKey: removedModelsKey)
+        discoveredModels.removeAll { $0.modelIdentifier == modelID || $0.id == modelID }
+    }
+
+    /// Permanently removes a provider. Foundation Models cannot be removed. No restore option exists.
     public func removeProvider(_ name: String) {
+        guard name != "Apple Foundation Models" else {
+            logger.warning("Foundation Models is a system model integration and cannot be deleted.")
+            return
+        }
         hiddenProviderNames.insert(name)
         UserDefaults.standard.set(Array(hiddenProviderNames), forKey: hiddenProvidersKey)
-    }
-
-    public func restoreProvider(_ name: String) {
-        hiddenProviderNames.remove(name)
-        UserDefaults.standard.set(Array(hiddenProviderNames), forKey: hiddenProvidersKey)
-    }
-
-    public func restoreAllProviders() {
-        hiddenProviderNames.removeAll()
-        UserDefaults.standard.removeObject(forKey: hiddenProvidersKey)
     }
 
     // MARK: - Public Discovery API
 
     public func discoverAllModels(forceRefresh: Bool = false) async -> [AssistAvailableModel] {
-        if !forceRefresh && !discoveredModels.isEmpty, let lastDate = lastDiscoveryDate, Date().timeIntervalSince(lastDate) < cacheTTL {
-            return discoveredModels
-        }
-
         if isDiscovering {
             return discoveredModels
         }
@@ -89,21 +108,28 @@ public final class AssistModelDiscoveryService: Sendable {
         self.discoveredModels = allDiscovered
         self.lastDiscoveryDate = Date()
         self.isDiscovering = false
-
-        saveCachedModels()
         return allDiscovered
     }
 
     public var agentCompatibleModels: [AssistAvailableModel] {
-        discoveredModels.filter { $0.supportsAgenticUse && $0.supportsToolCalling && $0.isAvailable && !$0.isCurrentlyRateLimited }
+        discoveredModels.filter {
+            !removedModelIDs.contains($0.modelIdentifier) &&
+            !removedModelIDs.contains($0.id) &&
+            !hiddenProviderNames.contains(getProviderName(for: $0)) &&
+            $0.supportsAgenticUse && $0.supportsToolCalling && $0.isAvailable && !$0.isCurrentlyRateLimited
+        }
     }
 
     public var availableProvidersCount: Int {
-        Set(discoveredModels.filter { $0.isAvailable }.map { $0.providerID }).count
+        Set(discoveredModels.filter {
+            !removedModelIDs.contains($0.modelIdentifier) &&
+            !removedModelIDs.contains($0.id) &&
+            $0.isAvailable
+        }.map { $0.providerID }).count
     }
 
     public var totalModelsCount: Int {
-        discoveredModels.count
+        discoveredModels.filter { !removedModelIDs.contains($0.modelIdentifier) && !removedModelIDs.contains($0.id) }.count
     }
 
     public var agentCompatibleCount: Int {
@@ -711,26 +737,6 @@ public final class AssistModelDiscoveryService: Sendable {
         }
     }
 
-    // MARK: - Persistence & Caching
-
-    private func saveCachedModels() {
-        if let data = try? JSONEncoder().encode(discoveredModels) {
-            UserDefaults.standard.set(data, forKey: cacheKey)
-            UserDefaults.standard.set(Date(), forKey: cacheDateKey)
-        }
-    }
-
-    private func loadCachedModels() {
-        if let date = UserDefaults.standard.object(forKey: cacheDateKey) as? Date {
-            self.lastDiscoveryDate = date
-        }
-        guard let data = UserDefaults.standard.data(forKey: cacheKey),
-              let decoded = try? JSONDecoder().decode([AssistAvailableModel].self, from: data) else {
-            return
-        }
-        self.discoveredModels = decoded
-    }
-
     public func getProviderName(for model: AssistAvailableModel) -> String {
         if model.source == .appleFoundationModels {
             return "Apple Foundation Models"
@@ -757,6 +763,8 @@ public final class AssistModelDiscoveryService: Sendable {
 
     public func getDiscoveryStats() -> (total: Int, providers: Int, agentCompatible: Int) {
         let visibleModels = discoveredModels.filter { model in
+            !removedModelIDs.contains(model.modelIdentifier) &&
+            !removedModelIDs.contains(model.id) &&
             !hiddenProviderNames.contains(getProviderName(for: model))
         }
         let total = visibleModels.count
@@ -769,6 +777,9 @@ public final class AssistModelDiscoveryService: Sendable {
         let order = ["Gemini", "Claude", "OpenAI", "Mistral", "Qwen", "Apple Foundation Models", "Custom Models", "Local / Ollama", "OpenRouter"]
         var grouped: [String: [AssistAvailableModel]] = [:]
         for model in discoveredModels {
+            if removedModelIDs.contains(model.modelIdentifier) || removedModelIDs.contains(model.id) {
+                continue
+            }
             let key = getProviderName(for: model)
             grouped[key, default: []].append(model)
         }
