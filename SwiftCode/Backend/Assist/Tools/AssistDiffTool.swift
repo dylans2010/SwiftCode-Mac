@@ -9,6 +9,17 @@ public struct AssistDiffTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Compares working tree with Git HEAD, returning unified diff.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Optional file path to constrain diff scope.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let startTime = Date()
         do {

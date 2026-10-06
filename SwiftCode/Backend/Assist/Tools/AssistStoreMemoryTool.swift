@@ -7,6 +7,18 @@ public struct AssistStoreMemoryTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Stores key-value information in long-term memory graph.",
+            properties: [
+                "key": JSONSchema(type: "string", description: "Unique memory key identifier."),
+                "value": JSONSchema(type: "string", description: "Value or memory data string.")
+            ],
+            required: ["key", "value"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let key = input["key"] as? String else {
             return .failure("Missing required parameter: key")

@@ -7,6 +7,17 @@ public struct AssistTreeViewTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Generates a tree-like representation of project directory structure.",
+            properties: [
+                "maxDepth": JSONSchema(type: "string", description: "Maximum directory depth to recurse (default 3).")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let maxDepthStr = input["maxDepth"] as? String ?? "3"
         let maxDepth = Int(maxDepthStr) ?? 3

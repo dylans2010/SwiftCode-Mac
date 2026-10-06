@@ -7,6 +7,17 @@ public struct AssistMultiFileEditTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Applies targeted edits across multiple files simultaneously.",
+            properties: [
+                "edits": JSONSchema(type: "array", description: "List of edit objects with path, target, and replacement.")
+            ],
+            required: ["edits"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let edits = input["edits"] as? [[String: String]] else {
             return .failure("Missing required parameter: edits")

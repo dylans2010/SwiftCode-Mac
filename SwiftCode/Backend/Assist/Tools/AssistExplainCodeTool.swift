@@ -7,6 +7,17 @@ public struct AssistExplainCodeTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Provides detailed explanation of code at a target path.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Relative file path of the code to explain.")
+            ],
+            required: ["path"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String else {
             return .failure("Missing required parameter: path")

@@ -64,6 +64,7 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(await testOfflineModelFallbackClassificationAndRehydration())
         results.append(await testAssistWorkersSubsystem())
         results.append(await testEventNormalizationAndActivityTrajectory())
+        results.append(await testToolKnowledgeDocumentationValidation())
         results.append(contentsOf: await GoogleCloudSDKTests.shared.runAllTests())
 
         let duration = Date().timeIntervalSince(startTime)
@@ -784,6 +785,78 @@ public final class AssistRuntimeTestSuite: Sendable {
             testName: "Event Normalization & Activity Trajectory",
             passed: passed,
             message: passed ? "Deduplication, retry grouping, sanitized errors, and worker titles verified." : "Event normalization regression test failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 20. Tool Knowledge Documentation Validation (Objective 30)
+    public func testToolKnowledgeDocumentationValidation() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let registry = AssistToolRegistry()
+        let allRegisteredTools = registry.allTools
+
+        guard !allRegisteredTools.isEmpty else {
+            return RuntimeTestCaseResult(
+                testName: "Tool Knowledge Documentation Validation",
+                passed: false,
+                message: "No tools registered in AssistToolRegistry.",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        // Load AgentSystemAsset.md
+        let assetContent: String
+        if let systemPrompt = try? AssistManager.shared.getSystemPrompt() {
+            assetContent = systemPrompt
+        } else if let bundleURL = Bundle.main.url(forResource: "AgentSystemAsset", withExtension: "md"),
+                  let loaded = try? String(contentsOf: bundleURL, encoding: .utf8) {
+            assetContent = loaded
+        } else {
+            assetContent = ""
+        }
+
+        var missingTools: [String] = []
+        var missingRequiredParams: [String] = []
+
+        for tool in allRegisteredTools {
+            let toolId = tool.id
+            let header = "### `\(toolId)`"
+
+            guard let headerRange = assetContent.range(of: header) else {
+                missingTools.append(toolId)
+                continue
+            }
+
+            // Extract scoped tool documentation block up to next ### header or end of asset
+            let remainingText = assetContent[headerRange.lowerBound...]
+            let nextHeaderRange = remainingText.dropFirst(header.count).range(of: "\n### `")
+            let scopedBlock: String
+            if let nextRange = nextHeaderRange {
+                scopedBlock = String(remainingText[..<nextRange.lowerBound])
+            } else {
+                scopedBlock = String(remainingText)
+            }
+
+            // Verify required parameters exist within this specific tool's documentation block
+            if let requiredParams = tool.parametersSchema.required {
+                for reqParam in requiredParams {
+                    let paramFormatted = "`\(reqParam)`"
+                    if !scopedBlock.contains(paramFormatted) {
+                        missingRequiredParams.append("\(toolId).\(reqParam)")
+                    }
+                }
+            }
+        }
+
+        let passed = missingTools.isEmpty && missingRequiredParams.isEmpty
+        let message = passed
+            ? "All \(allRegisteredTools.count) registered tools and required parameters verified in AgentSystemAsset.md."
+            : "Missing tool docs: \(missingTools.joined(separator: ", ")); Missing required param docs: \(missingRequiredParams.joined(separator: ", "))"
+
+        return RuntimeTestCaseResult(
+            testName: "Tool Knowledge Documentation Validation",
+            passed: passed,
+            message: message,
             duration: Date().timeIntervalSince(start)
         )
     }

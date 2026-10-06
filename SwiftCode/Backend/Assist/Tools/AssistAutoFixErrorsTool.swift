@@ -7,6 +7,17 @@ public struct AssistAutoFixErrorsTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Attempts to automatically fix detected compilation or syntax errors.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Optional target file path to repair.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let path = input["path"] as? String ?? "."
         let targetURL = AssistToolingSupport.resolvePath(path, workspaceRoot: context.workspaceRoot)

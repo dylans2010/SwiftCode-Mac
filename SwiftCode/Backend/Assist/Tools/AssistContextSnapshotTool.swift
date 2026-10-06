@@ -7,6 +7,17 @@ public struct AssistContextSnapshotTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Captures a snapshot of current environment and session state.",
+            properties: [
+                "label": JSONSchema(type: "string", description: "Optional description label for the snapshot.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         do {
             let snapshots = try AssistSnapshotFunctions.listSnapshots()

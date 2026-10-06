@@ -7,6 +7,19 @@ public struct AssistPatchApplicationEngine: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Generates and applies line-level patches with collision protection.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Target file path to apply patch to."),
+                "original": JSONSchema(type: "string", description: "Original text segment."),
+                "updated": JSONSchema(type: "string", description: "Updated text segment.")
+            ],
+            required: ["path", "original"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String else { return .failure("Missing path") }
         guard let originalBlock = input["original"] as? String, let newBlock = input["updated"] as? String else {

@@ -7,6 +7,17 @@ public struct AssistFormatCodeTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Formats code according to project style guidelines.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Optional relative path of the file to format.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let path = input["path"] as? String ?? "."
         let targetURL = AssistToolingSupport.resolvePath(path, workspaceRoot: context.workspaceRoot)

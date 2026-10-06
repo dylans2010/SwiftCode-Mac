@@ -7,6 +7,18 @@ public struct AssistCopyFileTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Copies a file from source to destination path.",
+            properties: [
+                "source": JSONSchema(type: "string", description: "The relative source file path."),
+                "destination": JSONSchema(type: "string", description: "The relative destination file path.")
+            ],
+            required: ["source", "destination"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let source = input["source"] as? String else {
             return .failure("Missing required parameter: source")

@@ -14,7 +14,11 @@ public struct CodeReviewTool: AssistTool {
     public var parametersSchema: JSONSchema {
         JSONSchema(
             type: "object",
-            description: "No input parameters needed. Automatically gathers task history, repository modifications, and build state to perform an independent verification."
+            description: "Gathers task history, repository modifications, and build state to perform an independent verification.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Optional target file or workspace directory scope to constrain verification.")
+            ],
+            required: []
         )
     }
 

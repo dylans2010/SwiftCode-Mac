@@ -7,6 +7,17 @@ public struct AssistSnapshotProjectTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Creates a full snapshot of current project state.",
+            properties: [
+                "message": JSONSchema(type: "string", description: "Optional description or label for the snapshot.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let message = input["message"] as? String ?? "Manual Snapshot"
         do {

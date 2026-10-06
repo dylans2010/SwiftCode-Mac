@@ -7,6 +7,18 @@ public struct AssistRegexSearchTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Searches for a regular expression pattern within project files.",
+            properties: [
+                "pattern": JSONSchema(type: "string", description: "The regular expression pattern to match."),
+                "path": JSONSchema(type: "string", description: "Optional subdirectory path scope.")
+            ],
+            required: ["pattern"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let pattern = input["pattern"] as? String else {
             return .failure("Missing required parameter: pattern")

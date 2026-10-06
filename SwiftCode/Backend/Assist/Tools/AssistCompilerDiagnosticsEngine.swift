@@ -7,6 +7,18 @@ public struct AssistCompilerDiagnosticsEngine: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Runs xcodebuild and parses warnings and errors into structured diagnostics.",
+            properties: [
+                "project": JSONSchema(type: "string", description: "Optional project path override."),
+                "scheme": JSONSchema(type: "string", description: "Optional Xcode build scheme name.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         #if os(macOS)
         let project = input["project"] as? String ?? "SwiftCode.xcodeproj"

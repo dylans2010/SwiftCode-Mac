@@ -7,6 +7,17 @@ public struct AssistTaskRunnerTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Executes a registered internal Swift task within workspace.",
+            properties: [
+                "task_id": JSONSchema(type: "string", description: "The task identifier to execute.")
+            ],
+            required: ["task_id"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let taskId = input["task_id"] as? String else {
             return .failure("Missing required parameter: task_id")

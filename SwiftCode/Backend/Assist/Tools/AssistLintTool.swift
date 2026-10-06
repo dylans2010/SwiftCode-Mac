@@ -7,6 +7,17 @@ public struct AssistLintTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Runs a linter on the specified file or directory.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Optional relative path of the file or directory to lint.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let path = input["path"] as? String ?? "."
 

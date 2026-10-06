@@ -7,6 +7,17 @@ public struct AssistAutonomousReviewEngine: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Performs static self-review and detects code smells or concurrency issues.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Optional file path to limit static review scope.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let root = AssistToolingSupport.resolvePath(input["path"] as? String, workspaceRoot: context.workspaceRoot)
         let files = AssistToolingSupport.enumeratedFiles(at: root, allowedExtensions: ["swift"], maxFileSize: 800_000)

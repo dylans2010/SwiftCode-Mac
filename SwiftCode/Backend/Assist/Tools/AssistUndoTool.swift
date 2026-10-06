@@ -7,6 +7,17 @@ public struct AssistUndoTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Reverts the last modification made by Assist.",
+            properties: [
+                "steps": JSONSchema(type: "integer", description: "Number of actions to undo (defaults to 1).")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         do {
             let snapshots = try AssistSnapshotFunctions.listSnapshots()

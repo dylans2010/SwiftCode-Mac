@@ -7,6 +7,18 @@ public struct AssistGenerateTestsTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Generates unit test stubs for Swift types with protocol mocking.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Source file path containing the types to test."),
+                "testPath": JSONSchema(type: "string", description: "Optional target test file path.")
+            ],
+            required: ["path"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String else {
             return .failure("Missing required parameter: path")

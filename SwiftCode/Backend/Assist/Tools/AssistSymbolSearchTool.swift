@@ -7,6 +7,17 @@ public struct AssistSymbolSearchTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Searches for code symbols (classes, structs, protocols, functions, variables).",
+            properties: [
+                "symbol": JSONSchema(type: "string", description: "The symbol name or identifier to search for.")
+            ],
+            required: ["symbol"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let symbol = input["symbol"] as? String else {
             return .failure("Missing required parameter: symbol")

@@ -7,6 +7,17 @@ public struct AssistRuntimeDiagnosticsEngine: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Analyzes runtime logs for crashes and anomalies.",
+            properties: [
+                "logPath": JSONSchema(type: "string", description: "File path of log file to analyze.")
+            ],
+            required: ["logPath"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let logPath = input["logPath"] as? String else { return .failure("Missing logPath") }
         let log = try context.fileSystem.readFile(at: logPath)

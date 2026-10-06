@@ -7,6 +7,17 @@ public struct AssistComplexityAnalysisTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Analyzes the cyclomatic complexity of code.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "The relative file path to analyze.")
+            ],
+            required: ["path"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String else {
             return .failure("Missing required parameter: path")

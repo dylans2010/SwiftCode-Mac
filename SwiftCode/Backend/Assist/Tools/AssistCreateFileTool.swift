@@ -7,6 +7,19 @@ public struct AssistCreateFileTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Creates a new file with content.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "The relative path to the file to create."),
+                "content": JSONSchema(type: "string", description: "Initial text content of the file."),
+                "overwrite": JSONSchema(type: "boolean", description: "Whether to overwrite if file exists.")
+            ],
+            required: ["path"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String, !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .failure("Missing required parameter: path")

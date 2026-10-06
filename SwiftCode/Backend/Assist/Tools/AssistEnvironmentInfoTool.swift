@@ -7,6 +7,17 @@ public struct AssistEnvironmentInfoTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Provides information about runtime environment and system capabilities.",
+            properties: [
+                "includeHardware": JSONSchema(type: "boolean", description: "Whether to include detailed host hardware specs.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let processInfo = ProcessInfo.processInfo
         let locale = Locale.current.identifier

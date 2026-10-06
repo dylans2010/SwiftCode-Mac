@@ -7,6 +7,17 @@ public struct AssistDependencyGraphTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Generates a graph of project dependencies.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Optional file or module path scope.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let root = AssistToolingSupport.resolvePath(input["path"] as? String, workspaceRoot: context.workspaceRoot)
         // Scan common source directories if root is base

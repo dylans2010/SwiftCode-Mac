@@ -8,6 +8,19 @@ public struct AssistProjectMutationController: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Adds/removes files and repairs references in project project.",
+            properties: [
+                "action": JSONSchema(type: "string", description: "Mutation action ('addFile', 'removeFile', 'repairReferences')."),
+                "filePath": JSONSchema(type: "string", description: "Target file path."),
+                "projectFile": JSONSchema(type: "string", description: "Optional target project file path.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let pbxPath = input["projectFile"] as? String ?? "SwiftCode.xcodeproj/project.pbxproj"
         let action = (input["action"] as? String ?? "").lowercased()

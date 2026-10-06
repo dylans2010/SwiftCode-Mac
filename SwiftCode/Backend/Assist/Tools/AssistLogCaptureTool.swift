@@ -7,6 +7,17 @@ public struct AssistLogCaptureTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Captures logs from execution environment.",
+            properties: [
+                "memoryKey": JSONSchema(type: "string", description: "Optional key to store captured logs into memory graph.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let snapshots = (try? AssistSnapshotFunctions.listSnapshots().prefix(10)) ?? []
         let logLines = snapshots.map { "\($0.timestamp): \($0.message) [\($0.id)]" }

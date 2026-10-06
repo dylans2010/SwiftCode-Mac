@@ -7,6 +7,17 @@ public struct AssistValidateChangesTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Verifies applied changes are correct and syntax is valid.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Optional relative path of the file to validate.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let path = input["path"] as? String ?? "."
         let target = AssistToolingSupport.resolvePath(path, workspaceRoot: context.workspaceRoot)

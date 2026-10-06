@@ -7,6 +7,18 @@ public struct AssistSemanticQueryEngine: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Performs semantic search for symbols, view structures, and data flows.",
+            properties: [
+                "query": JSONSchema(type: "string", description: "Semantic search query string."),
+                "path": JSONSchema(type: "string", description: "Optional target directory scope.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let query = (input["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty else {
             return .failure("Missing required parameter: query")

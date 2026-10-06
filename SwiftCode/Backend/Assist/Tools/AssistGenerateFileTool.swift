@@ -7,6 +7,19 @@ public struct AssistGenerateFileTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Generates a new file with boilerplate or specific code template.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "The relative destination path for the generated file."),
+                "template": JSONSchema(type: "string", description: "Template name or boilerplate pattern."),
+                "module": JSONSchema(type: "string", description: "Optional target module name.")
+            ],
+            required: ["path", "template"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String else {
             return .failure("Missing required parameter: path")

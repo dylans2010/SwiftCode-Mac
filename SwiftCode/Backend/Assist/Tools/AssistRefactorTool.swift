@@ -7,6 +7,18 @@ public struct AssistRefactorTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Performs code refactoring (extract method, rename symbol, inline).",
+            properties: [
+                "path": JSONSchema(type: "string", description: "The relative path of the file to refactor."),
+                "action": JSONSchema(type: "string", description: "Refactoring action type.")
+            ],
+            required: ["path", "action"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String else {
             return .failure("Missing required parameter: path")

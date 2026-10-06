@@ -7,6 +7,17 @@ public struct AssistExternalResourceGateway: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Fetches external API resources and returns JSON payload.",
+            properties: [
+                "url": JSONSchema(type: "string", description: "The HTTP/HTTPS URL to query.")
+            ],
+            required: ["url"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let urlString = input["url"] as? String, let url = URL(string: urlString) else {
             return .failure("Missing or invalid url")

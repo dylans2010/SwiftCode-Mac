@@ -7,6 +7,17 @@ public struct AssistChangeLogTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Displays project snapshot and change history.",
+            properties: [
+                "limit": JSONSchema(type: "integer", description: "Maximum number of recent change log entries to return.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         do {
             let snapshots = try AssistSnapshotFunctions.listSnapshots()

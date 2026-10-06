@@ -7,6 +7,18 @@ public struct AssistAppendFileTool: AssistTool {
 
     public init() {}
 
+        public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Appends content to the end of a file.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "The relative path to the file from the workspace root."),
+                "content": JSONSchema(type: "string", description: "The text content to append to the file.")
+            ],
+            required: ["path", "content"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String else {
             return .failure("Missing required parameter: path")

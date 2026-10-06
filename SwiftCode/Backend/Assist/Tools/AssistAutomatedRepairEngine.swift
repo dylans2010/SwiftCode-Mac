@@ -7,6 +7,17 @@ public struct AssistAutomatedRepairEngine: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Consumes compiler diagnostics and applies targeted fixes.",
+            properties: [
+                "errors": JSONSchema(type: "string", description: "Compiler diagnostic error payload string.")
+            ],
+            required: ["errors"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let errors = input["errors"] as? String, !errors.isEmpty else {
             return .failure("Missing compiler errors payload")

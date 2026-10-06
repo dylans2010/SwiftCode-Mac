@@ -7,6 +7,17 @@ public struct AssistDeleteDirectoryTool: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Deletes a directory and all its contents.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "The relative path of the directory to delete.")
+            ],
+            required: ["path"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String else {
             return .failure("Missing required parameter: path")

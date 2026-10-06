@@ -7,6 +7,17 @@ public struct AssistDependencyResolutionEngine: AssistTool {
 
     public init() {}
 
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Adds and resolves Swift Package dependencies.",
+            properties: [
+                "packageURL": JSONSchema(type: "string", description: "Git URL or package identifier for SPM package.")
+            ],
+            required: ["packageURL"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let packageURL = input["packageURL"] as? String, !packageURL.isEmpty else {
             return .failure("Missing packageURL")
