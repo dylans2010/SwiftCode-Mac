@@ -7,6 +7,23 @@ public struct AssistCodeMutationEngine: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .fileModification }
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Applies safe, minimal source mutations scoped to a symbol or an exact text range.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Workspace-relative path of the file to mutate."),
+                "replacement": JSONSchema(type: "string", description: "Replacement source text."),
+                "symbol": JSONSchema(type: "string", description: "Symbol name whose body will be replaced. Provide either symbol or target."),
+                "target": JSONSchema(type: "string", description: "Exact text to replace (all occurrences). Provide either symbol or target.")
+            ],
+            required: ["path", "replacement"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String, !path.isEmpty else { return .failure("Missing path") }
         guard let replacement = input["replacement"] as? String else { return .failure("Missing replacement") }

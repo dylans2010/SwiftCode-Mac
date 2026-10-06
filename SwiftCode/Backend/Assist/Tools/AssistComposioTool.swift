@@ -29,6 +29,9 @@ public final class AssistComposioTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .general }
+    public var riskLevel: ToolRiskLevel { .externalSideEffect }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let toolSlug = input["toolSlug"] as? String else {
             return .failure("Missing required parameter: toolSlug")

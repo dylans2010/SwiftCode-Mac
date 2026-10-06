@@ -20,6 +20,9 @@ public struct AssistVersionControlOperator: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .gitOperations }
+    public var riskLevel: ToolRiskLevel { .potentiallyDestructive }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         #if os(macOS)
         let action = (input["action"] as? String ?? "status").lowercased()

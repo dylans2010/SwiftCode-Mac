@@ -127,35 +127,50 @@ public final class AssistToolRouter: Sendable {
         }
     }
 
+    /// Builds metadata from a registered tool's own declared properties.
+    /// This is the single source of truth for capability and risk: tools declare
+    /// their own `capability` and `riskLevel`, and routing/serialization derive
+    /// from those declarations. The `metadata(for toolId:)` overload remains as a
+    /// fallback for unregistered or legacy tool ids.
+    public func metadata(for tool: AssistTool) -> ToolMetadata {
+        ToolMetadata(
+            id: tool.id,
+            name: tool.name,
+            description: tool.description,
+            capability: tool.capability,
+            riskLevel: tool.riskLevel,
+            isReadOnly: tool.isReadOnly,
+            isMutating: tool.isMutating,
+            requiresVerificationAfterward: tool.isMutating
+        )
+    }
+
     public func filterTools(for status: AgentSessionStatus, in registry: AssistToolRegistry) -> [AssistTool] {
         let all = registry.allTools
 
         switch status {
         case .analyzingRepository, .collectingContext, .gatheringContext, .understandingRequest:
             return all.filter { tool in
-                let meta = metadata(for: tool.id)
-                return meta.capability == .repositoryDiscovery ||
-                       meta.capability == .fileReading ||
-                       meta.capability == .planning ||
+                return tool.capability == .repositoryDiscovery ||
+                       tool.capability == .fileReading ||
+                       tool.capability == .planning ||
                        tool.id == "project_diff"
             }
 
         case .planning, .planningReview:
             return all.filter { tool in
-                let meta = metadata(for: tool.id)
-                return meta.capability == .planning ||
-                       meta.capability == .repositoryDiscovery ||
-                       meta.capability == .fileReading ||
+                return tool.capability == .planning ||
+                       tool.capability == .repositoryDiscovery ||
+                       tool.capability == .fileReading ||
                        tool.id == "code_summary" ||
                        tool.id == "use_workers"
             }
 
         case .executingTools, .updatingRepository, .executingStrategy:
             return all.filter { tool in
-                let meta = metadata(for: tool.id)
-                return meta.capability == .fileModification ||
-                       meta.capability == .fileReading ||
-                       meta.capability == .systemExecution ||
+                return tool.capability == .fileModification ||
+                       tool.capability == .fileReading ||
+                       tool.capability == .systemExecution ||
                        tool.id == "code_replace" ||
                        tool.id == "file_write" ||
                        tool.id == "project_diff" ||
@@ -164,22 +179,20 @@ public final class AssistToolRouter: Sendable {
 
         case .validating, .reviewing:
             return all.filter { tool in
-                let meta = metadata(for: tool.id)
-                return meta.capability == .compilation ||
-                       meta.capability == .testing ||
-                       meta.capability == .diagnostics ||
-                       meta.capability == .gitOperations ||
+                return tool.capability == .compilation ||
+                       tool.capability == .testing ||
+                       tool.capability == .diagnostics ||
+                       tool.capability == .gitOperations ||
                        tool.id == "code_review" ||
                        tool.id == "compiler_diagnostics_engine"
             }
 
         case .recovering, .reviewFailed:
             return all.filter { tool in
-                let meta = metadata(for: tool.id)
-                return meta.capability == .diagnostics ||
-                       meta.capability == .fileReading ||
-                       meta.capability == .fileModification ||
-                       meta.capability == .compilation
+                return tool.capability == .diagnostics ||
+                       tool.capability == .fileReading ||
+                       tool.capability == .fileModification ||
+                       tool.capability == .compilation
             }
 
         default:
@@ -207,7 +220,7 @@ public final class AssistToolRouter: Sendable {
 
     public func serializeToolSchemas(_ tools: [AssistTool]) -> String {
         return tools.map { tool in
-            let meta = metadata(for: tool.id)
+            let meta = metadata(for: tool)
             let schemaData = (try? JSONEncoder().encode(tool.parametersSchema)) ?? Data()
             let schemaStr = String(data: schemaData, encoding: .utf8) ?? "{}"
             return """
@@ -223,7 +236,7 @@ public final class AssistToolRouter: Sendable {
 
     public func serializeCompactSchemas(_ tools: [AssistTool]) -> String {
         return tools.map { tool in
-            let meta = metadata(for: tool.id)
+            let meta = metadata(for: tool)
             return """
             - id: "\(tool.id)"
               name: "\(tool.name)"

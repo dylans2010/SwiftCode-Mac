@@ -7,6 +7,20 @@ public struct AssistAutonomousReviewEngine: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .diagnostics }
+    public var riskLevel: ToolRiskLevel { .safeRead }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Performs static self-review over the codebase and reports inefficient patterns as advisory findings.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Workspace-relative directory to review. Defaults to the workspace root.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let root = AssistToolingSupport.resolvePath(input["path"] as? String, workspaceRoot: context.workspaceRoot)
         let files = AssistToolingSupport.enumeratedFiles(at: root, allowedExtensions: ["swift"], maxFileSize: 800_000)

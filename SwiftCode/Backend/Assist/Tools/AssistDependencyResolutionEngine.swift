@@ -7,6 +7,20 @@ public struct AssistDependencyResolutionEngine: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .compilation }
+    public var riskLevel: ToolRiskLevel { .execution }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Resolves Swift package dependencies for the project via xcodebuild. macOS only.",
+            properties: [
+                "packageURL": JSONSchema(type: "string", description: "Package URL label for the resolution report.")
+            ],
+            required: ["packageURL"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let packageURL = input["packageURL"] as? String, !packageURL.isEmpty else {
             return .failure("Missing packageURL")

@@ -7,6 +7,24 @@ public struct AssistInsertCodeBlockTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .fileModification }
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Inserts a block of code at a line number or before/after a symbol pattern.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Workspace-relative path of the file to modify."),
+                "code": JSONSchema(type: "string", description: "Code block to insert."),
+                "mode": JSONSchema(type: "string", description: "One of 'line', 'before', or 'after'. Default: \"line\"."),
+                "line": JSONSchema(type: "string", description: "1-based line number for 'line' mode. Appends past end of file. Default: \"1\"."),
+                "pattern": JSONSchema(type: "string", description: "Anchor text for 'before'/'after' modes. Required in those modes.")
+            ],
+            required: ["path", "code"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String else {
             return .failure("Missing required parameter: path")

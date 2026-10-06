@@ -7,6 +7,20 @@ public struct AssistLintTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .diagnostics }
+    public var riskLevel: ToolRiskLevel { .safeRead }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Runs basic lint checks (line length, TODO/FIXME markers) on a file.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Workspace-relative file path to lint. Default: \".\".")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let path = input["path"] as? String ?? "."
 

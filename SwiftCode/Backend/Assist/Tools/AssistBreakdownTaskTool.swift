@@ -7,6 +7,20 @@ public struct AssistBreakdownTaskTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .planning }
+    public var riskLevel: ToolRiskLevel { .safeRead }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Breaks a stored plan into granular actionable steps.",
+            properties: [
+                "planId": JSONSchema(type: "string", description: "Plan identifier previously returned by intel_plan_task.")
+            ],
+            required: ["planId"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let planId = input["planId"] as? String else {
             return .failure("Missing required parameter: planId")

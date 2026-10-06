@@ -7,6 +7,21 @@ public struct AssistGenerateTestsTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .testing }
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Generates XCTest stub files for Swift types found in a source file.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Workspace-relative path of the source file to generate tests for."),
+                "testPath": JSONSchema(type: "string", description: "Workspace-relative output path for the generated test file. Default: \"Tests/<SourceName>Tests.swift\".")
+            ],
+            required: ["path"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String else {
             return .failure("Missing required parameter: path")

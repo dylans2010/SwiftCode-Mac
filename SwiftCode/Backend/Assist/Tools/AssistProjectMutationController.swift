@@ -8,6 +8,22 @@ public struct AssistProjectMutationController: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .fileModification }
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Adds or removes file references in SwiftCode.xcodeproj/project.pbxproj, or repairs its formatting.",
+            properties: [
+                "action": JSONSchema(type: "string", description: "One of 'add', 'remove', or 'repair'."),
+                "projectFile": JSONSchema(type: "string", description: "Workspace-relative path to project.pbxproj. Default: \"SwiftCode.xcodeproj/project.pbxproj\"."),
+                "filePath": JSONSchema(type: "string", description: "Workspace-relative file path. Required for 'add' and 'remove'.")
+            ],
+            required: ["action"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let pbxPath = input["projectFile"] as? String ?? "SwiftCode.xcodeproj/project.pbxproj"
         let action = (input["action"] as? String ?? "").lowercased()

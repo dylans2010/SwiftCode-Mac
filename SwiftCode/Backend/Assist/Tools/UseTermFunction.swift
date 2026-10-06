@@ -40,6 +40,9 @@ public struct UseTermFunction: AssistTool {
         )
     }
 
+    public var capability: ToolCapability { .systemExecution }
+    public var riskLevel: ToolRiskLevel { .execution }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let command = input["command"] as? String ?? ""
         let relativeWorkDir = input["workingDirectory"] as? String ?? ""

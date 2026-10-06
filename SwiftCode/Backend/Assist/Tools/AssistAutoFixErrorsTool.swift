@@ -7,6 +7,20 @@ public struct AssistAutoFixErrorsTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .diagnostics }
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Attempts to automatically fix detected compilation or linting errors using an LLM.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Workspace-relative file or directory to auto-fix. Defaults to the workspace root. Default: \".\".")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let path = input["path"] as? String ?? "."
         let targetURL = AssistToolingSupport.resolvePath(path, workspaceRoot: context.workspaceRoot)

@@ -7,6 +7,20 @@ public struct AssistSourceGraphBuilder: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .repositoryDiscovery }
+    public var riskLevel: ToolRiskLevel { .safeRead }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Parses Swift files and returns dependency and symbol relationship graph data.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Workspace-relative directory to scan. Defaults to the workspace root.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let root = AssistToolingSupport.resolvePath(input["path"] as? String, workspaceRoot: context.workspaceRoot)
         guard FileManager.default.fileExists(atPath: root.path) else {

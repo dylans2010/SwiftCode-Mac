@@ -7,6 +7,21 @@ public struct AssistSemanticQueryEngine: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .repositoryDiscovery }
+    public var riskLevel: ToolRiskLevel { .safeRead }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Performs semantic search for symbols, SwiftUI views, models, and services with usage context.",
+            properties: [
+                "query": JSONSchema(type: "string", description: "Search query. Shortcuts: 'view', 'model', 'service' expand to common patterns."),
+                "path": JSONSchema(type: "string", description: "Workspace-relative directory to search. Defaults to the workspace root.")
+            ],
+            required: ["query"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let query = (input["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty else {
             return .failure("Missing required parameter: query")

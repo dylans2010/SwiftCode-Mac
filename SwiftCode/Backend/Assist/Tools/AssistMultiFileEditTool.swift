@@ -7,6 +7,23 @@ public struct AssistMultiFileEditTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .fileModification }
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Applies edits across multiple files. Not atomic: earlier edits persist if a later one fails.",
+            properties: [
+                "edits": JSONSchema(type: "array", description: "Array of edit objects. Each object requires a 'path' key."),
+                "content": JSONSchema(type: "string", description: "Full-file replacement content, used when present instead of search/replace."),
+                "search": JSONSchema(type: "string", description: "Snippet to find within the file."),
+                "replace": JSONSchema(type: "string", description: "Replacement text for the found snippet.")
+            ],
+            required: ["edits"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let edits = input["edits"] as? [[String: String]] else {
             return .failure("Missing required parameter: edits")

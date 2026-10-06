@@ -7,6 +7,9 @@ public struct AssistContextSnapshotTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .memory }
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         do {
             let snapshots = try AssistSnapshotFunctions.listSnapshots()

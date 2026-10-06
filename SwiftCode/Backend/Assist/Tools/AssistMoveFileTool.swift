@@ -7,6 +7,21 @@ public struct AssistMoveFileTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .fileModification }
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Moves a file from a source path to a destination path.",
+            properties: [
+                "source": JSONSchema(type: "string", description: "Workspace-relative path of the existing file to move."),
+                "destination": JSONSchema(type: "string", description: "Workspace-relative destination path.")
+            ],
+            required: ["source", "destination"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let source = input["source"] as? String else {
             return .failure("Missing required parameter: source")

@@ -7,6 +7,9 @@ public struct AssistClearMemoryTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .memory }
+    public var riskLevel: ToolRiskLevel { .potentiallyDestructive }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         context.memory.clear()
         return .success("Memory cleared.")

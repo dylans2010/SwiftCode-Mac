@@ -7,6 +7,9 @@ public struct AssistEnvironmentInfoTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .diagnostics }
+    public var riskLevel: ToolRiskLevel { .safeRead }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let processInfo = ProcessInfo.processInfo
         let locale = Locale.current.identifier

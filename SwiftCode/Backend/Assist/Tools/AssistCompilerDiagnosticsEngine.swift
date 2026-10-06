@@ -7,6 +7,21 @@ public struct AssistCompilerDiagnosticsEngine: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .diagnostics }
+    public var riskLevel: ToolRiskLevel { .execution }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Runs xcodebuild and parses warnings and errors into structured diagnostics. macOS only.",
+            properties: [
+                "project": JSONSchema(type: "string", description: "Xcode project file to build. Default: \"SwiftCode.xcodeproj\"."),
+                "scheme": JSONSchema(type: "string", description: "Build scheme. Default: \"SwiftCode\".")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         #if os(macOS)
         let project = input["project"] as? String ?? "SwiftCode.xcodeproj"

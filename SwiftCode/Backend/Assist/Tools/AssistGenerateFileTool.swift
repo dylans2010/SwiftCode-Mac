@@ -7,6 +7,22 @@ public struct AssistGenerateFileTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .fileModification }
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Generates a new file from a built-in template. Refuses to overwrite existing files.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Workspace-relative target path. Must not already exist."),
+                "template": JSONSchema(type: "string", description: "One of: swift_struct, swift_class, swiftui_view, test (case-insensitive)."),
+                "module": JSONSchema(type: "string", description: "Module name used only by the test template for @testable import. Default: \"SwiftCode\".")
+            ],
+            required: ["path", "template"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String else {
             return .failure("Missing required parameter: path")

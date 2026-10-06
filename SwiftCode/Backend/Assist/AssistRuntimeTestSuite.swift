@@ -64,6 +64,7 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(await testOfflineModelFallbackClassificationAndRehydration())
         results.append(await testAssistWorkersSubsystem())
         results.append(await testEventNormalizationAndActivityTrajectory())
+        results.append(contentsOf: await AssistToolKnowledgeValidator.shared.runAllTests())
         results.append(contentsOf: await GoogleCloudSDKTests.shared.runAllTests())
 
         let duration = Date().timeIntervalSince(startTime)

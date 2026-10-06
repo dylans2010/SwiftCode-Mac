@@ -111,7 +111,7 @@ public final class GoogleCloudSDKRuntime: Sendable {
             return (false, nil, errorMsg)
         }
 
-        let meta = AssistToolRouter.shared.metadata(for: toolName)
+        let meta = AssistToolRouter.shared.metadata(for: tool)
         let semKey = await MainActor.run {
             AssistEventNormalizer.shared.computeSemanticKey(toolName: toolName, arguments: args)
         }

@@ -7,6 +7,20 @@ public struct AssistValidateChangesTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .diagnostics }
+    public var riskLevel: ToolRiskLevel { .safeRead }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Validates applied changes for basic issues (unreadable files, merge markers, missing trailing newline).",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Workspace-relative file or directory to validate. Default: \".\".")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let path = input["path"] as? String ?? "."
         let target = AssistToolingSupport.resolvePath(path, workspaceRoot: context.workspaceRoot)

@@ -37,6 +37,8 @@
 		8D9E00010001000100000008 /* AssistVerificationPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000007 /* AssistVerificationPipeline.swift */; };
 		8D9E0001000100010000000A /* AssistErrorRecoveryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000009 /* AssistErrorRecoveryEngine.swift */; };
 		8D9E0001000100010000000C /* AssistRuntimeTestSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E0001000100010000000B /* AssistRuntimeTestSuite.swift */; };
+		7176C1F83476933790B8F506 /* AssistSystemPromptSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE901A538D0E1C9BA9E27613 /* AssistSystemPromptSections.swift */; };
+		6944C4A034D45A310952CC89 /* AssistToolKnowledgeValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 139215509F7EE961621BA9D9 /* AssistToolKnowledgeValidator.swift */; };
 		8D9E00020001000100000002 /* AgentPhaseCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000001 /* AgentPhaseCoordinator.swift */; };
 		8D9E00020001000100000004 /* AgentNotesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000003 /* AgentNotesManager.swift */; };
 		8D9E00020001000100000006 /* AgentModelAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000005 /* AgentModelAdapter.swift */; };
@@ -2659,6 +2661,8 @@
 		8D9E00010001000100000007 /* AssistVerificationPipeline.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistVerificationPipeline.swift; sourceTree = "<group>"; };
 		8D9E00010001000100000009 /* AssistErrorRecoveryEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistErrorRecoveryEngine.swift; sourceTree = "<group>"; };
 		8D9E0001000100010000000B /* AssistRuntimeTestSuite.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistRuntimeTestSuite.swift; sourceTree = "<group>"; };
+		BE901A538D0E1C9BA9E27613 /* AssistSystemPromptSections.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistSystemPromptSections.swift; sourceTree = "<group>"; };
+		139215509F7EE961621BA9D9 /* AssistToolKnowledgeValidator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistToolKnowledgeValidator.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000001 /* AgentPhaseCoordinator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentPhaseCoordinator.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000003 /* AgentNotesManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentNotesManager.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000005 /* AgentModelAdapter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentModelAdapter.swift; sourceTree = "<group>"; };
@@ -7247,6 +7251,8 @@
 				8D9E00010001000100000007 /* AssistVerificationPipeline.swift */,
 				8D9E00010001000100000009 /* AssistErrorRecoveryEngine.swift */,
 				8D9E0001000100010000000B /* AssistRuntimeTestSuite.swift */,
+				BE901A538D0E1C9BA9E27613 /* AssistSystemPromptSections.swift */,
+				139215509F7EE961621BA9D9 /* AssistToolKnowledgeValidator.swift */,
 				8D9E00020001000100000001 /* AgentPhaseCoordinator.swift */,
 				8D9E00020001000100000003 /* AgentNotesManager.swift */,
 				8D9E00020001000100000005 /* AgentModelAdapter.swift */,
@@ -10482,6 +10488,8 @@
 				8D9E00010001000100000008 /* AssistVerificationPipeline.swift in Sources */,
 				8D9E0001000100010000000A /* AssistErrorRecoveryEngine.swift in Sources */,
 				8D9E0001000100010000000C /* AssistRuntimeTestSuite.swift in Sources */,
+				7176C1F83476933790B8F506 /* AssistSystemPromptSections.swift in Sources */,
+				6944C4A034D45A310952CC89 /* AssistToolKnowledgeValidator.swift in Sources */,
 				8D9E00020001000100000002 /* AgentPhaseCoordinator.swift in Sources */,
 				8D9E00020001000100000004 /* AgentNotesManager.swift in Sources */,
 				8D9E00020001000100000006 /* AgentModelAdapter.swift in Sources */,
