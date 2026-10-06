@@ -7,6 +7,22 @@ public struct AssistCreateFileTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .fileModification }
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Creates a new file with full content, creating intermediate directories when needed.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Workspace-relative path of the file to create. Must be non-blank."),
+                "content": JSONSchema(type: "string", description: "File body. Default: \"\"."),
+                "overwrite": JSONSchema(type: "boolean", description: "Must be true to replace an existing file. Default: false.")
+            ],
+            required: ["path"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String, !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .failure("Missing required parameter: path")

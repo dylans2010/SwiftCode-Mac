@@ -7,6 +7,22 @@ public struct AssistPatchApplicationEngine: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .fileModification }
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Applies a line-level patch with integrity validation against the original block.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Workspace-relative path of the file to patch."),
+                "original": JSONSchema(type: "string", description: "Block that must exist verbatim in the file."),
+                "updated": JSONSchema(type: "string", description: "Replacement block.")
+            ],
+            required: ["path", "original", "updated"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String else { return .failure("Missing path") }
         guard let originalBlock = input["original"] as? String, let newBlock = input["updated"] as? String else {

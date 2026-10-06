@@ -71,6 +71,9 @@ public final class UseMCP: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .general }
+    public var riskLevel: ToolRiskLevel { .externalSideEffect }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let serverName = input["serverName"] as? String,
               let toolName = input["toolName"] as? String,

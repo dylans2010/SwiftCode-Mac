@@ -7,6 +7,20 @@ public struct AssistSearchTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .repositoryDiscovery }
+    public var riskLevel: ToolRiskLevel { .safeRead }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Searches for literal text across files in the project sandbox.",
+            properties: [
+                "pattern": JSONSchema(type: "string", description: "Literal text pattern to find.")
+            ],
+            required: ["pattern"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let pattern = input["pattern"] as? String else {
             return .failure("Missing required parameter: pattern")

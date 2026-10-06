@@ -7,6 +7,9 @@ public struct AssistUndoTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .general }
+    public var riskLevel: ToolRiskLevel { .potentiallyDestructive }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         do {
             let snapshots = try AssistSnapshotFunctions.listSnapshots()

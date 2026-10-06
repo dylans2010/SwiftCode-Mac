@@ -7,6 +7,20 @@ public struct AssistTreeViewTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .repositoryDiscovery }
+    public var riskLevel: ToolRiskLevel { .safeRead }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Generates a tree-like representation of the project structure.",
+            properties: [
+                "maxDepth": JSONSchema(type: "string", description: "Maximum tree depth as a decimal string. Unparseable values fall back to 3. Default: \"3\".")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let maxDepthStr = input["maxDepth"] as? String ?? "3"
         let maxDepth = Int(maxDepthStr) ?? 3

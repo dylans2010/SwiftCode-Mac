@@ -18,6 +18,9 @@ public struct CodeReviewTool: AssistTool {
         )
     }
 
+    public var capability: ToolCapability { .diagnostics }
+    public var riskLevel: ToolRiskLevel { .safeRead }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         AssistManager.shared.isCodeReviewRunning = true
         AssistManager.shared.hasCodeReviewBeenInvoked = true

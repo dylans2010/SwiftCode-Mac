@@ -33,6 +33,9 @@ public final class SearchSkillsTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .repositoryDiscovery }
+    public var riskLevel: ToolRiskLevel { .safeRead }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let query = input["query"] as? String, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .failure("Missing required parameter 'query'.")

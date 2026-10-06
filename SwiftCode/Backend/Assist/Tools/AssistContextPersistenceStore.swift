@@ -7,6 +7,22 @@ public struct AssistContextPersistenceStore: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .memory }
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Stores and retrieves persistent key-value context across Assist sessions.",
+            properties: [
+                "key": JSONSchema(type: "string", description: "Context key."),
+                "action": JSONSchema(type: "string", description: "One of 'set', 'get', or 'delete'. Default: \"get\"."),
+                "value": JSONSchema(type: "string", description: "Value to store. Required when action is 'set'.")
+            ],
+            required: ["key"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let action = (input["action"] as? String ?? "get").lowercased()
         guard let key = input["key"] as? String, !key.isEmpty else { return .failure("Missing key") }

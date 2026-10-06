@@ -7,6 +7,20 @@ public struct AssistAutomatedRepairEngine: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .diagnostics }
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Consumes compiler diagnostics and applies automated repair annotations to the reported lines.",
+            properties: [
+                "errors": JSONSchema(type: "string", description: "Compiler diagnostic lines in 'path:line:...' format. Only lines containing '.swift:' are processed.")
+            ],
+            required: ["errors"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let errors = input["errors"] as? String, !errors.isEmpty else {
             return .failure("Missing compiler errors payload")

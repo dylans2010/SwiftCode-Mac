@@ -7,6 +7,21 @@ public struct AssistRenameFileTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .fileModification }
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Renames a file within its current directory.",
+            properties: [
+                "oldPath": JSONSchema(type: "string", description: "Workspace-relative path of the existing file."),
+                "newName": JSONSchema(type: "string", description: "New file name (not a path) within the same directory.")
+            ],
+            required: ["oldPath", "newName"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let oldPath = input["oldPath"] as? String else {
             return .failure("Missing required parameter: oldPath")

@@ -7,6 +7,20 @@ public struct AssistDependencyGraphTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .repositoryDiscovery }
+    public var riskLevel: ToolRiskLevel { .safeRead }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Generates a graph of Swift import dependencies across the project.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Workspace-relative directory to scan. Defaults to the workspace root.")
+            ],
+            required: []
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let root = AssistToolingSupport.resolvePath(input["path"] as? String, workspaceRoot: context.workspaceRoot)
         // Scan common source directories if root is base

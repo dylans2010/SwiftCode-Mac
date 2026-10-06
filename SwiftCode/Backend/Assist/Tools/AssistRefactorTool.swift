@@ -7,6 +7,21 @@ public struct AssistRefactorTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .fileModification }
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Performs an LLM-driven refactoring of a file. Requires an OpenAI API key.",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Workspace-relative path of the file to refactor."),
+                "action": JSONSchema(type: "string", description: "Natural-language description of the refactoring to perform.")
+            ],
+            required: ["path", "action"]
+        )
+    }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String else {
             return .failure("Missing required parameter: path")

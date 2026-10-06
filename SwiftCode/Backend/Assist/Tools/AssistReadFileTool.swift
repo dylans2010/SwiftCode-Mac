@@ -18,6 +18,9 @@ public struct AssistReadFileTool: AssistTool {
 
     public init() {}
 
+    public var capability: ToolCapability { .fileReading }
+    public var riskLevel: ToolRiskLevel { .safeRead }
+
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String else {
             return .failure("Missing required parameter: path")
