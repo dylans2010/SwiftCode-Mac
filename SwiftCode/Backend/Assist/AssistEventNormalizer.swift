@@ -131,7 +131,7 @@ public final class AssistEventNormalizer {
         callId: String,
         toolName: String,
         output: String?,
-        arguments: [String: Any],
+        arguments: [String: Any] = [:],
         in activityGroup: inout AssistActivityGroup
     ) {
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
@@ -183,7 +183,7 @@ public final class AssistEventNormalizer {
         callId: String,
         toolName: String,
         error: String,
-        arguments: [String: Any],
+        arguments: [String: Any] = [:],
         in activityGroup: inout AssistActivityGroup
     ) {
         let cleanError = sanitizeErrorMessage(rawError: error, toolName: toolName)

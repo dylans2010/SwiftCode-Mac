@@ -199,10 +199,14 @@ class ModelAdapterServer:
 
         client = await self.get_client()
 
-        if target.provider == "anthropic":
+        if target.provider in ("anthropic", "claude"):
             await self._forward_to_anthropic(payload, target, stream, writer, client)
         elif target.provider == "openrouter":
             await self._forward_to_openrouter(payload, target, stream, writer, client)
+        elif target.provider == "mistral":
+            await self._forward_to_mistral(payload, target, stream, writer, client)
+        elif target.provider == "qwen":
+            await self._forward_to_qwen(payload, target, stream, writer, client)
         elif target.provider in ("ollama", "lmstudio"):
             await self._forward_to_local_openai(payload, target, stream, writer, client)
         elif target.provider == "custom":
@@ -303,14 +307,21 @@ class ModelAdapterServer:
         url = "https://api.anthropic.com/v1/messages"
 
         if stream:
-            # Send initial SSE HTTP response headers
-            writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n")
-            await writer.drain()
-
             chat_id = f"chatcmpl_{uuid.uuid4().hex}"
             created_ts = int(time.time())
 
             async with client.stream("POST", url, headers=headers, json=req_body, timeout=120.0) as resp:
+                if resp.status_code >= 400:
+                    err_content = await resp.aread()
+                    writer.write(f"HTTP/1.1 {resp.status_code} {resp.reason_phrase}\r\nContent-Type: application/json\r\nContent-Length: {len(err_content)}\r\n\r\n".encode("utf-8") + err_content)
+                    await writer.drain()
+                    writer.close()
+                    return
+
+                # Send initial SSE HTTP response headers after verifying success
+                writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n")
+                await writer.drain()
+
                 current_tool_id = ""
                 current_tool_name = ""
                 current_tool_args = ""
@@ -532,6 +543,36 @@ class ModelAdapterServer:
         headers.update(target.headers)
         await self._pipe_openai_request(url, headers, payload, stream, writer, client)
 
+    async def _forward_to_mistral(
+        self,
+        payload: Dict[str, Any],
+        target: TargetModelConfig,
+        stream: bool,
+        writer: asyncio.StreamWriter,
+        client: httpx.AsyncClient,
+    ):
+        url = "https://api.mistral.ai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {target.api_key}",
+            "Content-Type": "application/json",
+        }
+        await self._pipe_openai_request(url, headers, payload, stream, writer, client)
+
+    async def _forward_to_qwen(
+        self,
+        payload: Dict[str, Any],
+        target: TargetModelConfig,
+        stream: bool,
+        writer: asyncio.StreamWriter,
+        client: httpx.AsyncClient,
+    ):
+        url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {target.api_key}",
+            "Content-Type": "application/json",
+        }
+        await self._pipe_openai_request(url, headers, payload, stream, writer, client)
+
     async def _pipe_openai_request(
         self,
         url: str,
@@ -542,10 +583,17 @@ class ModelAdapterServer:
         client: httpx.AsyncClient,
     ):
         if stream:
-            writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n")
-            await writer.drain()
-
             async with client.stream("POST", url, headers=headers, json=payload, timeout=120.0) as resp:
+                if resp.status_code >= 400:
+                    err_content = await resp.aread()
+                    writer.write(f"HTTP/1.1 {resp.status_code} {resp.reason_phrase}\r\nContent-Type: application/json\r\nContent-Length: {len(err_content)}\r\n\r\n".encode("utf-8") + err_content)
+                    await writer.drain()
+                    writer.close()
+                    return
+
+                writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n")
+                await writer.drain()
+
                 async for chunk in resp.aiter_raw():
                     writer.write(chunk)
                     await writer.drain()
@@ -553,7 +601,7 @@ class ModelAdapterServer:
         else:
             resp = await client.post(url, headers=headers, json=payload, timeout=120.0)
             writer.write(
-                f"HTTP/1.1 {resp.status_code} OK\r\nContent-Type: application/json\r\nContent-Length: {len(resp.content)}\r\n\r\n".encode("utf-8")
+                f"HTTP/1.1 {resp.status_code} {resp.reason_phrase}\r\nContent-Type: application/json\r\nContent-Length: {len(resp.content)}\r\n\r\n".encode("utf-8")
                 + resp.content
             )
             await writer.drain()

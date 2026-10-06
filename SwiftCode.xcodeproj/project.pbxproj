@@ -254,6 +254,7 @@
 		D1A0000128C0000100000021 /* AssistModelRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000128C0000100000020 /* AssistModelRouterTests.swift */; };
 		D1A0000128C0000100000031 /* AlternativeKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000128C0000100000030 /* AlternativeKeyManager.swift */; };
 		D1A0000128C0000100000033 /* AlternativeKeysView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000128C0000100000032 /* AlternativeKeysView.swift */; };
+		D1A0000128C0000100000041 /* AssistEventNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000128C0000100000040 /* AssistEventNormalizer.swift */; };
 		18514A79310C4968A5D07119 /* AgentOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91F164A308314C72BF49FA48 /* AgentOrchestrator.swift */; };
 		187E48D6B1A5492490C1D52B /* AssistModelOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E796ACFB49B458BAFDDB3FA /* AssistModelOption.swift */; };
 		187ED80BBA2CB7A99B5AEABB /* RegexSyntaxCheatsheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E031CFA3E65C9492E36E9BC /* RegexSyntaxCheatsheetView.swift */; };
@@ -3391,6 +3392,7 @@
 		D1A0000128C0000100000020 /* AssistModelRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistModelRouterTests.swift; sourceTree = "<group>"; };
 		D1A0000128C0000100000030 /* AlternativeKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlternativeKeyManager.swift; sourceTree = "<group>"; };
 		D1A0000128C0000100000032 /* AlternativeKeysView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlternativeKeysView.swift; sourceTree = "<group>"; };
+		D1A0000128C0000100000040 /* AssistEventNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistEventNormalizer.swift; sourceTree = "<group>"; };
 		79242388A3CE4414A18F5C0F /* SwiftCode/Views/Build/DeviceConnectKit/Views/Inspector/DeviceConnectInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Build/DeviceConnectKit/Views/Inspector/DeviceConnectInspector.swift; sourceTree = SOURCE_ROOT; };
 		792F4711DDE954D40A2B1B7B /* AIAssistantViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantViewModel.swift; sourceTree = "<group>"; };
 		794AE660D22E4A1E9314DD3F /* PreviewRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewRuntime.swift; sourceTree = "<group>"; };
@@ -7257,6 +7259,7 @@
 				D1A0000128C0000100000014 /* AssistModelRouter.swift */,
 				D1A0000128C0000100000020 /* AssistModelRouterTests.swift */,
 				D1A0000128C0000100000030 /* AlternativeKeyManager.swift */,
+				D1A0000128C0000100000040 /* AssistEventNormalizer.swift */,
 				67C43C2328CDC6C9A2041AB6 /* AssistModels.swift */,
 				D8D026A5101C30AF43ECCA9E /* AssistPermissionsManager.swift */,
 				98654FA9144C5CC210F6BE38 /* AssistPlanner.swift */,
@@ -10865,6 +10868,7 @@
 				D1A0000128C0000100000021 /* AssistModelRouterTests.swift in Sources */,
 				D1A0000128C0000100000031 /* AlternativeKeyManager.swift in Sources */,
 				D1A0000128C0000100000033 /* AlternativeKeysView.swift in Sources */,
+				D1A0000128C0000100000041 /* AssistEventNormalizer.swift in Sources */,
 				EA99345BD693E0A939986E60 /* PromptEnhancer.swift in Sources */,
 				48E911039AF476A516C2A0FD /* TasksAIPlanner.swift in Sources */,
 				1C9E1D4AF6D9422785D48BB1 /* AssistAppendFileTool.swift in Sources */,

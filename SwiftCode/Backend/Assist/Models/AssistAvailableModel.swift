@@ -31,6 +31,8 @@ public enum ModelSource: String, Codable, Sendable, CaseIterable {
     }
 }
 
+public typealias AssistModelSource = ModelSource
+
 public enum AssistModelStatus: String, Codable, Sendable {
     case available = "Available"
     case configured = "Configured"

@@ -123,26 +123,51 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     @MainActor
     public static func resolveDefault(for workspaceURL: URL? = nil) -> GoogleCloudSDKConfiguration {
         let isSavedModels = AppSettings.shared.useSavedModels
-        var selectedModel = UserDefaults.standard.string(forKey: "assist.geminiModel") ?? "gemini-3.8-flash"
-        var apiKey = KeychainService.shared.get(forKey: LLMProvider.google.keychainKey)
+        let activeModelId = AppSettings.shared.selectedAssistModelID
+
+        var selectedModel = activeModelId
         var provider: String? = nil
         var baseURL: String? = nil
         var enableSubagents = true
+        var apiKey: String? = nil
 
-        if isSavedModels {
-            if let routed = AssistModelRouter.shared.currentRuntimeModel {
-                selectedModel = routed.modelIdentifier
-                provider = routed.providerID
-                baseURL = routed.endpointURL
-                if let key = AssistModelRouter.shared.resolveAPIKey(for: routed.providerID) {
-                    apiKey = key
-                }
-                enableSubagents = routed.supportsSubagents
+        if let routed = AssistModelRouter.shared.currentRuntimeModel {
+            selectedModel = routed.modelIdentifier
+            provider = routed.providerID
+            baseURL = routed.endpointURL
+            apiKey = AssistModelRouter.shared.resolveAPIKey(for: routed.providerID)
+            enableSubagents = routed.supportsSubagents
+        } else {
+            let spec = AgentModelAdapter.shared.specification(for: activeModelId)
+            selectedModel = activeModelId
+            enableSubagents = spec.capabilities.contains(.subagents)
+
+            switch spec.provider {
+            case .anthropic:
+                provider = "anthropic"
+                apiKey = AssistModelRouter.shared.resolveAPIKey(for: "anthropic")
+            case .openAI:
+                provider = "openai"
+                apiKey = AssistModelRouter.shared.resolveAPIKey(for: "openai")
+            case .gemini:
+                provider = "google"
+                apiKey = AssistModelRouter.shared.resolveAPIKey(for: "google")
+            case .mistral:
+                provider = "mistral"
+                baseURL = "https://api.mistral.ai/v1"
+                apiKey = AssistModelRouter.shared.resolveAPIKey(for: "mistral")
+            case .codex:
+                provider = "codex"
+                baseURL = "http://localhost:3003/v1"
+                apiKey = AssistModelRouter.shared.resolveAPIKey(for: "codex")
+            default:
+                provider = spec.provider.rawValue.lowercased()
+                apiKey = AssistModelRouter.shared.resolveAPIKey(for: provider ?? "openrouter")
             }
         }
 
-        // Alternative Keys resolution for Gemini
-        if AppSettings.shared.alternativeKeysEnabled, provider == nil || provider == "gemini" || provider == "google" {
+        // Alternative Keys resolution strictly for Gemini/Google when enabled
+        if AppSettings.shared.alternativeKeysEnabled, provider == "gemini" || provider == "google" {
             if let altKey = AlternativeKeyManager.shared.getActiveOrNextKey() {
                 apiKey = altKey.key
             }

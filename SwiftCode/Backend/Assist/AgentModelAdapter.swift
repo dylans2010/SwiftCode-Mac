@@ -19,19 +19,25 @@ public struct ModelCapabilities: OptionSet, Sendable, Codable {
     public static let parallelToolCalls  = ModelCapabilities(rawValue: 1 << 6)
     public static let codeGeneration     = ModelCapabilities(rawValue: 1 << 7)
     public static let systemInstructions = ModelCapabilities(rawValue: 1 << 8)
+    public static let subagents          = ModelCapabilities(rawValue: 1 << 9)
+    public static let backgroundExecution = ModelCapabilities(rawValue: 1 << 10)
+
+    public static let longContext: ModelCapabilities = .largeContext
 
     public static let standardCloud: ModelCapabilities = [
-        .toolCalling, .streaming, .structuredOutput, .largeContext, .codeGeneration, .systemInstructions
+        .toolCalling, .streaming, .structuredOutput, .largeContext, .codeGeneration, .systemInstructions, .subagents
     ]
 
     public static let advancedReasoning: ModelCapabilities = [
-        .toolCalling, .streaming, .structuredOutput, .reasoning, .largeContext, .parallelToolCalls, .codeGeneration, .systemInstructions
+        .toolCalling, .streaming, .structuredOutput, .reasoning, .largeContext, .parallelToolCalls, .codeGeneration, .systemInstructions, .subagents
     ]
 
     public static let localFoundation: ModelCapabilities = [
         .codeGeneration, .structuredOutput
     ]
 }
+
+public typealias AssistModelCapabilities = ModelCapabilities
 
 public struct ModelSpecification: Identifiable, Sendable, Codable {
     public let id: String
@@ -71,45 +77,59 @@ public final class AgentModelAdapter: Sendable {
     public func specification(for modelId: String) -> ModelSpecification {
         let lower = modelId.lowercased()
 
-        if lower.contains("claude-3-5-sonnet") || lower.contains("claude-3.5-sonnet") {
+        if lower.contains("claude") || lower.contains("anthropic") {
+            let displayName: String
+            if lower.contains("3-7") || lower.contains("3.7") {
+                displayName = "Claude 3.7 Sonnet"
+            } else if lower.contains("haiku") {
+                displayName = "Claude 3.5 Haiku"
+            } else if lower.contains("opus") {
+                displayName = "Claude 3 Opus"
+            } else {
+                displayName = "Claude 3.5 Sonnet"
+            }
             return ModelSpecification(
                 id: modelId,
-                displayName: "Claude 3.5 Sonnet",
+                displayName: displayName,
                 provider: .anthropic,
                 contextWindowTokens: 200_000,
-                capabilities: [.toolCalling, .streaming, .structuredOutput, .vision, .largeContext, .codeGeneration, .systemInstructions]
+                capabilities: [.toolCalling, .streaming, .structuredOutput, .vision, .largeContext, .codeGeneration, .systemInstructions, .subagents]
             )
-        } else if lower.contains("claude-3-5-haiku") || lower.contains("claude-3.5-haiku") {
+        } else if lower.contains("gpt") || lower.contains("o1") || lower.contains("o3") || lower.contains("chatgpt") || lower.contains("openai") {
+            let displayName: String
+            if lower.contains("o3-mini") {
+                displayName = "o3-mini"
+            } else if lower.contains("o1") {
+                displayName = "o1"
+            } else if lower.contains("gpt-4o-mini") {
+                displayName = "GPT-4o Mini"
+            } else {
+                displayName = "GPT-4o"
+            }
             return ModelSpecification(
                 id: modelId,
-                displayName: "Claude 3.5 Haiku",
-                provider: .anthropic,
-                contextWindowTokens: 200_000,
-                capabilities: [.toolCalling, .streaming, .structuredOutput, .vision, .largeContext, .codeGeneration, .systemInstructions]
-            )
-        } else if lower.contains("gpt-4o-mini") || lower.contains("openai/gpt-4o-mini") {
-            return ModelSpecification(
-                id: modelId,
-                displayName: "GPT-4o Mini",
+                displayName: displayName,
                 provider: .openAI,
                 contextWindowTokens: 128_000,
-                capabilities: [.toolCalling, .streaming, .structuredOutput, .vision, .largeContext, .parallelToolCalls, .codeGeneration, .systemInstructions]
-            )
-        } else if lower.contains("gpt-4o") || lower.contains("openai/gpt-4o") {
-            return ModelSpecification(
-                id: modelId,
-                displayName: "GPT-4o",
-                provider: .openAI,
-                contextWindowTokens: 128_000,
-                capabilities: [.toolCalling, .streaming, .structuredOutput, .vision, .largeContext, .parallelToolCalls, .codeGeneration, .systemInstructions]
+                capabilities: [.toolCalling, .streaming, .structuredOutput, .vision, .largeContext, .parallelToolCalls, .codeGeneration, .systemInstructions, .subagents]
             )
         } else if lower.contains("gemini") {
+            let displayName = lower.contains("flash") ? "Gemini 3.8 Flash" : "Gemini 3.8 Pro"
             return ModelSpecification(
                 id: modelId,
-                displayName: "Gemini",
+                displayName: displayName,
                 provider: .gemini,
                 contextWindowTokens: 1_000_000,
-                capabilities: [.toolCalling, .streaming, .structuredOutput, .largeContext, .codeGeneration, .systemInstructions]
+                capabilities: [.toolCalling, .streaming, .structuredOutput, .largeContext, .codeGeneration, .systemInstructions, .subagents]
+            )
+        } else if lower.contains("mistral") || lower.contains("codestral") || lower.contains("pixtral") {
+            let displayName = lower.contains("codestral") ? "Codestral" : "Mistral Large"
+            return ModelSpecification(
+                id: modelId,
+                displayName: displayName,
+                provider: .mistral,
+                contextWindowTokens: 128_000,
+                capabilities: [.toolCalling, .streaming, .structuredOutput, .largeContext, .codeGeneration, .systemInstructions, .subagents]
             )
         } else if lower.contains("deepseek") {
             return ModelSpecification(
@@ -117,7 +137,7 @@ public final class AgentModelAdapter: Sendable {
                 displayName: "DeepSeek V3",
                 provider: .openRouter,
                 contextWindowTokens: 64_000,
-                capabilities: [.toolCalling, .streaming, .structuredOutput, .largeContext, .codeGeneration, .systemInstructions]
+                capabilities: [.toolCalling, .streaming, .structuredOutput, .largeContext, .codeGeneration, .systemInstructions, .subagents]
             )
         } else if lower.contains("codex") {
             return ModelSpecification(
@@ -126,6 +146,14 @@ public final class AgentModelAdapter: Sendable {
                 provider: .codex,
                 contextWindowTokens: 32_000,
                 capabilities: [.codeGeneration, .structuredOutput]
+            )
+        } else if lower.contains("ollama") || lower.contains("lmstudio") {
+            return ModelSpecification(
+                id: modelId,
+                displayName: modelId,
+                provider: .openAI,
+                contextWindowTokens: 32_000,
+                capabilities: [.toolCalling, .streaming, .codeGeneration, .systemInstructions]
             )
         } else if lower.contains("afm 3 core") || lower.contains("afm-3-core") || lower.contains("apple") || lower.contains("foundation") {
             return ModelSpecification(

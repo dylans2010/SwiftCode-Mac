@@ -118,7 +118,10 @@ public final class GoogleCloudSDKRuntime: Sendable {
 
         // Runtime Result Reuse / Idempotency Check for Read-Only tools
         if meta.isReadOnly {
-            if let cached = await MainActor.run({ toolRegistry.getCachedResult(semanticKey: semKey) }) {
+            let cached: String? = await MainActor.run {
+                toolRegistry.getCachedResult(semanticKey: semKey)
+            }
+            if let cached = cached {
                 await MainActor.run {
                     AssistManager.shared.reportToolCompleted(
                         callId: callId,

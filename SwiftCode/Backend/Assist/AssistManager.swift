@@ -681,16 +681,20 @@ public final class AssistManager: ObservableObject {
             GoogleCloudSDKAttachment(name: $0.filename, path: $0.filename, mimeType: $0.mimeType, content: $0.base64Content)
         }
 
-        let isSavedModels = AppSettings.shared.useSavedModels
-        let initialRouted = isSavedModels ? await AssistModelRouter.shared.selectModelForSDK() : nil
+        let initialRouted = await AssistModelRouter.shared.selectModelForSDK()
         let initialConfig = initialRouted?.config ?? GoogleCloudSDKConfiguration.resolveDefault()
         let initialModelId = initialRouted?.model.modelIdentifier ?? initialConfig.model
         let initialModelName = initialRouted?.model.displayName ?? (initialConfig.model)
 
         let session: GoogleCloudSDKSession
-        if let existing = activeGoogleCloudSession {
+        if let existing = activeGoogleCloudSession,
+           existing.config.model == initialConfig.model && existing.config.provider == initialConfig.provider {
             session = existing
         } else {
+            if let old = activeGoogleCloudSession {
+                await runtime.closeSession(id: old.id)
+                activeGoogleCloudSession = nil
+            }
             do {
                 session = try await runtime.createSession(config: initialConfig)
                 activeGoogleCloudSession = session
@@ -868,13 +872,13 @@ public final class AssistManager: ObservableObject {
 
                 let altKeysEnabled = await MainActor.run { AppSettings.shared.alternativeKeysEnabled }
                 let savedModelsEnabled = await MainActor.run { AppSettings.shared.useSavedModels }
-                let isGemini = currentModelId.lowercased().contains("gemini") || currentModelName.lowercased().contains("gemini") || (currentConfig.provider == nil || currentConfig.provider == "gemini" || currentConfig.provider == "google")
+                let isGemini = currentModelId.lowercased().contains("gemini") || currentModelName.lowercased().contains("gemini") || (currentConfig.provider == "gemini" || currentConfig.provider == "google")
 
                 if let errText = turnError {
                     let isQuota = AssistModelRouter.shared.isQuotaOrRateLimit(errorText: errText)
                     let isPermanentAuth = errText.contains("401") || errText.contains("403") || errText.contains("API_KEY_INVALID") || errText.contains("invalid api key")
 
-                    // 1. Alternative Keys Rotation (Gemini)
+                    // 1. Alternative Keys Rotation (Gemini only)
                     if altKeysEnabled && isGemini && (isQuota || isPermanentAuth) {
                         let activeId = await MainActor.run { AlternativeKeyManager.shared.activeKeyId }
 
@@ -959,57 +963,55 @@ public final class AssistManager: ObservableObject {
                         }
                     }
 
-                    // 2. Saved Models Multi-Provider Fallover
-                    if savedModelsEnabled {
-                        let priorOutput = await MainActor.run { self.messages.last?.content ?? "" }
-                        if let failover = await AssistModelRouter.shared.handleTurnFailure(
-                            failedModelIdentifier: currentModelId,
-                            errorText: errText,
-                            originalPrompt: content,
-                            priorTurnOutput: priorOutput
-                        ) {
-                            let oldName = currentModelName
-                            let newName = failover.nextModel.displayName
-                            await MainActor.run {
-                                self.currentActivityStatus = "\(oldName) quota reached — switching to \(newName)"
-                                if let idx = self.messages.indices.last {
-                                    self.messages[idx].activityGroup?.isExecuting = true
-                                }
+                    // 2. Multi-Provider Failover
+                    let priorOutput = await MainActor.run { self.messages.last?.content ?? "" }
+                    if let failover = await AssistModelRouter.shared.handleTurnFailure(
+                        failedModelIdentifier: currentModelId,
+                        errorText: errText,
+                        originalPrompt: content,
+                        priorTurnOutput: priorOutput
+                    ) {
+                        let oldName = currentModelName
+                        let newName = failover.nextModel.displayName
+                        await MainActor.run {
+                            self.currentActivityStatus = "\(oldName) error — switching to \(newName)"
+                            if let idx = self.messages.indices.last {
+                                self.messages[idx].activityGroup?.isExecuting = true
                             }
+                        }
 
-                            // Cleanly close previous session
-                            await runtime.closeSession(id: currentSession.id)
-                            await MainActor.run {
-                                self.activeGoogleCloudSession = nil
-                            }
+                        // Cleanly close previous session
+                        await runtime.closeSession(id: currentSession.id)
+                        await MainActor.run {
+                            self.activeGoogleCloudSession = nil
+                        }
 
-                            // Create session with failover candidate
-                            do {
-                                let newSession = try await runtime.createSession(config: failover.nextConfig)
-                                await MainActor.run {
-                                    self.activeGoogleCloudSession = newSession
-                                    self.activeGoogleCloudModelId = failover.nextModel.modelIdentifier
-                                    self.activeGoogleCloudModelDisplayName = newName
-                                }
-                                currentSession = newSession
-                                currentConfig = failover.nextConfig
-                                currentModelId = failover.nextModel.modelIdentifier
-                                currentModelName = newName
-                                currentPrompt = failover.continuationPrompt
-                                currentAttachments = []
-                                continue executionLoop
-                            } catch {
-                                turnError = error.localizedDescription
-                                currentModelId = failover.nextModel.modelIdentifier
-                                continue executionLoop
+                        // Create session with failover candidate
+                        do {
+                            let newSession = try await runtime.createSession(config: failover.nextConfig)
+                            await MainActor.run {
+                                self.activeGoogleCloudSession = newSession
+                                self.activeGoogleCloudModelId = failover.nextModel.modelIdentifier
+                                self.activeGoogleCloudModelDisplayName = newName
                             }
+                            currentSession = newSession
+                            currentConfig = failover.nextConfig
+                            currentModelId = failover.nextModel.modelIdentifier
+                            currentModelName = newName
+                            currentPrompt = failover.continuationPrompt
+                            currentAttachments = []
+                            continue executionLoop
+                        } catch {
+                            turnError = error.localizedDescription
+                            currentModelId = failover.nextModel.modelIdentifier
+                            continue executionLoop
                         }
                     }
                 }
 
                 // Terminal failure
                 await MainActor.run {
-                    let finalErrorMsg = (altKeysEnabled && isGemini) ? "All configured Gemini API keys are currently unavailable." : (turnError ?? "Execution failed")
+                    let finalErrorMsg = (altKeysEnabled && isGemini) ? "All configured Gemini API keys are currently unavailable." : (turnError ?? "\(currentModelName) execution failed")
                     self.lastError = finalErrorMsg
                     if let idx = self.messages.indices.last {
                         self.messages[idx].activityGroup?.isExecuting = false

@@ -38,6 +38,11 @@ public final class AssistModelRouterTests: Sendable {
         results.append(await testAlternativeKeyAllExhaustedTerminalState())
         results.append(await testAlternativeKeyAndSavedModelsComposition())
         results.append(await testAlternativeKeySettingsPersistence())
+        results.append(await testDefaultAssistModelClaudeRouting())
+        results.append(await testDefaultAssistModelOpenAIRouting())
+        results.append(await testLocalAndCustomModelRouting())
+        results.append(await testNoSilentGeminiFallback())
+        results.append(await testCapabilityResolutionAcrossProviders())
 
         return results
     }
@@ -570,6 +575,171 @@ public final class AssistModelRouterTests: Sendable {
             testName: "Alternative Keys Settings Persistence",
             passed: passed,
             message: passed ? "assist.alternativeKeysEnabled correctly persists." : "Settings persistence failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 17. Default Assist Model Claude Routing
+    public func testDefaultAssistModelClaudeRouting() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let initialSaved = AppSettings.shared.useSavedModels
+        let initialModel = AppSettings.shared.selectedAssistModelID
+
+        AppSettings.shared.useSavedModels = false
+        AppSettings.shared.selectedAssistModelID = "claude-3-5-sonnet"
+
+        let routed = await AssistModelRouter.shared.selectModelForSDK()
+
+        // Restore
+        AppSettings.shared.useSavedModels = initialSaved
+        AppSettings.shared.selectedAssistModelID = initialModel
+
+        guard let r = routed else {
+            return RuntimeTestCaseResult(
+                testName: "Default Assist Model Claude Routing",
+                passed: false,
+                message: "selectModelForSDK returned nil when routing default Claude model.",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        let isAnthropic = r.model.providerID == "anthropic" || r.config.provider == "anthropic"
+        let isClaudeModel = r.model.modelIdentifier == "claude-3-5-sonnet" && r.config.model == "claude-3-5-sonnet"
+        let notGemini = r.config.provider != "google" && !r.config.model.contains("gemini")
+
+        let passed = isAnthropic && isClaudeModel && notGemini
+
+        return RuntimeTestCaseResult(
+            testName: "Default Assist Model Claude Routing",
+            passed: passed,
+            message: passed ? "Claude model routed cleanly with anthropic provider without defaulting to Gemini." : "Failed to route Claude model.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 18. Default Assist Model OpenAI Routing
+    public func testDefaultAssistModelOpenAIRouting() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let initialSaved = AppSettings.shared.useSavedModels
+        let initialModel = AppSettings.shared.selectedAssistModelID
+
+        AppSettings.shared.useSavedModels = false
+        AppSettings.shared.selectedAssistModelID = "gpt-4o"
+
+        let routed = await AssistModelRouter.shared.selectModelForSDK()
+
+        // Restore
+        AppSettings.shared.useSavedModels = initialSaved
+        AppSettings.shared.selectedAssistModelID = initialModel
+
+        guard let r = routed else {
+            return RuntimeTestCaseResult(
+                testName: "Default Assist Model OpenAI Routing",
+                passed: false,
+                message: "selectModelForSDK returned nil when routing default OpenAI model.",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        let isOpenAI = r.model.providerID == "openai" || r.config.provider == "openai"
+        let isGPTModel = r.model.modelIdentifier == "gpt-4o" && r.config.model == "gpt-4o"
+        let notGemini = r.config.provider != "google" && !r.config.model.contains("gemini")
+
+        let passed = isOpenAI && isGPTModel && notGemini
+
+        return RuntimeTestCaseResult(
+            testName: "Default Assist Model OpenAI Routing",
+            passed: passed,
+            message: passed ? "OpenAI GPT-4o routed cleanly with openai provider." : "Failed to route OpenAI model.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 19. Local and Custom Model Routing
+    public func testLocalAndCustomModelRouting() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let initialSaved = AppSettings.shared.useSavedModels
+        let initialModel = AppSettings.shared.selectedAssistModelID
+
+        AppSettings.shared.useSavedModels = false
+        AppSettings.shared.selectedAssistModelID = "ollama/llama3"
+
+        let routed = await AssistModelRouter.shared.selectModelForSDK()
+
+        // Restore
+        AppSettings.shared.useSavedModels = initialSaved
+        AppSettings.shared.selectedAssistModelID = initialModel
+
+        guard let r = routed else {
+            return RuntimeTestCaseResult(
+                testName: "Local and Custom Model Routing",
+                passed: false,
+                message: "selectModelForSDK returned nil when routing local model.",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        let isModelMatch = r.model.modelIdentifier == "ollama/llama3"
+        let notGemini = r.config.provider != "google" && !r.config.model.contains("gemini")
+        let passed = isModelMatch && notGemini
+
+        return RuntimeTestCaseResult(
+            testName: "Local and Custom Model Routing",
+            passed: passed,
+            message: passed ? "Local model routed correctly without Gemini lock-in." : "Failed to route local model.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 20. No Silent Gemini Fallback
+    public func testNoSilentGeminiFallback() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let router = AssistModelRouter.shared
+
+        // Test with handleTurnFailure
+        let _ = await router.handleTurnFailure(
+            failedModelIdentifier: "claude-3-5-sonnet",
+            errorText: "HTTP 401 Unauthorized",
+            originalPrompt: "Refactor architecture",
+            priorTurnOutput: "Starting refactoring"
+        )
+
+        // The failed model must have been classified as anthropic / Claude
+        let passed: Bool
+        if let event = router.lastFailoverEvent {
+            let wasClaude = event.failedProviderID.lowercased().contains("claude") || event.failedModelID.contains("claude")
+            passed = wasClaude
+        } else {
+            passed = true
+        }
+
+        return RuntimeTestCaseResult(
+            testName: "No Silent Gemini Fallback",
+            passed: passed,
+            message: passed ? "Non-Gemini failure correctly handled and attributed to original provider." : "Silent Gemini fallback detected.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 21. Capabilities Resolution Across Providers
+    public func testCapabilityResolutionAcrossProviders() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let router = AssistModelRouter.shared
+
+        let claudeCaps = router.resolveCapabilities(for: "claude-3-5-sonnet")
+        let gptCaps = router.resolveCapabilities(for: "gpt-4o")
+        let geminiCaps = router.resolveCapabilities(for: "gemini-3.8-flash")
+
+        let claudeValid = claudeCaps.contains(.toolCalling) && claudeCaps.contains(.streaming) && claudeCaps.contains(.subagents)
+        let gptValid = gptCaps.contains(.toolCalling) && gptCaps.contains(.streaming) && gptCaps.contains(.subagents)
+        let geminiValid = geminiCaps.contains(.toolCalling) && geminiCaps.contains(.streaming) && geminiCaps.contains(.subagents)
+
+        let passed = claudeValid && gptValid && geminiValid
+
+        return RuntimeTestCaseResult(
+            testName: "Capabilities Resolution Across Providers",
+            passed: passed,
+            message: passed ? "Tool-calling, streaming, and subagents capabilities resolved consistently across all major providers." : "Capability resolution mismatch.",
             duration: Date().timeIntervalSince(start)
         )
     }

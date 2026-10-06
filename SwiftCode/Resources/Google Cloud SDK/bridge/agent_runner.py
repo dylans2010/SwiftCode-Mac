@@ -289,7 +289,7 @@ class AgentRunner:
             use_saved_models = params.get("useSavedModels", False)
             base_url = params.get("baseURL") or ""
 
-            is_gemini = (not use_saved_models) or (provider in ("gemini", "google")) or (not provider and model.startswith("gemini"))
+            is_gemini = (provider in ("gemini", "google")) or (not provider and ("gemini" in model.lower()))
 
             if is_gemini:
                 config_kwargs: Dict[str, Any] = {
@@ -328,7 +328,7 @@ class AgentRunner:
                 if provider in ("ollama", "lmstudio") and not resolved_base_url:
                     resolved_base_url = "http://localhost:11434/v1" if provider == "ollama" else "http://localhost:1234/v1"
 
-                if not resolved_base_url or provider in ("anthropic", "claude", "openai", "openrouter", "custom"):
+                if not resolved_base_url or provider in ("anthropic", "claude", "openai", "openrouter", "mistral", "qwen", "custom"):
                     if self.adapter_server and self.adapter_server.actual_port > 0:
                         self.adapter_server.register_target(
                             model_name=model,

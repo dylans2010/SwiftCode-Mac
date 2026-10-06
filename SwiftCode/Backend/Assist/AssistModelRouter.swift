@@ -49,23 +49,101 @@ public final class AssistModelRouter: Sendable {
 
     // MARK: - Model Selection & Ranking
 
+    public func resolveCapabilities(for modelId: String) -> ModelCapabilities {
+        return AgentModelAdapter.shared.specification(for: modelId).capabilities
+    }
+
+    public func resolveDefaultModel() async -> AssistAvailableModel {
+        let preferredID = AppSettings.shared.selectedAssistModelID
+        let all = await AssistModelDiscoveryService.shared.discoverAllModels()
+        if let match = all.first(where: { $0.id == preferredID || $0.modelIdentifier == preferredID }) {
+            return match
+        }
+
+        let spec = AgentModelAdapter.shared.specification(for: preferredID)
+        let providerID: String
+        let providerName: String
+        let source: AssistModelSource
+        var endpointURL: String? = nil
+
+        switch spec.provider {
+        case .anthropic:
+            providerID = "anthropic"
+            providerName = "Claude"
+            source = .claude
+        case .openAI:
+            providerID = "openai"
+            providerName = "OpenAI"
+            source = .openAI
+        case .gemini:
+            providerID = "google"
+            providerName = "Gemini"
+            source = .gemini
+        case .mistral:
+            providerID = "mistral"
+            providerName = "Mistral"
+            source = .openRouter
+            endpointURL = "https://api.mistral.ai/v1"
+        case .openRouter:
+            providerID = "openrouter"
+            providerName = "OpenRouter"
+            source = .openRouter
+        case .codex:
+            providerID = "codex"
+            providerName = "Codex"
+            source = .openRouter
+            endpointURL = "http://localhost:3003/v1"
+        default:
+            providerID = spec.provider.rawValue.lowercased()
+            providerName = spec.provider.rawValue
+            source = .openRouter
+        }
+
+        return AssistAvailableModel(
+            id: preferredID,
+            displayName: spec.displayName,
+            providerID: providerID,
+            providerName: providerName,
+            modelIdentifier: preferredID,
+            capabilities: spec.capabilities,
+            source: source,
+            isConfigured: true,
+            isAvailable: true,
+            supportsStreaming: spec.capabilities.contains(.streaming),
+            supportsToolCalling: spec.capabilities.contains(.toolCalling),
+            supportsVision: spec.capabilities.contains(.vision),
+            supportsStructuredOutput: spec.capabilities.contains(.structuredOutput),
+            supportsAgenticUse: spec.capabilities.contains(.toolCalling),
+            supportsSubagents: spec.capabilities.contains(.subagents),
+            priority: 10,
+            contextWindow: spec.contextWindowTokens,
+            endpointURL: endpointURL
+        )
+    }
+
+    public func resolveSavedModel() async -> AssistAvailableModel? {
+        let candidates = await getEligibleCandidates()
+        return candidates.first
+    }
+
     public func selectModelForSDK() async -> (model: AssistAvailableModel, config: GoogleCloudSDKConfiguration)? {
         let isSavedModelsEnabled = AppSettings.shared.useSavedModels
 
-        // If saved models disabled, use default Antigravity Gemini model
-        guard isSavedModelsEnabled else {
-            return nil
+        let targetModel: AssistAvailableModel
+        if isSavedModelsEnabled {
+            let candidates = await getEligibleCandidates()
+            if let best = candidates.first {
+                targetModel = best
+            } else {
+                targetModel = await resolveDefaultModel()
+            }
+        } else {
+            targetModel = await resolveDefaultModel()
         }
 
-        let candidates = await getEligibleCandidates()
-        guard let best = candidates.first else {
-            logger.warning("[ModelRouter] No eligible agentic models found among configured providers.")
-            return nil
-        }
-
-        self.currentRuntimeModel = best
-        let config = buildSDKConfiguration(for: best)
-        return (best, config)
+        self.currentRuntimeModel = targetModel
+        let config = buildSDKConfiguration(for: targetModel)
+        return (targetModel, config)
     }
 
     public func selectNextModel(excluding: Set<String>) async -> AssistAvailableModel? {
@@ -235,15 +313,37 @@ public final class AssistModelRouter: Sendable {
         priorTurnOutput: String
     ) async -> (nextModel: AssistAvailableModel, continuationPrompt: String, nextConfig: GoogleCloudSDKConfiguration)? {
         let allModels = await AssistModelDiscoveryService.shared.discoverAllModels()
-        let failedModel = allModels.first(where: { $0.id == failedModelIdentifier || $0.modelIdentifier == failedModelIdentifier })
-            ?? AssistAvailableModel(
+        let failedModel: AssistAvailableModel
+        if let match = allModels.first(where: { $0.id == failedModelIdentifier || $0.modelIdentifier == failedModelIdentifier }) {
+            failedModel = match
+        } else {
+            let spec = AgentModelAdapter.shared.specification(for: failedModelIdentifier)
+            let pID: String
+            let pName: String
+            let src: AssistModelSource
+            switch spec.provider {
+            case .anthropic:
+                pID = "anthropic"; pName = "Claude"; src = .claude
+            case .openAI:
+                pID = "openai"; pName = "OpenAI"; src = .openAI
+            case .gemini:
+                pID = "google"; pName = "Gemini"; src = .gemini
+            case .mistral:
+                pID = "mistral"; pName = "Mistral"; src = .openRouter
+            case .codex:
+                pID = "codex"; pName = "Codex"; src = .openRouter
+            default:
+                pID = spec.provider.rawValue.lowercased(); pName = spec.provider.rawValue; src = .openRouter
+            }
+            failedModel = AssistAvailableModel(
                 id: failedModelIdentifier,
-                displayName: failedModelIdentifier,
-                providerID: "google",
-                providerName: "Gemini",
+                displayName: spec.displayName,
+                providerID: pID,
+                providerName: pName,
                 modelIdentifier: failedModelIdentifier,
-                source: .gemini
+                source: src
             )
+        }
         struct GenericError: LocalizedError {
             let errorDescription: String?
         }
@@ -281,7 +381,7 @@ public final class AssistModelRouter: Sendable {
         excluding.insert(failedModel.id)
         excluding.insert(failedModel.modelIdentifier)
 
-        // If quota exhausted, also exclude all other models from this exact same provider if appropriate
+        // If quota exhausted or auth failed, also exclude all other models from this exact same provider
         if failureClass == .quotaExhausted || failureClass == .authenticationFailed {
             let all = await AssistModelDiscoveryService.shared.discoverAllModels()
             for m in all where m.providerID == failedModel.providerID {
@@ -353,7 +453,7 @@ public final class AssistModelRouter: Sendable {
             tools: baseConfig.tools,
             provider: provider,
             baseURL: model.endpointURL,
-            useSavedModels: true
+            useSavedModels: AppSettings.shared.useSavedModels
         )
     }
 
@@ -364,10 +464,22 @@ public final class AssistModelRouter: Sendable {
                 ?? APIKeyManager.shared.retrieveKey(service: .google)
         } else if p == "anthropic" || p == "claude" {
             return APIKeyManager.shared.retrieveKey(service: .anthropic)
-        } else if p == "openai" {
+                ?? KeychainService.shared.get(forKey: LLMProvider.anthropic.keychainKey)
+        } else if p == "openai" || p == "chatgpt" {
             return APIKeyManager.shared.retrieveKey(service: .openai)
+                ?? KeychainService.shared.get(forKey: LLMProvider.openai.keychainKey)
+        } else if p == "mistral" {
+            return APIKeyManager.shared.retrieveKey(service: .mistral)
+                ?? KeychainService.shared.get(forKey: LLMProvider.mistral.keychainKey)
+        } else if p == "qwen" {
+            return KeychainService.shared.get(forKey: LLMProvider.qwen.keychainKey)
         } else if p == "openrouter" {
             return OpenRouterClient.resolveOpenRouterAPIKey()
+                ?? KeychainService.shared.get(forKey: LLMProvider.openRouter.keychainKey)
+        } else if p == "codex" {
+            return KeychainService.shared.get(forKey: KeychainService.codexUserAPIKey)
+        } else if p == "ollama" || p == "lmstudio" || p == "local" {
+            return "local-no-key"
         }
         return nil
     }
