@@ -48,7 +48,7 @@ public final class GoogleCloudSDKRuntime: Sendable {
         let toolRegistry = AssistManager.shared.registry
         let toolName = request.toolName
         let args = request.arguments
-        let callId = request.requestId
+        let callId = request.callId ?? request.requestId
 
         // Instantly notify AssistManager that a tool has started execution on the main actor
         await MainActor.run {
@@ -315,11 +315,14 @@ public final class GoogleCloudSDKRuntime: Sendable {
         case .toolStarted(let tool):
             appendLog("[\(tool.sessionId)] Tool started: \(tool.name)")
 
+        case .toolProgress(let sid, let id, let msg):
+            appendLog("[\(sid)] Tool progress (\(id)): \(msg)")
+
         case .toolCompleted(let res):
             appendLog("[\(res.sessionId)] Tool completed: \(res.name)")
 
-        case .toolFailed(let id, let name, let err):
-            appendLog("[Tool \(name) (\(id))] Tool failed: \(err)")
+        case .toolFailed(let sid, let id, let name, let err):
+            appendLog("[\(sid)] Tool failed: \(name) (\(id)): \(err)")
 
         case .workerStarted(let sid, let workerId, let name, let args):
             appendLog("[\(sid)] Worker \(name) (\(workerId)) started with args: \(args)")

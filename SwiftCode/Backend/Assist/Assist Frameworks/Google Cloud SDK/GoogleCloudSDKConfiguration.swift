@@ -214,7 +214,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             from: systemPrompt,
             repositoryInstructions: repositoryInstructions,
             toolkit: AppSettings.shared.assistToolkit,
-            objective: objective
+            objective: ""
         )
 
         // Add bundled skills if available

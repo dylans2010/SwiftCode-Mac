@@ -140,17 +140,14 @@ public final class AssistModelRouter: Sendable {
             let cachedCandidates = eligibleCandidates(from: discovery.discoveredModels)
             if let match = cachedCandidates.first(where: { $0.id == selectedId || $0.modelIdentifier == selectedId }) {
                 targetModel = match
+            } else if let best = cachedCandidates.first {
+                targetModel = best
             } else {
-                let candidates: [AssistAvailableModel]
-                if discovery.hasFreshDiscoveryCache {
-                    candidates = cachedCandidates
-                } else {
-                    candidates = await getEligibleCandidates()
-                }
-                if let best = candidates.first {
-                    targetModel = best
-                } else {
-                    targetModel = await resolveDefaultModel()
+                targetModel = await resolveDefaultModel()
+            }
+            if !discovery.hasFreshDiscoveryCache {
+                Task {
+                    _ = await discovery.discoverAllModels()
                 }
             }
         } else {

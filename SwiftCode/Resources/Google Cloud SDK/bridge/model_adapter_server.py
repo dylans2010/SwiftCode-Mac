@@ -47,8 +47,94 @@ def normalize_schema(schema: Any) -> Any:
     return cleaned
 
 
-def extract_fallback_tool_calls(text: str) -> List[Dict[str, Any]]:
-    """Extracts fallback JSON tool calls from markdown code blocks or raw JSON."""
+def extract_catalog_tool_names(payload: Dict[str, Any]) -> set[str]:
+    names = set()
+    tools = payload.get("tools", [])
+    if isinstance(tools, list):
+        for t in tools:
+            if isinstance(t, dict):
+                fn = t.get("function")
+                if isinstance(fn, dict) and "name" in fn and isinstance(fn["name"], str):
+                    names.add(fn["name"])
+                elif "name" in t and isinstance(t["name"], str):
+                    names.add(t["name"])
+    return names
+
+
+class ThinkTagStreamParser:
+    """Parses <think> and </think> tags across streaming text deltas,
+    emitting thought deltas and preventing reasoning from leaking into content.
+    """
+    def __init__(self):
+        self.inside_think = False
+        self.buffer = ""
+
+    def process_delta(self, text: str) -> List[Tuple[str, str]]:
+        if not text:
+            return []
+
+        self.buffer += text
+        results: List[Tuple[str, str]] = []
+
+        while self.buffer:
+            if not self.inside_think:
+                start_idx = self.buffer.find("<think>")
+                if start_idx == -1:
+                    possible_partial = False
+                    for i in range(1, min(7, len(self.buffer) + 1)):
+                        if "<think>".startswith(self.buffer[-i:]):
+                            content = self.buffer[:-i]
+                            if content:
+                                results.append(("content", content))
+                            self.buffer = self.buffer[-i:]
+                            possible_partial = True
+                            break
+                    if not possible_partial:
+                        results.append(("content", self.buffer))
+                        self.buffer = ""
+                    break
+                else:
+                    if start_idx > 0:
+                        results.append(("content", self.buffer[:start_idx]))
+                    self.inside_think = True
+                    self.buffer = self.buffer[start_idx + len("<think>"):]
+            else:
+                end_idx = self.buffer.find("</think>")
+                if end_idx == -1:
+                    possible_partial = False
+                    for i in range(1, min(8, len(self.buffer) + 1)):
+                        if "</think>".startswith(self.buffer[-i:]):
+                            thought = self.buffer[:-i]
+                            if thought:
+                                results.append(("thought", thought))
+                            self.buffer = self.buffer[-i:]
+                            possible_partial = True
+                            break
+                    if not possible_partial:
+                        results.append(("thought", self.buffer))
+                        self.buffer = ""
+                    break
+                else:
+                    if end_idx > 0:
+                        results.append(("thought", self.buffer[:end_idx]))
+                    self.inside_think = False
+                    self.buffer = self.buffer[end_idx + len("</think>"):]
+
+        return results
+
+    def flush(self) -> List[Tuple[str, str]]:
+        results = []
+        if self.buffer:
+            kind = "thought" if self.inside_think else "content"
+            results.append((kind, self.buffer))
+            self.buffer = ""
+        return results
+
+
+def extract_fallback_tool_calls(text: str, valid_tool_names: Optional[set[str]] = None) -> List[Dict[str, Any]]:
+    """Extracts fallback JSON tool calls from markdown code blocks or raw JSON.
+    Validates tool names against registered tools catalog if provided.
+    """
     if not text or not text.strip():
         return []
 
@@ -82,6 +168,11 @@ def extract_fallback_tool_calls(text: str) -> List[Dict[str, Any]]:
         name = cand.get("toolId") or cand.get("name") or cand.get("tool")
         args = cand.get("input") or cand.get("arguments") or cand.get("args") or cand.get("parameters")
         if name and isinstance(name, str):
+            # Validate extracted tool name against registered tools catalog if provided.
+            # Reject arbitrary JSON that is not a registered tool.
+            if valid_tool_names is not None and name not in valid_tool_names:
+                continue
+
             if not isinstance(args, dict):
                 args = {}
             extracted_tools.append({
@@ -124,7 +215,9 @@ class ModelAdapterServer:
 
     async def get_client(self) -> httpx.AsyncClient:
         if self._http_client is None or self._http_client.is_closed:
-            self._http_client = httpx.AsyncClient(timeout=120.0)
+            limits = httpx.Limits(max_keepalive_connections=50, max_connections=200)
+            headers = {"Connection": "keep-alive"}
+            self._http_client = httpx.AsyncClient(limits=limits, headers=headers, timeout=120.0)
         return self._http_client
 
     def register_target(
@@ -412,6 +505,7 @@ class ModelAdapterServer:
                 current_tool_name = ""
                 current_tool_args = ""
                 tool_index = 0
+                think_parser = ThinkTagStreamParser()
 
                 async for line in resp.aiter_lines():
                     if not line.startswith("data: "):
@@ -437,19 +531,39 @@ class ModelAdapterServer:
                         delta_type = delta.get("type")
                         if delta_type == "text_delta":
                             text = delta.get("text", "")
-                            chunk = {
-                                "id": chat_id,
-                                "object": "chat.completion.chunk",
-                                "created": created_ts,
-                                "model": model,
-                                "choices": [{
-                                    "index": 0,
-                                    "delta": {"content": text},
-                                    "finish_reason": None,
-                                }],
-                            }
-                            writer.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
-                            await writer.drain()
+                            for kind, piece in think_parser.process_delta(text):
+                                if kind == "thought":
+                                    chunk = {
+                                        "id": chat_id,
+                                        "object": "chat.completion.chunk",
+                                        "created": created_ts,
+                                        "model": model,
+                                        "choices": [{
+                                            "index": 0,
+                                            "delta": {
+                                                "thought": piece,
+                                                "thinking": piece,
+                                                "reasoning": piece,
+                                            },
+                                            "finish_reason": None,
+                                        }],
+                                    }
+                                    writer.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
+                                    await writer.drain()
+                                else:
+                                    chunk = {
+                                        "id": chat_id,
+                                        "object": "chat.completion.chunk",
+                                        "created": created_ts,
+                                        "model": model,
+                                        "choices": [{
+                                            "index": 0,
+                                            "delta": {"content": piece},
+                                            "finish_reason": None,
+                                        }],
+                                    }
+                                    writer.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
+                                    await writer.drain()
                         elif delta_type == "thinking_delta":
                             thought = delta.get("thinking", "")
                             if thought:
@@ -506,6 +620,38 @@ class ModelAdapterServer:
                             current_tool_args = ""
 
                     elif ev_type == "message_stop":
+                        for kind, piece in think_parser.flush():
+                            if kind == "thought":
+                                t_chunk = {
+                                    "id": chat_id,
+                                    "object": "chat.completion.chunk",
+                                    "created": created_ts,
+                                    "model": model,
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {
+                                            "thought": piece,
+                                            "thinking": piece,
+                                            "reasoning": piece,
+                                        },
+                                        "finish_reason": None,
+                                    }],
+                                }
+                                writer.write(f"data: {json.dumps(t_chunk)}\n\n".encode("utf-8"))
+                            elif kind == "content":
+                                c_chunk = {
+                                    "id": chat_id,
+                                    "object": "chat.completion.chunk",
+                                    "created": created_ts,
+                                    "model": model,
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {"content": piece},
+                                        "finish_reason": None,
+                                    }],
+                                }
+                                writer.write(f"data: {json.dumps(c_chunk)}\n\n".encode("utf-8"))
+
                         stop_chunk = {
                             "id": chat_id,
                             "object": "chat.completion.chunk",
@@ -542,10 +688,12 @@ class ModelAdapterServer:
                         },
                     })
 
+            registered_tool_names = extract_catalog_tool_names(payload)
             if not tool_calls and content_text:
-                fallback_tools = extract_fallback_tool_calls(content_text)
+                fallback_tools = extract_fallback_tool_calls(content_text, registered_tool_names)
                 if fallback_tools:
                     tool_calls = fallback_tools
+                    content_text = ""
 
             msg_obj: Dict[str, Any] = {"role": "assistant", "content": content_text or None}
             if tool_calls:
@@ -697,6 +845,10 @@ class ModelAdapterServer:
                 active_tool_calls: Dict[int, Dict[str, Any]] = {}
                 tool_calls_emitted = False
                 accumulated_content: List[str] = []
+                registered_tool_names = extract_catalog_tool_names(payload)
+                think_parser = ThinkTagStreamParser()
+                buffered_content_deltas: List[str] = []
+                is_buffering_potential_tool = True
 
                 async for line in resp.aiter_lines():
                     if not line:
@@ -705,6 +857,43 @@ class ModelAdapterServer:
                         continue
                     raw_data = line[6:].strip()
                     if raw_data == "[DONE]":
+                        # Process any remaining thought or content in think_parser buffer
+                        for kind, piece in think_parser.flush():
+                            if kind == "thought":
+                                thought_chunk = {
+                                    "id": chat_id,
+                                    "object": "chat.completion.chunk",
+                                    "created": created_ts,
+                                    "model": model_name,
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {
+                                            "thought": piece,
+                                            "thinking": piece,
+                                            "reasoning": piece,
+                                        },
+                                        "finish_reason": None,
+                                    }],
+                                }
+                                writer.write(f"data: {json.dumps(thought_chunk)}\n\n".encode("utf-8"))
+                            elif kind == "content":
+                                accumulated_content.append(piece)
+                                if is_buffering_potential_tool:
+                                    buffered_content_deltas.append(piece)
+                                else:
+                                    content_chunk = {
+                                        "id": chat_id,
+                                        "object": "chat.completion.chunk",
+                                        "created": created_ts,
+                                        "model": model_name,
+                                        "choices": [{
+                                            "index": 0,
+                                            "delta": {"content": piece},
+                                            "finish_reason": None,
+                                        }],
+                                    }
+                                    writer.write(f"data: {json.dumps(content_chunk)}\n\n".encode("utf-8"))
+
                         # If tool calls were buffered but not yet emitted, emit them before [DONE]
                         if active_tool_calls and not tool_calls_emitted:
                             tc_list = []
@@ -746,7 +935,7 @@ class ModelAdapterServer:
                             tool_calls_emitted = True
                         elif not tool_calls_emitted and accumulated_content:
                             full_text = "".join(accumulated_content)
-                            fallback = extract_fallback_tool_calls(full_text)
+                            fallback = extract_fallback_tool_calls(full_text, registered_tool_names)
                             if fallback:
                                 complete_chunk = {
                                     "id": chat_id,
@@ -773,6 +962,36 @@ class ModelAdapterServer:
                                 }
                                 writer.write(f"data: {json.dumps(stop_chunk)}\n\n".encode("utf-8"))
                                 tool_calls_emitted = True
+                            elif buffered_content_deltas:
+                                for b_piece in buffered_content_deltas:
+                                    c_chunk = {
+                                        "id": chat_id,
+                                        "object": "chat.completion.chunk",
+                                        "created": created_ts,
+                                        "model": model_name,
+                                        "choices": [{
+                                            "index": 0,
+                                            "delta": {"content": b_piece},
+                                            "finish_reason": None,
+                                        }],
+                                    }
+                                    writer.write(f"data: {json.dumps(c_chunk)}\n\n".encode("utf-8"))
+                                buffered_content_deltas = []
+                        elif buffered_content_deltas:
+                            for b_piece in buffered_content_deltas:
+                                c_chunk = {
+                                    "id": chat_id,
+                                    "object": "chat.completion.chunk",
+                                    "created": created_ts,
+                                    "model": model_name,
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {"content": b_piece},
+                                        "finish_reason": None,
+                                    }],
+                                }
+                                writer.write(f"data: {json.dumps(c_chunk)}\n\n".encode("utf-8"))
+                            buffered_content_deltas = []
 
                         writer.write(b"data: [DONE]\n\n")
                         await writer.drain()
@@ -847,23 +1066,89 @@ class ModelAdapterServer:
                         writer.write(f"data: {json.dumps(complete_chunk)}\n\n".encode("utf-8"))
                         tool_calls_emitted = True
 
-                    # Pass through reasoning / thinking
+                    # Pass through reasoning / thinking deltas from provider
                     if "reasoning_content" in delta:
                         rc = delta["reasoning_content"]
                         if rc:
-                            if "reasoning" not in delta:
-                                delta["reasoning"] = rc
-                            if "thought" not in delta:
-                                delta["thought"] = rc
-                            if "thinking" not in delta:
-                                delta["thinking"] = rc
+                            chunk = {
+                                "id": chat_id,
+                                "object": "chat.completion.chunk",
+                                "created": created_ts,
+                                "model": model_name,
+                                "choices": [{
+                                    "index": 0,
+                                    "delta": {
+                                        "thought": rc,
+                                        "reasoning": rc,
+                                        "thinking": rc,
+                                    },
+                                    "finish_reason": None,
+                                }],
+                            }
+                            writer.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
+                            await writer.drain()
 
-                    # Pass through content / thinking or finish_reason
-                    if delta.get("content"):
-                        accumulated_content.append(str(delta["content"]))
+                    # Process content deltas through ThinkTagStreamParser to strip <think> tags and buffer potential tool envelopes
+                    raw_content = delta.get("content")
+                    if raw_content:
+                        parsed_pieces = think_parser.process_delta(str(raw_content))
+                        for kind, piece in parsed_pieces:
+                            if kind == "thought":
+                                thought_chunk = {
+                                    "id": chat_id,
+                                    "object": "chat.completion.chunk",
+                                    "created": created_ts,
+                                    "model": model_name,
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {
+                                            "thought": piece,
+                                            "thinking": piece,
+                                            "reasoning": piece,
+                                        },
+                                        "finish_reason": None,
+                                    }],
+                                }
+                                writer.write(f"data: {json.dumps(thought_chunk)}\n\n".encode("utf-8"))
+                                await writer.drain()
+                            elif kind == "content":
+                                accumulated_content.append(piece)
+                                if is_buffering_potential_tool:
+                                    buffered_content_deltas.append(piece)
+                                    combined = "".join(buffered_content_deltas).lstrip()
+                                    if combined and not (combined.startswith("{") or combined.startswith("`") or combined.startswith("[")):
+                                        is_buffering_potential_tool = False
+                                        for b_piece in buffered_content_deltas:
+                                            c_chunk = {
+                                                "id": chat_id,
+                                                "object": "chat.completion.chunk",
+                                                "created": created_ts,
+                                                "model": model_name,
+                                                "choices": [{
+                                                    "index": 0,
+                                                    "delta": {"content": b_piece},
+                                                    "finish_reason": None,
+                                                }],
+                                            }
+                                            writer.write(f"data: {json.dumps(c_chunk)}\n\n".encode("utf-8"))
+                                        await writer.drain()
+                                        buffered_content_deltas = []
+                                else:
+                                    c_chunk = {
+                                        "id": chat_id,
+                                        "object": "chat.completion.chunk",
+                                        "created": created_ts,
+                                        "model": model_name,
+                                        "choices": [{
+                                            "index": 0,
+                                            "delta": {"content": piece},
+                                            "finish_reason": None,
+                                        }],
+                                    }
+                                    writer.write(f"data: {json.dumps(c_chunk)}\n\n".encode("utf-8"))
+                                    await writer.drain()
 
-                    has_content = bool(delta.get("content") or delta.get("thought") or delta.get("reasoning") or delta.get("thinking"))
-                    if has_content or finish_reason:
+                    if finish_reason and not (delta.get("content") or incoming_tc):
                         line = f"data: {json.dumps(chunk_obj)}"
                         writer.write((line + "\n\n").encode("utf-8"))
                         await writer.drain()
@@ -877,9 +1162,11 @@ class ModelAdapterServer:
                     if choices:
                         msg = choices[0].get("message", {})
                         if not msg.get("tool_calls"):
-                            fallback = extract_fallback_tool_calls(msg.get("content") or "")
+                            registered_tool_names = extract_catalog_tool_names(payload)
+                            fallback = extract_fallback_tool_calls(msg.get("content") or "", registered_tool_names)
                             if fallback:
                                 msg["tool_calls"] = fallback
+                                msg["content"] = None
                                 choices[0]["finish_reason"] = "tool_calls"
                     body_bytes = json.dumps(resp_json).encode("utf-8")
                     writer.write(

@@ -88,13 +88,14 @@ class ActiveSession:
         self.active_response: Optional[types.ChatResponse] = None
         self.active_task: Optional[asyncio.Task[Any]] = None
         self.is_closed = False
+        self.pending_call_ids: Dict[str, List[str]] = {}
 
 
 class AgentRunner:
     def __init__(
         self,
         emit_fn: Callable[[str, Dict[str, Any]], None],
-        request_tool_execution_fn: Optional[Callable[[str, str, Dict[str, Any]], Awaitable[Dict[str, Any]]]] = None,
+        request_tool_execution_fn: Optional[Callable[..., Awaitable[Dict[str, Any]]]] = None,
         adapter_server: Optional[Any] = None,
     ):
         self.emit_fn = emit_fn
@@ -102,6 +103,15 @@ class AgentRunner:
         self.adapter_server = adapter_server
         self.sessions: Dict[str, ActiveSession] = {}
         self._lock = asyncio.Lock()
+
+    def emit_tool_progress(self, session_id: str, tool_id: str, message: str, tool_name: str = ""):
+        self.emit_fn("tool.progress", {
+            "sessionId": session_id,
+            "toolCallId": tool_id,
+            "toolId": tool_id,
+            "toolName": tool_name,
+            "message": message,
+        })
 
     def _create_hooks(self, session_id: str):
         emit = self.emit_fn
@@ -119,6 +129,10 @@ class AgentRunner:
             call_id = getattr(call, "id", "") or str(getattr(call, "step_id", "") or "")
             tool_name = getattr(call, "name", "")
             tool_args = getattr(call, "args", {}) or {}
+            session = self.sessions.get(session_id)
+            if session:
+                session.pending_call_ids.setdefault(tool_name, []).append(call_id)
+
             if tool_name == "start_subagent":
                 emit("worker.started", {
                     "sessionId": session_id,
@@ -141,18 +155,25 @@ class AgentRunner:
             result_val = getattr(res, "result", None)
             err_val = getattr(res, "error", None)
 
-            if err_val:
+            # Determine whether execution failed (exception or error message string)
+            is_failure = bool(err_val)
+            error_message = str(err_val) if err_val else ""
+            if not is_failure and isinstance(result_val, str) and (result_val.startswith("Error executing ") or result_val.startswith("Error: ")):
+                is_failure = True
+                error_message = result_val
+
+            if is_failure:
                 if tool_name == "start_subagent":
                     emit("worker.failed", {
                         "sessionId": session_id,
                         "workerId": call_id,
-                        "error": str(err_val),
+                        "error": error_message,
                     })
                 emit("tool.failed", {
                     "sessionId": session_id,
                     "toolCallId": call_id,
                     "toolName": tool_name,
-                    "error": str(err_val),
+                    "error": error_message,
                 })
             else:
                 formatted_result = str(result_val) if result_val is not None else ""
@@ -191,51 +212,44 @@ class AgentRunner:
         emit = self.emit_fn
 
         async def _execute_swift_tool(**kwargs) -> str:
-            call_id = str(uuid.uuid4())
-            emit("tool.started", {
-                "sessionId": session_id,
-                "toolCallId": call_id,
-                "toolName": tool_name,
-                "args": kwargs,
-            })
+            session = self.sessions.get(session_id)
+            call_id = ""
+            if session and session.pending_call_ids.get(tool_name):
+                call_id = session.pending_call_ids[tool_name].pop(0)
+            if not call_id:
+                call_id = str(uuid.uuid4())
+
             if not request_fn:
                 err = f"Tool execution handler not registered for tool '{tool_name}'"
-                emit("tool.failed", {
-                    "sessionId": session_id,
-                    "toolCallId": call_id,
-                    "toolName": tool_name,
-                    "error": err,
-                })
                 return f"Error: {err}"
 
             try:
-                res = await request_fn(session_id, tool_name, kwargs)
-                if res.get("success", False):
-                    result_str = str(res.get("result", ""))
-                    emit("tool.completed", {
-                        "sessionId": session_id,
-                        "toolCallId": call_id,
-                        "toolName": tool_name,
-                        "result": result_str,
-                    })
-                    return result_str
+                # Pass stable SDK call.id to Swift tool execution.
+                # Redundant tool.started and tool.completed emissions are omitted here
+                # because the SDK on_pre_tool and on_post_tool hooks canonically emit them.
+                import inspect
+                sig = inspect.signature(request_fn)
+                if "call_id" in sig.parameters or len(sig.parameters) >= 4:
+                    res = await request_fn(session_id, tool_name, kwargs, call_id)
                 else:
-                    err_msg = res.get("error") or "Unknown tool execution error"
-                    emit("tool.failed", {
-                        "sessionId": session_id,
-                        "toolCallId": call_id,
-                        "toolName": tool_name,
-                        "error": err_msg,
-                    })
-                    # Return error as tool output so model can self-correct instead of crashing turn
-                    return f"Error executing {tool_name}: {err_msg}"
+                    res = await request_fn(session_id, tool_name, kwargs)
+
+                if isinstance(res, dict):
+                    # Surface tool.progress notification if intermediate progress is reported
+                    if "progress" in res and res["progress"]:
+                        emit("tool.progress", {
+                            "sessionId": session_id,
+                            "toolCallId": call_id,
+                            "toolName": tool_name,
+                            "message": str(res["progress"]),
+                        })
+                    if res.get("success", False):
+                        return str(res.get("result", ""))
+                    else:
+                        err_msg = res.get("error") or "Unknown tool execution error"
+                        return f"Error executing {tool_name}: {err_msg}"
+                return str(res)
             except Exception as e:
-                emit("tool.failed", {
-                    "sessionId": session_id,
-                    "toolCallId": call_id,
-                    "toolName": tool_name,
-                    "error": str(e),
-                })
                 return f"Error executing {tool_name}: {str(e)}"
 
         _execute_swift_tool.__name__ = tool_name

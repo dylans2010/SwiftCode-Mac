@@ -817,7 +817,8 @@ public final class AssistManager: ObservableObject {
                 }
             }
 
-            var currentPrompt = explicitContextPrefix.isEmpty ? content : "\(explicitContextPrefix)\n\n# USER REQUEST\n\(content)"
+            let basePrompt = explicitContextPrefix.isEmpty ? content : "\(explicitContextPrefix)\n\n# USER REQUEST\n\(content)"
+            var currentPrompt = "# TASK OBJECTIVE\n\(content)\n\n\(basePrompt)"
             var currentAttachments = sdkAttachments
             var currentSession: GoogleCloudSDKSession = session
             var currentConfig = initialConfig
@@ -883,10 +884,13 @@ public final class AssistManager: ObservableObject {
                             let argsDict: [String: Any] = (try? JSONSerialization.jsonObject(with: tool.rawArgs.data(using: .utf8) ?? Data())) as? [String: Any] ?? [:]
                             self.reportToolStarted(callId: tool.id, toolName: tool.name, arguments: argsDict)
 
+                        case .toolProgress(_, let toolId, let message):
+                            self.reportToolProgress(callId: toolId, message: message)
+
                         case .toolCompleted(let res):
                             self.reportToolCompleted(callId: res.id, toolName: res.name, output: res.result, arguments: [:])
 
-                        case .toolFailed(let toolId, let name, let err):
+                        case .toolFailed(_, let toolId, let name, let err):
                             self.reportToolFailed(callId: toolId, toolName: name, error: err, arguments: [:])
 
                         case .workerStarted(_, let workerId, let name, let args):
@@ -1241,6 +1245,21 @@ public final class AssistManager: ObservableObject {
             toolName: toolName,
             output: output,
             arguments: arguments,
+            in: &activity
+        )
+
+        self.messages[idx].activityGroup = activity
+    }
+
+    @MainActor
+    public func reportToolProgress(callId: String, toolName: String = "", message: String) {
+        guard let idx = self.messages.indices.last else { return }
+        guard var activity = self.messages[idx].activityGroup else { return }
+
+        AssistEventNormalizer.shared.normalizeToolProgress(
+            callId: callId,
+            toolName: toolName,
+            progressMessage: message,
             in: &activity
         )
 

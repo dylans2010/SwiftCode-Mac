@@ -51,10 +51,15 @@ public final class GoogleCloudSDKSession: Identifiable, Sendable {
                         if res.sessionId == targetId {
                             continuation.yield(event)
                         }
-                    case .toolFailed(_, _, _):
-                        // Forward tool failure
-                        continuation.yield(event)
-                    case .runtimeReady, .runtimeStopped, .toolProgress, .error:
+                    case .toolProgress(let sid, _, _):
+                        if sid == targetId || sid.isEmpty {
+                            continuation.yield(event)
+                        }
+                    case .toolFailed(let sid, _, _, _):
+                        if sid == targetId || sid.isEmpty {
+                            continuation.yield(event)
+                        }
+                    case .runtimeReady, .runtimeStopped, .error:
                         // Global events
                         continuation.yield(event)
                     }

@@ -71,7 +71,7 @@ class BridgeServer:
             self.writer.write(raw.encode("utf-8"))
             asyncio.create_task(self._safe_drain())
 
-    async def request_tool_execution(self, session_id: str, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def request_tool_execution(self, session_id: str, tool_name: str, arguments: Dict[str, Any], call_id: Optional[str] = None) -> Dict[str, Any]:
         if not self.writer or self.writer.is_closing():
             raise RuntimeError("Connection to SwiftCode is closed")
 
@@ -80,14 +80,18 @@ class BridgeServer:
         future: asyncio.Future[Dict[str, Any]] = loop.create_future()
         self.pending_requests[req_id] = future
 
+        params: Dict[str, Any] = {
+            "sessionId": session_id,
+            "toolName": tool_name,
+            "arguments": arguments,
+        }
+        if call_id:
+            params["callId"] = call_id
+
         req_msg = ProtocolMessage.request(
             req_id,
             "tool.execute",
-            {
-                "sessionId": session_id,
-                "toolName": tool_name,
-                "arguments": arguments,
-            },
+            params,
         )
         self.writer.write(req_msg.encode("utf-8"))
         await self._safe_drain()

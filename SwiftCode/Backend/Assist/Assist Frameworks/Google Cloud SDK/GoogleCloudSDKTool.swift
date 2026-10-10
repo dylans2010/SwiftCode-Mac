@@ -12,12 +12,14 @@ public struct GoogleCloudSDKToolExecutionRequest: @unchecked Sendable {
     public let sessionId: String
     public let toolName: String
     public let arguments: [String: Any]
+    public let callId: String?
 
-    public init(requestId: String, sessionId: String, toolName: String, arguments: [String: Any]) {
+    public init(requestId: String, sessionId: String, toolName: String, arguments: [String: Any], callId: String? = nil) {
         self.requestId = requestId
         self.sessionId = sessionId
         self.toolName = toolName
         self.arguments = arguments
+        self.callId = callId
     }
 }
 

@@ -246,8 +246,9 @@ public actor GoogleCloudSDKTransport {
                 let sessionId = params["sessionId"] as? String ?? ""
                 let toolName = params["toolName"] as? String ?? ""
                 let arguments = params["arguments"] as? [String: Any] ?? [:]
+                let callId = params["callId"] as? String
 
-                let request = GoogleCloudSDKToolExecutionRequest(requestId: reqId, sessionId: sessionId, toolName: toolName, arguments: arguments)
+                let request = GoogleCloudSDKToolExecutionRequest(requestId: reqId, sessionId: sessionId, toolName: toolName, arguments: arguments, callId: callId)
 
                 Task { [weak self] in
                     await self?.executeTool(request: request, reqId: reqId)
@@ -373,12 +374,18 @@ public actor GoogleCloudSDKTransport {
             let toolRes = GoogleCloudSDKToolResult(id: callId, sessionId: sessionId, name: toolName, result: result)
             event = .toolCompleted(result: toolRes)
 
+        case "tool.progress":
+            let sessionId = params["sessionId"] as? String ?? ""
+            let callId = params["toolCallId"] as? String ?? params["toolId"] as? String ?? ""
+            let msg = params["message"] as? String ?? ""
+            event = .toolProgress(sessionId: sessionId, toolId: callId, message: msg)
+
         case "tool.failed":
             let sessionId = params["sessionId"] as? String ?? ""
             let callId = params["toolCallId"] as? String ?? ""
             let toolName = params["toolName"] as? String ?? ""
             let err = params["error"] as? String ?? ""
-            event = .toolFailed(toolId: callId, toolName: toolName, error: err)
+            event = .toolFailed(sessionId: sessionId, toolId: callId, toolName: toolName, error: err)
 
         case "worker.started":
             let sessionId = params["sessionId"] as? String ?? ""

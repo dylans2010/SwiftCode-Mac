@@ -90,7 +90,7 @@ public final class AssistEventNormalizer {
         // Completed operations must not absorb a later, intentional repeat.
         let existingIdx = activityGroup.tools.firstIndex(where: { $0.id == callUUID })
             ?? activityGroup.tools.firstIndex(where: {
-                $0.semanticKey == semKey && ($0.status == .retrying || $0.status == .failed)
+                $0.semanticKey == semKey && ($0.status == .running || $0.status == .retrying || $0.status == .failed)
             })
 
         if let existingIdx {
@@ -156,7 +156,7 @@ public final class AssistEventNormalizer {
         let semKey = activeCallToSemanticKey[callId] ?? computeSemanticKey(toolName: toolName, arguments: arguments)
         let callUUID = callId.isEmpty ? nil : (activeCallToOperationId[callId] ?? UUID(uuidString: callId))
 
-        let isActiveAttempt: (ToolActivityItem) -> Bool = { $0.status == .running || $0.status == .retrying }
+        let isActiveAttempt: (ToolActivityItem) -> Bool = { $0.status == .running || $0.status == .retrying || $0.status == .failed }
         let targetIdx = activityGroup.tools.firstIndex(where: { callUUID != nil && $0.id == callUUID })
             ?? activityGroup.tools.firstIndex(where: { $0.semanticKey == semKey && isActiveAttempt($0) })
 
@@ -211,7 +211,7 @@ public final class AssistEventNormalizer {
         let semKey = activeCallToSemanticKey[callId] ?? computeSemanticKey(toolName: toolName, arguments: arguments)
         let callUUID = callId.isEmpty ? nil : (activeCallToOperationId[callId] ?? UUID(uuidString: callId))
 
-        let isActiveAttempt: (ToolActivityItem) -> Bool = { $0.status == .running || $0.status == .retrying }
+        let isActiveAttempt: (ToolActivityItem) -> Bool = { $0.status == .running || $0.status == .retrying || $0.status == .failed }
         let targetIdx = activityGroup.tools.firstIndex(where: { callUUID != nil && $0.id == callUUID })
             ?? activityGroup.tools.firstIndex(where: { $0.semanticKey == semKey && isActiveAttempt($0) })
 
@@ -243,6 +243,28 @@ public final class AssistEventNormalizer {
         }
 
         integrateAuxiliaryFailed(toolName: toolName, error: cleanError, activityGroup: &activityGroup)
+    }
+
+    public func normalizeToolProgress(
+        callId: String,
+        toolName: String,
+        progressMessage: String,
+        in activityGroup: inout AssistActivityGroup
+    ) {
+        let semKey = activeCallToSemanticKey[callId] ?? (!toolName.isEmpty ? "\(toolName):" : "")
+        let callUUID = callId.isEmpty ? nil : (activeCallToOperationId[callId] ?? UUID(uuidString: callId))
+
+        let targetIdx = activityGroup.tools.firstIndex(where: { callUUID != nil && $0.id == callUUID })
+            ?? activityGroup.tools.firstIndex(where: {
+                (!semKey.isEmpty && ($0.semanticKey?.hasPrefix(semKey) == true) && $0.status == .running)
+                || ($0.toolId == toolName && $0.status == .running)
+            })
+
+        if let idx = targetIdx {
+            var item = activityGroup.tools[idx]
+            item.result = progressMessage
+            activityGroup.tools[idx] = item
+        }
     }
 
     // MARK: - Worker Normalization
