@@ -22,12 +22,8 @@ else
     exit 1
 fi
 
-# Ensure localharness binary is extracted from localharness.gz if needed
-LH_DIR="${SITE_PACKAGES}/google/antigravity/bin"
-if [ -f "${LH_DIR}/localharness.gz" ] && [ ! -s "${LH_DIR}/localharness" ]; then
-    gunzip -c "${LH_DIR}/localharness.gz" > "${LH_DIR}/localharness" 2>/dev/null || true
-    chmod +x "${LH_DIR}/localharness" 2>/dev/null || true
-fi
+# The localharness binary is unpacked by bridge/harness.py into
+# ~/Library/Application Support/SwiftCode (never into the signed app bundle).
 
 export PYTHONPATH="${SITE_PACKAGES}:${PYTHONPATH:-}"
 export PYTHONNOUSERSITE=1

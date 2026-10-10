@@ -6,6 +6,8 @@ subagents, dynamic SwiftCode tools, and error recovery.
 
 from __future__ import annotations
 import asyncio
+import base64
+import json
 import os
 import sys
 import logging
@@ -19,10 +21,14 @@ site_packages = os.path.join(sdk_root, "runtime", "lib", "python3.14", "site-pac
 if os.path.isdir(site_packages) and site_packages not in sys.path:
     sys.path.insert(0, site_packages)
 
-if "ANTIGRAVITY_HARNESS_PATH" not in os.environ:
-    candidate = os.path.abspath(os.path.join(sdk_root, "runtime", "lib", "python3.14", "site-packages", "google", "antigravity", "bin", "localharness"))
-    if os.path.exists(candidate):
-        os.environ["ANTIGRAVITY_HARNESS_PATH"] = candidate
+if bridge_dir not in sys.path:
+    sys.path.insert(0, bridge_dir)
+
+# Never unpack or write into the (signed) app bundle: harness.py unpacks the
+# binary into Application Support when only the .gz archive is shipped.
+from harness import ensure_harness  # noqa: E402
+
+ensure_harness(site_packages)
 
 from google.antigravity import Agent, LocalAgentConfig, LocalOpenAIAgentConfig, types
 try:
@@ -40,6 +46,23 @@ from google.antigravity.tools.tool_runner import ToolWithSchema
 logger = logging.getLogger("AntigravityAgentRunner")
 
 _sanitized_schema_cache: Dict[str, Any] = {}
+
+DEFAULT_MAX_TOOL_CALLS_PER_TURN = 200
+
+
+class SessionNotFoundError(KeyError):
+    """Raised when a request references a session that does not exist."""
+
+    def __str__(self) -> str:  # KeyError quotes its message by default
+        return str(self.args[0]) if self.args else "Session not found"
+
+
+def _positive_int(value: Any) -> Optional[int]:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
 
 
 def sanitize_schema(schema: Any) -> Any:
@@ -122,6 +145,8 @@ class ActiveSession:
         self.active_response: Optional[types.ChatResponse] = None
         self.active_task: Optional[asyncio.Task[Any]] = None
         self.is_closed = False
+        self.cancel_requested = False
+        self.max_tool_calls_per_turn = DEFAULT_MAX_TOOL_CALLS_PER_TURN
         # Map call_id -> ToolCallState
         self.active_tools: Dict[str, ToolCallState] = {}
         # Queue of pending call_ids by tool_name
@@ -190,9 +215,11 @@ class AgentRunner:
         emit_fn: Callable[[str, Dict[str, Any]], None],
         request_tool_execution_fn: Optional[Callable[..., Awaitable[Dict[str, Any]]]] = None,
         adapter_server: Optional[Any] = None,
+        request_approval_fn: Optional[Callable[[str, str, Dict[str, Any]], Awaitable[bool]]] = None,
     ):
         self.emit_fn = emit_fn
         self.request_tool_execution_fn = request_tool_execution_fn
+        self.request_approval_fn = request_approval_fn
         self.adapter_server = adapter_server
         self.sessions: Dict[str, ActiveSession] = {}
         self._lock = asyncio.Lock()
@@ -569,7 +596,66 @@ class AgentRunner:
         wrapper.__doc__ = tool_desc
         return wrapper
 
-    async def create_session(self, session_id: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_prompt(self, content: str, attachments: List[Dict[str, Any]]) -> Any:
+        """Converts Swift attachments into SDK media primitives alongside the text."""
+        if not attachments:
+            return content
+
+        parts: List[Any] = []
+        if content and content.strip():
+            parts.append(content)
+
+        for attachment in attachments:
+            if not isinstance(attachment, dict):
+                continue
+            name = str(attachment.get("name") or attachment.get("fileName") or "attachment")
+            mime_type = str(attachment.get("mimeType") or attachment.get("mime_type") or "")
+            raw = attachment.get("data") or attachment.get("base64") or ""
+            path = attachment.get("path")
+            try:
+                if raw:
+                    data = base64.b64decode(raw)
+                    try:
+                        parts.append(types.from_bytes(data, mime_type, description=name))
+                        continue
+                    except ValueError:
+                        # Unsupported media type: inline text-like content instead of dropping it.
+                        try:
+                            text = data.decode("utf-8")
+                        except UnicodeDecodeError:
+                            logger.warning("Skipping unsupported binary attachment '%s' (%s)", name, mime_type)
+                            continue
+                        parts.append(f"\n\n[Attached file: {name}]\n{text}")
+                        continue
+                if path and os.path.isfile(str(path)):
+                    parts.append(types.from_file(str(path), description=name))
+            except Exception as exc:
+                logger.warning("Could not attach '%s': %s", name, exc)
+
+        if not parts:
+            return content
+        if len(parts) == 1 and isinstance(parts[0], str):
+            return parts[0]
+        return parts
+
+    def _make_approval_handler(self, session_id: str):
+        approval_fn = self.request_approval_fn
+
+        async def _approve(call: ToolCall, *_: Any) -> bool:
+            if approval_fn is None:
+                return False
+            args = getattr(call, "args", {}) or {}
+            if not isinstance(args, dict):
+                args = {}
+            try:
+                return bool(await approval_fn(session_id, getattr(call, "name", "") or "", args))
+            except Exception as exc:
+                logger.warning("Approval request failed for session '%s': %s", session_id, exc)
+                return False
+
+        return _approve
+
+    async def create_session(self, session_id: str, params: Dict[str, Any], resume: bool = False) -> Dict[str, Any]:
         async with self._lock:
             if session_id in self.sessions:
                 raise ValueError(f"Session '{session_id}' already exists")
@@ -585,15 +671,24 @@ class AgentRunner:
             project = params.get("project")
             location = params.get("location")
             enable_subagents = params.get("enableSubagents", True)
-            max_subagent_depth = params.get("maxSubagentDepth", 3)
+            max_subagent_depth = _positive_int(params.get("maxSubagentDepth")) or 3
+            allowed_subagents = params.get("allowedSubagents")
             registered_tools_schemas = params.get("tools", [])
             toolkit = (params.get("toolkit") or "System").strip()
+            conversation_id = params.get("conversationId") or None
+            max_tool_calls_per_turn = _positive_int(params.get("maxToolCallsPerTurn")) or DEFAULT_MAX_TOOL_CALLS_PER_TURN
+
+            if params.get("serviceTier"):
+                # The installed SDK only reports the tier in usage metadata; it has
+                # no request-side configuration for it.
+                logger.debug("serviceTier=%s requested; not configurable in this SDK version", params.get("serviceTier"))
 
             # Dynamic tools & Built-in tools depending on Assist Toolkit setting
             dynamic_tools = []
             builtin_tools = []
+            is_cloud_toolkit = toolkit.lower() == "cloud"
 
-            if toolkit.lower() == "cloud":
+            if is_cloud_toolkit:
                 # Cloud mode: use Antigravity SDK's built-in tools (view_file, edit_file, run_command, etc.)
                 builtin_tools = list(types.BuiltinTools.default())
                 if not enable_subagents and types.BuiltinTools.START_SUBAGENT in builtin_tools:
@@ -627,33 +722,85 @@ class AgentRunner:
                 system_instructions = (system_instructions + system_instruction).strip()
 
             # Build policies
-            session_policies = []
+            session_policies: List[Any] = []
             if workspaces:
-                session_policies.append(policy.workspace_only(workspaces))
-            session_policies.append(policy.allow_all())
-            session_policies.append(policy.allow("run_command"))
-            session_policies.append(policy.allow("edit_file"))
-            session_policies.append(policy.allow("create_file"))
+                # workspace_only returns a list of policies.
+                session_policies.extend(policy.workspace_only(workspaces))
+            if is_cloud_toolkit:
+                # Built-in run_command goes through SwiftCode's approval UI instead
+                # of being silently allowed.
+                session_policies.extend(policy.confirm_run_command(self._make_approval_handler(session_id)))
+            else:
+                # Swift tools enforce their own permissions/approval natively.
+                session_policies.append(policy.allow_all())
 
-            cap_config = types.CapabilitiesConfig(
-                enabled_tools=builtin_tools,
-                enable_subagents=enable_subagents,
-                max_subagent_depth=max_subagent_depth if enable_subagents else None,
-                agent_behavior=types.AgentBehavior.AUTONOMOUS,
-            )
+            cap_kwargs: Dict[str, Any] = {
+                "enabled_tools": builtin_tools,
+                "enable_subagents": enable_subagents,
+                "max_subagent_depth": max_subagent_depth if enable_subagents else None,
+                "agent_behavior": types.AgentBehavior.AUTONOMOUS,
+            }
+            if enable_subagents and isinstance(allowed_subagents, list):
+                cap_kwargs["allowed_subagents"] = [str(name) for name in allowed_subagents]
+            cap_config = types.CapabilitiesConfig(**cap_kwargs)
 
             logger.info(
-                "Creating %s toolkit session: instructions=%d chars, dynamic_tools=%d, builtin_tools=%d",
+                "Creating %s toolkit session: instructions=%d chars, dynamic_tools=%d, builtin_tools=%d, resume=%s",
                 toolkit,
                 len(system_instructions or ""),
                 len(dynamic_tools),
                 len(builtin_tools),
+                bool(resume and conversation_id),
             )
+
+            # Settings shared by every connection type.
+            common_kwargs: Dict[str, Any] = {
+                "capabilities": cap_config,
+                "policies": session_policies,
+                "hooks": self._create_hooks(session_id),
+            }
+            if dynamic_tools:
+                common_kwargs["tools"] = dynamic_tools
+            if system_instructions:
+                common_kwargs["system_instructions"] = system_instructions
+            if skills_paths:
+                common_kwargs["skills_paths"] = skills_paths
+            if workspaces:
+                common_kwargs["workspaces"] = workspaces
+            if app_data_dir and os.path.isabs(app_data_dir):
+                common_kwargs["app_data_dir"] = app_data_dir
+            if save_dir and os.path.isabs(save_dir):
+                common_kwargs["save_dir"] = save_dir
+            if conversation_id:
+                # Real SDK conversation resume (persisted under save_dir).
+                common_kwargs["conversation_id"] = conversation_id
+                common_kwargs["session_continuation_mode"] = types.SessionContinuationMode.CREATE_OR_RESUME
+
+            compaction_threshold = _positive_int(params.get("compactionTokenThreshold"))
+            if compaction_threshold:
+                common_kwargs["compaction_config"] = types.CompactionConfig(token_threshold=compaction_threshold)
+            max_api_retries = params.get("maxApiRetries")
+            if isinstance(max_api_retries, int) and max_api_retries >= 0:
+                common_kwargs["retry_config"] = types.RetryConfig(
+                    api_retry=types.ModelAPIRetryConfig(max_retries=max_api_retries)
+                )
+            budget_kwargs: Dict[str, Any] = {}
+            for src, dst in (("maxModelCalls", "max_model_calls"), ("maxToolCalls", "max_tool_calls"), ("maxTotalTokens", "max_total_tokens")):
+                value = _positive_int(params.get(src))
+                if value:
+                    budget_kwargs[dst] = value
+            if budget_kwargs:
+                common_kwargs["budget_config"] = types.BudgetConfig(scope=types.BudgetScope.FORWARD_LOOKING, **budget_kwargs)
 
             # Determine provider & routing strategy
             provider = (params.get("provider") or "").lower()
             model_lower = str(model).lower()
-            model_path_param = str(params.get("modelPath") or params.get("model_path") or "")
+            model_path_param = str(
+                params.get("litertModelPath")
+                or params.get("modelPath")
+                or params.get("model_path")
+                or ""
+            )
             base_url = params.get("baseURL") or ""
 
             is_litert = (
@@ -674,13 +821,9 @@ class AgentRunner:
 
                 backend_val = params.get("litertBackend") or params.get("backend") or "gpu"
 
-                litert_kwargs: Dict[str, Any] = {
-                    "model_path": resolved_model_path,
-                    "backend": backend_val,
-                    "capabilities": cap_config,
-                    "policies": session_policies,
-                    "hooks": self._create_hooks(session_id),
-                }
+                litert_kwargs: Dict[str, Any] = dict(common_kwargs)
+                litert_kwargs["model_path"] = resolved_model_path
+                litert_kwargs["backend"] = backend_val
 
                 if "enableSpeculativeDecoding" in params:
                     litert_kwargs["enable_speculative_decoding"] = bool(params["enableSpeculativeDecoding"])
@@ -696,31 +839,11 @@ class AgentRunner:
                 if "downloadIfMissing" in params or "download_if_missing" in params:
                     litert_kwargs["download_if_missing"] = bool(params.get("downloadIfMissing", params.get("download_if_missing", False)))
 
-                if dynamic_tools:
-                    litert_kwargs["tools"] = dynamic_tools
-                if system_instructions:
-                    litert_kwargs["system_instructions"] = system_instructions
-                if skills_paths:
-                    litert_kwargs["skills_paths"] = skills_paths
-                if workspaces:
-                    litert_kwargs["workspaces"] = workspaces
-                if app_data_dir and os.path.isabs(app_data_dir):
-                    litert_kwargs["app_data_dir"] = app_data_dir
-                if save_dir and os.path.isabs(save_dir):
-                    litert_kwargs["save_dir"] = save_dir
-
                 agent_config = LiteRTAgentConfig(**litert_kwargs)
 
             elif is_gemini:
-                config_kwargs: Dict[str, Any] = {
-                    "model": model,
-                    "capabilities": cap_config,
-                    "policies": session_policies,
-                    "hooks": self._create_hooks(session_id),
-                }
-
-                if dynamic_tools:
-                    config_kwargs["tools"] = dynamic_tools
+                config_kwargs: Dict[str, Any] = dict(common_kwargs)
+                config_kwargs["model"] = model
 
                 if api_key:
                     config_kwargs["api_key"] = api_key
@@ -730,16 +853,6 @@ class AgentRunner:
                         config_kwargs["project"] = project
                     if location:
                         config_kwargs["location"] = location
-                if system_instructions:
-                    config_kwargs["system_instructions"] = system_instructions
-                if skills_paths:
-                    config_kwargs["skills_paths"] = skills_paths
-                if workspaces:
-                    config_kwargs["workspaces"] = workspaces
-                if app_data_dir and os.path.isabs(app_data_dir):
-                    config_kwargs["app_data_dir"] = app_data_dir
-                if save_dir and os.path.isabs(save_dir):
-                    config_kwargs["save_dir"] = save_dir
 
                 agent_config = LocalAgentConfig(**config_kwargs)
 
@@ -758,30 +871,13 @@ class AgentRunner:
                             base_url=base_url,
                             headers=params.get("headers"),
                         )
-                        resolved_base_url = f"http://127.0.0.1:{self.adapter_server.actual_port}/v1"
+                        resolved_base_url = self.adapter_server.base_url
                     elif not resolved_base_url:
                         resolved_base_url = "http://127.0.0.1:11434/v1"
 
-                openai_config_kwargs: Dict[str, Any] = {
-                    "model": model,
-                    "base_url": resolved_base_url,
-                    "capabilities": cap_config,
-                    "policies": session_policies,
-                    "hooks": self._create_hooks(session_id),
-                }
-
-                if dynamic_tools:
-                    openai_config_kwargs["tools"] = dynamic_tools
-                if system_instructions:
-                    openai_config_kwargs["system_instructions"] = system_instructions
-                if skills_paths:
-                    openai_config_kwargs["skills_paths"] = skills_paths
-                if workspaces:
-                    openai_config_kwargs["workspaces"] = workspaces
-                if app_data_dir and os.path.isabs(app_data_dir):
-                    openai_config_kwargs["app_data_dir"] = app_data_dir
-                if save_dir and os.path.isabs(save_dir):
-                    openai_config_kwargs["save_dir"] = save_dir
+                openai_config_kwargs: Dict[str, Any] = dict(common_kwargs)
+                openai_config_kwargs["model"] = model
+                openai_config_kwargs["base_url"] = resolved_base_url
 
                 agent_config = LocalOpenAIAgentConfig(**openai_config_kwargs)
 
@@ -791,13 +887,14 @@ class AgentRunner:
             await agent.__aenter__()
 
             session = ActiveSession(session_id, agent, self.emit_fn)
+            session.max_tool_calls_per_turn = max_tool_calls_per_turn
             self.sessions[session_id] = session
 
             logger.info("Created Antigravity session '%s' with model '%s' and %d dynamic Swift tools", session_id, model, len(dynamic_tools))
             return {
                 "sessionId": session_id,
                 "conversationId": agent.conversation_id,
-                "status": "ready",
+                "status": "resumed" if (resume and conversation_id) else "ready",
                 "model": model,
                 "toolCount": len(dynamic_tools),
             }
@@ -805,10 +902,21 @@ class AgentRunner:
     async def send_message(self, session_id: str, content: str, attachments: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         session = self.sessions.get(session_id)
         if not session or session.is_closed:
-            raise KeyError(f"Session '{session_id}' not found or closed")
+            raise SessionNotFoundError(f"Session '{session_id}' not found or closed")
 
         if session.active_task and not session.active_task.done():
-            raise RuntimeError(f"Session '{session_id}' is currently processing another turn")
+            if session.cancel_requested:
+                # An interrupt is in flight: wait for the cancelled turn to unwind
+                # instead of rejecting the follow-up message.
+                try:
+                    await asyncio.wait_for(asyncio.shield(session.active_task), timeout=10.0)
+                except BaseException:
+                    pass
+            if session.active_task and not session.active_task.done():
+                raise RuntimeError(f"Session '{session_id}' is currently processing another turn")
+
+        session.cancel_requested = False
+        prompt = self._build_prompt(content, attachments or [])
 
         emit = self.emit_fn
 
@@ -816,12 +924,28 @@ class AgentRunner:
             accumulated_text = []
             try:
                 emit("agent.started", {"sessionId": session_id, "prompt": content})
-                response = await session.agent.chat(content)
+                response = await session.agent.chat(prompt)
                 session.active_response = response
 
+                tool_calls_this_turn = 0
                 # Stream rich semantic chunks as they arrive from backend
                 async for chunk in response.chunks:
-                    if isinstance(chunk, Text):
+                    if isinstance(chunk, ToolCall):
+                        tool_calls_this_turn += 1
+                        if tool_calls_this_turn > session.max_tool_calls_per_turn:
+                            limit_error = (
+                                f"Stopped after {session.max_tool_calls_per_turn} tool calls in a single turn "
+                                "(maxToolCallsPerTurn)."
+                            )
+                            logger.warning("Session '%s': %s", session_id, limit_error)
+                            try:
+                                await response.cancel()
+                            except Exception:
+                                pass
+                            session.mark_all_tools_failed(limit_error)
+                            emit("agent.failed", {"sessionId": session_id, "error": limit_error})
+                            return
+                    elif isinstance(chunk, Text):
                         accumulated_text.append(chunk.text)
                         emit("agent.progress", {
                             "sessionId": session_id,
@@ -844,10 +968,11 @@ class AgentRunner:
                         "totalTokens": getattr(response.usage_metadata, "total_token_count", 0),
                     }
 
-                stop_reason = str(response.stop_reason) if hasattr(response, "stop_reason") else "end_of_turn"
+                raw_stop = getattr(response, "stop_reason", None)
+                stop_reason = getattr(raw_stop, "value", None) or (str(raw_stop) if raw_stop is not None else "end_of_turn")
 
-                # Mark any orphaned tools before finalizing turn
-                session.mark_all_tools_failed("Turn completed without explicit tool completion")
+                # Any tool still open at this point never reported a result.
+                session.mark_all_tools_failed(f"No result was reported before the turn ended (stop reason: {stop_reason})")
 
                 emit("agent.completed", {
                     "sessionId": session_id,
@@ -857,20 +982,20 @@ class AgentRunner:
                 })
             except types.AntigravityCancelledError:
                 logger.info("Session '%s' turn was cancelled/interrupted", session_id)
-                session.mark_all_tools_failed("Turn was cancelled by user")
+                session.mark_all_tools_failed("Cancelled")
                 final_text = "".join(accumulated_text)
                 emit("agent.completed", {
                     "sessionId": session_id,
-                    "response": final_text if final_text else "[Interrupted by user]",
+                    "response": final_text,
                     "stopReason": "interrupted",
                 })
             except asyncio.CancelledError:
                 logger.info("Session '%s' asyncio task was cancelled/interrupted", session_id)
-                session.mark_all_tools_failed("Turn was cancelled by user")
+                session.mark_all_tools_failed("Cancelled")
                 final_text = "".join(accumulated_text)
                 emit("agent.completed", {
                     "sessionId": session_id,
-                    "response": final_text if final_text else "[Interrupted by user]",
+                    "response": final_text,
                     "stopReason": "interrupted",
                 })
             except Exception as e:
@@ -881,8 +1006,10 @@ class AgentRunner:
                     "error": str(e),
                 })
             finally:
-                session.mark_all_tools_failed("Turn finished")
+                # Safety net only: every path above already finalized its tools.
+                session.mark_all_tools_failed("Turn ended")
                 session.active_response = None
+                session.cancel_requested = False
 
         task = asyncio.create_task(_run_turn())
         session.active_task = task
@@ -891,10 +1018,11 @@ class AgentRunner:
     async def cancel_message(self, session_id: str) -> Dict[str, Any]:
         session = self.sessions.get(session_id)
         if not session:
-            raise KeyError(f"Session '{session_id}' not found")
+            raise SessionNotFoundError(f"Session '{session_id}' not found")
 
+        session.cancel_requested = True
         # Mark all in-flight tools as cancelled immediately so the UI does not hang
-        session.mark_all_tools_failed("Tool execution was cancelled by user")
+        session.mark_all_tools_failed("Cancelled")
 
         if session.active_response:
             try:
@@ -928,6 +1056,7 @@ class AgentRunner:
             return {"sessionId": session_id, "status": "closed"}
 
     async def stop_all(self):
-        async with self._lock:
-            for session_id in list(self.sessions.keys()):
-                await self.close_session(session_id)
+        # close_session acquires the (non-reentrant) lock itself, so iterate over a
+        # snapshot without holding it here.
+        for session_id in list(self.sessions.keys()):
+            await self.close_session(session_id)

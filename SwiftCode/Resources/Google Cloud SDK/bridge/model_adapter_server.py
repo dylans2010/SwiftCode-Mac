@@ -12,10 +12,12 @@ Enables Antigravity's LocalOpenAIAgentConfig to route seamlessly to:
 
 from __future__ import annotations
 import asyncio
+import hmac
 import json
 import logging
 import os
 import re
+import secrets
 import sys
 import time
 import uuid
@@ -234,6 +236,44 @@ class ThinkTagStreamParser:
                 results.append((kind, clean))
             self.buffer = ""
         return results
+
+
+_TEXT_TOOL_TAG_PREFIXES = ("<tool", "<function", "<invoke", "<|")
+_TEXT_TOOL_FENCE_LANGS = ("", "json", "tool", "tool_call", "tool_code", "function", "function_call")
+
+
+def could_be_text_tool_call(text: str) -> bool:
+    """Returns True while streamed text may still turn out to be a text-encoded tool call.
+
+    Used to decide whether content deltas must be held back. Ordinary prose,
+    Markdown code fences in other languages and HTML-like text are released
+    immediately instead of being buffered until the end of the response.
+    """
+    t = text.lstrip()
+    if not t:
+        return True
+    if t[0] in "{[":
+        head = t[:768]
+        if len(t) > 768 and not any(k in head for k in ('"name"', '"tool', '"function', '"arguments"')):
+            return False
+        return True
+    if t[0] == "`":
+        if len(t) < 3:
+            return t == "`" * len(t)
+        if not t.startswith("```"):
+            return False
+        first_line, sep, _ = t[3:].partition("\n")
+        if not sep:
+            # Still reading the fence language tag.
+            return len(first_line) < 24
+        return first_line.strip().lower() in _TEXT_TOOL_FENCE_LANGS
+    if t[0] == "<":
+        lowered = t[:16].lower()
+        if any(lowered.startswith(p) for p in _TEXT_TOOL_TAG_PREFIXES):
+            return True
+        # Partial tag that could still become one of the prefixes.
+        return any(p.startswith(lowered) for p in _TEXT_TOOL_TAG_PREFIXES)
+    return False
 
 
 def strip_think_tags(text: str) -> Tuple[str, Optional[str]]:
@@ -495,6 +535,20 @@ class ModelAdapterServer:
         self.targets: Dict[str, TargetModelConfig] = {}
         self._lock = asyncio.Lock()
         self._http_client: Optional[httpx.AsyncClient] = None
+        # Per-process secret: the adapter holds provider API keys, so only clients
+        # that know this token (the SDK harness we configure) may use it.
+        self.auth_token: str = secrets.token_urlsafe(24)
+
+    @property
+    def base_url(self) -> str:
+        """OpenAI-compatible base URL including the secret path prefix."""
+        return f"http://{self.host}:{self.actual_port}/{self.auth_token}/v1"
+
+    def _is_authorized(self, path: str, headers: Dict[str, str]) -> bool:
+        if path.startswith(f"/{self.auth_token}/"):
+            return True
+        auth_header = headers.get("authorization", "")
+        return hmac.compare_digest(auth_header, f"Bearer {self.auth_token}")
 
     async def get_client(self) -> httpx.AsyncClient:
         if self._http_client is None or self._http_client.is_closed:
@@ -523,9 +577,11 @@ class ModelAdapterServer:
         logger.info("Registered adapter target for model '%s' via provider '%s'", model_name, provider)
 
     def find_target(self, model_name: str) -> Optional[TargetModelConfig]:
+        unique_targets = {id(v): v for v in self.targets.values()}
         if not model_name:
-            if self.targets:
-                return next(iter(self.targets.values()))
+            # Only unambiguous when exactly one target is registered.
+            if len(unique_targets) == 1:
+                return next(iter(unique_targets.values()))
             return None
 
         if model_name in self.targets:
@@ -540,12 +596,13 @@ class ModelAdapterServer:
             if bare_model in self.targets:
                 return self.targets[bare_model]
 
-        # Substring search
+        # Registered target whose name is a provider-qualified form of this model.
         for k, v in self.targets.items():
-            if k in lower or lower in k:
+            if k.endswith("/" + lower):
                 return v
 
-        # Smart provider inference from model name
+        # Smart provider inference from model name (uses provider env/default keys,
+        # never another target's credentials).
         if any(c in lower for c in ("claude", "anthropic")):
             return TargetModelConfig(model_name=model_name, provider="anthropic")
         elif any(c in lower for c in ("mistral", "codestral")):
@@ -557,11 +614,8 @@ class ModelAdapterServer:
         elif "openrouter" in lower:
             return TargetModelConfig(model_name=model_name, provider="openrouter")
 
-        # Fallback target if any target is registered
-        if self.targets:
-            return next(iter(self.targets.values()))
-
-        return TargetModelConfig(model_name=model_name, provider="openai")
+        logger.warning("No adapter target registered for model '%s'", model_name)
+        return None
 
     async def start(self) -> int:
         if self.server is not None:
@@ -617,6 +671,12 @@ class ModelAdapterServer:
             body = b""
             if content_len > 0:
                 body = await reader.readexactly(content_len)
+
+            if not self._is_authorized(path, headers):
+                writer.write(b"HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n")
+                await writer.drain()
+                writer.close()
+                return
 
             if method == "POST" and (path.endswith("/chat/completions") or path.endswith("/completions")):
                 await self._handle_chat_completions(body, writer)
@@ -910,12 +970,7 @@ class ModelAdapterServer:
                                     if is_buffering_potential_tool:
                                         buffered_content_deltas.append(piece)
                                         combined = "".join(buffered_content_deltas).lstrip()
-                                        if combined and not (
-                                            combined.startswith("{")
-                                            or combined.startswith("`")
-                                            or combined.startswith("<")
-                                            or combined.startswith("[")
-                                        ):
+                                        if combined and not could_be_text_tool_call(combined):
                                             is_buffering_potential_tool = False
                                             for b_piece in buffered_content_deltas:
                                                 c_chunk = {
@@ -1638,12 +1693,7 @@ class ModelAdapterServer:
                                 if is_buffering_potential_tool:
                                     buffered_content_deltas.append(piece)
                                     combined = "".join(buffered_content_deltas).lstrip()
-                                    if combined and not (
-                                        combined.startswith("{")
-                                        or combined.startswith("`")
-                                        or combined.startswith("<")
-                                        or combined.startswith("[")
-                                    ):
+                                    if combined and not could_be_text_tool_call(combined):
                                         is_buffering_potential_tool = False
                                         for b_piece in buffered_content_deltas:
                                             c_chunk = {
