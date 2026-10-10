@@ -23,6 +23,21 @@ public struct GoogleCloudSDKToolExecutionRequest: @unchecked Sendable {
     }
 }
 
+/// Approval request raised by an SDK built-in tool (e.g. `run_command` in the Cloud toolkit).
+public struct GoogleCloudSDKToolApprovalRequest: @unchecked Sendable {
+    public let requestId: String
+    public let sessionId: String
+    public let toolName: String
+    public let arguments: [String: Any]
+
+    public init(requestId: String, sessionId: String, toolName: String, arguments: [String: Any]) {
+        self.requestId = requestId
+        self.sessionId = sessionId
+        self.toolName = toolName
+        self.arguments = arguments
+    }
+}
+
 public struct GoogleCloudSDKToolEvent: Identifiable, Sendable, Codable {
     public let id: String
     public let sessionId: String

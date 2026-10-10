@@ -123,6 +123,16 @@ def sanitize_schema(schema: Any) -> Any:
     return cleaned
 
 
+def _worker_name(tool_name: str, args: Dict[str, Any]) -> str:
+    """Human-readable subagent name taken from the start_subagent arguments."""
+    if isinstance(args, dict):
+        for key in ("name", "subagent_name", "agent_name", "agent", "title", "role"):
+            value = args.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return tool_name
+
+
 class ToolCallState:
     """Tracks state and identity for a single tool call to guarantee idempotency and stability."""
     def __init__(self, call_id: str, tool_name: str, args: Dict[str, Any]):
@@ -272,7 +282,7 @@ class AgentRunner:
                     emit("worker.started", {
                         "sessionId": session_id,
                         "workerId": call_id,
-                        "name": tool_name,
+                        "name": _worker_name(tool_name, tool_args),
                         "args": tool_args,
                     })
                 emit("tool.started", {
@@ -470,7 +480,7 @@ class AgentRunner:
                     emit("worker.started", {
                         "sessionId": session_id,
                         "workerId": call_id,
-                        "name": tool_name,
+                        "name": _worker_name(tool_name, kwargs),
                         "args": kwargs,
                     })
                 emit("tool.started", {
@@ -610,7 +620,7 @@ class AgentRunner:
                 continue
             name = str(attachment.get("name") or attachment.get("fileName") or "attachment")
             mime_type = str(attachment.get("mimeType") or attachment.get("mime_type") or "")
-            raw = attachment.get("data") or attachment.get("base64") or ""
+            raw = attachment.get("data") or attachment.get("base64") or attachment.get("content") or ""
             path = attachment.get("path")
             try:
                 if raw:

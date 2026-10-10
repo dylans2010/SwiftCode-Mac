@@ -445,35 +445,35 @@ public final class AssistModelRouter: Sendable {
     // MARK: - SDK Configuration Builder
 
     public func buildSDKConfiguration(for model: AssistAvailableModel, objective: String = "") -> GoogleCloudSDKConfiguration {
-        var baseConfig = GoogleCloudSDKConfiguration.resolveDefault(objective: objective)
-
-        baseConfig.model = model.modelIdentifier
-        baseConfig.enableSubagents = model.supportsSubagents
+        // Start from the fully resolved default so nothing (LiteRT settings,
+        // alternative-key selection, skills, tools) is silently dropped.
+        var config = GoogleCloudSDKConfiguration.resolveDefault(objective: objective)
 
         let provider = model.providerID.lowercased()
-        let apiKey = resolveAPIKey(for: provider)
+        config.model = model.modelIdentifier
+        config.enableSubagents = model.supportsSubagents
+        config.provider = provider
+        config.baseURL = model.endpointURL
 
-        return GoogleCloudSDKConfiguration(
-            model: model.modelIdentifier,
-            apiKey: apiKey,
-            vertex: false,
-            project: nil,
-            location: nil,
-            systemInstructions: baseConfig.systemInstructions,
-            skillsPaths: baseConfig.skillsPaths,
-            workspaces: baseConfig.workspaces,
-            appDataDir: baseConfig.appDataDir,
-            saveDir: baseConfig.saveDir,
-            enableSubagents: model.supportsSubagents,
-            maxSubagentDepth: baseConfig.maxSubagentDepth,
-            allowedSubagents: baseConfig.allowedSubagents,
-            serviceTier: baseConfig.serviceTier,
-            tools: baseConfig.tools,
-            provider: provider,
-            baseURL: model.endpointURL,
-            useSavedModels: AppSettings.shared.useSavedModels,
-            toolkit: AppSettings.shared.assistToolkit
-        )
+        var apiKey = resolveAPIKey(for: provider)
+        if AppSettings.shared.alternativeKeysEnabled, provider == "gemini" || provider == "google",
+           let altKey = AlternativeKeyManager.shared.getActiveOrNextKey() {
+            apiKey = altKey.key
+        }
+        config.apiKey = apiKey
+
+        if provider == "litert" || model.modelIdentifier.lowercased().contains("litert") {
+            let env = ProcessInfo.processInfo.environment
+            config.litertModelPath = config.litertModelPath ?? env["LITERT_MODEL_PATH"]
+            config.litertBackend = config.litertBackend ?? env["LITERT_BACKEND"] ?? "gpu"
+            config.downloadIfMissing = config.downloadIfMissing || env["LITERT_DOWNLOAD_IF_MISSING"] == "1"
+        } else {
+            config.litertModelPath = nil
+            config.litertBackend = nil
+            config.downloadIfMissing = false
+        }
+
+        return config
     }
 
     public func resolveAPIKey(for provider: String) -> String? {
