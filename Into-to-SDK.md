@@ -258,6 +258,11 @@ SwiftCode/
 │   │   ├── IPC/
 │   │   ├── Isolation/
 │   │   └── Diagnostics/
+│   ├── Internal/
+│   │   ├── SandboxBypass/
+│   │   ├── TestHarness/
+│   │   ├── SDKConfigStore/
+│   │   └── DirectServiceAccess/
 │   ├── Assist/
 │   │   ├── Authorization/
 │   │   └── Audit/
@@ -305,6 +310,10 @@ resolve to an unrelated public package.
     quotas/timeouts, and cleanup.
 -   **Service adapters** translate the stable public contract into
     existing SwiftCode services.
+- **Internal (`SwiftCode/SDK/Internal/`)** contains internal SDK modules explicitly designed for internal SwiftCode developers.
+  - **Purpose:** Allows internal developers to build, run, test, and validate SDK code and API features directly without standard sandbox restrictions or permission prompt delays during local development/testing.
+  - **Sandbox Bypass & Testing Harness:** Features direct internal service bindings (`DirectServiceAccess`), high-privilege test harness drivers, and local debug hooks so internal developers can execute end-to-end integration tests without macOS App Sandbox restrictions.
+  - **Distribution Guard:** Code under `SwiftCode/SDK/Internal/` is compiled exclusively for internal development/debug build configurations (`#if DEBUG || INTERNAL_BUILD`) and is completely stripped from public production builds to ensure security boundaries are maintained.
 -   **Assist gate** owns restricted authorization checks and must not be
     bypassed by ordinary SDK methods.
 -   **CLI** invokes documented host operations; it must not duplicate
@@ -609,6 +618,23 @@ Represent a grant as a host-owned, persisted record containing at least:
 -   Revocation timestamp/status.
 -   Policy/version at grant time.
 -   Audit/correlation metadata.
+
+------------------------------------------------------------------------
+
+## 8.2.1 Built-in Developer API Key System
+
+To ensure security, identity verification, and platform control, SwiftCode features a fully built-in Developer API Key System.
+
+### Mandatory Authentication Requirements
+- **App Creation & Publishing:** Users must create, configure, and authenticate with a valid Developer API Key in order to build, export, publish, or release apps targeting the SwiftCode platform.
+- **Capability Access:** Privileged capabilities (such as network access, custom builds, credentials usage, and platform publishing) require an authenticated API Key with explicit scopes.
+- **Key Format:** Developer API keys follow a cryptographically signed format prefix `sc_dev_live_...` or `sc_dev_test_...`.
+
+### API Key Management Lifecycle
+1. **Creation:** Users generate API keys via SwiftCode Studio preferences (`Studio -> Settings -> Developer API Keys`).
+2. **Scopes & Entitlements:** Each API key can be assigned restricted scope entitlements (e.g. `apps:create`, `apps:publish`, `capabilities:request`).
+3. **Keychain Storage:** Generated keys are stored securely on macOS using the System Keychain and are never logged or stored in plain text.
+4. **Validation & Revocation:** Every platform action checks key validity against host policy. Users can instantly revoke or rotate keys from Studio settings, immediately invalidating active sessions using that key.
 
 Use the existing secure persistence approach if appropriate. Do not
 store API keys, passwords, or private credentials in the manifest or
@@ -1277,25 +1303,23 @@ If the app is the only supported interface initially, implement
 equivalent workflows through the UI and provide CLI only where it can be
 genuinely supported. Do not add dead CLI stubs.
 
-### 13.3 Studio UI
+### 13.3 Studio UI & Strict Project Creation Boundaries
 
-Use native macOS SwiftUI/AppKit patterns and existing design language.
-At minimum, provide an appropriate place to:
+SwiftCode Studio (`Studio`) is a dedicated, separate user interface component tailored specifically for platform developers working with the SwiftCode SDK.
 
--   Create a standalone project or extension.
--   Select language/template.
--   View manifest/capability summary.
--   Review and approve/deny capabilities.
--   See extension lifecycle state and diagnostic messages.
--   Enable, disable, uninstall, and update local extensions.
--   Inspect logs and build output.
--   Revoke permissions.
+#### Exclusive Project Creation Boundary
+- **Exclusive Creation Hub:** Studio is the **ONLY** UI surface where users are permitted to create projects targeting the SwiftCode platform and using the SwiftCode SDK.
+- **Main Editor Exclusion:** Users **may NOT create SwiftCode platform/SDK projects using the main code editor UI**. The main editor is restricted strictly to editing code, navigating workspaces, and viewing existing active files.
+- **Enforcement:** Creation templates, new project wizards, and platform scaffolding options are completely disabled and removed from the main editor file/menu interfaces. Selecting "New SwiftCode Project" or "New Extension" automatically redirects the user to the dedicated SwiftCode Studio UI.
 
-Do not introduce all of these surfaces if the existing app has a better
-established navigation model; integrate them coherently. No decorative
-buttons that do nothing, fake loading states, fake status, or empty
-success pages. If a function cannot be completed, do not expose it as
-working.
+#### Core Studio Capabilities
+- **Project & Extension Generation:** Guided creation wizard for SwiftCode SDK extensions and standalone platform projects.
+- **Developer API Key Management:** Dedicated UI to generate, manage, scope, and revoke Developer API Keys required for app creation and publishing.
+- **Manifest & Capability Inspector:** Visual manifest builder (`swiftcode.json`), capability declaration editor, and grant manager.
+- **Extension Lifecycle Console:** Local extension manager to test, enable, disable, update, package, and uninstall extensions.
+- **Dual Logging Inspector:** Integrated viewer providing access to user-facing logs and high-verbosity developer logs (`~/.swiftcode/logs/developer-sdk.log`).
+
+Use native macOS SwiftUI/AppKit patterns and existing design language. No decorative buttons that do nothing, fake loading states, fake status, or empty success pages. If a function cannot be completed, do not expose it as working.
 
 ------------------------------------------------------------------------
 
@@ -1368,6 +1392,7 @@ Required categories include:
 -   IPC malformed message/protocol mismatch/request timeout.
 -   Resource limit exceeded.
 -   Package install/update/uninstall failure.
+-   API Key authentication / scope failure.
 
 Each error should have:
 
@@ -1383,33 +1408,37 @@ actionable errors without dumping secrets or excessive internal details.
 
 ------------------------------------------------------------------------
 
-## 16. Logging and audit
+## 16. Dual Error Logging Systems and Audit
 
-Separate extension diagnostic logs from security audit events.
+The SDK architecture enforces a strict dual error logging architecture that cleanly separates user-facing logs from internal developer-facing logs.
 
-### Extension diagnostics
+### 16.1 User-facing error logging system
 
--   Extension ID/version.
--   Runtime lifecycle state.
--   Command registration and execution events.
--   Service operation start/completion/failure.
--   Correlation IDs.
--   Bounded output.
+The user-facing error log viewer and status notifications display clean, actionable, user-friendly logs designed for end users:
 
-Do not log credentials, raw authentication headers, full private file
-contents, or unrestricted environment variables.
+-   **Sanitization:** All raw stack traces, host paths, memory addresses, IPC frame dumps, internal engine diagnostics, and security-sensitive tokens are completely stripped.
+-   **Actionable Messaging:** Errors present human-readable descriptions alongside clear recovery steps (e.g., "Build Failed: Target 'App' has syntax errors on line 12. Fix the error in main.swift and retry.").
+-   **Correlation IDs:** Displays a short correlation ID (e.g. `ERR-8F3A29`) that users can quote when seeking support or inspecting developer logs.
+-   **UI Presentation:** Presented in the main workspace status bar, Studio notification popovers, and the standard user Activity Console.
 
-### Security audit events
+### 16.2 Developer-facing error logging system
 
-Record significant permission and trust actions:
+A dedicated, high-verbosity diagnostic logging system designed for SwiftCode SDK developers and extension creators:
 
--   Permission requested.
--   User approval/denial.
--   Grant changed/revoked/expired.
--   Privileged operation allowed/denied.
--   Assist access denied.
--   Package installed/updated/disabled/uninstalled.
--   Runtime terminated due to policy or repeated failure.
+-   **Deep Telemetry:** Captures raw stack traces, unhandled promise rejections, full IPC request/response payloads, exact process exit codes, memory/CPU metrics, and runtime sandboxing policy decisions.
+-   **Internal Debug Console & Log Files:** Logs to an isolated developer log viewer (`~/.swiftcode/logs/developer-sdk.log`) and an internal Developer Debug Console tab within Studio and internal builds.
+-   **Correlation Mapping:** Maps every internal diagnostic trace directly to the user-facing `ERR-*` correlation ID for effortless bug investigation.
+-   **SDK Internal Diagnostics:** Includes full telemetry for internal SDK execution bypassing sandbox boundaries during testing (`SwiftCode/SDK/Internal/`).
+
+### 16.3 Security audit events
+
+Record significant permission, authentication, and trust actions in a durable, tamper-resistant host log:
+
+-   API key creation, rotation, authentication, and scope failures.
+-   Permission requested, granted, denied, or revoked.
+-   Assist access requests and denials.
+-   Package installed, updated, disabled, or uninstalled.
+-   Runtime terminated due to policy, crash, or memory violation.
 
 Audit records should be durable enough for troubleshooting,
 privacy-conscious, and protected against modification by extensions. The
@@ -1459,7 +1488,7 @@ Do not implement a marketplace or remote auto-updater in this phase.
 
 ------------------------------------------------------------------------
 
-## 18. Versioning and compatibility
+## 18. Versioning, Compatibility, and Internal `SwiftCodeSDK.json`
 
 Use semantic versioning for public SDK packages where applicable.
 Maintain separate version concepts:
@@ -1472,7 +1501,36 @@ Maintain separate version concepts:
 
 Do not treat these as interchangeable.
 
-Required behavior:
+### 18.1 Internal `SwiftCodeSDK.json` Manifest & Automatic Propagation
+
+Internal SwiftCode developers update and manage the canonical SDK version metadata via `SwiftCodeSDK.json` located within the Internal SDK configuration path (`SwiftCode/SDK/Internal/SDKConfigStore/SwiftCodeSDK.json`).
+
+#### Structure of `SwiftCodeSDK.json`:
+
+``` json
+{
+  "sdkVersion": "1.2.0",
+  "apiVersion": "2025.1",
+  "minimumHostVersion": "1.0.0",
+  "protocolVersion": 1,
+  "releaseNotes": [
+    "Added Developer API Key authentication system.",
+    "Introduced dual error logging architecture.",
+    "Added internal SDK sandbox-bypass harness for developers."
+  ],
+  "updateTimestamp": "2025-05-15T08:00:00Z",
+  "deprecatedAPIs": []
+}
+```
+
+#### Automatic Update Propagation to User Projects:
+
+-   **Internal Developer Managed:** Internal developers update `SwiftCodeSDK.json` whenever modifying SDK interfaces, adding capabilities, or issuing release notes.
+-   **Automatic Synchronization:** Upon application launch or SDK updates, SwiftCode scans existing user projects created via Studio and checks their local project SDK manifest against `SwiftCodeSDK.json`.
+-   **Seamless Upgrade Pipeline:** When a newer SDK version is detected in `SwiftCodeSDK.json`, SwiftCode automatically updates project-level SDK definitions, type declaration files (`@swiftcode/sdk`), and runtime bindings in user projects while displaying release notes in the Studio notification panel.
+-   **Backward Compatibility:** Standard breaking change guards apply; non-breaking minor/patch updates propagate automatically, while major breaking updates prompt the user in Studio with release notes before completing migration.
+
+### 18.2 Compatibility Requirements
 
 -   Validate minimum SwiftCode version.
 -   Negotiate the host/runtime protocol version.
