@@ -24,20 +24,28 @@ public struct AssistReplaceInFileTool: AssistTool {
     public init() {}
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
-        guard let path = input["path"] as? String else {
+        guard var path = (input["path"] ?? input["filePath"] ?? input["file_path"] ?? input["targetFile"]) as? String else {
             return .failure("Missing required parameter: 'path'")
         }
-        guard let target = input["target"] as? String else {
+        guard let target = (input["target"] ?? input["targetContent"] ?? input["old_string"] ?? input["old_str"] ?? input["find"]) as? String else {
             return .failure("Missing required parameter: 'target'")
         }
-        guard let replacement = input["replacement"] as? String else {
+        guard let replacement = (input["replacement"] ?? input["replacementContent"] ?? input["new_string"] ?? input["new_str"] ?? input["replace"]) as? String else {
             return .failure("Missing required parameter: 'replacement'")
         }
-        let allowMultiple = input["allowMultiple"] as? Bool ?? false
+        let allowMultiple = (input["allowMultiple"] ?? input["allow_multiple"]) as? Bool ?? false
 
-        // Sandbox & Traversal Defense
-        if path.contains("..") || path.hasPrefix("/") {
-            return .failure("Path security error: Relative path traversal ('..') and absolute paths are prohibited for safety. Path: '\(path)'")
+        // Sandbox & Traversal Defense: Normalize workspace path
+        let workspacePrefix = context.workspaceRoot.path
+        if !workspacePrefix.isEmpty && path.hasPrefix(workspacePrefix) {
+            path = String(path.dropFirst(workspacePrefix.count))
+        }
+        while path.hasPrefix("/") {
+            path = String(path.dropFirst())
+        }
+
+        if path.contains("..") {
+            return .failure("Path security error: Relative path traversal ('..') is prohibited for safety. Path: '\(path)'")
         }
 
         let startTime = Date()

@@ -22,8 +22,16 @@ public struct AssistReadFileTool: AssistTool {
     public var riskLevel: ToolRiskLevel { .safeRead }
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
-        guard let path = input["path"] as? String else {
+        guard var path = (input["path"] ?? input["filePath"] ?? input["file_path"] ?? input["targetFile"] ?? input["file"]) as? String else {
             return .failure("Missing required parameter: path")
+        }
+
+        let workspacePrefix = context.workspaceRoot.path
+        if !workspacePrefix.isEmpty && path.hasPrefix(workspacePrefix) {
+            path = String(path.dropFirst(workspacePrefix.count))
+        }
+        while path.hasPrefix("/") {
+            path = String(path.dropFirst())
         }
 
         do {

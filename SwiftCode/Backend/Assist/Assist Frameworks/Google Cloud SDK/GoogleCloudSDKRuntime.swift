@@ -136,7 +136,8 @@ public final class GoogleCloudSDKRuntime: Sendable {
 
         do {
             toolRegistry.markUsed(toolName)
-            let result = try await tool.execute(input: args, context: context)
+            let effectiveArgs = validation.correctedInput ?? args
+            let result = try await tool.execute(input: effectiveArgs, context: context)
             if result.success {
                 await MainActor.run {
                     if meta.isMutating {

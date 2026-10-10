@@ -159,8 +159,45 @@ public final class AssistToolRegistry {
         registryVersion += 1
     }
 
+    private let toolAliases: [String: String] = [
+        "write_file": "file_write",
+        "create_file": "file_create",
+        "read_file": "file_read",
+        "view_file": "file_read",
+        "delete_file": "file_delete",
+        "move_file": "file_move",
+        "copy_file": "file_copy",
+        "rename_file": "file_rename",
+        "edit_file": "code_replace",
+        "replace_in_file": "code_replace",
+        "insert_code_block": "code_insert",
+        "insert_code": "code_insert",
+        "run_command": "use_terminal",
+        "terminal_command": "use_terminal",
+        "execute_command": "use_terminal",
+        "list_dir": "directory_read",
+        "list_directory": "directory_read",
+        "search_dir": "search",
+        "search_directory": "search",
+        "find_file": "search",
+        "create_directory": "directory_create",
+        "make_directory": "directory_create",
+        "delete_directory": "directory_delete",
+        "remove_directory": "directory_delete"
+    ]
+
     public func getTool(_ id: String) -> AssistTool? {
-        return tools[id]
+        if let direct = tools[id] {
+            return direct
+        }
+        let normalized = id.lowercased().replacingOccurrences(of: "-", with: "_")
+        if let normDirect = tools[normalized] {
+            return normDirect
+        }
+        if let alias = toolAliases[normalized], let target = tools[alias] {
+            return target
+        }
+        return nil
     }
 
     public var allTools: [AssistTool] {
@@ -239,16 +276,75 @@ public final class AssistToolRegistry {
     }
 
     public func validate(toolId: String, arguments: [String: Any]) -> ToolValidationResult {
-        guard let tool = tools[toolId] else {
+        let normalizedId = toolId.lowercased().replacingOccurrences(of: "-", with: "_")
+        let effectiveToolId = toolAliases[normalizedId] ?? (tools[toolId] != nil ? toolId : normalizedId)
+
+        guard let tool = getTool(effectiveToolId) else {
             return ToolValidationResult(isValid: false, issue: "Tool '\(toolId)' is not registered")
         }
 
-        if let toolHealth = health[toolId], toolHealth.status == .disabled {
+        if let toolHealth = health[tool.id], toolHealth.status == .disabled {
             return ToolValidationResult(isValid: false, issue: "Tool '\(toolId)' is disabled")
         }
 
-        if let toolHealth = health[toolId], toolHealth.status == .temporarilyUnavailable {
+        if let toolHealth = health[tool.id], toolHealth.status == .temporarilyUnavailable {
             return ToolValidationResult(isValid: false, issue: "Tool '\(toolId)' is temporarily unavailable")
+        }
+
+        var normalizedArgs = arguments
+
+        // Common parameter aliases
+        if normalizedArgs["path"] == nil {
+            if let p = normalizedArgs["filePath"] ?? normalizedArgs["file_path"] ?? normalizedArgs["targetFile"] ?? normalizedArgs["file"] {
+                normalizedArgs["path"] = p
+            }
+        }
+        if normalizedArgs["content"] == nil {
+            if let c = normalizedArgs["fileContent"] ?? normalizedArgs["file_content"] ?? normalizedArgs["code"] ?? normalizedArgs["data"] {
+                normalizedArgs["content"] = c
+            }
+        }
+        if normalizedArgs["target"] == nil {
+            if let t = normalizedArgs["targetContent"] ?? normalizedArgs["old_string"] ?? normalizedArgs["old_str"] ?? normalizedArgs["find"] {
+                normalizedArgs["target"] = t
+            }
+        }
+        if normalizedArgs["replacement"] == nil {
+            if let r = normalizedArgs["replacementContent"] ?? normalizedArgs["new_string"] ?? normalizedArgs["new_str"] ?? normalizedArgs["replace"] {
+                normalizedArgs["replacement"] = r
+            }
+        }
+        if normalizedArgs["command"] == nil {
+            if let cmd = normalizedArgs["cmd"] {
+                normalizedArgs["command"] = cmd
+            }
+        }
+
+        // Default helpers for terminal execution
+        if tool.id == "use_terminal" {
+            if normalizedArgs["explanation"] == nil {
+                normalizedArgs["explanation"] = "Execute command"
+            }
+            if normalizedArgs["estimatedImpact"] == nil {
+                normalizedArgs["estimatedImpact"] = "Command execution"
+            }
+            if normalizedArgs["modifiesRepo"] == nil {
+                normalizedArgs["modifiesRepo"] = "false"
+            }
+        }
+
+        // Automatic path relativization
+        let projectRoot = ProjectSessionStore.shared.activeProject?.directoryURL.path ?? ""
+        for pathKey in ["path", "filePath", "sourcePath", "destinationPath"] {
+            if var rawPath = normalizedArgs[pathKey] as? String {
+                if !projectRoot.isEmpty && rawPath.hasPrefix(projectRoot) {
+                    rawPath = String(rawPath.dropFirst(projectRoot.count))
+                }
+                while rawPath.hasPrefix("/") {
+                    rawPath = String(rawPath.dropFirst())
+                }
+                normalizedArgs[pathKey] = rawPath
+            }
         }
 
         var errors: [String] = []
@@ -256,15 +352,15 @@ public final class AssistToolRegistry {
 
         if let required = schema.required {
             for key in required {
-                if arguments[key] == nil {
-                    errors.append("Missing required argument '\(key)' for tool '\(toolId)'")
+                if normalizedArgs[key] == nil {
+                    errors.append("Missing required argument '\(key)' for tool '\(tool.id)'")
                 }
             }
         }
 
         if let properties = schema.properties {
             for (key, propSchema) in properties {
-                guard let value = arguments[key] else { continue }
+                guard let value = normalizedArgs[key] else { continue }
 
                 if !isValue(value, validForType: propSchema.type) {
                     errors.append("Argument '\(key)' has invalid type. Expected \(propSchema.type).")
@@ -273,15 +369,15 @@ public final class AssistToolRegistry {
         }
 
         for pathKey in ["path", "filePath", "sourcePath", "destinationPath"] {
-            if let path = arguments[pathKey] as? String {
-                if path.contains("..") || path.hasPrefix("/") {
-                    errors.append("Argument '\(pathKey)' contains unsafe path: \(path)")
+            if let path = normalizedArgs[pathKey] as? String {
+                if path.contains("..") {
+                    errors.append("Argument '\(pathKey)' contains unsafe directory traversal: \(path)")
                 }
             }
         }
 
         if errors.isEmpty {
-            return ToolValidationResult(isValid: true, issue: nil, correctedInput: arguments)
+            return ToolValidationResult(isValid: true, issue: nil, correctedInput: normalizedArgs)
         } else {
             return ToolValidationResult(isValid: false, issue: errors.joined(separator: "; "))
         }

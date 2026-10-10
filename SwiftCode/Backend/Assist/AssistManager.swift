@@ -624,6 +624,18 @@ public final class AssistManager: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "com.swiftcode.assist.history")
     }
 
+    public func resetActiveGoogleCloudSessionIfModelChanged(to newModelID: String) {
+        if let gcSession = activeGoogleCloudSession, gcSession.config.model != newModelID {
+            let sessionToClose = gcSession
+            activeGoogleCloudSession = nil
+            activeGoogleCloudTask?.cancel()
+            activeGoogleCloudTask = nil
+            Task {
+                try? await sessionToClose.close()
+            }
+        }
+    }
+
     public func registerCapabilityExecution(_ text: String) {
         let systemMessage = AssistMessage(role: .system, content: text)
         messages.append(systemMessage)

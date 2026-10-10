@@ -32,11 +32,11 @@ public struct UseTermFunction: AssistTool {
             properties: [
                 "command": JSONSchema(type: "string", description: "The full shell command to run (e.g., 'git status' or 'swift test')"),
                 "workingDirectory": JSONSchema(type: "string", description: "The relative path from project root where command should run (optional)"),
-                "explanation": JSONSchema(type: "string", description: "A concise explanation of why this terminal execution is required"),
-                "estimatedImpact": JSONSchema(type: "string", description: "The estimated impact on the repository (e.g., 'no impact', 'creates new files')"),
-                "modifiesRepo": JSONSchema(type: "string", description: "Whether the command modifies repository state ('true' or 'false')")
+                "explanation": JSONSchema(type: "string", description: "A concise explanation of why this terminal execution is required (optional)"),
+                "estimatedImpact": JSONSchema(type: "string", description: "The estimated impact on the repository (optional)"),
+                "modifiesRepo": JSONSchema(type: "string", description: "Whether the command modifies repository state ('true' or 'false', optional)")
             ],
-            required: ["command", "explanation", "estimatedImpact", "modifiesRepo"]
+            required: ["command"]
         )
     }
 
@@ -44,12 +44,18 @@ public struct UseTermFunction: AssistTool {
     public var riskLevel: ToolRiskLevel { .execution }
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
-        let command = input["command"] as? String ?? ""
-        let relativeWorkDir = input["workingDirectory"] as? String ?? ""
-        let explanation = input["explanation"] as? String ?? ""
-        let estimatedImpact = input["estimatedImpact"] as? String ?? ""
-        let modifiesRepoStr = input["modifiesRepo"] as? String ?? "false"
-        let modifiesRepo = (modifiesRepoStr.lowercased() == "true")
+        let command = (input["command"] as? String) ?? (input["cmd"] as? String) ?? ""
+        let relativeWorkDir = (input["workingDirectory"] as? String) ?? (input["cwd"] as? String) ?? ""
+        let explanation = (input["explanation"] as? String) ?? "Executing shell command"
+        let estimatedImpact = (input["estimatedImpact"] as? String) ?? "Runs terminal command"
+        let modifiesRepo: Bool
+        if let boolVal = input["modifiesRepo"] as? Bool {
+            modifiesRepo = boolVal
+        } else if let strVal = input["modifiesRepo"] as? String {
+            modifiesRepo = (strVal.lowercased() == "true")
+        } else {
+            modifiesRepo = false
+        }
 
         guard !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .failure("Command cannot be empty")

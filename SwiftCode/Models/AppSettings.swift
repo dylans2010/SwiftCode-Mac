@@ -60,6 +60,15 @@ class AppSettings: ObservableObject {
         assistSystemID == Self.googleCloudAssistSystemID
     }
 
+    public static let defaultAssistToolkit = "System"
+
+    @Published var assistToolkit: String {
+        didSet {
+            debouncedSave("assistToolkit", assistToolkit)
+            UserDefaults.standard.set(assistToolkit, forKey: "assist.assistToolkit")
+        }
+    }
+
     @Published var swiftCloudModelsEnabled: Bool {
         didSet { debouncedSave("swiftCloudModelsEnabled", swiftCloudModelsEnabled) }
     }
@@ -295,6 +304,9 @@ class AppSettings: ObservableObject {
 
     private init() {
         assistSystemID = UserDefaults.standard.string(forKey: "assistSystemID") ?? Self.nativeAssistSystemID
+        assistToolkit = UserDefaults.standard.string(forKey: "assistToolkit")
+            ?? UserDefaults.standard.string(forKey: "assist.assistToolkit")
+            ?? Self.defaultAssistToolkit
         swiftCloudModelsEnabled = UserDefaults.standard.object(forKey: "swiftCloudModelsEnabled") as? Bool ?? false
         useSavedModels = UserDefaults.standard.object(forKey: "useSavedModels") as? Bool
             ?? UserDefaults.standard.object(forKey: "assist.useSavedModels") as? Bool

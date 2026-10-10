@@ -770,6 +770,53 @@ struct AssistSettingsView: View {
                                 Divider()
                                     .padding(.vertical, 4)
 
+                                // MARK: - Assist Toolkit Configuration
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Assist Toolkit")
+                                                .font(.system(size: 13, weight: .semibold))
+                                            Text("Choose whether to use SwiftCode tools or Google Antigravity SDK tools.")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+
+                                        Spacer()
+
+                                        HStack(spacing: 5) {
+                                            Circle()
+                                                .fill(settings.assistToolkit == "Cloud" ? Color.blue : Color.indigo)
+                                                .frame(width: 7, height: 7)
+                                            Text(settings.assistToolkit == "Cloud" ? "Cloud (Antigravity)" : "System (SwiftCode)")
+                                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                                .foregroundStyle(settings.assistToolkit == "Cloud" ? Color.blue : Color.indigo)
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 4)
+                                        .background((settings.assistToolkit == "Cloud" ? Color.blue : Color.indigo).opacity(0.1), in: Capsule())
+                                    }
+
+                                    Picker("Assist Toolkit", selection: $settings.assistToolkit) {
+                                        Text("System").tag("System")
+                                        Text("Cloud").tag("Cloud")
+                                    }
+                                    .pickerStyle(.segmented)
+
+                                    HStack(alignment: .top, spacing: 6) {
+                                        Image(systemName: settings.assistToolkit == "Cloud" ? "cloud.fill" : "macbook.and.iphone")
+                                            .font(.caption)
+                                            .foregroundStyle(settings.assistToolkit == "Cloud" ? Color.blue : Color.indigo)
+                                        Text(settings.assistToolkit == "Cloud"
+                                             ? "Cloud toolkit leverages Google Antigravity SDK's built-in file manipulation, command execution, and search tools."
+                                             : "System toolkit uses SwiftCode tools (file operations, AST refactoring, builds, testing, and terminal) over the local IPC bridge.")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+
+                                Divider()
+                                    .padding(.vertical, 4)
+
                                 // Default Assist Model Configuration
                                 VStack(alignment: .leading, spacing: 8) {
                                     VStack(alignment: .leading, spacing: 2) {

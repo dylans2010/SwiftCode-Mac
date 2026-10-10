@@ -31,6 +31,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     public var provider: String?
     public var baseURL: String?
     public var useSavedModels: Bool
+    public var toolkit: String
 
     public init(
         model: String = "gemini-3.8-flash",
@@ -50,7 +51,8 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         tools: [[String: Any]]? = nil,
         provider: String? = nil,
         baseURL: String? = nil,
-        useSavedModels: Bool = false
+        useSavedModels: Bool = false,
+        toolkit: String = "System"
     ) {
         self.model = model
         self.apiKey = apiKey
@@ -70,10 +72,11 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.provider = provider
         self.baseURL = baseURL
         self.useSavedModels = useSavedModels
+        self.toolkit = toolkit
     }
 
     public enum CodingKeys: String, CodingKey {
-        case model, apiKey, vertex, project, location, systemInstructions, skillsPaths, workspaces, appDataDir, saveDir, enableSubagents, maxSubagentDepth, allowedSubagents, serviceTier, provider, baseURL, useSavedModels
+        case model, apiKey, vertex, project, location, systemInstructions, skillsPaths, workspaces, appDataDir, saveDir, enableSubagents, maxSubagentDepth, allowedSubagents, serviceTier, provider, baseURL, useSavedModels, toolkit
     }
 
     public init(from decoder: Decoder) throws {
@@ -95,6 +98,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.provider = try container.decodeIfPresent(String.self, forKey: .provider)
         self.baseURL = try container.decodeIfPresent(String.self, forKey: .baseURL)
         self.useSavedModels = try container.decodeIfPresent(Bool.self, forKey: .useSavedModels) ?? false
+        self.toolkit = try container.decodeIfPresent(String.self, forKey: .toolkit) ?? "System"
         self.tools = nil
     }
 
@@ -117,6 +121,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         try container.encodeIfPresent(provider, forKey: .provider)
         try container.encodeIfPresent(baseURL, forKey: .baseURL)
         try container.encode(useSavedModels, forKey: .useSavedModels)
+        try container.encode(toolkit, forKey: .toolkit)
     }
 
     /// Automatically resolves environment configuration from SwiftCode project, tools, and preferences.
@@ -249,7 +254,8 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             tools: toolSchemas,
             provider: provider,
             baseURL: baseURL,
-            useSavedModels: isSavedModels
+            useSavedModels: isSavedModels,
+            toolkit: AppSettings.shared.assistToolkit
         )
     }
 
@@ -263,7 +269,8 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             "serviceTier": serviceTier.rawValue,
             "skillsPaths": skillsPaths,
             "workspaces": workspaces,
-            "useSavedModels": useSavedModels
+            "useSavedModels": useSavedModels,
+            "toolkit": toolkit
         ]
 
         if let provider = provider, !provider.isEmpty {

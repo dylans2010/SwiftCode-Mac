@@ -128,15 +128,14 @@ public final class AssistModelRouter: Sendable {
 
     public func selectModelForSDK() async -> (model: AssistAvailableModel, config: GoogleCloudSDKConfiguration)? {
         let isSavedModelsEnabled = AppSettings.shared.useSavedModels
+        let selectedId = AppSettings.shared.selectedAssistModelID
 
         let targetModel: AssistAvailableModel
-        if isSavedModelsEnabled {
-            let candidates = await getEligibleCandidates()
-            if let best = candidates.first {
-                targetModel = best
-            } else {
-                targetModel = await resolveDefaultModel()
-            }
+        let candidates = await getEligibleCandidates()
+        if let match = candidates.first(where: { $0.id == selectedId || $0.modelIdentifier == selectedId }) {
+            targetModel = match
+        } else if isSavedModelsEnabled, let best = candidates.first {
+            targetModel = best
         } else {
             targetModel = await resolveDefaultModel()
         }
@@ -453,7 +452,8 @@ public final class AssistModelRouter: Sendable {
             tools: baseConfig.tools,
             provider: provider,
             baseURL: model.endpointURL,
-            useSavedModels: AppSettings.shared.useSavedModels
+            useSavedModels: AppSettings.shared.useSavedModels,
+            toolkit: AppSettings.shared.assistToolkit
         )
     }
 

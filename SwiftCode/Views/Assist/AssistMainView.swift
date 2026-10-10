@@ -1336,11 +1336,14 @@ public struct AssistMainView: View {
         } else {
             FoundationModels.shared.isEnabled = false
             AppSettings.shared.selectedModel = option.modelID
+            AppSettings.shared.selectedAssistModelID = option.modelID
+            AppSettings.shared.useSavedModels = true
             AssistModelManager.shared.customModelID = option.modelID
         }
 
         Task {
             await ModelSessionManager.shared.switchModel(to: option.modelID)
+            AssistManager.shared.resetActiveGoogleCloudSessionIfModelChanged(to: option.modelID)
         }
     }
 
@@ -1356,11 +1359,14 @@ public struct AssistMainView: View {
             FoundationModels.shared.isEnabled = false
             AppSettings.shared.selectedModel = model.modelIdentifier
             AppSettings.shared.selectedAssistModelID = model.modelIdentifier
+            AppSettings.shared.useSavedModels = true
             AssistModelManager.shared.customModelID = model.modelIdentifier
         }
 
         Task {
             await ModelSessionManager.shared.switchModel(to: model.modelIdentifier)
+            AssistModelRouter.shared.currentRuntimeModel = model
+            AssistManager.shared.resetActiveGoogleCloudSessionIfModelChanged(to: model.modelIdentifier)
         }
     }
 }

@@ -40,24 +40,33 @@ def sanitize_schema(schema: Any) -> Any:
 
     cleaned = dict(schema)
 
+    # Force lowercase type for strict Anthropic and OpenAI schemas
+    if "type" in cleaned and isinstance(cleaned["type"], str):
+        cleaned["type"] = cleaned["type"].lower()
+
     # If type is array, inspect and normalize items
-    if cleaned.get("type") == "array" and "items" in cleaned:
-        items = cleaned["items"]
-        if isinstance(items, dict):
-            # Check for bad nesting like {'type': {'type': 'string'}} or {'type': {'type': 'object'}}
-            if "type" in items and isinstance(items["type"], dict):
-                inner = items["type"]
-                if "type" in inner and isinstance(inner["type"], str):
-                    items = dict(inner)
+    if cleaned.get("type") == "array":
+        if "items" in cleaned:
+            items = cleaned["items"]
+            if isinstance(items, dict):
+                # Check for bad nesting like {'type': {'type': 'string'}} or {'type': {'type': 'object'}}
+                if "type" in items and isinstance(items["type"], dict):
+                    inner = items["type"]
+                    if "type" in inner and isinstance(inner["type"], str):
+                        items = dict(inner)
+                    else:
+                        items = sanitize_schema(inner)
+                    cleaned["items"] = items
+                elif "type" not in items and len(items) == 1:
+                    first_val = next(iter(items.values()))
+                    if isinstance(first_val, dict) and "type" in first_val:
+                        cleaned["items"] = first_val
                 else:
-                    items = sanitize_schema(inner)
-                cleaned["items"] = items
-            elif "type" not in items and len(items) == 1:
-                first_val = next(iter(items.values()))
-                if isinstance(first_val, dict) and "type" in first_val:
-                    cleaned["items"] = first_val
-        elif isinstance(items, str):
-            cleaned["items"] = {"type": items.lower()}
+                    cleaned["items"] = sanitize_schema(items)
+            elif isinstance(items, str):
+                cleaned["items"] = {"type": items.lower()}
+        else:
+            cleaned["items"] = {"type": "string"}
 
         if isinstance(cleaned.get("items"), dict):
             cleaned["items"] = sanitize_schema(cleaned["items"])
@@ -197,7 +206,8 @@ class AgentRunner:
                     "toolName": tool_name,
                     "error": err,
                 })
-                raise RuntimeError(err)
+                return f"Error: {err}"
+
             try:
                 res = await request_fn(session_id, tool_name, kwargs)
                 if res.get("success", False):
@@ -217,7 +227,8 @@ class AgentRunner:
                         "toolName": tool_name,
                         "error": err_msg,
                     })
-                    raise RuntimeError(err_msg)
+                    # Return error as tool output so model can self-correct instead of crashing turn
+                    return f"Error executing {tool_name}: {err_msg}"
             except Exception as e:
                 emit("tool.failed", {
                     "sessionId": session_id,
@@ -225,7 +236,7 @@ class AgentRunner:
                     "toolName": tool_name,
                     "error": str(e),
                 })
-                raise
+                return f"Error executing {tool_name}: {str(e)}"
 
         _execute_swift_tool.__name__ = tool_name
         _execute_swift_tool.__doc__ = tool_desc
@@ -256,26 +267,53 @@ class AgentRunner:
             enable_subagents = params.get("enableSubagents", True)
             max_subagent_depth = params.get("maxSubagentDepth", 3)
             registered_tools_schemas = params.get("tools", [])
+            toolkit = (params.get("toolkit") or "System").strip()
 
-            # Construct dynamic Python tool functions from Swift tool schemas
+            # Dynamic tools & Built-in tools depending on Assist Toolkit setting
             dynamic_tools = []
-            for t_schema in registered_tools_schemas:
-                if isinstance(t_schema, dict) and "name" in t_schema:
-                    wrapper = self._build_swift_tool_wrapper(session_id, t_schema)
-                    dynamic_tools.append(wrapper)
+            builtin_tools = []
+
+            if toolkit.lower() == "cloud":
+                # Cloud mode: use Antigravity SDK's built-in tools (view_file, edit_file, run_command, etc.)
+                builtin_tools = list(types.BuiltinTools.default())
+                if not enable_subagents and types.BuiltinTools.START_SUBAGENT in builtin_tools:
+                    builtin_tools.remove(types.BuiltinTools.START_SUBAGENT)
+
+                cloud_instruction = (
+                    "\n\n[ASSIST TOOLKIT: Antigravity Cloud Tools]\n"
+                    "You are operating with Google Antigravity Cloud tools.\n"
+                    "- Use built-in tools (view_file, edit_file, create_file, run_command, list_directory, search_directory) to inspect and modify the project.\n"
+                    "- Complete the requested changes autonomously."
+                )
+                system_instructions = (system_instructions + cloud_instruction).strip()
+            else:
+                # System mode (Default): use SwiftCode native tools passed over the bridge
+                if enable_subagents:
+                    builtin_tools.append(types.BuiltinTools.START_SUBAGENT)
+
+                for t_schema in registered_tools_schemas:
+                    if isinstance(t_schema, dict) and "name" in t_schema:
+                        wrapper = self._build_swift_tool_wrapper(session_id, t_schema)
+                        dynamic_tools.append(wrapper)
+
+                system_instruction = (
+                    "\n\n[ASSIST TOOLKIT: SwiftCode System Tools]\n"
+                    "You are operating with SwiftCode's native System tools.\n"
+                    "- Use the provided tools (file_write, file_read, code_replace, file_create, use_terminal, etc.) to inspect, modify, and build the project.\n"
+                    "- When specifying file paths, use relative paths from the workspace root (e.g., 'Sources/App.swift').\n"
+                    "- Modify code directly using tools; do not output code blocks without saving them.\n"
+                    "- Act autonomously and verify your changes."
+                )
+                system_instructions = (system_instructions + system_instruction).strip()
 
             # Build policies
             session_policies = []
             if workspaces:
                 session_policies.append(policy.workspace_only(workspaces))
             session_policies.append(policy.allow_all())
-
-            # Configure capabilities: disable built-in tools (e.g. run_command, edit_file, view_file)
-            # and allow ONLY START_SUBAGENT if subagents are enabled. All actual work uses
-            # dynamic Swift tools registered from SwiftCode Assist.
-            builtin_tools = []
-            if enable_subagents:
-                builtin_tools.append(types.BuiltinTools.START_SUBAGENT)
+            session_policies.append(policy.allow("run_command"))
+            session_policies.append(policy.allow("edit_file"))
+            session_policies.append(policy.allow("create_file"))
 
             cap_config = types.CapabilitiesConfig(
                 enabled_tools=builtin_tools,

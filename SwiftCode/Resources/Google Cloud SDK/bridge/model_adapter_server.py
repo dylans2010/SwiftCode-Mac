@@ -20,6 +20,33 @@ import httpx
 logger = logging.getLogger("ModelAdapterServer")
 
 
+def normalize_schema(schema: Any) -> Any:
+    """Normalizes JSON schemas to ensure compatibility with strict OpenAI/Anthropic validators."""
+    if not isinstance(schema, dict):
+        return schema
+
+    cleaned = dict(schema)
+    if "type" in cleaned and isinstance(cleaned["type"], str):
+        cleaned["type"] = cleaned["type"].lower()
+
+    if cleaned.get("type") == "array":
+        if "items" in cleaned:
+            items = cleaned["items"]
+            if isinstance(items, dict):
+                cleaned["items"] = normalize_schema(items)
+            elif isinstance(items, str):
+                cleaned["items"] = {"type": items.lower()}
+        else:
+            cleaned["items"] = {"type": "string"}
+
+    if "properties" in cleaned and isinstance(cleaned["properties"], dict):
+        cleaned["properties"] = {
+            k: normalize_schema(v) for k, v in cleaned["properties"].items()
+        }
+
+    return cleaned
+
+
 class TargetModelConfig:
     def __init__(
         self,
@@ -188,6 +215,16 @@ class ModelAdapterServer:
 
         model_name = payload.get("model", "")
         stream = payload.get("stream", False)
+
+        # Normalize all tool parameter schemas in payload to ensure lowercase types
+        tools = payload.get("tools")
+        if tools and isinstance(tools, list):
+            for t in tools:
+                if isinstance(t, dict) and "function" in t and isinstance(t["function"], dict):
+                    fn = t["function"]
+                    if "parameters" in fn and isinstance(fn["parameters"], dict):
+                        fn["parameters"] = normalize_schema(fn["parameters"])
+
         target = self.find_target(model_name)
 
         if not target:
@@ -345,29 +382,6 @@ class ModelAdapterServer:
                             current_tool_id = cb.get("id", f"toolu_{uuid.uuid4().hex[:12]}")
                             current_tool_name = cb.get("name", "")
                             current_tool_args = ""
-                            chunk = {
-                                "id": chat_id,
-                                "object": "chat.completion.chunk",
-                                "created": created_ts,
-                                "model": model,
-                                "choices": [{
-                                    "index": 0,
-                                    "delta": {
-                                        "tool_calls": [{
-                                            "index": tool_index,
-                                            "id": current_tool_id,
-                                            "type": "function",
-                                            "function": {
-                                                "name": current_tool_name,
-                                                "arguments": "",
-                                            },
-                                        }]
-                                    },
-                                    "finish_reason": None,
-                                }],
-                            }
-                            writer.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
-                            await writer.drain()
 
                     elif ev_type == "content_block_delta":
                         delta = event_data.get("delta", {})
@@ -409,6 +423,11 @@ class ModelAdapterServer:
                                 await writer.drain()
                         elif delta_type == "input_json_delta":
                             partial_json = delta.get("partial_json", "")
+                            if partial_json:
+                                current_tool_args += partial_json
+
+                    elif ev_type == "content_block_stop":
+                        if current_tool_name:
                             chunk = {
                                 "id": chat_id,
                                 "object": "chat.completion.chunk",
@@ -419,7 +438,12 @@ class ModelAdapterServer:
                                     "delta": {
                                         "tool_calls": [{
                                             "index": tool_index,
-                                            "function": {"arguments": partial_json},
+                                            "id": current_tool_id,
+                                            "type": "function",
+                                            "function": {
+                                                "name": current_tool_name,
+                                                "arguments": current_tool_args,
+                                            },
                                         }]
                                     },
                                     "finish_reason": None,
@@ -427,11 +451,10 @@ class ModelAdapterServer:
                             }
                             writer.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
                             await writer.drain()
-
-                    elif ev_type == "content_block_stop":
-                        if current_tool_name:
                             tool_index += 1
                             current_tool_name = ""
+                            current_tool_id = ""
+                            current_tool_args = ""
 
                     elif ev_type == "message_stop":
                         stop_chunk = {
@@ -614,39 +637,149 @@ class ModelAdapterServer:
                 writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n")
                 await writer.drain()
 
+                chat_id = f"chatcmpl_{uuid.uuid4().hex}"
+                created_ts = int(time.time())
+                model_name = payload.get("model", "")
+                active_tool_calls: Dict[int, Dict[str, Any]] = {}
+                tool_calls_emitted = False
+
                 async for line in resp.aiter_lines():
                     if not line:
-                        writer.write(b"\n")
-                        await writer.drain()
                         continue
                     if not line.startswith("data: "):
-                        writer.write((line + "\n").encode("utf-8"))
-                        await writer.drain()
                         continue
                     raw_data = line[6:].strip()
                     if raw_data == "[DONE]":
+                        # If tool calls were buffered but not yet emitted, emit them before [DONE]
+                        if active_tool_calls and not tool_calls_emitted:
+                            tc_list = []
+                            for idx in sorted(active_tool_calls.keys()):
+                                t_info = active_tool_calls[idx]
+                                tc_list.append({
+                                    "index": idx,
+                                    "id": t_info["id"],
+                                    "type": "function",
+                                    "function": {
+                                        "name": t_info["name"],
+                                        "arguments": t_info["arguments"],
+                                    },
+                                })
+                            complete_chunk = {
+                                "id": chat_id,
+                                "object": "chat.completion.chunk",
+                                "created": created_ts,
+                                "model": model_name,
+                                "choices": [{
+                                    "index": 0,
+                                    "delta": {"tool_calls": tc_list},
+                                    "finish_reason": None,
+                                }],
+                            }
+                            writer.write(f"data: {json.dumps(complete_chunk)}\n\n".encode("utf-8"))
+                            stop_chunk = {
+                                "id": chat_id,
+                                "object": "chat.completion.chunk",
+                                "created": created_ts,
+                                "model": model_name,
+                                "choices": [{
+                                    "index": 0,
+                                    "delta": {},
+                                    "finish_reason": "tool_calls",
+                                }],
+                            }
+                            writer.write(f"data: {json.dumps(stop_chunk)}\n\n".encode("utf-8"))
+                            tool_calls_emitted = True
+
                         writer.write(b"data: [DONE]\n\n")
                         await writer.drain()
                         break
+
                     try:
                         chunk_obj = json.loads(raw_data)
-                        choices = chunk_obj.get("choices", [])
-                        if choices:
-                            delta = choices[0].get("delta", {})
-                            if "reasoning_content" in delta:
-                                rc = delta["reasoning_content"]
-                                if rc:
-                                    if "reasoning" not in delta:
-                                        delta["reasoning"] = rc
-                                    if "thought" not in delta:
-                                        delta["thought"] = rc
-                                    if "thinking" not in delta:
-                                        delta["thinking"] = rc
-                        line = f"data: {json.dumps(chunk_obj)}"
                     except Exception:
-                        pass
-                    writer.write((line + "\n\n").encode("utf-8"))
-                    await writer.drain()
+                        continue
+
+                    choices = chunk_obj.get("choices", [])
+                    if not choices:
+                        continue
+
+                    choice = choices[0]
+                    delta = choice.get("delta", {})
+                    finish_reason = choice.get("finish_reason")
+
+                    if chunk_obj.get("id"):
+                        chat_id = chunk_obj["id"]
+                    if chunk_obj.get("created"):
+                        created_ts = chunk_obj["created"]
+                    if chunk_obj.get("model"):
+                        model_name = chunk_obj["model"]
+
+                    # Buffer fragmented tool calls
+                    incoming_tc = delta.get("tool_calls")
+                    if incoming_tc and isinstance(incoming_tc, list):
+                        for tc in incoming_tc:
+                            t_idx = tc.get("index", 0)
+                            if t_idx not in active_tool_calls:
+                                active_tool_calls[t_idx] = {
+                                    "id": tc.get("id") or f"call_{uuid.uuid4().hex[:8]}",
+                                    "name": tc.get("function", {}).get("name", ""),
+                                    "arguments": "",
+                                }
+                            if tc.get("id"):
+                                active_tool_calls[t_idx]["id"] = tc.get("id")
+                            if tc.get("function", {}).get("name"):
+                                active_tool_calls[t_idx]["name"] = tc.get("function", {}).get("name")
+                            arg_delta = tc.get("function", {}).get("arguments", "")
+                            if arg_delta:
+                                active_tool_calls[t_idx]["arguments"] += arg_delta
+                        # Do not forward partial tool call chunks to localharness
+                        continue
+
+                    # If finishing with tool calls
+                    if (finish_reason == "tool_calls" or (finish_reason and active_tool_calls)) and not tool_calls_emitted:
+                        tc_list = []
+                        for idx in sorted(active_tool_calls.keys()):
+                            t_info = active_tool_calls[idx]
+                            tc_list.append({
+                                "index": idx,
+                                "id": t_info["id"],
+                                "type": "function",
+                                "function": {
+                                    "name": t_info["name"],
+                                    "arguments": t_info["arguments"],
+                                },
+                            })
+                        complete_chunk = {
+                            "id": chat_id,
+                            "object": "chat.completion.chunk",
+                            "created": created_ts,
+                            "model": model_name,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"tool_calls": tc_list},
+                                "finish_reason": None,
+                            }],
+                        }
+                        writer.write(f"data: {json.dumps(complete_chunk)}\n\n".encode("utf-8"))
+                        tool_calls_emitted = True
+
+                    # Pass through reasoning / thinking
+                    if "reasoning_content" in delta:
+                        rc = delta["reasoning_content"]
+                        if rc:
+                            if "reasoning" not in delta:
+                                delta["reasoning"] = rc
+                            if "thought" not in delta:
+                                delta["thought"] = rc
+                            if "thinking" not in delta:
+                                delta["thinking"] = rc
+
+                    # Pass through content / thinking or finish_reason
+                    has_content = bool(delta.get("content") or delta.get("thought") or delta.get("reasoning") or delta.get("thinking"))
+                    if has_content or finish_reason:
+                        line = f"data: {json.dumps(chunk_obj)}"
+                        writer.write((line + "\n\n").encode("utf-8"))
+                        await writer.drain()
             writer.close()
         else:
             resp = await client.post(url, headers=headers, json=payload, timeout=120.0)

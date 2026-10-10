@@ -22,13 +22,22 @@ public struct AssistWriteFileTool: AssistTool {
     public init() {}
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
-        guard let path = input["path"] as? String, let content = input["content"] as? String else {
+        guard var path = (input["path"] ?? input["filePath"] ?? input["file_path"]) as? String,
+              let content = (input["content"] ?? input["fileContent"] ?? input["file_content"] ?? input["code"]) as? String else {
             return .failure("Missing required parameters: 'path' and 'content' are mandatory.")
         }
 
-        // Sandbox & Traversal Defense
-        if path.contains("..") || path.hasPrefix("/") {
-            return .failure("Path security error: Relative path traversal ('..') and absolute paths are prohibited for safety. Path: '\(path)'")
+        // Sandbox & Traversal Defense: Normalize workspace path
+        let workspacePrefix = context.workspaceRoot.path
+        if !workspacePrefix.isEmpty && path.hasPrefix(workspacePrefix) {
+            path = String(path.dropFirst(workspacePrefix.count))
+        }
+        while path.hasPrefix("/") {
+            path = String(path.dropFirst())
+        }
+
+        if path.contains("..") {
+            return .failure("Path security error: Relative path traversal ('..') is prohibited for safety. Path: '\(path)'")
         }
 
         let startTime = Date()
