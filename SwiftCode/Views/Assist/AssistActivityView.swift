@@ -204,7 +204,15 @@ public struct AssistActivityView: View {
     }
 
     private func displayOutput(for tool: ToolActivityItem) -> String {
-        let raw = !tool.streamingOutput.isEmpty ? tool.streamingOutput : tool.result
+        // Once the tool has finished, show its final result; streamed chunks are
+        // only a live preview while it is still running.
+        let isActive = tool.status == .running || tool.status == .pending || tool.status == .retrying
+        let raw: String
+        if isActive {
+            raw = !tool.streamingOutput.isEmpty ? tool.streamingOutput : tool.result
+        } else {
+            raw = !tool.result.isEmpty ? tool.result : tool.streamingOutput
+        }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         // Guard against printing raw serialized JSON envelopes or tool dictionaries
         if trimmed.hasPrefix("{") && trimmed.contains("\"toolId\"") {
