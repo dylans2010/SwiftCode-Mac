@@ -15,38 +15,7 @@ public final class AssistManager: ObservableObject {
     @Published public var queuedMessages: [QueuedAssistMessage] = []
     @Published public var currentActivityStatus: String = "Idle"
 
-    // Thinking Progress & Duration State
-    @Published public var activeThinkingText: String = ""
-    @Published public var isThinking: Bool = false
-    @Published public var thinkingStartedAt: Date? = nil
-    @Published public var thinkingDurationSeconds: Int = 0
-    private var thinkingTimerTask: Task<Void, Never>?
-
-    public func startThinkingTimer() {
-        if thinkingTimerTask == nil {
-            thinkingStartedAt = Date()
-            thinkingDurationSeconds = 0
-            thinkingTimerTask = Task { @MainActor [weak self] in
-                while let self = self, self.isThinking {
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    if Task.isCancelled || !self.isThinking { break }
-                    if let start = self.thinkingStartedAt {
-                        self.thinkingDurationSeconds = max(1, Int(Date().timeIntervalSince(start)))
-                        self.currentActivityStatus = "Thinking (\(self.thinkingDurationSeconds)s)..."
-                        if let idx = self.messages.indices.last {
-                            self.messages[idx].thinkingDuration = Double(self.thinkingDurationSeconds)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    public func stopThinkingTimer() {
-        thinkingTimerTask?.cancel()
-        thinkingTimerTask = nil
-        isThinking = false
-    }
+    private var activeChatTask: Task<Void, Never>?
 
     public let logger = AssistLogger()
     public let session = AssistSession()
@@ -227,11 +196,7 @@ public final class AssistManager: ObservableObject {
             AssistEventNormalizer.shared.resetForNewTask()
             messages.append(AssistMessage(role: .user, content: trimmed, attachments: attachments))
             isProcessing = true
-            isThinking = false
-            activeThinkingText = ""
-            thinkingStartedAt = nil
-            thinkingDurationSeconds = 0
-            currentActivityStatus = "Thinking..."
+            currentActivityStatus = "Preparing request…"
             lastError = nil
             saveHistory()
         }
@@ -239,15 +204,16 @@ public final class AssistManager: ObservableObject {
         metrics.mark(.sessionResolved)
 
         let isAgentMode = UserDefaults.standard.bool(forKey: "com.swiftcode.assist.mode")
+        let isLightweightConversation = attachments.isEmpty && envelope == nil && Self.isLightweightConversation(trimmed)
         let isAntigravityAvailable = GoogleCloudSDKRuntime.shared.isAvailable
 
         // Always prioritize Antigravity in Agent Mode or when explicitly enabled
-        if AppSettings.shared.isGoogleCloudAssist || (isAgentMode && isAntigravityAvailable) {
+        if !isLightweightConversation && (AppSettings.shared.isGoogleCloudAssist || (isAgentMode && isAntigravityAvailable)) {
             await sendGoogleCloudSDKMessage(trimmed, attachments: attachments, envelope: envelope, metrics: metrics)
             return
         }
 
-        if isAgentMode {
+        if isAgentMode && !isLightweightConversation {
             guard let _ = self.agent else {
                 let error = "Assist agent is unavailable."
                 await MainActor.run {
@@ -286,7 +252,6 @@ public final class AssistManager: ObservableObject {
                     try await agentSession.start(objective: trimmed, attachments: attachments, context: context)
                     if Task.isCancelled { return }
                     await MainActor.run {
-                        messages.append(AssistMessage(role: .assistant, content: "Autonomous task execution finished."))
                         saveHistory()
                     }
                 } catch {
@@ -307,151 +272,198 @@ public final class AssistManager: ObservableObject {
         }
 
         // Processing through Chat Mode: Query Model directly and conversationally (no tools/planning)
-        do {
-            // --- COMPREHENSIVE CHAT MODE STATE VALIDATION ---
-            let selectedModel = AssistModelManager.shared.selectedModelID
-            let selectedProvider = LLMService.shared.provider(for: selectedModel)
+        // --- COMPREHENSIVE CHAT MODE STATE VALIDATION ---
+        let selectedModel = AssistModelManager.shared.selectedModelID
+        let selectedProvider = LLMService.shared.provider(for: selectedModel)
 
-            await logger.info("[ChatMode] Validating session state. Model: \(selectedModel), Provider: \(selectedProvider.rawValue)")
+        await logger.info("[ChatMode] Validating session state. Model: \(selectedModel), Provider: \(selectedProvider.rawValue)")
 
-            if selectedProvider != .offline && selectedProvider != .codex {
-                let key = LLMService.shared.retrieveAPIKey(for: selectedProvider)
-                guard !key.isEmpty else {
-                    let errorMsg = "Chat Validation Failed: Missing API key / credentials for provider \(selectedProvider.rawValue). Please configure your key in Assist Settings."
-                    await MainActor.run {
-                        lastError = errorMsg
-                        messages.append(AssistMessage(role: .system, content: errorMsg))
-                        isProcessing = false
-                        saveHistory()
-                    }
-                    return
+        if selectedProvider != .offline && selectedProvider != .codex {
+            let key = LLMService.shared.retrieveAPIKey(for: selectedProvider)
+            guard !key.isEmpty else {
+                let errorMsg = "Chat Validation Failed: Missing API key / credentials for provider \(selectedProvider.rawValue). Please configure your key in Assist Settings."
+                await MainActor.run {
+                    lastError = errorMsg
+                    messages.append(AssistMessage(role: .system, content: errorMsg))
+                    isProcessing = false
+                    saveHistory()
                 }
-            } else if selectedProvider == .offline {
-                guard FoundationModels.shared.isEnabled else {
-                    let errorMsg = "Chat Validation Failed: Local Apple Foundation Models are selected but disabled. Please enable them in Assist Settings."
-                    await MainActor.run {
-                        lastError = errorMsg
-                        messages.append(AssistMessage(role: .system, content: errorMsg))
-                        isProcessing = false
-                        saveHistory()
-                    }
-                    return
+                return
+            }
+        } else if selectedProvider == .offline {
+            guard FoundationModels.shared.isEnabled else {
+                let errorMsg = "Chat Validation Failed: Local Apple Foundation Models are selected but disabled. Please enable them in Assist Settings."
+                await MainActor.run {
+                    lastError = errorMsg
+                    messages.append(AssistMessage(role: .system, content: errorMsg))
+                    isProcessing = false
+                    saveHistory()
                 }
-            }
-            // ------------------------------------------------
-
-            let assetSystemPrompt = try getSystemPrompt()
-
-            let context = buildContext()
-            if contextEngine == nil {
-                contextEngine = AssistContextEngine(context: context)
-            }
-
-            let messagesCopy = await MainActor.run { self.messages }
-            let recentMessages = messagesCopy.suffix(15)
-
-            let transcriptSection = ModelContextSection(
-                priority: .p1,
-                title: "Conversation History",
-                content: recentMessages.map { msg in
-                    let roleStr = msg.role == .user ? "User" : (msg.role == .system ? "System" : "Assistant")
-                    return "\(roleStr): \(msg.content)"
-                }.joined(separator: "\n"),
-                estimatedTokens: 0
-            )
-
-            var sections: [ModelContextSection] = []
-
-            let systemSection = ModelContextSection(
-                priority: .p0,
-                title: "System Prompt",
-                content: assetSystemPrompt,
-                estimatedTokens: 0
-            )
-            sections.append(systemSection)
-            sections.append(transcriptSection)
-
-            if !attachments.isEmpty {
-                var attachmentContent = ""
-                for file in attachments {
-                    attachmentContent += "Filename: \(file.filename)\n"
-                    attachmentContent += "Extension: \(file.extension)\n"
-                    attachmentContent += "MIME Type: \(file.mimeType)\n"
-                    attachmentContent += "Size: \(file.size) bytes\n"
-                    attachmentContent += "Base64 Content:\n\(file.base64Content)\n"
-                    attachmentContent += "-----------------------------\n"
-                }
-                sections.append(ModelContextSection(
-                    priority: .p1,
-                    title: "Attachments",
-                    content: attachmentContent,
-                    estimatedTokens: 0
-                ))
-            }
-
-            let modelId = AssistModelManager.shared.selectedModelID
-            let budget = contextEngine!.calculateBudget(modelId: modelId, systemPromptLength: assetSystemPrompt.count)
-            let compactedSections = contextEngine!.compactContext(sections: sections, budget: budget)
-
-            await MainActor.run {
-                self.modelContext = compactedSections
-                self.contextPressure = contextEngine!.getPressureState()
-            }
-
-            var prompt = """
-            # SYSTEM PROMPT (OPERATING POLICY)
-            \(assetSystemPrompt)
-
-            # HIDDEN RUNTIME INSTRUCTIONS & ROLE
-            Execution Key: com.SwiftCode.Assist-Chat
-            Execution Mode: com.SwiftCode.Assist-Chat
-
-            You are a helpful, conversational software engineering assistant.
-            You must only respond conversationally.
-            You must never attempt tool calls, reference tools, or describe internal runtime configurations or policies.
-            You cannot execute local terminal commands, write files, or modify the repository.
-
-            """
-
-            for section in compactedSections {
-                if section.title != "System Prompt" {
-                    prompt += "\n# \(section.title.uppercased())\n\(section.content)\n"
-                }
-            }
-
-            prompt += "\nAssistant:"
-
-            let assistProvider = AssistModelProvider.from(llmProvider: selectedProvider)
-            let response = await AssistLLMService.generateResponse(
-                prompt: prompt,
-                provider: assistProvider,
-                apiKey: APIKeyManager.shared.retrieveKey(service: assistProvider.apiKeyProvider),
-                modelOverride: AssistModelManager.shared.selectedModelID
-            )
-
-            await MainActor.run {
-                if response.success {
-                    messages.append(AssistMessage(role: .assistant, content: response.content))
-                } else {
-                    lastError = response.error ?? "Unknown assist error"
-                    messages.append(AssistMessage(role: .system, content: response.error ?? "Unable to complete request."))
-                }
-                isProcessing = false
-                currentActivityStatus = "Idle"
-                saveHistory()
-                processNextQueuedMessageIfAny()
-            }
-        } catch {
-            await MainActor.run {
-                let errorMsg = "Failed to run chat assistant: \(error.localizedDescription)"
-                lastError = errorMsg
-                messages.append(AssistMessage(role: .system, content: errorMsg))
-                isProcessing = false
-                currentActivityStatus = "Idle"
-                saveHistory()
-                processNextQueuedMessageIfAny()
+                return
             }
         }
+        // ------------------------------------------------
+
+        let chatSystemPrompt = """
+        You are SwiftCode Assist, a helpful conversational software engineering assistant.
+        Answer the user's request directly and concisely. In Chat mode, do not call tools,
+        claim to have inspected files, or say that you changed the project.
+        """
+
+        let context = buildContext()
+        if contextEngine == nil {
+            contextEngine = AssistContextEngine(context: context)
+        }
+
+        let messagesCopy = await MainActor.run { self.messages }
+        let recentMessages = Self.compactedConversationHistory(from: Array(messagesCopy.suffix(15)))
+
+        let transcriptSection = ModelContextSection(
+            priority: .p1,
+            title: "Conversation History",
+            content: recentMessages.map { msg in
+                let roleStr = msg.role == .user ? "User" : (msg.role == .system ? "System" : "Assistant")
+                return "\(roleStr): \(msg.content)"
+            }.joined(separator: "\n"),
+            estimatedTokens: 0
+        )
+
+        var sections: [ModelContextSection] = []
+
+        let systemSection = ModelContextSection(
+            priority: .p0,
+            title: "System Prompt",
+            content: chatSystemPrompt,
+            estimatedTokens: 0
+        )
+        sections.append(systemSection)
+        sections.append(transcriptSection)
+
+        if !attachments.isEmpty {
+            var attachmentContent = ""
+            for file in attachments {
+                attachmentContent += "Filename: \(file.filename)\n"
+                attachmentContent += "Extension: \(file.extension)\n"
+                attachmentContent += "MIME Type: \(file.mimeType)\n"
+                attachmentContent += "Size: \(file.size) bytes\n"
+                attachmentContent += "Base64 Content:\n\(file.base64Content)\n"
+                attachmentContent += "-----------------------------\n"
+            }
+            sections.append(ModelContextSection(
+                priority: .p1,
+                title: "Attachments",
+                content: attachmentContent,
+                estimatedTokens: 0
+            ))
+        }
+
+        let modelId = AssistModelManager.shared.selectedModelID
+        let budget = contextEngine!.calculateBudget(modelId: modelId, systemPromptLength: chatSystemPrompt.count)
+        let compactedSections = contextEngine!.compactContext(sections: sections, budget: budget)
+
+        await MainActor.run {
+            self.modelContext = compactedSections
+            self.contextPressure = contextEngine!.getPressureState()
+        }
+
+        var prompt = """
+        # SYSTEM PROMPT (OPERATING POLICY)
+        \(chatSystemPrompt)
+
+        # HIDDEN RUNTIME INSTRUCTIONS & ROLE
+        Execution Key: com.SwiftCode.Assist-Chat
+        Execution Mode: com.SwiftCode.Assist-Chat
+
+        You are a helpful, conversational software engineering assistant.
+        You must only respond conversationally.
+        You must never attempt tool calls, reference tools, or describe internal runtime configurations or policies.
+        You cannot execute local terminal commands, write files, or modify the repository.
+
+        """
+
+        for section in compactedSections {
+            if section.title != "System Prompt" {
+                prompt += "\n# \(section.title.uppercased())\n\(section.content)\n"
+            }
+        }
+
+        prompt += "\nAssistant:"
+
+        let responseMessage = AssistMessage(role: .assistant, content: "")
+        messages.append(responseMessage)
+        currentActivityStatus = "Connecting to model…"
+
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await LLMService.shared.streamChat(
+                    messages: [AIMessage(role: .user, content: prompt)],
+                    model: modelId,
+                    systemPrompt: "",
+                    providerOverride: selectedProvider,
+                    onToken: { [weak self] token in
+                        await self?.appendChatToken(token, to: responseMessage.id)
+                    }
+                )
+                guard !Task.isCancelled else { return }
+                self.finishChatResponse(messageID: responseMessage.id)
+            } catch {
+                guard !Task.isCancelled else { return }
+                self.finishChatResponse(messageID: responseMessage.id, error: error.localizedDescription)
+            }
+        }
+        activeChatTask = task
+        await task.value
+        activeChatTask = nil
+        if currentActivityStatus != "Cancelled" {
+            processNextQueuedMessageIfAny()
+        }
+
+    }
+
+    private static func isLightweightConversation(_ text: String) -> Bool {
+        let normalized = text
+            .lowercased()
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
+        let lightweightTurns: Set<String> = [
+            "hi", "hello", "hey", "hello there", "hi there", "hey there",
+            "good morning", "good afternoon", "good evening", "thanks", "thank you",
+            "thanks a lot", "okay", "ok", "got it", "cool"
+        ]
+        return lightweightTurns.contains(normalized)
+    }
+
+    private static func compactedConversationHistory(from messages: [AssistMessage]) -> [AssistMessage] {
+        var remainingCharacters = 12_000
+        var selected: [AssistMessage] = []
+        for message in messages.reversed() where remainingCharacters > 0 {
+            guard !message.content.isEmpty else { continue }
+            let content = String(message.content.suffix(min(message.content.count, remainingCharacters)))
+            selected.append(AssistMessage(role: message.role, content: content))
+            remainingCharacters -= content.count
+        }
+        return selected.reversed()
+    }
+
+    private func appendChatToken(_ token: String, to messageID: UUID) {
+        guard let index = messages.firstIndex(where: { $0.id == messageID }) else { return }
+        var message = messages[index]
+        message.content += token
+        messages[index] = message
+        currentActivityStatus = "Receiving response…"
+    }
+
+    private func finishChatResponse(messageID: UUID, error: String? = nil) {
+        if let error {
+            lastError = "AI request failed: \(error)"
+            messages.append(AssistMessage(role: .system, content: lastError ?? "AI request failed."))
+        }
+        if let index = messages.firstIndex(where: { $0.id == messageID }), messages[index].content.isEmpty, error != nil {
+            messages.remove(at: index)
+        }
+        isProcessing = false
+        currentActivityStatus = "Idle"
+        saveHistory()
     }
 
     // MARK: - Message Queue System
@@ -502,11 +514,12 @@ public final class AssistManager: ObservableObject {
             }
             activeAgentTask?.cancel()
             activeAgentTask = nil
+            activeChatTask?.cancel()
+            activeChatTask = nil
             activeGoogleCloudTask?.cancel()
             activeGoogleCloudTask = nil
             WorkerRuntimeState.shared.stopAllActiveWorkers(reason: "Interrupted by user for continuation.")
             cancelTerminalExecution()
-            stopThinkingTimer()
 
             // Finalize previous assistant message so its activity group is marked non-executing
             if let idx = messages.indices.last {
@@ -543,6 +556,9 @@ public final class AssistManager: ObservableObject {
         activeAgentTask?.cancel()
         activeAgentTask = nil
 
+        activeChatTask?.cancel()
+        activeChatTask = nil
+
         activeGoogleCloudTask?.cancel()
         activeGoogleCloudTask = nil
 
@@ -558,33 +574,35 @@ public final class AssistManager: ObservableObject {
         PlanQuestionManager.shared.cancelPendingQuestions()
         cancelTerminalExecution()
 
-        Task { @MainActor in
-            self.stopThinkingTimer()
-            self.isThinking = false
-            self.isProcessing = false
-            self.currentActivityStatus = "Cancelled"
-            self.currentCodeReview = nil
-            self.isCodeReviewRunning = false
-            if let idx = self.messages.indices.last {
-                if var activity = self.messages[idx].activityGroup {
-                    for i in activity.tools.indices where activity.tools[i].status == .running {
-                        activity.tools[i].status = .failed
-                        activity.tools[i].result = "Cancelled"
-                        let label = activity.tools[i].displayLabel ?? activity.tools[i].toolId
-                        activity.tools[i].purpose = "\(label) (Cancelled)"
-                    }
-                    activity.isExecuting = false
-                    self.messages[idx].activityGroup = activity
-                }
-            }
-            self.saveHistory()
+        isProcessing = false
+        currentActivityStatus = "Cancelled"
+        currentCodeReview = nil
+        isCodeReviewRunning = false
+        if let last = messages.last, last.role == .assistant, last.content.isEmpty, last.activityGroup?.hasContent != true {
+            messages.removeLast()
         }
+        if let idx = messages.indices.last {
+            if var activity = messages[idx].activityGroup {
+                for i in activity.tools.indices where activity.tools[i].status == .running || activity.tools[i].status == .pending {
+                    activity.tools[i].status = .cancelled
+                    activity.tools[i].result = "Cancelled"
+                    let label = activity.tools[i].displayLabel ?? activity.tools[i].toolId
+                    activity.tools[i].purpose = "\(label) (Cancelled)"
+                }
+                activity.isExecuting = false
+                messages[idx].activityGroup = activity
+            }
+        }
+        saveHistory()
     }
 
     public func clearChat() {
         // Immediately cancel the active agent task and agent session
         activeAgentTask?.cancel()
         activeAgentTask = nil
+
+        activeChatTask?.cancel()
+        activeChatTask = nil
 
         activeGoogleCloudTask?.cancel()
         activeGoogleCloudTask = nil
@@ -758,7 +776,6 @@ public final class AssistManager: ObservableObject {
         let task = Task {
             defer {
                 Task { @MainActor in
-                    self.stopThinkingTimer()
                     self.isProcessing = false
                     self.currentActivityStatus = "Idle"
                 }
@@ -820,39 +837,16 @@ public final class AssistManager: ObservableObject {
                         case .agentStarted:
                             metrics?.mark(.firstEventReceived)
                             metrics?.mark(.modelStarted)
-                            self.currentActivityStatus = "Thinking..."
+                            self.currentActivityStatus = "Waiting for model output…"
 
-                        case .agentProgress(_, let delta, let thoughtDelta):
+                        case .agentProgress(_, let delta, _):
                             metrics?.mark(.firstEventReceived)
-                            if let thought = thoughtDelta, !thought.isEmpty {
-                                metrics?.mark(.firstReasoningDelta)
-                                if !self.isThinking {
-                                    self.isThinking = true
-                                    self.startThinkingTimer()
-                                }
-                                self.activeThinkingText += thought
-                                self.messages[idx].thinkingContent = self.activeThinkingText
-                            }
                             if let delta = delta, !delta.isEmpty {
                                 metrics?.mark(.firstTextDelta)
-                                if self.isThinking {
-                                    self.stopThinkingTimer()
-                                    if let start = self.thinkingStartedAt {
-                                        self.thinkingDurationSeconds = max(1, Int(Date().timeIntervalSince(start)))
-                                        self.messages[idx].thinkingDuration = Double(self.thinkingDurationSeconds)
-                                    }
-                                }
-                                self.currentActivityStatus = "Responding..."
-                                self.messages[idx] = AssistMessage(
-                                    role: self.messages[idx].role,
-                                    content: self.messages[idx].content + delta,
-                                    attachments: self.messages[idx].attachments,
-                                    mcpExecution: self.messages[idx].mcpExecution,
-                                    composioExecution: self.messages[idx].composioExecution,
-                                    activityGroup: self.messages[idx].activityGroup,
-                                    thinkingContent: self.messages[idx].thinkingContent,
-                                    thinkingDuration: self.messages[idx].thinkingDuration
-                                )
+                                self.currentActivityStatus = "Receiving response…"
+                                var message = self.messages[idx]
+                                message.content += delta
+                                self.messages[idx] = message
                             }
                         case .toolStarted(let tool):
                             metrics?.mark(.firstEventReceived)
@@ -881,13 +875,6 @@ public final class AssistManager: ObservableObject {
                         case .agentCompleted(_, let response, _, _):
                             metrics?.mark(.responseCompleted)
                             metrics?.logSummary()
-                            self.stopThinkingTimer()
-                            if let start = self.thinkingStartedAt {
-                                self.messages[idx].thinkingDuration = Double(max(1, Int(Date().timeIntervalSince(start))))
-                            }
-                            self.thinkingStartedAt = nil
-                            self.activeThinkingText = ""
-
                             if var activity = self.messages[idx].activityGroup {
                                 for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
                                     activity.tools[tIdx].status = .completed
@@ -901,16 +888,9 @@ public final class AssistManager: ObservableObject {
 
                             let currentContent = self.messages[idx].content
                             let finalContent = currentContent.isEmpty ? response : currentContent
-                            self.messages[idx] = AssistMessage(
-                                role: self.messages[idx].role,
-                                content: finalContent,
-                                attachments: self.messages[idx].attachments,
-                                mcpExecution: self.messages[idx].mcpExecution,
-                                composioExecution: self.messages[idx].composioExecution,
-                                activityGroup: self.messages[idx].activityGroup,
-                                thinkingContent: self.messages[idx].thinkingContent,
-                                thinkingDuration: self.messages[idx].thinkingDuration
-                            )
+                            var finalMessage = self.messages[idx]
+                            finalMessage.content = finalContent
+                            self.messages[idx] = finalMessage
                             self.messages[idx].activityGroup?.isExecuting = false
                             self.saveHistory()
                             self.currentActivityStatus = "Idle"
@@ -919,9 +899,6 @@ public final class AssistManager: ObservableObject {
                             break streamLoop
 
                         case .agentFailed(_, let err):
-                            self.stopThinkingTimer()
-                            self.thinkingStartedAt = nil
-                            self.activeThinkingText = ""
                             turnError = err
 
                             if var activity = self.messages[idx].activityGroup {
@@ -1124,8 +1101,6 @@ public final class AssistManager: ObservableObject {
     public func reportToolStarted(callId: String, toolName: String, arguments: [String: Any]) {
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
         self.currentActivityStatus = formatted.runningLabel
-        self.stopThinkingTimer()
-        self.isThinking = false
 
         guard let idx = self.messages.indices.last else { return }
         var activity = self.messages[idx].activityGroup ?? AssistActivityGroup(isExecuting: true)

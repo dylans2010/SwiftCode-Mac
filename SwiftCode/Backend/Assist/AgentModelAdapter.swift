@@ -313,6 +313,66 @@ public final class AgentModelAdapter: Sendable {
 
         throw lastError ?? NSError(domain: "AgentModelAdapter", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed after \(maxRetries) attempts."])
     }
+
+    /// Streams each model delta to the Assist execution loop instead of waiting for a
+    /// complete response. The agent response is still validated as one complete JSON
+    /// object before any tool is allowed to execute.
+    public func streamQueryModel(prompt: String, modelId: String) async throws -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    try await LLMService.shared.streamChat(
+                        messages: [AIMessage(role: .user, content: prompt)],
+                        model: modelId,
+                        systemPrompt: "",
+                        onToken: { token in continuation.yield(token) }
+                    )
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
+    }
+
+    /// Extracts a complete JSON string value from an in-progress JSON response. This is
+    /// used to reveal the selected tool as soon as its identifier is fully streamed,
+    /// without attempting to execute incomplete arguments.
+    public func extractStreamedStringValue(named key: String, from partialJSON: String) -> String? {
+        let keyToken = "\"\(key)\""
+        guard let keyRange = partialJSON.range(of: keyToken) else { return nil }
+
+        var cursor = keyRange.upperBound
+        while cursor < partialJSON.endIndex, partialJSON[cursor].isWhitespace {
+            cursor = partialJSON.index(after: cursor)
+        }
+        guard cursor < partialJSON.endIndex, partialJSON[cursor] == ":" else { return nil }
+        cursor = partialJSON.index(after: cursor)
+
+        while cursor < partialJSON.endIndex, partialJSON[cursor].isWhitespace {
+            cursor = partialJSON.index(after: cursor)
+        }
+        guard cursor < partialJSON.endIndex, partialJSON[cursor] == "\"" else { return nil }
+
+        let valueStart = cursor
+        cursor = partialJSON.index(after: cursor)
+        var isEscaped = false
+        while cursor < partialJSON.endIndex {
+            let character = partialJSON[cursor]
+            if isEscaped {
+                isEscaped = false
+            } else if character == "\\" {
+                isEscaped = true
+            } else if character == "\"" {
+                let literal = String(partialJSON[valueStart...cursor])
+                guard let data = literal.data(using: .utf8) else { return nil }
+                return try? JSONDecoder().decode(String.self, from: data)
+            }
+            cursor = partialJSON.index(after: cursor)
+        }
+        return nil
+    }
 }
 
 // MARK: - Assist v4 Offline Model Fallback Provider

@@ -246,12 +246,12 @@ public final class AssistAgentSession: Sendable {
 
         if let msgId = currentAssistantMessageId,
            let idx = AssistManager.shared.messages.firstIndex(where: { $0.id == msgId }) {
-            // Update existing message
-            AssistManager.shared.messages[idx] = AssistMessage(
-                role: .assistant,
-                content: content,
-                activityGroup: groupCopy.hasContent ? groupCopy : nil
-            )
+            // Preserve the message identity so later streamed activity updates continue
+            // attaching to this transcript row instead of creating duplicate bubbles.
+            var message = AssistManager.shared.messages[idx]
+            message.content = content
+            message.activityGroup = groupCopy.hasContent ? groupCopy : nil
+            AssistManager.shared.messages[idx] = message
         } else {
             // Create new message
             let newMsg = AssistMessage(
@@ -262,6 +262,28 @@ public final class AssistAgentSession: Sendable {
             currentAssistantMessageId = newMsg.id
             AssistManager.shared.messages.append(newMsg)
         }
+    }
+
+    @MainActor
+    private func publishCurrentActivityGroup() {
+        guard let messageId = currentAssistantMessageId,
+              let index = AssistManager.shared.messages.firstIndex(where: { $0.id == messageId }) else { return }
+        var message = AssistManager.shared.messages[index]
+        var activity = currentActivityGroup
+        activity.isExecuting = true
+        message.activityGroup = activity.hasContent ? activity : nil
+        AssistManager.shared.messages[index] = message
+    }
+
+    @MainActor
+    private func finalizeStreamedToolPreview(status: ActivityStatus, result: String) {
+        guard let index = currentActivityGroup.tools.indices.last,
+              currentActivityGroup.tools[index].status == .pending else { return }
+        currentActivityGroup.tools[index].status = status
+        currentActivityGroup.tools[index].result = result
+        let label = currentActivityGroup.tools[index].displayLabel ?? currentActivityGroup.tools[index].toolId
+        currentActivityGroup.tools[index].purpose = "\(label) (\(status.rawValue))"
+        publishCurrentActivityGroup()
     }
 
     public func start(objective: String, attachments: [AgentFileContext] = [], context: AssistContext) async throws {
@@ -569,19 +591,60 @@ public final class AssistAgentSession: Sendable {
             conversationPrompt += "\n\nChoose the next best tool to run or provide finalResponse in valid JSON."
 
             let activeModel = AssistModelManager.shared.selectedModelID
-            let response = try await AgentModelAdapter.shared.queryModel(prompt: conversationPrompt, modelId: activeModel)
+            postConversationalMessage("I’m selecting the next action for this task.")
+            AssistManager.shared.currentActivityStatus = "Waiting for model output…"
+            let responseStream = try await AgentModelAdapter.shared.streamQueryModel(prompt: conversationPrompt, modelId: activeModel)
+            var response = ""
+            var streamedToolId: String?
+            var streamedToolActivityIndex: Int?
+            AssistManager.shared.currentActivityStatus = "Receiving tool request…"
+            do {
+                for try await delta in responseStream {
+                    guard !isCancelled, !Task.isCancelled else { break }
+                    response += delta
+
+                    guard streamedToolActivityIndex == nil,
+                          let toolId = AgentModelAdapter.shared.extractStreamedStringValue(named: "toolId", from: response),
+                          registry.getTool(toolId) != nil else { continue }
+
+                    streamedToolId = toolId
+                    let formatted = AssistToolActivityFormatter.format(toolId: toolId, arguments: [:])
+                    currentActivityGroup.isExecuting = true
+                    currentActivityGroup.tools.append(ToolActivityItem(
+                        toolId: toolId,
+                        purpose: "Preparing call…",
+                        status: .pending,
+                        displayLabel: formatted.runningLabel,
+                        completedLabel: formatted.completedLabel,
+                        iconName: formatted.iconName
+                    ))
+                    streamedToolActivityIndex = currentActivityGroup.tools.indices.last
+                    AssistManager.shared.currentActivityStatus = "Preparing \(formatted.runningLabel.lowercased())…"
+                    publishCurrentActivityGroup()
+                }
+            } catch {
+                finalizeStreamedToolPreview(status: .failed, result: "The streamed tool request failed before it could be run.")
+                throw error
+            }
+
+            guard !isCancelled, !Task.isCancelled else {
+                finalizeStreamedToolPreview(status: .cancelled, result: "Cancelled before execution.")
+                break
+            }
             guard response.count > 0 else {
                 appendConversationHistory("- System note: Response was empty. Retrying...")
                 continue
             }
 
             guard let jsonBlock = AgentModelAdapter.shared.extractJSON(from: response) ?? extractJSON(from: response) else {
+                finalizeStreamedToolPreview(status: .failed, result: "The model returned an incomplete or invalid tool request.")
                 appendConversationHistory("- System note: Invalid JSON response. Please provide valid JSON.")
                 continue
             }
 
             // Check if final response was reached
             if let finalResponse = jsonBlock["finalResponse"] as? String {
+                finalizeStreamedToolPreview(status: .skipped, result: "The model returned a final response instead of running this tool.")
                 self.validationCount += 1
                 _ = phaseCoordinator.startPhase("PHASE_07_VERIFICATION")
                 transition(to: .verifying, reason: "Evaluating Autonomous Completion Contract...")
@@ -673,6 +736,7 @@ public final class AssistAgentSession: Sendable {
             // Tool Execution Handling
             guard let toolId = jsonBlock["toolId"] as? String,
                   let rawInput = jsonBlock["input"] as? [String: Any] else {
+                finalizeStreamedToolPreview(status: .failed, result: "The streamed response did not contain a complete tool call.")
                 appendConversationHistory("- System note: Model output was missing 'toolId' or 'input'. Respond with a valid JSON tool call.")
                 continue
             }
@@ -688,6 +752,7 @@ public final class AssistAgentSession: Sendable {
 
             guard validation.isValid, let validatedInput = validation.correctedInput else {
                 let errorIssue = validation.issue ?? "Invalid arguments for tool \(toolId)"
+                finalizeStreamedToolPreview(status: .failed, result: errorIssue)
                 pipelineLogger.warning("Tool validation failed: \(errorIssue)")
                 appendConversationHistory("- Action: Run \(toolId). Result: FAILED - Argument Error: \(errorIssue). Please correct tool parameters.")
                 continue
@@ -705,6 +770,7 @@ public final class AssistAgentSession: Sendable {
             transition(to: .executing, reason: "Executing tool [\(toolId)]")
 
             guard let tool = registry.getTool(toolId) else {
+                finalizeStreamedToolPreview(status: .failed, result: "Tool '\(toolId)' was not found.")
                 appendConversationHistory("- Action: Run \(toolId). Result: FAILED - Tool '\(toolId)' not found.")
                 continue
             }
@@ -712,12 +778,27 @@ public final class AssistAgentSession: Sendable {
             state.toolCallCount += 1
 
             // Record Tool in Activity Group
-            let toolActivityIndex = currentActivityGroup.tools.count
-            currentActivityGroup.tools.append(ToolActivityItem(
-                toolId: toolId,
-                purpose: explanation,
-                status: .running
-            ))
+            let toolActivityIndex: Int
+            if let streamedToolActivityIndex,
+               streamedToolId == toolId,
+               currentActivityGroup.tools.indices.contains(streamedToolActivityIndex) {
+                toolActivityIndex = streamedToolActivityIndex
+                let formatted = AssistToolActivityFormatter.format(toolId: toolId, arguments: validatedInput)
+                currentActivityGroup.tools[toolActivityIndex].purpose = formatted.runningLabel
+                currentActivityGroup.tools[toolActivityIndex].status = .running
+                currentActivityGroup.tools[toolActivityIndex].displayLabel = formatted.runningLabel
+                currentActivityGroup.tools[toolActivityIndex].completedLabel = formatted.completedLabel
+                currentActivityGroup.tools[toolActivityIndex].iconName = formatted.iconName
+            } else {
+                toolActivityIndex = currentActivityGroup.tools.count
+                currentActivityGroup.tools.append(ToolActivityItem(
+                    toolId: toolId,
+                    purpose: explanation,
+                    status: .running
+                ))
+            }
+            AssistManager.shared.currentActivityStatus = AssistToolActivityFormatter.format(toolId: toolId, arguments: validatedInput).runningLabel
+            publishCurrentActivityGroup()
 
             // Post progress message if user-facing milestone reached
             if ["file_write", "code_replace", "file_create", "patch_application_engine"].contains(toolId) {
@@ -727,6 +808,9 @@ public final class AssistAgentSession: Sendable {
                 postConversationalMessage("The fix is applied. I’m building the project now.")
             } else if ["project_test", "test_runner"].contains(toolId) {
                 postConversationalMessage("The build succeeded. I’m running the relevant tests to verify the behavior.")
+            } else {
+                let label = AssistToolActivityFormatter.format(toolId: toolId, arguments: validatedInput).runningLabel
+                postConversationalMessage("Executing: \(label)…")
             }
 
             do {
@@ -853,6 +937,7 @@ public final class AssistAgentSession: Sendable {
                 appendConversationHistory("- Action: Run \(toolId). Result: FAILED - Exception: \(error.localizedDescription)")
             }
 
+            publishCurrentActivityGroup()
             transition(to: .observing, reason: "Interpreting tool result...")
 
             if let stuckEvent = detectStuck() {

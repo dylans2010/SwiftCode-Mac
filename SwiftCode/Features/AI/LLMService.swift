@@ -759,9 +759,10 @@ public final class LLMService: Sendable {
         messages: [AIMessage],
         model: String,
         systemPrompt: String,
+        providerOverride: LLMProvider? = nil,
         onToken: @escaping @Sendable (String) async -> Void
     ) async throws {
-        let resolvedProvider = provider(for: model)
+        let resolvedProvider = providerOverride ?? provider(for: model)
         if await isSwiftCloudRequest(for: resolvedProvider) {
             if await isSwiftCloudLimitReached() {
                 throw LLMError.swiftCloudLimitReached(await formattedSwiftCloudResetMessage())
@@ -771,13 +772,13 @@ public final class LLMService: Sendable {
         let isFallbackEnabled = UserDefaults.standard.bool(forKey: "free_models_fallback_enabled")
 
         do {
-            try await streamChatInternal(messages: messages, model: model, systemPrompt: systemPrompt, onToken: onToken)
+            try await streamChatInternal(messages: messages, model: model, systemPrompt: systemPrompt, providerOverride: providerOverride, onToken: onToken)
         } catch {
             guard isFallbackEnabled else {
                 throw error
             }
 
-            let resolvedProvider = provider(for: model)
+            let resolvedProvider = providerOverride ?? provider(for: model)
             logInfo("[streamChat] Primary stream request failed: \(error.localizedDescription). Automatic fallback active, fetching candidate models for provider \(resolvedProvider.rawValue)...")
 
             let candidates = await getFallbackModels(for: model, provider: resolvedProvider)
@@ -787,7 +788,7 @@ public final class LLMService: Sendable {
                 if candidate == model { continue }
                 logInfo("[streamChat] Attempting fallback stream with model: \(candidate)...")
                 do {
-                    try await streamChatInternal(messages: messages, model: candidate, systemPrompt: systemPrompt, onToken: onToken)
+                    try await streamChatInternal(messages: messages, model: candidate, systemPrompt: systemPrompt, providerOverride: providerOverride, onToken: onToken)
                     return
                 } catch {
                     logInfo("[streamChat] Fallback model \(candidate) failed: \(error.localizedDescription)")
@@ -802,6 +803,7 @@ public final class LLMService: Sendable {
         messages: [AIMessage],
         model: String,
         systemPrompt: String,
+        providerOverride: LLMProvider? = nil,
         onToken: @escaping @Sendable (String) async -> Void
     ) async throws {
         if let customEndpoint = findCustomEndpoint(for: model) {
@@ -868,7 +870,7 @@ public final class LLMService: Sendable {
             return
         }
 
-        let resolvedProvider = provider(for: model)
+        let resolvedProvider = providerOverride ?? provider(for: model)
         logInfo("[streamChat] Authoritative Routing. Provider: \(resolvedProvider.rawValue), Model: \(model).")
 
         if model == "AFM 3 Core" || model == "AFM 3 Core Advanced" {
@@ -1045,7 +1047,7 @@ public final class LLMService: Sendable {
                     try await self.streamChat(
                         messages: request.messages,
                         model: request.model,
-                        systemPrompt: "You are a professional assistant.",
+                        systemPrompt: request.systemPrompt,
                         onToken: { token in
                             continuation.yield(token)
                         }
