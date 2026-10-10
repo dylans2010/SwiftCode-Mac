@@ -67,6 +67,7 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(contentsOf: await AssistToolKnowledgeValidator.shared.runAllTests())
         results.append(contentsOf: await GoogleCloudSDKTests.shared.runAllTests())
         results.append(contentsOf: await SystemAssetLoaderTests.shared.runAllTests())
+        results.append(contentsOf: await AssistPromptOptimizerTests.shared.runAllTests())
 
         let duration = Date().timeIntervalSince(startTime)
         let passed = results.filter { $0.passed }.count

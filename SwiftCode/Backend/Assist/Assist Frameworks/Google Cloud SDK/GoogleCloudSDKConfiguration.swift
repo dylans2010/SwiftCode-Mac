@@ -12,6 +12,12 @@ public enum GoogleCloudSDKServiceTier: String, Codable, Sendable {
     case priority = "priority"
 }
 
+public enum LiteRTBackendType: String, Codable, Sendable {
+    case cpu = "cpu"
+    case gpu = "gpu"
+    case npu = "npu"
+}
+
 public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     public var model: String
     public var apiKey: String?
@@ -32,6 +38,9 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     public var baseURL: String?
     public var useSavedModels: Bool
     public var toolkit: String
+    public var litertModelPath: String?
+    public var litertBackend: String?
+    public var downloadIfMissing: Bool
 
     public init(
         model: String = "gemini-3.8-flash",
@@ -52,7 +61,10 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         provider: String? = nil,
         baseURL: String? = nil,
         useSavedModels: Bool = false,
-        toolkit: String = "System"
+        toolkit: String = "System",
+        litertModelPath: String? = nil,
+        litertBackend: String? = nil,
+        downloadIfMissing: Bool = false
     ) {
         self.model = model
         self.apiKey = apiKey
@@ -73,10 +85,14 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.baseURL = baseURL
         self.useSavedModels = useSavedModels
         self.toolkit = toolkit
+        self.litertModelPath = litertModelPath
+        self.litertBackend = litertBackend
+        self.downloadIfMissing = downloadIfMissing
     }
 
     public enum CodingKeys: String, CodingKey {
         case model, apiKey, vertex, project, location, systemInstructions, skillsPaths, workspaces, appDataDir, saveDir, enableSubagents, maxSubagentDepth, allowedSubagents, serviceTier, provider, baseURL, useSavedModels, toolkit
+        case litertModelPath, litertBackend, downloadIfMissing
     }
 
     public init(from decoder: Decoder) throws {
@@ -99,6 +115,9 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.baseURL = try container.decodeIfPresent(String.self, forKey: .baseURL)
         self.useSavedModels = try container.decodeIfPresent(Bool.self, forKey: .useSavedModels) ?? false
         self.toolkit = try container.decodeIfPresent(String.self, forKey: .toolkit) ?? "System"
+        self.litertModelPath = try container.decodeIfPresent(String.self, forKey: .litertModelPath)
+        self.litertBackend = try container.decodeIfPresent(String.self, forKey: .litertBackend)
+        self.downloadIfMissing = try container.decodeIfPresent(Bool.self, forKey: .downloadIfMissing) ?? false
         self.tools = nil
     }
 
@@ -122,6 +141,9 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         try container.encodeIfPresent(baseURL, forKey: .baseURL)
         try container.encode(useSavedModels, forKey: .useSavedModels)
         try container.encode(toolkit, forKey: .toolkit)
+        try container.encodeIfPresent(litertModelPath, forKey: .litertModelPath)
+        try container.encodeIfPresent(litertBackend, forKey: .litertBackend)
+        try container.encode(downloadIfMissing, forKey: .downloadIfMissing)
     }
 
     /// Automatically resolves environment configuration from SwiftCode project, tools, and preferences.
@@ -188,19 +210,8 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             let rootPath = rootURL.path
             workspaces.append(rootPath)
 
-            // Read repository guidance once, then include only task-relevant
-            // sections in the session prompt. Sending the entire file on every
-            // new session can add tens of thousands of unnecessary tokens.
-            let candidates = ["AGENTS.md", "Agents.md", "Agent.md"]
-            for name in candidates {
-                let candidateURL = rootURL.appendingPathComponent(name)
-                if FileManager.default.fileExists(atPath: candidateURL.path),
-                   let repoAgentsContent = try? String(contentsOf: candidateURL, encoding: .utf8),
-                   !repoAgentsContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    repositoryInstructions = repoAgentsContent
-                    break
-                }
-            }
+            // Read repository guidance via AssistPromptOptimizer cache with mtime validation
+            repositoryInstructions = AssistPromptOptimizer.shared.loadRepositoryInstructions(for: rootURL)
 
             // Discover repository skills
             let repoSkills = rootURL.appendingPathComponent(".agents/skills")
@@ -239,7 +250,17 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         let toolkit = AppSettings.shared.assistToolkit
         let toolSchemas = toolkit.caseInsensitiveCompare("cloud") == .orderedSame
             ? nil
-            : AssistManager.shared.registry.getToolSchemas()
+            : AssistPromptOptimizer.shared.cachedToolSchemasJSON(in: AssistManager.shared.registry)
+
+        var litertModelPath: String? = nil
+        var litertBackend: String? = nil
+        var downloadIfMissing = false
+
+        if provider?.lowercased() == "litert" || selectedModel.lowercased().contains("litert") {
+            litertModelPath = ProcessInfo.processInfo.environment["LITERT_MODEL_PATH"]
+            litertBackend = ProcessInfo.processInfo.environment["LITERT_BACKEND"] ?? "gpu"
+            downloadIfMissing = ProcessInfo.processInfo.environment["LITERT_DOWNLOAD_IF_MISSING"] == "1"
+        }
 
         return GoogleCloudSDKConfiguration(
             model: selectedModel,
@@ -260,7 +281,10 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             provider: provider,
             baseURL: baseURL,
             useSavedModels: isSavedModels,
-            toolkit: toolkit
+            toolkit: toolkit,
+            litertModelPath: litertModelPath,
+            litertBackend: litertBackend,
+            downloadIfMissing: downloadIfMissing
         )
     }
 
@@ -307,6 +331,15 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         }
         if let tools = tools {
             dict["tools"] = tools
+        }
+        if let litertModelPath = litertModelPath, !litertModelPath.isEmpty {
+            dict["litertModelPath"] = litertModelPath
+        }
+        if let litertBackend = litertBackend, !litertBackend.isEmpty {
+            dict["litertBackend"] = litertBackend
+        }
+        if downloadIfMissing {
+            dict["downloadIfMissing"] = downloadIfMissing
         }
 
         return dict

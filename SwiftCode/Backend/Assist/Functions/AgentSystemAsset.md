@@ -280,7 +280,7 @@ last valid point.
 Read-only (`safeRead`) tools need less caution than mutating ones.
 `safeMutation` tools change workspace state — verify target and parameters.
 `potentiallyDestructive` tools (`file_delete`, `dir_delete`, `project_restore`,
-`safe_undo`, `mem_clear`, `version_control_operator` rollback) can destroy
+`safe_undo`, `version_control_operator` rollback) can destroy
 data — verify intent, consider `project_snapshot` first, and never call them
 speculatively. `execution` tools run real toolchains or shell commands.
 `externalSideEffect` tools (`use_mcp`, `use_composio`) reach outside systems;
@@ -309,7 +309,7 @@ needs verification, not reflexively.
 
 What counts as destructive: `file_delete`, `dir_delete` (recursive),
 `project_restore` (overwrites workspace), `safe_undo` (steps back a snapshot),
-`mem_clear` (wipes the memory graph), `version_control_operator` with
+`version_control_operator` with
 `rollback` (`git reset --hard`), `use_terminal` with a destructive command.
 
 Before calling:
@@ -320,7 +320,7 @@ Before calling:
   gates destructive keywords, and `use_terminal` always requires explicit user
   approval — a denial is final.
 
-There is no undo for `file_delete`/`dir_delete`/`mem_clear` outside snapshots.
+There is no undo for `file_delete`/`dir_delete` outside snapshots.
 
 ### 5.9 Special Tools
 
@@ -727,31 +727,26 @@ required); `module` (string, optional, default `"SwiftCode"`) — used only by t
 
 **Memory tools**
 
-#### `mem_store`
+#### `capture_memory`
 **Capability:** Agent Memory · **Risk:** safeMutation
-**When to use:** persisting durable facts across turns (decisions, identifiers, state).
-**Parameters:** `key`, `value` (strings, required). Overwrites any existing entry for the key.
+**When to use:** capturing important facts, details about the user, prompting patterns, preferences, etc. and persisting them to `UserMemory.md`.
+**Parameters:** `memory` (string, required), `category` (string, optional).
+**Returns:** confirmation and saved category.
+**Notes:** If Memory module is disabled by the user, returns "User has Memory module OFF."
 
-#### `mem_retrieve`
+#### `retrieve_memory`
 **Capability:** Agent Memory · **Risk:** safeRead
-**When to use:** reading back a stored fact instead of recomputing or re-asking.
-**Parameters:** `key` (string, required).
-**Returns:** `value`.
-**Errors:** key not found — do not retry with the same key; the fact was never stored.
+**When to use:** returning the contents of the `UserMemory.md` file containing user preferences, patterns, and durable facts.
+**Parameters:** `query` (string, optional).
+**Returns:** full or filtered markdown content from `UserMemory.md`.
+**Notes:** If Memory module is disabled by the user, returns "User has Memory module OFF."
 
-#### `mem_clear`
-**Capability:** Agent Memory · **Risk:** potentiallyDestructive
-**When to use:** only on explicit user instruction to wipe memory.
-**When NOT to use:** as cleanup, as a reset, or speculatively — ever.
-**Parameters:** none.
-**Notes:** irreversibly deletes ALL entries. Not recoverable.
-
-#### `mem_context_snapshot`
+#### `manage_memory`
 **Capability:** Agent Memory · **Risk:** safeMutation
-**When to use:** capturing the current environment/open-files context for future reference.
-**Parameters:** none.
-**Returns:** `snapshot_key` (UUID-keyed) and `latest_snapshot`.
-**Notes:** each call stores a new UUID-keyed payload — keys accumulate; not idempotent.
+**When to use:** managing saved memory entries: modifying existing entries, deleting obsolete memory, or saving new details to `UserMemory.md`.
+**Parameters:** `modifySaved` (string, optional), `deleteContext` (string, optional), `saveToMemory` (string, optional). At least one parameter must be provided.
+**Returns:** summary of management actions performed.
+**Notes:** If Memory module is disabled by the user, returns "User has Memory module OFF."
 **Analysis engines**
 
 #### `source_graph_builder`

@@ -26,6 +26,8 @@ public final class GoogleCloudSDKTests: Sendable {
         results.append(await testToolPayloadStreamingFilter())
         results.append(await testErrorDescriptions())
         results.append(await testMessageAndToolModels())
+        results.append(await testLiteRTConfiguration())
+        results.append(await testToolProgressEventModel())
         results.append(await testLiveBridgeProcessAndHandshake())
         results.append(await testLiveSessionLifecycle())
         results.append(await testEventStreamingSubscription())
@@ -325,6 +327,71 @@ public final class GoogleCloudSDKTests: Sendable {
             testName: "Security: Credential Sanitization in Telemetry",
             passed: passed,
             message: passed ? "Verified API keys are never surfaced into diagnostic logs or telemetry." : "Sensitive API key found in runtime logs.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // LiteRT Configuration Test
+    public func testLiteRTConfiguration() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let config = GoogleCloudSDKConfiguration(
+            model: "gemma-3-27b",
+            provider: "litert",
+            litertModelPath: "/path/to/model.litertlm",
+            litertBackend: "gpu",
+            downloadIfMissing: true
+        )
+
+        let dict = config.toDictionary()
+        let hasPath = (dict["litertModelPath"] as? String) == "/path/to/model.litertlm"
+        let hasBackend = (dict["litertBackend"] as? String) == "gpu"
+        let hasDownload = (dict["downloadIfMissing"] as? Bool) == true
+
+        // Verify JSON round-trip
+        var roundTripOk = false
+        if let data = try? JSONEncoder().encode(config),
+           let decoded = try? JSONDecoder().decode(GoogleCloudSDKConfiguration.self, from: data) {
+            roundTripOk = decoded.litertModelPath == "/path/to/model.litertlm" &&
+                          decoded.litertBackend == "gpu" &&
+                          decoded.downloadIfMissing == true
+        }
+
+        let passed = hasPath && hasBackend && hasDownload && roundTripOk
+        return RuntimeTestCaseResult(
+            testName: "LiteRT Model Configuration & IPC Serialization",
+            passed: passed,
+            message: passed ? "LiteRT model parameters serialized and decoded correctly." : "LiteRT serialization failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // Tool Progress Event Model Test
+    public func testToolProgressEventModel() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let event = GoogleCloudSDKEvent.toolProgress(
+            sessionId: "session_123",
+            toolId: "file_write",
+            message: "Writing file...",
+            outputChunk: "data chunk 1",
+            callId: "call_abc"
+        )
+
+        var matched = false
+        if case .toolProgress(let sid, let toolId, let msg, let chunk, let callId) = event {
+            matched = (sid == "session_123") &&
+                      (toolId == "file_write") &&
+                      (msg == "Writing file...") &&
+                      (chunk == "data chunk 1") &&
+                      (callId == "call_abc")
+        }
+
+        let hasTargetSession = (event.targetSessionId == "session_123")
+        let passed = matched && hasTargetSession
+
+        return RuntimeTestCaseResult(
+            testName: "Tool Progress Event Model & Target Session Resolution",
+            passed: passed,
+            message: passed ? "toolProgress event correctly transports progress message, output chunk, callId, and targetSessionId." : "toolProgress event fields validation failed.",
             duration: Date().timeIntervalSince(start)
         )
     }

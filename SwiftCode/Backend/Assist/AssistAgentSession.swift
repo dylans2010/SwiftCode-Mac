@@ -524,12 +524,7 @@ public final class AssistAgentSession: Sendable {
             let groundingInstructions = contextPayload?.repositoryInstructions ?? ""
             let activeFiles = contextPayload?.activeFileContents.map { "\($0.key):\n\($0.value)" }.joined(separator: "\n\n") ?? ""
 
-            let toolSchemas = cachedToolSchemas[self.state.status] ?? {
-                let phaseTools = AssistToolRouter.shared.filterTools(for: self.state.status, in: registry)
-                let serialized = AssistToolRouter.shared.serializeToolSchemas(phaseTools)
-                cachedToolSchemas[self.state.status] = serialized
-                return serialized
-            }()
+            let toolSchemas = AssistPromptOptimizer.shared.cachedPhaseSchemas(for: self.state.status, in: registry)
             let assetSystemPrompt: String
             do {
                 assetSystemPrompt = try AssistManager.shared.getSystemPrompt()
@@ -551,44 +546,19 @@ public final class AssistAgentSession: Sendable {
                 }
             }
 
-            let systemPrompt = """
-            # SYSTEM PROMPT (OPERATING POLICY)
-            \(assetSystemPrompt)
-
-            You are an autonomous Swift/macOS coding agent in SwiftCode.
-            Goal: "\(objective)"
-
-            \(executionMode.systemInstruction)
-
-            \(groundingInstructions)
-
-            Respond ONLY with valid JSON:
-            {
-              "toolId": "the_tool_id",
-              "input": { "key": "value" },
-              "explanation": "Human-readable purpose of this action"
-            }
-            OR:
-            {
-              "finalResponse": "Clear, detailed summary of completed achievements"
-            }
-
-            \(attachmentsBlock)
-            \(skillsBlock)
-            \(manifest)
-            \(activeFiles)
-            \(toolSchemas)
-            """
-
-            var conversationPrompt = systemPrompt
-            if !conversationHistory.isEmpty {
-                conversationPrompt += "\n\n# HISTORY OF RECENT TOOL EXECUTION RESULTS\n"
-                conversationPrompt += conversationHistory.suffix(8).joined(separator: "\n")
-            }
-            if !failureSummary.isEmpty {
-                conversationPrompt += "\n\n# ACTIVE FAILURE OBSERVATIONS\n\(failureSummary)"
-            }
-            conversationPrompt += "\n\nChoose the next best tool to run or provide finalResponse in valid JSON."
+            let conversationPrompt = AssistPromptOptimizer.shared.assembleStructuredAgentPrompt(
+                assetSystemPrompt: assetSystemPrompt,
+                objective: objective,
+                executionModeInstruction: executionMode.systemInstruction,
+                groundingInstructions: groundingInstructions,
+                attachmentsBlock: attachmentsBlock,
+                skillsBlock: skillsBlock,
+                manifest: manifest,
+                activeFiles: activeFiles,
+                toolSchemas: toolSchemas,
+                history: conversationHistory,
+                failureSummary: failureSummary
+            )
 
             let activeModel = AssistModelManager.shared.selectedModelID
             postConversationalMessage("I’m selecting the next action for this task.")

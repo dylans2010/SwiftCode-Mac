@@ -31,6 +31,8 @@ public final class GoogleCloudSDKSession: Identifiable, Sendable {
         return AsyncStream { continuation in
             let task = Task {
                 for await event in stream {
+                    if Task.isCancelled { break }
+
                     switch event {
                     case .agentStarted(let sid, _),
                          .agentProgress(let sid, _, _),
@@ -51,15 +53,19 @@ public final class GoogleCloudSDKSession: Identifiable, Sendable {
                         if res.sessionId == targetId {
                             continuation.yield(event)
                         }
-                    case .toolProgress(let sid, _, _):
-                        if sid == targetId || sid.isEmpty {
+                    case .toolProgress(let sid, _, _, _, _):
+                        if sid == targetId {
                             continuation.yield(event)
                         }
                     case .toolFailed(let sid, _, _, _):
-                        if sid == targetId || sid.isEmpty {
+                        if sid == targetId {
                             continuation.yield(event)
                         }
-                    case .runtimeReady, .runtimeStopped, .error:
+                    case .runtimeStopped:
+                        continuation.yield(event)
+                        continuation.finish()
+                        return
+                    case .runtimeReady, .error:
                         // Global events
                         continuation.yield(event)
                     }
@@ -73,18 +79,35 @@ public final class GoogleCloudSDKSession: Identifiable, Sendable {
         }
     }
 
-    /// Sends a conversational prompt to the agent and initiates execution.
+    /// Sends a conversational prompt to the agent and initiates execution with cooperative cancellation.
     public func sendMessage(_ content: String, attachments: [GoogleCloudSDKAttachment] = []) async throws {
-        _ = try await bridge.sendMessage(sessionId: self.id, content: content, attachments: attachments)
+        try await withTaskCancellationHandler {
+            _ = try await bridge.sendMessage(sessionId: self.id, content: content, attachments: attachments)
+        } onCancel: {
+            Task { [weak self] in
+                guard let self = self else { return }
+                try? await self.cancel()
+            }
+        }
     }
 
     /// Cancels in-progress generation or tool execution.
     public func cancel() async throws {
-        _ = try await bridge.cancelMessage(sessionId: self.id)
+        do {
+            _ = try await bridge.cancelMessage(sessionId: self.id)
+        } catch {
+            logger.warning("Failed to cancel message for session \(self.id): \(error.localizedDescription)")
+            throw error
+        }
     }
 
     /// Closes the session and frees memory in the bridge.
     public func close() async throws {
-        _ = try await bridge.closeSession(sessionId: self.id)
+        do {
+            _ = try await bridge.closeSession(sessionId: self.id)
+        } catch {
+            logger.warning("Failed to close session \(self.id): \(error.localizedDescription)")
+            throw error
+        }
     }
 }

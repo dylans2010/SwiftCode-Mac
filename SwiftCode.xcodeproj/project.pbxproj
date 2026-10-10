@@ -41,6 +41,8 @@
 		6944C4A034D45A310952CC89 /* AssistToolKnowledgeValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 139215509F7EE961621BA9D9 /* AssistToolKnowledgeValidator.swift */; };
 		6944C4A034D45A310952CC8F /* LoadUpSystemAssets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 139215509F7EE961621BA9DF /* LoadUpSystemAssets.swift */; };
 		A7B1C2D3E4F5000000000011 /* SystemAssetLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B1C2D3E4F5000000000010 /* SystemAssetLoaderTests.swift */; };
+		A7B1C2D3E4F5000000000021 /* AssistPromptOptimizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B1C2D3E4F5000000000020 /* AssistPromptOptimizer.swift */; };
+		A7B1C2D3E4F5000000000023 /* AssistPromptOptimizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B1C2D3E4F5000000000022 /* AssistPromptOptimizerTests.swift */; };
 		8D9E00020001000100000002 /* AgentPhaseCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000001 /* AgentPhaseCoordinator.swift */; };
 		8D9E00020001000100000004 /* AgentNotesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000003 /* AgentNotesManager.swift */; };
 		8D9E00020001000100000006 /* AgentModelAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000005 /* AgentModelAdapter.swift */; };
@@ -636,6 +638,10 @@
 		5C5E70000000000000000501 /* AgentSystemAsset.md in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000502 /* AgentSystemAsset.md */; };
 		5C5E70000000000000000A04 /* Assets in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000A03 /* Assets */; };
 		5C5E700000000000000005A1 /* CreatingAppAsset.md in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E700000000000000005A2 /* CreatingAppAsset.md */; };
+		5C5E70000000000000000C01 /* SystemAsset.md in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000B01 /* SystemAsset.md */; };
+		5C5E70000000000000000C02 /* Identity.md in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000B02 /* Identity.md */; };
+		5C5E70000000000000000C03 /* Memory.md in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000B03 /* Memory.md */; };
+		5C5E70000000000000000C04 /* Context.md in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000B04 /* Context.md */; };
 		5C5E70000000000000000503 /* UseTermFunction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000504 /* UseTermFunction.swift */; };
 		5C5E70000000000000000F05 /* RepositoryContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000F04 /* RepositoryContext.swift */; };
 		5C5E70000000000000000F42 /* ModelSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000F41 /* ModelSessionManager.swift */; };
@@ -718,7 +724,7 @@
 		6AFC5889BE2EBC0A3C636986 /* XcodeShortcutsCheatsheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E26BE2ADB641EA440B8AEB4 /* XcodeShortcutsCheatsheetView.swift */; };
 		6B23F5A465718EC58F385BAC /* XcodeBuildToolExtensionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A888309EDD9DFE93F9529C5 /* XcodeBuildToolExtensionView.swift */; };
 		6B77CBCA2831AD5EA1318CD5 /* FoldersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26FFEA3BEA79D669FD8D84E0 /* FoldersView.swift */; };
-		6C5BAA0778C74A69EA616CE1 /* AssistStoreMemoryTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13A8268B4257AB21FFDF869 /* AssistStoreMemoryTool.swift */; };
+		6C5BAA0778C74A69EA616CE1 /* AssistCaptureMemoryTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13A8268B4257AB21FFDF869 /* AssistCaptureMemoryTool.swift */; };
 		6C8557C5C82A404DA4EEAB88 /* AssistCIFunctions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70B77B2DA5337218E8C99F32 /* AssistCIFunctions.swift */; };
 		6CA37F747A4E4D68422ADD57 /* URLDecomposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D56519A14F65417981878E6 /* URLDecomposerView.swift */; };
 		6CBF5DF72349125945F905AE /* Views/DatabasePermissionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F25CE9EE9D2109424E5CA88 /* Views/DatabasePermissionsView.swift */; };
@@ -1007,7 +1013,7 @@
 		953E81C5D41E2FB50B8338CE /* AppSandboxExplorerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66CD257706C915B179B3604B /* AppSandboxExplorerDevToolView.swift */; };
 		954D91DE4D75F7BF9CF8DFB1 /* AssistSnapshotFunctions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62203D00D433D41E8DBBF1AA /* AssistSnapshotFunctions.swift */; };
 		955A05A8ABD2498CB26E8F43 /* ToolSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15C14C45B1646A3B30C309B /* ToolSource.swift */; };
-		956239866AAEA4A6ABC7A381 /* AssistClearMemoryTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = A942EEE5E686CDD5C5D7A86C /* AssistClearMemoryTool.swift */; };
+		956239866AAEA4A6ABC7A381 /* AssistManageMemoryTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = A942EEE5E686CDD5C5D7A86C /* AssistManageMemoryTool.swift */; };
 		95AED525DC4C57CB5A53C4C3 /* OfflineModelDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43CEAAEEBB0248577216B72E /* OfflineModelDownloader.swift */; };
 		95E5ABA9F1BF43169F5D9D57 /* SwiftCode/Views/Build/DeviceConnectKit/Services/LogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BEDB40C00441B6B890FD5E /* SwiftCode/Views/Build/DeviceConnectKit/Services/LogService.swift */; };
 		963017EFD22847BDB3B6D5D7 /* DatabaseMigrationTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5FD70ED49224A819260111C /* DatabaseMigrationTool.swift */; };
@@ -1084,7 +1090,8 @@
 		A103C2E17C0E538256C7278E /* LogConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26A2214B1EA1974C9709B778 /* LogConsoleView.swift */; };
 		A103ECEB1B513C24542737E1 /* SearchDocumentationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC4978018A58A635B164593E /* SearchDocumentationView.swift */; };
 		A10DE9AB75E3E283785DD550 /* FileNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6291F6B2323D40008CF052F5 /* FileNode.swift */; };
-		A1246FC706D773AF0F6386E8 /* AssistContextSnapshotTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD54992631331BB681BE7A7C /* AssistContextSnapshotTool.swift */; };
+		A1246FC706D773AF0F6386E8 /* AssistMemoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD54992631331BB681BE7A7C /* AssistMemoryStore.swift */; };
+		C46493C840B09DCD68F12136 /* UserMemoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C46493C840B09DCD68F12135 /* UserMemoryView.swift */; };
 		A15B3785AD727C12240D8E06 /* Core/DatabaseConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A531B0DBC26DB474313ABA5F /* Core/DatabaseConnectionManager.swift */; };
 		A16E4873A0CC4CEB920D3533 /* ThemeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63152C961326313A6F362DAE /* ThemeViewModel.swift */; };
 		A19000000000000000000001 /* ExportProjManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF000000000000000000001 /* ExportProjManager.swift */; };
@@ -2668,6 +2675,8 @@
 		139215509F7EE961621BA9D9 /* AssistToolKnowledgeValidator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistToolKnowledgeValidator.swift; sourceTree = "<group>"; };
 		139215509F7EE961621BA9DF /* LoadUpSystemAssets.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LoadUpSystemAssets.swift; sourceTree = "<group>"; };
 		A7B1C2D3E4F5000000000010 /* SystemAssetLoaderTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SystemAssetLoaderTests.swift; sourceTree = "<group>"; };
+		A7B1C2D3E4F5000000000020 /* AssistPromptOptimizer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistPromptOptimizer.swift; sourceTree = "<group>"; };
+		A7B1C2D3E4F5000000000022 /* AssistPromptOptimizerTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistPromptOptimizerTests.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000001 /* AgentPhaseCoordinator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentPhaseCoordinator.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000003 /* AgentNotesManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentNotesManager.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000005 /* AgentModelAdapter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentModelAdapter.swift; sourceTree = "<group>"; };
@@ -3259,6 +3268,10 @@
 		5C5E70000000000000000502 /* AgentSystemAsset.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = AgentSystemAsset.md; sourceTree = "<group>"; };
 		5C5E70000000000000000A03 /* Assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Assets; sourceTree = "<group>"; };
 		5C5E700000000000000005A2 /* CreatingAppAsset.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = CreatingAppAsset.md; sourceTree = "<group>"; };
+		5C5E70000000000000000B01 /* SystemAsset.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = Assets/SystemAsset.md; sourceTree = "<group>"; };
+		5C5E70000000000000000B02 /* Identity.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = Assets/Identity.md; sourceTree = "<group>"; };
+		5C5E70000000000000000B03 /* Memory.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = Assets/Memory.md; sourceTree = "<group>"; };
+		5C5E70000000000000000B04 /* Context.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = Assets/Context.md; sourceTree = "<group>"; };
 		5C5E70000000000000000504 /* UseTermFunction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UseTermFunction.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000F04 /* RepositoryContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryContext.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000F41 /* ModelSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSessionManager.swift; sourceTree = "<group>"; };
@@ -3752,7 +3765,7 @@
 		A114197E60D9E765B59FB600 /* ProjectInspector/ProjectInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectInspector/ProjectInspectorView.swift; sourceTree = "<group>"; };
 		A132C3AB577BB87EAF7ED11B /* Views/DatabaseImportExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/DatabaseImportExportView.swift; sourceTree = "<group>"; };
 		A1332B8131E27F86E84CC220 /* SnippetsLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetsLibraryView.swift; sourceTree = "<group>"; };
-		A13A8268B4257AB21FFDF869 /* AssistStoreMemoryTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistStoreMemoryTool.swift; sourceTree = "<group>"; };
+		A13A8268B4257AB21FFDF869 /* AssistCaptureMemoryTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistCaptureMemoryTool.swift; sourceTree = "<group>"; };
 		A159921737F5104B00EC9DFC /* IncomingTransferView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingTransferView.swift; sourceTree = "<group>"; };
 		A15A05021CCED090788DED3C /* AppKit/OperationsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppKit/OperationsWindowController.swift; sourceTree = "<group>"; };
 		A1694FBAB8D24BFD9C74B318 /* SwiftCode/Views/Build/DeviceConnectKit/Services/LaunchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Build/DeviceConnectKit/Services/LaunchService.swift; sourceTree = SOURCE_ROOT; };
@@ -3814,7 +3827,7 @@
 		A885C0C4DB5B92758A2A4B95 /* Core/DatabaseSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DatabaseSyncManager.swift; sourceTree = "<group>"; };
 		A8CBF3504E3D75E7C4ADD865 /* BatteryStatusDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatteryStatusDevToolView.swift; sourceTree = "<group>"; };
 		A8F0793AEDDC59758EFDE878 /* Views/OperationsSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/OperationsSidebarView.swift; sourceTree = "<group>"; };
-		A942EEE5E686CDD5C5D7A86C /* AssistClearMemoryTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistClearMemoryTool.swift; sourceTree = "<group>"; };
+		A942EEE5E686CDD5C5D7A86C /* AssistManageMemoryTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistManageMemoryTool.swift; sourceTree = "<group>"; };
 		A973E05C298E5221CED81F33 /* PerformanceMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceMonitorView.swift; sourceTree = "<group>"; };
 		A977BA9D804F72737F28D146 /* CollaborationMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollaborationMainView.swift; sourceTree = "<group>"; };
 		A9B73BCEC27A7CE2A29991DA /* SwiftCode/Views/GitHub/Menu Bar/NSCreateRepositoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SwiftCode/Views/GitHub/Menu Bar/NSCreateRepositoryView.swift"; sourceTree = SOURCE_ROOT; };
@@ -3843,7 +3856,8 @@
 		ACB6E3E9B9E708BE160A4FB5 /* Views/StorageManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/StorageManagerView.swift; sourceTree = "<group>"; };
 		ACBA0E02254F4B0183510C06 /* CocoaPods.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CocoaPods.swift; sourceTree = "<group>"; };
 		AD1D2FC6DA3C4339A49EDA22 /* Bun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bun.swift; sourceTree = "<group>"; };
-		AD54992631331BB681BE7A7C /* AssistContextSnapshotTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistContextSnapshotTool.swift; sourceTree = "<group>"; };
+		AD54992631331BB681BE7A7C /* AssistMemoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistMemoryStore.swift; sourceTree = "<group>"; };
+		C46493C840B09DCD68F12135 /* UserMemoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserMemoryView.swift; sourceTree = "<group>"; };
 		AD5FC3C7C3A2F1A879A9D4FA /* Storage/InfrastructureAndVirtualizationManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Storage/InfrastructureAndVirtualizationManagers.swift; sourceTree = "<group>"; };
 		AD69C80910306FD97E80CE82 /* CSVParserDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVParserDevToolView.swift; sourceTree = "<group>"; };
 		AD7E686E088FED037B0BAF7C /* Managers/PrimaryManagers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/PrimaryManagers.swift; sourceTree = "<group>"; };
@@ -5593,13 +5607,12 @@
 				214F4A907150AFEE77AF7658 /* AssistBreakdownTaskTool.swift */,
 				F5A6614A6587A234B7417DC5 /* AssistBuildProjectTool.swift */,
 				E7E4D8EB73CB221098234F56 /* AssistChangeLogTool.swift */,
-				A942EEE5E686CDD5C5D7A86C /* AssistClearMemoryTool.swift */,
+				A942EEE5E686CDD5C5D7A86C /* AssistManageMemoryTool.swift */,
 				55F77A58B0562271527F1CAE /* AssistCodeMutationEngine.swift */,
 				4BB42B6829E8AD80F979AA47 /* AssistCodeSummaryTool.swift */,
 				02FD5F5ECE9D6215E90E8C37 /* AssistCompilerDiagnosticsEngine.swift */,
 				5BBED032DA77DFA0B0598605 /* AssistComplexityAnalysisTool.swift */,
 				1DBDE0DB17CE76075E55597F /* AssistContextPersistenceStore.swift */,
-				AD54992631331BB681BE7A7C /* AssistContextSnapshotTool.swift */,
 				EC3A70B57D8E0BF9F9805ABF /* AssistCopyFileTool.swift */,
 				C30534EE8E54C035A52377B9 /* AssistCreateDirectoryTool.swift */,
 				4D86E6B3C4F5CD5E93105C83 /* AssistCreateFileTool.swift */,
@@ -5636,7 +5649,7 @@
 				C2B098DB710219E16DA132EE /* AssistSemanticQueryEngine.swift */,
 				F71E00427B55FD567B395560 /* AssistSnapshotProjectTool.swift */,
 				9A9034CA6686B5C233D6C9A2 /* AssistSourceGraphBuilder.swift */,
-				A13A8268B4257AB21FFDF869 /* AssistStoreMemoryTool.swift */,
+				A13A8268B4257AB21FFDF869 /* AssistCaptureMemoryTool.swift */,
 				2CBAE7F87F6D03900A99406A /* AssistSymbolSearchTool.swift */,
 				0BBB5ECA29A78530B20B0BD9 /* AssistTaskRunnerTool.swift */,
 				B18C9035E94CEF4BA1D99B18 /* AssistTestRunnerTool.swift */,
@@ -5722,6 +5735,10 @@
 			isa = PBXGroup;
 			children = (
 				5C5E70000000000000000A03 /* Assets */,
+				5C5E70000000000000000B01 /* SystemAsset.md */,
+				5C5E70000000000000000B02 /* Identity.md */,
+				5C5E70000000000000000B03 /* Memory.md */,
+				5C5E70000000000000000B04 /* Context.md */,
 				5C5E70000000000000000F45 /* AssistSkillsCheck.swift */,
 				C25E63C0C3F147AD9AFB057B /* CodeReviewSystemAsset.md */,
 				5C5E70000000000000000502 /* AgentSystemAsset.md */,
@@ -5969,6 +5986,7 @@
 				5C5E70000000000000000203 /* AddFilesAgentContext.swift */,
 				6D3F79ABA55559EF6F44BF84 /* AssistDiffView.swift */,
 				1E9D7E2F8F62E029750AD8AA /* AssistMainView.swift */,
+				C46493C840B09DCD68F12135 /* UserMemoryView.swift */,
 				D9F800020000000000000003 /* PlanUserAskView.swift */,
 				D1A0000128C0000100000004 /* AssistActivityView.swift */,
 				1E9D7E2F8F62E029750AD8AB /* AgentNotesInspectorView.swift */,
@@ -7262,6 +7280,8 @@
 				139215509F7EE961621BA9D9 /* AssistToolKnowledgeValidator.swift */,
 				139215509F7EE961621BA9DF /* LoadUpSystemAssets.swift */,
 				A7B1C2D3E4F5000000000010 /* SystemAssetLoaderTests.swift */,
+				A7B1C2D3E4F5000000000020 /* AssistPromptOptimizer.swift */,
+				A7B1C2D3E4F5000000000022 /* AssistPromptOptimizerTests.swift */,
 				8D9E00020001000100000001 /* AgentPhaseCoordinator.swift */,
 				8D9E00020001000100000003 /* AgentNotesManager.swift */,
 				8D9E00020001000100000005 /* AgentModelAdapter.swift */,
@@ -7272,6 +7292,7 @@
 				5C5E70000000000000000F43 /* DiagnosticEvent.swift */,
 				F859731420AEAAE5ADDF29A8 /* AgentSessionState.swift */,
 				F858A66D2BAE541D0C07EF9D /* AssistAgentSession.swift */,
+				AD54992631331BB681BE7A7C /* AssistMemoryStore.swift */,
 				F8F460B8425C1D4175E5EB16 /* AgentContextManager.swift */,
 				8B856F3ACC7B114CD06B04F3 /* API */,
 				0552912968A227D7F9DBDAD8 /* Assist Frameworks */,
@@ -9575,6 +9596,10 @@
 				D48EB73DDC4EC7ADD58C1CAA /* DocSymbols.json in Resources */,
 				5A218C6921DA4803A19F8831 /* CodeReviewSystemAsset.md in Resources */,
 				5C5E70000000000000000A04 /* Assets in Resources */,
+				5C5E70000000000000000C01 /* SystemAsset.md in Resources */,
+				5C5E70000000000000000C02 /* Identity.md in Resources */,
+				5C5E70000000000000000C03 /* Memory.md in Resources */,
+				5C5E70000000000000000C04 /* Context.md in Resources */,
 				5C5E70000000000000000501 /* AgentSystemAsset.md in Resources */,
 				5C5E700000000000000005A1 /* CreatingAppAsset.md in Resources */,
 				600B4ED1612FABB403A598E2 /* package.json in Resources */,
@@ -10502,6 +10527,8 @@
 				6944C4A034D45A310952CC89 /* AssistToolKnowledgeValidator.swift in Sources */,
 				6944C4A034D45A310952CC8F /* LoadUpSystemAssets.swift in Sources */,
 				A7B1C2D3E4F5000000000011 /* SystemAssetLoaderTests.swift in Sources */,
+				A7B1C2D3E4F5000000000021 /* AssistPromptOptimizer.swift in Sources */,
+				A7B1C2D3E4F5000000000023 /* AssistPromptOptimizerTests.swift in Sources */,
 				8D9E00020001000100000002 /* AgentPhaseCoordinator.swift in Sources */,
 				8D9E00020001000100000004 /* AgentNotesManager.swift in Sources */,
 				8D9E00020001000100000006 /* AgentModelAdapter.swift in Sources */,
@@ -10922,13 +10949,14 @@
 				D5781290A80F075CE5578FAC /* AssistBreakdownTaskTool.swift in Sources */,
 				DD52B5A8BBB22538D0CBCCBD /* AssistBuildProjectTool.swift in Sources */,
 				1961BDB3BF05E4B814E5F66C /* AssistChangeLogTool.swift in Sources */,
-				956239866AAEA4A6ABC7A381 /* AssistClearMemoryTool.swift in Sources */,
+				956239866AAEA4A6ABC7A381 /* AssistManageMemoryTool.swift in Sources */,
 				90916BD236BEE3C61215F805 /* AssistCodeMutationEngine.swift in Sources */,
 				86302A0F345A09015E33FA12 /* AssistCodeSummaryTool.swift in Sources */,
 				06105243AF00193C2779F32B /* AssistCompilerDiagnosticsEngine.swift in Sources */,
 				7808E237955A9412830DF5AF /* AssistComplexityAnalysisTool.swift in Sources */,
 				7731E16B3F080720F483F219 /* AssistContextPersistenceStore.swift in Sources */,
-				A1246FC706D773AF0F6386E8 /* AssistContextSnapshotTool.swift in Sources */,
+				A1246FC706D773AF0F6386E8 /* AssistMemoryStore.swift in Sources */,
+				C46493C840B09DCD68F12136 /* UserMemoryView.swift in Sources */,
 				CA97C2B8C27FF68767ED218D /* AssistCopyFileTool.swift in Sources */,
 				FEEB43E173A76242890C793F /* AssistCreateDirectoryTool.swift in Sources */,
 				12BF2C55E38591BEF5E01446 /* AssistCreateFileTool.swift in Sources */,
@@ -10973,7 +11001,7 @@
 				BEB5B1CF3E8307F9146475A4 /* AssistSemanticQueryEngine.swift in Sources */,
 				03B2E384CC3390D5F96A1DF4 /* AssistSnapshotProjectTool.swift in Sources */,
 				8EA0135D7BAD9C0DC9107D4C /* AssistSourceGraphBuilder.swift in Sources */,
-				6C5BAA0778C74A69EA616CE1 /* AssistStoreMemoryTool.swift in Sources */,
+				6C5BAA0778C74A69EA616CE1 /* AssistCaptureMemoryTool.swift in Sources */,
 				D893ADC1494CAB8776B2F7A8 /* AssistSymbolSearchTool.swift in Sources */,
 				3C0A571BC4A8B8D4FDDFA6CC /* AssistTaskRunnerTool.swift in Sources */,
 				03B7AAF26147F4CFEC46F67E /* AssistTestRunnerTool.swift in Sources */,

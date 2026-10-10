@@ -30,6 +30,12 @@ public final class ModelSessionManager {
         let cleanModelID = newModelID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanModelID.isEmpty else { return }
 
+        // Fast path: if already active and ready on this exact model, skip redundant teardown
+        if self.activeModelID == cleanModelID && self.state == .ready {
+            logger.debug("[switchModel] Model '\(cleanModelID)' is already active and ready. Skipping redundant switch.")
+            return
+        }
+
         logger.log("[switchModel] Initiating switch from \(self.activeModelID) to \(cleanModelID)...")
         DiagnosticEventBus.shared.logEvent(
             component: "ModelSessionManager",
@@ -46,21 +52,14 @@ public final class ModelSessionManager {
         // Invalidate URLSession on LLMService
         LLMService.shared.recreateSession(for: cleanModelID)
 
-        // Force clear any old session/provider-specific cached objects
-        try? await Task.sleep(nanoseconds: 100_000_000) // Small yield for cleanup
-
         // 2. TRANSITION-SETUP
         self.state = .settingUp
         logger.log("[switchModel] Setting up new session for model \(cleanModelID)")
 
         // 3. CONFIRMATION
-        // We verify the active model is updated successfully
-        try? await Task.sleep(nanoseconds: 100_000_000)
-
-        logger.log("[switchModel] Resolved provider verified. Session confirmed active for \(cleanModelID).")
-
         self.activeModelID = cleanModelID
         self.state = .ready
+        logger.log("[switchModel] Resolved provider verified. Session confirmed active for \(cleanModelID).")
 
         DiagnosticEventBus.shared.logEvent(
             component: "ModelSessionManager",

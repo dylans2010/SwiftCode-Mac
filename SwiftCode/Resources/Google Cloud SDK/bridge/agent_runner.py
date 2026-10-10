@@ -9,9 +9,8 @@ import asyncio
 import os
 import sys
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple, Awaitable
-
 import uuid
+from typing import Any, Callable, Dict, List, Optional, Tuple, Awaitable
 
 # Ensure bundled site-packages are available
 bridge_dir = os.path.dirname(os.path.abspath(__file__))
@@ -26,17 +25,35 @@ if "ANTIGRAVITY_HARNESS_PATH" not in os.environ:
         os.environ["ANTIGRAVITY_HARNESS_PATH"] = candidate
 
 from google.antigravity import Agent, LocalAgentConfig, LocalOpenAIAgentConfig, types
+try:
+    from google.antigravity import LiteRTAgentConfig
+except ImportError:
+    try:
+        from google.antigravity.connections.local.litert_connection_config import LiteRTAgentConfig
+    except ImportError:
+        LiteRTAgentConfig = None
+
 from google.antigravity.hooks import hooks, policy
 from google.antigravity.types import Text, Thought, ToolCall, ToolResult
 from google.antigravity.tools.tool_runner import ToolWithSchema
 
 logger = logging.getLogger("AntigravityAgentRunner")
 
+_sanitized_schema_cache: Dict[str, Any] = {}
+
 
 def sanitize_schema(schema: Any) -> Any:
     """Sanitizes JSON schemas from clients to ensure full compliance with Gemini/OpenAPI."""
     if not isinstance(schema, dict):
         return schema
+
+    cache_key = None
+    try:
+        cache_key = json.dumps(schema, sort_keys=True)
+        if cache_key in _sanitized_schema_cache:
+            return dict(_sanitized_schema_cache[cache_key])
+    except Exception:
+        cache_key = None
 
     cleaned = dict(schema)
 
@@ -77,7 +94,24 @@ def sanitize_schema(schema: Any) -> Any:
             k: sanitize_schema(v) for k, v in cleaned["properties"].items()
         }
 
+    if cache_key:
+        _sanitized_schema_cache[cache_key] = cleaned
+
     return cleaned
+
+
+class ToolCallState:
+    """Tracks state and identity for a single tool call to guarantee idempotency and stability."""
+    def __init__(self, call_id: str, tool_name: str, args: Dict[str, Any]):
+        self.call_id = call_id
+        self.tool_name = tool_name
+        self.args = args
+        self.started_emitted = False
+        self.finished = False
+        self.failed = False
+        self.result: Optional[str] = None
+        self.error: Optional[str] = None
+        self.is_subagent = (tool_name == "start_subagent")
 
 
 class ActiveSession:
@@ -88,7 +122,66 @@ class ActiveSession:
         self.active_response: Optional[types.ChatResponse] = None
         self.active_task: Optional[asyncio.Task[Any]] = None
         self.is_closed = False
-        self.pending_call_ids: Dict[str, List[str]] = {}
+        # Map call_id -> ToolCallState
+        self.active_tools: Dict[str, ToolCallState] = {}
+        # Queue of pending call_ids by tool_name
+        self.pending_by_name: Dict[str, List[str]] = {}
+        # Set of call_ids that have finished (completed or failed) to guarantee deduplication
+        self.finished_call_ids: set[str] = set()
+
+    def get_or_create_tool_call(self, call_id: str, tool_name: str, args: Dict[str, Any]) -> ToolCallState:
+        if call_id in self.active_tools:
+            return self.active_tools[call_id]
+        state = ToolCallState(call_id=call_id, tool_name=tool_name, args=args)
+        self.active_tools[call_id] = state
+        self.pending_by_name.setdefault(tool_name, []).append(call_id)
+        return state
+
+    def pop_pending_tool_call(self, tool_name: str, args: Optional[Dict[str, Any]] = None) -> Optional[ToolCallState]:
+        pending_list = self.pending_by_name.get(tool_name, [])
+        if not pending_list:
+            return None
+
+        # 1. Match by exact arguments if provided
+        if args is not None:
+            for idx, cid in enumerate(pending_list):
+                state = self.active_tools.get(cid)
+                if state and state.args == args and not state.finished:
+                    pending_list.pop(idx)
+                    return state
+
+        # 2. Fall back to oldest unfinished call_id in FIFO order
+        while pending_list:
+            cid = pending_list.pop(0)
+            state = self.active_tools.get(cid)
+            if state and not state.finished:
+                return state
+
+        return None
+
+    def mark_all_tools_failed(self, error_message: str = "Operation cancelled"):
+        """Marks all active, unfinished tools as failed and emits failure events over IPC."""
+        for call_id, state in list(self.active_tools.items()):
+            if not state.finished and call_id not in self.finished_call_ids:
+                state.finished = True
+                state.failed = True
+                state.error = error_message
+                self.finished_call_ids.add(call_id)
+                self.emit_fn("tool.failed", {
+                    "sessionId": self.session_id,
+                    "toolCallId": call_id,
+                    "toolId": call_id,
+                    "toolName": state.tool_name,
+                    "error": error_message,
+                })
+                if state.is_subagent:
+                    self.emit_fn("worker.failed", {
+                        "sessionId": self.session_id,
+                        "workerId": call_id,
+                        "error": error_message,
+                    })
+        self.active_tools.clear()
+        self.pending_by_name.clear()
 
 
 class AgentRunner:
@@ -105,6 +198,7 @@ class AgentRunner:
         self._lock = asyncio.Lock()
 
     def emit_tool_progress(self, session_id: str, tool_id: str, message: str, tool_name: str = ""):
+        """Emits tool.progress notification over IPC with preserved call_id."""
         self.emit_fn("tool.progress", {
             "sessionId": session_id,
             "toolCallId": tool_id,
@@ -118,42 +212,95 @@ class AgentRunner:
 
         @hooks.on_session_start
         async def on_start():
-            emit("agent.started", {"sessionId": session_id, "timestamp": asyncio.get_event_loop().time()})
+            logger.debug("Antigravity session '%s' initialized", session_id)
 
         @hooks.on_session_end
         async def on_end():
-            emit("agent.completed", {"sessionId": session_id, "timestamp": asyncio.get_event_loop().time()})
+            logger.debug("Antigravity session '%s' ended", session_id)
 
         @hooks.pre_tool_call_decide
         async def on_pre_tool(call: ToolCall) -> types.HookResult:
-            call_id = getattr(call, "id", "") or str(getattr(call, "step_id", "") or "")
-            tool_name = getattr(call, "name", "")
-            tool_args = getattr(call, "args", {}) or {}
-            session = self.sessions.get(session_id)
-            if session:
-                session.pending_call_ids.setdefault(tool_name, []).append(call_id)
+            raw_id = getattr(call, "id", None) or getattr(call, "step_id", None)
+            if raw_id:
+                call_id = str(raw_id)
+            else:
+                call_id = f"call_{uuid.uuid4().hex[:12]}"
+            call.id = call_id
 
-            if tool_name == "start_subagent":
-                emit("worker.started", {
+            tool_name = getattr(call, "name", "") or ""
+            tool_args = getattr(call, "args", {}) or {}
+            if not isinstance(tool_args, dict):
+                tool_args = {}
+
+            session = self.sessions.get(session_id)
+            state = None
+            if session:
+                state = session.get_or_create_tool_call(call_id, tool_name, tool_args)
+
+            # Emit canonical start notifications once per tool call
+            if not state or not state.started_emitted:
+                if state:
+                    state.started_emitted = True
+                if tool_name == "start_subagent":
+                    emit("worker.started", {
+                        "sessionId": session_id,
+                        "workerId": call_id,
+                        "name": tool_name,
+                        "args": tool_args,
+                    })
+                emit("tool.started", {
                     "sessionId": session_id,
-                    "workerId": call_id,
-                    "name": tool_name,
+                    "toolCallId": call_id,
+                    "toolId": call_id,
+                    "toolName": tool_name,
                     "args": tool_args,
                 })
-            emit("tool.started", {
-                "sessionId": session_id,
-                "toolCallId": call_id,
-                "toolName": tool_name,
-                "args": tool_args,
-            })
             return types.HookResult(allow=True)
 
         @hooks.post_tool_call
         async def on_post_tool(res: ToolResult):
-            call_id = getattr(res, "id", "") or str(getattr(res, "step_id", "") or "")
-            tool_name = getattr(res, "name", "")
+            raw_id = getattr(res, "id", None) or getattr(res, "step_id", None)
+            call_id = str(raw_id) if raw_id else ""
+            tool_name = getattr(res, "name", "") or ""
             result_val = getattr(res, "result", None)
             err_val = getattr(res, "error", None)
+
+            session = self.sessions.get(session_id)
+            if session and call_id and call_id in session.finished_call_ids:
+                # Already finalized: suppress duplicate completion/failure event
+                return
+
+            state: Optional[ToolCallState] = None
+
+            if session:
+                if call_id and call_id in session.active_tools:
+                    state = session.active_tools.get(call_id)
+                else:
+                    # Match by tool_name with an unfinished active tool
+                    for cid, t_state in list(session.active_tools.items()):
+                        if t_state.tool_name == tool_name and not t_state.finished:
+                            state = t_state
+                            call_id = cid
+                            break
+
+            if session and call_id and call_id in session.finished_call_ids:
+                return
+
+            if not call_id:
+                call_id = getattr(state, "call_id", "") or f"call_{uuid.uuid4().hex[:12]}"
+
+            if state and state.finished:
+                if session and call_id:
+                    session.finished_call_ids.add(call_id)
+                return
+
+            if state:
+                state.finished = True
+                if session:
+                    session.active_tools.pop(call_id, None)
+                    session.finished_call_ids.add(call_id)
+            elif session and call_id:
+                session.finished_call_ids.add(call_id)
 
             # Determine whether execution failed (exception or error message string)
             is_failure = bool(err_val)
@@ -163,20 +310,27 @@ class AgentRunner:
                 error_message = result_val
 
             if is_failure:
+                final_err = (state.error if state and state.error else "") or error_message or "Tool execution failed"
+                if state:
+                    state.failed = True
+                    state.error = final_err
                 if tool_name == "start_subagent":
                     emit("worker.failed", {
                         "sessionId": session_id,
                         "workerId": call_id,
-                        "error": error_message,
+                        "error": final_err,
                     })
                 emit("tool.failed", {
                     "sessionId": session_id,
                     "toolCallId": call_id,
+                    "toolId": call_id,
                     "toolName": tool_name,
-                    "error": error_message,
+                    "error": final_err,
                 })
             else:
-                formatted_result = str(result_val) if result_val is not None else ""
+                formatted_result = str(result_val) if result_val is not None else (state.result if state and state.result else "")
+                if state:
+                    state.result = formatted_result
                 if tool_name == "start_subagent":
                     emit("worker.completed", {
                         "sessionId": session_id,
@@ -186,16 +340,72 @@ class AgentRunner:
                 emit("tool.completed", {
                     "sessionId": session_id,
                     "toolCallId": call_id,
+                    "toolId": call_id,
                     "toolName": tool_name,
                     "result": formatted_result,
                 })
 
         @hooks.on_tool_error
         async def on_tool_err(exc: Exception):
+            tool_name = getattr(exc, "tool_name", "") or ""
+            raw_id = getattr(exc, "call_id", None) or getattr(exc, "step_id", None)
+            call_id = str(raw_id) if raw_id else ""
+            session = self.sessions.get(session_id)
+
+            if session and call_id and call_id in session.finished_call_ids:
+                return None
+
+            state: Optional[ToolCallState] = None
+
+            if session:
+                if call_id and call_id in session.active_tools:
+                    state = session.active_tools.get(call_id)
+                elif tool_name:
+                    for cid, t_state in list(session.active_tools.items()):
+                        if t_state.tool_name == tool_name and not t_state.finished:
+                            state = t_state
+                            call_id = cid
+                            break
+                if not call_id:
+                    for cid, t_state in list(session.active_tools.items()):
+                        if not t_state.finished:
+                            state = t_state
+                            call_id = cid
+                            tool_name = t_state.tool_name
+                            break
+
+            if session and call_id and call_id in session.finished_call_ids:
+                return None
+
+            if state and state.finished:
+                if session and call_id:
+                    session.finished_call_ids.add(call_id)
+                return None
+
+            if state:
+                state.finished = True
+                state.failed = True
+                state.error = str(exc)
+                if session:
+                    session.active_tools.pop(call_id, None)
+                    session.finished_call_ids.add(call_id)
+            elif session and call_id:
+                session.finished_call_ids.add(call_id)
+
+            final_id = call_id or f"call_{uuid.uuid4().hex[:12]}"
             emit("tool.failed", {
                 "sessionId": session_id,
+                "toolCallId": final_id,
+                "toolId": final_id,
+                "toolName": tool_name,
                 "error": str(exc),
             })
+            if tool_name == "start_subagent":
+                emit("worker.failed", {
+                    "sessionId": session_id,
+                    "workerId": final_id,
+                    "error": str(exc),
+                })
             return None
 
         return [on_start, on_end, on_pre_tool, on_post_tool, on_tool_err]
@@ -213,44 +423,140 @@ class AgentRunner:
 
         async def _execute_swift_tool(**kwargs) -> str:
             session = self.sessions.get(session_id)
+            state: Optional[ToolCallState] = None
             call_id = ""
-            if session and session.pending_call_ids.get(tool_name):
-                call_id = session.pending_call_ids[tool_name].pop(0)
+
+            if session:
+                state = session.pop_pending_tool_call(tool_name, kwargs)
+                if state:
+                    call_id = state.call_id
+
             if not call_id:
-                call_id = str(uuid.uuid4())
+                call_id = f"call_{uuid.uuid4().hex[:12]}"
+                if session:
+                    state = session.get_or_create_tool_call(call_id, tool_name, kwargs)
+
+            # Ensure tool.started was emitted with this exact stable call_id
+            if state and not state.started_emitted:
+                state.started_emitted = True
+                if state.is_subagent:
+                    emit("worker.started", {
+                        "sessionId": session_id,
+                        "workerId": call_id,
+                        "name": tool_name,
+                        "args": kwargs,
+                    })
+                emit("tool.started", {
+                    "sessionId": session_id,
+                    "toolCallId": call_id,
+                    "toolId": call_id,
+                    "toolName": tool_name,
+                    "args": kwargs,
+                })
 
             if not request_fn:
                 err = f"Tool execution handler not registered for tool '{tool_name}'"
+                if state:
+                    state.error = err
                 return f"Error: {err}"
 
+            def _on_progress(chunk: Any):
+                chunk_str = str(chunk)
+                if chunk_str:
+                    self.emit_tool_progress(session_id, call_id, chunk_str, tool_name)
+
             try:
-                # Pass stable SDK call.id to Swift tool execution.
-                # Redundant tool.started and tool.completed emissions are omitted here
-                # because the SDK on_pre_tool and on_post_tool hooks canonically emit them.
                 import inspect
                 sig = inspect.signature(request_fn)
+                call_kwargs: Dict[str, Any] = {}
+                if "progress_callback" in sig.parameters:
+                    call_kwargs["progress_callback"] = _on_progress
+                elif "on_progress" in sig.parameters:
+                    call_kwargs["on_progress"] = _on_progress
+
                 if "call_id" in sig.parameters or len(sig.parameters) >= 4:
-                    res = await request_fn(session_id, tool_name, kwargs, call_id)
+                    res = await request_fn(session_id, tool_name, kwargs, call_id, **call_kwargs)
                 else:
-                    res = await request_fn(session_id, tool_name, kwargs)
+                    res = await request_fn(session_id, tool_name, kwargs, **call_kwargs)
+
+                # Handle async generator / generator streaming chunks
+                if inspect.isasyncgen(res) or hasattr(res, "__aiter__"):
+                    chunks = []
+                    async for item in res:
+                        item_str = str(item)
+                        chunks.append(item_str)
+                        self.emit_tool_progress(session_id, call_id, item_str, tool_name)
+                    final_result = "".join(chunks)
+                    if state:
+                        state.result = final_result
+                    return final_result
+                elif inspect.isgenerator(res):
+                    chunks = []
+                    for item in res:
+                        item_str = str(item)
+                        chunks.append(item_str)
+                        self.emit_tool_progress(session_id, call_id, item_str, tool_name)
+                    final_result = "".join(chunks)
+                    if state:
+                        state.result = final_result
+                    return final_result
 
                 if isinstance(res, dict):
-                    # Surface tool.progress notification if intermediate progress is reported
-                    if "progress" in res and res["progress"]:
-                        emit("tool.progress", {
-                            "sessionId": session_id,
-                            "toolCallId": call_id,
-                            "toolName": tool_name,
-                            "message": str(res["progress"]),
-                        })
+                    # Surface tool.progress notification if intermediate progress or chunks are reported
+                    prog = res.get("progress") or res.get("progressMessage") or res.get("message")
+                    if prog:
+                        if isinstance(prog, list):
+                            for p in prog:
+                                self.emit_tool_progress(session_id, call_id, str(p), tool_name)
+                        else:
+                            self.emit_tool_progress(session_id, call_id, str(prog), tool_name)
+                    if "chunks" in res and isinstance(res["chunks"], list):
+                        for c in res["chunks"]:
+                            self.emit_tool_progress(session_id, call_id, str(c), tool_name)
+
                     if res.get("success", False):
-                        return str(res.get("result", ""))
+                        out_val = str(res.get("result", ""))
+                        if state:
+                            state.result = out_val
+                        return out_val
                     else:
                         err_msg = res.get("error") or "Unknown tool execution error"
+                        if state:
+                            state.error = err_msg
                         return f"Error executing {tool_name}: {err_msg}"
-                return str(res)
+
+                out_val = str(res)
+                if state:
+                    state.result = out_val
+                return out_val
+
+            except asyncio.CancelledError:
+                if state and not state.finished:
+                    state.finished = True
+                    state.failed = True
+                    state.error = "Tool execution was cancelled"
+                    if session:
+                        session.finished_call_ids.add(call_id)
+                        session.active_tools.pop(call_id, None)
+                    emit("tool.failed", {
+                        "sessionId": session_id,
+                        "toolCallId": call_id,
+                        "toolId": call_id,
+                        "toolName": tool_name,
+                        "error": "Tool execution was cancelled",
+                    })
+                    if state.is_subagent:
+                        emit("worker.failed", {
+                            "sessionId": session_id,
+                            "workerId": call_id,
+                            "error": "Worker execution was cancelled",
+                        })
+                raise
             except Exception as e:
-                return f"Error executing {tool_name}: {str(e)}"
+                err_str = f"Error executing {tool_name}: {str(e)}"
+                if state:
+                    state.error = str(e)
+                return err_str
 
         _execute_swift_tool.__name__ = tool_name
         _execute_swift_tool.__doc__ = tool_desc
@@ -346,12 +652,66 @@ class AgentRunner:
 
             # Determine provider & routing strategy
             provider = (params.get("provider") or "").lower()
-            use_saved_models = params.get("useSavedModels", False)
+            model_lower = str(model).lower()
+            model_path_param = str(params.get("modelPath") or params.get("model_path") or "")
             base_url = params.get("baseURL") or ""
 
-            is_gemini = (provider in ("gemini", "google")) or (not provider and ("gemini" in model.lower()))
+            is_litert = (
+                provider == "litert"
+                or model_lower.endswith(".litertlm")
+                or ".litertlm" in model_lower
+                or model_path_param.lower().endswith(".litertlm")
+            )
+            is_gemini = not is_litert and ((provider in ("gemini", "google")) or (not provider and ("gemini" in model_lower)))
 
-            if is_gemini:
+            if is_litert:
+                if LiteRTAgentConfig is None:
+                    raise RuntimeError("LiteRTAgentConfig is not available in the installed google.antigravity SDK.")
+
+                resolved_model_path = model_path_param or model
+                if resolved_model_path:
+                    resolved_model_path = os.path.expanduser(resolved_model_path)
+
+                backend_val = params.get("litertBackend") or params.get("backend") or "gpu"
+
+                litert_kwargs: Dict[str, Any] = {
+                    "model_path": resolved_model_path,
+                    "backend": backend_val,
+                    "capabilities": cap_config,
+                    "policies": session_policies,
+                    "hooks": self._create_hooks(session_id),
+                }
+
+                if "enableSpeculativeDecoding" in params:
+                    litert_kwargs["enable_speculative_decoding"] = bool(params["enableSpeculativeDecoding"])
+                elif "enable_speculative_decoding" in params:
+                    litert_kwargs["enable_speculative_decoding"] = bool(params["enable_speculative_decoding"])
+
+                if params.get("cacheDir") or params.get("cache_dir"):
+                    litert_kwargs["cache_dir"] = params.get("cacheDir") or params.get("cache_dir")
+
+                if "port" in params:
+                    litert_kwargs["port"] = int(params["port"])
+
+                if "downloadIfMissing" in params or "download_if_missing" in params:
+                    litert_kwargs["download_if_missing"] = bool(params.get("downloadIfMissing", params.get("download_if_missing", False)))
+
+                if dynamic_tools:
+                    litert_kwargs["tools"] = dynamic_tools
+                if system_instructions:
+                    litert_kwargs["system_instructions"] = system_instructions
+                if skills_paths:
+                    litert_kwargs["skills_paths"] = skills_paths
+                if workspaces:
+                    litert_kwargs["workspaces"] = workspaces
+                if app_data_dir and os.path.isabs(app_data_dir):
+                    litert_kwargs["app_data_dir"] = app_data_dir
+                if save_dir and os.path.isabs(save_dir):
+                    litert_kwargs["save_dir"] = save_dir
+
+                agent_config = LiteRTAgentConfig(**litert_kwargs)
+
+            elif is_gemini:
                 config_kwargs: Dict[str, Any] = {
                     "model": model,
                     "capabilities": cap_config,
@@ -382,6 +742,7 @@ class AgentRunner:
                     config_kwargs["save_dir"] = save_dir
 
                 agent_config = LocalAgentConfig(**config_kwargs)
+
             else:
                 # Use LocalOpenAIAgentConfig with direct local endpoint or bridge adapter
                 resolved_base_url = base_url
@@ -471,9 +832,8 @@ class AgentRunner:
                             "sessionId": session_id,
                             "thoughtDelta": chunk.text,
                         })
-                    # Tool lifecycle notifications are emitted by the SDK's
-                    # pre/post hooks above. Re-emitting ToolCall chunks here
-                    # duplicates starts/completions and corrupts retry timing.
+                    # Tool lifecycle notifications are emitted canonically by the SDK hooks
+                    # and the Swift-tool execution wrapper to avoid duplicate events.
 
                 final_text = "".join(accumulated_text)
                 usage = None
@@ -486,6 +846,9 @@ class AgentRunner:
 
                 stop_reason = str(response.stop_reason) if hasattr(response, "stop_reason") else "end_of_turn"
 
+                # Mark any orphaned tools before finalizing turn
+                session.mark_all_tools_failed("Turn completed without explicit tool completion")
+
                 emit("agent.completed", {
                     "sessionId": session_id,
                     "response": final_text,
@@ -494,6 +857,7 @@ class AgentRunner:
                 })
             except types.AntigravityCancelledError:
                 logger.info("Session '%s' turn was cancelled/interrupted", session_id)
+                session.mark_all_tools_failed("Turn was cancelled by user")
                 final_text = "".join(accumulated_text)
                 emit("agent.completed", {
                     "sessionId": session_id,
@@ -502,6 +866,7 @@ class AgentRunner:
                 })
             except asyncio.CancelledError:
                 logger.info("Session '%s' asyncio task was cancelled/interrupted", session_id)
+                session.mark_all_tools_failed("Turn was cancelled by user")
                 final_text = "".join(accumulated_text)
                 emit("agent.completed", {
                     "sessionId": session_id,
@@ -510,11 +875,13 @@ class AgentRunner:
                 })
             except Exception as e:
                 logger.exception("Error executing turn in session '%s': %s", session_id, e)
+                session.mark_all_tools_failed(f"Turn execution error: {str(e)}")
                 emit("agent.failed", {
                     "sessionId": session_id,
                     "error": str(e),
                 })
             finally:
+                session.mark_all_tools_failed("Turn finished")
                 session.active_response = None
 
         task = asyncio.create_task(_run_turn())
@@ -525,6 +892,9 @@ class AgentRunner:
         session = self.sessions.get(session_id)
         if not session:
             raise KeyError(f"Session '{session_id}' not found")
+
+        # Mark all in-flight tools as cancelled immediately so the UI does not hang
+        session.mark_all_tools_failed("Tool execution was cancelled by user")
 
         if session.active_response:
             try:
@@ -544,6 +914,8 @@ class AgentRunner:
                 return {"sessionId": session_id, "status": "already_closed"}
 
             session.is_closed = True
+            session.mark_all_tools_failed("Session closed")
+
             if session.active_task and not session.active_task.done():
                 session.active_task.cancel()
 

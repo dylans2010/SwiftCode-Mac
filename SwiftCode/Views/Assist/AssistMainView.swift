@@ -13,6 +13,7 @@ public struct AssistMainView: View {
     @State private var showAgentNotesSheet = false
     @State private var showExecutionModeSheet = false
     @State private var showApprovalSheet = false
+    @State private var showMemorySheet = false
     @State private var searchConversationText = ""
     @State private var attachedFiles: [AgentFileContext] = []
     @State private var showingFilePickerSheet = false
@@ -129,6 +130,17 @@ public struct AssistMainView: View {
                     .transition(.scale.combined(with: .opacity))
                 }
 
+                // User Memory Trigger
+                Button {
+                    showMemorySheet = true
+                } label: {
+                    Image(systemName: "brain.head.profile")
+                        .font(.body)
+                        .foregroundStyle(AssistMemoryStore.shared.isMemoryEnabled ? .primary : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help("User Memory & Personalization")
+
                 // Diagnostics Trigger
                 Button {
                     showDiagnosticsSheet = true
@@ -203,6 +215,9 @@ public struct AssistMainView: View {
                                 }
                             }
 
+                            // Active in-flight tool execution or runtime status directly below message list (outside chat bubble)
+                            ToolExecutionView(manager: manager)
+
                             if let error = manager.lastError {
                                 AssistInlineError(message: error)
                             }
@@ -226,6 +241,12 @@ public struct AssistMainView: View {
                         .id("Bottom")
                     }
                     .onChange(of: manager.messages.count) { _, _ in
+                        withAnimation { proxy.scrollTo("Bottom", anchor: .bottom) }
+                    }
+                    .onChange(of: manager.currentActivityStatus) { _, _ in
+                        withAnimation { proxy.scrollTo("Bottom", anchor: .bottom) }
+                    }
+                    .onChange(of: manager.isProcessing) { _, _ in
                         withAnimation { proxy.scrollTo("Bottom", anchor: .bottom) }
                     }
                 }
@@ -451,6 +472,9 @@ public struct AssistMainView: View {
         }
         .sheet(isPresented: $showCreateNewAppSheet) {
             CreateNewAppWizardView()
+        }
+        .sheet(isPresented: $showMemorySheet) {
+            UserMemoryView()
         }
         .alert("There was an issue on this request:", isPresented: $showEnhancementError, presenting: enhancementErrorMessage) { _ in
             Button("OK") {}

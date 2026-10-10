@@ -113,10 +113,9 @@ public final class AssistToolRegistry {
         register(AssistGenerateTestsTool())
         register(AssistExplainCodeTool())
 
-        register(AssistStoreMemoryTool())
+        register(AssistCaptureMemoryTool())
         register(AssistRetrieveMemoryTool())
-        register(AssistClearMemoryTool())
-        register(AssistContextSnapshotTool())
+        register(AssistManageMemoryTool())
 
         register(AssistSourceGraphBuilder())
         register(AssistSemanticQueryEngine())
@@ -148,6 +147,7 @@ public final class AssistToolRegistry {
         schemaCache.removeAll()
         cachedToolSchemas = nil
         registryVersion += 1
+        AssistPromptOptimizer.shared.invalidateToolSchemas()
     }
 
     public func unregister(_ toolId: String) {
@@ -157,6 +157,7 @@ public final class AssistToolRegistry {
         schemaCache.removeAll()
         cachedToolSchemas = nil
         registryVersion += 1
+        AssistPromptOptimizer.shared.invalidateToolSchemas()
     }
 
     private let toolAliases: [String: String] = [

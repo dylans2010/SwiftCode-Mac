@@ -1,9 +1,9 @@
 import Foundation
 
 public struct AssistRetrieveMemoryTool: AssistTool {
-    public let id = "mem_retrieve"
+    public let id = "retrieve_memory"
     public let name = "Retrieve Memory"
-    public let description = "Retrieves information from the long-term memory graph."
+    public let description = "Returns the contents of the UserMemory.md file containing user preferences, patterns, and durable facts."
 
     public init() {}
 
@@ -13,23 +13,22 @@ public struct AssistRetrieveMemoryTool: AssistTool {
     public var parametersSchema: JSONSchema {
         JSONSchema(
             type: "object",
-            description: "Retrieves a value from the long-term memory graph.",
+            description: "Returns the contents of the UserMemory.md file.",
             properties: [
-                "key": JSONSchema(type: "string", description: "Memory key to look up.")
+                "query": JSONSchema(type: "string", description: "Optional query to search or filter specific memory entries.")
             ],
-            required: ["key"]
+            required: []
         )
     }
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
-        guard let key = input["key"] as? String else {
-            return .failure("Missing required parameter: key")
+        guard await AssistMemoryStore.shared.isMemoryEnabled else {
+            return .failure("User has Memory module OFF.")
         }
 
-        if let value = context.memory.retrieve(key: key) {
-            return .success("Retrieved from memory: \(key)", data: ["value": value])
-        } else {
-            return .failure("Key not found in memory: \(key)")
-        }
+        let query = (input["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let content = await AssistMemoryStore.shared.retrieve(query: query)
+
+        return .success(content, data: ["content": content])
     }
 }

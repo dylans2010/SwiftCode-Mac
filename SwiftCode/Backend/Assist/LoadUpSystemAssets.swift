@@ -68,9 +68,10 @@ public final class LoadUpSystemAssets: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "LoadUpSystemAssets")
     private let lock = NSLock()
     private var assetCache: [String: SystemAsset] = [:]
+    private var toolToAssetId: [String: String] = [:]
     private var isInitialized = false
 
-    /// Canonical, deterministic catalog metadata for all 24 decomposed system prompt assets.
+    /// Canonical, deterministic catalog metadata for all modular system prompt assets.
     public let assetCatalog: [SystemAsset] = [
         SystemAsset(
             id: "CoreRules",
@@ -79,7 +80,27 @@ public final class LoadUpSystemAssets: @unchecked Sendable {
             title: "System Identity & Architectural Boundaries",
             priority: 100,
             isMandatory: true,
-            keywords: ["system", "identity", "antigravity", "swiftcode", "ground", "mutate", "concurrency", "speculative", "framework", "architecture"],
+            keywords: ["system", "identity", "antigravity", "swiftcode", "ground", "mutate", "concurrency", "speculative", "framework", "architecture", "core operating policy", "corerules"],
+            toolsCovered: []
+        ),
+        SystemAsset(
+            id: "Identity",
+            filename: "Identity.md",
+            category: .foundation,
+            title: "SwiftCode Assist Identity & Operating Directive",
+            priority: 98,
+            isMandatory: false,
+            keywords: ["identity", "persona", "refusal", "obedience", "environment", "capabilities", "directive", "guardrails", "memory off", "assist"],
+            toolsCovered: []
+        ),
+        SystemAsset(
+            id: "SystemAsset",
+            filename: "SystemAsset.md",
+            category: .foundation,
+            title: "System Asset Master Directory & Knowledge Map",
+            priority: 92,
+            isMandatory: false,
+            keywords: ["system asset", "catalog", "directory", "map", "routing", "knowledge", "manifest"],
             toolsCovered: []
         ),
         SystemAsset(
@@ -98,7 +119,7 @@ public final class LoadUpSystemAssets: @unchecked Sendable {
             category: .tooling,
             title: "Tool Calling Protocol & Decision Tree",
             priority: 90,
-            isMandatory: true,
+            isMandatory: false,
             keywords: ["tool", "decision", "protocol", "sdk", "json", "capability", "action", "tree", "hierarchy"],
             toolsCovered: []
         ),
@@ -108,7 +129,7 @@ public final class LoadUpSystemAssets: @unchecked Sendable {
             category: .tooling,
             title: "Tool Schemas, Parameters & Path Security",
             priority: 85,
-            isMandatory: true,
+            isMandatory: false,
             keywords: ["schema", "parameter", "path", "relative", "argument", "traversal", "type", "validation"],
             toolsCovered: []
         ),
@@ -209,7 +230,7 @@ public final class LoadUpSystemAssets: @unchecked Sendable {
             title: "Terminal Execution & Command Safety",
             priority: 55,
             isMandatory: false,
-            keywords: ["terminal", "command", "shell", "run", "process", "approval", "bash", "zsh", "sandbox"],
+            keywords: ["terminal", "command", "shell", "run", "process", "approval", "bash", "zsh", "sandbox", "terminal & command safety"],
             toolsCovered: ["use_terminal", "run_command"]
         ),
         SystemAsset(
@@ -229,7 +250,7 @@ public final class LoadUpSystemAssets: @unchecked Sendable {
             title: "Git & Version Control Management",
             priority: 50,
             isMandatory: false,
-            keywords: ["git", "version control", "snapshot", "restore", "diff", "undo", "commit", "branch", "rollback", "changelog"],
+            keywords: ["git", "version control", "snapshot", "restore", "diff", "undo", "commit", "branch", "rollback", "changelog", "merge conflict"],
             toolsCovered: ["version_control_operator", "project_snapshot", "project_restore", "project_diff", "project_changelog", "safe_undo"]
         ),
         SystemAsset(
@@ -273,14 +294,34 @@ public final class LoadUpSystemAssets: @unchecked Sendable {
             toolsCovered: []
         ),
         SystemAsset(
+            id: "Memory",
+            filename: "Memory.md",
+            category: .memory,
+            title: "User Memory & Persistent Fact System",
+            priority: 50,
+            isMandatory: false,
+            keywords: ["user memory", "memory", "capture_memory", "retrieve_memory", "manage_memory", "usermemory.md", "preference", "fact"],
+            toolsCovered: ["capture_memory", "retrieve_memory", "manage_memory"]
+        ),
+        SystemAsset(
+            id: "Context",
+            filename: "Context.md",
+            category: .memory,
+            title: "Workspace Context Management & Persistence",
+            priority: 45,
+            isMandatory: false,
+            keywords: ["context", "workspace topology", "ast symbols", "token budgeting", "persistence", "source graph", "snapshot", "diagnostics"],
+            toolsCovered: ["context_persistence_store", "source_graph_builder", "semantic_query_engine", "env_capture_logs", "env_info", "runtime_diagnostics_engine"]
+        ),
+        SystemAsset(
             id: "MemoryAndContext",
             filename: "MemoryAndContext.md",
             category: .memory,
-            title: "Agent Memory & Context Persistence",
-            priority: 45,
+            title: "Agent Memory & Context Persistence (Legacy Combined)",
+            priority: 40,
             isMandatory: false,
-            keywords: ["memory", "mem", "context", "store", "retrieve", "persist", "graph", "snapshot", "diagnostics"],
-            toolsCovered: ["mem_store", "mem_retrieve", "mem_clear", "mem_context_snapshot", "context_persistence_store", "source_graph_builder", "semantic_query_engine", "env_capture_logs", "env_info", "runtime_diagnostics_engine"]
+            keywords: ["memory", "context", "legacy", "persistence"],
+            toolsCovered: ["mem_store", "mem_retrieve", "mem_clear", "mem_context_snapshot"]
         ),
         SystemAsset(
             id: "ModelCompatibility",
@@ -299,7 +340,7 @@ public final class LoadUpSystemAssets: @unchecked Sendable {
             title: "Advanced Swift 6 Concurrency & macOS Architecture",
             priority: 45,
             isMandatory: false,
-            keywords: ["swift", "concurrency", "actor", "sendable", "mainactor", "appkit", "swiftui", "nsviewrepresentable"],
+            keywords: ["swift", "concurrency", "actor", "sendable", "mainactor", "appkit", "swiftui", "nsviewrepresentable", "swift 6 concurrency"],
             toolsCovered: []
         ),
         SystemAsset(
@@ -320,18 +361,28 @@ public final class LoadUpSystemAssets: @unchecked Sendable {
 
     // MARK: - Asset Preloading & In-Memory Caching
 
-    private func preloadAssets() {
+    public func preloadAssets() {
         lock.lock()
         defer { lock.unlock() }
 
+        toolToAssetId.removeAll()
         for var item in assetCatalog {
             let content = loadContent(for: item.filename)
             item.content = content
             item.characterCount = content.count
             item.estimatedTokenCount = max(1, content.count / 4)
             assetCache[item.id] = item
+
+            for tool in item.toolsCovered {
+                toolToAssetId[tool] = item.id
+            }
         }
         isInitialized = true
+    }
+
+    /// Explicitly refreshes the cache from disk.
+    public func reloadAssets() {
+        preloadAssets()
     }
 
     /// Returns all loaded assets in catalog order.
@@ -341,16 +392,58 @@ public final class LoadUpSystemAssets: @unchecked Sendable {
         return assetCatalog.compactMap { assetCache[$0.id] }
     }
 
-    /// Retrieves an asset by its canonical ID.
-    public func asset(for id: String) -> SystemAsset? {
+    /// Retrieves an asset by its canonical ID or filename.
+    public func asset(for identifier: String) -> SystemAsset? {
         lock.lock()
         defer { lock.unlock() }
-        return assetCache[id]
+
+        if let direct = assetCache[identifier] {
+            return direct
+        }
+        return assetCatalog.first {
+            $0.filename.caseInsensitiveCompare(identifier) == .orderedSame ||
+            $0.id.caseInsensitiveCompare(identifier) == .orderedSame
+        }.flatMap { assetCache[$0.id] }
+    }
+
+    /// Fast local retrieval of task/tool-relevant guidance for a specific tool ID.
+    public func guidance(forTool toolId: String) -> String? {
+        lock.lock()
+        let assetId = toolToAssetId[toolId]
+        let cached = assetId.flatMap { assetCache[$0] }
+        let all = assetCatalog.compactMap { assetCache[$0.id] }
+        lock.unlock()
+
+        if let candidate = cached, let extracted = extractToolBlock(toolId: toolId, from: candidate.content) {
+            return extracted
+        }
+
+        for item in all {
+            if let extracted = extractToolBlock(toolId: toolId, from: item.content) {
+                return extracted
+            }
+        }
+        return nil
+    }
+
+    private func extractToolBlock(toolId: String, from text: String) -> String? {
+        let pattern = "#### `\(toolId)`"
+        guard let range = text.range(of: pattern) else { return nil }
+        let after = text[range.lowerBound...]
+        let lines = after.components(separatedBy: "\n")
+        var collected: [String] = []
+        for (idx, line) in lines.enumerated() {
+            if idx > 0 && (line.hasPrefix("#### `") || line.hasPrefix("## ") || line.hasPrefix("# ")) {
+                break
+            }
+            collected.append(line)
+        }
+        return collected.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - Full Corpus Generation
 
-    /// Loads and deterministically joins all 24 assets into the complete authoritative corpus.
+    /// Loads and deterministically joins all catalog assets into the complete authoritative corpus.
     public func fullCorpusPrompt() -> String {
         let assets = allAssets()
         let sections = assets.map { asset in
@@ -362,13 +455,13 @@ public final class LoadUpSystemAssets: @unchecked Sendable {
 
     // MARK: - Budget-Constrained Adaptive System Prompt
 
-    /// Generates a tailored system prompt for a specific task objective, toolkit, and character budget.
+    /// Generates a tailored system prompt for a specific task objective, toolkit, and token/character budget.
     ///
     /// - Parameters:
     ///   - objective: The user's prompt or task intent.
     ///   - toolkit: The active toolkit name ("System" or "Cloud").
     ///   - characterBudget: Maximum allowed character length (defaults to 16,000).
-    /// - Returns: A coherent, structured system prompt string.
+    /// - Returns: A coherent, structured, budget-enforced system prompt string.
     public func systemPrompt(
         for objective: String,
         toolkit: String = "System",
@@ -378,25 +471,35 @@ public final class LoadUpSystemAssets: @unchecked Sendable {
         let lowerObjective = objective.lowercased()
         let isCloud = toolkit.caseInsensitiveCompare("cloud") == .orderedSame
 
-        // 1. Mandatory Assets are always included
-        var mandatoryAssets: [SystemAsset] = []
-        var optionalAssets: [SystemAsset] = []
-
-        for asset in assets {
-            if asset.isMandatory {
-                mandatoryAssets.append(asset)
-            } else {
-                optionalAssets.append(asset)
-            }
+        // Check for simple conversational greetings
+        if isSimpleGreeting(lowerObjective) {
+            return greetingBoundedPrompt(toolkit: toolkit)
         }
 
-        // Calculate initial length from mandatory assets
-        var selectedAssets = mandatoryAssets
+        // 1. Core mandatory rules are always enforced
+        var selectedAssets: [SystemAsset] = []
+        if let coreRules = assets.first(where: { $0.id == "CoreRules" }) {
+            selectedAssets.append(coreRules)
+        }
+
         var currentLength = selectedAssets.reduce(0) { $0 + $1.content.count + 2 }
 
-        // 2. Score optional assets based on objective relevance and toolkit
+        // Security is included if budget permits or for any non-trivial task
+        if let sec = assets.first(where: { $0.id == "SecurityAndPrivacy" }),
+           currentLength + sec.content.count + 2 <= characterBudget + 3_000 {
+            selectedAssets.append(sec)
+            currentLength += sec.content.count + 2
+        }
+
+        // 2. Score candidate assets based on objective relevance, keywords, and active toolkit
+        var candidateAssets = assets.filter { $0.id != "CoreRules" && $0.id != "SecurityAndPrivacy" }
+        // Filter out legacy combined asset if distinct Memory and Context are present
+        if candidateAssets.contains(where: { $0.id == "Memory" }) && candidateAssets.contains(where: { $0.id == "Context" }) {
+            candidateAssets.removeAll(where: { $0.id == "MemoryAndContext" })
+        }
+
         var scoredAssets: [(asset: SystemAsset, score: Double)] = []
-        for asset in optionalAssets {
+        for asset in candidateAssets {
             var score = Double(asset.priority)
 
             // Toolkit alignment bonus
@@ -406,21 +509,21 @@ public final class LoadUpSystemAssets: @unchecked Sendable {
                 }
             } else {
                 if asset.id == "UsingTools" || asset.id == "FileOperations" || asset.id == "EditingAndPatching" {
-                    score += 20.0
+                    score += 25.0
                 }
             }
 
             // Keyword matching bonus
             for keyword in asset.keywords {
-                if lowerObjective.contains(keyword) {
-                    score += 25.0
+                if lowerObjective.contains(keyword.lowercased()) {
+                    score += 35.0
                 }
             }
 
             // Direct tool coverage matching bonus
             for tool in asset.toolsCovered {
                 if lowerObjective.contains(tool.lowercased()) {
-                    score += 50.0
+                    score += 60.0
                 }
             }
 
@@ -449,6 +552,33 @@ public final class LoadUpSystemAssets: @unchecked Sendable {
             .map { $0.content.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .joined(separator: "\n\n")
+    }
+
+    /// Overload accepting an optional tokenBudget alongside characterBudget.
+    public func systemPrompt(
+        for objective: String,
+        toolkit: String = "System",
+        tokenBudget: Int?,
+        characterBudget: Int = 16_000
+    ) -> String {
+        let effectiveCharBudget = tokenBudget.map { min(characterBudget, $0 * 4) } ?? characterBudget
+        return systemPrompt(for: objective, toolkit: toolkit, characterBudget: effectiveCharBudget)
+    }
+
+    private func isSimpleGreeting(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let greetings = ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "howdy", "greetings", "hello there", "hi there"]
+        return greetings.contains(trimmed) || (trimmed.count < 25 && greetings.contains(where: { trimmed.hasPrefix($0) }))
+    }
+
+    private func greetingBoundedPrompt(toolkit: String) -> String {
+        if let coreRules = asset(for: "CoreRules") {
+            return coreRules.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return """
+        # SwiftCode Assist
+        You are SwiftCode Assist, an autonomous pair programmer for macOS. Answer ordinary conversational greetings politely and concisely without invoking tools or inflating context.
+        """
     }
 
     // MARK: - Robust File Locator & Reader
@@ -501,10 +631,17 @@ public final class LoadUpSystemAssets: @unchecked Sendable {
             return devFile
         }
 
-        // 5. Hardcoded repo path fallback for runtime safety
-        let fallbackPath = "/Users/dylan/SwiftCode-Mac/SwiftCode/Backend/Assist/Functions/Assets/\(filename)"
-        if FileManager.default.fileExists(atPath: fallbackPath) {
-            return URL(fileURLWithPath: fallbackPath)
+        // 5. Common repo path fallbacks for runtime and test runner safety
+        let fallbackPaths = [
+            "/Users/dylan/SwiftCode-Mac/SwiftCode/Backend/Assist/Functions/Assets/\(filename)",
+            "/Users/dylan/Library/Mobile Documents/com~apple~CloudDocs/Xcode Projects/SwiftCode-Mac/SwiftCode/Backend/Assist/Functions/Assets/\(filename)",
+            URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("SwiftCode/Backend/Assist/Functions/Assets/\(filename)").path
+        ]
+
+        for path in fallbackPaths {
+            if FileManager.default.fileExists(atPath: path) {
+                return URL(fileURLWithPath: path)
+            }
         }
 
         return nil

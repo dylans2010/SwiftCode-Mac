@@ -18,6 +18,8 @@ public actor GoogleCloudSDKTransport {
     private var requestTimeoutTasks: [String: Task<Void, Never>] = [:]
     private var eventContinuations: [UUID: AsyncStream<GoogleCloudSDKEvent>.Continuation] = [:]
     private var toolExecutionHandler: (@Sendable (GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?))?
+    private var lastDispatchedProgressKey: String?
+    private var lastDispatchedProgressTime: Date = .distantPast
 
     public init() {}
 
@@ -40,7 +42,8 @@ public actor GoogleCloudSDKTransport {
         let startTime = Date()
         var lastErr: Int32 = 0
 
-        // Poll for socket file availability (bridge may still be launching)
+        // Poll for socket file availability with adaptive low-latency backoff
+        var pollDelayNs: UInt64 = 5_000_000 // Start at 5ms for fast time-to-connect
         while Date().timeIntervalSince(startTime) < timeout {
             if FileManager.default.fileExists(atPath: socketPath) {
                 let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
@@ -81,7 +84,8 @@ public actor GoogleCloudSDKTransport {
                     Darwin.close(fd)
                 }
             }
-            try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+            try await Task.sleep(nanoseconds: pollDelayNs)
+            pollDelayNs = min(50_000_000, pollDelayNs * 2) // Cap at 50ms
         }
 
         throw GoogleCloudSDKError.socketConnectionFailed("Timed out waiting for socket '\(socketPath)' (errno: \(lastErr))")
@@ -135,6 +139,10 @@ public actor GoogleCloudSDKTransport {
             throw GoogleCloudSDKError.socketConnectionFailed("Socket is not connected")
         }
 
+        if Task.isCancelled {
+            throw GoogleCloudSDKError.operationCancelled
+        }
+
         let id = UUID().uuidString
         let payload: [String: Any] = [
             "jsonrpc": "2.0",
@@ -160,15 +168,34 @@ public actor GoogleCloudSDKTransport {
         }
         self.requestTimeoutTasks[id] = timeoutTask
 
-        return try await withCheckedThrowingContinuation { continuation in
-            self.pendingRequests[id] = continuation
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                if Task.isCancelled {
+                    timeoutTask.cancel()
+                    self.requestTimeoutTasks.removeValue(forKey: id)
+                    continuation.resume(throwing: GoogleCloudSDKError.operationCancelled)
+                    return
+                }
+                self.pendingRequests[id] = continuation
 
-            do {
-                try self.writeRaw(message)
-            } catch {
-                self.failRequest(id: id, error: error)
+                do {
+                    try self.writeRaw(message)
+                } catch {
+                    self.failRequest(id: id, error: error)
+                }
+            }
+        } onCancel: {
+            Task { [weak self] in
+                await self?.cancelRequest(id: id)
             }
         }
+    }
+
+    /// Cancels a pending in-flight request when task cancellation is signaled.
+    public func cancelRequest(id: String) {
+        requestTimeoutTasks.removeValue(forKey: id)?.cancel()
+        guard let continuation = pendingRequests.removeValue(forKey: id) else { return }
+        continuation.resume(throwing: GoogleCloudSDKError.operationCancelled)
     }
 
     private func expireRequest(id: String, method: String) {
@@ -238,15 +265,15 @@ public actor GoogleCloudSDKTransport {
             return
         }
 
-        // 1. Check for incoming server-initiated JSON-RPC request (has "method" AND "id")
-        if let method = json["method"] as? String, let id = json["id"] {
+        // 1. Check for incoming server-initiated JSON-RPC request (has "method" AND non-null "id")
+        if let method = json["method"] as? String, let id = json["id"], !(id is NSNull) {
             let params = json["params"] as? [String: Any] ?? [:]
             if method == "tool.execute" {
                 let reqId = "\(id)"
-                let sessionId = params["sessionId"] as? String ?? ""
-                let toolName = params["toolName"] as? String ?? ""
+                let sessionId = params["sessionId"] as? String ?? params["session_id"] as? String ?? ""
+                let toolName = params["toolName"] as? String ?? params["tool_name"] as? String ?? ""
                 let arguments = params["arguments"] as? [String: Any] ?? [:]
-                let callId = params["callId"] as? String
+                let callId = params["callId"] as? String ?? params["call_id"] as? String
 
                 let request = GoogleCloudSDKToolExecutionRequest(requestId: reqId, sessionId: sessionId, toolName: toolName, arguments: arguments, callId: callId)
 
@@ -258,7 +285,7 @@ public actor GoogleCloudSDKTransport {
         }
 
         // 2. Response matching (has "id" but NO "method")
-        if let id = json["id"] as? String {
+        if let id = json["id"] as? String, json["method"] == nil {
             if let cont = pendingRequests.removeValue(forKey: id) {
                 requestTimeoutTasks.removeValue(forKey: id)?.cancel()
                 if let errorObj = json["error"] as? [String: Any] {
@@ -278,7 +305,7 @@ public actor GoogleCloudSDKTransport {
             return
         }
 
-        // 3. Notification / Event matching (has "method" but NO "id")
+        // 3. Notification / Event matching (has "method")
         if let method = json["method"] as? String {
             let params = json["params"] as? [String: Any] ?? [:]
             dispatchNotification(method: method, params: params)
@@ -374,17 +401,47 @@ public actor GoogleCloudSDKTransport {
             let toolRes = GoogleCloudSDKToolResult(id: callId, sessionId: sessionId, name: toolName, result: result)
             event = .toolCompleted(result: toolRes)
 
-        case "tool.progress":
-            let sessionId = params["sessionId"] as? String ?? ""
-            let callId = params["toolCallId"] as? String ?? params["toolId"] as? String ?? ""
-            let msg = params["message"] as? String ?? ""
-            event = .toolProgress(sessionId: sessionId, toolId: callId, message: msg)
+        case "tool.progress", "tool.output", "tool.stream", "tool.chunk", "tool.outputChunk":
+            let sessionId = params["sessionId"] as? String ?? params["session_id"] as? String ?? ""
+            let callId = params["toolCallId"] as? String ?? params["callId"] as? String ?? params["call_id"] as? String ?? params["id"] as? String ?? ""
+            let toolName = params["toolName"] as? String ?? params["tool_name"] as? String ?? params["name"] as? String ?? ""
+            let rawProgress = params["message"] as? String ?? params["progress"] as? String ?? params["status"] as? String ?? ""
+            let outputChunk = params["outputChunk"] as? String ?? params["output_chunk"] as? String ?? params["chunk"] as? String ?? params["delta"] as? String ?? params["output"] as? String ?? params["content"] as? String
+
+            let effectiveCallId = !callId.isEmpty ? callId : (params["toolId"] as? String ?? "")
+            let effectiveToolId = !toolName.isEmpty ? toolName : (!effectiveCallId.isEmpty ? effectiveCallId : (params["toolId"] as? String ?? ""))
+
+            let effectiveMessage: String
+            if !rawProgress.isEmpty {
+                effectiveMessage = rawProgress
+            } else if let chunk = outputChunk, !chunk.isEmpty {
+                effectiveMessage = chunk
+            } else {
+                effectiveMessage = ""
+            }
+
+            // Deduplication guard against rapid duplicate notification bursts without dropping real streaming chunks
+            let eventSignature = "\(sessionId):\(effectiveCallId):\(effectiveMessage):\(outputChunk ?? "")"
+            let now = Date()
+            if eventSignature == lastDispatchedProgressKey && now.timeIntervalSince(lastDispatchedProgressTime) < 0.05 {
+                return
+            }
+            lastDispatchedProgressKey = eventSignature
+            lastDispatchedProgressTime = now
+
+            event = .toolProgress(
+                sessionId: sessionId,
+                toolId: effectiveToolId,
+                message: effectiveMessage,
+                outputChunk: outputChunk,
+                callId: effectiveCallId
+            )
 
         case "tool.failed":
-            let sessionId = params["sessionId"] as? String ?? ""
-            let callId = params["toolCallId"] as? String ?? ""
-            let toolName = params["toolName"] as? String ?? ""
-            let err = params["error"] as? String ?? ""
+            let sessionId = params["sessionId"] as? String ?? params["session_id"] as? String ?? ""
+            let callId = params["toolCallId"] as? String ?? params["callId"] as? String ?? params["call_id"] as? String ?? params["toolId"] as? String ?? ""
+            let toolName = params["toolName"] as? String ?? params["tool_name"] as? String ?? params["name"] as? String ?? ""
+            let err = params["error"] as? String ?? params["message"] as? String ?? ""
             event = .toolFailed(sessionId: sessionId, toolId: callId, toolName: toolName, error: err)
 
         case "worker.started":

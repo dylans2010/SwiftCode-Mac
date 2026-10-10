@@ -110,7 +110,7 @@ Retry only when the failure is plausibly transient. Never repeatedly retry deter
 | Agent Memory | memory graph, context store | mixed — check per tool |
 | General | external integrations, misc | mixed — check per tool |
 
-Read-only (`safeRead`) tools need less caution than mutating ones. `safeMutation` tools change workspace state — verify target and parameters. `potentiallyDestructive` tools (`file_delete`, `dir_delete`, `project_restore`, `safe_undo`, `mem_clear`, `version_control_operator` rollback) can destroy data — verify intent, consider `project_snapshot` first, and never call them speculatively. `execution` tools run real toolchains or shell commands. `externalSideEffect` tools (`use_mcp`, `use_composio`) reach outside systems; downstream effects depend on the invoked integration.
+Read-only (`safeRead`) tools need less caution than mutating ones. `safeMutation` tools change workspace state — verify target and parameters. `potentiallyDestructive` tools (`file_delete`, `dir_delete`, `project_restore`, `safe_undo`, `version_control_operator` rollback) can destroy data — verify intent, consider `project_snapshot` first, and never call them speculatively. `execution` tools run real toolchains or shell commands. `externalSideEffect` tools (`use_mcp`, `use_composio`) reach outside systems; downstream effects depend on the invoked integration.
 
 ---
 
@@ -131,7 +131,7 @@ Natural chains exist (discover → inspect → read → modify → verify; diagn
 
 ### 5.8 Destructive Operations
 
-What counts as destructive: `file_delete`, `dir_delete` (recursive), `project_restore` (overwrites workspace), `safe_undo` (steps back a snapshot), `mem_clear` (wipes the memory graph), `version_control_operator` with `rollback` (`git reset --hard`), `use_terminal` with a destructive command.
+What counts as destructive: `file_delete`, `dir_delete` (recursive), `project_restore` (overwrites workspace), `safe_undo` (steps back a snapshot), `version_control_operator` with `rollback` (`git reset --hard`), `use_terminal` with a destructive command.
 
 Before calling:
 - verify the target and the exact operation,
@@ -139,7 +139,7 @@ Before calling:
 - prefer `project_snapshot` before bulk destructive work so `safe_undo` can recover,
 - follow the permission model: `AssistPermissionsManager.authorizeOperation` gates destructive keywords, and `use_terminal` always requires explicit user approval — a denial is final.
 
-There is no undo for `file_delete`/`dir_delete`/`mem_clear` outside snapshots.
+There is no undo for `file_delete`/`dir_delete` outside snapshots.
 
 ---
 

@@ -40,6 +40,10 @@ public final class AssistManager: ObservableObject {
     // Cache for bundled system prompt
     private var cachedSystemPrompt: String?
 
+    // Active tool call tracking caches for argument preservation and deduplication
+    private var activeCallArguments: [String: [String: Any]] = [:]
+    private var activeCallToolNames: [String: String] = [:]
+
     // Terminal Approval state variables
     @Published public var pendingTerminalRequest: TerminalApprovalRequest?
     public var terminalContinuation: CheckedContinuation<Bool, Never>?
@@ -114,7 +118,8 @@ public final class AssistManager: ObservableObject {
 
     @MainActor
     public func appendTerminalOutput(_ text: String) {
-        self.terminalLiveOutput += text
+        let sanitized = AssistSanitizer.sanitize(text)
+        self.terminalLiveOutput += sanitized
     }
 
     public var selectedModel: AssistModelOption {
@@ -444,15 +449,20 @@ public final class AssistManager: ObservableObject {
     private func appendChatToken(_ token: String, to messageID: UUID) {
         guard let index = messages.firstIndex(where: { $0.id == messageID }) else { return }
         var message = messages[index]
-        message.content += token
+        let sanitizedToken = AssistSanitizer.sanitize(token)
+        message.content += sanitizedToken
         messages[index] = message
         currentActivityStatus = "Receiving response…"
     }
 
     private func finishChatResponse(messageID: UUID, error: String? = nil) {
         if let error {
-            lastError = "AI request failed: \(error)"
+            let sanitizedErr = AssistSanitizer.sanitize(error)
+            lastError = "AI request failed: \(sanitizedErr)"
             messages.append(AssistMessage(role: .system, content: lastError ?? "AI request failed."))
+            if let index = messages.firstIndex(where: { $0.id == messageID }) {
+                finalizeActivitiesInMessage(idx: index, status: .failed, reason: sanitizedErr)
+            }
         }
         if let index = messages.firstIndex(where: { $0.id == messageID }), messages[index].content.isEmpty, error != nil {
             messages.remove(at: index)
@@ -517,11 +527,9 @@ public final class AssistManager: ObservableObject {
             WorkerRuntimeState.shared.stopAllActiveWorkers(reason: "Interrupted by user for continuation.")
             cancelTerminalExecution()
 
-            // Finalize previous assistant message so its activity group is marked non-executing
-            if let idx = messages.indices.last {
-                messages[idx].activityGroup?.isExecuting = false
-                saveHistory()
-            }
+            // Finalize activities across all messages so no tools, workers, builds, or tests remain stuck
+            finalizeAllPendingActivities(status: .cancelled, reason: "Interrupted by user")
+            saveHistory()
         }
 
         Task { @MainActor in
@@ -570,24 +578,15 @@ public final class AssistManager: ObservableObject {
         PlanQuestionManager.shared.cancelPendingQuestions()
         cancelTerminalExecution()
 
+        // Clean up all running/pending tool and worker activities across all messages
+        finalizeAllPendingActivities(status: .cancelled, reason: "Cancelled by user")
+
         isProcessing = false
         currentActivityStatus = "Cancelled"
         currentCodeReview = nil
         isCodeReviewRunning = false
         if let last = messages.last, last.role == .assistant, last.content.isEmpty, last.activityGroup?.hasContent != true {
             messages.removeLast()
-        }
-        if let idx = messages.indices.last {
-            if var activity = messages[idx].activityGroup {
-                for i in activity.tools.indices where activity.tools[i].status == .running || activity.tools[i].status == .pending {
-                    activity.tools[i].status = .cancelled
-                    activity.tools[i].result = "Cancelled"
-                    let label = activity.tools[i].displayLabel ?? activity.tools[i].toolId
-                    activity.tools[i].purpose = "\(label) (Cancelled)"
-                }
-                activity.isExecuting = false
-                messages[idx].activityGroup = activity
-            }
         }
         saveHistory()
     }
@@ -636,6 +635,96 @@ public final class AssistManager: ObservableObject {
         clearQueue()
         session.reset()
         UserDefaults.standard.removeObject(forKey: "com.swiftcode.assist.history")
+    }
+
+    // MARK: - Activity Lifecycle and Cancellation Management
+
+    @MainActor
+    public func finalizeAllPendingActivities(status: ActivityStatus = .cancelled, reason: String = "Cancelled") {
+        for idx in messages.indices {
+            finalizeActivitiesInMessage(idx: idx, status: status, reason: reason)
+        }
+    }
+
+    @MainActor
+    public func finalizeActivitiesInMessage(idx: Int, status: ActivityStatus, reason: String = "") {
+        guard messages.indices.contains(idx) else { return }
+        guard var activity = messages[idx].activityGroup else { return }
+
+        let effectiveReason = reason.isEmpty ? (status == .completed ? "Completed" : "Interrupted") : reason
+        var modified = false
+
+        // 1. Tool execution items
+        for i in activity.tools.indices {
+            if activity.tools[i].status == .running || activity.tools[i].status == .pending || activity.tools[i].status == .retrying {
+                activity.tools[i].status = status
+                if activity.tools[i].result.isEmpty || activity.tools[i].result == "Running" {
+                    activity.tools[i].result = effectiveReason
+                }
+                let label = activity.tools[i].displayLabel ?? activity.tools[i].toolId
+                if status == .cancelled {
+                    activity.tools[i].purpose = "\(label) (Cancelled)"
+                } else if status == .completed {
+                    activity.tools[i].purpose = activity.tools[i].completedLabel ?? label
+                } else if status == .failed {
+                    activity.tools[i].purpose = "\(label) — \(effectiveReason)"
+                }
+                modified = true
+            }
+        }
+
+        // 2. Worker subagents
+        for i in activity.workers.indices {
+            if activity.workers[i].status == .running || activity.workers[i].status == .pending {
+                activity.workers[i].status = status
+                if activity.workers[i].taskDescription.isEmpty {
+                    activity.workers[i].taskDescription = effectiveReason
+                }
+                modified = true
+            }
+        }
+
+        // 3. Builds
+        for i in activity.builds.indices {
+            if activity.builds[i].status == .running || activity.builds[i].status == .pending {
+                activity.builds[i].status = status
+                if status == .failed {
+                    activity.builds[i].errorCount = max(1, activity.builds[i].errorCount)
+                }
+                modified = true
+            }
+        }
+
+        // 4. Test runs
+        for i in activity.tests.indices {
+            if activity.tests[i].status == .running || activity.tests[i].status == .pending {
+                activity.tests[i].status = status
+                if status == .failed {
+                    activity.tests[i].failedCount = max(1, activity.tests[i].failedCount)
+                }
+                modified = true
+            }
+        }
+
+        // 5. Terminal commands
+        for i in activity.terminalCommands.indices {
+            if activity.terminalCommands[i].status == .running || activity.terminalCommands[i].status == .pending {
+                activity.terminalCommands[i].status = status
+                if activity.terminalCommands[i].output.isEmpty {
+                    activity.terminalCommands[i].output = effectiveReason
+                }
+                modified = true
+            }
+        }
+
+        if activity.isExecuting {
+            activity.isExecuting = false
+            modified = true
+        }
+
+        if modified {
+            messages[idx].activityGroup = activity
+        }
     }
 
     public func resetActiveGoogleCloudSessionIfModelChanged(to newModelID: String) {
@@ -739,13 +828,7 @@ public final class AssistManager: ObservableObject {
 
         let session: GoogleCloudSDKSession
         if let existing = activeGoogleCloudSession,
-           existing.config.model == initialConfig.model &&
-            existing.config.provider == initialConfig.provider &&
-            existing.config.baseURL == initialConfig.baseURL &&
-            existing.config.apiKey == initialConfig.apiKey &&
-            existing.config.systemInstructions == initialConfig.systemInstructions &&
-            existing.config.workspaces == initialConfig.workspaces &&
-            existing.config.toolkit == initialConfig.toolkit {
+           AssistPromptOptimizer.shared.canReuseSDKSession(existing: existing, targetConfig: initialConfig) {
             session = existing
         } else {
             if let old = activeGoogleCloudSession {
@@ -769,9 +852,11 @@ public final class AssistManager: ObservableObject {
         }
 
         let initialActivity = AssistActivityGroup(isExecuting: true)
+        var targetAssistantMessageId: UUID = UUID()
         await MainActor.run {
             var initialMsg = AssistMessage(role: .assistant, content: "")
             initialMsg.activityGroup = initialActivity
+            targetAssistantMessageId = initialMsg.id
             self.messages.append(initialMsg)
             self.saveHistory()
         }
@@ -779,6 +864,7 @@ public final class AssistManager: ObservableObject {
         let task = Task {
             defer {
                 Task { @MainActor in
+                    self.finalizeAllPendingActivities(status: .cancelled, reason: "Execution ended")
                     self.isProcessing = false
                     self.currentActivityStatus = "Idle"
                 }
@@ -857,24 +943,35 @@ public final class AssistManager: ObservableObject {
                     streamLoop: for await event in eventStream {
                         guard !Task.isCancelled else { break streamLoop }
                         watchdog.recordActivity()
-                        guard let idx = self.messages.indices.last else { continue }
+                        guard let idx = self.messages.firstIndex(where: { $0.id == targetAssistantMessageId }) ?? self.messages.indices.last else { continue }
                         switch event {
                         case .agentStarted:
                             metrics?.mark(.firstEventReceived)
                             metrics?.mark(.modelStarted)
                             self.currentActivityStatus = "Waiting for model output…"
 
-                        case .agentProgress(_, let delta, _):
+                        case .agentProgress(_, let delta, let thoughtDelta):
                             metrics?.mark(.firstEventReceived)
+                            if let thoughtDelta = thoughtDelta, !thoughtDelta.isEmpty {
+                                var message = self.messages[idx]
+                                let sanitizedThought = AssistSanitizer.sanitize(thoughtDelta)
+                                message.thinkingContent = (message.thinkingContent ?? "") + sanitizedThought
+                                self.messages[idx] = message
+                                if self.currentActivityStatus == "Waiting for model output…" {
+                                    self.currentActivityStatus = "Thinking…"
+                                }
+                            }
                             if let delta = delta, !delta.isEmpty {
                                 let safeDelta = outputFilter.append(delta)
                                 var message = self.messages[idx]
                                 if outputFilter.didSuppressToolPayload {
                                     message.content = ""
+                                    self.currentActivityStatus = "Correcting tool request format…"
                                 } else if !safeDelta.isEmpty {
                                     metrics?.mark(.firstTextDelta)
                                     self.currentActivityStatus = "Receiving response…"
-                                    message.content += safeDelta
+                                    let cleanDelta = AssistSanitizer.sanitize(safeDelta)
+                                    message.content += cleanDelta
                                 }
                                 self.messages[idx] = message
                             }
@@ -884,20 +981,23 @@ public final class AssistManager: ObservableObject {
                             let argsDict: [String: Any] = (try? JSONSerialization.jsonObject(with: tool.rawArgs.data(using: .utf8) ?? Data())) as? [String: Any] ?? [:]
                             self.reportToolStarted(callId: tool.id, toolName: tool.name, arguments: argsDict)
 
-                        case .toolProgress(_, let toolId, let message):
-                            self.reportToolProgress(callId: toolId, message: message)
+                        case .toolProgress(_, let toolId, let message, let outputChunk, let callId):
+                            let effectiveCallId = (callId?.isEmpty == false ? callId : nil) ?? toolId
+                            self.reportToolProgress(callId: effectiveCallId, toolName: toolId, message: message, outputChunk: outputChunk)
 
                         case .toolCompleted(let res):
-                            self.reportToolCompleted(callId: res.id, toolName: res.name, output: res.result, arguments: [:])
+                            let cachedArgs = self.activeCallArguments[res.id] ?? [:]
+                            self.reportToolCompleted(callId: res.id, toolName: res.name, output: res.result, arguments: cachedArgs)
 
                         case .toolFailed(_, let toolId, let name, let err):
-                            self.reportToolFailed(callId: toolId, toolName: name, error: err, arguments: [:])
+                            let cachedArgs = self.activeCallArguments[toolId] ?? [:]
+                            self.reportToolFailed(callId: toolId, toolName: name, error: err, arguments: cachedArgs)
 
                         case .workerStarted(_, let workerId, let name, let args):
                             self.reportWorkerStarted(workerId: workerId, name: name, args: args)
 
                         case .workerProgress(_, _, let progress):
-                            self.currentActivityStatus = progress
+                            self.currentActivityStatus = AssistSanitizer.sanitize(progress)
 
                         case .workerCompleted(_, let workerId, let result):
                             self.reportWorkerCompleted(workerId: workerId, result: result)
@@ -920,38 +1020,22 @@ public final class AssistManager: ObservableObject {
                             }
                             if !safeRemainder.isEmpty {
                                 var message = self.messages[idx]
-                                message.content += safeRemainder
+                                message.content += AssistSanitizer.sanitize(safeRemainder)
                                 self.messages[idx] = message
                             }
 
                             if watchdog.didTimeOut {
                                 turnError = "Assist stopped receiving runtime events and cancelled this turn. Please retry; if a specific tool is still running, inspect its result before repeating it."
-                                if var activity = self.messages[idx].activityGroup {
-                                    for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
-                                        activity.tools[tIdx].status = .failed
-                                        activity.tools[tIdx].result = "Timed out waiting for tool/runtime progress"
-                                    }
-                                    activity.isExecuting = false
-                                    self.messages[idx].activityGroup = activity
-                                }
+                                self.finalizeActivitiesInMessage(idx: idx, status: .failed, reason: "Timed out waiting for tool/runtime progress")
                                 break streamLoop
                             }
 
-                            if var activity = self.messages[idx].activityGroup {
-                                for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
-                                    activity.tools[tIdx].status = .completed
-                                    if let comp = activity.tools[tIdx].completedLabel {
-                                        activity.tools[tIdx].purpose = comp
-                                    }
-                                }
-                                activity.isExecuting = false
-                                self.messages[idx].activityGroup = activity
-                            }
+                            self.finalizeActivitiesInMessage(idx: idx, status: .completed)
 
                             let currentContent = self.messages[idx].content
                             let finalContent = currentContent.isEmpty ? response : currentContent
                             var finalMessage = self.messages[idx]
-                            finalMessage.content = finalContent
+                            finalMessage.content = AssistSanitizer.sanitize(finalContent)
                             self.messages[idx] = finalMessage
                             self.messages[idx].activityGroup?.isExecuting = false
                             self.saveHistory()
@@ -962,14 +1046,7 @@ public final class AssistManager: ObservableObject {
 
                         case .agentFailed(_, let err):
                             turnError = err
-
-                            if var activity = self.messages[idx].activityGroup {
-                                for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
-                                    activity.tools[tIdx].status = .failed
-                                    activity.tools[tIdx].result = err
-                                }
-                                self.messages[idx].activityGroup = activity
-                            }
+                            self.finalizeActivitiesInMessage(idx: idx, status: .failed, reason: AssistSanitizer.sanitize(err))
                             break streamLoop
 
                         default:
@@ -1000,13 +1077,8 @@ public final class AssistManager: ObservableObject {
                     turnCompletedSuccessfully = false
                     turnError = "Assist stopped receiving runtime events for \(Int(watchdogTimeout)) seconds and cancelled this attempt. Please retry, or inspect any active tool before repeating it."
                     await MainActor.run {
-                        if let idx = self.messages.indices.last, var activity = self.messages[idx].activityGroup {
-                            for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
-                                activity.tools[tIdx].status = .failed
-                                activity.tools[tIdx].result = "Timed out waiting for tool/runtime progress"
-                            }
-                            activity.isExecuting = false
-                            self.messages[idx].activityGroup = activity
+                        if let idx = self.messages.indices.last {
+                            self.finalizeActivitiesInMessage(idx: idx, status: .failed, reason: "Timed out waiting for tool/runtime progress")
                         }
                     }
                 }
@@ -1093,6 +1165,7 @@ public final class AssistManager: ObservableObject {
                             await MainActor.run {
                                 self.currentActivityStatus = "Switched to Gemini key \(keyIndex)"
                                 if let idx = self.messages.indices.last {
+                                    self.finalizeActivitiesInMessage(idx: idx, status: .failed, reason: "Turn restarted on key rotation")
                                     // Clear aborted buffer so retry writes cleanly into current assistant message
                                     self.messages[idx].content = ""
                                     self.messages[idx].thinkingContent = ""
@@ -1122,12 +1195,13 @@ public final class AssistManager: ObservableObject {
                             // All Gemini keys exhausted
                             if !savedModelsEnabled {
                                 await MainActor.run {
-                                    self.lastError = "All configured Gemini API keys are currently unavailable."
+                                    let exhaustedMsg = "All configured Gemini API keys are currently unavailable."
+                                    self.lastError = exhaustedMsg
                                     if let idx = self.messages.indices.last {
-                                        self.messages[idx].activityGroup?.isExecuting = false
+                                        self.finalizeActivitiesInMessage(idx: idx, status: .failed, reason: exhaustedMsg)
                                         self.messages[idx] = AssistMessage(
                                             role: .assistant,
-                                            content: "All configured Gemini API keys are currently unavailable."
+                                            content: exhaustedMsg
                                         )
                                     }
                                     self.saveHistory()
@@ -1152,6 +1226,7 @@ public final class AssistManager: ObservableObject {
                         await MainActor.run {
                             self.currentActivityStatus = "\(oldName) error — switching to \(newName)"
                             if let idx = self.messages.indices.last {
+                                self.finalizeActivitiesInMessage(idx: idx, status: .failed, reason: "Turn restarted on model failover")
                                 self.messages[idx].activityGroup?.isExecuting = true
                             }
                         }
@@ -1188,11 +1263,12 @@ public final class AssistManager: ObservableObject {
                 // Terminal failure
                 await MainActor.run {
                     let finalErrorMsg = (altKeysEnabled && isGemini) ? "All configured Gemini API keys are currently unavailable." : (turnError ?? "\(currentModelName) execution failed")
-                    self.lastError = finalErrorMsg
+                    let cleanError = AssistSanitizer.sanitize(finalErrorMsg)
+                    self.lastError = cleanError
                     if let idx = self.messages.indices.last {
-                        self.messages[idx].activityGroup?.isExecuting = false
+                        self.finalizeActivitiesInMessage(idx: idx, status: .failed, reason: cleanError)
                         if self.messages[idx].content.isEmpty {
-                            self.messages[idx] = AssistMessage(role: .assistant, content: finalErrorMsg)
+                            self.messages[idx] = AssistMessage(role: .assistant, content: cleanError)
                         }
                     }
                     self.saveHistory()
@@ -1216,7 +1292,11 @@ public final class AssistManager: ObservableObject {
 
     @MainActor
     public func reportToolStarted(callId: String, toolName: String, arguments: [String: Any]) {
-        let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
+        self.activeCallArguments[callId] = arguments
+        self.activeCallToolNames[callId] = toolName
+
+        let sanitizedArgs = AssistSanitizer.sanitize(arguments: arguments)
+        let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: sanitizedArgs)
         self.currentActivityStatus = formatted.runningLabel
 
         guard let idx = self.messages.indices.last else { return }
@@ -1225,7 +1305,7 @@ public final class AssistManager: ObservableObject {
         AssistEventNormalizer.shared.normalizeToolStarted(
             callId: callId,
             toolName: toolName,
-            arguments: arguments,
+            arguments: sanitizedArgs,
             in: &activity
         )
 
@@ -1234,7 +1314,13 @@ public final class AssistManager: ObservableObject {
 
     @MainActor
     public func reportToolCompleted(callId: String, toolName: String, output: String?, arguments: [String: Any]) {
-        let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
+        let effectiveArgs = arguments.isEmpty ? (self.activeCallArguments[callId] ?? [:]) : arguments
+        let sanitizedArgs = AssistSanitizer.sanitize(arguments: effectiveArgs)
+        let sanitizedOutput = output != nil ? AssistSanitizer.sanitize(output!) : nil
+        self.activeCallArguments.removeValue(forKey: callId)
+        self.activeCallToolNames.removeValue(forKey: callId)
+
+        let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: sanitizedArgs)
         self.currentActivityStatus = formatted.completedLabel
 
         guard let idx = self.messages.indices.last else { return }
@@ -1243,8 +1329,8 @@ public final class AssistManager: ObservableObject {
         AssistEventNormalizer.shared.normalizeToolCompleted(
             callId: callId,
             toolName: toolName,
-            output: output,
-            arguments: arguments,
+            output: sanitizedOutput,
+            arguments: sanitizedArgs,
             in: &activity
         )
 
@@ -1252,24 +1338,47 @@ public final class AssistManager: ObservableObject {
     }
 
     @MainActor
-    public func reportToolProgress(callId: String, toolName: String = "", message: String) {
+    public func reportToolProgress(callId: String, toolName: String = "", message: String, outputChunk: String? = nil) {
+        let cleanMsg = AssistSanitizer.sanitize(message)
+        if !cleanMsg.isEmpty {
+            self.currentActivityStatus = cleanMsg
+        }
+
         guard let idx = self.messages.indices.last else { return }
         guard var activity = self.messages[idx].activityGroup else { return }
 
         AssistEventNormalizer.shared.normalizeToolProgress(
             callId: callId,
             toolName: toolName,
-            progressMessage: message,
+            progressMessage: cleanMsg,
             in: &activity
         )
+
+        if let chunk = outputChunk, !chunk.isEmpty {
+            let sanitizedChunk = AssistSanitizer.sanitize(chunk)
+            if let toolIdx = activity.tools.firstIndex(where: { $0.matches(callId: callId) }) {
+                activity.tools[toolIdx].appendStreamingChunk(sanitizedChunk)
+            }
+        }
 
         self.messages[idx].activityGroup = activity
     }
 
     @MainActor
+    public func reportToolProgress(callId: String, toolName: String = "", message: String) {
+        reportToolProgress(callId: callId, toolName: toolName, message: message, outputChunk: nil)
+    }
+
+    @MainActor
     public func reportToolFailed(callId: String, toolName: String, error: String, arguments: [String: Any]) {
-        let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
-        let cleanError = AssistEventNormalizer.shared.sanitizeErrorMessage(rawError: error, toolName: toolName)
+        let effectiveArgs = arguments.isEmpty ? (self.activeCallArguments[callId] ?? [:]) : arguments
+        let sanitizedArgs = AssistSanitizer.sanitize(arguments: effectiveArgs)
+        let sanitizedError = AssistSanitizer.sanitize(error)
+        self.activeCallArguments.removeValue(forKey: callId)
+        self.activeCallToolNames.removeValue(forKey: callId)
+
+        let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: sanitizedArgs)
+        let cleanError = AssistEventNormalizer.shared.sanitizeErrorMessage(rawError: sanitizedError, toolName: toolName)
         self.currentActivityStatus = "\(formatted.failedLabel) — \(cleanError)"
 
         guard let idx = self.messages.indices.last else { return }
@@ -1278,8 +1387,8 @@ public final class AssistManager: ObservableObject {
         AssistEventNormalizer.shared.normalizeToolFailed(
             callId: callId,
             toolName: toolName,
-            error: error,
-            arguments: arguments,
+            error: sanitizedError,
+            arguments: sanitizedArgs,
             in: &activity
         )
 
@@ -1287,8 +1396,54 @@ public final class AssistManager: ObservableObject {
     }
 
     @MainActor
+    public func validateAndExecuteTool(
+        toolName: String,
+        arguments: [String: Any],
+        callId: String = UUID().uuidString
+    ) async -> (success: Bool, output: String) {
+        // Enforce strict schema validation before native execution
+        let validation = registry.validate(toolId: toolName, arguments: arguments)
+        guard validation.isValid else {
+            let errorMsg = validation.issue ?? "Schema validation failed for tool '\(toolName)'"
+            reportToolFailed(callId: callId, toolName: toolName, error: errorMsg, arguments: arguments)
+            return (false, "Error: \(errorMsg)")
+        }
+
+        guard let tool = registry.getTool(toolName) else {
+            let errorMsg = "Tool '\(toolName)' is not registered or unavailable"
+            reportToolFailed(callId: callId, toolName: toolName, error: errorMsg, arguments: arguments)
+            return (false, "Error: \(errorMsg)")
+        }
+
+        let effectiveArgs = validation.correctedInput ?? arguments
+        reportToolStarted(callId: callId, toolName: tool.id, arguments: effectiveArgs)
+
+        let context = buildContext()
+        do {
+            let toolResult = try await tool.execute(input: effectiveArgs, context: context)
+            registry.markUsed(tool.id)
+            if toolResult.success {
+                reportToolCompleted(callId: callId, toolName: tool.id, output: toolResult.output, arguments: effectiveArgs)
+                return (true, toolResult.output)
+            } else {
+                let failureError = toolResult.error ?? toolResult.output
+                registry.markError(tool.id, error: failureError)
+                reportToolFailed(callId: callId, toolName: tool.id, error: failureError, arguments: effectiveArgs)
+                return (false, toolResult.output)
+            }
+        } catch {
+            let errStr = error.localizedDescription
+            registry.markError(tool.id, error: errStr)
+            reportToolFailed(callId: callId, toolName: tool.id, error: errStr, arguments: effectiveArgs)
+            return (false, "Error executing '\(tool.id)': \(errStr)")
+        }
+    }
+
+    @MainActor
     public func reportWorkerStarted(workerId: String, name: String, args: String) {
-        let cleanName = name.replacingOccurrences(of: "start_subagent", with: "")
+        let sanitizedArgs = AssistSanitizer.sanitize(args)
+        let cleanName = AssistSanitizer.sanitize(name)
+            .replacingOccurrences(of: "start_subagent", with: "")
             .replacingOccurrences(of: "Worker:", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let title = cleanName.isEmpty ? "Worker" : "Worker · \(cleanName)"
@@ -1299,8 +1454,8 @@ public final class AssistManager: ObservableObject {
 
         AssistEventNormalizer.shared.normalizeWorkerStarted(
             workerId: workerId,
-            name: name,
-            args: args,
+            name: cleanName,
+            args: sanitizedArgs,
             in: &activity
         )
 
@@ -1309,6 +1464,7 @@ public final class AssistManager: ObservableObject {
 
     @MainActor
     public func reportWorkerCompleted(workerId: String, result: String) {
+        let sanitizedResult = AssistSanitizer.sanitize(result)
         self.currentActivityStatus = "Worker completed"
 
         guard let idx = self.messages.indices.last else { return }
@@ -1316,7 +1472,7 @@ public final class AssistManager: ObservableObject {
 
         AssistEventNormalizer.shared.normalizeWorkerCompleted(
             workerId: workerId,
-            result: result,
+            result: sanitizedResult,
             in: &activity
         )
 
@@ -1325,7 +1481,8 @@ public final class AssistManager: ObservableObject {
 
     @MainActor
     public func reportWorkerFailed(workerId: String, error: String) {
-        let cleanErr = AssistEventNormalizer.shared.sanitizeErrorMessage(rawError: error, toolName: "worker")
+        let sanitizedError = AssistSanitizer.sanitize(error)
+        let cleanErr = AssistEventNormalizer.shared.sanitizeErrorMessage(rawError: sanitizedError, toolName: "worker")
         self.currentActivityStatus = "Worker failed — \(cleanErr)"
 
         guard let idx = self.messages.indices.last else { return }
@@ -1333,7 +1490,7 @@ public final class AssistManager: ObservableObject {
 
         AssistEventNormalizer.shared.normalizeWorkerFailed(
             workerId: workerId,
-            error: error,
+            error: sanitizedError,
             in: &activity
         )
 
@@ -1363,16 +1520,8 @@ struct AssistToolPayloadStreamFilter {
 
     mutating func append(_ delta: String) -> String {
         guard !delta.isEmpty else { return "" }
-        // The format decision is only meaningful before normal prose has been
-        // released. Re-scanning an ever-growing response for every token made
-        // long streamed answers needlessly quadratic.
-        switch mode {
-        case .passthrough:
-            return delta
-        case .suppressed:
+        if mode == .suppressed {
             return ""
-        case .undecided, .json, .fenceHeader, .fencedJSON:
-            break
         }
 
         receivedText = true
@@ -1384,14 +1533,11 @@ struct AssistToolPayloadStreamFilter {
             return ""
         }
 
-        switch mode {
-        case .passthrough:
+        if mode == .passthrough {
             return delta
-        case .suppressed:
-            return ""
-        case .undecided, .json, .fenceHeader, .fencedJSON:
-            pending += delta
         }
+
+        pending += delta
 
         switch mode {
         case .undecided:
@@ -1531,12 +1677,18 @@ struct AssistToolPayloadStreamFilter {
 
     private static func hasStrongToolRequestSignature(in text: String) -> Bool {
         let value = text.lowercased()
+        if value.contains("com.swiftcode.assist-agent") { return true }
+        if value.contains("# hidden runtime instructions") { return true }
+        if value.contains("# system prompt (operating policy)") { return true }
         if value.contains("\"function_name\"") && value.contains("\"arguments\"") { return true }
         if value.contains("\"toolid\"") && value.contains("\"input\"") { return true }
+        if value.contains("\"jsonrpc\"") && value.contains("\"method\"") { return true }
         let hasArguments = value.contains("\"arguments\"")
         if value.contains("{") && value.contains("\"name\"") && hasArguments { return true }
         let hasCommandFields = ["\"commandline\"", "\"toolaction\"", "\"toolsummary\"", "\"waitmsbeforeasync\"", "\"notificationtimeoutseconds\""].contains(where: { value.contains($0) })
-        return hasArguments && hasCommandFields
+        if hasArguments && hasCommandFields { return true }
+        if value.contains("<tool_call>") || value.contains("</tool_call>") { return true }
+        return false
     }
 
     private static func firstJSONObject(in text: String) -> (value: [String: Any], end: String.Index)? {
@@ -1582,6 +1734,7 @@ struct AssistToolPayloadStreamFilter {
         if object["name"] is String && hasArguments { return true }
         if object["tool_calls"] is [Any] { return true }
         if object["function_call"] is [String: Any] { return true }
+        if object["jsonrpc"] is String && object["method"] is String { return true }
         return false
     }
 }
@@ -1616,5 +1769,113 @@ final class AssistSDKTurnWatchdog {
     func stop() {
         task?.cancel()
         task = nil
+    }
+}
+
+// MARK: - Assist Output & Credential Sanitizer
+
+public enum AssistSanitizer {
+    private static let credentialPatterns: [NSRegularExpression] = [
+        // OpenAI API keys: sk-... / sk-proj-...
+        try! NSRegularExpression(pattern: #"\bsk-(?:proj-)?[A-Za-z0-9_\-]{20,}\b"#, options: []),
+        // Anthropic API keys: sk-ant-...
+        try! NSRegularExpression(pattern: #"\bsk-ant-[A-Za-z0-9_\-]{20,}\b"#, options: []),
+        // Google / Gemini API keys: AIza...
+        try! NSRegularExpression(pattern: #"\bAIza[0-9A-Za-z\-_]{35}\b"#, options: []),
+        // GitHub Personal Access Tokens / PAT
+        try! NSRegularExpression(pattern: #"\bgh[pousr]-[A-Za-z0-9]{36,}\b"#, options: []),
+        try! NSRegularExpression(pattern: #"\bgithub_pat_[A-Za-z0-9_]{22,}\b"#, options: []),
+        // AWS Access Key ID
+        try! NSRegularExpression(pattern: #"\bAKIA[0-9A-Z]{16}\b"#, options: []),
+        // AWS Secret Access Key assignment
+        try! NSRegularExpression(pattern: #"(?i)aws_secret_access_key\s*=\s*[A-Za-z0-9/+=]{40}\b"#, options: []),
+        // Bearer tokens
+        try! NSRegularExpression(pattern: #"(?i)Bearer\s+[A-Za-z0-9_\-\.]{25,}\b"#, options: []),
+        // RSA / EC / OpenSSH Private Keys
+        try! NSRegularExpression(pattern: #"-----BEGIN (?:[A-Z0-9_-]+ )?PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z0-9_-]+ )?PRIVATE KEY-----"#, options: []),
+        // Generic password / secret assignments
+        try! NSRegularExpression(pattern: #"(?i)("?(?:password|secret|api_?key|auth_?token|access_?token)"?\s*[:=]\s*["'])([^"'\r\n\s]{8,})(["'])"#, options: [])
+    ]
+
+    private static let leakedEnvelopePatterns: [NSRegularExpression] = [
+        // Hidden instructions banner
+        try! NSRegularExpression(pattern: #"(?i)#\s*HIDDEN RUNTIME INSTRUCTIONS[\s\S]*?(?=(?:\n#[^#]|\Z))"#, options: []),
+        // System prompt banner
+        try! NSRegularExpression(pattern: #"(?i)#\s*SYSTEM PROMPT\s*\(OPERATING POLICY\)[\s\S]*?(?=(?:\n#[^#]|\Z))"#, options: []),
+        // Execution key/mode declarations
+        try! NSRegularExpression(pattern: #"(?i)Execution Key:\s*com\.SwiftCode[^\n]*\n?"#, options: []),
+        try! NSRegularExpression(pattern: #"(?i)Execution Mode:\s*com\.SwiftCode[^\n]*\n?"#, options: []),
+        // XML tool tags leaked in prose
+        try! NSRegularExpression(pattern: #"<tool_call>[\s\S]*?<\/tool_call>"#, options: []),
+        try! NSRegularExpression(pattern: #"<tool_response>[\s\S]*?<\/tool_response>"#, options: []),
+        // JSON-RPC envelopes
+        try! NSRegularExpression(pattern: #"\{\s*"jsonrpc"\s*:\s*"2\.0"[\s\S]*?\}"#, options: [])
+    ]
+
+    public static func sanitize(_ text: String) -> String {
+        guard !text.isEmpty else { return text }
+        var result = text
+
+        // 1. Redact credentials
+        for regex in credentialPatterns {
+            let range = NSRange(result.startIndex..<result.endIndex, in: result)
+            if regex.pattern.contains("password|secret") {
+                result = regex.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "$1[REDACTED]$3")
+            } else if regex.pattern.contains("Bearer") {
+                result = regex.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "Bearer [REDACTED_TOKEN]")
+            } else if regex.pattern.contains("PRIVATE KEY") {
+                result = regex.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "[REDACTED_PRIVATE_KEY]")
+            } else {
+                result = regex.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "[REDACTED_CREDENTIAL]")
+            }
+        }
+
+        // 2. Strip internal system envelopes
+        for regex in leakedEnvelopePatterns {
+            let range = NSRange(result.startIndex..<result.endIndex, in: result)
+            result = regex.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "")
+        }
+
+        return result
+    }
+
+    public static func sanitize(arguments: [String: Any]) -> [String: Any] {
+        var sanitized: [String: Any] = [:]
+        for (key, value) in arguments {
+            let lowerKey = key.lowercased()
+            let isSensitiveKey = lowerKey.contains("key") ||
+                                 lowerKey.contains("secret") ||
+                                 lowerKey.contains("token") ||
+                                 lowerKey.contains("password") ||
+                                 lowerKey.contains("auth") ||
+                                 lowerKey.contains("credential")
+
+            if isSensitiveKey, let strVal = value as? String, !strVal.isEmpty {
+                sanitized[key] = "[REDACTED]"
+            } else if let strVal = value as? String {
+                sanitized[key] = sanitize(strVal)
+            } else if let dictVal = value as? [String: Any] {
+                sanitized[key] = sanitize(arguments: dictVal)
+            } else if let arrVal = value as? [Any] {
+                sanitized[key] = sanitize(array: arrVal)
+            } else {
+                sanitized[key] = value
+            }
+        }
+        return sanitized
+    }
+
+    public static func sanitize(array: [Any]) -> [Any] {
+        return array.map { item in
+            if let strVal = item as? String {
+                return sanitize(strVal)
+            } else if let dictVal = item as? [String: Any] {
+                return sanitize(arguments: dictVal)
+            } else if let arrVal = item as? [Any] {
+                return sanitize(array: arrVal)
+            } else {
+                return item
+            }
+        }
     }
 }

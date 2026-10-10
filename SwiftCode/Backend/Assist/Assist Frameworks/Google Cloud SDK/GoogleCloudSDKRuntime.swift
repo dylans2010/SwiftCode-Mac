@@ -43,6 +43,15 @@ public final class GoogleCloudSDKRuntime: Sendable {
         }
     }
 
+    /// Pre-warms the Antigravity bridge process and IPC transport in the background
+    /// to ensure instantaneous first-turn execution without bridge launch delay.
+    public func prewarm() {
+        guard !isRunning, !isStarting else { return }
+        Task { @MainActor in
+            _ = try? await self.start()
+        }
+    }
+
     /// Validates, checks permissions, and executes a SwiftCode tool for Antigravity.
     private func executeSwiftTool(request: GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?) {
         let toolRegistry = AssistManager.shared.registry
@@ -50,25 +59,21 @@ public final class GoogleCloudSDKRuntime: Sendable {
         let args = request.arguments
         let callId = request.callId ?? request.requestId
 
-        // Instantly notify AssistManager that a tool has started execution on the main actor
-        await MainActor.run {
-            AssistManager.shared.reportToolStarted(
-                callId: callId,
-                toolName: toolName,
-                arguments: args
-            )
-        }
+        // Instantly notify AssistManager that a tool has started execution
+        AssistManager.shared.reportToolStarted(
+            callId: callId,
+            toolName: toolName,
+            arguments: args
+        )
 
         guard let tool = toolRegistry.getTool(toolName) else {
             let errorMsg = "Tool '\(toolName)' is not registered in SwiftCode"
-            await MainActor.run {
-                AssistManager.shared.reportToolFailed(
-                    callId: callId,
-                    toolName: toolName,
-                    error: errorMsg,
-                    arguments: args
-                )
-            }
+            AssistManager.shared.reportToolFailed(
+                callId: callId,
+                toolName: toolName,
+                error: errorMsg,
+                arguments: args
+            )
             return (false, nil, errorMsg)
         }
 
@@ -76,60 +81,44 @@ public final class GoogleCloudSDKRuntime: Sendable {
         let validation = toolRegistry.validate(toolId: toolName, arguments: args)
         guard validation.isValid else {
             let errorMsg = "Invalid arguments for '\(toolName)': \(validation.issue ?? "Schema mismatch")"
-            await MainActor.run {
-                AssistManager.shared.reportToolFailed(
-                    callId: callId,
-                    toolName: toolName,
-                    error: errorMsg,
-                    arguments: args
-                )
-            }
+            AssistManager.shared.reportToolFailed(
+                callId: callId,
+                toolName: toolName,
+                error: errorMsg,
+                arguments: args
+            )
             return (false, nil, errorMsg)
         }
 
-        // Build execution context
-        let context = AssistContextBuilder(
-            logger: AssistManager.shared.logger,
-            permissions: AssistPermissionsManager(),
-            memory: AssistMemoryGraph(),
-            fileSystem: AssistFileSystem(workspaceRoot: ProjectSessionStore.shared.activeProject?.directoryURL ?? URL(fileURLWithPath: "/")),
-            git: AssistGitManager(project: ProjectSessionStore.shared.activeProject)
-        ).buildContext(sessionId: UUID(uuidString: request.sessionId) ?? UUID())
+        // Fast execution context retrieval via AssistPromptOptimizer memoization
+        let sessionUUID = UUID(uuidString: request.sessionId) ?? UUID()
+        let workspaceRoot = ProjectSessionStore.shared.activeProject?.directoryURL ?? URL(fileURLWithPath: "/")
+        let context = AssistPromptOptimizer.shared.executionContext(for: sessionUUID, workspaceRoot: workspaceRoot)
 
-        // Evaluate permissions via AssistPermissionsManager
-        let permissions = AssistPermissionsManager()
-        if !permissions.authorizeOperation(toolName) {
+        // Evaluate permissions via context
+        if !context.permissions.authorizeOperation(toolName) {
             let errorMsg = "Permission denied for tool '\(toolName)'"
-            await MainActor.run {
-                AssistManager.shared.reportToolFailed(
-                    callId: callId,
-                    toolName: toolName,
-                    error: errorMsg,
-                    arguments: args
-                )
-            }
+            AssistManager.shared.reportToolFailed(
+                callId: callId,
+                toolName: toolName,
+                error: errorMsg,
+                arguments: args
+            )
             return (false, nil, errorMsg)
         }
 
         let meta = AssistToolRouter.shared.metadata(for: tool)
-        let semKey = await MainActor.run {
-            AssistEventNormalizer.shared.computeSemanticKey(toolName: toolName, arguments: args)
-        }
+        let semKey = AssistEventNormalizer.shared.computeSemanticKey(toolName: toolName, arguments: args)
 
         // Runtime Result Reuse / Idempotency Check for Read-Only tools
         if meta.isReadOnly {
-            let cached: String? = await MainActor.run {
-                toolRegistry.getCachedResult(semanticKey: semKey)
-            }
-            if let cached = cached {
-                await MainActor.run {
-                    AssistManager.shared.reportToolCompleted(
-                        callId: callId,
-                        toolName: toolName,
-                        output: cached,
-                        arguments: args
-                    )
-                }
+            if let cached = toolRegistry.getCachedResult(semanticKey: semKey) {
+                AssistManager.shared.reportToolCompleted(
+                    callId: callId,
+                    toolName: toolName,
+                    output: cached,
+                    arguments: args
+                )
                 return (true, cached, nil)
             }
         }
@@ -138,46 +127,41 @@ public final class GoogleCloudSDKRuntime: Sendable {
             toolRegistry.markUsed(toolName)
             let effectiveArgs = validation.correctedInput ?? args
             let result = try await tool.execute(input: effectiveArgs, context: context)
-            if result.success {
-                await MainActor.run {
-                    if meta.isMutating {
-                        toolRegistry.invalidateReadOnlyCache()
-                    } else if meta.isReadOnly {
-                        toolRegistry.setCachedResult(result.output, for: semKey)
-                    }
 
-                    AssistManager.shared.reportToolCompleted(
-                        callId: callId,
-                        toolName: toolName,
-                        output: result.output,
-                        arguments: args
-                    )
+            if result.success {
+                if meta.isMutating {
+                    toolRegistry.invalidateReadOnlyCache()
+                } else if meta.isReadOnly {
+                    toolRegistry.setCachedResult(result.output, for: semKey)
                 }
+
+                AssistManager.shared.reportToolCompleted(
+                    callId: callId,
+                    toolName: toolName,
+                    output: result.output,
+                    arguments: args
+                )
                 return (true, result.output, nil)
             } else {
                 let errStr = result.error ?? result.output
                 toolRegistry.markError(toolName, error: errStr)
-                await MainActor.run {
-                    AssistManager.shared.reportToolFailed(
-                        callId: callId,
-                        toolName: toolName,
-                        error: errStr,
-                        arguments: args
-                    )
-                }
-                return (false, nil, errStr)
-            }
-        } catch {
-            toolRegistry.markError(toolName, error: error.localizedDescription)
-            let errStr = "Tool '\(toolName)' execution error: \(error.localizedDescription)"
-            await MainActor.run {
                 AssistManager.shared.reportToolFailed(
                     callId: callId,
                     toolName: toolName,
                     error: errStr,
                     arguments: args
                 )
+                return (false, nil, errStr)
             }
+        } catch {
+            toolRegistry.markError(toolName, error: error.localizedDescription)
+            let errStr = "Tool '\(toolName)' execution error: \(error.localizedDescription)"
+            AssistManager.shared.reportToolFailed(
+                callId: callId,
+                toolName: toolName,
+                error: errStr,
+                arguments: args
+            )
             return (false, nil, errStr)
         }
     }
@@ -315,8 +299,10 @@ public final class GoogleCloudSDKRuntime: Sendable {
         case .toolStarted(let tool):
             appendLog("[\(tool.sessionId)] Tool started: \(tool.name)")
 
-        case .toolProgress(let sid, let id, let msg):
-            appendLog("[\(sid)] Tool progress (\(id)): \(msg)")
+        case .toolProgress(let sid, let id, let msg, let chunk, let callId):
+            let effectiveId = (callId?.isEmpty == false ? callId : nil) ?? id
+            let detail = chunk.map { "\(msg) (chunk: \($0))" } ?? msg
+            appendLog("[\(sid)] Tool progress (\(effectiveId)): \(detail)")
 
         case .toolCompleted(let res):
             appendLog("[\(res.sessionId)] Tool completed: \(res.name)")

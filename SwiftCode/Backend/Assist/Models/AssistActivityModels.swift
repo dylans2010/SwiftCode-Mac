@@ -21,6 +21,21 @@ public enum ActivityStatus: String, Codable, Sendable {
         case .cancelled: return "xmark.circle.fill"
         }
     }
+
+    /// Whether this status represents an active, non-terminal state.
+    public var isRunning: Bool {
+        return self == .running || self == .retrying
+    }
+
+    /// Whether this status represents a terminal state.
+    public var isTerminal: Bool {
+        switch self {
+        case .completed, .failed, .skipped, .cancelled:
+            return true
+        case .pending, .running, .retrying:
+            return false
+        }
+    }
 }
 
 /// Structured operation state model for tracking explicit lifecycle transitions.
@@ -31,6 +46,7 @@ public enum AssistOperationState: Codable, Sendable, Equatable {
     case completed
     case failed(reason: String)
     case cancelled
+    case timedOut(duration: TimeInterval? = nil)
 
     public var activityStatus: ActivityStatus {
         switch self {
@@ -40,6 +56,7 @@ public enum AssistOperationState: Codable, Sendable, Equatable {
         case .completed: return .completed
         case .failed: return .failed
         case .cancelled: return .cancelled
+        case .timedOut: return .failed
         }
     }
 }
@@ -86,7 +103,8 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         operationId: String? = nil
     ) {
         self.id = id
-        self.callId = callId ?? id.uuidString
+        let resolvedCallId = callId ?? operationId ?? id.uuidString
+        self.callId = resolvedCallId
         self.toolId = toolId
         self.purpose = purpose
         self.argumentsSummary = argumentsSummary
@@ -102,7 +120,7 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         self.attemptsCount = attemptsCount
         self.retryCount = retryCount
         self.semanticKey = semanticKey
-        self.operationId = operationId
+        self.operationId = operationId ?? resolvedCallId
     }
 
     enum CodingKeys: String, CodingKey {
@@ -116,7 +134,10 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let decodedId = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         self.id = decodedId
-        self.callId = try container.decodeIfPresent(String.self, forKey: .callId) ?? decodedId.uuidString
+        let decodedCallId = try container.decodeIfPresent(String.self, forKey: .callId)
+        let decodedOpId = try container.decodeIfPresent(String.self, forKey: .operationId)
+        let resolvedCallId = decodedCallId ?? decodedOpId ?? decodedId.uuidString
+        self.callId = resolvedCallId
         self.toolId = try container.decodeIfPresent(String.self, forKey: .toolId) ?? ""
         self.purpose = try container.decodeIfPresent(String.self, forKey: .purpose) ?? ""
         self.argumentsSummary = try container.decodeIfPresent(String.self, forKey: .argumentsSummary) ?? ""
@@ -132,7 +153,167 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         self.attemptsCount = try container.decodeIfPresent(Int.self, forKey: .attemptsCount) ?? 1
         self.retryCount = try container.decodeIfPresent(Int.self, forKey: .retryCount) ?? 0
         self.semanticKey = try container.decodeIfPresent(String.self, forKey: .semanticKey)
-        self.operationId = try container.decodeIfPresent(String.self, forKey: .operationId)
+        self.operationId = decodedOpId ?? resolvedCallId
+    }
+
+    // MARK: - Computed Properties
+
+    /// Clean display output that presents the final result or streaming output,
+    /// filtering out raw JSON envelopes.
+    public var displayOutput: String {
+        let raw: String
+        if status == .running || status == .retrying {
+            raw = !streamingOutput.isEmpty ? streamingOutput : result
+        } else {
+            raw = !result.isEmpty ? result : streamingOutput
+        }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("{") && trimmed.contains("\"toolId\"") {
+            return ""
+        }
+        return trimmed
+    }
+
+    /// Whether this item has non-empty output to show.
+    public var hasOutput: Bool {
+        return !displayOutput.isEmpty
+    }
+
+    /// Whether the tool is currently running or retrying.
+    public var isRunning: Bool {
+        return status.isRunning
+    }
+
+    /// Whether the tool reached a final, terminal status.
+    public var isTerminal: Bool {
+        return status.isTerminal
+    }
+
+    /// Formatted elapsed duration string (e.g. "0.4s").
+    public var formattedDuration: String {
+        return duration > 0 ? String(format: "%.1fs", duration) : ""
+    }
+
+    /// Progress expressed as a percentage integer (0–100) if available.
+    public var progressPercentage: Int? {
+        return progress.map { Int(($0 * 100.0).rounded()) }
+    }
+
+    /// Checks whether this activity matches the given call identifiers.
+    public func matches(callId: String?, operationId: String? = nil, uuid: UUID? = nil) -> Bool {
+        if let uuid = uuid, self.id == uuid {
+            return true
+        }
+        if let callId = callId, !callId.isEmpty {
+            if self.callId == callId || self.operationId == callId {
+                return true
+            }
+        }
+        if let opId = operationId, !opId.isEmpty {
+            if self.operationId == opId || self.callId == opId {
+                return true
+            }
+        }
+        return false
+    }
+
+    // MARK: - Mutation & Lifecycle Methods
+
+    /// Appends an incremental chunk of streamed output.
+    public mutating func appendStreamingChunk(_ chunk: String) {
+        guard !chunk.isEmpty else { return }
+        streamingOutput.append(chunk)
+    }
+
+    /// Updates progress value (0.0 to 1.0) and optionally updates status/result message.
+    public mutating func updateProgress(progress: Double? = nil, message: String? = nil) {
+        if let progress = progress {
+            self.progress = min(max(progress, 0.0), 1.0)
+        }
+        if let message = message, !message.isEmpty {
+            self.result = message
+        }
+    }
+
+    /// Marks the item as started or actively running.
+    public mutating func markStarted(label: String? = nil) {
+        self.status = .running
+        if let label = label, !label.isEmpty {
+            self.purpose = label
+            self.displayLabel = label
+        }
+    }
+
+    /// Marks the item as retrying, incrementing attempt and retry counters.
+    public mutating func markRetrying(attempt: Int? = nil, label: String? = nil) {
+        self.status = .retrying
+        self.retryCount = attempt ?? (self.retryCount + 1)
+        self.attemptsCount = self.retryCount + 1
+        self.timestamp = Date()
+        self.duration = 0
+        if let label = label {
+            self.purpose = label
+        } else if let display = displayLabel {
+            self.purpose = "\(display) (Retry \(self.retryCount + 1))"
+        }
+    }
+
+    /// Marks the item as successfully completed.
+    public mutating func markCompleted(output: String? = nil, duration: TimeInterval? = nil) {
+        self.status = .completed
+        if let output = output, !output.isEmpty {
+            self.result = output
+        } else if self.result.isEmpty && !self.streamingOutput.isEmpty {
+            self.result = self.streamingOutput
+        }
+        if let duration = duration {
+            self.duration = max(0.01, duration)
+        } else if self.duration <= 0 {
+            self.duration = max(0.01, Date().timeIntervalSince(self.timestamp))
+        }
+        if let completedLabel = self.completedLabel {
+            self.purpose = completedLabel
+        }
+        self.progress = 1.0
+    }
+
+    /// Marks the item as failed with an error reason.
+    public mutating func markFailed(error: String, duration: TimeInterval? = nil) {
+        self.status = .failed
+        self.result = error
+        if let duration = duration {
+            self.duration = max(0.01, duration)
+        } else if self.duration <= 0 {
+            self.duration = max(0.01, Date().timeIntervalSince(self.timestamp))
+        }
+        let base = self.displayLabel ?? self.purpose
+        self.purpose = "\(base) — \(error)"
+    }
+
+    /// Marks the item as cancelled.
+    public mutating func markCancelled(reason: String = "Cancelled", duration: TimeInterval? = nil) {
+        self.status = .cancelled
+        self.result = reason
+        if let duration = duration {
+            self.duration = max(0.01, duration)
+        } else if self.duration <= 0 {
+            self.duration = max(0.01, Date().timeIntervalSince(self.timestamp))
+        }
+        let base = self.displayLabel ?? self.purpose
+        self.purpose = "\(base) (Cancelled)"
+    }
+
+    /// Marks the item as timed out.
+    public mutating func markTimedOut(duration: TimeInterval? = nil) {
+        self.status = .failed
+        self.result = "Operation timed out waiting for tool/runtime progress"
+        if let duration = duration {
+            self.duration = max(0.01, duration)
+        } else if self.duration <= 0 {
+            self.duration = max(0.01, Date().timeIntervalSince(self.timestamp))
+        }
+        let base = self.displayLabel ?? self.purpose
+        self.purpose = "\(base) (Timed Out)"
     }
 }
 
@@ -458,5 +639,93 @@ public struct AssistActivityGroup: Codable, Identifiable, Sendable {
             return "\(totalActionsCount) action\(totalActionsCount == 1 ? "" : "s")"
         }
         return "Activity"
+    }
+
+    // MARK: - Lifecycle & Progress Helpers
+
+    /// Whether there are any active operations currently running or retrying.
+    public var hasRunningOperations: Bool {
+        return tools.contains(where: { $0.isRunning }) ||
+               terminalCommands.contains(where: { $0.status == .running || $0.status == .retrying }) ||
+               builds.contains(where: { $0.status == .running || $0.status == .retrying }) ||
+               tests.contains(where: { $0.status == .running || $0.status == .retrying }) ||
+               workers.contains(where: { $0.status == .running || $0.status == .retrying })
+    }
+
+    /// Synchronizes `isExecuting` with the actual operational state.
+    public mutating func refreshExecutingState() {
+        self.isExecuting = hasRunningOperations
+    }
+
+    /// Finds a tool activity item by callId or operationId.
+    public func tool(forCallId callId: String) -> ToolActivityItem? {
+        return tools.first(where: { $0.matches(callId: callId) })
+    }
+
+    /// Appends a streaming output chunk to the matching tool activity item.
+    public mutating func appendOutputChunk(callId: String, chunk: String) {
+        guard !chunk.isEmpty else { return }
+        if let idx = tools.firstIndex(where: { $0.matches(callId: callId) }) {
+            tools[idx].appendStreamingChunk(chunk)
+        }
+    }
+
+    /// Updates progress on the matching tool activity item.
+    public mutating func updateToolProgress(callId: String, progress: Double? = nil, message: String? = nil) {
+        if let idx = tools.firstIndex(where: { $0.matches(callId: callId) }) {
+            tools[idx].updateProgress(progress: progress, message: message)
+        }
+    }
+
+    /// Finalizes all running or retrying operations cleanly so nothing is left stuck in a running state.
+    public mutating func finalizeAllRunningOperations(status: ActivityStatus = .cancelled, reason: String? = nil) {
+        let finalReason = reason ?? (status == .cancelled ? "Operation cancelled" : (status == .failed ? "Operation timed out" : status.rawValue))
+        let now = Date()
+
+        for idx in tools.indices where tools[idx].isRunning {
+            tools[idx].status = status
+            if tools[idx].result.isEmpty {
+                tools[idx].result = finalReason
+            }
+            if tools[idx].duration <= 0 {
+                tools[idx].duration = max(0.1, now.timeIntervalSince(tools[idx].timestamp))
+            }
+            let label = tools[idx].completedLabel ?? tools[idx].displayLabel ?? tools[idx].purpose
+            tools[idx].purpose = "\(label) (\(status.rawValue))"
+        }
+
+        for idx in workers.indices where workers[idx].status == .running || workers[idx].status == .retrying {
+            workers[idx].status = status
+            workers[idx].taskDescription = finalReason
+        }
+
+        for idx in terminalCommands.indices where terminalCommands[idx].status == .running || terminalCommands[idx].status == .retrying {
+            terminalCommands[idx].status = status
+            if terminalCommands[idx].output.isEmpty {
+                terminalCommands[idx].output = finalReason
+            }
+        }
+
+        for idx in builds.indices where builds[idx].status == .running || builds[idx].status == .retrying {
+            builds[idx].status = status
+            if builds[idx].duration <= 0 {
+                builds[idx].duration = max(0.1, now.timeIntervalSince(builds[idx].timestamp))
+            }
+            if status == .failed {
+                builds[idx].errorCount = max(1, builds[idx].errorCount)
+            }
+        }
+
+        for idx in tests.indices where tests[idx].status == .running || tests[idx].status == .retrying {
+            tests[idx].status = status
+            if tests[idx].duration <= 0 {
+                tests[idx].duration = max(0.1, now.timeIntervalSince(tests[idx].timestamp))
+            }
+            if status == .failed {
+                tests[idx].failedCount = max(1, tests[idx].failedCount)
+            }
+        }
+
+        self.isExecuting = false
     }
 }

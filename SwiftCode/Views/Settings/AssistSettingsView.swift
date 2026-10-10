@@ -550,6 +550,10 @@ struct AssistSettingsView: View {
     @State private var showComposioSheet = false
     @State private var showSkillsSheet = false
     @State private var showAlternativeKeysSheet = false
+    @State private var showUserMemorySheet = false
+
+    // Assist Memory Store
+    @State private var memoryStore = AssistMemoryStore.shared
 
     // Composio Service Integration
     @State private var composioService = ComposioService.shared
@@ -977,6 +981,45 @@ struct AssistSettingsView: View {
                             }
                             .padding(10)
                             .background(Color.purple.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // Memory & Personalization Section
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("User Memory & Preferences", systemImage: "brain.head.profile")
+                                .font(.headline)
+                                .foregroundColor(.accentColor)
+                            Spacer()
+                            Toggle("", isOn: Bindable(memoryStore).isMemoryEnabled)
+                                .toggleStyle(.switch)
+                                .labelsHidden()
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("When enabled, Assist captures and references your coding habits, preferences, and project guidelines across sessions in UserMemory.md.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            HStack {
+                                Text("Storage: ~/Library/Application Support/SwiftCode/UserMemory.md")
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Button {
+                                    showUserMemorySheet = true
+                                } label: {
+                                    Label("Manage Memory", systemImage: "list.bullet.rectangle")
+                                        .font(.caption.bold())
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                                .disabled(!memoryStore.isMemoryEnabled)
+                            }
                         }
                     }
                     .padding()
@@ -1876,6 +1919,9 @@ struct AssistSettingsView: View {
                 ModernSkillsBrowserView()
             }
             .frame(minWidth: 850, minHeight: 600)
+        }
+        .sheet(isPresented: $showUserMemorySheet) {
+            UserMemoryView()
         }
         .onAppear {
             loadAPIKeys()

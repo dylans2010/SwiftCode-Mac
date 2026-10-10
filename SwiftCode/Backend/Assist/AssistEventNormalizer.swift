@@ -7,6 +7,7 @@ public final class AssistEventNormalizer {
 
     private var activeCallToSemanticKey: [String: String] = [:]
     private var activeCallToOperationId: [String: UUID] = [:]
+    private var completedCallIds: Set<String> = []
 
     private init() {}
 
@@ -14,6 +15,7 @@ public final class AssistEventNormalizer {
     public func resetForNewTask() {
         activeCallToSemanticKey.removeAll()
         activeCallToOperationId.removeAll()
+        completedCallIds.removeAll()
     }
 
     // MARK: - Semantic Operation Key Generator
@@ -68,6 +70,57 @@ public final class AssistEventNormalizer {
         return "Tool execution failed"
     }
 
+    // MARK: - Internal Tool Lookup Helper
+
+    private func findToolIndex(
+        callId: String,
+        toolName: String,
+        semanticKey: String?,
+        in tools: [ToolActivityItem],
+        requireActive: Bool = false
+    ) -> Int? {
+        let isActive: (ToolActivityItem) -> Bool = { $0.status == .running || $0.status == .retrying || $0.status == .failed }
+
+        // 1. Direct callId or operationId match
+        if !callId.isEmpty {
+            if let idx = tools.firstIndex(where: {
+                ($0.callId == callId || $0.operationId == callId) && (!requireActive || isActive($0))
+            }) {
+                return idx
+            }
+        }
+
+        // 2. Direct UUID match from active mapping or parsed UUID
+        let callUUID = callId.isEmpty ? nil : (activeCallToOperationId[callId] ?? UUID(uuidString: callId))
+        if let callUUID = callUUID {
+            if let idx = tools.firstIndex(where: {
+                $0.id == callUUID && (!requireActive || isActive($0))
+            }) {
+                return idx
+            }
+        }
+
+        // 3. Semantic key match among active attempts
+        if let semKey = semanticKey, !semKey.isEmpty {
+            if let idx = tools.firstIndex(where: {
+                $0.semanticKey == semKey && isActive($0)
+            }) {
+                return idx
+            }
+        }
+
+        // 4. Exact toolId match among active running attempts
+        if !toolName.isEmpty && requireActive {
+            if let idx = tools.firstIndex(where: {
+                $0.toolId == toolName && ($0.status == .running || $0.status == .retrying)
+            }) {
+                return idx
+            }
+        }
+
+        return nil
+    }
+
     // MARK: - Tool Event Normalization
 
     public func normalizeToolStarted(
@@ -85,25 +138,34 @@ public final class AssistEventNormalizer {
             activeCallToSemanticKey[callId] = semKey
         }
 
-        // Reuse an exact operation ID (duplicate transport event), or merge a
-        // semantically identical retry while the prior attempt is active/failed.
+        // Reuse an exact operation ID or merge a semantically identical retry while prior attempt is active/failed.
         // Completed operations must not absorb a later, intentional repeat.
-        let existingIdx = activityGroup.tools.firstIndex(where: { $0.id == callUUID })
-            ?? activityGroup.tools.firstIndex(where: {
-                $0.semanticKey == semKey && ($0.status == .running || $0.status == .retrying || $0.status == .failed)
-            })
+        let existingIdx = findToolIndex(
+            callId: callId,
+            toolName: toolName,
+            semanticKey: semKey,
+            in: activityGroup.tools,
+            requireActive: true
+        ) ?? activityGroup.tools.firstIndex(where: {
+            (!callId.isEmpty && ($0.callId == callId || $0.operationId == callId)) ||
+            (callUUID != nil && $0.id == callUUID)
+        })
 
-        if let existingIdx {
+        if let existingIdx = existingIdx {
             var existing = activityGroup.tools[existingIdx]
-            // A replayed start for an already-completed operation is a
-            // duplicate hook/chunk event, not a new attempt.
+            // A replayed start for an already-completed operation is a duplicate hook/chunk event, not a new attempt.
             guard existing.status != .completed else { return }
+
             if existing.status == .failed || existing.status == .retrying {
                 existing.retryCount += 1
                 existing.attemptsCount += 1
                 existing.status = .running
                 existing.timestamp = Date()
                 existing.duration = 0
+                if !callId.isEmpty {
+                    existing.callId = callId
+                    existing.operationId = callId
+                }
                 existing.purpose = "\(formatted.runningLabel) (Retry \(existing.retryCount + 1))"
             } else {
                 existing.status = .running
@@ -113,18 +175,35 @@ public final class AssistEventNormalizer {
             existing.completedLabel = formatted.completedLabel
             existing.iconName = formatted.iconName
             existing.semanticKey = semKey
-            existing.operationId = callId
+            if !callId.isEmpty {
+                existing.operationId = callId
+            }
             activityGroup.tools[existingIdx] = existing
             if !callId.isEmpty {
                 activeCallToOperationId[callId] = existing.id
             }
         } else {
+            let argumentsSummary: String
+            if let file = AssistToolActivityFormatter.extractFilename(from: arguments) {
+                argumentsSummary = file
+            } else if let path = AssistToolActivityFormatter.extractFilePath(arguments: arguments) {
+                argumentsSummary = path
+            } else if let query = AssistToolActivityFormatter.extractSearchQuery(from: arguments) {
+                argumentsSummary = query
+            } else {
+                argumentsSummary = ""
+            }
+
             let newItem = ToolActivityItem(
                 id: callUUID,
+                callId: callId.isEmpty ? callUUID.uuidString : callId,
                 toolId: toolName,
                 purpose: formatted.runningLabel,
+                argumentsSummary: argumentsSummary,
+                streamingOutput: "",
                 result: "",
                 status: .running,
+                progress: nil,
                 duration: 0.0,
                 timestamp: Date(),
                 displayLabel: formatted.runningLabel,
@@ -133,7 +212,7 @@ public final class AssistEventNormalizer {
                 attemptsCount: 1,
                 retryCount: 0,
                 semanticKey: semKey,
-                operationId: callId
+                operationId: callId.isEmpty ? callUUID.uuidString : callId
             )
             activityGroup.tools.append(newItem)
             if !callId.isEmpty {
@@ -145,6 +224,105 @@ public final class AssistEventNormalizer {
         integrateAuxiliaryStarted(toolName: toolName, arguments: arguments, activityGroup: &activityGroup)
     }
 
+    public func normalizeToolProgress(
+        callId: String,
+        toolName: String = "",
+        progressMessage: String,
+        progress: Double? = nil,
+        in activityGroup: inout AssistActivityGroup
+    ) {
+        let semKey = activeCallToSemanticKey[callId] ?? (!toolName.isEmpty ? "\(toolName):" : "")
+        let targetIdx = findToolIndex(
+            callId: callId,
+            toolName: toolName,
+            semanticKey: semKey,
+            in: activityGroup.tools,
+            requireActive: true
+        ) ?? activityGroup.tools.firstIndex(where: {
+            (!semKey.isEmpty && ($0.semanticKey?.hasPrefix(semKey) == true) && $0.status == .running) ||
+            (!toolName.isEmpty && $0.toolId == toolName && $0.status == .running)
+        })
+
+        if let idx = targetIdx {
+            activityGroup.tools[idx].updateProgress(progress: progress, message: progressMessage)
+        } else if !callId.isEmpty || !toolName.isEmpty {
+            // Buffer initial running item if progress event arrives before start event
+            let callUUID = activeCallToOperationId[callId] ?? UUID(uuidString: callId) ?? UUID()
+            let item = ToolActivityItem(
+                id: callUUID,
+                callId: callId.isEmpty ? callUUID.uuidString : callId,
+                toolId: toolName.isEmpty ? "tool" : toolName,
+                purpose: progressMessage,
+                result: progressMessage,
+                status: .running,
+                progress: progress,
+                duration: 0.0,
+                timestamp: Date(),
+                attemptsCount: 1,
+                retryCount: 0,
+                semanticKey: semKey,
+                operationId: callId.isEmpty ? callUUID.uuidString : callId
+            )
+            activityGroup.tools.append(item)
+            if !callId.isEmpty {
+                activeCallToOperationId[callId] = item.id
+            }
+            activityGroup.isExecuting = true
+        }
+
+        integrateAuxiliaryProgress(toolName: toolName, progressMessage: progressMessage, activityGroup: &activityGroup)
+    }
+
+    public func normalizeToolOutputChunk(
+        callId: String,
+        toolName: String = "",
+        chunk: String,
+        in activityGroup: inout AssistActivityGroup
+    ) {
+        guard !chunk.isEmpty else { return }
+        let semKey = activeCallToSemanticKey[callId] ?? (!toolName.isEmpty ? "\(toolName):" : "")
+        let targetIdx = findToolIndex(
+            callId: callId,
+            toolName: toolName,
+            semanticKey: semKey,
+            in: activityGroup.tools,
+            requireActive: true
+        ) ?? activityGroup.tools.firstIndex(where: {
+            (!semKey.isEmpty && ($0.semanticKey?.hasPrefix(semKey) == true) && $0.status == .running) ||
+            (!toolName.isEmpty && $0.toolId == toolName && $0.status == .running)
+        })
+
+        if let idx = targetIdx {
+            activityGroup.tools[idx].appendStreamingChunk(chunk)
+            activityGroup.isExecuting = true
+        } else if !callId.isEmpty || !toolName.isEmpty {
+            let callUUID = activeCallToOperationId[callId] ?? UUID(uuidString: callId) ?? UUID()
+            let item = ToolActivityItem(
+                id: callUUID,
+                callId: callId.isEmpty ? callUUID.uuidString : callId,
+                toolId: toolName.isEmpty ? "tool" : toolName,
+                purpose: "Streaming output…",
+                streamingOutput: chunk,
+                result: "",
+                status: .running,
+                progress: nil,
+                duration: 0.0,
+                timestamp: Date(),
+                attemptsCount: 1,
+                retryCount: 0,
+                semanticKey: semKey,
+                operationId: callId.isEmpty ? callUUID.uuidString : callId
+            )
+            activityGroup.tools.append(item)
+            if !callId.isEmpty {
+                activeCallToOperationId[callId] = item.id
+            }
+            activityGroup.isExecuting = true
+        }
+
+        integrateAuxiliaryOutputChunk(toolName: toolName, chunk: chunk, activityGroup: &activityGroup)
+    }
+
     public func normalizeToolCompleted(
         callId: String,
         toolName: String,
@@ -154,11 +332,14 @@ public final class AssistEventNormalizer {
     ) {
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
         let semKey = activeCallToSemanticKey[callId] ?? computeSemanticKey(toolName: toolName, arguments: arguments)
-        let callUUID = callId.isEmpty ? nil : (activeCallToOperationId[callId] ?? UUID(uuidString: callId))
 
-        let isActiveAttempt: (ToolActivityItem) -> Bool = { $0.status == .running || $0.status == .retrying || $0.status == .failed }
-        let targetIdx = activityGroup.tools.firstIndex(where: { callUUID != nil && $0.id == callUUID })
-            ?? activityGroup.tools.firstIndex(where: { $0.semanticKey == semKey && isActiveAttempt($0) })
+        let targetIdx = findToolIndex(
+            callId: callId,
+            toolName: toolName,
+            semanticKey: semKey,
+            in: activityGroup.tools,
+            requireActive: false
+        )
 
         if let idx = targetIdx {
             var item = activityGroup.tools[idx]
@@ -166,22 +347,34 @@ public final class AssistEventNormalizer {
                 item.duration = max(0.1, Date().timeIntervalSince(item.timestamp))
             }
             item.status = .completed
-            item.result = output ?? ""
+            if let output = output, !output.isEmpty {
+                item.result = output
+            } else if item.result.isEmpty && !item.streamingOutput.isEmpty {
+                item.result = item.streamingOutput
+            }
             item.purpose = formatted.completedLabel
             item.completedLabel = formatted.completedLabel
+            item.progress = 1.0
             activityGroup.tools[idx] = item
+            if !callId.isEmpty {
+                completedCallIds.insert(callId)
+            }
         } else {
             // Check if exact completed item already exists to avoid transport replay duplication
             let isDuplicate = activityGroup.tools.contains(where: {
-                $0.toolId == toolName && $0.status == .completed && $0.semanticKey == semKey
+                (!callId.isEmpty && ($0.callId == callId || $0.operationId == callId)) ||
+                ($0.toolId == toolName && $0.status == .completed && $0.semanticKey == semKey)
             })
             if !isDuplicate {
+                let callUUID = callId.isEmpty ? UUID() : (activeCallToOperationId[callId] ?? UUID(uuidString: callId) ?? UUID())
                 let newItem = ToolActivityItem(
-                    id: callUUID ?? UUID(),
+                    id: callUUID,
+                    callId: callId.isEmpty ? callUUID.uuidString : callId,
                     toolId: toolName,
                     purpose: formatted.completedLabel,
                     result: output ?? "",
                     status: .completed,
+                    progress: 1.0,
                     duration: 0.1,
                     timestamp: Date(),
                     displayLabel: formatted.runningLabel,
@@ -190,13 +383,17 @@ public final class AssistEventNormalizer {
                     attemptsCount: 1,
                     retryCount: 0,
                     semanticKey: semKey,
-                    operationId: callId
+                    operationId: callId.isEmpty ? callUUID.uuidString : callId
                 )
                 activityGroup.tools.append(newItem)
+                if !callId.isEmpty {
+                    completedCallIds.insert(callId)
+                }
             }
         }
 
         integrateAuxiliaryCompleted(toolName: toolName, output: output, activityGroup: &activityGroup)
+        activityGroup.refreshExecutingState()
     }
 
     public func normalizeToolFailed(
@@ -209,11 +406,14 @@ public final class AssistEventNormalizer {
         let cleanError = sanitizeErrorMessage(rawError: error, toolName: toolName)
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
         let semKey = activeCallToSemanticKey[callId] ?? computeSemanticKey(toolName: toolName, arguments: arguments)
-        let callUUID = callId.isEmpty ? nil : (activeCallToOperationId[callId] ?? UUID(uuidString: callId))
 
-        let isActiveAttempt: (ToolActivityItem) -> Bool = { $0.status == .running || $0.status == .retrying || $0.status == .failed }
-        let targetIdx = activityGroup.tools.firstIndex(where: { callUUID != nil && $0.id == callUUID })
-            ?? activityGroup.tools.firstIndex(where: { $0.semanticKey == semKey && isActiveAttempt($0) })
+        let targetIdx = findToolIndex(
+            callId: callId,
+            toolName: toolName,
+            semanticKey: semKey,
+            in: activityGroup.tools,
+            requireActive: false
+        )
 
         if let idx = targetIdx {
             var item = activityGroup.tools[idx]
@@ -223,8 +423,10 @@ public final class AssistEventNormalizer {
             item.purpose = "\(formatted.failedLabel) — \(cleanError)"
             activityGroup.tools[idx] = item
         } else {
+            let callUUID = callId.isEmpty ? UUID() : (activeCallToOperationId[callId] ?? UUID(uuidString: callId) ?? UUID())
             let newItem = ToolActivityItem(
-                id: callUUID ?? UUID(),
+                id: callUUID,
+                callId: callId.isEmpty ? callUUID.uuidString : callId,
                 toolId: toolName,
                 purpose: "\(formatted.failedLabel) — \(cleanError)",
                 result: cleanError,
@@ -237,34 +439,69 @@ public final class AssistEventNormalizer {
                 attemptsCount: 1,
                 retryCount: 0,
                 semanticKey: semKey,
-                operationId: callId
+                operationId: callId.isEmpty ? callUUID.uuidString : callId
             )
             activityGroup.tools.append(newItem)
         }
 
         integrateAuxiliaryFailed(toolName: toolName, error: cleanError, activityGroup: &activityGroup)
+        activityGroup.refreshExecutingState()
     }
 
-    public func normalizeToolProgress(
+    public func normalizeToolCancelled(
         callId: String,
-        toolName: String,
-        progressMessage: String,
+        toolName: String = "",
+        reason: String = "Operation cancelled",
         in activityGroup: inout AssistActivityGroup
     ) {
-        let semKey = activeCallToSemanticKey[callId] ?? (!toolName.isEmpty ? "\(toolName):" : "")
-        let callUUID = callId.isEmpty ? nil : (activeCallToOperationId[callId] ?? UUID(uuidString: callId))
-
-        let targetIdx = activityGroup.tools.firstIndex(where: { callUUID != nil && $0.id == callUUID })
-            ?? activityGroup.tools.firstIndex(where: {
-                (!semKey.isEmpty && ($0.semanticKey?.hasPrefix(semKey) == true) && $0.status == .running)
-                || ($0.toolId == toolName && $0.status == .running)
-            })
+        let targetIdx = findToolIndex(
+            callId: callId,
+            toolName: toolName,
+            semanticKey: activeCallToSemanticKey[callId],
+            in: activityGroup.tools,
+            requireActive: false
+        )
 
         if let idx = targetIdx {
-            var item = activityGroup.tools[idx]
-            item.result = progressMessage
-            activityGroup.tools[idx] = item
+            activityGroup.tools[idx].markCancelled(reason: reason)
+        } else if callId.isEmpty {
+            for idx in activityGroup.tools.indices where activityGroup.tools[idx].isRunning {
+                activityGroup.tools[idx].markCancelled(reason: reason)
+            }
         }
+        activityGroup.refreshExecutingState()
+    }
+
+    public func normalizeToolTimedOut(
+        callId: String,
+        toolName: String = "",
+        duration: TimeInterval? = nil,
+        in activityGroup: inout AssistActivityGroup
+    ) {
+        let targetIdx = findToolIndex(
+            callId: callId,
+            toolName: toolName,
+            semanticKey: activeCallToSemanticKey[callId],
+            in: activityGroup.tools,
+            requireActive: false
+        )
+
+        if let idx = targetIdx {
+            activityGroup.tools[idx].markTimedOut(duration: duration)
+        } else if callId.isEmpty {
+            for idx in activityGroup.tools.indices where activityGroup.tools[idx].isRunning {
+                activityGroup.tools[idx].markTimedOut(duration: duration)
+            }
+        }
+        activityGroup.refreshExecutingState()
+    }
+
+    public func finalizeAllRunningOperations(
+        status: ActivityStatus = .cancelled,
+        reason: String? = nil,
+        in activityGroup: inout AssistActivityGroup
+    ) {
+        activityGroup.finalizeAllRunningOperations(status: status, reason: reason)
     }
 
     // MARK: - Worker Normalization
@@ -275,6 +512,7 @@ public final class AssistEventNormalizer {
         args: String,
         in activityGroup: inout AssistActivityGroup
     ) {
+        activityGroup.isExecuting = true
         let cleanName = name.replacingOccurrences(of: "start_subagent", with: "")
             .replacingOccurrences(of: "Worker:", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -298,6 +536,22 @@ public final class AssistEventNormalizer {
         }
     }
 
+    public func normalizeWorkerProgress(
+        workerId: String,
+        progress: Double? = nil,
+        statusMessage: String? = nil,
+        in activityGroup: inout AssistActivityGroup
+    ) {
+        if let idx = activityGroup.workers.firstIndex(where: { $0.workerId == workerId || $0.status == .running }) {
+            if let p = progress {
+                activityGroup.workers[idx].progress = min(max(p, 0.0), 1.0)
+            }
+            if let msg = statusMessage, !msg.isEmpty {
+                activityGroup.workers[idx].taskDescription = msg
+            }
+        }
+    }
+
     public func normalizeWorkerCompleted(
         workerId: String,
         result: String,
@@ -307,6 +561,7 @@ public final class AssistEventNormalizer {
             activityGroup.workers[idx].status = .completed
             activityGroup.workers[idx].progress = 1.0
         }
+        activityGroup.refreshExecutingState()
     }
 
     public func normalizeWorkerFailed(
@@ -319,6 +574,7 @@ public final class AssistEventNormalizer {
             let cleanErr = sanitizeErrorMessage(rawError: error, toolName: "worker")
             activityGroup.workers[idx].taskDescription = cleanErr
         }
+        activityGroup.refreshExecutingState()
     }
 
     // MARK: - Private Auxiliary Handlers
@@ -373,6 +629,24 @@ public final class AssistEventNormalizer {
         }
     }
 
+    private func integrateAuxiliaryProgress(toolName: String, progressMessage: String, activityGroup: inout AssistActivityGroup) {
+        let isTerminal = toolName == "use_terminal" || toolName == "task_runner" || toolName == "run_command"
+        if isTerminal {
+            for cIdx in activityGroup.terminalCommands.indices where activityGroup.terminalCommands[cIdx].status == .running {
+                activityGroup.terminalCommands[cIdx].output = progressMessage
+            }
+        }
+    }
+
+    private func integrateAuxiliaryOutputChunk(toolName: String, chunk: String, activityGroup: inout AssistActivityGroup) {
+        let isTerminal = toolName == "use_terminal" || toolName == "task_runner" || toolName == "run_command"
+        if isTerminal {
+            for cIdx in activityGroup.terminalCommands.indices where activityGroup.terminalCommands[cIdx].status == .running {
+                activityGroup.terminalCommands[cIdx].output.append(chunk)
+            }
+        }
+    }
+
     private func integrateAuxiliaryCompleted(toolName: String, output: String?, activityGroup: inout AssistActivityGroup) {
         let isBuild = toolName == "project_build" || toolName == "build_project" || toolName == "build"
         if isBuild {
@@ -395,7 +669,9 @@ public final class AssistEventNormalizer {
         if isTerminal {
             for cIdx in activityGroup.terminalCommands.indices where activityGroup.terminalCommands[cIdx].status == .running {
                 activityGroup.terminalCommands[cIdx].status = .completed
-                activityGroup.terminalCommands[cIdx].output = output ?? ""
+                if let output = output, !output.isEmpty {
+                    activityGroup.terminalCommands[cIdx].output = output
+                }
             }
         }
     }

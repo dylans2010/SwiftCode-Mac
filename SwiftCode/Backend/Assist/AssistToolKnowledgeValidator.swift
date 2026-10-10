@@ -3,8 +3,8 @@ import os
 
 // MARK: - Assist Tool Knowledge Validator
 //
-// Runtime validation that the behavioral tool documentation in
-// `AgentSystemAsset.md` (section "TOOL SELECTION & USAGE") does not drift from
+// Runtime validation that the behavioral tool documentation in modular
+// system assets (via `LoadUpSystemAssets.shared`) does not drift from
 // the actual registered tools in `AssistToolRegistry`:
 //   - every registered tool has a documented entry,
 //   - every required parameter is named in its entry,
@@ -178,7 +178,8 @@ public final class AssistToolKnowledgeValidator: Sendable {
         let registeredIds = Set(registry.allTools.map(\.id))
         let cloudBuiltIns: Set<String> = [
             "view_file", "create_file", "edit_file", "list_directory", "run_command",
-            "search_directory", "search_web", "read_url_content", "start_subagent"
+            "search_directory", "search_web", "read_url_content", "start_subagent",
+            "capture_memory", "retrieve_memory", "manage_memory"
         ]
         let orphans = blocks.keys.filter {
             !registeredIds.contains($0) && registry.getTool($0) == nil && !cloudBuiltIns.contains($0)
@@ -203,9 +204,14 @@ public final class AssistToolKnowledgeValidator: Sendable {
                           message: "sectionNames(in:) did not list TOOL SELECTION & USAGE.", start: start)
         }
         guard let extracted = AssistSystemPromptSections.extractSection(named: "## 5. TOOL SELECTION & USAGE", from: prompt),
-              extracted.contains("#### `file_read`") else {
+              extracted.contains("Tool Selection Principles") else {
             return result(testName: "Tool Knowledge: Section Extraction", passed: false,
-                          message: "extractSection(named:from:) failed to round-trip the tool section.", start: start)
+                          message: "extractSection(named:from:) failed to round-trip the tool selection section.", start: start)
+        }
+        guard let fileOps = AssistSystemPromptSections.extractSection(named: "FILE OPERATIONS & WORKSPACE MANAGEMENT", from: prompt),
+              fileOps.contains("#### `file_read`") else {
+            return result(testName: "Tool Knowledge: Section Extraction", passed: false,
+                          message: "extractSection(named:from:) failed to round-trip modular file operations tool guidance.", start: start)
         }
         let missing = AssistSystemPromptSections.extractSection(named: "NO SUCH SECTION", from: prompt)
         guard missing == nil else {
@@ -213,6 +219,6 @@ public final class AssistToolKnowledgeValidator: Sendable {
                           message: "extractSection(named:from:) should return nil for unknown sections.", start: start)
         }
         return result(testName: "Tool Knowledge: Section Extraction", passed: true,
-                      message: "\(names.count) sections indexed; extraction round-trips.", start: start)
+                      message: "\(names.count) sections indexed; modular extraction round-trips.", start: start)
     }
 }
