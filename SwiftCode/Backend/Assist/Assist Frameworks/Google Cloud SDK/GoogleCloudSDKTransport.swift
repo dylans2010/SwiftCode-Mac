@@ -18,6 +18,10 @@ public actor GoogleCloudSDKTransport {
     private var requestTimeoutTasks: [String: Task<Void, Never>] = [:]
     private var eventContinuations: [UUID: AsyncStream<GoogleCloudSDKEvent>.Continuation] = [:]
     private var toolExecutionHandler: (@Sendable (GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?))?
+    private var approvalHandler: (@Sendable (GoogleCloudSDKToolApprovalRequest) async -> Bool)?
+    /// In-flight native tool executions keyed by the bridge request id, so a
+    /// `tool.cancel` notification can stop the matching Swift task.
+    private var runningToolTasks: [String: Task<Void, Never>] = [:]
     private var lastDispatchedProgressKey: String?
     private var lastDispatchedProgressTime: Date = .distantPast
 
@@ -30,9 +34,20 @@ public actor GoogleCloudSDKTransport {
         }
     }
 
+    /// Whether the socket is currently connected.
+    public var isConnected: Bool {
+        socketFD >= 0
+    }
+
     /// Sets the handler closure for incoming server-initiated tool execution requests (`tool.execute`).
     public func setToolExecutionHandler(_ handler: @escaping @Sendable (GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?)) {
         self.toolExecutionHandler = handler
+    }
+
+    /// Sets the handler for server-initiated approval requests (`tool.approve`)
+    /// raised by SDK built-in tools such as `run_command` in the Cloud toolkit.
+    public func setApprovalHandler(_ handler: @escaping @Sendable (GoogleCloudSDKToolApprovalRequest) async -> Bool) {
+        self.approvalHandler = handler
     }
 
     /// Establishes connection to the Unix domain socket at the given path.
@@ -50,6 +65,9 @@ public actor GoogleCloudSDKTransport {
                 guard fd >= 0 else {
                     throw GoogleCloudSDKError.socketConnectionFailed("Failed to create socket descriptor: \(errno)")
                 }
+                // Writing to a socket whose peer died must return EPIPE, not kill the app with SIGPIPE.
+                var noSigPipe: Int32 = 1
+                _ = setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
 
                 var addr = sockaddr_un()
                 addr.sun_family = sa_family_t(AF_UNIX)
@@ -97,9 +115,17 @@ public actor GoogleCloudSDKTransport {
         readTask = nil
 
         if socketFD >= 0 {
+            // shutdown() wakes the blocked reader with EOF before the descriptor is
+            // closed, so the read loop never touches a recycled fd.
+            Darwin.shutdown(socketFD, SHUT_RDWR)
             Darwin.close(socketFD)
             socketFD = -1
         }
+
+        for (_, task) in runningToolTasks {
+            task.cancel()
+        }
+        runningToolTasks.removeAll()
 
         for (_, cont) in pendingRequests {
             cont.resume(throwing: GoogleCloudSDKError.socketConnectionFailed("Connection closed"))
@@ -222,6 +248,7 @@ public actor GoogleCloudSDKTransport {
                 Darwin.write(socketFD, buffer.baseAddress! + totalWritten, data.count - totalWritten)
             }
             if written < 0 {
+                if errno == EINTR || errno == EAGAIN { continue }
                 throw GoogleCloudSDKError.socketConnectionFailed("Socket write error: \(errno)")
             }
             totalWritten += written
@@ -236,6 +263,7 @@ public actor GoogleCloudSDKTransport {
 
             while !Task.isCancelled {
                 let bytesRead = Darwin.read(fd, &buffer, buffer.count)
+                if bytesRead < 0 && errno == EINTR { continue }
                 if bytesRead <= 0 {
                     logger.info("Socket EOF or read error (bytesRead: \(bytesRead), errno: \(errno))")
                     break
@@ -254,8 +282,19 @@ public actor GoogleCloudSDKTransport {
                 }
             }
 
-            await self?.disconnect()
+            await self?.handleConnectionLost(fd: fd)
         }
+    }
+
+    /// Called when the reader hits EOF/error. Broadcasts `runtimeStopped` so the
+    /// runtime can mark itself offline and recreate sessions on the next turn.
+    private func handleConnectionLost(fd: Int32) {
+        // A newer connection may already be active; only tear down our own.
+        guard fd == socketFD else { return }
+        for (_, cont) in eventContinuations {
+            cont.yield(.runtimeStopped)
+        }
+        disconnect()
     }
 
     private func handleIncomingLine(_ line: String) async {
@@ -277,8 +316,21 @@ public actor GoogleCloudSDKTransport {
 
                 let request = GoogleCloudSDKToolExecutionRequest(requestId: reqId, sessionId: sessionId, toolName: toolName, arguments: arguments, callId: callId)
 
-                Task { [weak self] in
+                runningToolTasks[reqId] = Task { [weak self] in
                     await self?.executeTool(request: request, reqId: reqId)
+                }
+                return
+            }
+            if method == "tool.approve" {
+                let reqId = "\(id)"
+                let request = GoogleCloudSDKToolApprovalRequest(
+                    requestId: reqId,
+                    sessionId: params["sessionId"] as? String ?? "",
+                    toolName: params["toolName"] as? String ?? "",
+                    arguments: params["arguments"] as? [String: Any] ?? [:]
+                )
+                Task { [weak self] in
+                    await self?.answerApproval(request: request)
                 }
                 return
             }
@@ -313,12 +365,38 @@ public actor GoogleCloudSDKTransport {
     }
 
     private func executeTool(request: GoogleCloudSDKToolExecutionRequest, reqId: String) async {
+        defer { runningToolTasks.removeValue(forKey: reqId) }
         if let handler = self.toolExecutionHandler {
             let resultTuple = await handler(request)
+            // The bridge stops waiting once it sends tool.cancel; skip the stale reply.
+            guard !Task.isCancelled else { return }
             sendToolExecutionResponse(reqId: reqId, success: resultTuple.success, result: resultTuple.result, error: resultTuple.error)
         } else {
             sendToolExecutionResponse(reqId: reqId, success: false, result: nil, error: "No tool execution handler registered in Swift")
         }
+    }
+
+    private func answerApproval(request: GoogleCloudSDKToolApprovalRequest) async {
+        let approved: Bool
+        if let handler = approvalHandler {
+            approved = await handler(request)
+        } else {
+            approved = false
+        }
+        let payload: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": request.requestId,
+            "result": ["approved": approved],
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: payload),
+           let jsonString = String(data: data, encoding: .utf8) {
+            try? writeRaw(jsonString + "\n")
+        }
+    }
+
+    /// Cancels the Swift task executing a tool the bridge no longer waits for.
+    private func cancelRunningTool(requestId: String) {
+        runningToolTasks.removeValue(forKey: requestId)?.cancel()
     }
 
     private func sendToolExecutionResponse(reqId: String, success: Bool, result: String?, error: String?) {
@@ -350,9 +428,18 @@ public actor GoogleCloudSDKTransport {
 
         switch method {
         case "runtime.ready":
-            let version = params["version"] as? String ?? "0.1.20"
+            let version = params["version"] as? String ?? "unknown"
             let pid = Int32(params["pid"] as? Int ?? 0)
             event = .runtimeReady(version: version, pid: pid)
+
+        case "runtime.stopped":
+            event = .runtimeStopped
+
+        case "tool.cancel":
+            if let requestId = params["requestId"] as? String {
+                cancelRunningTool(requestId: requestId)
+            }
+            event = nil
 
         case "agent.started":
             let sessionId = params["sessionId"] as? String ?? ""

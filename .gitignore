@@ -45,3 +45,7 @@ agent_notes.md
 **/google/antigravity/bin/localharness
 !**/google/antigravity/bin/localharness.gz
 
+
+# Python bytecode (bundled Antigravity SDK and bridge)
+__pycache__/
+*.py[cod]

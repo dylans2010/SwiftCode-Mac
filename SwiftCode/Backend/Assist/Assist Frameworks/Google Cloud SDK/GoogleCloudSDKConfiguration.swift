@@ -12,12 +12,6 @@ public enum GoogleCloudSDKServiceTier: String, Codable, Sendable {
     case priority = "priority"
 }
 
-public enum LiteRTBackendType: String, Codable, Sendable {
-    case cpu = "cpu"
-    case gpu = "gpu"
-    case npu = "npu"
-}
-
 public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     public var model: String
     public var apiKey: String?
@@ -41,6 +35,10 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     public var litertModelPath: String?
     public var litertBackend: String?
     public var downloadIfMissing: Bool
+    /// SDK conversation to resume (persisted under `saveDir`); nil starts a new one.
+    public var conversationId: String?
+    /// Hard cap on tool calls within one turn, enforced by the bridge.
+    public var maxToolCallsPerTurn: Int?
 
     public init(
         model: String = "gemini-3.8-flash",
@@ -64,7 +62,9 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         toolkit: String = "System",
         litertModelPath: String? = nil,
         litertBackend: String? = nil,
-        downloadIfMissing: Bool = false
+        downloadIfMissing: Bool = false,
+        conversationId: String? = nil,
+        maxToolCallsPerTurn: Int? = nil
     ) {
         self.model = model
         self.apiKey = apiKey
@@ -88,11 +88,14 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.litertModelPath = litertModelPath
         self.litertBackend = litertBackend
         self.downloadIfMissing = downloadIfMissing
+        self.conversationId = conversationId
+        self.maxToolCallsPerTurn = maxToolCallsPerTurn
     }
 
     public enum CodingKeys: String, CodingKey {
         case model, apiKey, vertex, project, location, systemInstructions, skillsPaths, workspaces, appDataDir, saveDir, enableSubagents, maxSubagentDepth, allowedSubagents, serviceTier, provider, baseURL, useSavedModels, toolkit
         case litertModelPath, litertBackend, downloadIfMissing
+        case conversationId, maxToolCallsPerTurn
     }
 
     public init(from decoder: Decoder) throws {
@@ -118,6 +121,8 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.litertModelPath = try container.decodeIfPresent(String.self, forKey: .litertModelPath)
         self.litertBackend = try container.decodeIfPresent(String.self, forKey: .litertBackend)
         self.downloadIfMissing = try container.decodeIfPresent(Bool.self, forKey: .downloadIfMissing) ?? false
+        self.conversationId = try container.decodeIfPresent(String.self, forKey: .conversationId)
+        self.maxToolCallsPerTurn = try container.decodeIfPresent(Int.self, forKey: .maxToolCallsPerTurn)
         self.tools = nil
     }
 
@@ -144,6 +149,8 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         try container.encodeIfPresent(litertModelPath, forKey: .litertModelPath)
         try container.encodeIfPresent(litertBackend, forKey: .litertBackend)
         try container.encode(downloadIfMissing, forKey: .downloadIfMissing)
+        try container.encodeIfPresent(conversationId, forKey: .conversationId)
+        try container.encodeIfPresent(maxToolCallsPerTurn, forKey: .maxToolCallsPerTurn)
     }
 
     /// Automatically resolves environment configuration from SwiftCode project, tools, and preferences.
@@ -340,6 +347,12 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         }
         if downloadIfMissing {
             dict["downloadIfMissing"] = downloadIfMissing
+        }
+        if let conversationId = conversationId, !conversationId.isEmpty {
+            dict["conversationId"] = conversationId
+        }
+        if let maxToolCallsPerTurn = maxToolCallsPerTurn, maxToolCallsPerTurn > 0 {
+            dict["maxToolCallsPerTurn"] = maxToolCallsPerTurn
         }
 
         return dict

@@ -69,7 +69,9 @@ public struct ToolExecutionView: View {
                 return ActiveOperationInfo(symbol: "person.2", color: .accentColor, description: runningWorker.userFacingTitle)
             }
             if let runningBuild = activity.builds.first(where: { $0.status == .running }) {
-                return ActiveOperationInfo(symbol: "hammer", color: .accentColor, description: "Building project…")
+                // Describe the actual build (scheme) instead of a canned label.
+                let scheme = runningBuild.scheme?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return ActiveOperationInfo(symbol: "hammer", color: .accentColor, description: scheme.isEmpty ? "xcodebuild" : "xcodebuild -scheme \(scheme)")
             }
             if let runningTerm = activity.terminalCommands.first(where: { $0.status == .running }) {
                 return ActiveOperationInfo(symbol: "terminal", color: .accentColor, description: runningTerm.command)
@@ -102,8 +104,8 @@ public struct ToolExecutionView: View {
             return ActiveOperationInfo(symbol: toolSymbol(for: codexTool, summary: ""), color: .accentColor, description: codexTool)
         }
 
-        // 5. Model generation in flight
-        return ActiveOperationInfo(symbol: "sparkles", color: .accentColor, description: "Generating response…")
+        // 5. Nothing concrete is known: show no fabricated status.
+        return nil
     }
 
     private func toolSymbol(for idOrTitle: String, summary: String) -> String {

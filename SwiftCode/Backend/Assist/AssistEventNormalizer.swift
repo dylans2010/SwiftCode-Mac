@@ -53,21 +53,9 @@ public final class AssistEventNormalizer {
             return trimmed
         }
 
-        let cleanTool = toolName.lowercased()
-        if cleanTool.contains("inspect") || cleanTool.contains("dir") {
-            return "Directory inspection failed"
-        } else if cleanTool.contains("search") || cleanTool.contains("grep") || cleanTool.contains("find") {
-            return "Search failed"
-        } else if cleanTool.contains("read") {
-            return "File read failed"
-        } else if cleanTool.contains("write") || cleanTool.contains("edit") || cleanTool.contains("create") {
-            return "File modification failed"
-        } else if cleanTool.contains("build") {
-            return "Build failed"
-        } else if cleanTool.contains("test") {
-            return "Test execution failed"
-        }
-        return "Tool execution failed"
+        // No usable message from the runtime: say so instead of inventing a reason.
+        let label = toolName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\(label.isEmpty ? "Tool" : label) failed without an error message"
     }
 
     // MARK: - Internal Tool Lookup Helper
@@ -301,7 +289,7 @@ public final class AssistEventNormalizer {
                 id: callUUID,
                 callId: callId.isEmpty ? callUUID.uuidString : callId,
                 toolId: toolName.isEmpty ? "tool" : toolName,
-                purpose: "Streaming output…",
+                purpose: toolName.isEmpty ? "tool" : toolName,
                 streamingOutput: chunk,
                 result: "",
                 status: .running,
@@ -518,7 +506,9 @@ public final class AssistEventNormalizer {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let title = cleanName.isEmpty ? "Worker" : "Worker · \(cleanName)"
 
-        if let existingIdx = activityGroup.workers.firstIndex(where: { $0.workerId == workerId || $0.name == name }) {
+        // Match by worker id only: every SDK subagent shares the tool name
+        // `start_subagent`, so matching by name merged unrelated workers.
+        if let existingIdx = activityGroup.workers.firstIndex(where: { $0.workerId == workerId }) {
             activityGroup.workers[existingIdx].status = .running
             activityGroup.workers[existingIdx].taskDescription = args
         } else {
@@ -542,7 +532,7 @@ public final class AssistEventNormalizer {
         statusMessage: String? = nil,
         in activityGroup: inout AssistActivityGroup
     ) {
-        if let idx = activityGroup.workers.firstIndex(where: { $0.workerId == workerId || $0.status == .running }) {
+        if let idx = activityGroup.workers.firstIndex(where: { $0.workerId == workerId }) {
             if let p = progress {
                 activityGroup.workers[idx].progress = min(max(p, 0.0), 1.0)
             }
@@ -557,9 +547,12 @@ public final class AssistEventNormalizer {
         result: String,
         in activityGroup: inout AssistActivityGroup
     ) {
-        if let idx = activityGroup.workers.firstIndex(where: { $0.workerId == workerId || $0.status == .running }) {
+        if let idx = activityGroup.workers.firstIndex(where: { $0.workerId == workerId }) {
             activityGroup.workers[idx].status = .completed
             activityGroup.workers[idx].progress = 1.0
+            if !result.isEmpty {
+                activityGroup.workers[idx].taskDescription = result
+            }
         }
         activityGroup.refreshExecutingState()
     }
@@ -569,7 +562,7 @@ public final class AssistEventNormalizer {
         error: String,
         in activityGroup: inout AssistActivityGroup
     ) {
-        if let idx = activityGroup.workers.firstIndex(where: { $0.workerId == workerId || $0.status == .running }) {
+        if let idx = activityGroup.workers.firstIndex(where: { $0.workerId == workerId }) {
             activityGroup.workers[idx].status = .failed
             let cleanErr = sanitizeErrorMessage(rawError: error, toolName: "worker")
             activityGroup.workers[idx].taskDescription = cleanErr

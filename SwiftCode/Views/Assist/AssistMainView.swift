@@ -37,8 +37,8 @@ public struct AssistMainView: View {
     @State private var showingCodexSetup = false
 
     // Destructive Actions Approval Workflow
-    @State private var pendingActionName: String = "Terminal Execution"
-    @State private var pendingActionDetails: String = "rm -rf build/"
+    @State private var pendingActionName: String = ""
+    @State private var pendingActionDetails: String = ""
     @State private var alwaysAllowThisSession: Bool = false
 
     // Mode selection: Chat Mode (Read-Only) vs. Agent Mode (Autonomous)
@@ -173,7 +173,8 @@ public struct AssistMainView: View {
                 // Native macOS Conversation ScrollView
                 ScrollViewReader { proxy in
                     ScrollView {
-                        VStack(spacing: 16) {
+                        // Lazy so long transcripts only build the rows on screen.
+                        LazyVStack(spacing: 16) {
                             // Search bar
                             HStack {
                                 Image(systemName: "magnifyingglass")
@@ -243,8 +244,9 @@ public struct AssistMainView: View {
                     .onChange(of: manager.messages.count) { _, _ in
                         withAnimation { proxy.scrollTo("Bottom", anchor: .bottom) }
                     }
-                    .onChange(of: manager.currentActivityStatus) { _, _ in
-                        withAnimation { proxy.scrollTo("Bottom", anchor: .bottom) }
+                    .onChange(of: manager.messages.last?.content.count ?? 0) { _, _ in
+                        // Follow streamed text without animating every coalesced update.
+                        proxy.scrollTo("Bottom", anchor: .bottom)
                     }
                     .onChange(of: manager.isProcessing) { _, _ in
                         withAnimation { proxy.scrollTo("Bottom", anchor: .bottom) }
@@ -1278,9 +1280,26 @@ private struct AssistChatBubble: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
+                    // Model reasoning streamed by the runtime (thought deltas).
+                    if message.role == .assistant,
+                       let thinking = message.thinkingContent?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !thinking.isEmpty {
+                        DisclosureGroup {
+                            Text(thinking)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } label: {
+                            Label("Thinking", systemImage: "brain")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
                     // Streamed / Completed Assistant Markdown Message (NO tool activities inside the bubble)
                     if !content.isEmpty {
-                        let blocks = MarkdownParser.shared.parse(content)
+                        let blocks = AssistMarkdownCache.blocks(for: content)
                         if blocks.isEmpty {
                             Text(content)
                                 .font(.body)
@@ -1321,6 +1340,30 @@ private struct AssistChatBubble: View {
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
         }
+    }
+}
+
+// MARK: - Markdown parse cache
+
+/// Avoids re-parsing unchanged message Markdown on every SwiftUI render; only
+/// the message that is actually streaming is parsed again.
+@MainActor
+enum AssistMarkdownCache {
+    private static var cache: [String: [MarkdownBlock]] = [:]
+    private static var insertionOrder: [String] = []
+    private static let limit = 128
+
+    static func blocks(for content: String) -> [MarkdownBlock] {
+        if let hit = cache[content] {
+            return hit
+        }
+        let parsed = MarkdownParser.shared.parse(content)
+        cache[content] = parsed
+        insertionOrder.append(content)
+        if insertionOrder.count > limit {
+            cache.removeValue(forKey: insertionOrder.removeFirst())
+        }
+        return parsed
     }
 }
 

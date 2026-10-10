@@ -24,13 +24,15 @@ public final class AssistManager: ObservableObject {
     private let permissions = AssistPermissionsManager()
     private let memory = AssistMemoryGraph()
 
-    private var agent: AssistAgent?
     private let api = AssistAPI.shared
     private var activeAgentTask: Task<Void, Never>?
     private var activeGoogleCloudSession: GoogleCloudSDKSession?
     private var activeGoogleCloudTask: Task<Void, Never>?
     private var activeGoogleCloudModelId: String?
     private var activeGoogleCloudModelDisplayName: String?
+    /// Assistant message owning the current Antigravity turn; tool/worker events
+    /// are attached to it rather than to whatever message happens to be last.
+    private var activeTurnMessageId: UUID?
 
     // Transcript vs Model Context separation
     public private(set) var modelContext: [ModelContextSection] = []
@@ -83,6 +85,19 @@ public final class AssistManager: ObservableObject {
         return await withCheckedContinuation { continuation in
             self.terminalContinuation = continuation
         }
+    }
+
+    /// Uses the approval overlay for operations SwiftCode does not execute in its
+    /// own terminal (destructive Swift tools, SDK built-in `run_command`), then
+    /// clears the overlay so it does not stay in the "running" state.
+    @MainActor
+    public func requestOperationApproval(_ request: TerminalApprovalRequest) async -> Bool {
+        let approved = await requestTerminalApproval(request)
+        if pendingTerminalRequest?.id == request.id {
+            pendingTerminalRequest = nil
+        }
+        terminalRunning = false
+        return approved
     }
 
     @MainActor
@@ -149,7 +164,6 @@ public final class AssistManager: ObservableObject {
     private func setupAgent() {
         let context = buildContext()
         self.api.configure(context: context)
-        self.agent = AssistAgent(context: context, registry: registry)
     }
 
     private func observeFallbackState() {
@@ -157,10 +171,37 @@ public final class AssistManager: ObservableObject {
             for await _ in AssistModelManager.shared.$lastFallbackMessage.values {
                 if let message = AssistModelManager.shared.lastFallbackMessage {
                     activeFallbackMessage = message
-                    messages.append(AssistMessage(role: .system, content: message))
+                    let notice = AssistMessage(role: .system, content: message)
+                    // Never split a running turn: place the notice before its assistant message.
+                    if let turnId = activeTurnMessageId,
+                       let turnIdx = messages.lastIndex(where: { $0.id == turnId }) {
+                        messages.insert(notice, at: turnIdx)
+                    } else {
+                        messages.append(notice)
+                    }
                     saveHistory()
                 }
             }
+        }
+    }
+
+    /// Index of the message that should receive tool/worker activity: the active
+    /// turn's assistant message when there is one, otherwise the last message.
+    private func activityMessageIndex() -> Int? {
+        if let turnId = activeTurnMessageId,
+           let idx = messages.lastIndex(where: { $0.id == turnId }) {
+            return idx
+        }
+        return messages.indices.last
+    }
+
+    /// Waits for a task to finish, giving up after `timeoutSeconds`.
+    private static func waitForTask(_ task: Task<Void, Never>, timeoutSeconds: Double) async {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await task.value }
+            group.addTask { try? await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000)) }
+            await group.next()
+            group.cancelAll()
         }
     }
 
@@ -215,17 +256,6 @@ public final class AssistManager: ObservableObject {
         }
 
         if isAgentMode && !isLightweightConversation {
-            guard let _ = self.agent else {
-                let error = "Assist agent is unavailable."
-                await MainActor.run {
-                    lastError = error
-                    messages.append(AssistMessage(role: .system, content: error))
-                    isProcessing = false
-                    saveHistory()
-                }
-                return
-            }
-
             // Verify system prompt is available
             do {
                 _ = try getSystemPrompt()
@@ -447,12 +477,12 @@ public final class AssistManager: ObservableObject {
     }
 
     private func appendChatToken(_ token: String, to messageID: UUID) {
-        guard let index = messages.firstIndex(where: { $0.id == messageID }) else { return }
-        var message = messages[index]
-        let sanitizedToken = AssistSanitizer.sanitize(token)
-        message.content += sanitizedToken
-        messages[index] = message
-        currentActivityStatus = "Receiving response…"
+        // The streaming message is the newest one; search from the end.
+        guard let index = messages.lastIndex(where: { $0.id == messageID }) else { return }
+        messages[index].content += AssistSanitizer.sanitize(token)
+        if currentActivityStatus != "Receiving response…" {
+            currentActivityStatus = "Receiving response…"
+        }
     }
 
     private func finishChatResponse(messageID: UUID, error: String? = nil) {
@@ -511,13 +541,10 @@ public final class AssistManager: ObservableObject {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
+        let interruptedSession = isProcessing ? activeGoogleCloudSession : nil
+        let interruptedTask = isProcessing ? activeGoogleCloudTask : nil
+
         if isProcessing {
-            // Signal graceful turn cancellation to the bridge without tearing down the session or chat
-            if let gcSession = activeGoogleCloudSession {
-                Task {
-                    try? await gcSession.cancel()
-                }
-            }
             activeAgentTask?.cancel()
             activeAgentTask = nil
             activeChatTask?.cancel()
@@ -533,7 +560,15 @@ public final class AssistManager: ObservableObject {
         }
 
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 150_000_000)
+            // Wait for the bridge to acknowledge the cancellation and for the
+            // interrupted turn to unwind, instead of sleeping a fixed 150 ms and
+            // racing "currently processing another turn".
+            if let interruptedSession {
+                try? await interruptedSession.cancel()
+            }
+            if let interruptedTask {
+                await Self.waitForTask(interruptedTask, timeoutSeconds: 10)
+            }
             self.isProcessing = false
             self.currentActivityStatus = "Idle"
             await self.sendMessage(trimmed, attachments: attachments, envelope: envelope)
@@ -828,15 +863,23 @@ public final class AssistManager: ObservableObject {
 
         let session: GoogleCloudSDKSession
         if let existing = activeGoogleCloudSession,
+           runtime.isSessionLive(existing.id),
            AssistPromptOptimizer.shared.canReuseSDKSession(existing: existing, targetConfig: initialConfig) {
             session = existing
         } else {
+            var sessionConfig = initialConfig
             if let old = activeGoogleCloudSession {
-                await runtime.closeSession(id: old.id)
+                if runtime.isSessionLive(old.id) {
+                    await runtime.closeSession(id: old.id)
+                } else if old.config.model == initialConfig.model {
+                    // The bridge restarted underneath us: resume the persisted
+                    // SDK conversation instead of silently starting over.
+                    sessionConfig.conversationId = old.conversationId
+                }
                 activeGoogleCloudSession = nil
             }
             do {
-                session = try await runtime.createSession(config: initialConfig)
+                session = try await runtime.createSession(config: sessionConfig)
                 activeGoogleCloudSession = session
                 activeGoogleCloudModelId = initialModelId
                 activeGoogleCloudModelDisplayName = initialModelName
@@ -858,13 +901,18 @@ public final class AssistManager: ObservableObject {
             initialMsg.activityGroup = initialActivity
             targetAssistantMessageId = initialMsg.id
             self.messages.append(initialMsg)
+            self.activeTurnMessageId = initialMsg.id
             self.saveHistory()
         }
+        let turnMessageId = targetAssistantMessageId
 
         let task = Task {
             defer {
                 Task { @MainActor in
                     self.finalizeAllPendingActivities(status: .cancelled, reason: "Execution ended")
+                    if self.activeTurnMessageId == turnMessageId {
+                        self.activeTurnMessageId = nil
+                    }
                     self.isProcessing = false
                     self.currentActivityStatus = "Idle"
                 }
@@ -904,7 +952,7 @@ public final class AssistManager: ObservableObject {
             }
 
             let basePrompt = explicitContextPrefix.isEmpty ? content : "\(explicitContextPrefix)\n\n# USER REQUEST\n\(content)"
-            var currentPrompt = "# TASK OBJECTIVE\n\(content)\n\n\(basePrompt)"
+            var currentPrompt = basePrompt
             var currentAttachments = sdkAttachments
             var currentSession: GoogleCloudSDKSession = session
             var currentConfig = initialConfig
@@ -914,13 +962,14 @@ public final class AssistManager: ObservableObject {
             let maxFailoverAttempts = 3
             var protocolCorrectionAttempts = 0
             var totalIdleTimeoutUsed: TimeInterval = 0
+            var didRecoverLostSession = false
 
             executionLoop: while attempts < maxFailoverAttempts {
                 guard totalIdleTimeoutUsed < 240 else {
                     let timeoutError = "Assist stopped making progress after 4 minutes without runtime activity. Retry the request, or inspect any active tool before repeating it."
                     await MainActor.run {
                         self.lastError = timeoutError
-                        if let idx = self.messages.indices.last {
+                        if let idx = self.activityMessageIndex() {
                             self.messages[idx].content = timeoutError
                             self.messages[idx].activityGroup?.isExecuting = false
                             self.saveHistory()
@@ -938,12 +987,29 @@ public final class AssistManager: ObservableObject {
                 var invalidToolPayload = false
                 var outputFilter = AssistToolPayloadStreamFilter()
                 let watchdog = AssistSDKTurnWatchdog()
+                // Deltas are batched (~40 ms) so the @Published transcript is not
+                // rewritten and re-rendered once per token.
+                let coalescer = AssistStreamCoalescer { [weak self] text, thought in
+                    guard let self, let idx = self.messages.lastIndex(where: { $0.id == turnMessageId }) else { return }
+                    var message = self.messages[idx]
+                    if !thought.isEmpty {
+                        message.thinkingContent = (message.thinkingContent ?? "") + AssistSanitizer.sanitize(thought)
+                    }
+                    if !text.isEmpty {
+                        message.content += AssistSanitizer.sanitize(text)
+                    }
+                    self.messages[idx] = message
+                }
 
                 let streamTask = Task { @MainActor in
                     streamLoop: for await event in eventStream {
                         guard !Task.isCancelled else { break streamLoop }
                         watchdog.recordActivity()
-                        guard let idx = self.messages.firstIndex(where: { $0.id == targetAssistantMessageId }) ?? self.messages.indices.last else { continue }
+                        if case .agentProgress = event {} else {
+                            // Keep ordering: buffered text lands before tool/turn events.
+                            coalescer.flush()
+                        }
+                        guard let idx = self.messages.lastIndex(where: { $0.id == turnMessageId }) else { continue }
                         switch event {
                         case .agentStarted:
                             metrics?.mark(.firstEventReceived)
@@ -953,27 +1019,26 @@ public final class AssistManager: ObservableObject {
                         case .agentProgress(_, let delta, let thoughtDelta):
                             metrics?.mark(.firstEventReceived)
                             if let thoughtDelta = thoughtDelta, !thoughtDelta.isEmpty {
-                                var message = self.messages[idx]
-                                let sanitizedThought = AssistSanitizer.sanitize(thoughtDelta)
-                                message.thinkingContent = (message.thinkingContent ?? "") + sanitizedThought
-                                self.messages[idx] = message
+                                coalescer.append(thought: thoughtDelta)
                                 if self.currentActivityStatus == "Waiting for model output…" {
                                     self.currentActivityStatus = "Thinking…"
                                 }
                             }
                             if let delta = delta, !delta.isEmpty {
                                 let safeDelta = outputFilter.append(delta)
-                                var message = self.messages[idx]
                                 if outputFilter.didSuppressToolPayload {
-                                    message.content = ""
+                                    coalescer.discardPendingText()
+                                    if !self.messages[idx].content.isEmpty {
+                                        self.messages[idx].content = ""
+                                    }
                                     self.currentActivityStatus = "Correcting tool request format…"
                                 } else if !safeDelta.isEmpty {
                                     metrics?.mark(.firstTextDelta)
-                                    self.currentActivityStatus = "Receiving response…"
-                                    let cleanDelta = AssistSanitizer.sanitize(safeDelta)
-                                    message.content += cleanDelta
+                                    if self.currentActivityStatus != "Receiving response…" {
+                                        self.currentActivityStatus = "Receiving response…"
+                                    }
+                                    coalescer.append(text: safeDelta)
                                 }
-                                self.messages[idx] = message
                             }
                         case .toolStarted(let tool):
                             metrics?.mark(.firstEventReceived)
@@ -1070,6 +1135,7 @@ public final class AssistManager: ObservableObject {
                     streamTask.cancel()
                     turnError = error.localizedDescription
                 }
+                coalescer.flush()
                 watchdog.stop()
 
                 if watchdog.didTimeOut {
@@ -1077,7 +1143,7 @@ public final class AssistManager: ObservableObject {
                     turnCompletedSuccessfully = false
                     turnError = "Assist stopped receiving runtime events for \(Int(watchdogTimeout)) seconds and cancelled this attempt. Please retry, or inspect any active tool before repeating it."
                     await MainActor.run {
-                        if let idx = self.messages.indices.last {
+                        if let idx = self.activityMessageIndex() {
                             self.finalizeActivitiesInMessage(idx: idx, status: .failed, reason: "Timed out waiting for tool/runtime progress")
                         }
                     }
@@ -1095,7 +1161,7 @@ public final class AssistManager: ObservableObject {
                         """
                         currentAttachments = []
                         await MainActor.run {
-                            if let idx = self.messages.indices.last {
+                            if let idx = self.activityMessageIndex() {
                                 self.messages[idx].content = ""
                                 self.messages[idx].activityGroup?.isExecuting = true
                             }
@@ -1107,7 +1173,7 @@ public final class AssistManager: ObservableObject {
                     let protocolError = "The model returned an invalid tool-call format twice. No command from that text was executed. Retry the request or select a different model/toolkit."
                     await MainActor.run {
                         self.lastError = protocolError
-                        if let idx = self.messages.indices.last {
+                        if let idx = self.activityMessageIndex() {
                             self.messages[idx].content = protocolError
                             self.messages[idx].activityGroup?.isExecuting = false
                             self.saveHistory()
@@ -1121,6 +1187,25 @@ public final class AssistManager: ObservableObject {
                 let altKeysEnabled = await MainActor.run { AppSettings.shared.alternativeKeysEnabled }
                 let savedModelsEnabled = await MainActor.run { AppSettings.shared.useSavedModels }
                 let isGemini = currentModelId.lowercased().contains("gemini") || currentModelName.lowercased().contains("gemini") || (currentConfig.provider == "gemini" || currentConfig.provider == "google")
+
+                // The bridge lost the session (crash/restart/closed): recreate it once,
+                // resuming the SDK conversation, before treating this as a model failure.
+                if let errText = turnError, !didRecoverLostSession, GoogleCloudSDKRuntime.isSessionLostError(errText) {
+                    didRecoverLostSession = true
+                    attempts -= 1
+                    var resumeConfig = currentConfig
+                    resumeConfig.conversationId = currentSession.conversationId
+                    do {
+                        let newSession = try await runtime.createSession(config: resumeConfig)
+                        await MainActor.run {
+                            self.activeGoogleCloudSession = newSession
+                        }
+                        currentSession = newSession
+                        continue executionLoop
+                    } catch {
+                        turnError = error.localizedDescription
+                    }
+                }
 
                 if let errText = turnError {
                     let isQuota = AssistModelRouter.shared.isQuotaOrRateLimit(errorText: errText)
@@ -1141,15 +1226,8 @@ public final class AssistManager: ObservableObject {
                                 }
                             }
 
-                            // Update activity UI exactly per specification:
-                            // "Gemini key rate limited — rotating key"
                             await MainActor.run {
-                                self.currentActivityStatus = "Gemini key rate limited — rotating key"
-                            }
-
-                            // "Waiting 2 seconds before retry"
-                            await MainActor.run {
-                                self.currentActivityStatus = "Waiting 2 seconds before retry"
+                                self.currentActivityStatus = "Gemini key rate limited — rotating key in 2 seconds"
                             }
                             // Mandatory 2-second backend wait
                             try? await Task.sleep(nanoseconds: 2_000_000_000)
@@ -1164,7 +1242,7 @@ public final class AssistManager: ObservableObject {
                             let keyIndex = nextKey.metadata.orderIndex + 1
                             await MainActor.run {
                                 self.currentActivityStatus = "Switched to Gemini key \(keyIndex)"
-                                if let idx = self.messages.indices.last {
+                                if let idx = self.activityMessageIndex() {
                                     self.finalizeActivitiesInMessage(idx: idx, status: .failed, reason: "Turn restarted on key rotation")
                                     // Clear aborted buffer so retry writes cleanly into current assistant message
                                     self.messages[idx].content = ""
@@ -1197,7 +1275,7 @@ public final class AssistManager: ObservableObject {
                                 await MainActor.run {
                                     let exhaustedMsg = "All configured Gemini API keys are currently unavailable."
                                     self.lastError = exhaustedMsg
-                                    if let idx = self.messages.indices.last {
+                                    if let idx = self.activityMessageIndex() {
                                         self.finalizeActivitiesInMessage(idx: idx, status: .failed, reason: exhaustedMsg)
                                         self.messages[idx] = AssistMessage(
                                             role: .assistant,
@@ -1225,7 +1303,7 @@ public final class AssistManager: ObservableObject {
                         let newName = failover.nextModel.displayName
                         await MainActor.run {
                             self.currentActivityStatus = "\(oldName) error — switching to \(newName)"
-                            if let idx = self.messages.indices.last {
+                            if let idx = self.activityMessageIndex() {
                                 self.finalizeActivitiesInMessage(idx: idx, status: .failed, reason: "Turn restarted on model failover")
                                 self.messages[idx].activityGroup?.isExecuting = true
                             }
@@ -1262,10 +1340,12 @@ public final class AssistManager: ObservableObject {
 
                 // Terminal failure
                 await MainActor.run {
-                    let finalErrorMsg = (altKeysEnabled && isGemini) ? "All configured Gemini API keys are currently unavailable." : (turnError ?? "\(currentModelName) execution failed")
+                    // Show the real provider/runtime error; only fall back to a generic
+                    // message when the runtime gave none.
+                    let finalErrorMsg = turnError ?? ((altKeysEnabled && isGemini) ? "All configured Gemini API keys are currently unavailable." : "\(currentModelName) execution failed")
                     let cleanError = AssistSanitizer.sanitize(finalErrorMsg)
                     self.lastError = cleanError
-                    if let idx = self.messages.indices.last {
+                    if let idx = self.activityMessageIndex() {
                         self.finalizeActivitiesInMessage(idx: idx, status: .failed, reason: cleanError)
                         if self.messages[idx].content.isEmpty {
                             self.messages[idx] = AssistMessage(role: .assistant, content: cleanError)
@@ -1299,7 +1379,7 @@ public final class AssistManager: ObservableObject {
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: sanitizedArgs)
         self.currentActivityStatus = formatted.runningLabel
 
-        guard let idx = self.messages.indices.last else { return }
+        guard let idx = self.activityMessageIndex() else { return }
         var activity = self.messages[idx].activityGroup ?? AssistActivityGroup(isExecuting: true)
 
         AssistEventNormalizer.shared.normalizeToolStarted(
@@ -1323,7 +1403,7 @@ public final class AssistManager: ObservableObject {
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: sanitizedArgs)
         self.currentActivityStatus = formatted.completedLabel
 
-        guard let idx = self.messages.indices.last else { return }
+        guard let idx = self.activityMessageIndex() else { return }
         guard var activity = self.messages[idx].activityGroup else { return }
 
         AssistEventNormalizer.shared.normalizeToolCompleted(
@@ -1344,7 +1424,7 @@ public final class AssistManager: ObservableObject {
             self.currentActivityStatus = cleanMsg
         }
 
-        guard let idx = self.messages.indices.last else { return }
+        guard let idx = self.activityMessageIndex() else { return }
         guard var activity = self.messages[idx].activityGroup else { return }
 
         AssistEventNormalizer.shared.normalizeToolProgress(
@@ -1381,7 +1461,7 @@ public final class AssistManager: ObservableObject {
         let cleanError = AssistEventNormalizer.shared.sanitizeErrorMessage(rawError: sanitizedError, toolName: toolName)
         self.currentActivityStatus = "\(formatted.failedLabel) — \(cleanError)"
 
-        guard let idx = self.messages.indices.last else { return }
+        guard let idx = self.activityMessageIndex() else { return }
         guard var activity = self.messages[idx].activityGroup else { return }
 
         AssistEventNormalizer.shared.normalizeToolFailed(
@@ -1449,7 +1529,7 @@ public final class AssistManager: ObservableObject {
         let title = cleanName.isEmpty ? "Worker" : "Worker · \(cleanName)"
         self.currentActivityStatus = "\(title)..."
 
-        guard let idx = self.messages.indices.last else { return }
+        guard let idx = self.activityMessageIndex() else { return }
         var activity = self.messages[idx].activityGroup ?? AssistActivityGroup(isExecuting: true)
 
         AssistEventNormalizer.shared.normalizeWorkerStarted(
@@ -1465,9 +1545,12 @@ public final class AssistManager: ObservableObject {
     @MainActor
     public func reportWorkerCompleted(workerId: String, result: String) {
         let sanitizedResult = AssistSanitizer.sanitize(result)
-        self.currentActivityStatus = "Worker completed"
+        if let firstLine = sanitizedResult.split(separator: "\n").first.map(String.init),
+           !firstLine.trimmingCharacters(in: .whitespaces).isEmpty {
+            self.currentActivityStatus = String(firstLine.prefix(160))
+        }
 
-        guard let idx = self.messages.indices.last else { return }
+        guard let idx = self.activityMessageIndex() else { return }
         guard var activity = self.messages[idx].activityGroup else { return }
 
         AssistEventNormalizer.shared.normalizeWorkerCompleted(
@@ -1485,7 +1568,7 @@ public final class AssistManager: ObservableObject {
         let cleanErr = AssistEventNormalizer.shared.sanitizeErrorMessage(rawError: sanitizedError, toolName: "worker")
         self.currentActivityStatus = "Worker failed — \(cleanErr)"
 
-        guard let idx = self.messages.indices.last else { return }
+        guard let idx = self.activityMessageIndex() else { return }
         guard var activity = self.messages[idx].activityGroup else { return }
 
         AssistEventNormalizer.shared.normalizeWorkerFailed(
@@ -1517,6 +1600,9 @@ struct AssistToolPayloadStreamFilter {
     private var receivedText = false
     private(set) var didSuppressToolPayload = false
     private let maximumCandidateLength = 256_000
+    /// Strong signatures are short markers, so only a sliding tail is inspected
+    /// (re-lowercasing up to 256 KB on every delta made streaming quadratic).
+    private let signatureWindowLength = 4_096
 
     mutating func append(_ delta: String) -> String {
         guard !delta.isEmpty else { return "" }
@@ -1525,7 +1611,7 @@ struct AssistToolPayloadStreamFilter {
         }
 
         receivedText = true
-        inspectedText = String((inspectedText + delta).suffix(maximumCandidateLength))
+        inspectedText = String((inspectedText + delta).suffix(signatureWindowLength))
         if Self.hasStrongToolRequestSignature(in: inspectedText) {
             mode = .suppressed
             didSuppressToolPayload = true
@@ -1554,7 +1640,12 @@ struct AssistToolPayloadStreamFilter {
     }
 
     mutating func finish(fallbackResponse: String) -> String {
-        if Self.hasStrongToolRequestSignature(in: fallbackResponse) || Self.containsToolRequestPayload(in: fallbackResponse) {
+        let trimmedFallback = fallbackResponse.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Only treat the response as a tool payload when it *is* one (starts with
+        // JSON or a fence), not when prose merely contains an example object.
+        let looksLikeBarePayload = trimmedFallback.hasPrefix("{") || trimmedFallback.hasPrefix("```")
+        if Self.hasStrongToolRequestSignature(in: fallbackResponse)
+            || (looksLikeBarePayload && Self.containsToolRequestPayload(in: trimmedFallback)) {
             mode = .suppressed
             didSuppressToolPayload = true
             pending = ""
@@ -1682,9 +1773,10 @@ struct AssistToolPayloadStreamFilter {
         if value.contains("# system prompt (operating policy)") { return true }
         if value.contains("\"function_name\"") && value.contains("\"arguments\"") { return true }
         if value.contains("\"toolid\"") && value.contains("\"input\"") { return true }
-        if value.contains("\"jsonrpc\"") && value.contains("\"method\"") { return true }
+        // Note: plain `"name"` + `"arguments"` or `"jsonrpc"` + `"method"` co-occurrence
+        // is NOT treated as a signature; legitimate answers (API docs, JSON-RPC
+        // examples) contain them. Leading JSON objects are still parsed and checked.
         let hasArguments = value.contains("\"arguments\"")
-        if value.contains("{") && value.contains("\"name\"") && hasArguments { return true }
         let hasCommandFields = ["\"commandline\"", "\"toolaction\"", "\"toolsummary\"", "\"waitmsbeforeasync\"", "\"notificationtimeoutseconds\""].contains(where: { value.contains($0) })
         if hasArguments && hasCommandFields { return true }
         if value.contains("<tool_call>") || value.contains("</tool_call>") { return true }
@@ -1736,6 +1828,51 @@ struct AssistToolPayloadStreamFilter {
         if object["function_call"] is [String: Any] { return true }
         if object["jsonrpc"] is String && object["method"] is String { return true }
         return false
+    }
+}
+
+/// Batches streamed text/thought deltas and applies them at most every
+/// `interval`, so a fast token stream causes ~25 transcript updates per second
+/// instead of one full @Published array rewrite per token.
+@MainActor
+final class AssistStreamCoalescer {
+    private var pendingText = ""
+    private var pendingThought = ""
+    private var flushTask: Task<Void, Never>?
+    private let intervalNanoseconds: UInt64
+    private let apply: @MainActor (_ text: String, _ thought: String) -> Void
+
+    init(intervalMilliseconds: UInt64 = 40, apply: @escaping @MainActor (_ text: String, _ thought: String) -> Void) {
+        self.intervalNanoseconds = intervalMilliseconds * 1_000_000
+        self.apply = apply
+    }
+
+    func append(text: String = "", thought: String = "") {
+        pendingText += text
+        pendingThought += thought
+        guard flushTask == nil else { return }
+        let delay = intervalNanoseconds
+        flushTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: delay)
+            guard !Task.isCancelled else { return }
+            self?.flush()
+        }
+    }
+
+    /// Drops buffered answer text (used when the stream turned out to be a tool payload).
+    func discardPendingText() {
+        pendingText = ""
+    }
+
+    func flush() {
+        flushTask?.cancel()
+        flushTask = nil
+        guard !pendingText.isEmpty || !pendingThought.isEmpty else { return }
+        let text = pendingText
+        let thought = pendingThought
+        pendingText = ""
+        pendingThought = ""
+        apply(text, thought)
     }
 }
 
@@ -1807,9 +1944,9 @@ public enum AssistSanitizer {
         try! NSRegularExpression(pattern: #"(?i)Execution Mode:\s*com\.SwiftCode[^\n]*\n?"#, options: []),
         // XML tool tags leaked in prose
         try! NSRegularExpression(pattern: #"<tool_call>[\s\S]*?<\/tool_call>"#, options: []),
-        try! NSRegularExpression(pattern: #"<tool_response>[\s\S]*?<\/tool_response>"#, options: []),
-        // JSON-RPC envelopes
-        try! NSRegularExpression(pattern: #"\{\s*"jsonrpc"\s*:\s*"2\.0"[\s\S]*?\}"#, options: [])
+        try! NSRegularExpression(pattern: #"<tool_response>[\s\S]*?<\/tool_response>"#, options: [])
+        // JSON-RPC objects are intentionally not stripped: answers that explain
+        // or show JSON-RPC payloads are legitimate content.
     ]
 
     public static func sanitize(_ text: String) -> String {

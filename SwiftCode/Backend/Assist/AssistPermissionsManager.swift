@@ -32,12 +32,32 @@ public final class AssistPermissionsManager: @unchecked Sendable, AssistPermissi
         return true
     }
 
+    /// Tool ids that permanently delete data. These are matched exactly (a
+    /// substring match used to deny e.g. "use_terminal" and "code_format"
+    /// because they contain "rm").
+    public static let approvalRequiredOperations: Set<String> = ["file_delete", "dir_delete"]
+
+    /// Returns true when the operation may run without asking the user.
+    /// Returns false when it needs explicit approval; callers then route it
+    /// through the approval UI rather than failing outright.
     public func authorizeOperation(_ operation: String) -> Bool {
-        let destructiveOperations = ["delete", "remove", "rm", "drop", "truncate", "destroy", "wipe"]
-        if destructiveOperations.contains(where: { operation.lowercased().contains($0) }) {
-            return requiresApproval
+        let normalized = operation.lowercased().replacingOccurrences(of: "-", with: "_")
+        lock.lock()
+        let autoApprove = !requiresApproval
+        lock.unlock()
+        if Self.approvalRequiredOperations.contains(normalized) {
+            return false
         }
-        return true
+        // `use_terminal` has its own per-command approval inside the tool.
+        return autoApprove || !normalized.contains("delete")
+    }
+
+    /// Requires approval for every operation whose id mentions deletion, in
+    /// addition to the always-gated destructive tools.
+    public func setRequiresApproval(_ value: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        requiresApproval = value
     }
 
     public func blockPath(_ path: String) {

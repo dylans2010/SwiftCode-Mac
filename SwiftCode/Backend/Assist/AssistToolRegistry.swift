@@ -176,15 +176,20 @@ public final class AssistToolRegistry {
         "run_command": "use_terminal",
         "terminal_command": "use_terminal",
         "execute_command": "use_terminal",
-        "list_dir": "directory_read",
-        "list_directory": "directory_read",
-        "search_dir": "search",
-        "search_directory": "search",
-        "find_file": "search",
-        "create_directory": "directory_create",
-        "make_directory": "directory_create",
-        "delete_directory": "directory_delete",
-        "remove_directory": "directory_delete"
+        "list_dir": "dir_read",
+        "list_directory": "dir_read",
+        "search_dir": "search_text",
+        "search_directory": "search_text",
+        "find_file": "search_text",
+        "create_directory": "dir_create",
+        "make_directory": "dir_create",
+        "delete_directory": "dir_delete",
+        "remove_directory": "dir_delete",
+        "read_directory": "dir_read",
+        "directory_read": "dir_read",
+        "directory_create": "dir_create",
+        "directory_delete": "dir_delete",
+        "search": "search_text"
     ]
 
     public func getTool(_ id: String) -> AssistTool? {

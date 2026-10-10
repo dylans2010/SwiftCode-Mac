@@ -14,7 +14,7 @@ public actor GoogleCloudSDKBridge {
     private let process = GoogleCloudSDKProcess()
     private let transport = GoogleCloudSDKTransport()
     private var isStarted = false
-    private var sdkVersion: String = "0.1.20"
+    private(set) var sdkVersion: String = "unknown"
 
     public init() {}
 
@@ -22,6 +22,18 @@ public actor GoogleCloudSDKBridge {
         get async {
             await process.isRunning
         }
+    }
+
+    /// PID of the bridge subprocess, used for synchronous teardown at app exit.
+    public var processIdentifier: Int32? {
+        get async {
+            await process.processIdentifier
+        }
+    }
+
+    /// The version reported by the bridge handshake (read from SDK metadata).
+    public var reportedSDKVersion: String {
+        sdkVersion
     }
 
     public var liveLogs: [String] {
@@ -35,10 +47,21 @@ public actor GoogleCloudSDKBridge {
         await transport.setToolExecutionHandler(handler)
     }
 
+    /// Sets the handler that answers `tool.approve` requests from SDK built-in tools.
+    public func setApprovalHandler(_ handler: @escaping @Sendable (GoogleCloudSDKToolApprovalRequest) async -> Bool) async {
+        await transport.setApprovalHandler(handler)
+    }
+
     /// Starts the bridge subprocess and completes the readiness handshake.
     public func start() async throws {
-        if isStarted, await isRunning {
+        if isStarted, await isRunning, await transport.isConnected {
             return
+        }
+        if isStarted {
+            // The process or connection died underneath us: clean up before relaunching.
+            await transport.disconnect()
+            await process.stop()
+            isStarted = false
         }
 
         logger.info("Starting Google Cloud SDK / Antigravity bridge...")
@@ -84,7 +107,9 @@ public actor GoogleCloudSDKBridge {
         try await start()
         var params = config.toDictionary()
         params["sessionId"] = sessionId
-        return try await transport.sendRequest(method: "session.create", params: params, timeout: 30.0)
+        // Session creation starts the SDK harness (cold start can take a while);
+        // the bridge handles it concurrently, so a generous timeout is safe.
+        return try await transport.sendRequest(method: "session.create", params: params, timeout: 90.0)
     }
 
     /// Resumes an existing agent session.
@@ -92,7 +117,7 @@ public actor GoogleCloudSDKBridge {
         try await start()
         var params = config.toDictionary()
         params["sessionId"] = sessionId
-        return try await transport.sendRequest(method: "session.resume", params: params, timeout: 30.0)
+        return try await transport.sendRequest(method: "session.resume", params: params, timeout: 90.0)
     }
 
     /// Closes an active agent session.
