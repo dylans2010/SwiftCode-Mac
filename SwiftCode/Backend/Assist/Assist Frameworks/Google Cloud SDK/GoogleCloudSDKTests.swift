@@ -22,6 +22,8 @@ public final class GoogleCloudSDKTests: Sendable {
 
         results.append(await testRuntimePathResolution())
         results.append(await testConfigurationDiscoveryAndSerialization())
+        results.append(await testBoundedRuntimeInstructions())
+        results.append(await testToolPayloadStreamingFilter())
         results.append(await testErrorDescriptions())
         results.append(await testMessageAndToolModels())
         results.append(await testLiveBridgeProcessAndHandshake())
@@ -64,6 +66,70 @@ public final class GoogleCloudSDKTests: Sendable {
             testName: "Configuration Discovery & IPC Payload",
             passed: passed,
             message: passed ? "Configuration properly resolved with model '\(config.model)' and \(config.skillsPaths.count) skill paths." : "Configuration serialization failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    public func testBoundedRuntimeInstructions() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let systemPrompt = (try? AssistManager.shared.getSystemPrompt()) ?? ""
+        let repositoryInstructions = """
+        # Example repository guidance
+        ## 1. Executive Architecture & State Machine
+        Keep UI updates on the main actor.
+        ## 3. Autonomous AI Agent Architecture (Assist Engine)
+        Preserve tool event streaming and cancellation.
+        ## 11. Visual UI Builder & Artboard Canvas
+        This unrelated section should not enter a streaming task prompt.
+        """
+        let compact = AssistSystemPromptSections.runtimeInstructions(
+            from: systemPrompt,
+            repositoryInstructions: repositoryInstructions,
+            toolkit: "Cloud",
+            objective: "Fix Assist agent tool streaming latency and raw JSON output"
+        )
+
+        let passed = compact.count < systemPrompt.count + repositoryInstructions.count &&
+            compact.contains("structured tools exposed by the active toolkit") &&
+            compact.contains("Preserve tool event streaming and cancellation") &&
+            !compact.contains("This unrelated section should not enter")
+        return RuntimeTestCaseResult(
+            testName: "Bounded Task-Relevant SDK Instructions",
+            passed: passed,
+            message: passed ? "Cloud instructions include relevant policy without the full repository corpus." : "SDK instruction compaction lost relevant policy or retained unrelated guidance.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    public func testToolPayloadStreamingFilter() async -> RuntimeTestCaseResult {
+        let start = Date()
+
+        var proseFilter = AssistToolPayloadStreamFilter()
+        let firstProseDelta = proseFilter.append("Hello")
+        let secondProseDelta = proseFilter.append(" there.")
+        let proseRemainder = proseFilter.finish(fallbackResponse: "Hello there.")
+
+        let rawToolPayload = #"{"name":"run_command","arguments":{"CommandLine":"git status --short"}}{"function_name":"run_command","arguments":{"CommandLine":"git status --short"}}"#
+        var rawFilter = AssistToolPayloadStreamFilter()
+        let leakedRawPayload = rawFilter.append(rawToolPayload) + rawFilter.finish(fallbackResponse: rawToolPayload)
+
+        let fencedPayload = "```json\n{\"toolId\":\"run_command\",\"input\":{\"command\":\"git status --short\"}}\n```"
+        var fencedFilter = AssistToolPayloadStreamFilter()
+        let leakedFencedPayload = fencedFilter.append(fencedPayload) + fencedFilter.finish(fallbackResponse: fencedPayload)
+
+        var jsonAnswerFilter = AssistToolPayloadStreamFilter()
+        let jsonAnswer = #"{"answer":"ok"}"#
+        let safeJSON = jsonAnswerFilter.append(jsonAnswer) + jsonAnswerFilter.finish(fallbackResponse: jsonAnswer)
+
+        let passed = firstProseDelta == "Hello" && secondProseDelta == " there." && proseRemainder.isEmpty &&
+            rawFilter.didSuppressToolPayload && leakedRawPayload.isEmpty &&
+            fencedFilter.didSuppressToolPayload && leakedFencedPayload.isEmpty &&
+            !jsonAnswerFilter.didSuppressToolPayload && safeJSON == jsonAnswer
+
+        return RuntimeTestCaseResult(
+            testName: "Safe Streaming of Tool Requests as Text",
+            passed: passed,
+            message: passed ? "Plain text still streams immediately; serialized tool requests are suppressed and ordinary JSON remains visible." : "Tool payload filtering regression detected.",
             duration: Date().timeIntervalSince(start)
         )
     }

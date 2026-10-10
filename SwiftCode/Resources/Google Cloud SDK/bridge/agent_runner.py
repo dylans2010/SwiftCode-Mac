@@ -322,6 +322,14 @@ class AgentRunner:
                 agent_behavior=types.AgentBehavior.AUTONOMOUS,
             )
 
+            logger.info(
+                "Creating %s toolkit session: instructions=%d chars, dynamic_tools=%d, builtin_tools=%d",
+                toolkit,
+                len(system_instructions or ""),
+                len(dynamic_tools),
+                len(builtin_tools),
+            )
+
             # Determine provider & routing strategy
             provider = (params.get("provider") or "").lower()
             use_saved_models = params.get("useSavedModels", False)
@@ -430,12 +438,11 @@ class AgentRunner:
         emit = self.emit_fn
 
         async def _run_turn():
+            accumulated_text = []
             try:
                 emit("agent.started", {"sessionId": session_id, "prompt": content})
                 response = await session.agent.chat(content)
                 session.active_response = response
-
-                accumulated_text = []
 
                 # Stream rich semantic chunks as they arrive from backend
                 async for chunk in response.chunks:
@@ -450,54 +457,9 @@ class AgentRunner:
                             "sessionId": session_id,
                             "thoughtDelta": chunk.text,
                         })
-                    elif isinstance(chunk, ToolCall):
-                        tool_id = getattr(chunk, "id", "") or str(getattr(chunk, "step_id", "") or "")
-                        tool_name = getattr(chunk, "name", "")
-                        if tool_name == "start_subagent":
-                            emit("worker.started", {
-                                "sessionId": session_id,
-                                "workerId": tool_id,
-                                "name": tool_name,
-                                "args": getattr(chunk, "args", {}) or {},
-                            })
-                        emit("tool.started", {
-                            "sessionId": session_id,
-                            "toolCallId": tool_id,
-                            "toolName": tool_name,
-                            "args": getattr(chunk, "args", {}) or {},
-                        })
-                    elif isinstance(chunk, ToolResult):
-                        tool_id = getattr(chunk, "id", "") or str(getattr(chunk, "step_id", "") or "")
-                        tool_name = getattr(chunk, "name", "")
-                        res_val = getattr(chunk, "result", None)
-                        err_val = getattr(chunk, "error", None)
-                        if err_val:
-                            if tool_name == "start_subagent":
-                                emit("worker.failed", {
-                                    "sessionId": session_id,
-                                    "workerId": tool_id,
-                                    "error": str(err_val),
-                                })
-                            emit("tool.failed", {
-                                "sessionId": session_id,
-                                "toolCallId": tool_id,
-                                "toolName": tool_name,
-                                "error": str(err_val),
-                            })
-                        else:
-                            formatted = str(res_val) if res_val is not None else ""
-                            if tool_name == "start_subagent":
-                                emit("worker.completed", {
-                                    "sessionId": session_id,
-                                    "workerId": tool_id,
-                                    "result": formatted,
-                                })
-                            emit("tool.completed", {
-                                "sessionId": session_id,
-                                "toolCallId": tool_id,
-                                "toolName": tool_name,
-                                "result": formatted,
-                            })
+                    # Tool lifecycle notifications are emitted by the SDK's
+                    # pre/post hooks above. Re-emitting ToolCall chunks here
+                    # duplicates starts/completions and corrupts retry timing.
 
                 final_text = "".join(accumulated_text)
                 usage = None

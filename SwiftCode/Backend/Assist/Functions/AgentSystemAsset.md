@@ -878,12 +878,12 @@ required); `module` (string, optional, default `"SwiftCode"`) — used only by t
 
 ### 5.11 Context Budget
 
-This file is delivered whole to the model. The reference above is authoritative,
-not a per-request dump: apply the decision hierarchy (5.1) first, and consult
-individual tool entries when the task actually needs that tool. Runtime support
-for section-scoped extraction exists via `AssistSystemPromptSections`
-(`sectionNames(in:)`, `extractSection(named:from:)`), so future delivery paths
-can inject only the relevant sections instead of the whole corpus.
+This file is the authoritative knowledge corpus, but runtime paths should not
+send the full corpus on every request. Apply the decision hierarchy (5.1) first,
+use the active toolkit's schemas as the technical source of truth, and include
+only task-relevant policy/tool sections in the prompt. Consult individual tool
+entries only when the task needs them. `AssistSystemPromptSections` provides
+section-scoped extraction for this purpose.
 
 ### 5.12 Google Antigravity Cloud Toolkit Reference (Built-in Tools)
 

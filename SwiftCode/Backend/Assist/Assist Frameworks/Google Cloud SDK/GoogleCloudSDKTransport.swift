@@ -15,6 +15,7 @@ public actor GoogleCloudSDKTransport {
     private var socketFD: Int32 = -1
     private var readTask: Task<Void, Never>?
     private var pendingRequests: [String: CheckedContinuation<GoogleCloudSDKResponse, Error>] = [:]
+    private var requestTimeoutTasks: [String: Task<Void, Never>] = [:]
     private var eventContinuations: [UUID: AsyncStream<GoogleCloudSDKEvent>.Continuation] = [:]
     private var toolExecutionHandler: (@Sendable (GoogleCloudSDKToolExecutionRequest) async -> (success: Bool, result: String?, error: String?))?
 
@@ -100,6 +101,10 @@ public actor GoogleCloudSDKTransport {
             cont.resume(throwing: GoogleCloudSDKError.socketConnectionFailed("Connection closed"))
         }
         pendingRequests.removeAll()
+        for (_, timeoutTask) in requestTimeoutTasks {
+            timeoutTask.cancel()
+        }
+        requestTimeoutTasks.removeAll()
 
         for (_, cont) in eventContinuations {
             cont.finish()
@@ -148,22 +153,38 @@ public actor GoogleCloudSDKTransport {
         return try await withCheckedThrowingContinuation { continuation in
             self.pendingRequests[id] = continuation
 
-            Task {
+            Task { [weak self] in
+                guard let self else { return }
+                let timeoutTask = Task { [weak self] in
+                    do {
+                        try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                    } catch {
+                        return
+                    }
+                    await self?.expireRequest(id: id, method: method)
+                }
+                self.requestTimeoutTasks[id] = timeoutTask
+
                 do {
                     try self.writeRaw(message)
                 } catch {
-                    self.pendingRequests.removeValue(forKey: id)
-                    continuation.resume(throwing: error)
+                    self.failRequest(id: id, error: error)
                     return
-                }
-
-                // Timeout watchdog
-                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                if let pending = self.pendingRequests.removeValue(forKey: id) {
-                    pending.resume(throwing: GoogleCloudSDKError.requestTimeout(method: method))
                 }
             }
         }
+    }
+
+    private func expireRequest(id: String, method: String) {
+        requestTimeoutTasks.removeValue(forKey: id)
+        guard let continuation = pendingRequests.removeValue(forKey: id) else { return }
+        continuation.resume(throwing: GoogleCloudSDKError.requestTimeout(method: method))
+    }
+
+    private func failRequest(id: String, error: Error) {
+        requestTimeoutTasks.removeValue(forKey: id)?.cancel()
+        guard let continuation = pendingRequests.removeValue(forKey: id) else { return }
+        continuation.resume(throwing: error)
     }
 
     private func writeRaw(_ string: String) throws {
@@ -242,6 +263,7 @@ public actor GoogleCloudSDKTransport {
         // 2. Response matching (has "id" but NO "method")
         if let id = json["id"] as? String {
             if let cont = pendingRequests.removeValue(forKey: id) {
+                requestTimeoutTasks.removeValue(forKey: id)?.cancel()
                 if let errorObj = json["error"] as? [String: Any] {
                     let code = errorObj["code"] as? Int ?? -1
                     let msg = errorObj["message"] as? String ?? "Unknown bridge error"

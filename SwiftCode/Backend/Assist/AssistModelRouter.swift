@@ -126,7 +126,7 @@ public final class AssistModelRouter: Sendable {
         return candidates.first
     }
 
-    public func selectModelForSDK() async -> (model: AssistAvailableModel, config: GoogleCloudSDKConfiguration)? {
+    public func selectModelForSDK(objective: String = "") async -> (model: AssistAvailableModel, config: GoogleCloudSDKConfiguration)? {
         let isSavedModelsEnabled = AppSettings.shared.useSavedModels
         let selectedId = AppSettings.shared.selectedAssistModelID
 
@@ -141,7 +141,7 @@ public final class AssistModelRouter: Sendable {
         }
 
         self.currentRuntimeModel = targetModel
-        let config = buildSDKConfiguration(for: targetModel)
+        let config = buildSDKConfiguration(for: targetModel, objective: objective)
         return (targetModel, config)
     }
 
@@ -350,7 +350,8 @@ public final class AssistModelRouter: Sendable {
             failedModel: failedModel,
             error: GenericError(errorDescription: errorText),
             completedTurnContent: priorTurnOutput,
-            executedToolsCount: 0
+            executedToolsCount: 0,
+            objective: originalPrompt
         )
     }
 
@@ -360,7 +361,8 @@ public final class AssistModelRouter: Sendable {
         failedModel: AssistAvailableModel,
         error: Error,
         completedTurnContent: String,
-        executedToolsCount: Int
+        executedToolsCount: Int,
+        objective: String = ""
     ) async -> (nextModel: AssistAvailableModel, continuationPrompt: String, nextConfig: GoogleCloudSDKConfiguration)? {
         let failureClass = classify(error: error)
 
@@ -419,14 +421,14 @@ public final class AssistModelRouter: Sendable {
         }
         handoff += "\nINSTRUCTION: Inspect the repository's current disk state and continue fulfilling the user's objective without repeating already completed work."
 
-        let nextConfig = buildSDKConfiguration(for: nextModel)
+        let nextConfig = buildSDKConfiguration(for: nextModel, objective: objective)
         return (nextModel, handoff, nextConfig)
     }
 
     // MARK: - SDK Configuration Builder
 
-    public func buildSDKConfiguration(for model: AssistAvailableModel) -> GoogleCloudSDKConfiguration {
-        var baseConfig = GoogleCloudSDKConfiguration.resolveDefault()
+    public func buildSDKConfiguration(for model: AssistAvailableModel, objective: String = "") -> GoogleCloudSDKConfiguration {
+        var baseConfig = GoogleCloudSDKConfiguration.resolveDefault(objective: objective)
 
         baseConfig.model = model.modelIdentifier
         baseConfig.enableSubagents = model.supportsSubagents

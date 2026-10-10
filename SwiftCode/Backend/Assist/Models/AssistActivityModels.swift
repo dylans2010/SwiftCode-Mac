@@ -52,7 +52,7 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
     public var result: String
     public var status: ActivityStatus
     public var duration: TimeInterval
-    public let timestamp: Date
+    public var timestamp: Date
     public var displayLabel: String?
     public var completedLabel: String?
     public var iconName: String?

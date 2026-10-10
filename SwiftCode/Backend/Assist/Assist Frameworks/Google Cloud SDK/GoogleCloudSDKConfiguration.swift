@@ -126,7 +126,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
 
     /// Automatically resolves environment configuration from SwiftCode project, tools, and preferences.
     @MainActor
-    public static func resolveDefault(for workspaceURL: URL? = nil) -> GoogleCloudSDKConfiguration {
+    public static func resolveDefault(for workspaceURL: URL? = nil, objective: String = "") -> GoogleCloudSDKConfiguration {
         let isSavedModels = AppSettings.shared.useSavedModels
         let activeModelId = AppSettings.shared.selectedAssistModelID
 
@@ -180,12 +180,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
 
         var workspaces: [String] = []
         var skillsPaths: [String] = []
-        var effectiveInstructions: String? = nil
-
-        // Load SwiftCode system prompt AgentSystemAsset.md
-        if let systemPrompt = try? AssistManager.shared.getSystemPrompt() {
-            effectiveInstructions = systemPrompt
-        }
+        var repositoryInstructions: String? = nil
 
         let targetURL = workspaceURL ?? ProjectSessionStore.shared.activeProject?.directoryURL
 
@@ -193,18 +188,16 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             let rootPath = rootURL.path
             workspaces.append(rootPath)
 
-            // Discover repository AGENTS.md / Agent.md and append if present
+            // Read repository guidance once, then include only task-relevant
+            // sections in the session prompt. Sending the entire file on every
+            // new session can add tens of thousands of unnecessary tokens.
             let candidates = ["AGENTS.md", "Agents.md", "Agent.md"]
             for name in candidates {
                 let candidateURL = rootURL.appendingPathComponent(name)
                 if FileManager.default.fileExists(atPath: candidateURL.path),
                    let repoAgentsContent = try? String(contentsOf: candidateURL, encoding: .utf8),
                    !repoAgentsContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    if let existing = effectiveInstructions {
-                        effectiveInstructions = existing + "\n\n# REPOSITORY SPECIFIC AGENTS RULES\n" + repoAgentsContent
-                    } else {
-                        effectiveInstructions = repoAgentsContent
-                    }
+                    repositoryInstructions = repoAgentsContent
                     break
                 }
             }
@@ -215,6 +208,14 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
                 skillsPaths.append(repoSkills.path)
             }
         }
+
+        let systemPrompt = (try? AssistManager.shared.getSystemPrompt()) ?? ""
+        let effectiveInstructions = AssistSystemPromptSections.runtimeInstructions(
+            from: systemPrompt,
+            repositoryInstructions: repositoryInstructions,
+            toolkit: AppSettings.shared.assistToolkit,
+            objective: objective
+        )
 
         // Add bundled skills if available
         if let bundledResource = Bundle.main.resourceURL?.appendingPathComponent("Google Cloud SDK/skills") {
@@ -233,8 +234,12 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         try? fm.createDirectory(atPath: appDataDir, withIntermediateDirectories: true)
         try? fm.createDirectory(atPath: saveDir, withIntermediateDirectories: true)
 
-        // Derive dynamic tool schemas from SwiftCode Tool Registry
-        let toolSchemas = AssistManager.shared.registry.getToolSchemas()
+        // Cloud mode supplies only the SDK's built-in schemas; generating and
+        // serializing the unrelated native-tool catalog wastes setup time.
+        let toolkit = AppSettings.shared.assistToolkit
+        let toolSchemas = toolkit.caseInsensitiveCompare("cloud") == .orderedSame
+            ? nil
+            : AssistManager.shared.registry.getToolSchemas()
 
         return GoogleCloudSDKConfiguration(
             model: selectedModel,
@@ -255,7 +260,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             provider: provider,
             baseURL: baseURL,
             useSavedModels: isSavedModels,
-            toolkit: AppSettings.shared.assistToolkit
+            toolkit: toolkit
         )
     }
 

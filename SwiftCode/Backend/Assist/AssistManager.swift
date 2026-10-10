@@ -734,8 +734,8 @@ public final class AssistManager: ObservableObject {
             GoogleCloudSDKAttachment(name: $0.filename, path: $0.filename, mimeType: $0.mimeType, content: $0.base64Content)
         }
 
-        let initialRouted = await AssistModelRouter.shared.selectModelForSDK()
-        let initialConfig = initialRouted?.config ?? GoogleCloudSDKConfiguration.resolveDefault()
+        let initialRouted = await AssistModelRouter.shared.selectModelForSDK(objective: content)
+        let initialConfig = initialRouted?.config ?? GoogleCloudSDKConfiguration.resolveDefault(objective: content)
         let initialModelId = initialRouted?.model.modelIdentifier ?? initialConfig.model
         let initialModelName = initialRouted?.model.displayName ?? (initialConfig.model)
         metrics?.mark(.modelResolved)
@@ -821,17 +821,38 @@ public final class AssistManager: ObservableObject {
             var currentModelId = initialModelId
             var currentModelName = initialModelName
             var attempts = 0
-            let maxFailoverAttempts = 15
+            let maxFailoverAttempts = 3
+            var protocolCorrectionAttempts = 0
+            var totalIdleTimeoutUsed: TimeInterval = 0
 
             executionLoop: while attempts < maxFailoverAttempts {
+                guard totalIdleTimeoutUsed < 240 else {
+                    let timeoutError = "Assist stopped making progress after 4 minutes without runtime activity. Retry the request, or inspect any active tool before repeating it."
+                    await MainActor.run {
+                        self.lastError = timeoutError
+                        if let idx = self.messages.indices.last {
+                            self.messages[idx].content = timeoutError
+                            self.messages[idx].activityGroup?.isExecuting = false
+                            self.saveHistory()
+                        }
+                        self.currentActivityStatus = "Idle"
+                        self.isProcessing = false
+                    }
+                    break executionLoop
+                }
                 attempts += 1
+                let watchdogTimeout = min(180, 240 - totalIdleTimeoutUsed)
                 let eventStream = await currentSession.subscribeEvents()
                 var turnError: String? = nil
                 var turnCompletedSuccessfully = false
+                var invalidToolPayload = false
+                var outputFilter = AssistToolPayloadStreamFilter()
+                let watchdog = AssistSDKTurnWatchdog()
 
                 let streamTask = Task { @MainActor in
                     streamLoop: for await event in eventStream {
                         guard !Task.isCancelled else { break streamLoop }
+                        watchdog.recordActivity()
                         guard let idx = self.messages.indices.last else { continue }
                         switch event {
                         case .agentStarted:
@@ -842,10 +863,15 @@ public final class AssistManager: ObservableObject {
                         case .agentProgress(_, let delta, _):
                             metrics?.mark(.firstEventReceived)
                             if let delta = delta, !delta.isEmpty {
-                                metrics?.mark(.firstTextDelta)
-                                self.currentActivityStatus = "Receiving response…"
+                                let safeDelta = outputFilter.append(delta)
                                 var message = self.messages[idx]
-                                message.content += delta
+                                if outputFilter.didSuppressToolPayload {
+                                    message.content = ""
+                                } else if !safeDelta.isEmpty {
+                                    metrics?.mark(.firstTextDelta)
+                                    self.currentActivityStatus = "Receiving response…"
+                                    message.content += safeDelta
+                                }
                                 self.messages[idx] = message
                             }
                         case .toolStarted(let tool):
@@ -875,6 +901,35 @@ public final class AssistManager: ObservableObject {
                         case .agentCompleted(_, let response, _, _):
                             metrics?.mark(.responseCompleted)
                             metrics?.logSummary()
+
+                            let safeRemainder = outputFilter.finish(fallbackResponse: response)
+                            if outputFilter.didSuppressToolPayload {
+                                invalidToolPayload = true
+                                var message = self.messages[idx]
+                                message.content = ""
+                                self.messages[idx] = message
+                                self.currentActivityStatus = "Correcting tool request format…"
+                                break streamLoop
+                            }
+                            if !safeRemainder.isEmpty {
+                                var message = self.messages[idx]
+                                message.content += safeRemainder
+                                self.messages[idx] = message
+                            }
+
+                            if watchdog.didTimeOut {
+                                turnError = "Assist stopped receiving runtime events and cancelled this turn. Please retry; if a specific tool is still running, inspect its result before repeating it."
+                                if var activity = self.messages[idx].activityGroup {
+                                    for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
+                                        activity.tools[tIdx].status = .failed
+                                        activity.tools[tIdx].result = "Timed out waiting for tool/runtime progress"
+                                    }
+                                    activity.isExecuting = false
+                                    self.messages[idx].activityGroup = activity
+                                }
+                                break streamLoop
+                            }
+
                             if var activity = self.messages[idx].activityGroup {
                                 for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
                                     activity.tools[tIdx].status = .completed
@@ -916,6 +971,13 @@ public final class AssistManager: ObservableObject {
                     }
                 }
 
+                watchdog.start(timeout: watchdogTimeout) { [weak self] in
+                    guard let self else { return }
+                    self.currentActivityStatus = "No Assist activity for \(Int(watchdogTimeout / 60)) minutes — stopping this turn…"
+                    streamTask.cancel()
+                    try? await currentSession.cancel()
+                }
+
                 metrics?.mark(.requestSent)
                 do {
                     try await currentSession.sendMessage(currentPrompt, attachments: currentAttachments)
@@ -924,8 +986,56 @@ public final class AssistManager: ObservableObject {
                     streamTask.cancel()
                     turnError = error.localizedDescription
                 }
+                watchdog.stop()
+
+                if watchdog.didTimeOut {
+                    totalIdleTimeoutUsed += watchdogTimeout
+                    turnCompletedSuccessfully = false
+                    turnError = "Assist stopped receiving runtime events for \(Int(watchdogTimeout)) seconds and cancelled this attempt. Please retry, or inspect any active tool before repeating it."
+                    await MainActor.run {
+                        if let idx = self.messages.indices.last, var activity = self.messages[idx].activityGroup {
+                            for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
+                                activity.tools[tIdx].status = .failed
+                                activity.tools[tIdx].result = "Timed out waiting for tool/runtime progress"
+                            }
+                            activity.isExecuting = false
+                            self.messages[idx].activityGroup = activity
+                        }
+                    }
+                }
 
                 if turnCompletedSuccessfully {
+                    break executionLoop
+                }
+
+                if invalidToolPayload {
+                    if protocolCorrectionAttempts == 0 {
+                        protocolCorrectionAttempts += 1
+                        currentPrompt = """
+                        The previous assistant response was an internal tool-request payload printed as normal text. No action from that payload was executed. Continue the user's original request using only the structured tool-calling interface enabled in this session. Do not repeat, quote, reinterpret, or execute anything from the invalid payload, and do not repeat tool operations whose results are already in the conversation. If no tool is needed, answer normally in plain text.
+                        """
+                        currentAttachments = []
+                        await MainActor.run {
+                            if let idx = self.messages.indices.last {
+                                self.messages[idx].content = ""
+                                self.messages[idx].activityGroup?.isExecuting = true
+                            }
+                            self.currentActivityStatus = "Retrying with a valid structured tool call…"
+                        }
+                        continue executionLoop
+                    }
+
+                    let protocolError = "The model returned an invalid tool-call format twice. No command from that text was executed. Retry the request or select a different model/toolkit."
+                    await MainActor.run {
+                        self.lastError = protocolError
+                        if let idx = self.messages.indices.last {
+                            self.messages[idx].content = protocolError
+                            self.messages[idx].activityGroup?.isExecuting = false
+                            self.saveHistory()
+                        }
+                        self.currentActivityStatus = "Idle"
+                        self.isProcessing = false
+                    }
                     break executionLoop
                 }
 
@@ -1206,5 +1316,270 @@ public final class AssistManager: ObservableObject {
         )
 
         self.messages[idx].activityGroup = activity
+    }
+}
+
+/// Suppresses malformed tool requests accidentally emitted as assistant text.
+/// Only complete, recognizable tool-call envelopes are hidden; normal prose
+/// continues to stream without waiting for a full model response.
+struct AssistToolPayloadStreamFilter {
+    private enum Mode {
+        case undecided
+        case json
+        case fenceHeader
+        case fencedJSON
+        case passthrough
+        case suppressed
+    }
+
+    private var mode: Mode = .undecided
+    private var pending = ""
+    private var inspectedText = ""
+    private var receivedText = false
+    private(set) var didSuppressToolPayload = false
+    private let maximumCandidateLength = 256_000
+
+    mutating func append(_ delta: String) -> String {
+        guard !delta.isEmpty else { return "" }
+        receivedText = true
+        inspectedText = String((inspectedText + delta).suffix(maximumCandidateLength))
+        if Self.hasStrongToolRequestSignature(in: inspectedText) {
+            mode = .suppressed
+            didSuppressToolPayload = true
+            pending = ""
+            return ""
+        }
+
+        switch mode {
+        case .passthrough:
+            return delta
+        case .suppressed:
+            return ""
+        case .undecided, .json, .fenceHeader, .fencedJSON:
+            pending += delta
+        }
+
+        switch mode {
+        case .undecided:
+            return decideInitialFormat()
+        case .json:
+            return inspectJSONCandidate()
+        case .fenceHeader:
+            return inspectFenceHeader()
+        case .fencedJSON:
+            return inspectFencedJSON()
+        case .passthrough, .suppressed:
+            return ""
+        }
+    }
+
+    mutating func finish(fallbackResponse: String) -> String {
+        if Self.hasStrongToolRequestSignature(in: fallbackResponse) || Self.containsToolRequestPayload(in: fallbackResponse) {
+            mode = .suppressed
+            didSuppressToolPayload = true
+            pending = ""
+            return ""
+        }
+
+        if !receivedText {
+            return append(fallbackResponse)
+        }
+
+        switch mode {
+        case .undecided, .json, .fenceHeader, .fencedJSON:
+            let remainder = pending
+            mode = .passthrough
+            pending = ""
+            return remainder
+        case .passthrough, .suppressed:
+            return ""
+        }
+    }
+
+    private mutating func decideInitialFormat() -> String {
+        let leading = pending.drop(while: \.isWhitespace)
+        if leading.isEmpty {
+            if pending.count > 128 { return releaseAsNormalText() }
+            return ""
+        }
+
+        if leading.first == "{" {
+            mode = .json
+            return inspectJSONCandidate()
+        }
+
+        let fence = "```"
+        let leadingString = String(leading)
+        if fence.hasPrefix(leadingString), leadingString.count < fence.count {
+            return ""
+        }
+        if leadingString.hasPrefix(fence) {
+            mode = .fenceHeader
+            return inspectFenceHeader()
+        }
+
+        return releaseAsNormalText()
+    }
+
+    private mutating func inspectJSONCandidate() -> String {
+        if pending.count > maximumCandidateLength {
+            return releaseAsNormalText()
+        }
+        guard let parsed = Self.firstJSONObject(in: pending) else {
+            return ""
+        }
+        guard Self.isToolRequestObject(parsed.value) else { return releaseAsNormalText() }
+        mode = .suppressed
+        didSuppressToolPayload = true
+        pending = ""
+        return ""
+    }
+
+    private mutating func inspectFenceHeader() -> String {
+        guard pending.firstIndex(of: "\n") != nil else {
+            return pending.count > 96 ? releaseAsNormalText() : ""
+        }
+        let normalized = String(pending.drop(while: \.isWhitespace))
+        guard let headerEnd = normalized.firstIndex(of: "\n") else { return "" }
+        let header = String(normalized[..<headerEnd]).lowercased()
+        guard header.hasPrefix("```"), header.contains("json") else {
+            return releaseAsNormalText()
+        }
+        mode = .fencedJSON
+        return inspectFencedJSON()
+    }
+
+    private mutating func inspectFencedJSON() -> String {
+        if pending.count > maximumCandidateLength {
+            return releaseAsNormalText()
+        }
+        let trimmed = String(pending.drop(while: \.isWhitespace))
+        guard let newline = trimmed.firstIndex(of: "\n"),
+              let closingFence = trimmed.range(of: "```", range: newline..<trimmed.endIndex) else {
+            return ""
+        }
+        let body = String(trimmed[trimmed.index(after: newline)..<closingFence.lowerBound])
+        guard Self.containsToolRequestPayload(in: body) else {
+            return releaseAsNormalText()
+        }
+        mode = .suppressed
+        didSuppressToolPayload = true
+        pending = ""
+        return ""
+    }
+
+    private mutating func releaseAsNormalText() -> String {
+        mode = .passthrough
+        let output = pending
+        pending = ""
+        return output
+    }
+
+    private static func containsToolRequestPayload(in text: String) -> Bool {
+        let lowercased = text.lowercased()
+        guard lowercased.contains("\"arguments\"") || lowercased.contains("\"input\"") || lowercased.contains("\"tool_calls\"") else {
+            return false
+        }
+
+        var searchStart = text.startIndex
+        while searchStart < text.endIndex,
+              let openBrace = text[searchStart...].firstIndex(of: "{") {
+            let candidate = String(text[openBrace...])
+            guard let parsed = firstJSONObject(in: candidate) else { return false }
+            if isToolRequestObject(parsed.value) { return true }
+            guard let next = text.index(openBrace, offsetBy: candidate.distance(from: candidate.startIndex, to: parsed.end), limitedBy: text.endIndex), next < text.endIndex else {
+                return false
+            }
+            searchStart = next
+        }
+        return false
+    }
+
+    private static func hasStrongToolRequestSignature(in text: String) -> Bool {
+        let value = text.lowercased()
+        if value.contains("\"function_name\"") && value.contains("\"arguments\"") { return true }
+        if value.contains("\"toolid\"") && value.contains("\"input\"") { return true }
+        let hasArguments = value.contains("\"arguments\"")
+        let hasCommandFields = ["\"commandline\"", "\"toolaction\"", "\"toolsummary\"", "\"waitmsbeforeasync\"", "\"notificationtimeoutseconds\""].contains(where: { value.contains($0) })
+        return hasArguments && hasCommandFields
+    }
+
+    private static func firstJSONObject(in text: String) -> (value: [String: Any], end: String.Index)? {
+        guard let start = text.firstIndex(of: "{") else { return nil }
+        var depth = 0
+        var isInsideString = false
+        var isEscaped = false
+        var index = start
+
+        while index < text.endIndex {
+            let character = text[index]
+            if isInsideString {
+                if isEscaped {
+                    isEscaped = false
+                } else if character == "\\" {
+                    isEscaped = true
+                } else if character == "\"" {
+                    isInsideString = false
+                }
+            } else if character == "\"" {
+                isInsideString = true
+            } else if character == "{" {
+                depth += 1
+            } else if character == "}" {
+                depth -= 1
+                if depth == 0 {
+                    let end = text.index(after: index)
+                    let data = Data(text[start..<end].utf8)
+                    let value = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+                    return value.map { ($0, end) }
+                }
+            }
+            index = text.index(after: index)
+        }
+        return nil
+    }
+
+    private static func isToolRequestObject(_ object: [String: Any]) -> Bool {
+        let hasArguments = object["arguments"] is [String: Any] || object["arguments"] is [Any]
+        let hasInput = object["input"] is [String: Any] || object["input"] is [Any]
+        if object["toolId"] is String && hasInput { return true }
+        if object["function_name"] is String && hasArguments { return true }
+        if object["name"] is String && hasArguments { return true }
+        if object["tool_calls"] is [Any] { return true }
+        if object["function_call"] is [String: Any] { return true }
+        return false
+    }
+}
+
+@MainActor
+final class AssistSDKTurnWatchdog {
+    private var lastActivity = Date()
+    private var task: Task<Void, Never>?
+    private(set) var didTimeOut = false
+
+    func recordActivity() {
+        lastActivity = Date()
+    }
+
+    func start(timeout: TimeInterval, onTimeout: @escaping @MainActor () async -> Void) {
+        lastActivity = Date()
+        didTimeOut = false
+        task?.cancel()
+        task = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                guard let self, !Task.isCancelled else { return }
+                if Date().timeIntervalSince(self.lastActivity) >= timeout {
+                    self.didTimeOut = true
+                    await onTimeout()
+                    return
+                }
+            }
+        }
+    }
+
+    func stop() {
+        task?.cancel()
+        task = nil
     }
 }

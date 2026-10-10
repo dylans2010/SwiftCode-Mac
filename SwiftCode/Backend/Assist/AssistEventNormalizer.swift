@@ -84,15 +84,28 @@ public final class AssistEventNormalizer {
         activeCallToSemanticKey[callId] = semKey
         activeCallToOperationId[callId] = callUUID
 
-        // Check if there is an existing logical operation matching callId OR semanticKey
-        if let existingIdx = activityGroup.tools.firstIndex(where: {
-            $0.id == callUUID || $0.semanticKey == semKey || ($0.toolId == toolName && ($0.status == .running || $0.status == .retrying || $0.status == .failed))
-        }) {
+        // Reuse an exact operation ID (duplicate transport event), or merge a
+        // semantically identical retry while the prior attempt is active/failed.
+        // Completed operations must not absorb a later, intentional repeat.
+        let existingIdx = activityGroup.tools.firstIndex(where: { $0.id == callUUID })
+            ?? activityGroup.tools.firstIndex(where: {
+                $0.semanticKey == semKey && ($0.status == .running || $0.status == .retrying || $0.status == .failed)
+            })
+            ?? activityGroup.tools.firstIndex(where: {
+                $0.toolId == toolName && ($0.status == .running || $0.status == .retrying || $0.status == .failed)
+            })
+
+        if let existingIdx {
             var existing = activityGroup.tools[existingIdx]
+            // A replayed start for an already-completed operation is a
+            // duplicate hook/chunk event, not a new attempt.
+            guard existing.status != .completed else { return }
             if existing.status == .failed || existing.status == .retrying {
                 existing.retryCount += 1
                 existing.attemptsCount += 1
                 existing.status = .running
+                existing.timestamp = Date()
+                existing.duration = 0
                 existing.purpose = "\(formatted.runningLabel) (Retry \(existing.retryCount + 1))"
             } else {
                 existing.status = .running
