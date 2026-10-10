@@ -110,7 +110,11 @@ public actor GoogleCloudSDKBridge {
             "content": content,
             "attachments": attachmentsDict,
         ]
-        return try await transport.sendRequest(method: "message.send", params: params, timeout: 120.0)
+        // message.send only acknowledges that the bridge queued a turn; model
+        // inference and tool execution continue on the event stream. A long
+        // RPC timeout here hides a dead bridge and can leave Assist appearing
+        // stuck long before the turn-level inactivity watchdog runs.
+        return try await transport.sendRequest(method: "message.send", params: params, timeout: 30.0)
     }
 
     /// Cancels active turn execution in an agent session.

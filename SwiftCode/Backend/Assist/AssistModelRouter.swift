@@ -55,7 +55,11 @@ public final class AssistModelRouter: Sendable {
 
     public func resolveDefaultModel() async -> AssistAvailableModel {
         let preferredID = AppSettings.shared.selectedAssistModelID
-        let all = await AssistModelDiscoveryService.shared.discoverAllModels()
+        // Model discovery is an optional metadata refresh, not a prerequisite
+        // for dispatching a request. The selected model's provider and
+        // capabilities are already known locally, so never hold a normal
+        // Assist turn behind slow/unreachable provider model-list endpoints.
+        let all = AssistModelDiscoveryService.shared.discoveredModels
         if let match = all.first(where: { $0.id == preferredID || $0.modelIdentifier == preferredID }) {
             return match
         }
@@ -131,11 +135,24 @@ public final class AssistModelRouter: Sendable {
         let selectedId = AppSettings.shared.selectedAssistModelID
 
         let targetModel: AssistAvailableModel
-        let candidates = await getEligibleCandidates()
-        if let match = candidates.first(where: { $0.id == selectedId || $0.modelIdentifier == selectedId }) {
-            targetModel = match
-        } else if isSavedModelsEnabled, let best = candidates.first {
-            targetModel = best
+        if isSavedModelsEnabled {
+            let discovery = AssistModelDiscoveryService.shared
+            let cachedCandidates = eligibleCandidates(from: discovery.discoveredModels)
+            if let match = cachedCandidates.first(where: { $0.id == selectedId || $0.modelIdentifier == selectedId }) {
+                targetModel = match
+            } else {
+                let candidates: [AssistAvailableModel]
+                if discovery.hasFreshDiscoveryCache {
+                    candidates = cachedCandidates
+                } else {
+                    candidates = await getEligibleCandidates()
+                }
+                if let best = candidates.first {
+                    targetModel = best
+                } else {
+                    targetModel = await resolveDefaultModel()
+                }
+            }
         } else {
             targetModel = await resolveDefaultModel()
         }
@@ -153,7 +170,10 @@ public final class AssistModelRouter: Sendable {
 
     public func getEligibleCandidates() async -> [AssistAvailableModel] {
         let allModels = await AssistModelDiscoveryService.shared.discoverAllModels()
+        return eligibleCandidates(from: allModels)
+    }
 
+    private func eligibleCandidates(from allModels: [AssistAvailableModel]) -> [AssistAvailableModel] {
         // Filter: must support agentic use and tool calling, must be configured, must not be quarantined
         let eligible = allModels.filter { model in
             guard model.supportsAgenticUse && model.supportsToolCalling else { return false }

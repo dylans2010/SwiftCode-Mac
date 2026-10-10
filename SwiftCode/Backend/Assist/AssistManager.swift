@@ -719,6 +719,7 @@ public final class AssistManager: ObservableObject {
             }
             return
         }
+        metrics?.mark(.sessionResolved)
 
         // Merge explicit files from envelope if not already present
         var allAttachments = attachments
@@ -742,7 +743,13 @@ public final class AssistManager: ObservableObject {
 
         let session: GoogleCloudSDKSession
         if let existing = activeGoogleCloudSession,
-           existing.config.model == initialConfig.model && existing.config.provider == initialConfig.provider {
+           existing.config.model == initialConfig.model &&
+            existing.config.provider == initialConfig.provider &&
+            existing.config.baseURL == initialConfig.baseURL &&
+            existing.config.apiKey == initialConfig.apiKey &&
+            existing.config.systemInstructions == initialConfig.systemInstructions &&
+            existing.config.workspaces == initialConfig.workspaces &&
+            existing.config.toolkit == initialConfig.toolkit {
             session = existing
         } else {
             if let old = activeGoogleCloudSession {
@@ -1341,6 +1348,18 @@ struct AssistToolPayloadStreamFilter {
 
     mutating func append(_ delta: String) -> String {
         guard !delta.isEmpty else { return "" }
+        // The format decision is only meaningful before normal prose has been
+        // released. Re-scanning an ever-growing response for every token made
+        // long streamed answers needlessly quadratic.
+        switch mode {
+        case .passthrough:
+            return delta
+        case .suppressed:
+            return ""
+        case .undecided, .json, .fenceHeader, .fencedJSON:
+            break
+        }
+
         receivedText = true
         inspectedText = String((inspectedText + delta).suffix(maximumCandidateLength))
         if Self.hasStrongToolRequestSignature(in: inspectedText) {
@@ -1500,6 +1519,7 @@ struct AssistToolPayloadStreamFilter {
         if value.contains("\"function_name\"") && value.contains("\"arguments\"") { return true }
         if value.contains("\"toolid\"") && value.contains("\"input\"") { return true }
         let hasArguments = value.contains("\"arguments\"")
+        if value.contains("{") && value.contains("\"name\"") && hasArguments { return true }
         let hasCommandFields = ["\"commandline\"", "\"toolaction\"", "\"toolsummary\"", "\"waitmsbeforeasync\"", "\"notificationtimeoutseconds\""].contains(where: { value.contains($0) })
         return hasArguments && hasCommandFields
     }

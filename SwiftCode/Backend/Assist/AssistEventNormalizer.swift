@@ -79,20 +79,18 @@ public final class AssistEventNormalizer {
         activityGroup.isExecuting = true
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
         let semKey = computeSemanticKey(toolName: toolName, arguments: arguments)
-        let callUUID = UUID(uuidString: callId) ?? UUID()
+        let callUUID = callId.isEmpty ? UUID() : (activeCallToOperationId[callId] ?? UUID(uuidString: callId) ?? UUID())
 
-        activeCallToSemanticKey[callId] = semKey
-        activeCallToOperationId[callId] = callUUID
+        if !callId.isEmpty {
+            activeCallToSemanticKey[callId] = semKey
+        }
 
         // Reuse an exact operation ID (duplicate transport event), or merge a
         // semantically identical retry while the prior attempt is active/failed.
         // Completed operations must not absorb a later, intentional repeat.
         let existingIdx = activityGroup.tools.firstIndex(where: { $0.id == callUUID })
             ?? activityGroup.tools.firstIndex(where: {
-                $0.semanticKey == semKey && ($0.status == .running || $0.status == .retrying || $0.status == .failed)
-            })
-            ?? activityGroup.tools.firstIndex(where: {
-                $0.toolId == toolName && ($0.status == .running || $0.status == .retrying || $0.status == .failed)
+                $0.semanticKey == semKey && ($0.status == .retrying || $0.status == .failed)
             })
 
         if let existingIdx {
@@ -115,7 +113,11 @@ public final class AssistEventNormalizer {
             existing.completedLabel = formatted.completedLabel
             existing.iconName = formatted.iconName
             existing.semanticKey = semKey
+            existing.operationId = callId
             activityGroup.tools[existingIdx] = existing
+            if !callId.isEmpty {
+                activeCallToOperationId[callId] = existing.id
+            }
         } else {
             let newItem = ToolActivityItem(
                 id: callUUID,
@@ -134,6 +136,9 @@ public final class AssistEventNormalizer {
                 operationId: callId
             )
             activityGroup.tools.append(newItem)
+            if !callId.isEmpty {
+                activeCallToOperationId[callId] = newItem.id
+            }
         }
 
         // Auxiliary integration logic
@@ -149,17 +154,19 @@ public final class AssistEventNormalizer {
     ) {
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
         let semKey = activeCallToSemanticKey[callId] ?? computeSemanticKey(toolName: toolName, arguments: arguments)
-        let callUUID = UUID(uuidString: callId)
+        let callUUID = callId.isEmpty ? nil : (activeCallToOperationId[callId] ?? UUID(uuidString: callId))
 
-        let targetIdx = activityGroup.tools.firstIndex(where: {
-            (callUUID != nil && $0.id == callUUID) || $0.semanticKey == semKey || ($0.toolId == toolName && ($0.status == .running || $0.status == .retrying))
-        })
+        let isActiveAttempt: (ToolActivityItem) -> Bool = { $0.status == .running || $0.status == .retrying }
+        let targetIdx = activityGroup.tools.firstIndex(where: { callUUID != nil && $0.id == callUUID })
+            ?? activityGroup.tools.firstIndex(where: { $0.semanticKey == semKey && isActiveAttempt($0) })
 
         if let idx = targetIdx {
             var item = activityGroup.tools[idx]
+            if item.status != .completed {
+                item.duration = max(0.1, Date().timeIntervalSince(item.timestamp))
+            }
             item.status = .completed
             item.result = output ?? ""
-            item.duration = max(0.1, Date().timeIntervalSince(item.timestamp))
             item.purpose = formatted.completedLabel
             item.completedLabel = formatted.completedLabel
             activityGroup.tools[idx] = item
@@ -202,11 +209,11 @@ public final class AssistEventNormalizer {
         let cleanError = sanitizeErrorMessage(rawError: error, toolName: toolName)
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
         let semKey = activeCallToSemanticKey[callId] ?? computeSemanticKey(toolName: toolName, arguments: arguments)
-        let callUUID = UUID(uuidString: callId)
+        let callUUID = callId.isEmpty ? nil : (activeCallToOperationId[callId] ?? UUID(uuidString: callId))
 
-        let targetIdx = activityGroup.tools.firstIndex(where: {
-            (callUUID != nil && $0.id == callUUID) || $0.semanticKey == semKey || ($0.toolId == toolName && ($0.status == .running || $0.status == .retrying))
-        })
+        let isActiveAttempt: (ToolActivityItem) -> Bool = { $0.status == .running || $0.status == .retrying }
+        let targetIdx = activityGroup.tools.firstIndex(where: { callUUID != nil && $0.id == callUUID })
+            ?? activityGroup.tools.firstIndex(where: { $0.semanticKey == semKey && isActiveAttempt($0) })
 
         if let idx = targetIdx {
             var item = activityGroup.tools[idx]

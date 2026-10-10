@@ -22,11 +22,22 @@ public final class AssistModelDiscoveryService: Sendable {
     public var hiddenProviderNames: Set<String> = []
     public var removedModelIDs: Set<String> = []
 
+    var hasFreshDiscoveryCache: Bool {
+        guard let lastDiscoveryDate else { return false }
+        let age = Date().timeIntervalSince(lastDiscoveryDate)
+        return age >= 0 && age < discoveryCacheLifetime
+    }
+
+    private let discoveryCacheLifetime: TimeInterval = 300
+    private var discoveryTask: Task<[AssistAvailableModel], Never>?
+
     private let hiddenProvidersKey = "com.swiftcode.assist.hidden_provider_names"
     private let removedModelsKey = "com.swiftcode.assist.removed_model_ids"
 
     private init() {
-        // Do NOT cache or load models from disk cache; fresh discovery runs on every app start.
+        // No disk cache is loaded: startup still performs a fresh discovery.
+        // Results are reused briefly in memory so ordinary Assist turns do not
+        // repeat provider/network scans.
         self.discoveredModels = []
         if let savedHidden = UserDefaults.standard.stringArray(forKey: hiddenProvidersKey) {
             self.hiddenProviderNames = Set(savedHidden)
@@ -74,13 +85,32 @@ public final class AssistModelDiscoveryService: Sendable {
     // MARK: - Public Discovery API
 
     public func discoverAllModels(forceRefresh: Bool = false) async -> [AssistAvailableModel] {
-        if isDiscovering {
+        if !forceRefresh && hasFreshDiscoveryCache {
             return discoveredModels
+        }
+
+        // Coalesce refreshes instead of returning a potentially empty partial
+        // cache to callers that race the app's startup model discovery.
+        if let discoveryTask {
+            return await discoveryTask.value
         }
 
         isDiscovering = true
         lastDiscoveryErrors.removeAll()
+        let task = Task { @MainActor in
+            await self.performModelDiscovery()
+        }
+        discoveryTask = task
 
+        let result = await task.value
+        discoveredModels = result
+        lastDiscoveryDate = Date()
+        isDiscovering = false
+        discoveryTask = nil
+        return result
+    }
+
+    private func performModelDiscovery() async -> [AssistAvailableModel] {
         var allDiscovered: [AssistAvailableModel] = []
 
         // Run provider discovery tasks concurrently
@@ -105,9 +135,6 @@ public final class AssistModelDiscoveryService: Sendable {
         allDiscovered.append(contentsOf: customModels)
         allDiscovered.append(contentsOf: openRouterModels)
 
-        self.discoveredModels = allDiscovered
-        self.lastDiscoveryDate = Date()
-        self.isDiscovering = false
         return allDiscovered
     }
 

@@ -160,14 +160,26 @@ public final class AssistModelRouterTests: Sendable {
         let stats = service.getDiscoveryStats()
         let grouped = service.modelsByProvider
 
+        var cacheReusePassed = false
+        if let cachedModel = models.first {
+            let originalModels = service.discoveredModels
+            let originalDiscoveryDate = service.lastDiscoveryDate
+            service.discoveredModels = [cachedModel]
+            service.lastDiscoveryDate = Date()
+            let reused = await service.discoverAllModels(forceRefresh: false)
+            cacheReusePassed = reused.count == 1 && reused.first?.id == cachedModel.id
+            service.discoveredModels = originalModels
+            service.lastDiscoveryDate = originalDiscoveryDate
+        }
+
         let hasTotal = stats.total >= 0
         let hasProviders = stats.providers >= 1
-        let passed = hasTotal && hasProviders && !grouped.isEmpty
+        let passed = hasTotal && hasProviders && !grouped.isEmpty && cacheReusePassed
 
         return RuntimeTestCaseResult(
             testName: "Discovery Service Caching & Grouping",
             passed: passed,
-            message: passed ? "Discovered \(stats.total) models across \(stats.providers) providers; \(stats.agentCompatible) agent-compatible." : "Discovery service stats empty.",
+            message: passed ? "Discovered \(stats.total) models across \(stats.providers) providers; \(stats.agentCompatible) agent-compatible. Fresh in-memory results were reused without another provider scan." : "Discovery service stats or in-memory cache reuse failed.",
             duration: Date().timeIntervalSince(start)
         )
     }

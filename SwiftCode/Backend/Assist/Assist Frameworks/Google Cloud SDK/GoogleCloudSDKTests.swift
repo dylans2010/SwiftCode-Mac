@@ -79,6 +79,8 @@ public final class GoogleCloudSDKTests: Sendable {
         Keep UI updates on the main actor.
         ## 3. Autonomous AI Agent Architecture (Assist Engine)
         Preserve tool event streaming and cancellation.
+        ### 3.3 Prompt Engineering & Strict JSON Protocol Contract
+        You MUST respond as a toolId/input JSON object in the native Swift runtime.
         ## 11. Visual UI Builder & Artboard Canvas
         This unrelated section should not enter a streaming task prompt.
         """
@@ -88,15 +90,31 @@ public final class GoogleCloudSDKTests: Sendable {
             toolkit: "Cloud",
             objective: "Fix Assist agent tool streaming latency and raw JSON output"
         )
+        let greeting = AssistSystemPromptSections.runtimeInstructions(
+            from: systemPrompt,
+            repositoryInstructions: repositoryInstructions,
+            toolkit: "Cloud",
+            objective: "Hello"
+        )
+        let systemToolkit = AssistSystemPromptSections.runtimeInstructions(
+            from: systemPrompt,
+            repositoryInstructions: repositoryInstructions,
+            toolkit: "System",
+            objective: "Fix Assist agent tool streaming latency and raw JSON output"
+        )
 
         let passed = compact.count < systemPrompt.count + repositoryInstructions.count &&
             compact.contains("structured tools exposed by the active toolkit") &&
             compact.contains("Preserve tool event streaming and cancellation") &&
-            !compact.contains("This unrelated section should not enter")
+            compact.contains("SDK Tool Protocol Boundary") &&
+            !compact.contains("You MUST respond as a toolId/input JSON object") &&
+            !compact.contains("This unrelated section should not enter") &&
+            !systemToolkit.contains("You MUST respond as a toolId/input JSON object") &&
+            greeting.count < 1_000 && !greeting.contains("Task-Relevant Repository Instructions")
         return RuntimeTestCaseResult(
             testName: "Bounded Task-Relevant SDK Instructions",
             passed: passed,
-            message: passed ? "Cloud instructions include relevant policy without the full repository corpus." : "SDK instruction compaction lost relevant policy or retained unrelated guidance.",
+            message: passed ? "Task-specific instructions are bounded, while greetings avoid loading the coding and repository corpus." : "SDK instruction compaction lost relevant policy or retained unrelated guidance.",
             duration: Date().timeIntervalSince(start)
         )
     }

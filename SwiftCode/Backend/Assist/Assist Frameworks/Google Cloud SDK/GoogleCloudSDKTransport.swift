@@ -150,27 +150,23 @@ public actor GoogleCloudSDKTransport {
 
         let message = jsonString + "\n"
 
+        let timeoutTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+            } catch {
+                return
+            }
+            await self?.expireRequest(id: id, method: method)
+        }
+        self.requestTimeoutTasks[id] = timeoutTask
+
         return try await withCheckedThrowingContinuation { continuation in
             self.pendingRequests[id] = continuation
 
-            Task { [weak self] in
-                guard let self else { return }
-                let timeoutTask = Task { [weak self] in
-                    do {
-                        try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                    } catch {
-                        return
-                    }
-                    await self?.expireRequest(id: id, method: method)
-                }
-                self.requestTimeoutTasks[id] = timeoutTask
-
-                do {
-                    try self.writeRaw(message)
-                } catch {
-                    self.failRequest(id: id, error: error)
-                    return
-                }
+            do {
+                try self.writeRaw(message)
+            } catch {
+                self.failRequest(id: id, error: error)
             }
         }
     }

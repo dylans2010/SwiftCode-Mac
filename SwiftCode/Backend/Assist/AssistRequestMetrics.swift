@@ -108,6 +108,19 @@ public final class AssistRequestMetrics: Identifiable, @unchecked Sendable {
 
     /// Logs diagnostic summary to the internal event bus and subsystem logger.
     public func logSummary(modelName: String = "Assist") {
+        let runtimeStartup = sessionResolved.map { String(format: "%.0fms", $0.timeIntervalSince(messageSubmitted) * 1000) } ?? "n/a"
+        let modelResolve: String
+        if let resolved = modelResolved, let runtimeReady = sessionResolved {
+            modelResolve = String(format: "%.0fms", resolved.timeIntervalSince(runtimeReady) * 1000)
+        } else {
+            modelResolve = modelResolved.map { String(format: "%.0fms", $0.timeIntervalSince(messageSubmitted) * 1000) } ?? "n/a"
+        }
+        let setup: String
+        if let sent = requestSent, let resolved = modelResolved {
+            setup = String(format: "%.0fms", sent.timeIntervalSince(resolved) * 1000)
+        } else {
+            setup = "n/a"
+        }
         let ttReq = timeToRequest.map { String(format: "%.0fms", $0 * 1000) } ?? "n/a"
         let ttEvent = timeToFirstEvent.map { String(format: "%.0fms", $0 * 1000) } ?? "n/a"
         let ttReasoning = timeToFirstReasoning.map { String(format: "%.0fms", $0 * 1000) } ?? "n/a"
@@ -115,13 +128,13 @@ public final class AssistRequestMetrics: Identifiable, @unchecked Sendable {
         let ttTool = timeToFirstToolCall.map { String(format: "%.0fms", $0 * 1000) } ?? "n/a"
         let total = totalResponseTime.map { String(format: "%.2fs", $0) } ?? "n/a"
 
-        logger.info("[RequestTelemetry:\(self.id.uuidString.prefix(8))] Model: \(modelName) | Dispatch: \(ttReq) | FirstEvent: \(ttEvent) | FirstReasoning: \(ttReasoning) | FirstText: \(ttText) | FirstTool: \(ttTool) | Total: \(total)")
+        logger.info("[RequestTelemetry:\(self.id.uuidString.prefix(8))] Model: \(modelName) | RuntimeStart: \(runtimeStartup) | ModelResolve: \(modelResolve) | SessionSetup: \(setup) | Dispatch: \(ttReq) | FirstEvent: \(ttEvent) | FirstReasoning: \(ttReasoning) | FirstText: \(ttText) | FirstTool: \(ttTool) | Total: \(total)")
 
         DiagnosticEventBus.shared.logEvent(
             component: "AssistMetrics",
             severity: "INFO",
             category: "performance",
-            message: "Request \(self.id.uuidString.prefix(8)) [\(modelName)] -> FirstEvent: \(ttEvent), FirstText: \(ttText), Total: \(total)"
+            message: "Request \(self.id.uuidString.prefix(8)) [\(modelName)] -> RuntimeStart: \(runtimeStartup), ModelResolve: \(modelResolve), SessionSetup: \(setup), FirstEvent: \(ttEvent), FirstText: \(ttText), Total: \(total)"
         )
     }
 }

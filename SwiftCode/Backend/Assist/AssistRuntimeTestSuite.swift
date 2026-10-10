@@ -740,7 +740,9 @@ public final class AssistRuntimeTestSuite: Sendable {
         normalizer.normalizeToolStarted(callId: dirCallId1, toolName: "read_directory", arguments: dirArgs, in: &activityGroup)
         normalizer.normalizeToolFailed(callId: dirCallId1, toolName: "read_directory", error: "Failed to inspect directory", in: &activityGroup)
 
-        let dirCallId2 = UUID().uuidString
+        // The Antigravity SDK commonly uses opaque, non-UUID call IDs. Verify
+        // that retries still map their completion back to the active attempt.
+        let dirCallId2 = "call-\(UUID().uuidString)"
         normalizer.normalizeToolStarted(callId: dirCallId2, toolName: "read_directory", arguments: dirArgs, in: &activityGroup)
         normalizer.normalizeToolCompleted(callId: dirCallId2, toolName: "read_directory", output: "Sources, Tests", arguments: dirArgs, in: &activityGroup)
 
@@ -751,6 +753,18 @@ public final class AssistRuntimeTestSuite: Sendable {
         let dirToolCount = activityGroup.tools.filter { $0.toolId == "read_directory" }.count
         let dirToolState = activityGroup.tools.first(where: { $0.toolId == "read_directory" })
         let dirPassed = dirToolCount == 1 && dirToolState?.status == .completed && dirToolState?.retryCount == 1
+
+        // A later intentional repeat is a new operation, not a late completion
+        // for the previous same-arguments call. This guards the long durations
+        // caused by matching opaque IDs to the first completed semantic item.
+        let repeatCallId = "call-repeat-\(UUID().uuidString)"
+        normalizer.normalizeToolStarted(callId: repeatCallId, toolName: "read_directory", arguments: dirArgs, in: &activityGroup)
+        let repeatedOperationId = activityGroup.tools.last?.id
+        normalizer.normalizeToolCompleted(callId: repeatCallId, toolName: "read_directory", output: "Sources, Tests, README.md", arguments: dirArgs, in: &activityGroup)
+        let repeatedItem = repeatedOperationId.flatMap { id in activityGroup.tools.first(where: { $0.id == id }) }
+        let repeatPassed = activityGroup.tools.filter { $0.toolId == "read_directory" }.count == 2 &&
+            dirToolState?.result == "Sources, Tests" &&
+            repeatedItem?.status == .completed && repeatedItem?.result == "Sources, Tests, README.md"
 
         // 2. Simulate Search: Failure -> Retry -> Success
         let searchCallId1 = UUID().uuidString
@@ -779,7 +793,7 @@ public final class AssistRuntimeTestSuite: Sendable {
         var simpleTaskActivity = AssistActivityGroup(isExecuting: true)
         let simpleTaskPassed = !simpleTaskActivity.hasContent && simpleTaskActivity.tools.isEmpty && simpleTaskActivity.workers.isEmpty
 
-        let passed = dirPassed && searchPassed && workerPassed && simpleTaskPassed
+        let passed = dirPassed && repeatPassed && searchPassed && workerPassed && simpleTaskPassed
 
         return RuntimeTestCaseResult(
             testName: "Event Normalization & Activity Trajectory",
