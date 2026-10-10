@@ -310,10 +310,11 @@ resolve to an unrelated public package.
     quotas/timeouts, and cleanup.
 -   **Service adapters** translate the stable public contract into
     existing SwiftCode services.
-- **Internal (`SwiftCode/SDK/Internal/`)** contains internal SDK modules explicitly designed for internal SwiftCode developers.
-  - **Purpose:** Allows internal developers to build, run, test, and validate SDK code and API features directly without standard sandbox restrictions or permission prompt delays during local development/testing.
-  - **Sandbox Bypass & Testing Harness:** Features direct internal service bindings (`DirectServiceAccess`), high-privilege test harness drivers, and local debug hooks so internal developers can execute end-to-end integration tests without macOS App Sandbox restrictions.
-  - **Distribution Guard:** Code under `SwiftCode/SDK/Internal/` is compiled exclusively for internal development/debug build configurations (`#if DEBUG || INTERNAL_BUILD`) and is completely stripped from public production builds to ensure security boundaries are maintained.
+- **Internal (`SwiftCode/SDK/Internal/`)** contains internal SDK modules explicitly designed ONLY for internal SwiftCode developers.
+  - **Purpose & Scope:** This directory is strictly reserved for internal SwiftCode engineers to manage the SDK, maintain and update APIs, ship new API functions/classes, manage element deprecations, handle SDK deployments, and make performance and structural improvements.
+  - **API Management & Deployments:** Serves as the central hub for shipping new APIs, declaring deprecation notices for legacy functions/types, updating internal SDK configuration stores (`SwiftCodeSDK.json`), and driving automated SDK deployment pipelines.
+  - **Sandbox Bypass & Testing Harness:** Features direct internal service bindings (`DirectServiceAccess`), high-privilege test harness drivers, and local debug hooks so internal developers can test, execute, and validate SDK code and API extensions directly without macOS App Sandbox restrictions or entitlement prompts during local development and automated testing.
+  - **Distribution Guard:** Code under `SwiftCode/SDK/Internal/` is compiled exclusively for internal development/debug build configurations (`#if DEBUG || INTERNAL_BUILD`) and is completely stripped from public production builds to ensure strict security boundaries are maintained.
 -   **Assist gate** owns restricted authorization checks and must not be
     bypassed by ordinary SDK methods.
 -   **CLI** invokes documented host operations; it must not duplicate
@@ -1410,25 +1411,25 @@ actionable errors without dumping secrets or excessive internal details.
 
 ## 16. Dual Error Logging Systems and Audit
 
-The SDK architecture enforces a strict dual error logging architecture that cleanly separates user-facing logs from internal developer-facing logs.
+The SDK architecture enforces a strict dual error logging system that completely separates end-user logging from developer-facing error logging.
 
-### 16.1 User-facing error logging system
+### 16.1 User-Facing Error Logging System
 
-The user-facing error log viewer and status notifications display clean, actionable, user-friendly logs designed for end users:
+The user-facing error logging system provides clean, actionable, non-technical error reports designed specifically for end users and application creators:
 
--   **Sanitization:** All raw stack traces, host paths, memory addresses, IPC frame dumps, internal engine diagnostics, and security-sensitive tokens are completely stripped.
--   **Actionable Messaging:** Errors present human-readable descriptions alongside clear recovery steps (e.g., "Build Failed: Target 'App' has syntax errors on line 12. Fix the error in main.swift and retry.").
--   **Correlation IDs:** Displays a short correlation ID (e.g. `ERR-8F3A29`) that users can quote when seeking support or inspecting developer logs.
--   **UI Presentation:** Presented in the main workspace status bar, Studio notification popovers, and the standard user Activity Console.
+-   **Complete Sanitization:** Automatically strips all internal raw stack traces, memory addresses, host filesystem paths, IPC frame payloads, internal engine exception traces, and security-sensitive tokens.
+-   **Actionable & Friendly Messaging:** Replaces raw low-level exception dumps with clear, human-readable explanations and actionable guidance (e.g., *"Build Failed: Target 'App' has syntax errors on line 12. Fix the syntax error in main.swift and rebuild."*).
+-   **Unique Correlation IDs:** Generates a short, unique correlation ID (e.g., `ERR-8F3A29`) for every error event. Users can quote this ID when filing support tickets or cross-referencing developer diagnostic logs.
+-   **User UI Integration:** Surfaced cleanly in the main SwiftCode workspace status bar, Studio notification popovers, user-facing Activity Console, and lightweight alert banners.
 
-### 16.2 Developer-facing error logging system
+### 16.2 Developer-Facing Error Logging System
 
-A dedicated, high-verbosity diagnostic logging system designed for SwiftCode SDK developers and extension creators:
+The developer-facing error logging system is a dedicated, high-verbosity diagnostic logging pipeline built exclusively for SwiftCode SDK developers, internal maintainers, and extension creators:
 
--   **Deep Telemetry:** Captures raw stack traces, unhandled promise rejections, full IPC request/response payloads, exact process exit codes, memory/CPU metrics, and runtime sandboxing policy decisions.
--   **Internal Debug Console & Log Files:** Logs to an isolated developer log viewer (`~/.swiftcode/logs/developer-sdk.log`) and an internal Developer Debug Console tab within Studio and internal builds.
--   **Correlation Mapping:** Maps every internal diagnostic trace directly to the user-facing `ERR-*` correlation ID for effortless bug investigation.
--   **SDK Internal Diagnostics:** Includes full telemetry for internal SDK execution bypassing sandbox boundaries during testing (`SwiftCode/SDK/Internal/`).
+-   **Deep Diagnostic Telemetry:** Captures complete unredacted stack traces, unhandled promise rejections, full IPC message envelopes, raw stdin/stdout/stderr streams, exact process exit codes, CPU/RAM resource usage metrics, and runtime sandbox policy enforcement logs.
+-   **Isolated Log Storage & Debug Console:** Writes full diagnostic traces to an isolated log file on disk (`~/.swiftcode/logs/developer-sdk.log`) and streams live events to the internal Developer Debug Console tab within Studio and internal builds.
+-   **Bi-Directional Correlation Mapping:** Maps every detailed diagnostic log entry back to the user-facing `ERR-*` correlation ID, enabling internal engineers to pinpoint root causes instantly.
+-   **Internal SDK Execution Telemetry:** Collects full operational and execution telemetry when running internal SDK tests and sandbox-bypass harness drivers (`SwiftCode/SDK/Internal/`).
 
 ### 16.3 Security audit events
 
