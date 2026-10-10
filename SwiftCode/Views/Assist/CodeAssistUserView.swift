@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// A native macOS card view that displays the current Code Review status, user explanation, and confidence.
-/// This view represents the lifecycle of the code_review tool rather than being a permanent component of the interface.
+/// Plain inline row displaying Code Review status, user explanation, and confidence.
 public struct CodeAssistUserView: View {
     @ObservedObject private var manager = AssistManager.shared
 
@@ -9,18 +8,18 @@ public struct CodeAssistUserView: View {
 
     public var body: some View {
         if manager.hasCodeReviewBeenInvoked {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     Image(systemName: headerIcon)
-                        .font(.caption)
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(headerColor)
 
                     Text("Code Review")
-                        .font(.caption.weight(.medium))
+                        .font(.system(size: 11, weight: .medium))
 
                     if let review = manager.currentCodeReview, !manager.isCodeReviewRunning {
                         Text(String(format: "%.0f%%", review.confidence * 100))
-                            .font(.system(size: 9, weight: .medium))
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }
 
@@ -30,26 +29,23 @@ public struct CodeAssistUserView: View {
                 if manager.isCodeReviewRunning {
                     HStack(spacing: 6) {
                         ProgressView()
-                            .scaleEffect(0.5)
+                            .scaleEffect(0.4)
+                            .frame(width: 12, height: 12)
                             .tint(.secondary)
-                        Text("Reviewing implementation...")
-                            .font(.caption)
+                        Text("Running automated review")
+                            .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                     }
                 } else if let review = manager.currentCodeReview {
                     Text(review.userSee)
-                        .font(.caption)
-                        .lineSpacing(3)
+                        .font(.system(size: 11))
+                        .lineSpacing(2)
                         .foregroundStyle(.primary)
                         .textSelection(.enabled)
-                } else {
-                    Text("Awaiting review...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.vertical, 4)
         }
     }
 
@@ -61,22 +57,15 @@ public struct CodeAssistUserView: View {
 
     private var headerIcon: String {
         if manager.isCodeReviewRunning {
-            return "ellipsis.bubble.fill"
+            return "checkmark.shield"
         }
         return isReady ? "checkmark.seal.fill" : "exclamationmark.triangle.fill"
     }
 
     private var headerColor: Color {
         if manager.isCodeReviewRunning {
-            return .orange
+            return .accentColor
         }
         return isReady ? .green : .red
-    }
-
-    private var statusSubtitle: String {
-        if manager.isCodeReviewRunning {
-            return "Reviewer analyzing workspace..."
-        }
-        return isReady ? "Task is ready" : "Task is not ready, agent will continue working"
     }
 }

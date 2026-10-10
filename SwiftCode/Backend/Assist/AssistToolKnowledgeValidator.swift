@@ -36,6 +36,10 @@ public final class AssistToolKnowledgeValidator: Sendable {
     // MARK: - Helpers
 
     private func loadSystemPrompt() -> String? {
+        let prompt = LoadUpSystemAssets.shared.fullCorpusPrompt()
+        if !prompt.isEmpty {
+            return prompt
+        }
         guard let url = Bundle.main.url(forResource: "AgentSystemAsset", withExtension: "md") else {
             return nil
         }
@@ -46,9 +50,8 @@ public final class AssistToolKnowledgeValidator: Sendable {
         AssistSystemPromptSections.extractSection(named: "TOOL SELECTION & USAGE", from: prompt)
     }
 
-    /// Splits the Tool Selection & Usage section into per-tool blocks keyed by
-    /// tool id. Blocks run from a `#### \`<id>\`` heading to the next `#### ` or
-    /// `## ` heading.
+    /// Splits a section or document into per-tool blocks keyed by tool id.
+    /// Blocks run from a `#### \`<id>\`` heading to the next `#### ` or `## ` heading.
     private func toolBlocks(in section: String) -> [String: String] {
         var blocks: [String: String] = [:]
         let lines = section.components(separatedBy: "\n")
@@ -63,12 +66,15 @@ public final class AssistToolKnowledgeValidator: Sendable {
 
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("#### `") && trimmed.hasSuffix("`") {
+            if trimmed.hasPrefix("#### `") && trimmed.contains("`") {
                 flush()
-                let id = String(trimmed.dropFirst(6).dropLast(1))
-                currentId = id
-                currentLines = []
-            } else if trimmed.hasPrefix("## ") && currentId != nil {
+                let dropPrefix = trimmed.dropFirst(6)
+                if let backtickIndex = dropPrefix.firstIndex(of: "`") {
+                    let id = String(dropPrefix[..<backtickIndex])
+                    currentId = id
+                    currentLines = []
+                }
+            } else if (trimmed.hasPrefix("## ") || trimmed.hasPrefix("# ")) && currentId != nil {
                 flush()
                 currentId = nil
                 currentLines = []
@@ -77,6 +83,21 @@ public final class AssistToolKnowledgeValidator: Sendable {
             }
         }
         flush()
+        return blocks
+    }
+
+    /// Collects tool documentation blocks from all loaded system assets.
+    private func allDocumentedToolBlocks() -> [String: String] {
+        var blocks: [String: String] = [:]
+        for asset in LoadUpSystemAssets.shared.allAssets() {
+            let assetBlocks = toolBlocks(in: asset.content)
+            for (id, block) in assetBlocks {
+                blocks[id] = block
+            }
+        }
+        if blocks.isEmpty, let prompt = loadSystemPrompt() {
+            return toolBlocks(in: prompt)
+        }
         return blocks
     }
 
@@ -95,24 +116,23 @@ public final class AssistToolKnowledgeValidator: Sendable {
         let start = Date()
         guard let prompt = loadSystemPrompt() else {
             return result(testName: "Tool Knowledge: Section Present", passed: false,
-                          message: "AgentSystemAsset.md not found in bundle.", start: start)
+                          message: "System prompt assets not found in bundle.", start: start)
         }
         guard let section = toolSelectionSection(in: prompt), !section.isEmpty else {
             return result(testName: "Tool Knowledge: Section Present", passed: false,
-                          message: "TOOL SELECTION & USAGE section missing from AgentSystemAsset.md.", start: start)
+                          message: "TOOL SELECTION & USAGE section missing from system prompt.", start: start)
         }
         return result(testName: "Tool Knowledge: Section Present", passed: true,
-                      message: "Section present (\(section.count) chars).", start: start)
+                          message: "Section present (\(section.count) chars).", start: start)
     }
 
     private func testAllRegisteredToolsDocumented() async -> RuntimeTestCaseResult {
         let start = Date()
-        guard let prompt = loadSystemPrompt(),
-              let section = toolSelectionSection(in: prompt) else {
+        guard loadSystemPrompt() != nil else {
             return result(testName: "Tool Knowledge: Tools Documented", passed: false,
                           message: "System prompt or section unavailable.", start: start)
         }
-        let blocks = toolBlocks(in: section)
+        let blocks = allDocumentedToolBlocks()
         let registry = AssistToolRegistry()
         let missing = registry.allTools.map(\.id).filter { blocks[$0] == nil }.sorted()
         if missing.isEmpty {
@@ -125,12 +145,11 @@ public final class AssistToolKnowledgeValidator: Sendable {
 
     private func testRequiredParametersDocumented() async -> RuntimeTestCaseResult {
         let start = Date()
-        guard let prompt = loadSystemPrompt(),
-              let section = toolSelectionSection(in: prompt) else {
+        guard loadSystemPrompt() != nil else {
             return result(testName: "Tool Knowledge: Params Documented", passed: false,
                           message: "System prompt or section unavailable.", start: start)
         }
-        let blocks = toolBlocks(in: section)
+        let blocks = allDocumentedToolBlocks()
         let registry = AssistToolRegistry()
         var problems: [String] = []
         for tool in registry.allTools {
@@ -150,15 +169,20 @@ public final class AssistToolKnowledgeValidator: Sendable {
 
     private func testNoOrphanedToolDocumentation() async -> RuntimeTestCaseResult {
         let start = Date()
-        guard let prompt = loadSystemPrompt(),
-              let section = toolSelectionSection(in: prompt) else {
+        guard loadSystemPrompt() != nil else {
             return result(testName: "Tool Knowledge: No Orphan Docs", passed: false,
                           message: "System prompt or section unavailable.", start: start)
         }
-        let blocks = toolBlocks(in: section)
+        let blocks = allDocumentedToolBlocks()
         let registry = AssistToolRegistry()
         let registeredIds = Set(registry.allTools.map(\.id))
-        let orphans = blocks.keys.filter { !registeredIds.contains($0) }.sorted()
+        let cloudBuiltIns: Set<String> = [
+            "view_file", "create_file", "edit_file", "list_directory", "run_command",
+            "search_directory", "search_web", "read_url_content", "start_subagent"
+        ]
+        let orphans = blocks.keys.filter {
+            !registeredIds.contains($0) && registry.getTool($0) == nil && !cloudBuiltIns.contains($0)
+        }.sorted()
         if orphans.isEmpty {
             return result(testName: "Tool Knowledge: No Orphan Docs", passed: true,
                           message: "No documented tool ids are unregistered.", start: start)
@@ -171,7 +195,7 @@ public final class AssistToolKnowledgeValidator: Sendable {
         let start = Date()
         guard let prompt = loadSystemPrompt() else {
             return result(testName: "Tool Knowledge: Section Extraction", passed: false,
-                          message: "AgentSystemAsset.md not found in bundle.", start: start)
+                          message: "System prompt assets not found in bundle.", start: start)
         }
         let names = AssistSystemPromptSections.sectionNames(in: prompt)
         guard names.contains("TOOL SELECTION & USAGE") else {

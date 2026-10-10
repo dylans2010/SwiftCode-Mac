@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Plain inline timeline view showing session events with SF Symbols and status colors.
 @MainActor
 public struct AgentTimelineView: View {
     let agentSession: AssistAgentSession
@@ -13,68 +14,62 @@ public struct AgentTimelineView: View {
         if events.isEmpty {
             EmptyView()
         } else {
-            GroupBox {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "clock.arrow.2.circlepath")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: "clock.arrow.2.circlepath")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
 
-                        Text("Progress")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.primary)
+                    Text("Timeline")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.primary)
 
-                        if isExecuting {
-                            ProgressView()
-                                .scaleEffect(0.35)
-                                .tint(.secondary)
-                        }
-
-                        Spacer()
+                    if isExecuting {
+                        ProgressView()
+                            .scaleEffect(0.35)
+                            .tint(.secondary)
                     }
 
-                    Divider()
+                    Spacer()
+                }
 
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
-                            HStack(alignment: .top, spacing: 8) {
-                                VStack(spacing: 0) {
-                                    Circle()
-                                        .fill(timelineColor(for: event.state))
-                                        .frame(width: 5, height: 5)
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
+                        HStack(alignment: .top, spacing: 8) {
+                            VStack(spacing: 0) {
+                                Circle()
+                                    .fill(timelineColor(for: event.state))
+                                    .frame(width: 5, height: 5)
 
-                                    if index < events.count - 1 {
-                                        Rectangle()
-                                            .fill(Color.secondary.opacity(0.15))
-                                            .frame(width: 1, height: 20)
-                                    }
+                                if index < events.count - 1 {
+                                    Rectangle()
+                                        .fill(Color.secondary.opacity(0.15))
+                                        .frame(width: 1, height: 16)
                                 }
-                                .padding(.top, 4)
-
-                                VStack(alignment: .leading, spacing: 1) {
-                                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                        Text(event.summary)
-                                            .font(.system(size: 11))
-                                            .foregroundStyle(.primary)
-                                            .fixedSize(horizontal: false, vertical: true)
-
-                                        Spacer()
-
-                                        Text(event.timestamp, style: .time)
-                                            .font(.system(size: 9, design: .monospaced))
-                                            .foregroundStyle(.tertiary)
-                                    }
-                                }
-                                .padding(.vertical, 1)
                             }
-                            .padding(.bottom, index < events.count - 1 ? 4 : 0)
+                            .padding(.top, 4)
+
+                            VStack(alignment: .leading, spacing: 1) {
+                                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                    Text(event.summary)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.primary)
+                                        .fixedSize(horizontal: false, vertical: true)
+
+                                    Spacer()
+
+                                    Text(event.timestamp, style: .time)
+                                        .font(.system(size: 9, design: .monospaced))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                            .padding(.vertical, 1)
                         }
                     }
                 }
-                .padding(10)
             }
-            .groupBoxStyle(ModernGroupBoxStyle())
             .padding(.horizontal, 12)
+            .padding(.vertical, 4)
         }
     }
 

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A specialized view for visualizing the autonomous execution progress of the Assist Planner.
+/// Plain inline view visualizing autonomous execution progress of the Assist Planner.
 public struct AssistPlannerView: View {
     @ObservedObject var planner = TasksAIPlanner.shared
 
@@ -8,73 +8,60 @@ public struct AssistPlannerView: View {
 
     public var body: some View {
         if planner.isPlanning {
-            VStack(alignment: .leading, spacing: 16) {
-                planningHeader
+            HStack(spacing: 6) {
+                ProgressView()
+                    .scaleEffect(0.4)
+                    .frame(width: 12, height: 12)
+                    .tint(.accentColor)
+                Image(systemName: "list.bullet.clipboard")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color.accentColor)
+                Text("Formulating execution plan")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.primary)
+                Spacer()
             }
-            .padding()
-            .background(Color(white: 0.12))
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
-            )
-            .padding(.horizontal)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
         } else if let plan = planner.currentPlan {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
                 planHeader(plan)
                 stepsList(plan)
             }
-            .padding()
-            .background(Color(white: 0.12))
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
-            )
-            .padding(.horizontal)
-        }
-    }
-
-    private var planningHeader: some View {
-        HStack(spacing: 12) {
-            ProgressView()
-                .tint(.orange)
-            Text("Reasoning and Planning...")
-                .font(.subheadline.bold())
-                .foregroundStyle(.orange)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
         }
     }
 
     private func planHeader(_ plan: AssistExecutionPlan) -> some View {
-        HStack {
-            Image(systemName: "cpu")
-                .foregroundStyle(.orange)
-                .font(.title3)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Autonomous Strategy")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
-                Text(plan.goal)
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.white)
-            }
+        HStack(spacing: 6) {
+            Image(systemName: "list.bullet.clipboard")
+                .foregroundStyle(Color.accentColor)
+                .font(.system(size: 11))
+
+            Text(plan.goal)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
             Spacer()
+
             statusBadge(plan.status)
         }
     }
 
     private func stepsList(_ plan: AssistExecutionPlan) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 6) {
             ForEach(plan.steps) { step in
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .top, spacing: 6) {
                     statusIcon(step.status)
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(step.description)
-                            .font(.system(.footnote, design: .monospaced))
-                            .foregroundStyle(step.status == .pending ? Color.secondary : Color.white)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(step.status == .pending ? Color.secondary : Color.primary)
                         if let error = step.result?.error {
                             Text(error)
-                                .font(.caption2)
+                                .font(.system(size: 10, design: .monospaced))
                                 .foregroundStyle(.red)
                         }
                     }
@@ -84,48 +71,47 @@ public struct AssistPlannerView: View {
     }
 
     private func statusIcon(_ status: AssistExecutionStatus) -> some View {
-        ZStack {
+        Group {
             switch status {
             case .pending:
-                Circle().stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                    .frame(width: 14, height: 14)
+                Image(systemName: "circle")
+                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 10))
             case .running:
                 ProgressView()
-                    .scaleEffect(0.6)
-                    .frame(width: 14, height: 14)
+                    .scaleEffect(0.4)
+                    .frame(width: 10, height: 10)
+                    .tint(.accentColor)
             case .completed:
-                Image(systemName: "checkmark.circle.fill")
+                Image(systemName: "checkmark")
                     .foregroundStyle(.green)
-                    .font(.system(size: 14))
+                    .font(.system(size: 9, weight: .bold))
             case .failed:
-                Image(systemName: "xmark.circle.fill")
+                Image(systemName: "xmark")
                     .foregroundStyle(.red)
-                    .font(.system(size: 14))
+                    .font(.system(size: 9, weight: .bold))
             case .skipped:
                 Image(systemName: "slash.circle")
                     .foregroundStyle(.secondary)
-                    .font(.system(size: 14))
+                    .font(.system(size: 9))
             }
         }
+        .frame(width: 12, height: 12)
     }
 
     private func statusBadge(_ status: AssistExecutionStatus) -> some View {
         Text(status.rawValue.uppercased())
-            .font(.system(size: 10, weight: .bold, design: .monospaced))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(statusColor(status).opacity(0.2))
+            .font(.system(size: 9, weight: .medium, design: .monospaced))
             .foregroundStyle(statusColor(status))
-            .cornerRadius(4)
     }
 
     private func statusColor(_ status: AssistExecutionStatus) -> Color {
         switch status {
         case .pending: return .secondary
-        case .running: return .orange
+        case .running: return .accentColor
         case .completed: return .green
         case .failed: return .red
-        case .skipped: return .gray
+        case .skipped: return .secondary
         }
     }
 }

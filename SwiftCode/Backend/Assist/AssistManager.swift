@@ -54,22 +54,18 @@ public final class AssistManager: ObservableObject {
         if let cached = cachedSystemPrompt {
             return cached
         }
-
-        guard let url = Bundle.main.url(forResource: "AgentSystemAsset", withExtension: "md") else {
-            let errorMsg = "Failed to locate AgentSystemAsset.md in application bundle."
+        let prompt = LoadUpSystemAssets.shared.fullCorpusPrompt()
+        if prompt.isEmpty {
+            let errorMsg = "Failed to load system prompt assets from bundle."
             Task { await logger.error(errorMsg, toolId: nil) }
             throw NSError(domain: "AssistManager", code: 404, userInfo: [NSLocalizedDescriptionKey: errorMsg])
         }
+        cachedSystemPrompt = prompt
+        return prompt
+    }
 
-        do {
-            let prompt = try String(contentsOf: url, encoding: .utf8)
-            cachedSystemPrompt = prompt
-            return prompt
-        } catch {
-            let errorMsg = "Failed to load AgentSystemAsset.md from bundle: \(error.localizedDescription)"
-            Task { await logger.error(errorMsg, toolId: nil) }
-            throw NSError(domain: "AssistManager", code: 500, userInfo: [NSLocalizedDescriptionKey: errorMsg])
-        }
+    public func getSystemPrompt(for objective: String, toolkit: String = "System", characterBudget: Int = 16_000) -> String {
+        LoadUpSystemAssets.shared.systemPrompt(for: objective, toolkit: toolkit, characterBudget: characterBudget)
     }
 
     @MainActor

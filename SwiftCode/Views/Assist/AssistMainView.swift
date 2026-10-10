@@ -183,22 +183,29 @@ public struct AssistMainView: View {
                             .padding(.horizontal, 12)
                             .padding(.top, 8)
 
-                            // Native Conversational Chat Bubbles
+                            // Native Conversational Chat Bubbles & Inline Tool Rows
                             ForEach(filteredMessages) { message in
                                 if let composio = message.composioExecution {
                                     AgentUseComposio(metadata: composio)
                                 } else if let mcp = message.mcpExecution {
                                     AgentUseMCP(metadata: mcp)
                                 } else {
-                                    AssistChatBubble(message: message)
+                                    // Independent inline tool rows at conversation level (outside chat bubble)
+                                    if let activity = message.activityGroup, activity.hasContent {
+                                        AssistActivityView(activityGroup: activity)
+                                            .padding(.horizontal, 12)
+                                    }
+
+                                    // Chat bubble strictly for conversation markdown / message content
+                                    if shouldDisplayChatBubble(for: message) {
+                                        AssistChatBubble(message: message)
+                                    }
                                 }
                             }
 
                             if let error = manager.lastError {
                                 AssistInlineError(message: error)
                             }
-
-                            processingIndicator
                         }
                         .padding(.bottom, 12)
                         .blur(radius: manager.takeoverReason != nil ? 8 : 0)
@@ -529,119 +536,25 @@ public struct AssistMainView: View {
         return manager.messages.filter { $0.content.lowercased().contains(text) }
     }
 
-    private func statusUserDescription(for status: AgentSessionStatus) -> String {
-        switch status {
-        case .idle:
-            return "Idle"
-        case .receivingRequest:
-            return "Preparing request…"
-        case .analyzingRepository:
-            return "Inspecting the project..."
-        case .collectingContext:
-            return "Reading relevant files..."
-        case .planningReview:
-            return "Reviewing the plan..."
-        case .awaitingApproval:
-            return "Waiting for your approval..."
-        case .executingStrategy:
-            return "Working on it..."
-        case .selectingTools:
-            return "Deciding how to proceed..."
-        case .executingTools:
-            return "Making changes..."
-        case .reviewFailed:
-            return "Reviewing the changes..."
-        case .recovering:
-            return "Fixing an issue..."
-        case .generatingSummary:
-            return "Wrapping up..."
-        case .terminated:
-            return "Done."
-        case .initializing:
-            return "Starting..."
-        case .understandingRequest:
-            return "Understanding the request..."
-        case .gatheringContext:
-            return "Inspecting the project..."
-        case .planning:
-            return "Determining the best approach..."
-        case .selectingTool:
-            return "Deciding how to proceed..."
-        case .executingTool:
-            return "Making changes..."
-        case .waitingForUserApproval:
-            return "Waiting for your approval..."
-        case .updatingRepository:
-            return "Applying changes..."
-        case .inspectingResult:
-            return "Checking the result..."
-        case .validating:
-            return "Verifying..."
-        case .reviewing:
-            return "Reviewing the implementation..."
-        case .completing:
-            return "Almost done..."
-        case .finished, .completed:
-            return "Done."
-        case .failed:
-            return "Something went wrong."
-        case .cancelled:
-            return "Cancelled."
-        case .stalled:
-            return "Taking longer than expected..."
-        case .evaluatingGoalExpansion:
-            return "Considering next steps..."
-        case .transitioningToNextGoal:
-            return "Moving to the next task..."
-        default:
-            return "Working..."
+    private func shouldDisplayChatBubble(for message: AssistMessage) -> Bool {
+        if message.role == .user {
+            return !message.content.isEmpty || !(message.attachments ?? []).isEmpty
         }
+        let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return false }
+        if isRawToolEnvelope(trimmed) { return false }
+        return true
     }
 
-    private var activityStatusIndicator: some View {
-        HStack(spacing: 8) {
-            ProgressView()
-                .scaleEffect(0.5)
-                .tint(.secondary)
-
-            let displayText: String = {
-                if !manager.currentActivityStatus.isEmpty && manager.currentActivityStatus != "Idle" {
-                    return manager.currentActivityStatus
-                }
-                let sessionDescription = statusUserDescription(for: manager.agentSession.state.status)
-                return sessionDescription == "Idle" ? "Preparing request…" : sessionDescription
-            }()
-
-            Text(displayText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            if bridgeManager.activeToolName != "None" {
-                Text("· \(bridgeManager.activeToolName)")
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-    }
-
-    @ViewBuilder
-    private var processingIndicator: some View {
-        if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
-            let lastMessage = manager.messages.last
-            let hasActiveToolActivity = lastMessage?.activityGroup?.tools.contains {
-                $0.status == .pending || $0.status == .running || $0.status == .retrying
-            } == true
-            let isStreamingChatResponse = lastMessage?.role == .assistant &&
-                lastMessage?.content.isEmpty == false && manager.currentActivityStatus == "Receiving response…"
-            if !hasActiveToolActivity && !isStreamingChatResponse {
-                activityStatusIndicator
+    private func isRawToolEnvelope(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if (trimmed.hasPrefix("{") && trimmed.hasSuffix("}")) ||
+           (trimmed.hasPrefix("```json") && trimmed.hasSuffix("```")) {
+            if trimmed.contains("\"toolId\"") || trimmed.contains("\"tool_name\"") {
+                return true
             }
         }
+        return false
     }
 
     // MARK: - Queued Messages View
@@ -1309,9 +1222,28 @@ private struct AssistChatBubble: View {
         }
     }
 
+    private var displayContent: String {
+        let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        // If content is a raw json envelope with finalResponse, extract the human-readable text
+        if trimmed.contains("\"finalResponse\"") {
+            if let data = trimmed.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let finalResp = json["finalResponse"] as? String {
+                return finalResp
+            }
+        }
+        // If it's a raw tool call JSON, suppress it from chat display
+        if trimmed.hasPrefix("{") && (trimmed.contains("\"toolId\"") || trimmed.contains("\"tool_name\"")) {
+            return ""
+        }
+        return message.content
+    }
+
     @ViewBuilder
     var body: some View {
-        if message.role == .assistant && message.content.isEmpty && message.activityGroup?.hasContent != true {
+        let content = displayContent
+        let hasAttachments = !(message.attachments ?? []).isEmpty
+        if content.isEmpty && !hasAttachments && message.role != .user {
             EmptyView()
         } else {
             VStack(alignment: alignment, spacing: 4) {
@@ -1322,16 +1254,11 @@ private struct AssistChatBubble: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    // 1. Native Live Activity Feed (Subtle, Compact, Streaming)
-                    if let activity = message.activityGroup, activity.hasContent {
-                        AssistLiveActivityFeed(activityGroup: activity)
-                    }
-
-                    // 2. Streamed / Completed Assistant Markdown Message
-                    if !message.content.isEmpty {
-                        let blocks = MarkdownParser.shared.parse(message.content)
+                    // Streamed / Completed Assistant Markdown Message (NO tool activities inside the bubble)
+                    if !content.isEmpty {
+                        let blocks = MarkdownParser.shared.parse(content)
                         if blocks.isEmpty {
-                            Text(message.content)
+                            Text(content)
                                 .font(.body)
                                 .lineSpacing(4)
                                 .textSelection(.enabled)
@@ -1339,12 +1266,6 @@ private struct AssistChatBubble: View {
                             MarkdownBlockListView(blocks: blocks)
                                 .textSelection(.enabled)
                         }
-                    }
-
-                    // 3. Expandable Activity Details (Files modified diffs, etc.)
-                    if let activity = message.activityGroup, !activity.files.isEmpty {
-                        AssistActivityView(activityGroup: activity)
-                            .padding(.top, 2)
                     }
 
                     if let attachments = message.attachments, !attachments.isEmpty {
@@ -1376,200 +1297,6 @@ private struct AssistChatBubble: View {
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
         }
-    }
-}
-
-// MARK: - Live Activity Feed
-
-private struct AssistLiveActivityFeed: View {
-    let activityGroup: AssistActivityGroup
-    @State private var isExpanded: Bool = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            let tools = activityGroup.tools
-            let displayTools: [ToolActivityItem] = {
-                if isExpanded || tools.count <= 4 {
-                    return tools
-                } else {
-                    let first = tools.prefix(1)
-                    let last = tools.suffix(3)
-                    var combined: [ToolActivityItem] = Array(first)
-                    for item in last {
-                        if !combined.contains(where: { $0.id == item.id }) {
-                            combined.append(item)
-                        }
-                    }
-                    return combined
-                }
-            }()
-
-            ForEach(displayTools) { tool in
-                HStack(spacing: 6) {
-                    if tool.status == .running {
-                        ProgressView()
-                            .scaleEffect(0.4)
-                            .frame(width: 14, height: 14)
-                            .tint(.secondary)
-
-                        Text(tool.displayLabel ?? tool.purpose)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                    } else if tool.status == .completed {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.green.opacity(0.85))
-                            .frame(width: 14, height: 14)
-
-                        Text(tool.completedLabel ?? tool.purpose)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-
-                        if tool.duration > 0 {
-                            Text(String(format: "%.1fs", tool.duration))
-                                .font(.system(size: 9, design: .monospaced))
-                                .foregroundStyle(.tertiary)
-                        }
-                    } else if tool.status == .failed {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.red)
-                            .frame(width: 14, height: 14)
-
-                        Text(tool.purpose)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.red.opacity(0.9))
-                            .lineLimit(1)
-                    } else {
-                        Image(systemName: "circle")
-                            .font(.system(size: 8))
-                            .foregroundStyle(.tertiary)
-                            .frame(width: 14, height: 14)
-
-                        Text(tool.purpose)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-
-                    Spacer(minLength: 0)
-                }
-            }
-
-            if tools.count > 4 {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isExpanded.toggle()
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 8, weight: .bold))
-                        Text(isExpanded ? "Show fewer activities" : "Show \(tools.count - displayTools.count) more activities")
-                            .font(.system(size: 10, weight: .medium))
-                    }
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 18)
-                }
-                .buttonStyle(.plain)
-            }
-
-            // Workers summary if any
-            ForEach(activityGroup.workers) { worker in
-                HStack(spacing: 6) {
-                    if worker.status == .running {
-                        ProgressView()
-                            .scaleEffect(0.4)
-                            .frame(width: 14, height: 14)
-                        Text("\(worker.userFacingTitle)…")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.primary)
-                    } else if worker.status == .completed {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.green.opacity(0.85))
-                            .frame(width: 14, height: 14)
-                        Text(worker.userFacingTitle)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.red)
-                            .frame(width: 14, height: 14)
-                        Text("\(worker.userFacingTitle) failed")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.red.opacity(0.9))
-                    }
-                    Spacer(minLength: 0)
-                }
-            }
-
-            // Builds summary if any
-            ForEach(activityGroup.builds) { build in
-                HStack(spacing: 6) {
-                    if build.status == .running {
-                        ProgressView()
-                            .scaleEffect(0.4)
-                            .frame(width: 14, height: 14)
-                        Text("Building project...")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.primary)
-                    } else if build.status == .completed {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.green.opacity(0.85))
-                            .frame(width: 14, height: 14)
-                        Text("Build succeeded")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    } else if build.status == .failed {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.red)
-                            .frame(width: 14, height: 14)
-                        Text("Build failed")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.red.opacity(0.9))
-                    }
-                    Spacer(minLength: 0)
-                }
-            }
-
-            // Tests summary if any
-            ForEach(activityGroup.tests) { test in
-                HStack(spacing: 6) {
-                    if test.status == .running {
-                        ProgressView()
-                            .scaleEffect(0.4)
-                            .frame(width: 14, height: 14)
-                        Text("Running tests...")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.primary)
-                    } else if test.status == .completed {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.green.opacity(0.85))
-                            .frame(width: 14, height: 14)
-                        Text("Tests passed (\(test.passedCount))")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    } else if test.status == .failed {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.red)
-                            .frame(width: 14, height: 14)
-                        Text("Tests failed (\(test.failedCount) failures)")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.red.opacity(0.9))
-                    }
-                    Spacer(minLength: 0)
-                }
-            }
-        }
-        .padding(.vertical, 2)
     }
 }
 

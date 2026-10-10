@@ -13,40 +13,34 @@ public struct TaskProgressView: View {
         if plan.isEmpty {
             EmptyView()
         } else {
-            GroupBox {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Image(systemName: "list.bullet.clipboard")
-                            .foregroundStyle(.orange)
-                        Text("Task Objectives")
-                            .font(.subheadline.bold())
-                        Spacer()
-                        statusBadge(agentSession.state.status)
-                    }
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "list.bullet.clipboard")
+                        .foregroundStyle(Color.accentColor)
+                    Text("Task Objectives")
+                        .font(.system(size: 11, weight: .semibold))
+                    Spacer()
+                    statusBadge(agentSession.state.status)
+                }
 
-                    Text("Goal: \(agentSession.state.objective)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.bottom, 4)
+                Text("Goal: \(agentSession.state.objective)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
-                    Divider()
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(plan) { step in
-                            HStack(alignment: .top, spacing: 8) {
-                                stepIcon(for: step)
-                                Text(step.description)
-                                    .font(.system(.footnote, design: .monospaced))
-                                    .foregroundStyle(stepStyle(for: step))
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(plan) { step in
+                        HStack(alignment: .top, spacing: 6) {
+                            stepIcon(for: step)
+                            Text(step.description)
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(stepStyle(for: step))
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
-                .padding(4)
             }
-            .groupBoxStyle(ModernGroupBoxStyle())
             .padding(.horizontal, 12)
+            .padding(.vertical, 4)
         }
     }
 

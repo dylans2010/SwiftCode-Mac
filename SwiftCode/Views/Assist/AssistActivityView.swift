@@ -1,485 +1,397 @@
 import SwiftUI
 import AppKit
 
+/// Redesigned plain inline activity view rendering real-time tool executions,
+/// builds, tests, file modifications, and worker tasks without cards, boxes, or borders.
 public struct AssistActivityView: View {
     public let activityGroup: AssistActivityGroup
-    @State private var isExpanded: Bool
-    @State private var selectedFileDiffPath: String?
+    @State private var expandedOutputIds: Set<UUID> = []
 
     public init(activityGroup: AssistActivityGroup) {
         self.activityGroup = activityGroup
-        self._isExpanded = State(initialValue: activityGroup.isExecuting)
     }
 
     public var body: some View {
         if !activityGroup.hasContent {
             EmptyView()
         } else {
-            VStack(alignment: .leading, spacing: 4) {
-                headerButton
+            VStack(alignment: .leading, spacing: 6) {
+                // 1. Tool executions
+                ForEach(activityGroup.tools) { tool in
+                    toolRow(for: tool)
+                }
 
-                if isExpanded {
-                    expandedContent
+                // 2. File modifications
+                ForEach(activityGroup.files) { file in
+                    fileRow(for: file)
+                }
+
+                // 3. Terminal commands
+                ForEach(activityGroup.terminalCommands) { term in
+                    terminalRow(for: term)
+                }
+
+                // 4. Builds
+                ForEach(activityGroup.builds) { build in
+                    buildRow(for: build)
+                }
+
+                // 5. Tests
+                ForEach(activityGroup.tests) { test in
+                    testRow(for: test)
+                }
+
+                // 6. Workers
+                ForEach(activityGroup.workers) { worker in
+                    workerRow(for: worker)
+                }
+
+                // 7. Recoveries
+                ForEach(activityGroup.recoveries) { recovery in
+                    recoveryRow(for: recovery)
+                }
+
+                // 8. Verifications
+                ForEach(activityGroup.verifications) { verification in
+                    verificationRow(for: verification)
                 }
             }
+            .padding(.vertical, 2)
         }
     }
 
-    private var summaryText: String {
-        if !activityGroup.recoveries.isEmpty {
-            let resolvedCount = activityGroup.recoveries.filter { $0.isResolved }.count
-            let totalCount = activityGroup.recoveries.count
-            if resolvedCount == totalCount {
-                return "Recovered from \(resolvedCount) error\(resolvedCount == 1 ? "" : "s")"
-            } else {
-                return "Recovering from error (\(resolvedCount)/\(totalCount) resolved)"
+    // MARK: - Tool Row
+
+    @ViewBuilder
+    private func toolRow(for tool: ToolActivityItem) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                // Status icon & tool symbol
+                toolStatusIcon(for: tool)
+
+                // Readable concise action description
+                Text(toolActionDescription(for: tool))
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(tool.status == .failed ? Color.red : Color.primary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 4)
+
+                // Duration or status detail
+                if tool.duration > 0 {
+                    Text(String(format: "%.1fs", tool.duration))
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+            // Output/result display cleanly as plain secondary monospaced text underneath
+            let outputText = displayOutput(for: tool)
+            if !outputText.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(outputText)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(expandedOutputIds.contains(tool.id) ? nil : 3)
+                        .textSelection(.enabled)
+
+                    if outputText.components(separatedBy: .newlines).count > 3 || outputText.count > 180 {
+                        Button {
+                            if expandedOutputIds.contains(tool.id) {
+                                expandedOutputIds.remove(tool.id)
+                            } else {
+                                expandedOutputIds.insert(tool.id)
+                            }
+                        } label: {
+                            Text(expandedOutputIds.contains(tool.id) ? "Show less" : "Show output")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(Color.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.leading, 18)
             }
         }
-        if !activityGroup.workers.isEmpty {
-            return "\(activityGroup.workers.count) Worker\(activityGroup.workers.count == 1 ? "" : "s")"
-        }
-        if let lastBuild = activityGroup.builds.last {
-            return lastBuild.status == .completed ? "Build passed" : "Build failed"
-        }
-        if let lastTest = activityGroup.tests.last {
-            return "\(lastTest.passedCount) test\(lastTest.passedCount == 1 ? "" : "s") passed"
-        }
-        let actionCount = activityGroup.tools.count + activityGroup.terminalCommands.count
-        if actionCount > 0 && !activityGroup.files.isEmpty {
-            return "\(actionCount) action\(actionCount == 1 ? "" : "s") · \(activityGroup.files.count) file\(activityGroup.files.count == 1 ? "" : "s")"
-        }
-        if !activityGroup.files.isEmpty {
-            return "\(activityGroup.files.count) file\(activityGroup.files.count == 1 ? "" : "s") changed"
-        }
-        if actionCount > 0 {
-            return "\(actionCount) action\(actionCount == 1 ? "" : "s")"
-        }
-        return "Activity"
     }
 
-    private var headerButton: some View {
-        Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                isExpanded.toggle()
+    @ViewBuilder
+    private func toolStatusIcon(for tool: ToolActivityItem) -> some View {
+        let symbol = toolSymbolName(for: tool)
+        switch tool.status {
+        case .running, .retrying:
+            HStack(spacing: 3) {
+                ProgressView()
+                    .scaleEffect(0.4)
+                    .frame(width: 12, height: 12)
+                    .tint(.accentColor)
+                Image(systemName: symbol)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color.accentColor)
             }
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.tertiary)
+        case .completed:
+            HStack(spacing: 3) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(Color.green)
+                Image(systemName: symbol)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+        case .failed:
+            HStack(spacing: 3) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(Color.red)
+                Image(systemName: symbol)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.red)
+            }
+        case .pending:
+            Image(systemName: symbol)
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+        case .skipped, .cancelled:
+            Image(systemName: symbol)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+        }
+    }
 
-                Image(systemName: "list.bullet.rectangle")
+    private func toolSymbolName(for tool: ToolActivityItem) -> String {
+        let id = tool.toolId.lowercased()
+        if id.contains("read") || id.contains("view") || id.contains("cat") {
+            return "doc.text"
+        } else if id.contains("write") || id.contains("edit") || id.contains("replace") || id.contains("patch") || id.contains("modify") {
+            return "pencil"
+        } else if id.contains("build") || id.contains("compile") || id.contains("xcodebuild") {
+            return "hammer"
+        } else if id.contains("test") {
+            return "play"
+        } else if id.contains("term") || id.contains("command") || id.contains("bash") || id.contains("exec") || id.contains("shell") {
+            return "terminal"
+        } else if id.contains("search") || id.contains("grep") || id.contains("find") {
+            return "magnifyingglass"
+        } else if id.contains("git") || id.contains("branch") || id.contains("commit") {
+            return "arrow.triangle.branch"
+        } else if id.contains("dir") || id.contains("folder") || id.contains("ls") {
+            return "folder"
+        } else if id.contains("browser") || id.contains("web") || id.contains("url") {
+            return "globe"
+        } else if id.contains("review") {
+            return "checkmark.shield"
+        } else if let icon = tool.iconName, !icon.isEmpty {
+            return icon
+        }
+        return "wrench.and.screwdriver"
+    }
+
+    private func toolActionDescription(for tool: ToolActivityItem) -> String {
+        if tool.status == .completed, let completedLabel = tool.completedLabel, !completedLabel.isEmpty {
+            return completedLabel
+        }
+        if let displayLabel = tool.displayLabel, !displayLabel.isEmpty {
+            return displayLabel
+        }
+        if !tool.argumentsSummary.isEmpty {
+            let base = tool.purpose.isEmpty ? tool.toolId : tool.purpose
+            return "\(base) · \(tool.argumentsSummary)"
+        }
+        if !tool.purpose.isEmpty {
+            return tool.purpose
+        }
+        return tool.toolId
+    }
+
+    private func displayOutput(for tool: ToolActivityItem) -> String {
+        let raw = !tool.streamingOutput.isEmpty ? tool.streamingOutput : tool.result
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Guard against printing raw serialized JSON envelopes or tool dictionaries
+        if trimmed.hasPrefix("{") && trimmed.contains("\"toolId\"") {
+            return ""
+        }
+        return trimmed
+    }
+
+    // MARK: - File Row
+
+    @ViewBuilder
+    private func fileRow(for file: FileActivityItem) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "doc")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+
+            Text(file.operation.capitalized)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            Text(file.filePath)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            Spacer()
+
+            if file.addedLines > 0 {
+                Text("+\(file.addedLines)")
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.green)
+            }
+            if file.deletedLines > 0 {
+                Text("-\(file.deletedLines)")
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.red)
+            }
+        }
+    }
+
+    // MARK: - Terminal Row
+
+    @ViewBuilder
+    private func terminalRow(for term: TerminalActivityItem) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Image(systemName: term.status == .completed ? "checkmark" : (term.status == .failed ? "xmark" : "terminal"))
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(term.status == .completed ? Color.green : (term.status == .failed ? Color.red : Color.accentColor))
+
+                Image(systemName: "terminal")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
 
-                Text("Activity")
-                    .font(.system(size: 11, weight: .medium))
+                Text(term.command)
+                    .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.primary)
-
-                Text(summaryText)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
                     .lineLimit(1)
-
-                if activityGroup.isExecuting {
-                    ProgressView()
-                        .scaleEffect(0.35)
-                        .tint(.secondary)
-                        .padding(.leading, 2)
-                }
 
                 Spacer()
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 5))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(isExpanded ? "Hide activity details" : "Show activity details")
-    }
 
-    private var expandedContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if activityGroup.isExecuting {
-                currentStateLine
-            }
-
-            if !activityGroup.tools.isEmpty {
-                toolsSection
-            }
-
-            if !activityGroup.files.isEmpty {
-                filesSection
-            }
-
-            if !activityGroup.terminalCommands.isEmpty {
-                terminalSection
-            }
-
-            if !activityGroup.builds.isEmpty {
-                buildsSection
-            }
-
-            if !activityGroup.tests.isEmpty {
-                testsSection
-            }
-
-            if !activityGroup.workers.isEmpty {
-                workersSection
-            }
-
-            if !activityGroup.recoveries.isEmpty {
-                recoverySection
-            }
-
-            if !activityGroup.verifications.isEmpty {
-                verificationsSection
+            if !term.output.isEmpty {
+                Text(term.output.trimmingCharacters(in: .whitespacesAndNewlines))
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .padding(.leading, 18)
             }
         }
-        .padding(8)
-        .background(Color.secondary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(Color.secondary.opacity(0.08), lineWidth: 1)
-        )
-        .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
-    private var currentStateLine: some View {
-        HStack(spacing: 5) {
-            ProgressView()
-                .scaleEffect(0.4)
-                .tint(.secondary)
-            Text("Current: \(currentStateText)")
+    // MARK: - Build Row
+
+    @ViewBuilder
+    private func buildRow(for build: BuildActivityItem) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: build.status == .completed ? "checkmark" : (build.status == .failed ? "xmark" : "hammer"))
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(build.status == .completed ? Color.green : (build.status == .failed ? Color.red : Color.accentColor))
+
+            Image(systemName: "hammer")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-    }
 
-    private var currentStateText: String {
-        if let lastTool = activityGroup.tools.last, lastTool.status == .running {
-            return "Running \(lastTool.toolId)…"
-        }
-        if let lastBuild = activityGroup.builds.last, lastBuild.status == .running {
-            return "Building…"
-        }
-        if let lastWorker = activityGroup.workers.last, lastWorker.status == .running {
-            return "Worker \(lastWorker.name)…"
-        }
-        if let lastTest = activityGroup.tests.last, lastTest.status == .running {
-            return "Running tests…"
-        }
-        return "Working…"
-    }
+            Text(build.status == .completed ? "Build succeeded" : (build.status == .failed ? "Build failed (\(build.errorCount) errors)" : "Building project"))
+                .font(.system(size: 11))
+                .foregroundStyle(build.status == .failed ? .red : .primary)
 
-    private var toolsSection: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            sectionHeader("Tools", count: activityGroup.tools.count)
+            Spacer()
 
-            LazyVStack(alignment: .leading, spacing: 2) {
-                ForEach(activityGroup.tools.prefix(10)) { tool in
-                    HStack(spacing: 6) {
-                        Image(systemName: tool.status.iconName)
-                            .font(.system(size: 9))
-                            .foregroundStyle(statusColor(tool.status))
-
-                        Text(tool.toolId)
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.primary)
-
-                        Text(tool.purpose)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-
-                        Spacer()
-
-                        if tool.duration > 0 {
-                            Text(String(format: "%.1fs", tool.duration))
-                                .font(.system(size: 9, design: .monospaced))
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                }
-            }
-
-            if activityGroup.tools.count > 10 {
-                Text("and \(activityGroup.tools.count - 10) more")
-                    .font(.system(size: 9))
+            if build.duration > 0 {
+                Text(String(format: "%.1fs", build.duration))
+                    .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.tertiary)
-                    .padding(.leading, 15)
             }
         }
     }
 
-    private var filesSection: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            sectionHeader("Files", count: activityGroup.files.count)
+    // MARK: - Test Row
 
-            LazyVStack(alignment: .leading, spacing: 2) {
-                ForEach(activityGroup.files.prefix(8)) { file in
-                    VStack(alignment: .leading, spacing: 1) {
-                        HStack(spacing: 5) {
-                            Text(file.operation.uppercased())
-                                .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                                .padding(.horizontal, 3)
-                                .padding(.vertical, 1)
-                                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 3))
+    @ViewBuilder
+    private func testRow(for test: TestActivityItem) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: test.failedCount == 0 ? "checkmark" : "xmark")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(test.failedCount == 0 ? Color.green : Color.red)
 
-                            Text(file.filePath)
-                                .font(.system(size: 10, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
+            Image(systemName: "play")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
 
-                            Spacer()
+            Text("\(test.suiteName): \(test.passedCount) passed\(test.failedCount > 0 ? ", \(test.failedCount) failed" : "")")
+                .font(.system(size: 11))
+                .foregroundStyle(.primary)
 
-                            if file.addedLines > 0 {
-                                Text("+\(file.addedLines)")
-                                    .font(.system(size: 9, weight: .medium, design: .monospaced))
-                                    .foregroundStyle(.green)
-                            }
-                            if file.deletedLines > 0 {
-                                Text("-\(file.deletedLines)")
-                                    .font(.system(size: 9, weight: .medium, design: .monospaced))
-                                    .foregroundStyle(.red)
-                            }
+            Spacer()
 
-                            if file.diffSummary != nil {
-                                Button {
-                                    if selectedFileDiffPath == file.filePath {
-                                        selectedFileDiffPath = nil
-                                    } else {
-                                        selectedFileDiffPath = file.filePath
-                                    }
-                                } label: {
-                                    Image(systemName: selectedFileDiffPath == file.filePath ? "chevron.up" : "chevron.down")
-                                        .font(.system(size: 8, weight: .semibold))
-                                        .foregroundStyle(Color.accentColor)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-
-                        if selectedFileDiffPath == file.filePath, let diff = file.diffSummary {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                VStack(alignment: .leading, spacing: 0) {
-                                    ForEach(diff.components(separatedBy: "\n").prefix(15), id: \.self) { line in
-                                        Text(line)
-                                            .font(.system(size: 9, design: .monospaced))
-                                            .foregroundStyle(line.hasPrefix("+") ? .green : (line.hasPrefix("-") ? .red : .secondary))
-                                    }
-                                }
-                                .padding(4)
-                                .background(Color.black.opacity(0.15), in: RoundedRectangle(cornerRadius: 3))
-                            }
-                            .frame(maxHeight: 100)
-                        }
-                    }
-                    .padding(.vertical, 1)
-                }
-            }
-
-            if activityGroup.files.count > 8 {
-                Text("and \(activityGroup.files.count - 8) more")
-                    .font(.system(size: 9))
+            if test.duration > 0 {
+                Text(String(format: "%.1fs", test.duration))
+                    .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.tertiary)
-                    .padding(.leading, 15)
             }
         }
     }
 
-    private var terminalSection: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            sectionHeader("Terminal", count: activityGroup.terminalCommands.count)
+    // MARK: - Worker Row
 
-            LazyVStack(alignment: .leading, spacing: 2) {
-                ForEach(activityGroup.terminalCommands.prefix(5)) { term in
-                    VStack(alignment: .leading, spacing: 1) {
-                        HStack(spacing: 4) {
-                            Text("$")
-                                .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(.tertiary)
-                            Text(term.command)
-                                .font(.system(size: 9, design: .monospaced))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                            Spacer()
-                        }
+    @ViewBuilder
+    private func workerRow(for worker: WorkerActivityItem) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: worker.status == .completed ? "checkmark" : (worker.status == .failed ? "xmark" : "person.2"))
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(worker.status == .completed ? Color.green : (worker.status == .failed ? Color.red : Color.accentColor))
 
-                        if !term.output.isEmpty {
-                            Text(term.output)
-                                .font(.system(size: 9, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                                .padding(3)
-                                .background(Color.black.opacity(0.1), in: RoundedRectangle(cornerRadius: 3))
-                        }
-                    }
-                }
-            }
+            Text(worker.userFacingTitle)
+                .font(.system(size: 11))
+                .foregroundStyle(.primary)
 
-            if activityGroup.terminalCommands.count > 5 {
-                Text("and \(activityGroup.terminalCommands.count - 5) more")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 15)
-            }
+            Spacer()
+
+            Text(worker.status.rawValue)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
         }
     }
 
-    private var buildsSection: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            sectionHeader("Build", count: activityGroup.builds.count)
+    // MARK: - Recovery Row
 
-            LazyVStack(alignment: .leading, spacing: 2) {
-                ForEach(activityGroup.builds.prefix(3)) { build in
-                    HStack(spacing: 6) {
-                        Image(systemName: build.status == .completed ? "checkmark.circle" : "xmark.circle")
-                            .font(.system(size: 10))
-                            .foregroundStyle(build.status == .completed ? .green : .red)
+    @ViewBuilder
+    private func recoveryRow(for recovery: RecoveryActivityItem) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: recovery.isResolved ? "checkmark" : "arrow.counterclockwise")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(recovery.isResolved ? Color.green : Color.orange)
 
-                        Text(build.status == .completed ? "Build succeeded" : "Build failed (\(build.errorCount) errors)")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.primary)
+            Text(recovery.isResolved ? "Resolved \(recovery.domain)" : "Retrying \(recovery.domain)")
+                .font(.system(size: 11))
+                .foregroundStyle(.primary)
 
-                        Spacer()
+            Spacer()
 
-                        if build.duration > 0 {
-                            Text(String(format: "%.1fs", build.duration))
-                                .font(.system(size: 9, design: .monospaced))
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private var testsSection: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            sectionHeader("Tests", count: activityGroup.tests.count)
-
-            LazyVStack(alignment: .leading, spacing: 2) {
-                ForEach(activityGroup.tests.prefix(3)) { test in
-                    HStack(spacing: 6) {
-                        Image(systemName: test.failedCount == 0 ? "checkmark.circle" : "xmark.circle")
-                            .font(.system(size: 10))
-                            .foregroundStyle(test.failedCount == 0 ? .green : .red)
-
-                        Text("\(test.suiteName): \(test.passedCount) passed\(test.failedCount > 0 ? ", \(test.failedCount) failed" : "")")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.primary)
-
-                        Spacer()
-                    }
-                }
-            }
-        }
-    }
-
-    private var workersSection: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            sectionHeader("Workers", count: activityGroup.workers.count)
-
-            LazyVStack(alignment: .leading, spacing: 2) {
-                ForEach(activityGroup.workers.prefix(5)) { worker in
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(worker.status == .running ? Color.orange : (worker.status == .failed ? Color.red : Color.green))
-                            .frame(width: 5, height: 5)
-
-                        Text(worker.userFacingTitle)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.primary)
-
-                        Spacer()
-
-                        Text(worker.status.rawValue)
-                            .font(.system(size: 9))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-            }
-        }
-    }
-
-    private var recoverySection: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            sectionHeader("Recovery", count: activityGroup.recoveries.count)
-
-            LazyVStack(alignment: .leading, spacing: 2) {
-                ForEach(activityGroup.recoveries.prefix(3)) { recovery in
-                    HStack(spacing: 6) {
-                        Image(systemName: recovery.isResolved ? "checkmark.circle" : "arrow.counterclockwise")
-                            .font(.system(size: 9))
-                            .foregroundStyle(recovery.isResolved ? .green : .orange)
-
-                        Text(recovery.isResolved ? "Recovered from \(recovery.domain)" : "Recovering from \(recovery.domain)")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.primary)
-
-                        Spacer()
-
-                        Text("\(recovery.attemptNumber)/\(recovery.maxAttempts)")
-                            .font(.system(size: 9, design: .monospaced))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-            }
-        }
-    }
-
-    private var verificationsSection: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            sectionHeader("Verification", count: activityGroup.verifications.count)
-
-            LazyVStack(alignment: .leading, spacing: 2) {
-                ForEach(activityGroup.verifications.prefix(5)) { verification in
-                    HStack(spacing: 6) {
-                        Image(systemName: verification.isPassed ? "checkmark.shield" : "xmark.shield")
-                            .font(.system(size: 9))
-                            .foregroundStyle(verification.isPassed ? .green : .red)
-
-                        Text(verification.checkName)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.primary)
-
-                        Spacer()
-
-                        Text(verification.details)
-                            .font(.system(size: 9))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-            }
-        }
-    }
-
-    private func sectionHeader(_ title: String, count: Int) -> some View {
-        HStack(spacing: 4) {
-            Text(title)
-                .font(.system(size: 9, weight: .semibold))
+            Text("\(recovery.attemptNumber)/\(recovery.maxAttempts)")
+                .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(.tertiary)
-            Text("\(count)")
-                .font(.system(size: 8, weight: .medium))
-                .foregroundStyle(.tertiary)
-                .padding(.horizontal, 3)
-                .padding(.vertical, 0)
-                .background(Color.secondary.opacity(0.1), in: Capsule())
         }
     }
 
-    private func statusColor(_ status: ActivityStatus) -> Color {
-        switch status {
-        case .completed: return .green
-        case .failed: return .red
-        case .running: return .orange
-        case .retrying: return .orange
-        case .pending: return .secondary
-        case .skipped: return .secondary
-        case .cancelled: return .secondary
+    // MARK: - Verification Row
+
+    @ViewBuilder
+    private func verificationRow(for verification: VerificationActivityItem) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: verification.isPassed ? "checkmark" : "xmark")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(verification.isPassed ? Color.green : Color.red)
+
+            Text(verification.checkName)
+                .font(.system(size: 11))
+                .foregroundStyle(.primary)
+
+            Spacer()
+
+            Text(verification.details)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
         }
     }
 }

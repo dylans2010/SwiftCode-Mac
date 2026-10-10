@@ -47,10 +47,14 @@ public enum AssistOperationState: Codable, Sendable, Equatable {
 /// Tool activity item representing logical tool execution inside Activity disclosure.
 public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
     public let id: UUID
+    public var callId: String
     public let toolId: String
     public var purpose: String
+    public var argumentsSummary: String
+    public var streamingOutput: String
     public var result: String
     public var status: ActivityStatus
+    public var progress: Double?
     public var duration: TimeInterval
     public var timestamp: Date
     public var displayLabel: String?
@@ -63,10 +67,14 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
 
     public init(
         id: UUID = UUID(),
+        callId: String? = nil,
         toolId: String,
         purpose: String,
+        argumentsSummary: String = "",
+        streamingOutput: String = "",
         result: String = "",
         status: ActivityStatus = .completed,
+        progress: Double? = nil,
         duration: TimeInterval = 0.0,
         timestamp: Date = Date(),
         displayLabel: String? = nil,
@@ -78,10 +86,14 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         operationId: String? = nil
     ) {
         self.id = id
+        self.callId = callId ?? id.uuidString
         self.toolId = toolId
         self.purpose = purpose
+        self.argumentsSummary = argumentsSummary
+        self.streamingOutput = streamingOutput
         self.result = result
         self.status = status
+        self.progress = progress
         self.duration = duration
         self.timestamp = timestamp
         self.displayLabel = displayLabel
@@ -91,6 +103,36 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         self.retryCount = retryCount
         self.semanticKey = semanticKey
         self.operationId = operationId
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, callId, toolId, purpose, argumentsSummary, streamingOutput
+        case result, status, progress, duration, timestamp
+        case displayLabel, completedLabel, iconName, attemptsCount, retryCount
+        case semanticKey, operationId
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedId = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        self.id = decodedId
+        self.callId = try container.decodeIfPresent(String.self, forKey: .callId) ?? decodedId.uuidString
+        self.toolId = try container.decodeIfPresent(String.self, forKey: .toolId) ?? ""
+        self.purpose = try container.decodeIfPresent(String.self, forKey: .purpose) ?? ""
+        self.argumentsSummary = try container.decodeIfPresent(String.self, forKey: .argumentsSummary) ?? ""
+        self.streamingOutput = try container.decodeIfPresent(String.self, forKey: .streamingOutput) ?? ""
+        self.result = try container.decodeIfPresent(String.self, forKey: .result) ?? ""
+        self.status = try container.decodeIfPresent(ActivityStatus.self, forKey: .status) ?? .completed
+        self.progress = try container.decodeIfPresent(Double.self, forKey: .progress)
+        self.duration = try container.decodeIfPresent(TimeInterval.self, forKey: .duration) ?? 0.0
+        self.timestamp = try container.decodeIfPresent(Date.self, forKey: .timestamp) ?? Date()
+        self.displayLabel = try container.decodeIfPresent(String.self, forKey: .displayLabel)
+        self.completedLabel = try container.decodeIfPresent(String.self, forKey: .completedLabel)
+        self.iconName = try container.decodeIfPresent(String.self, forKey: .iconName)
+        self.attemptsCount = try container.decodeIfPresent(Int.self, forKey: .attemptsCount) ?? 1
+        self.retryCount = try container.decodeIfPresent(Int.self, forKey: .retryCount) ?? 0
+        self.semanticKey = try container.decodeIfPresent(String.self, forKey: .semanticKey)
+        self.operationId = try container.decodeIfPresent(String.self, forKey: .operationId)
     }
 }
 

@@ -21,6 +21,7 @@ public enum AssistSystemPromptSections {
     /// Returns `nil` when no matching section exists.
     public static func extractSection(named name: String, from prompt: String) -> String? {
         extractSection(named: name, from: prompt, headingLevel: 2)
+            ?? extractSection(named: name, from: prompt, headingLevel: 1)
     }
 
     /// Extracts a subsection (a `###` heading) including its nested content.
@@ -258,10 +259,10 @@ public enum AssistSystemPromptSections {
     }
 
     /// Normalizes a markdown heading line to its bare title, or returns `nil`
-    /// when the line is not a top-level (`## `) section heading.
+    /// when the line is not a top-level (`## ` or `# `) section heading.
     /// `"## 5. TOOL SELECTION & USAGE"` -> `"TOOL SELECTION & USAGE"`.
     public static func normalizeHeading(_ line: String) -> String? {
-        normalizedMarkdownHeading(line, level: 2)
+        normalizedMarkdownHeading(line, level: 2) ?? normalizedMarkdownHeading(line, level: 1)
     }
 }
 

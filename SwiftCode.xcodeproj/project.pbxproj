@@ -39,6 +39,7 @@
 		8D9E0001000100010000000C /* AssistRuntimeTestSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E0001000100010000000B /* AssistRuntimeTestSuite.swift */; };
 		7176C1F83476933790B8F506 /* AssistSystemPromptSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE901A538D0E1C9BA9E27613 /* AssistSystemPromptSections.swift */; };
 		6944C4A034D45A310952CC89 /* AssistToolKnowledgeValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 139215509F7EE961621BA9D9 /* AssistToolKnowledgeValidator.swift */; };
+		6944C4A034D45A310952CC8F /* LoadUpSystemAssets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 139215509F7EE961621BA9DF /* LoadUpSystemAssets.swift */; };
 		8D9E00020001000100000002 /* AgentPhaseCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000001 /* AgentPhaseCoordinator.swift */; };
 		8D9E00020001000100000004 /* AgentNotesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000003 /* AgentNotesManager.swift */; };
 		8D9E00020001000100000006 /* AgentModelAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000005 /* AgentModelAdapter.swift */; };
@@ -632,6 +633,7 @@
 		5C5E70000000000000000204 /* AddFilesAgentContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000203 /* AddFilesAgentContext.swift */; };
 		5C5E70000000000000000206 /* FileAgentHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000205 /* FileAgentHelper.swift */; };
 		5C5E70000000000000000501 /* AgentSystemAsset.md in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000502 /* AgentSystemAsset.md */; };
+		5C5E70000000000000000A04 /* Assets in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000A03 /* Assets */; };
 		5C5E700000000000000005A1 /* CreatingAppAsset.md in Resources */ = {isa = PBXBuildFile; fileRef = 5C5E700000000000000005A2 /* CreatingAppAsset.md */; };
 		5C5E70000000000000000503 /* UseTermFunction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000504 /* UseTermFunction.swift */; };
 		5C5E70000000000000000F05 /* RepositoryContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000F04 /* RepositoryContext.swift */; };
@@ -2663,6 +2665,7 @@
 		8D9E0001000100010000000B /* AssistRuntimeTestSuite.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistRuntimeTestSuite.swift; sourceTree = "<group>"; };
 		BE901A538D0E1C9BA9E27613 /* AssistSystemPromptSections.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistSystemPromptSections.swift; sourceTree = "<group>"; };
 		139215509F7EE961621BA9D9 /* AssistToolKnowledgeValidator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistToolKnowledgeValidator.swift; sourceTree = "<group>"; };
+		139215509F7EE961621BA9DF /* LoadUpSystemAssets.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LoadUpSystemAssets.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000001 /* AgentPhaseCoordinator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentPhaseCoordinator.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000003 /* AgentNotesManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentNotesManager.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000005 /* AgentModelAdapter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentModelAdapter.swift; sourceTree = "<group>"; };
@@ -3252,6 +3255,7 @@
 		5C5E70000000000000000203 /* AddFilesAgentContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddFilesAgentContext.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000205 /* FileAgentHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileAgentHelper.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000502 /* AgentSystemAsset.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = AgentSystemAsset.md; sourceTree = "<group>"; };
+		5C5E70000000000000000A03 /* Assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Assets; sourceTree = "<group>"; };
 		5C5E700000000000000005A2 /* CreatingAppAsset.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = CreatingAppAsset.md; sourceTree = "<group>"; };
 		5C5E70000000000000000504 /* UseTermFunction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UseTermFunction.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000F04 /* RepositoryContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryContext.swift; sourceTree = "<group>"; };
@@ -5715,6 +5719,7 @@
 		0F1DC5DB2603AC1C199C51B4 /* Functions */ = {
 			isa = PBXGroup;
 			children = (
+				5C5E70000000000000000A03 /* Assets */,
 				5C5E70000000000000000F45 /* AssistSkillsCheck.swift */,
 				C25E63C0C3F147AD9AFB057B /* CodeReviewSystemAsset.md */,
 				5C5E70000000000000000502 /* AgentSystemAsset.md */,
@@ -7253,6 +7258,7 @@
 				8D9E0001000100010000000B /* AssistRuntimeTestSuite.swift */,
 				BE901A538D0E1C9BA9E27613 /* AssistSystemPromptSections.swift */,
 				139215509F7EE961621BA9D9 /* AssistToolKnowledgeValidator.swift */,
+				139215509F7EE961621BA9DF /* LoadUpSystemAssets.swift */,
 				8D9E00020001000100000001 /* AgentPhaseCoordinator.swift */,
 				8D9E00020001000100000003 /* AgentNotesManager.swift */,
 				8D9E00020001000100000005 /* AgentModelAdapter.swift */,
@@ -9565,6 +9571,7 @@
 				9D36AEE3EDE977A669292F07 /* (null) in Resources */,
 				D48EB73DDC4EC7ADD58C1CAA /* DocSymbols.json in Resources */,
 				5A218C6921DA4803A19F8831 /* CodeReviewSystemAsset.md in Resources */,
+				5C5E70000000000000000A04 /* Assets in Resources */,
 				5C5E70000000000000000501 /* AgentSystemAsset.md in Resources */,
 				5C5E700000000000000005A1 /* CreatingAppAsset.md in Resources */,
 				600B4ED1612FABB403A598E2 /* package.json in Resources */,
@@ -10490,6 +10497,7 @@
 				8D9E0001000100010000000C /* AssistRuntimeTestSuite.swift in Sources */,
 				7176C1F83476933790B8F506 /* AssistSystemPromptSections.swift in Sources */,
 				6944C4A034D45A310952CC89 /* AssistToolKnowledgeValidator.swift in Sources */,
+				6944C4A034D45A310952CC8F /* LoadUpSystemAssets.swift in Sources */,
 				8D9E00020001000100000002 /* AgentPhaseCoordinator.swift in Sources */,
 				8D9E00020001000100000004 /* AgentNotesManager.swift in Sources */,
 				8D9E00020001000100000006 /* AgentModelAdapter.swift in Sources */,
