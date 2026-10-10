@@ -1855,16 +1855,25 @@ struct AssistSettingsView: View {
                 .environmentObject(settings)
         }
         .sheet(isPresented: $showSkillsSheet) {
-            NavigationStack {
-                ModernSkillsBrowserView()
-                    .navigationTitle("Agent Skills")
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") {
-                                showSkillsSheet = false
-                            }
-                        }
+            VStack(spacing: 0) {
+                HStack {
+                    Label("Agent Skills", systemImage: "sparkles")
+                        .font(.headline)
+                    Spacer()
+                    Button("Done") {
+                        showSkillsSheet = false
                     }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color(nsColor: .windowBackgroundColor))
+
+                Divider()
+
+                ModernSkillsBrowserView()
             }
             .frame(minWidth: 850, minHeight: 600)
         }

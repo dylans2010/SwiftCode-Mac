@@ -47,6 +47,55 @@ def normalize_schema(schema: Any) -> Any:
     return cleaned
 
 
+def extract_fallback_tool_calls(text: str) -> List[Dict[str, Any]]:
+    """Extracts fallback JSON tool calls from markdown code blocks or raw JSON."""
+    if not text or not text.strip():
+        return []
+
+    trimmed = text.strip()
+    candidates = []
+
+    # 1. Look for ```json ... ``` code blocks
+    import re
+    code_blocks = re.findall(r"```(?:json)?\s*([\s\S]*?)\s*```", trimmed)
+    for block in code_blocks:
+        try:
+            parsed = json.loads(block.strip())
+            if isinstance(parsed, dict):
+                candidates.append(parsed)
+            elif isinstance(parsed, list):
+                candidates.extend([item for item in parsed if isinstance(item, dict)])
+        except Exception:
+            pass
+
+    # 2. Look for raw JSON object if no blocks found
+    if not candidates and trimmed.startswith("{") and trimmed.endswith("}"):
+        try:
+            parsed = json.loads(trimmed)
+            if isinstance(parsed, dict):
+                candidates.append(parsed)
+        except Exception:
+            pass
+
+    extracted_tools = []
+    for cand in candidates:
+        name = cand.get("toolId") or cand.get("name") or cand.get("tool")
+        args = cand.get("input") or cand.get("arguments") or cand.get("args") or cand.get("parameters")
+        if name and isinstance(name, str):
+            if not isinstance(args, dict):
+                args = {}
+            extracted_tools.append({
+                "id": f"call_fallback_{uuid.uuid4().hex[:8]}",
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "arguments": json.dumps(args),
+                },
+            })
+
+    return extracted_tools
+
+
 class TargetModelConfig:
     def __init__(
         self,
@@ -493,6 +542,11 @@ class ModelAdapterServer:
                         },
                     })
 
+            if not tool_calls and content_text:
+                fallback_tools = extract_fallback_tool_calls(content_text)
+                if fallback_tools:
+                    tool_calls = fallback_tools
+
             msg_obj: Dict[str, Any] = {"role": "assistant", "content": content_text or None}
             if tool_calls:
                 msg_obj["tool_calls"] = tool_calls
@@ -642,6 +696,7 @@ class ModelAdapterServer:
                 model_name = payload.get("model", "")
                 active_tool_calls: Dict[int, Dict[str, Any]] = {}
                 tool_calls_emitted = False
+                accumulated_content: List[str] = []
 
                 async for line in resp.aiter_lines():
                     if not line:
@@ -689,6 +744,35 @@ class ModelAdapterServer:
                             }
                             writer.write(f"data: {json.dumps(stop_chunk)}\n\n".encode("utf-8"))
                             tool_calls_emitted = True
+                        elif not tool_calls_emitted and accumulated_content:
+                            full_text = "".join(accumulated_content)
+                            fallback = extract_fallback_tool_calls(full_text)
+                            if fallback:
+                                complete_chunk = {
+                                    "id": chat_id,
+                                    "object": "chat.completion.chunk",
+                                    "created": created_ts,
+                                    "model": model_name,
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {"tool_calls": fallback},
+                                        "finish_reason": None,
+                                    }],
+                                }
+                                writer.write(f"data: {json.dumps(complete_chunk)}\n\n".encode("utf-8"))
+                                stop_chunk = {
+                                    "id": chat_id,
+                                    "object": "chat.completion.chunk",
+                                    "created": created_ts,
+                                    "model": model_name,
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {},
+                                        "finish_reason": "tool_calls",
+                                    }],
+                                }
+                                writer.write(f"data: {json.dumps(stop_chunk)}\n\n".encode("utf-8"))
+                                tool_calls_emitted = True
 
                         writer.write(b"data: [DONE]\n\n")
                         await writer.drain()
@@ -775,6 +859,9 @@ class ModelAdapterServer:
                                 delta["thinking"] = rc
 
                     # Pass through content / thinking or finish_reason
+                    if delta.get("content"):
+                        accumulated_content.append(str(delta["content"]))
+
                     has_content = bool(delta.get("content") or delta.get("thought") or delta.get("reasoning") or delta.get("thinking"))
                     if has_content or finish_reason:
                         line = f"data: {json.dumps(chunk_obj)}"
@@ -783,6 +870,28 @@ class ModelAdapterServer:
             writer.close()
         else:
             resp = await client.post(url, headers=headers, json=payload, timeout=120.0)
+            if resp.status_code == 200:
+                try:
+                    resp_json = resp.json()
+                    choices = resp_json.get("choices", [])
+                    if choices:
+                        msg = choices[0].get("message", {})
+                        if not msg.get("tool_calls"):
+                            fallback = extract_fallback_tool_calls(msg.get("content") or "")
+                            if fallback:
+                                msg["tool_calls"] = fallback
+                                choices[0]["finish_reason"] = "tool_calls"
+                    body_bytes = json.dumps(resp_json).encode("utf-8")
+                    writer.write(
+                        f"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {len(body_bytes)}\r\n\r\n".encode("utf-8")
+                        + body_bytes
+                    )
+                    await writer.drain()
+                    writer.close()
+                    return
+                except Exception:
+                    pass
+
             writer.write(
                 f"HTTP/1.1 {resp.status_code} {resp.reason_phrase}\r\nContent-Type: application/json\r\nContent-Length: {len(resp.content)}\r\n\r\n".encode("utf-8")
                 + resp.content

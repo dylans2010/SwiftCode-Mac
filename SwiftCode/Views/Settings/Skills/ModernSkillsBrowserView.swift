@@ -479,11 +479,16 @@ private struct FlowTagLayout: Layout {
     var spacing: CGFloat = 6
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let maxWidth = proposal.width ?? .infinity
+        let maxWidth: CGFloat
+        if let w = proposal.width, w.isFinite, w > 0 {
+            maxWidth = w
+        } else {
+            maxWidth = 360
+        }
         var currentX: CGFloat = 0
         var currentY: CGFloat = 0
-        var maxHeight: CGFloat = 0
         var rowMaxHeight: CGFloat = 0
+        var maxXUsed: CGFloat = 0
 
         for subview in subviews {
             let size = subview.sizeThatFits(.unspecified)
@@ -494,19 +499,21 @@ private struct FlowTagLayout: Layout {
             }
             rowMaxHeight = max(rowMaxHeight, size.height)
             currentX += size.width + spacing
-            maxHeight = currentY + rowMaxHeight
+            maxXUsed = max(maxXUsed, currentX)
         }
-        return CGSize(width: maxWidth, height: maxHeight)
+        let totalHeight = currentY + rowMaxHeight
+        return CGSize(width: min(maxWidth, max(maxXUsed, 40)), height: max(totalHeight, 20))
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let maxWidth = (bounds.width.isFinite && bounds.width > 0) ? bounds.width : 360
         var currentX: CGFloat = bounds.minX
         var currentY: CGFloat = bounds.minY
         var rowMaxHeight: CGFloat = 0
 
         for subview in subviews {
             let size = subview.sizeThatFits(.unspecified)
-            if currentX + size.width > bounds.maxX && currentX > bounds.minX {
+            if currentX + size.width > bounds.minX + maxWidth && currentX > bounds.minX {
                 currentX = bounds.minX
                 currentY += rowMaxHeight + spacing
                 rowMaxHeight = 0
