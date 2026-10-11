@@ -547,7 +547,12 @@ public final class AssistAgentSession: Sendable {
                 attachmentsBlock = "\n# ATTACHED FILES FOR THIS TASK\n"
                 for file in attachments {
                     attachmentsBlock += "Filename: \(file.filename)\n"
-                    attachmentsBlock += "Content:\n\(file.base64Content)\n"
+                    if let textContent = String(data: Data(base64Encoded: file.base64Content) ?? Data(), encoding: .utf8) {
+                        let truncatedText = textContent.count > 4000 ? String(textContent.prefix(4000)) + "\n...[truncated]" : textContent
+                        attachmentsBlock += "Content:\n\(truncatedText)\n"
+                    } else {
+                        attachmentsBlock += "Content: [Binary/Image Data - \(file.size) bytes]\n"
+                    }
                 }
             }
 
@@ -692,13 +697,14 @@ public final class AssistAgentSession: Sendable {
                 // Execute final code review gate if enabled
                 _ = phaseCoordinator.startPhase("PHASE_08_REVIEW")
                 transition(to: .verifying, reason: "Executing code review verification...")
-                if let reviewTool = registry.getTool("code_review") {
+                let isReviewEnabled = UserDefaults.standard.object(forKey: "com.swiftcode.assist.enableCodeReview") as? Bool ?? true
+                if isReviewEnabled, let reviewTool = registry.getTool("code_review") {
                     do {
                         _ = try await reviewTool.execute(input: [:], context: context)
                         guard let reviewState = AssistManager.shared.currentCodeReview else {
                             throw NSError(domain: "AssistAgentSession", code: 409, userInfo: [NSLocalizedDescriptionKey: "Code review produced no result."])
                         }
-                        if reviewState.status != "task_ready" {
+                        if reviewState.status != "task_ready" && reviewState.status != "review_skipped" {
                             codeReviewAttempts += 1
                             self.repairAttemptCount += 1
                             phaseCoordinator.failPhase("PHASE_08_REVIEW", error: "Reviewer requested changes.")
@@ -766,6 +772,19 @@ public final class AssistAgentSession: Sendable {
             let newStep = PlanStep(toolId: toolId, description: explanation, input: toolInput)
             state.plan.append(newStep)
 
+            // Enforce phase allowlist at execution time
+            let phaseTools = AssistToolRouter.shared.filterTools(for: self.state.status, in: registry)
+            if !phaseTools.contains(where: { $0.id == toolId }) {
+                let meta = AssistToolRouter.shared.metadata(for: toolId)
+                if meta.isMutating || meta.riskLevel >= .potentiallyDestructive {
+                    let phaseMsg = "Tool '\(toolId)' (\(meta.riskLevel.rawValue)) is restricted during agent phase '\(self.state.status.rawValue)'."
+                    finalizeStreamedToolPreview(status: .failed, result: phaseMsg)
+                    pipelineLogger.warning("Phase enforcement blocked execution: \(phaseMsg)")
+                    appendConversationHistory("- Action: Run \(toolId). Result: FAILED - Phase Error: \(phaseMsg)")
+                    continue
+                }
+            }
+
             _ = phaseCoordinator.startPhase("PHASE_06_EXECUTION")
             transition(to: .executing, reason: "Executing tool [\(toolId)]")
 
@@ -800,18 +819,8 @@ public final class AssistAgentSession: Sendable {
             AssistManager.shared.currentActivityStatus = AssistToolActivityFormatter.format(toolId: toolId, arguments: validatedInput).runningLabel
             publishCurrentActivityGroup()
 
-            // Post progress message if user-facing milestone reached
-            if ["file_write", "code_replace", "file_create", "patch_application_engine"].contains(toolId) {
-                let path = toolInput["path"] ?? toolInput["filepath"] ?? "file"
-                postConversationalMessage("I found the issue. I’m applying the fix to \(path) and will verify it with a build afterward.")
-            } else if ["project_build", "build_project", "xcodebuild"].contains(toolId) {
-                postConversationalMessage("The fix is applied. I’m building the project now.")
-            } else if ["project_test", "test_runner"].contains(toolId) {
-                postConversationalMessage("The build succeeded. I’m running the relevant tests to verify the behavior.")
-            } else {
-                let label = AssistToolActivityFormatter.format(toolId: toolId, arguments: validatedInput).runningLabel
-                postConversationalMessage("Executing: \(label)…")
-            }
+            let label = AssistToolActivityFormatter.format(toolId: toolId, arguments: validatedInput).runningLabel
+            postConversationalMessage("Executing: \(label)…")
 
             do {
                 let result = try await tool.execute(input: validatedInput, context: context)
@@ -875,7 +884,7 @@ public final class AssistAgentSession: Sendable {
                         ))
                     } else if toolId == "project_test" || toolId == "test_runner" {
                         currentActivityGroup.tests.append(TestActivityItem(
-                            passedCount: 1,
+                            passedCount: 0,
                             status: .completed
                         ))
                     } else if toolId == "use_workers" {
@@ -888,7 +897,16 @@ public final class AssistAgentSession: Sendable {
                         ))
                     }
 
-                    postConversationalMessage("I’m continuing to work through the task requirements.", isComplete: false)
+                    if ["file_write", "code_replace", "file_create", "patch_application_engine"].contains(toolId) {
+                        let path = toolInput["path"] ?? toolInput["filepath"] ?? "file"
+                        postConversationalMessage("Applied changes to \(path).", isComplete: false)
+                    } else if ["project_build", "build_project", "xcodebuild"].contains(toolId) {
+                        postConversationalMessage("Build completed successfully.", isComplete: false)
+                    } else if ["project_test", "test_runner"].contains(toolId) {
+                        postConversationalMessage("Test execution completed successfully.", isComplete: false)
+                    } else {
+                        postConversationalMessage("I’m continuing to work through the task requirements.", isComplete: false)
+                    }
 
                     var feedback = "- Action: Run \(toolId). Result: SUCCESS - Output: \(result.output)"
                     if let diff = result.diff, !diff.isEmpty { feedback += "\n Diff:\n\(diff.prefix(600))" }
@@ -1048,7 +1066,15 @@ public final class AssistAgentSession: Sendable {
     }
 
     private func appendConversationHistory(_ entry: String) {
-        conversationHistory.append(entry)
+        let truncatedEntry: String
+        if entry.count > 1200 {
+            let prefix = entry.prefix(600)
+            let suffix = entry.suffix(600)
+            truncatedEntry = "\(prefix)\n...[Output Truncated]...\n\(suffix)"
+        } else {
+            truncatedEntry = entry
+        }
+        conversationHistory.append(truncatedEntry)
         if conversationHistory.count > 16 {
             conversationHistory.removeFirst(conversationHistory.count - 16)
         }

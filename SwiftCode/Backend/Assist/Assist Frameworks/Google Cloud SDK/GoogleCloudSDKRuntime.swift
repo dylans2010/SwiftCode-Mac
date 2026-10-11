@@ -108,12 +108,26 @@ public final class GoogleCloudSDKRuntime: Sendable {
             return (false, nil, errorMsg)
         }
 
+        // Ensure workspace root is valid; fail closed if no active project
+        guard let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL else {
+            let errorMsg = "Execution failed: No active workspace project selected."
+            await MainActor.run {
+                AssistManager.shared.reportToolFailed(
+                    callId: callId,
+                    toolName: toolName,
+                    error: errorMsg,
+                    arguments: args
+                )
+            }
+            return (false, nil, errorMsg)
+        }
+
         // Build execution context
         let context = AssistContextBuilder(
             logger: AssistManager.shared.logger,
             permissions: AssistPermissionsManager(),
             memory: AssistMemoryGraph(),
-            fileSystem: AssistFileSystem(workspaceRoot: ProjectSessionStore.shared.activeProject?.directoryURL ?? URL(fileURLWithPath: "/")),
+            fileSystem: AssistFileSystem(workspaceRoot: projectURL),
             git: AssistGitManager(project: ProjectSessionStore.shared.activeProject)
         ).buildContext(sessionId: UUID(uuidString: request.sessionId) ?? UUID())
 

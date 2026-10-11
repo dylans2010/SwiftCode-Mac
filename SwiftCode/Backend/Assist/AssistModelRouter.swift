@@ -79,10 +79,10 @@ public final class AssistModelRouter: Sendable {
                 supportsToolCalling: false,
                 supportsVision: preferredID.contains("Advanced"),
                 supportsStructuredOutput: true,
-                supportsAgenticUse: true,
+                supportsAgenticUse: false,
                 supportsSubagents: false,
                 priority: 90,
-                statusDescription: "On-Device Available",
+                statusDescription: "On-Device Available (Chat Mode Only)",
                 status: .available,
                 contextWindow: 16_000
             )

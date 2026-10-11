@@ -182,7 +182,6 @@ public final class AssistToolRouter: Sendable {
                 return tool.capability == .compilation ||
                        tool.capability == .testing ||
                        tool.capability == .diagnostics ||
-                       tool.capability == .gitOperations ||
                        tool.id == "code_review" ||
                        tool.id == "compiler_diagnostics_engine"
             }

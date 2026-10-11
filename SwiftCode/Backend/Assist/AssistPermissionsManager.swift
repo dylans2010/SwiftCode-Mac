@@ -35,15 +35,22 @@ public final class AssistPermissionsManager: @unchecked Sendable, AssistPermissi
 
     public func authorizeOperation(_ operation: String) -> Bool {
         let op = operation.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let meta = AssistToolRouter.shared.metadata(for: op)
+        let isHighRisk = meta.riskLevel >= .potentiallyDestructive || meta.riskLevel == .externalSideEffect
+
         let destructiveToolIds: Set<String> = [
-            "file_delete", "dir_delete", "directory_delete", "delete_file", "delete_directory"
+            "file_delete", "dir_delete", "directory_delete", "delete_file", "delete_directory",
+            "use_mcp", "use_composio"
         ]
         let tokens = op.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
         let destructiveKeywords: Set<String> = ["delete", "remove", "rm", "drop", "truncate", "destroy", "wipe"]
 
-        let isDestructive = destructiveToolIds.contains(op) || tokens.contains(where: { destructiveKeywords.contains($0) })
-        if isDestructive && requiresApproval {
-            return isApproved
+        let isDestructive = destructiveToolIds.contains(op) || tokens.contains(where: { destructiveKeywords.contains($0) }) || isHighRisk
+        if isDestructive {
+            if requiresApproval {
+                return isApproved
+            }
         }
         return true
     }

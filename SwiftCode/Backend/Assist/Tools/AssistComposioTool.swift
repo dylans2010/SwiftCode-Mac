@@ -48,6 +48,20 @@ public final class AssistComposioTool: AssistTool {
             argsString = "{}"
         }
 
+        let meta = AssistToolRouter.shared.metadata(for: self)
+        let request = TerminalApprovalRequest(
+            id: UUID(),
+            command: "use_composio (\(toolSlug))",
+            workingDirectory: context.workspaceRoot.path,
+            explanation: "Composio external integration call: \(toolSlug)",
+            estimatedImpact: "External side effect via Composio API (\(meta.riskLevel.rawValue))",
+            modifiesRepo: false
+        )
+        let approved = await AssistManager.shared.requestTerminalApproval(request)
+        if !approved {
+            return .failure("Execution of Composio tool '\(toolSlug)' rejected by user.")
+        }
+
         let service = ComposioService.shared
         let startTime = Date()
         let msgId = UUID()

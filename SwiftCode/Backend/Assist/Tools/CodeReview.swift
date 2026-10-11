@@ -44,7 +44,7 @@ public struct CodeReviewTool: AssistTool {
                 "confidence": 0.0
             ]
             await updateReviewState(reviewData: reviewData)
-            return .failure("Code Review is disabled in settings. No independent verification was performed. Enable Code Review in Assist Settings to activate the review gate.")
+            return .success("Code Review bypassed (disabled in settings).", data: ["status": "review_skipped"])
         }
 
         // 2. Load System Prompt from Resource Bundle
