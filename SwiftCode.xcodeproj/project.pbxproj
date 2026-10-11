@@ -58,7 +58,7 @@
 		8D9E00030001000100000016 /* GoogleCloudSDKTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00030001000100000015 /* GoogleCloudSDKTests.swift */; };
 		8D9E00030001000100000018 /* GoogleCloudSDKLifecycleManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00030001000100000017 /* GoogleCloudSDKLifecycleManager.swift */; };
 		CMPBLD000000000000000001 /* ComposioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000001 /* ComposioService.swift */; };
-		GOOAUTHBLD00000000000001 /* GoogleAccountAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = GOOAUTHREF0000000000000001 /* GoogleAccountAuthService.swift */; };
+		GOOAUTHBLD00000000000001 /* GoogleAccountAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = GOOAUTHREF00000000000001 /* GoogleAccountAuthService.swift */; };
 		CMPBLD000000000000000002 /* AssistComposioTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000002 /* AssistComposioTool.swift */; };
 		CMPBLD000000000000000003 /* AgentUseComposio.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000003 /* AgentUseComposio.swift */; };
 		CMPBLD000000000000000004 /* ComposioSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMPREF000000000000000004 /* ComposioSettingsView.swift */; };

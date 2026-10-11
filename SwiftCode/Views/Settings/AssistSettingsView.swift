@@ -657,48 +657,7 @@ struct AssistSettingsView: View {
                                     Spacer()
 
                                     // Dynamic runtime status indicator
-                                    let runtime = GoogleCloudSDKRuntime.shared
-                                    if runtime.isRunning {
-                                        HStack(spacing: 6) {
-                                            Circle().fill(Color.green).frame(width: 8, height: 8)
-                                            Text("Active (v\(runtime.sdkVersion))")
-                                                .font(.system(size: 11, weight: .semibold))
-                                                .foregroundColor(.green)
-                                        }
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 4)
-                                        .background(Color.green.opacity(0.12), in: Capsule())
-                                    } else if runtime.isStarting {
-                                        HStack(spacing: 6) {
-                                            ProgressView().scaleEffect(0.55)
-                                            Text("Starting Engine...")
-                                                .font(.system(size: 11, weight: .semibold))
-                                                .foregroundColor(.orange)
-                                        }
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 4)
-                                        .background(Color.orange.opacity(0.12), in: Capsule())
-                                    } else if runtime.isAvailable {
-                                        HStack(spacing: 6) {
-                                            Circle().fill(Color.secondary).frame(width: 8, height: 8)
-                                            Text("Standby (v\(runtime.sdkVersion))")
-                                                .font(.system(size: 11, weight: .medium))
-                                                .foregroundColor(.secondary)
-                                        }
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 4)
-                                        .background(Color.secondary.opacity(0.1), in: Capsule())
-                                    } else {
-                                        HStack(spacing: 6) {
-                                            Circle().fill(Color.red).frame(width: 8, height: 8)
-                                            Text("Unavailable")
-                                                .font(.system(size: 11, weight: .semibold))
-                                                .foregroundColor(.red)
-                                        }
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 4)
-                                        .background(Color.red.opacity(0.12), in: Capsule())
-                                    }
+                                    googleCloudStatusBadge
                                 }
                                 .padding(12)
                                 .background(
@@ -2527,5 +2486,51 @@ extension AssistSettingsView {
 
         let decoded = try JSONDecoder().decode(CustomModelsResponse.self, from: data)
         return decoded.data.map { $0.id }
+    }
+
+    @ViewBuilder
+    private var googleCloudStatusBadge: some View {
+        let runtime = GoogleCloudSDKRuntime.shared
+        if runtime.isRunning {
+            HStack(spacing: 6) {
+                Circle().fill(Color.green).frame(width: 8, height: 8)
+                Text("Active (v\(runtime.sdkVersion))")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.green)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.green.opacity(0.12), in: Capsule())
+        } else if runtime.isStarting {
+            HStack(spacing: 6) {
+                ProgressView().scaleEffect(0.55)
+                Text("Starting Engine...")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.orange)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.orange.opacity(0.12), in: Capsule())
+        } else if runtime.isAvailable {
+            HStack(spacing: 6) {
+                Circle().fill(Color.secondary).frame(width: 8, height: 8)
+                Text("Standby (v\(runtime.sdkVersion))")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.secondary.opacity(0.1), in: Capsule())
+        } else {
+            HStack(spacing: 6) {
+                Circle().fill(Color.red).frame(width: 8, height: 8)
+                Text("Unavailable")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.red)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.red.opacity(0.12), in: Capsule())
+        }
     }
 }
