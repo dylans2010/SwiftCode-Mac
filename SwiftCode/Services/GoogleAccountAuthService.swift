@@ -99,9 +99,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         "openid",
         "email",
         "profile",
-        "https://www.googleapis.com/auth/cloud-platform",
-        "https://www.googleapis.com/auth/generative-language",
-        "https://www.googleapis.com/auth/generative-language.retriever"
+        "https://www.googleapis.com/auth/cloud-platform"
     ]
     private var scopes: String {
         Self.requiredScopes.joined(separator: " ")
@@ -314,19 +312,19 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
     // MARK: - Assist Scope Verification & Re-Authentication
 
-    /// Verifies if the active OAuth session has the required scopes for Gemini / Generative Language API.
+    /// Verifies if the active OAuth session has the required scopes for Gemini / Google Cloud Platform API.
     public func hasRequiredAssistScopes() -> Bool {
         guard isAuthenticated else { return false }
         if let storedScope = KeychainService.shared.get(forKey: Self.scopeKey) {
-            return storedScope.contains("generative-language")
+            return storedScope.contains("cloud-platform")
         }
-        // If scope was never recorded (e.g. legacy session), the token lacks generative-language
-        return false
+        // If scope was never recorded (e.g. legacy session), assume authenticated session is sufficient
+        return true
     }
 
     /// Re-authenticates the user with the complete set of Assist scopes without requiring API keys.
     public func reAuthenticateForAssistScopes() {
-        logger.info("Re-authenticating user to request Gemini generative-language scopes...")
+        logger.info("Re-authenticating user to request Gemini Google Cloud scopes...")
         signOut()
         signIn()
     }
