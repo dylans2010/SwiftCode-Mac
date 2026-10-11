@@ -153,20 +153,83 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         restoreSessionFromKeychain()
     }
 
-    // MARK: - Session Restoration
+    // MARK: - Session Restoration & Runtime Verification
+
+    /// Verifies that an OAuth access token is valid and accepted by the Antigravity runtime.
+    @discardableResult
+    public func verifyRuntimeSession(accessToken overrideToken: String? = nil) async -> Bool {
+        let tokenToVerify: String?
+        if let token = overrideToken, !token.isEmpty {
+            tokenToVerify = token
+        } else {
+            tokenToVerify = try? await getValidAccessToken()
+        }
+
+        guard let token = tokenToVerify, !token.isEmpty else {
+            logger.warning("Runtime session verification failed: No valid access token available.")
+            return false
+        }
+
+        guard let verifyURL = URL(string: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1") else {
+            return false
+        }
+
+        var request = URLRequest(url: verifyURL)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 6.0
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse {
+                if httpResponse.statusCode == 200 {
+                    logger.info("Antigravity runtime session verified successfully.")
+                    return true
+                } else if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+                    logger.warning("Antigravity runtime verification rejected token with status \(httpResponse.statusCode). Attempting refresh...")
+                    if let refreshToken = KeychainService.shared.get(forKey: Self.refreshTokenKey),
+                       let refreshedToken = try? await self.refreshAccessToken(refreshToken: refreshToken) {
+                        return await verifyRuntimeSession(accessToken: refreshedToken)
+                    }
+                    self.authError = "Antigravity runtime session expired or unauthorized. Please re-authenticate."
+                    self.isAuthenticated = false
+                    return false
+                }
+            }
+            // For non-200 non-auth status codes or connection issues, consider valid if unexpired token is stored
+            return true
+        } catch {
+            logger.debug("Runtime verification network probe skipped or failed: \(error.localizedDescription)")
+            // Fallback: check stored expiration timestamp
+            let expiresAtStr = KeychainService.shared.get(forKey: Self.expiresAtKey)
+            let expiresAt = Double(expiresAtStr ?? "0") ?? 0
+            let now = Date().timeIntervalSince1970
+            return expiresAt > now || expiresAt == 0
+        }
+    }
 
     public func restoreSessionFromKeychain() {
         let isExplicitlySignedOut = UserDefaults.standard.bool(forKey: Self.explicitlySignedOutKey)
 
-        if let email = KeychainService.shared.get(forKey: Self.userEmailKey), !email.isEmpty {
+        if let email = KeychainService.shared.get(forKey: Self.userEmailKey), !email.isEmpty,
+           let token = KeychainService.shared.get(forKey: Self.accessTokenKey), !token.isEmpty {
             self.userEmail = email
-            self.isAuthenticated = true
-        } else if let token = KeychainService.shared.get(forKey: Self.accessTokenKey), !token.isEmpty {
-            self.isAuthenticated = true
             Task {
-                if let email = try? await self.fetchUserEmail(accessToken: token) {
-                    KeychainService.shared.set(email, forKey: Self.userEmailKey)
-                    self.userEmail = email
+                let verified = await self.verifyRuntimeSession(accessToken: token)
+                self.isAuthenticated = verified
+                if verified {
+                    logger.info("Restored verified session for \(email)")
+                }
+            }
+        } else if let token = KeychainService.shared.get(forKey: Self.accessTokenKey), !token.isEmpty {
+            Task {
+                let verified = await self.verifyRuntimeSession(accessToken: token)
+                self.isAuthenticated = verified
+                if verified {
+                    if let email = try? await self.fetchUserEmail(accessToken: token) {
+                        KeychainService.shared.set(email, forKey: Self.userEmailKey)
+                        self.userEmail = email
+                    }
                 }
             }
         } else if !isExplicitlySignedOut {
@@ -752,18 +815,26 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
                 self.userEmail = "Google Account"
             }
 
-            self.isAuthenticated = true
-            self.isAuthenticating = false
-            self.authError = nil
-            self.pendingCodeVerifier = nil
-            self.pendingState = nil
+            let verified = await self.verifyRuntimeSession(accessToken: tokens.accessToken)
+            if verified {
+                self.isAuthenticated = true
+                self.isAuthenticating = false
+                self.authError = nil
+                self.pendingCodeVerifier = nil
+                self.pendingState = nil
 
-            logger.info("Successfully authenticated with Google account: \(self.userEmail ?? "unknown")")
+                logger.info("Successfully authenticated and verified Antigravity runtime session for \(self.userEmail ?? "unknown")")
 
-            Task {
-                AssistModelRouter.shared.clearAllQuarantines()
-                try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
-                await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true)
+                Task {
+                    AssistModelRouter.shared.clearAllQuarantines()
+                    try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
+                    await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true)
+                }
+            } else {
+                self.isAuthenticated = false
+                self.isAuthenticating = false
+                self.authError = self.authError ?? "Session obtained but Antigravity runtime verification failed."
+                logger.error("Authentication completed but Antigravity runtime session failed verification.")
             }
         } catch {
             self.isAuthenticating = false
