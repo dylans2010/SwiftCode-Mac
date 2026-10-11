@@ -1421,10 +1421,24 @@ struct AssistSettingsView: View {
                                                         Image(systemName: "checkmark.circle.fill")
                                                             .font(.system(size: 14))
                                                             .foregroundStyle(.green)
-                                                    } else if model.isAvailable && model.supportsAgenticUse {
+                                                    } else if model.isAvailable {
                                                         Button("Select") {
                                                             settings.selectedAssistModelID = model.modelIdentifier
                                                             settings.selectedModel = model.modelIdentifier
+                                                            if model.source == .appleFoundationModels || model.source == .appleFoundation || model.providerName == "Apple Foundation Models" {
+                                                                FoundationModels.shared.isEnabled = true
+                                                                if let appleModel = AppleFoundationModel(rawValue: model.modelIdentifier) {
+                                                                    FoundationModels.shared.selectedModel = appleModel
+                                                                }
+                                                            } else {
+                                                                FoundationModels.shared.isEnabled = false
+                                                                AssistModelManager.shared.customModelID = model.modelIdentifier
+                                                            }
+                                                            Task {
+                                                                await ModelSessionManager.shared.switchModel(to: model.modelIdentifier)
+                                                                AssistModelRouter.shared.currentRuntimeModel = model
+                                                                AssistManager.shared.resetActiveGoogleCloudSessionIfModelChanged(to: model.modelIdentifier)
+                                                            }
                                                         }
                                                         .buttonStyle(.bordered)
                                                         .controlSize(.mini)
@@ -2078,7 +2092,12 @@ struct AssistSettingsView: View {
             loadAPIKeys()
             loadCachedModels()
             Task {
-                await discoveryService.discoverAllModels()
+                await discoveryService.discoverAllModels(forceRefresh: true)
+            }
+        }
+        .onChange(of: googleAuth.isAuthenticated) { _, _ in
+            Task {
+                await discoveryService.discoverAllModels(forceRefresh: true)
             }
         }
         .onChange(of: customEndpoint) { _, _ in
@@ -2096,27 +2115,56 @@ struct AssistSettingsView: View {
     }
 
     private func loadAPIKeys() {
-        openRouterKey = APIKeyManager.shared.retrieveKey(service: .openRouter) ?? ""
-        openaiKey = APIKeyManager.shared.retrieveKey(service: .openai) ?? ""
-        anthropicKey = APIKeyManager.shared.retrieveKey(service: .anthropic) ?? ""
-        geminiKey = APIKeyManager.shared.retrieveKey(service: .google) ?? ""
+        openRouterKey = APIKeyManager.shared.retrieveKey(service: .openRouter)
+            ?? KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey)
+            ?? KeychainService.shared.get(forKey: "openrouter-api-key")
+            ?? ""
+        openaiKey = APIKeyManager.shared.retrieveKey(service: .openai)
+            ?? KeychainService.shared.get(forKey: LLMProvider.openai.keychainKey)
+            ?? KeychainService.shared.get(forKey: "openai-api-key")
+            ?? KeychainService.shared.get(forKey: "openai_api_key")
+            ?? ""
+        anthropicKey = APIKeyManager.shared.retrieveKey(service: .anthropic)
+            ?? KeychainService.shared.get(forKey: LLMProvider.anthropic.keychainKey)
+            ?? KeychainService.shared.get(forKey: "anthropic-api-key")
+            ?? KeychainService.shared.get(forKey: "anthropic_api_key")
+            ?? ""
+        geminiKey = APIKeyManager.shared.retrieveKey(service: .google)
+            ?? KeychainService.shared.get(forKey: LLMProvider.google.keychainKey)
+            ?? KeychainService.shared.get(forKey: "gemini-api-key")
+            ?? KeychainService.shared.get(forKey: "gemini_api_key")
+            ?? ""
         composioKey = ""
     }
 
     private func saveAPIKeys() {
-        APIKeyManager.shared.storeKey(service: .openRouter, key: openRouterKey)
-        APIKeyManager.shared.storeKey(service: .openai, key: openaiKey)
-        APIKeyManager.shared.storeKey(service: .anthropic, key: anthropicKey)
-        APIKeyManager.shared.storeKey(service: .google, key: geminiKey)
+        let trimmedOR = openRouterKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedOpenAI = openaiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAnthropic = anthropicKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedGemini = geminiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedComposio = composioKey.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        APIKeyManager.shared.storeKey(service: .openRouter, key: trimmedOR)
+        APIKeyManager.shared.storeKey(service: .openai, key: trimmedOpenAI)
+        APIKeyManager.shared.storeKey(service: .anthropic, key: trimmedAnthropic)
+        APIKeyManager.shared.storeKey(service: .google, key: trimmedGemini)
+
+        KeychainService.shared.set(trimmedOR, forKey: "openrouter-api-key")
+        KeychainService.shared.set(trimmedOR, forKey: KeychainService.openRouterAPIKey)
+        KeychainService.shared.set(trimmedOpenAI, forKey: "openai-api-key")
+        KeychainService.shared.set(trimmedOpenAI, forKey: "openai_api_key")
+        KeychainService.shared.set(trimmedOpenAI, forKey: LLMProvider.openai.keychainKey)
+        KeychainService.shared.set(trimmedAnthropic, forKey: "anthropic-api-key")
+        KeychainService.shared.set(trimmedAnthropic, forKey: "anthropic_api_key")
+        KeychainService.shared.set(trimmedAnthropic, forKey: LLMProvider.anthropic.keychainKey)
+        KeychainService.shared.set(trimmedGemini, forKey: "gemini-api-key")
+        KeychainService.shared.set(trimmedGemini, forKey: "gemini_api_key")
+        KeychainService.shared.set(trimmedGemini, forKey: LLMProvider.google.keychainKey)
+
         if !trimmedComposio.isEmpty {
             ComposioService.shared.saveApiKey(trimmedComposio)
             composioKey = ""
         }
-
-        // Directly store to keychain to ensure instant access across all routing frameworks
-        KeychainService.shared.set(openRouterKey, forKey: "openrouter-api-key")
-        KeychainService.shared.set(openRouterKey, forKey: KeychainService.openRouterAPIKey)
 
         hasSavedKeys = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
@@ -2125,6 +2173,7 @@ struct AssistSettingsView: View {
 
         Task {
             await fetchOpenRouterModels()
+            await discoveryService.discoverAllModels(forceRefresh: true)
         }
     }
 
@@ -2281,7 +2330,7 @@ struct AssistSettingsView: View {
             endpoint: customEndpoint,
             apiKey: customAPIKey,
             headers: customHeaders,
-            models: customModels,
+            models: customModels.isEmpty ? [nameToSave] : customModels,
             showInPopup: endpointShowInPopup,
             isLocal: isEndpointLocal,
             localPort: localEndpointPort

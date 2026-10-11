@@ -1246,6 +1246,9 @@ public struct AssistMainView: View {
         if FoundationModels.shared.isEnabled {
             return FoundationModels.shared.selectedModel.rawValue
         }
+        if !AppSettings.shared.selectedAssistModelID.isEmpty {
+            return AppSettings.shared.selectedAssistModelID
+        }
         return AssistModelManager.shared.customModelID.isEmpty ? AppSettings.shared.selectedModel : AssistModelManager.shared.customModelID
     }
 
@@ -1274,7 +1277,7 @@ public struct AssistMainView: View {
     private func selectDiscoveredModel(_ model: AssistAvailableModel) {
         logger.log("[selectModel] Selecting model: \(model.modelIdentifier) from \(model.providerName)")
 
-        if model.source == .appleFoundationModels {
+        if model.source == .appleFoundationModels || model.source == .appleFoundation || model.providerName == "Apple Foundation Models" {
             FoundationModels.shared.isEnabled = true
             if let appleModel = AppleFoundationModel(rawValue: model.modelIdentifier) {
                 FoundationModels.shared.selectedModel = appleModel
@@ -2194,6 +2197,11 @@ struct AssistCustomModelPickerPopover: View {
             }
         }
         .frame(width: 320, height: 380)
+        .task {
+            if discoveryService.discoveredModels.isEmpty {
+                await discoveryService.discoverAllModels()
+            }
+        }
     }
 }
 

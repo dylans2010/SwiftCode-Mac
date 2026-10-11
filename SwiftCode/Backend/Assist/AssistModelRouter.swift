@@ -64,6 +64,30 @@ public final class AssistModelRouter: Sendable {
             return match
         }
 
+        if preferredID == AppleFoundationModel.afm3Core.rawValue || preferredID == AppleFoundationModel.afm3CoreAdvanced.rawValue || preferredID.lowercased().contains("afm") {
+            return AssistAvailableModel(
+                id: preferredID,
+                displayName: "Apple \(preferredID) (On-Device)",
+                providerID: "apple",
+                providerName: "Apple Foundation Models",
+                modelIdentifier: preferredID,
+                capabilities: .localFoundation,
+                source: .appleFoundation,
+                isConfigured: true,
+                isAvailable: true,
+                supportsStreaming: true,
+                supportsToolCalling: false,
+                supportsVision: preferredID.contains("Advanced"),
+                supportsStructuredOutput: true,
+                supportsAgenticUse: true,
+                supportsSubagents: false,
+                priority: 90,
+                statusDescription: "On-Device Available",
+                status: .available,
+                contextWindow: 16_000
+            )
+        }
+
         let spec = AgentModelAdapter.shared.specification(for: preferredID)
         let providerID: String
         let providerName: String
