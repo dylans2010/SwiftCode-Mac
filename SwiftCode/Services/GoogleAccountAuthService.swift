@@ -27,6 +27,23 @@ public struct GoogleOAuthTokens: Codable, Sendable {
     public let refreshToken: String?
     public let scope: String?
     public let tokenType: String?
+    public let idToken: String?
+
+    public init(
+        accessToken: String,
+        expiresIn: Int? = nil,
+        refreshToken: String? = nil,
+        scope: String? = nil,
+        tokenType: String? = nil,
+        idToken: String? = nil
+    ) {
+        self.accessToken = accessToken
+        self.expiresIn = expiresIn
+        self.refreshToken = refreshToken
+        self.scope = scope
+        self.tokenType = tokenType
+        self.idToken = idToken
+    }
 
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
@@ -34,6 +51,17 @@ public struct GoogleOAuthTokens: Codable, Sendable {
         case refreshToken = "refresh_token"
         case scope
         case tokenType = "token_type"
+        case idToken = "id_token"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.accessToken = try container.decode(String.self, forKey: .accessToken)
+        self.expiresIn = try container.decodeIfPresent(Int.self, forKey: .expiresIn)
+        self.refreshToken = try container.decodeIfPresent(String.self, forKey: .refreshToken)
+        self.scope = try container.decodeIfPresent(String.self, forKey: .scope)
+        self.tokenType = try container.decodeIfPresent(String.self, forKey: .tokenType)
+        self.idToken = try container.decodeIfPresent(String.self, forKey: .idToken)
     }
 }
 
@@ -269,6 +297,10 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         self.pendingState = nil
 
         logger.info("Signed out from Google Account.")
+
+        Task {
+            await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true)
+        }
     }
 
     // MARK: - Access Token Accessors
@@ -378,10 +410,22 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             KeychainService.shared.set(String(expiresAt), forKey: Self.expiresAtKey)
 
             // Fetch user email
-            let email = try await fetchUserEmail(accessToken: tokens.accessToken)
-            if let email = email {
-                KeychainService.shared.set(email, forKey: Self.userEmailKey)
-                self.userEmail = email
+            var email: String? = nil
+            do {
+                email = try await fetchUserEmail(accessToken: tokens.accessToken)
+            } catch {
+                logger.warning("Could not fetch user email from endpoint: \(error.localizedDescription)")
+            }
+
+            if email == nil, let idToken = tokens.idToken {
+                email = extractEmailFromIDToken(idToken)
+            }
+
+            if let resolvedEmail = email, !resolvedEmail.isEmpty {
+                KeychainService.shared.set(resolvedEmail, forKey: Self.userEmailKey)
+                self.userEmail = resolvedEmail
+            } else {
+                self.userEmail = "Google Account"
             }
 
             self.isAuthenticated = true
@@ -394,12 +438,30 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
             Task {
                 try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
+                await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true)
             }
         } catch {
             self.isAuthenticating = false
             self.authError = error.localizedDescription
             logger.error("Token exchange failed: \(error.localizedDescription)")
         }
+    }
+
+    private func extractEmailFromIDToken(_ idToken: String) -> String? {
+        let parts = idToken.components(separatedBy: ".")
+        guard parts.count >= 2 else { return nil }
+        var base64 = parts[1]
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while base64.count % 4 != 0 {
+            base64.append("=")
+        }
+        guard let data = Data(base64Encoded: base64),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let email = json["email"] as? String else {
+            return nil
+        }
+        return email
     }
 
     private func exchangeCodeForTokens(code: String, verifier: String, redirectURI: String) async throws -> GoogleOAuthTokens {
@@ -436,9 +498,37 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             throw NSError(domain: "GoogleAccountAuthService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Token exchange returned HTTP status \(httpResponse.statusCode)."])
         }
 
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode(GoogleOAuthTokens.self, from: data)
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw NSError(domain: "GoogleAccountAuthService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unable to parse Google OAuth token response."])
+        }
+
+        guard let accessToken = (json["access_token"] as? String) ?? (json["accessToken"] as? String), !accessToken.isEmpty else {
+            let desc = (json["error_description"] as? String) ?? (json["error"] as? String) ?? "Missing access token in Google OAuth response."
+            throw NSError(domain: "GoogleAccountAuthService", code: -1, userInfo: [NSLocalizedDescriptionKey: desc])
+        }
+
+        let refreshToken = (json["refresh_token"] as? String) ?? (json["refreshToken"] as? String)
+        let tokenType = (json["token_type"] as? String) ?? (json["tokenType"] as? String)
+        let scope = json["scope"] as? String
+        let idToken = (json["id_token"] as? String) ?? (json["idToken"] as? String)
+
+        var expiresIn: Int? = nil
+        if let exp = json["expires_in"] as? Int {
+            expiresIn = exp
+        } else if let exp = json["expires_in"] as? Double {
+            expiresIn = Int(exp)
+        } else if let expStr = json["expires_in"] as? String, let exp = Int(expStr) {
+            expiresIn = exp
+        }
+
+        return GoogleOAuthTokens(
+            accessToken: accessToken,
+            expiresIn: expiresIn,
+            refreshToken: refreshToken,
+            scope: scope,
+            tokenType: tokenType,
+            idToken: idToken
+        )
     }
 
     private func refreshAccessToken(refreshToken: String) async throws -> String {

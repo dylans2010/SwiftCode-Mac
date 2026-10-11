@@ -41,9 +41,11 @@ public final class AssistModelDiscoveryService: Sendable {
         if let savedRemoved = UserDefaults.standard.stringArray(forKey: removedModelsKey) {
             self.removedModelIDs = Set(savedRemoved)
         }
-        // Seed synchronously so that Apple Foundation Models, Custom Models,
-        // and models for configured API keys show immediately on first frame.
+        // Seed synchronously so that on-device Apple Foundation Models and local custom endpoints show immediately
         self.discoveredModels = self.generateBaselineModels()
+        Task { [weak self] in
+            await self?.discoverAllModels(forceRefresh: true)
+        }
     }
 
     /// Foundation Models is a system model integration and may NEVER be deleted.
@@ -91,26 +93,6 @@ public final class AssistModelDiscoveryService: Sendable {
 
         // 2. Custom & Local Endpoints / Models
         models.append(contentsOf: generateCustomBaselineModels())
-
-        // 3. Providers with active API keys or OAuth
-        if isProviderExplicitlyActive("Gemini") {
-            models.append(contentsOf: fallbackGeminiModels)
-        }
-        if isProviderExplicitlyActive("Claude") {
-            models.append(contentsOf: fallbackClaudeModels)
-        }
-        if isProviderExplicitlyActive("OpenAI") {
-            models.append(contentsOf: fallbackOpenAIModels)
-        }
-        if isProviderExplicitlyActive("OpenRouter") {
-            models.append(contentsOf: fallbackOpenRouterModels)
-        }
-        if isProviderExplicitlyActive("Mistral") {
-            models.append(contentsOf: fallbackMistralModels)
-        }
-        if isProviderExplicitlyActive("Qwen") {
-            models.append(contentsOf: fallbackQwenModels)
-        }
 
         return models
     }
@@ -294,16 +276,6 @@ public final class AssistModelDiscoveryService: Sendable {
         return allDiscovered
     }
 
-    private func mergeModels(primary: [AssistAvailableModel], fallback: [AssistAvailableModel]) -> [AssistAvailableModel] {
-        var result = primary
-        for fb in fallback {
-            if !result.contains(where: { $0.modelIdentifier == fb.modelIdentifier || $0.id == fb.id }) {
-                result.append(fb)
-            }
-        }
-        return result
-    }
-
     public var agentCompatibleModels: [AssistAvailableModel] {
         discoveredModels.filter {
             !removedModelIDs.contains($0.modelIdentifier) &&
@@ -329,117 +301,7 @@ public final class AssistModelDiscoveryService: Sendable {
         agentCompatibleModels.count
     }
 
-    // MARK: - Gemini Discovery (Dynamic API Call + Guaranteed Fallback)
-
-    private var fallbackGeminiModels: [AssistAvailableModel] {
-        [
-            AssistAvailableModel(
-                id: "gemini-2.5-pro",
-                displayName: "Gemini 2.5 Pro",
-                providerID: "gemini",
-                providerName: "Gemini",
-                modelIdentifier: "gemini-2.5-pro",
-                capabilities: .advancedReasoning,
-                source: .gemini,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: true,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 20,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 1_000_000
-            ),
-            AssistAvailableModel(
-                id: "gemini-2.5-flash",
-                displayName: "Gemini 2.5 Flash",
-                providerID: "gemini",
-                providerName: "Gemini",
-                modelIdentifier: "gemini-2.5-flash",
-                capabilities: .advancedReasoning,
-                source: .gemini,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: true,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 10,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 1_000_000
-            ),
-            AssistAvailableModel(
-                id: "gemini-2.0-flash",
-                displayName: "Gemini 2.0 Flash",
-                providerID: "gemini",
-                providerName: "Gemini",
-                modelIdentifier: "gemini-2.0-flash",
-                capabilities: .advancedReasoning,
-                source: .gemini,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: true,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 12,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 1_000_000
-            ),
-            AssistAvailableModel(
-                id: "gemini-1.5-pro",
-                displayName: "Gemini 1.5 Pro",
-                providerID: "gemini",
-                providerName: "Gemini",
-                modelIdentifier: "gemini-1.5-pro",
-                capabilities: .advancedReasoning,
-                source: .gemini,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: true,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 22,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 2_000_000
-            ),
-            AssistAvailableModel(
-                id: "gemini-1.5-flash",
-                displayName: "Gemini 1.5 Flash",
-                providerID: "gemini",
-                providerName: "Gemini",
-                modelIdentifier: "gemini-1.5-flash",
-                capabilities: .advancedReasoning,
-                source: .gemini,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: true,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 15,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 1_000_000
-            )
-        ]
-    }
+    // MARK: - Gemini Discovery (Dynamic API Call)
 
     private func discoverGeminiModels() async -> [AssistAvailableModel] {
         var apiKey = KeychainService.shared.get(forKey: LLMProvider.google.keychainKey)
@@ -454,25 +316,40 @@ public final class AssistModelDiscoveryService: Sendable {
             }
         }
 
-        let isGoogleAuthActive = GoogleAuthService.shared.isAuthenticated
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let oauthToken = try? await GoogleAccountAuthService.shared.getValidAccessToken()
+        let isOauthActive = GoogleAccountAuthService.shared.isAuthenticated
 
-        guard !trimmedKey.isEmpty || isGoogleAuthActive else {
+        guard !trimmedKey.isEmpty || (isOauthActive && oauthToken != nil) else {
             return []
         }
 
-        guard !trimmedKey.isEmpty, let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=\(trimmedKey)") else {
-            return fallbackGeminiModels
+        var request: URLRequest
+        if !trimmedKey.isEmpty {
+            guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=\(trimmedKey)") else {
+                return []
+            }
+            request = URLRequest(url: url)
+        } else if let token = oauthToken {
+            guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000") else {
+                return []
+            }
+            request = URLRequest(url: url)
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        } else {
+            return []
         }
 
-        var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.timeoutInterval = 6.0
+        request.timeoutInterval = 8.0
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                return fallbackGeminiModels
+                if let httpResponse = response as? HTTPURLResponse {
+                    logger.warning("Gemini model discovery returned HTTP \(httpResponse.statusCode)")
+                }
+                return []
             }
 
             struct GeminiListResponse: Codable {
@@ -532,102 +409,14 @@ public final class AssistModelDiscoveryService: Sendable {
                 )
             }
 
-            return mergeModels(primary: results, fallback: fallbackGeminiModels)
+            return results
         } catch {
-            return fallbackGeminiModels
+            logger.error("Gemini model discovery error: \(error.localizedDescription)")
+            return []
         }
     }
 
-    // MARK: - Claude / Anthropic Discovery (Dynamic API Call + Guaranteed Fallback)
-
-    private var fallbackClaudeModels: [AssistAvailableModel] {
-        [
-            AssistAvailableModel(
-                id: "claude-3-7-sonnet-20250219",
-                displayName: "Claude 3.7 Sonnet",
-                providerID: "anthropic",
-                providerName: "Claude",
-                modelIdentifier: "claude-3-7-sonnet-20250219",
-                capabilities: .advancedReasoning,
-                source: .claude,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: true,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 10,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 200_000
-            ),
-            AssistAvailableModel(
-                id: "claude-3-5-sonnet-20241022",
-                displayName: "Claude 3.5 Sonnet",
-                providerID: "anthropic",
-                providerName: "Claude",
-                modelIdentifier: "claude-3-5-sonnet-20241022",
-                capabilities: .advancedReasoning,
-                source: .claude,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: true,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 15,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 200_000
-            ),
-            AssistAvailableModel(
-                id: "claude-3-5-haiku-20241022",
-                displayName: "Claude 3.5 Haiku",
-                providerID: "anthropic",
-                providerName: "Claude",
-                modelIdentifier: "claude-3-5-haiku-20241022",
-                capabilities: .advancedReasoning,
-                source: .claude,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: true,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 14,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 200_000
-            ),
-            AssistAvailableModel(
-                id: "claude-3-opus-20240229",
-                displayName: "Claude 3 Opus",
-                providerID: "anthropic",
-                providerName: "Claude",
-                modelIdentifier: "claude-3-opus-20240229",
-                capabilities: .advancedReasoning,
-                source: .claude,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: true,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 25,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 200_000
-            )
-        ]
-    }
+    // MARK: - Claude / Anthropic Discovery (Dynamic API Call)
 
     private func discoverClaudeModels() async -> [AssistAvailableModel] {
         var apiKey = KeychainService.shared.get(forKey: LLMProvider.anthropic.keychainKey)
@@ -639,18 +428,18 @@ public final class AssistModelDiscoveryService: Sendable {
         guard !trimmedKey.isEmpty else { return [] }
 
         guard let url = URL(string: "https://api.anthropic.com/v1/models?limit=1000") else {
-            return fallbackClaudeModels
+            return []
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue(trimmedKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        request.timeoutInterval = 6.0
+        request.timeoutInterval = 8.0
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                return fallbackClaudeModels
+                return []
             }
 
             struct AnthropicModelsResponse: Codable {
@@ -663,7 +452,7 @@ public final class AssistModelDiscoveryService: Sendable {
 
             let decoded = try JSONDecoder().decode(AnthropicModelsResponse.self, from: data)
             guard let entries = decoded.data, !entries.isEmpty else {
-                return fallbackClaudeModels
+                return []
             }
 
             let results: [AssistAvailableModel] = entries.map { entry in
@@ -692,102 +481,14 @@ public final class AssistModelDiscoveryService: Sendable {
                 )
             }
 
-            return mergeModels(primary: results, fallback: fallbackClaudeModels)
+            return results
         } catch {
-            return fallbackClaudeModels
+            logger.error("Claude model discovery error: \(error.localizedDescription)")
+            return []
         }
     }
 
-    // MARK: - OpenAI Discovery (Dynamic API Call + Guaranteed Fallback)
-
-    private var fallbackOpenAIModels: [AssistAvailableModel] {
-        [
-            AssistAvailableModel(
-                id: "gpt-4o",
-                displayName: "GPT-4o",
-                providerID: "openai",
-                providerName: "OpenAI",
-                modelIdentifier: "gpt-4o",
-                capabilities: .advancedReasoning,
-                source: .openAI,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: true,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 12,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 128_000
-            ),
-            AssistAvailableModel(
-                id: "gpt-4o-mini",
-                displayName: "GPT-4o Mini",
-                providerID: "openai",
-                providerName: "OpenAI",
-                modelIdentifier: "gpt-4o-mini",
-                capabilities: .advancedReasoning,
-                source: .openAI,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: true,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 18,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 128_000
-            ),
-            AssistAvailableModel(
-                id: "o3-mini",
-                displayName: "o3-mini",
-                providerID: "openai",
-                providerName: "OpenAI",
-                modelIdentifier: "o3-mini",
-                capabilities: .advancedReasoning,
-                source: .openAI,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: false,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 14,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 200_000
-            ),
-            AssistAvailableModel(
-                id: "o1",
-                displayName: "o1",
-                providerID: "openai",
-                providerName: "OpenAI",
-                modelIdentifier: "o1",
-                capabilities: .advancedReasoning,
-                source: .openAI,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: true,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 16,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 200_000
-            )
-        ]
-    }
+    // MARK: - OpenAI Discovery (Dynamic API Call)
 
     private func discoverOpenAIModels() async -> [AssistAvailableModel] {
         var apiKey = KeychainService.shared.get(forKey: LLMProvider.openai.keychainKey)
@@ -799,17 +500,17 @@ public final class AssistModelDiscoveryService: Sendable {
         guard !trimmedKey.isEmpty else { return [] }
 
         guard let url = URL(string: "https://api.openai.com/v1/models") else {
-            return fallbackOpenAIModels
+            return []
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 6.0
+        request.timeoutInterval = 8.0
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                return fallbackOpenAIModels
+                return []
             }
 
             struct OpenAIListResponse: Codable {
@@ -868,60 +569,14 @@ public final class AssistModelDiscoveryService: Sendable {
                 )
             }
 
-            return mergeModels(primary: results, fallback: fallbackOpenAIModels)
+            return results
         } catch {
-            return fallbackOpenAIModels
+            logger.error("OpenAI model discovery error: \(error.localizedDescription)")
+            return []
         }
     }
 
-    // MARK: - Mistral Discovery (Dynamic API Call + Guaranteed Fallback)
-
-    private var fallbackMistralModels: [AssistAvailableModel] {
-        [
-            AssistAvailableModel(
-                id: "mistral-large-latest",
-                displayName: "Mistral Large",
-                providerID: "mistral",
-                providerName: "Mistral",
-                modelIdentifier: "mistral-large-latest",
-                capabilities: .advancedReasoning,
-                source: .custom,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: false,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 28,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 128_000
-            ),
-            AssistAvailableModel(
-                id: "codestral-latest",
-                displayName: "Codestral",
-                providerID: "mistral",
-                providerName: "Mistral",
-                modelIdentifier: "codestral-latest",
-                capabilities: .advancedReasoning,
-                source: .custom,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: false,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 29,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 128_000
-            )
-        ]
-    }
+    // MARK: - Mistral Discovery (Dynamic API Call)
 
     private func discoverMistralModels() async -> [AssistAvailableModel] {
         var apiKey = KeychainService.shared.get(forKey: LLMProvider.mistral.keychainKey)
@@ -933,17 +588,17 @@ public final class AssistModelDiscoveryService: Sendable {
         guard !trimmedKey.isEmpty else { return [] }
 
         guard let url = URL(string: "https://api.mistral.ai/v1/models") else {
-            return fallbackMistralModels
+            return []
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 6.0
+        request.timeoutInterval = 8.0
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                return fallbackMistralModels
+                return []
             }
 
             struct MistralResponse: Codable {
@@ -955,7 +610,7 @@ public final class AssistModelDiscoveryService: Sendable {
 
             let decoded = try JSONDecoder().decode(MistralResponse.self, from: data)
             guard let entries = decoded.data, !entries.isEmpty else {
-                return fallbackMistralModels
+                return []
             }
 
             let results: [AssistAvailableModel] = entries.compactMap { entry in
@@ -984,60 +639,14 @@ public final class AssistModelDiscoveryService: Sendable {
                 )
             }
 
-            return mergeModels(primary: results, fallback: fallbackMistralModels)
+            return results
         } catch {
-            return fallbackMistralModels
+            logger.error("Mistral model discovery error: \(error.localizedDescription)")
+            return []
         }
     }
 
-    // MARK: - Qwen Discovery (Dynamic API Call + Guaranteed Fallback)
-
-    private var fallbackQwenModels: [AssistAvailableModel] {
-        [
-            AssistAvailableModel(
-                id: "qwen-max",
-                displayName: "Qwen Max",
-                providerID: "qwen",
-                providerName: "Qwen",
-                modelIdentifier: "qwen-max",
-                capabilities: .advancedReasoning,
-                source: .custom,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: false,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 30,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 128_000
-            ),
-            AssistAvailableModel(
-                id: "qwen2.5-coder-32b-instruct",
-                displayName: "Qwen 2.5 Coder 32B",
-                providerID: "qwen",
-                providerName: "Qwen",
-                modelIdentifier: "qwen2.5-coder-32b-instruct",
-                capabilities: .advancedReasoning,
-                source: .custom,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: false,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 31,
-                statusDescription: "Available",
-                status: .available,
-                contextWindow: 128_000
-            )
-        ]
-    }
+    // MARK: - Qwen Discovery (Dynamic API Call)
 
     private func discoverQwenModels() async -> [AssistAvailableModel] {
         var apiKey = KeychainService.shared.get(forKey: LLMProvider.qwen.keychainKey)
@@ -1049,17 +658,17 @@ public final class AssistModelDiscoveryService: Sendable {
         guard !trimmedKey.isEmpty else { return [] }
 
         guard let url = URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/models") else {
-            return fallbackQwenModels
+            return []
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 6.0
+        request.timeoutInterval = 8.0
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                return fallbackQwenModels
+                return []
             }
 
             struct QwenResponse: Codable {
@@ -1071,7 +680,7 @@ public final class AssistModelDiscoveryService: Sendable {
 
             let decoded = try JSONDecoder().decode(QwenResponse.self, from: data)
             guard let entries = decoded.data, !entries.isEmpty else {
-                return fallbackQwenModels
+                return []
             }
 
             let results: [AssistAvailableModel] = entries.compactMap { entry in
@@ -1100,9 +709,10 @@ public final class AssistModelDiscoveryService: Sendable {
                 )
             }
 
-            return mergeModels(primary: results, fallback: fallbackQwenModels)
+            return results
         } catch {
-            return fallbackQwenModels
+            logger.error("Qwen model discovery error: \(error.localizedDescription)")
+            return []
         }
     }
 
@@ -1285,117 +895,7 @@ public final class AssistModelDiscoveryService: Sendable {
         throw NSError(domain: "EndpointAPIError", code: 404, userInfo: [NSLocalizedDescriptionKey: "No models returned by endpoint API."])
     }
 
-    // MARK: - OpenRouter Discovery (Dynamic API Call + Guaranteed Fallback)
-
-    private var fallbackOpenRouterModels: [AssistAvailableModel] {
-        [
-            AssistAvailableModel(
-                id: "anthropic/claude-3.5-sonnet",
-                displayName: "Claude 3.5 Sonnet",
-                providerID: "openrouter",
-                providerName: "OpenRouter",
-                modelIdentifier: "anthropic/claude-3.5-sonnet",
-                capabilities: .advancedReasoning,
-                source: .openRouter,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: true,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 30,
-                statusDescription: "Ready",
-                status: .available,
-                contextWindow: 200_000
-            ),
-            AssistAvailableModel(
-                id: "openai/gpt-4o",
-                displayName: "GPT-4o",
-                providerID: "openrouter",
-                providerName: "OpenRouter",
-                modelIdentifier: "openai/gpt-4o",
-                capabilities: .advancedReasoning,
-                source: .openRouter,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: true,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 31,
-                statusDescription: "Ready",
-                status: .available,
-                contextWindow: 128_000
-            ),
-            AssistAvailableModel(
-                id: "google/gemini-2.5-pro",
-                displayName: "Gemini 2.5 Pro",
-                providerID: "openrouter",
-                providerName: "OpenRouter",
-                modelIdentifier: "google/gemini-2.5-pro",
-                capabilities: .advancedReasoning,
-                source: .openRouter,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: true,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 32,
-                statusDescription: "Ready",
-                status: .available,
-                contextWindow: 1_000_000
-            ),
-            AssistAvailableModel(
-                id: "meta-llama/llama-3.3-70b-instruct",
-                displayName: "Llama 3.3 70B",
-                providerID: "openrouter",
-                providerName: "OpenRouter",
-                modelIdentifier: "meta-llama/llama-3.3-70b-instruct",
-                capabilities: .advancedReasoning,
-                source: .openRouter,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: false,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 33,
-                statusDescription: "Ready",
-                status: .available,
-                contextWindow: 128_000
-            ),
-            AssistAvailableModel(
-                id: "openai/gpt-4o-mini",
-                displayName: "GPT-4o Mini",
-                providerID: "openrouter",
-                providerName: "OpenRouter",
-                modelIdentifier: "openai/gpt-4o-mini",
-                capabilities: .advancedReasoning,
-                source: .openRouter,
-                isConfigured: true,
-                isAvailable: true,
-                supportsStreaming: true,
-                supportsToolCalling: true,
-                supportsVision: true,
-                supportsStructuredOutput: true,
-                supportsAgenticUse: true,
-                supportsSubagents: true,
-                priority: 34,
-                statusDescription: "Ready",
-                status: .available,
-                contextWindow: 128_000
-            )
-        ]
-    }
+    // MARK: - OpenRouter Discovery (Dynamic API Call)
 
     private func discoverOpenRouterModels() async -> [AssistAvailableModel] {
         var key = OpenRouterClient.resolveOpenRouterAPIKey()
@@ -1436,9 +936,10 @@ public final class AssistModelDiscoveryService: Sendable {
                     contextWindow: context
                 )
             }
-            return mergeModels(primary: dynamicList, fallback: fallbackOpenRouterModels)
+            return dynamicList
         } catch {
-            return fallbackOpenRouterModels
+            logger.error("OpenRouter model discovery error: \(error.localizedDescription)")
+            return []
         }
     }
 
@@ -1482,7 +983,7 @@ public final class AssistModelDiscoveryService: Sendable {
                 ?? KeychainService.shared.get(forKey: "gemini_api_key")
                 ?? APIKeyManager.shared.retrieveKey(service: .google)
                 ?? ""
-            return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || GoogleAuthService.shared.isAuthenticated
+            return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || GoogleAccountAuthService.shared.isAuthenticated
         }
         if providerName == "Claude" {
             let key = KeychainService.shared.get(forKey: LLMProvider.anthropic.keychainKey)
