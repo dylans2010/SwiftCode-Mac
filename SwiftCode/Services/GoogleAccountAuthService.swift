@@ -157,39 +157,11 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         }
 
         server.onCallback = { [weak self] callbackURL in
-            Task { @MainActor in
-                guard let self = self else { return }
-                await self.handleCallbackURL(callbackURL, verifier: verifier, state: state, redirectURI: redirectURI)
-                self.loopbackServer?.stop()
-                self.loopbackServer = nil
-                self.authSession?.cancel()
-                self.authSession = nil
-            }
+            self?.processLoopbackCallback(url: callbackURL, verifier: verifier, state: state, redirectURI: redirectURI)
         }
 
         let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: "http") { [weak self] callbackURL, error in
-            Task { @MainActor in
-                guard let self = self else { return }
-
-                if let callbackURL = callbackURL {
-                    await self.handleCallbackURL(callbackURL, verifier: verifier, state: state, redirectURI: redirectURI)
-                    self.loopbackServer?.stop()
-                    self.loopbackServer = nil
-                    return
-                }
-
-                if let error = error as? ASWebAuthenticationSessionError, error.code == .canceledLogin {
-                    logger.info("User cancelled Google sign in session.")
-                    self.isAuthenticating = false
-                    self.loopbackServer?.stop()
-                    self.loopbackServer = nil
-                    return
-                }
-
-                if let error = error {
-                    logger.warning("ASWebAuthenticationSession notification: \(error.localizedDescription)")
-                }
-            }
+            self?.processSessionCallback(callbackURL: callbackURL, error: error, verifier: verifier, state: state, redirectURI: redirectURI)
         }
 
         session.presentationContextProvider = self
@@ -199,6 +171,42 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         if !session.start() {
             // Fallback: Open auth URL directly in system default browser if session fails to start
             NSWorkspace.shared.open(authURL)
+        }
+    }
+
+    private nonisolated func processSessionCallback(callbackURL: URL?, error: (any Error)?, verifier: String, state: String, redirectURI: String) {
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+
+            if let callbackURL = callbackURL {
+                await self.handleCallbackURL(callbackURL, verifier: verifier, state: state, redirectURI: redirectURI)
+                self.loopbackServer?.stop()
+                self.loopbackServer = nil
+                return
+            }
+
+            if let error = error as? ASWebAuthenticationSessionError, error.code == .canceledLogin {
+                logger.info("User cancelled Google sign in session.")
+                self.isAuthenticating = false
+                self.loopbackServer?.stop()
+                self.loopbackServer = nil
+                return
+            }
+
+            if let error = error {
+                logger.warning("ASWebAuthenticationSession notification: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private nonisolated func processLoopbackCallback(url: URL, verifier: String, state: String, redirectURI: String) {
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            await self.handleCallbackURL(url, verifier: verifier, state: state, redirectURI: redirectURI)
+            self.loopbackServer?.stop()
+            self.loopbackServer = nil
+            self.authSession?.cancel()
+            self.authSession = nil
         }
     }
 

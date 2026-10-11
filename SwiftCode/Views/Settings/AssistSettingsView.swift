@@ -2687,6 +2687,8 @@ extension AssistSettingsView {
         downloadErrorMessage = nil
         downloadCompleted = false
 
+        let bundledSDKDir = GoogleCloudSDKProcess.resolveSDKDirectory()
+
         Task.detached(priority: .userInitiated) {
             let candidatePythons = [
                 "/opt/homebrew/bin/python3",
@@ -2703,7 +2705,7 @@ extension AssistSettingsView {
                 let process = Process()
                 let pipe = Pipe()
                 process.executableURL = URL(fileURLWithPath: pyPath)
-                process.arguments = ["-m", "pip", "install", "google-antigravity", "--upgrade"]
+                process.arguments = ["-m", "pip", "install", "google-antigravity", "--break-system-packages", "--upgrade"]
                 process.standardOutput = pipe
                 process.standardError = pipe
 
@@ -2734,8 +2736,78 @@ extension AssistSettingsView {
             }
 
             if !success {
+                // Fallback: Deploy bundled Google Cloud SDK resources to user Python site-packages
                 await MainActor.run {
-                    self.downloadErrorMessage = lastErr.isEmpty ? "Failed to locate Python with pip." : lastErr
+                    self.downloadStatusMessage = "Deploying bundled google-antigravity SDK resources..."
+                }
+
+                if let sdkDir = bundledSDKDir {
+                    let fm = FileManager.default
+                    let homeDir = fm.homeDirectoryForCurrentUser.path
+                    let srcSitePackages = sdkDir.appendingPathComponent("runtime/lib/python3.14/site-packages")
+
+                    let candidateTargetDirs = [
+                        "\(homeDir)/Library/Python/3.14/lib/python/site-packages",
+                        "\(homeDir)/.local/lib/python3.14/site-packages",
+                        "\(homeDir)/.local/lib/python3.11/site-packages",
+                        "\(homeDir)/Library/Python/3.11/lib/python/site-packages"
+                    ]
+
+                    var deploySuccess = false
+                    for targetSitePackages in candidateTargetDirs {
+                        do {
+                            try fm.createDirectory(atPath: targetSitePackages, withIntermediateDirectories: true)
+                            let items = (try? fm.contentsOfDirectory(atPath: srcSitePackages.path)) ?? []
+                            for item in items {
+                                let srcItem = srcSitePackages.appendingPathComponent(item).path
+                                let dstItem = "\(targetSitePackages)/\(item)"
+                                if fm.fileExists(atPath: dstItem) {
+                                    try? fm.removeItem(atPath: dstItem)
+                                }
+                                try fm.copyItem(atPath: srcItem, toPath: dstItem)
+                            }
+
+                            // Create google-antigravity binary in ~/.local/bin
+                            let binDir = "\(homeDir)/.local/bin"
+                            try fm.createDirectory(atPath: binDir, withIntermediateDirectories: true)
+                            let localHarnessSrc = "\(targetSitePackages)/google/antigravity/bin/localharness"
+                            let binaryDst = "\(binDir)/google-antigravity"
+
+                            if fm.fileExists(atPath: localHarnessSrc) {
+                                if fm.fileExists(atPath: binaryDst) {
+                                    try? fm.removeItem(atPath: binaryDst)
+                                }
+                                try? fm.linkItem(atPath: localHarnessSrc, toPath: binaryDst)
+                                if !fm.fileExists(atPath: binaryDst) {
+                                    try? fm.copyItem(atPath: localHarnessSrc, toPath: binaryDst)
+                                }
+                            }
+
+                            deploySuccess = true
+                            break
+                        } catch {
+                            lastErr = "Failed deploying to \(targetSitePackages): \(error.localizedDescription)"
+                        }
+                    }
+
+                    if deploySuccess {
+                        success = true
+                        await MainActor.run {
+                            self.downloadStatusMessage = "google-antigravity resources deployed successfully!"
+                            self.downloadCompleted = true
+                            self.downloadErrorMessage = nil
+                            self.settings.antigravityExecutionMode = "resources"
+                            Task {
+                                try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !success {
+                await MainActor.run {
+                    self.downloadErrorMessage = lastErr.isEmpty ? "Failed to install google-antigravity." : lastErr
                     self.downloadStatusMessage = "Installation failed."
                 }
             }

@@ -206,6 +206,9 @@ public actor GoogleCloudSDKProcess {
             "/opt/homebrew/bin/google-antigravity",
             "/usr/local/bin/google-antigravity",
             "\(homeDir)/.local/bin/google-antigravity",
+            "\(homeDir)/Library/Python/3.14/bin/google-antigravity",
+            "\(homeDir)/Library/Python/3.14/lib/python/site-packages/google/antigravity/bin/localharness",
+            "\(homeDir)/.local/lib/python3.14/site-packages/google/antigravity/bin/localharness",
             sdkDir.appendingPathComponent("runtime/bin/google-antigravity").path,
             sdkDir.appendingPathComponent("runtime/lib/python3.14/site-packages/google/antigravity/bin/localharness").path
         ]
