@@ -747,6 +747,33 @@ public final class AssistManager: ObservableObject {
             GoogleCloudSDKAttachment(name: $0.filename, path: $0.filename, mimeType: $0.mimeType, content: $0.base64Content)
         }
 
+        // --- Proactive OAuth Scope Verification ---
+        // If the user is authenticated via Google account but their stored token lacks
+        // the required generative-language scope (from pre-fix sign-in), prompt them to approve
+        // the updated permissions rather than hitting a 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT error.
+        let isGoogleAuthActive = (UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode) == "google_oauth" || GoogleAccountAuthService.shared.isAuthenticated
+        let altKeysEnabled = await MainActor.run { AppSettings.shared.alternativeKeysEnabled }
+        if isGoogleAuthActive && GoogleAccountAuthService.shared.isAuthenticated && !GoogleAccountAuthService.shared.hasRequiredAssistScopes() && !altKeysEnabled {
+            await MainActor.run {
+                self.isProcessing = false
+                self.currentActivityStatus = "Re-authenticating to enable Assist…"
+                if let old = self.activeGoogleCloudSession {
+                    Task { try? await old.close() }
+                }
+                self.activeGoogleCloudSession = nil
+                let scopeMessage = """
+                **Action required — additional permissions needed**
+
+                Your Google account session is missing the permissions needed to use the Gemini API directly without an API key. \
+                A sign-in prompt has been opened — please approve the permissions to continue using Assist.
+                """
+                self.messages.append(AssistMessage(role: .system, content: scopeMessage))
+                self.saveHistory()
+                GoogleAccountAuthService.shared.reAuthenticateForAssistScopes()
+            }
+            return
+        }
+
         let initialRouted = await AssistModelRouter.shared.selectModelForSDK(objective: content)
         let initialConfig = initialRouted?.config ?? GoogleCloudSDKConfiguration.resolveDefault(objective: content)
         let initialModelId = initialRouted?.model.modelIdentifier ?? initialConfig.model
@@ -1096,6 +1123,36 @@ public final class AssistManager: ObservableObject {
                 let isGemini = currentModelId.lowercased().contains("gemini") || currentModelName.lowercased().contains("gemini") || (currentConfig.provider == "gemini" || currentConfig.provider == "google")
 
                 if let errText = turnError {
+                    // --- OAuth Scope Insufficient (403 ACCESS_TOKEN_SCOPE_INSUFFICIENT) ---
+                    // Occurs when the user is OAuth-authenticated but their token lacks the generative-language scope.
+                    // Automatically prompt the user to approve the updated scopes without failing into API key rotation.
+                    let isScopeInsufficient = errText.contains("ACCESS_TOKEN_SCOPE_INSUFFICIENT") ||
+                        (errText.contains("403") && (errText.contains("insufficient authentication scopes") || (errText.contains("PERMISSION_DENIED") && errText.contains("scope"))))
+                    if isScopeInsufficient && GoogleAccountAuthService.shared.isAuthenticated {
+                        await MainActor.run {
+                            if let idx = self.messages.indices.last {
+                                self.messages[idx].activityGroup?.isExecuting = false
+                                self.messages[idx].content = ""
+                            }
+                            self.isProcessing = false
+                            self.currentActivityStatus = "Re-authenticating to enable Assist…"
+                            if let old = self.activeGoogleCloudSession {
+                                Task { try? await old.close() }
+                            }
+                            self.activeGoogleCloudSession = nil
+                            let scopeMessage = """
+                            **Action required — additional permissions needed**
+
+                            Your Google account session is missing the permissions needed to use the Gemini API directly without an API key. \
+                            A sign-in prompt has been opened — please approve the permissions to continue using Assist.
+                            """
+                            self.messages.append(AssistMessage(role: .system, content: scopeMessage))
+                            self.saveHistory()
+                            GoogleAccountAuthService.shared.reAuthenticateForAssistScopes()
+                        }
+                        break executionLoop
+                    }
+
                     let isQuota = AssistModelRouter.shared.isQuotaOrRateLimit(errorText: errText)
                     let isPermanentAuth = errText.contains("401") || errText.contains("403") || errText.contains("API_KEY_INVALID") || errText.contains("invalid api key")
 

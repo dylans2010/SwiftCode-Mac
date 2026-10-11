@@ -1183,7 +1183,11 @@ public final class LLMService: Sendable {
             request.setValue(key, forHTTPHeaderField: "x-api-key")
             request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         case .google:
-            request.url = request.url?.appending(queryItems: [URLQueryItem(name: "key", value: key)])
+            if key.hasPrefix("ya29.") || (key.contains(".") && !key.starts(with: "AIza")) {
+                request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            } else {
+                request.url = request.url?.appending(queryItems: [URLQueryItem(name: "key", value: key)])
+            }
         default:
             request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         }

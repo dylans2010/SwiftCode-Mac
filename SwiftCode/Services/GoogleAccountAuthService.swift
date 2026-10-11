@@ -76,6 +76,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     public nonisolated static let refreshTokenKey = "google_oauth_refresh_token"
     public nonisolated static let userEmailKey = "google_account_email"
     public nonisolated static let expiresAtKey = "google_oauth_expires_at"
+    public nonisolated static let scopeKey = "google_oauth_scope"
     private nonisolated static let explicitlySignedOutKey = "google_oauth_explicitly_signed_out"
 
     // MARK: - Observable State
@@ -94,12 +95,17 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
     // MARK: - OAuth Configuration
     private let callbackScheme = "swiftcode"
-    private let scopes = [
+    public static let requiredScopes = [
+        "openid",
         "email",
         "profile",
-        "openid",
-        "https://www.googleapis.com/auth/cloud-platform"
-    ].joined(separator: " ")
+        "https://www.googleapis.com/auth/cloud-platform",
+        "https://www.googleapis.com/auth/generative-language",
+        "https://www.googleapis.com/auth/generative-language.retriever"
+    ]
+    private var scopes: String {
+        Self.requiredScopes.joined(separator: " ")
+    }
 
     private var clientID: String {
         if let env = ProcessInfo.processInfo.environment["GOOGLE_CLIENT_ID"], !env.isEmpty {
@@ -284,6 +290,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         KeychainService.shared.delete(forKey: Self.refreshTokenKey)
         KeychainService.shared.delete(forKey: Self.userEmailKey)
         KeychainService.shared.delete(forKey: Self.expiresAtKey)
+        KeychainService.shared.delete(forKey: Self.scopeKey)
 
         UserDefaults.standard.set(true, forKey: Self.explicitlySignedOutKey)
 
@@ -303,6 +310,25 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         Task {
             await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true)
         }
+    }
+
+    // MARK: - Assist Scope Verification & Re-Authentication
+
+    /// Verifies if the active OAuth session has the required scopes for Gemini / Generative Language API.
+    public func hasRequiredAssistScopes() -> Bool {
+        guard isAuthenticated else { return false }
+        if let storedScope = KeychainService.shared.get(forKey: Self.scopeKey) {
+            return storedScope.contains("generative-language")
+        }
+        // If scope was never recorded (e.g. legacy session), the token lacks generative-language
+        return false
+    }
+
+    /// Re-authenticates the user with the complete set of Assist scopes without requiring API keys.
+    public func reAuthenticateForAssistScopes() {
+        logger.info("Re-authenticating user to request Gemini generative-language scopes...")
+        signOut()
+        signIn()
     }
 
     // MARK: - Access Token Accessors
@@ -408,6 +434,9 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             if let refreshToken = tokens.refreshToken {
                 KeychainService.shared.set(refreshToken, forKey: Self.refreshTokenKey)
             }
+            let scopeToStore = tokens.scope ?? scopes
+            KeychainService.shared.set(scopeToStore, forKey: Self.scopeKey)
+
             let expiresAt = Date().addingTimeInterval(TimeInterval(tokens.expiresIn ?? 3600)).timeIntervalSince1970
             KeychainService.shared.set(String(expiresAt), forKey: Self.expiresAtKey)
 
@@ -439,6 +468,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             logger.info("Successfully authenticated with Google account: \(self.userEmail ?? "unknown")")
 
             Task {
+                AssistModelRouter.shared.clearAllQuarantines()
                 try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
                 await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true)
             }
@@ -570,6 +600,9 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         if let newRefreshToken = json["refresh_token"] as? String {
             KeychainService.shared.set(newRefreshToken, forKey: Self.refreshTokenKey)
         }
+        if let newScope = json["scope"] as? String {
+            KeychainService.shared.set(newScope, forKey: Self.scopeKey)
+        }
 
         return newAccessToken
     }
@@ -607,6 +640,9 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             KeychainService.shared.set(String(expiresAt), forKey: Self.expiresAtKey)
             if let newRefreshToken = json["refresh_token"] as? String {
                 KeychainService.shared.set(newRefreshToken, forKey: Self.refreshTokenKey)
+            }
+            if let newScope = json["scope"] as? String {
+                KeychainService.shared.set(newScope, forKey: Self.scopeKey)
             }
             resultToken = newAccessToken
         }

@@ -466,6 +466,12 @@ public final class AssistModelRouter: Sendable {
         markModelHealthy(modelID: modelIdentifier)
     }
 
+    public func clearAllQuarantines() {
+        quarantinedModels.removeAll()
+        failedAttemptsCount.removeAll()
+        logger.info("[ModelRouter] Cleared all model quarantines.")
+    }
+
     public func buildContinuationPrompt(originalPrompt: String, priorTurnOutput: String, failedModelName: String) -> String {
         var handoff = "CONTINUATION DIRECTIVE:\n"
         handoff += "The previous model (\(failedModelName)) encountered an interruption or rate limit and failed.\n"

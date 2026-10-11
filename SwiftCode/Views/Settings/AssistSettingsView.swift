@@ -2208,6 +2208,34 @@ struct AssistSettingsView: View {
                 .controlSize(.small)
             }
 
+            if !googleAuth.hasRequiredAssistScopes() {
+                HStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                        .font(.system(size: 14))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Gemini API Permissions Needed")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.primary)
+                        Text("Your session needs updated permissions to use Assist directly with your Google account without an API key.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Button("Update Permissions") {
+                        googleAuth.reAuthenticateForAssistScopes()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                .padding(10)
+                .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                )
+            }
+
             Divider()
 
             accountLimitsAllowanceCard
